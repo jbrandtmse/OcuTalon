@@ -1164,3 +1164,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
 - 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
+
+### DW-231: Story 4.4's feed/break-feed-api.ts (and Story 4.7's guide-marker calls) is a second typed API client beside ApiClient (Stack row: one typed API client), because web/src/app/api/** is Epic 10's footprint
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine Stack row Angular L926; veto U-U-84
+- 2026-10-26T02:35:44Z status=routed owner=burndown by=spec_gate note=move press() and the marker calls into ApiClient once Epic 10 merges; re-own to an Epic 10 story at the burn-down
+- 2026-10-26T02:35:59Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=spec_gate note=Rule_2_copy_forced_by_the_footprint_is_routed_to_the_story_that_unifies_it_(never_burndown_for_a_LOW): 10.3 edits web/src/app/api/** (the Telegram block of StateSnapshot); move break-feed-api.ts press() and the guide-marker calls into ApiClient there
+
+### DW-232: Story 8.4's acceptance criteria ask for a CI mock scenario keyed by 'Remind me in 1 minute to stretch.' under ci/mock/scenarios/B/, which Story 4.4 adds as guide-reminder.json; the mock loader refuses a repeated prompt (scenarios.mjs), so 8.4 must extend guide-reminder.json rather than add a second scenario
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md Story 8.4 (about L3074); ci/mock scenarios.mjs:255 duplicate-prompt refusal
+- 2026-10-26T02:35:44Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=coordination: extend Epic 4's B scenario
