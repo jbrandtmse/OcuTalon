@@ -148,3 +148,5 @@
 2026-10-26T10:02:51Z	Story 4.4	fresh_check	env=recipe(ci/iris.sh_fresh,tag_e4s4f2,lock=lane-b) tests=live_sign-in(210+1skip;Q9,Q11)+live_floor(smoke)+web_test+ci/checks.sh result=pass order=forward(live_units) leftovers=none model=claude-opus-5-5
 2026-10-26T10:03:17Z	Story 4.4	committed	sha=0cd85a2 submodules= ci=pending runs=40304315110,40304315077 amendments=none fix_for=4-4-show-the-demo-guide-and-the-break-the-feed-box note=rework_1(CI_Q9);pushed_with_b4709dc
 2026-10-26T10:03:17Z	Story 4.4	story_cycle	plan_to_commit_min=530 implement_passes=2 reviews=2 rework=1(ci) first_ci=story models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-26T10:24:10Z	Story 4.4	ci_resolved	story=4.4 sha=0cd85a2 runs=40304315110,40304315077 result=success failed=none via=none resolved_at=next_plan(before_4.5_implement) dw198_evidence=floor-webkit_G1_green_run_1(40304315110)
+2026-10-26T10:24:18Z	Story 4.5	stage_spawned	spawn_at=2026-10-26T10:24:18Z stage=implement model=claude-sonnet agent_name=4-5-get-notifications-on-the-simulated-phone-implement-1 cycle_iteration=1 story_base=bf919c7
