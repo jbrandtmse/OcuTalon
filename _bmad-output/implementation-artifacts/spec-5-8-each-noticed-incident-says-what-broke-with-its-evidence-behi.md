@@ -2,7 +2,7 @@
 title: 'Each noticed incident says what broke, with its evidence behind Show details'
 type: 'feature'
 created: '2026-10-26'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -163,21 +163,23 @@ Every path is under `src/ocutalon/cls/` unless noted.
 
 ## Spec Change Log
 
+- 2026-10-26, spec gate (Epic 5 runner): R2 and R3 ruled by the orchestrator (veto U-92; DW-270, DW-271, DW-272 routed to Stories 7.2 and 7.4; Epic 5's blocks amended); V1 and V2 ruled vetoes U-93 and U-94; spine rows written; status set to `ready-for-dev`.
+
 ## Review Triage Log
 
 ## Design Notes
 
-**Rulings pending the orchestrator (R2, R3).** This spec is written to the recommended answers, carried from Story 5.4's Design Notes. Both move part of an epics criterion of 5.8 to a not-yet-planned Epic 7 story in the same release (veto item 7). The lead applies the ruling at the spec gate.
-- **R2. The with-fix notice** [pending the orchestrator's ruling]. Epics AC 1 asks 5.8 to send the with-fix notice, set `NoticedAt` and publish `open`. That contradicts AD-15's Rule and transition table (`open, not noticed` leaves only "with a fix and a valid dry run (`Raise`)", to `awaiting_approval`), AD-32 (the first request's `ApprovalRef` travels on every incident notice) and the catalog (`incident.withFix` needs `field`, `before`, `after` and `resendCount`, and asks "Approve?"; `Render` refuses a missing slot).
+**Rulings (R2 and R3 RULED 2026-10-26 by the orchestrator as recommended, veto U-92; V1 and V2 RULED by the epic lead, vetoes U-93 and U-94; the moved criteria travel as ledger entries DW-270 and DW-271 (owner 7.2) and DW-272 (owner 7.4), and Epic 5's blocks carry `[AMENDED … U-92]` markers; the spine rows were written by the lead).** Originally: rulings pending the orchestrator (R2, R3). This spec is written to the recommended answers, carried from Story 5.4's Design Notes. Both move part of an epics criterion of 5.8 to a not-yet-planned Epic 7 story in the same release (veto item 7). The lead applies the ruling at the spec gate.
+- **R2. The with-fix notice** [RULED: as recommended, veto U-92; DW-270 to 7.2]. Epics AC 1 asks 5.8 to send the with-fix notice, set `NoticedAt` and publish `open`. That contradicts AD-15's Rule and transition table (`open, not noticed` leaves only "with a fix and a valid dry run (`Raise`)", to `awaiting_approval`), AD-32 (the first request's `ApprovalRef` travels on every incident notice) and the catalog (`incident.withFix` needs `field`, `before`, `after` and `resendCount`, and asks "Approve?"; `Render` refuses a missing slot).
   - Recommended (a): store, don't notice. Story 7.2 sends the notice with the dry run and `Raise`, calling `Deliver` (state `awaiting_approval`, key `incident.withFix`, `Watch.Notice`'s with-fix slots plus its own four, the `ApprovalRef`). AC 5's UJ-1 check ("50 orders and the first failure's time … then the notice") moves to 7.2. Its ordering part is kept here for the no-fix notice (AC 2).
   - Alternatives: (b) amend AD-15 for an interim with-fix notice (needs new public text); (c) send as written (contradicts AD-15 and AD-32, and cannot render). Not recommended.
-- **R3. `Requests`' `Result`** [pending the orchestrator's ruling]. No table stores a request's `Total` … `Reason` before Epic 7.
+- **R3. `Requests`' `Result`** [RULED: as recommended, veto U-92; DW-271 to 7.2 (the `RequestRefs` append), DW-272 to 7.4 (the counts)]. No table stores a request's `Total` … `Reason` before Epic 7.
   - Recommended: list each request's `Ref` and `State` from its `ApprovalRequest` row; `Result` is filled by the story that stores a fix run's counts (7.4).
   - Refinement found while planning: `FromRow` runs in `/state` as `OcuTalonUser`, who holds no SQL grant, and AD-13 allows unchecked prepares only in three named methods. So "by `IncidentRef`" cannot be a query there. The rows are reached by `Ref` through the incident's own `RequestRefs` (veto V1), which Story 7.2 appends to at `Raise`. In Epic 5 nothing writes it, and a fixture pins the read.
   - Alternative (b): the whole `Requests` clause moves to 7.2, which raises the first request. `RequestRefs` is then 7.2's.
 
 **Veto items for the spec gate** (not blocking; the lead rules them):
-- **V1. Schema.** These change how stored data is kept. No released install holds incidents, so no migration is planned.
+- **V1. Schema.** [RULED: keep, veto U-93] These change how stored data is kept. No released install holds incidents, so no migration is planned.
   - `FailureGroup.Seq` and unique `SeqIndex (IncidentRef, Seq)`: `FromRow` must reach an incident's groups without SQL (AD-13), and a unique index gives `SeqIndexOpen`.
   - `FailureGroup.Count` (SQL `FailureCount`), `FirstAt`, `LastAt`: per-group counts and times for `Groups` and `Evidence.items`. They equal the incident's while an incident has one group; Story 7.2's later groups need their own.
   - `FailureGroup.NoticeCount`: the group lines add up to the notice's `count` when failures join during the diagnosis.
@@ -185,7 +187,7 @@ Every path is under `src/ocutalon/cls/` unless noted.
   - `Incident.FirstHeaderId`: `traceTargets.firstFailure`. `Incident.SampleHeaderId` and `SampleError`: `evidence` and `traceTargets.sample`. They are taken from the pack at the settle end, so no second read of the watched namespace is needed.
   - `Incident.RequestRefs`: R3.
   - Entries: `Test/Data/Tables.cls`, under the standing ruling.
-- **V2. Public text.** A failure whose error text is empty (`Reader` gives "" when no log row names the message and the header has no error status, `Test.Watch.Reader` L207) has no summary. The catalog refuses an empty `text` slot, so the notice could not render. Proposed: the code-written value "no error text", giving the line `OrdersFromPartner: 3, 'no error text', first at 14:12`. It is public text not in the UX. The other choice is to leave the line out, which breaks "one line per group".
+- **V2. Public text.** [RULED: keep "no error text", veto U-94] A failure whose error text is empty (`Reader` gives "" when no log row names the message and the header has no error status, `Test.Watch.Reader` L207) has no summary. The catalog refuses an empty `text` slot, so the notice could not render. Proposed: the code-written value "no error text", giving the line `OrdersFromPartner: 3, 'no error text', first at 14:12`. It is public text not in the UX. The other choice is to leave the line out, which breaks "one line per group".
 
 **Governing ADs:**
 - AD-4: `Recipients`; an `instance` incident notifies every watcher session.
@@ -253,7 +255,7 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 
 **Footprint extensions** (none contended): `Live/Payload/Incident.cls` (Lane A home area, AD-33: Lane A publishes `incident`); `Test/Live/Payloads.cls` (its Incident rows); `Test/Data/Tables.cls` (standing ruling: two entries).
 
-**Spine candidates (Rule 20, for the lead):**
+**Spine (Rule 20), written by the lead at the spec gate:** the "Watch failures" and "Identifiers" rows were amended and the row "Incident notice" added. The candidates were:
 - "Watch failures": name `ErrorText.Text` and `Summary`.
 - "Identifiers": the pack and tools carry `logRef`.
 - AD-12 or AD-13: a payload builder that `/state` calls reads rows by object access only.
@@ -305,7 +307,7 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: rulings R2 (the with-fix notice: store and leave unnoticed, Story 7.2 sends it with the dry run and Raise through this story's Deliver and with-fix slot builder; AC 5's UJ-1 check moves to 7.2) and R3 (Requests: Ref and State from the ApprovalRequest rows, reached through Incident.RequestRefs because FromRow runs SQL-free in /state under AD-13; Result filled by 7.4), pending the orchestrator's ruling (Design Notes)
+Status: ready-for-dev
+Blocking condition: none
 
-Plan stage, 2026-10-26: the spec is written to the recommended answers of R2 and R3 and otherwise meets the READY-FOR-DEVELOPMENT standard, so the lead can set `ready-for-dev` once both are ruled as recommended. Veto items V1 (schema: each new FailureGroup and Incident property, with why) and V2 (the code-written value "no error text" for an empty error summary) are listed under Design Notes for the spec gate, and do not block.
+Plan stage, 2026-10-26: the plan halted `blocked` on R2 and R3 as the lead asked; the orchestrator ruled both as recommended (veto U-92) and the epic runner ruled V1 and V2 (vetoes U-93, U-94) and set the spec `ready-for-dev` at the spec gate.
