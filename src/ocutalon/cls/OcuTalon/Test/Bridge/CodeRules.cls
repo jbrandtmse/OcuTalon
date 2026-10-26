@@ -17,6 +17,9 @@
 ///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
 ///     to flag those forms and to pass the payload classes, reads, other event types and comment lines. A static scan cannot see a %Save of a row that was
 ///     opened elsewhere, nor an event type that a variable or a helper's argument holds, nor a call that spans lines;
+///   - TestWatchReadsCallOnlyListed (Story 5.4; AD-6): the read tools of the Diagnosis agent and the classes whose methods they run (WATCHREADS) name in their
+///     code (##class or $ClassMethod of a literal name) no OcuTalon class that is neither in CALLBACKHELPERS nor a callback class, so that every class the
+///     tools reach is scanned by the callback rule. The scanner is first shown to flag a call to an unlisted class and to pass a listed one and a comment line;
 ///   - TestRunnerStartsNoJob: the runner and its adapter start no job and use no work manager, because the pool size is the
 ///     concurrency cap (AD-6);
 ///   - TestToolCodeScan: ToolCodeClean flags a tool class that runs an operating system command, executes code, loads or compiles
@@ -68,6 +71,10 @@ Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.
 
 /// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
 Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
+
+/// The read tools of the Diagnosis agent and the classes whose methods they run inside the callback (Story 5.4): the provider, the evidence pack, the
+/// reader and the two pure helpers of the error sentence and the pattern. The row classes they open are listed in CALLBACKHELPERS and not scanned here.
+Parameter WATCHREADS = "OcuTalon.Tools.WatchReads,OcuTalon.Watch.EvidencePack,OcuTalon.Watch.Reader,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
 
 /// The classes that BridgeSink calls once it publishes, from the gate's callback (DW-177): the publisher and its event, the owner of the rows it reads, the session and
 /// the turn and incident rows behind them, and the payload builders of the events.
@@ -200,6 +207,39 @@ Method TestCallbackRule()
 	}
 	Do $$$AssertTrue(..IsCallbackClass("OcuTalon.Bridge.Ext.Classification") && ..IsCallbackClass("OcuTalon.Test.Bridge.ProbeSink"), "an extension base and a subclass of one are scanned")
 	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class, nor a class that they call, refers to %AI beyond its Class line, or uses Python")
+}
+
+/// The read tools of the Diagnosis agent, and the classes whose methods they run (WATCHREADS), call only OcuTalon classes that are in CALLBACKHELPERS or
+/// are callback classes (Story 5.4, AC 6). The scanner is first shown to flag a call to an unlisted class, also through $ClassMethod, and to pass a listed
+/// class and a comment line.
+Method TestWatchReadsCallOnlyListed()
+{
+	Set tab = $Char(9)
+	Do $$$AssertEquals(..UnlistedCalls(tab_"Set d = ##class(OcuTalon.Data.Delivery).%OpenId(1)"_$Char(10)_tab_"Set c = $ClassMethod(""OcuTalon.Zz.Unlisted"", ""Run"")"), "OcuTalon.Data.Delivery,OcuTalon.Zz.Unlisted", "the scanner flags a call to an unlisted class, also through $ClassMethod")
+	Do $$$AssertEquals(..UnlistedCalls(tab_"Set i = ##class(OcuTalon.Data.Incident).RefIndexOpen(r)"_$Char(10)_tab_"// ##class(OcuTalon.Data.Delivery).%OpenId(1)"_$Char(10)_tab_"Quit ..Return({})"), "", "and passes a listed class and a comment line")
+	For i = 1:1:$Length(..#WATCHREADS, ",") {
+		Set class = $Piece(..#WATCHREADS, ",", i)
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
+		Do $$$AssertEquals(..UnlistedCalls(text), "", class_" runs inside the callback and calls only listed callback classes")
+	}
+}
+
+/// The OcuTalon classes that the code lines of the text call by a literal name (##class(...) or $ClassMethod("...") and that are neither in
+/// CALLBACKHELPERS nor callback classes, comma-separated in the order found; "" when there is none.
+ClassMethod UnlistedCalls(text As %String) As %String [ Private ]
+{
+	Set found = ""
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set matcher = ##class(%Regex.Matcher).%New("(?i)(?:##class\(\s*|\$ClassMethod\(\s*"")(OcuTalon\.[A-Za-z0-9.]+)", line)
+		While matcher.Locate() {
+			Set name = matcher.Group(1)
+			If ..IsCallbackClass(name) || $ListFind($ListFromString(found), name) Continue
+			Set found = found _ $Select(found = "": "", 1: ",") _ name
+		}
+	}
+	Quit found
 }
 
 /// No class outside the Test package writes an audit entry except the audit class: the scanner flags each form of the call and passes Record,

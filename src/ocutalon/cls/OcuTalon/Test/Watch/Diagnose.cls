@@ -12,9 +12,13 @@ Include Ensemble
 ///   - TestDiagnosisVariants (rows No fix, Unknown, Invalid / refusal): one batch of four failures whose texts hold the markers diagnosis-nofix,
 ///     diagnosis-unknown, invalid-reply and refusal gives four incidents that settle together: partner_outage without a fix and with the noun message/messages,
 ///     unknown without a fix and with the diagnosis's own noun (invoice/invoices), and two fallbacks (invalid, refusal) with no cause, category, element or fix, the code noun and the fallback decision's Ref;
+///     beside them, a failure of a real failed order of OCUORDERS whose text holds invalid-reply gives a fallback whose code noun is that of the sample's body
+///     class, order/orders;
 ///   - TestGoneBeforeTheAnswer: an incident deleted after `diagnosing` while the delayed reply (diagnosis-late) is on its way gets no row back and no error;
 ///   - TestRefusedRequest: the error handler of the diagnose request (through Test.Watch.IncidentProbe, a shadow instance in the test process) stores the fallback
-///     error with one Type 3 warning and leaves the row otherwise as it was; an incident that is noticed, closed or gone is not written.
+///     error with one Type 3 warning and leaves the row otherwise as it was; an incident that is noticed, closed or gone is not written. The answer handler
+///     (the probe's Answer) writes a usable answer to an open incident, and neither to a noticed nor to a closed one, and the empty answer that follows an
+///     error writes nothing.
 Class OcuTalon.Test.Watch.Diagnose Extends OcuTalon.Test.Watch.Case
 {
 
@@ -84,9 +88,10 @@ Method TestDemoDiagnosis()
 
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Set requests = []
+	Set firstAt = $Select($IsObject(row): row.FirstAt, 1: "")
 	Set iterator = entries.%GetIterator()
 	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), "ocutalon.evidencePack/1") Do requests.%Push(entry)
+		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), "ocutalon.evidencePack/1") && (firstAt '= "") && $Find(entry.%ToJSON(), firstAt) Do requests.%Push(entry)
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the diagnosis made two model requests")
 	If requests.%Size() = 2 {
@@ -113,6 +118,12 @@ Method TestDiagnosisVariants()
 	If '..Ready() Quit
 	If '..PointKeys() Quit
 	Set a = ..Session("variants")
+	If '..Fail(1) Quit
+	Set failed = ..WaitFailed(1)
+	Do $$$AssertEquals(failed.%Size(), 1, "one real failed order of OCUORDERS")
+	If failed.%Size() < 1 Quit
+	Set order = [{"item": "OrdersFromPartner", "text": "[[mock:invalid-reply]] Field 'Qty' was empty", "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1)), "id": ($Piece(..HeaderIds(failed), ",", 1))}]
+	Do $$$AssertStatusOK(..SendBatch(..#ORDERS, ..#ORDERSPRODUCTION, a, order), "a failure of that order is sent")
 	Set failures = []
 	For marker = "diagnosis-nofix", "diagnosis-unknown", "invalid-reply", "refusal" {
 		Do failures.%Push({"item": (..Item(marker)), "text": ("[[mock:"_marker_"]] Field 'Qty' was empty"), "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1))})
@@ -147,6 +158,14 @@ Method TestDiagnosisVariants()
 			Do $$$AssertEquals(decision.Fallback, 1, marker_": the decision is the fallback")
 		}
 	}
+	Set orders = ..WaitIncident(a, ..#ORDERSPRODUCTION)
+	Do $$$AssertEquals(orders.%Size(), 1, "one incident of the real order")
+	If orders.%Size() '= 1 Quit
+	Set ref = orders.%Get(0).ref
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "it holds its diagnosis")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.ItemNoun, "1|invalid|"_..#ORDERNOUN, "its fallback keeps the code noun of the sample's body class: order and orders")
 }
 
 Method TestGoneBeforeTheAnswer()
@@ -202,42 +221,63 @@ Method TestRefusedRequest()
 	If '$IsObject(host) Quit
 	Set log = $Parameter(..#PROBE, "LOGDIAGNOSE")
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
-	Set incident = ..Row(a, "")
+	Set ref = ..Row(a, "")
 	Set error = $SYSTEM.Status.Error(5001, "The request is refused: no runner")
-	Do $$$AssertStatusOK(host.Refuse(incident.Ref, error), "the handler of the diagnose key answers OK")
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident.Ref)
+	Do $$$AssertStatusOK(host.Refuse(ref, error), "the handler of the diagnose key answers OK")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Cause_row.CauseCategory_row.Element_row.FixSummary_"|"_row.DecisionRef, "1|error||", "the incident holds the fallback error and no diagnosis")
 	Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.NoticeCount_"|"_row.ItemNoun, "open||7|"_..#MESSAGENOUN, "the row stands as it was")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Refused", log_incident.Ref), 1, "one Type 3 warning names the incident")
+	Kill row
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Refused", log_ref), 1, "one Type 3 warning names the incident")
 	Do $$$AssertTrue(text [ "no runner", "and holds the error: "_text)
 	Set noticed = ..Row(a, ##class(OcuTalon.Data.Time).NowUtc())
-	Do host.Refuse(noticed.Ref, error)
-	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(noticed.Ref).Fallback, 0, "a noticed incident is not written")
-	Set closed = ..Row(a, "")
-	Set closed.State = "closed"
-	Do closed.%Save()
-	Do host.Refuse(closed.Ref, error)
-	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(closed.Ref).Fallback, 0, "nor a closed one")
-	Do host.Refuse(##class(OcuTalon.Bridge.Ids).NewRef(), error)
-	Do $$$AssertEquals(..Incidents(a, ..#SYNTH).%Size(), 3, "and one that is gone is not made again")
+	Do host.Refuse(noticed, error)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(noticed).Fallback, 0, "a noticed incident is not written")
+	Set closed = ..Row(a, "", "closed")
+	Do host.Refuse(closed, error)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(closed).Fallback, 0, "nor a closed one")
+	Set gone = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do host.Refuse(gone, error)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(gone), 0, "and one that is gone is not made again")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Refused", log)
+
+	Set answer = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
+	Set answer.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set answer.Fallback = 0
+	Set answer.Payload = {"outcome": "act", "causeCategory": "unknown", "cause": "zz late cause", "reasons": ["zz"], "confidence": 0.5}.%ToJSON()
+	Set open = ..Row(a, "")
+	Do $$$AssertStatusOK(host.Answer(open, answer), "the answer handler answers OK")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(open)
+	Do $$$AssertEquals(row.Cause_"|"_row.CauseCategory_"|"_row.DecisionRef, "zz late cause|unknown|"_answer.DecisionRef, "a usable answer is written to an open incident")
+	Kill row
+	For each = $ListBuild(noticed, "a noticed incident"), $ListBuild(closed, "a closed one") {
+		Do $$$AssertStatusOK(host.Answer($List(each, 1), answer), "the answer handler answers OK for "_$List(each, 2))
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen($List(each, 1))
+		Do $$$AssertEquals(row.Cause_"|"_row.DecisionRef_"|"_row.Fallback, "||0", "and a late answer does not write "_$List(each, 2))
+		Kill row
+	}
+	Set blank = ..Row(a, "")
+	Do $$$AssertStatusOK(host.Answer(blank, ""), "the empty answer that follows an error answers OK")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(blank)
+	Do $$$AssertEquals(row.DecisionRef_"|"_row.Fallback_"|"_row.Cause, "|0|", "and writes nothing")
 }
 
-/// An open incident row of the owner (a fixture): count 7, the code noun, and NoticedAt as given.
-Method Row(owner As %String, noticedAt As %String) As OcuTalon.Data.Incident [ Private ]
+/// The Ref of an incident row of the owner (a fixture): count 7, the code noun, NoticedAt and the state as given. The row is not kept open, so that
+/// what a test reads afterwards comes from the database.
+Method Row(owner As %String, noticedAt As %String, state As %String = "open") As %String [ Private ]
 {
 	Set incident = ##class(OcuTalon.Data.Incident).%New()
 	Set incident.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set incident.OwnerRef = owner
 	Set incident.Namespace = ..#SYNTHNS
 	Set incident.Production = ..#SYNTH
-	Set incident.State = "open"
+	Set incident.State = state
 	Set incident.Count = 7
 	Set incident.NoticeCount = 7
 	Set incident.NoticedAt = noticedAt
 	Set incident.ItemNoun = ..#MESSAGENOUN
 	Do $$$AssertStatusOK(incident.%Save(), "a fixture incident is saved")
-	Quit incident
+	Quit incident.Ref
 }
 
 }

@@ -29,8 +29,9 @@
 ///     Story 0.10 (format ocutalon.readerSnapshot/1): failures (one per header key: the header's fields, its error text chosen as Failures
 ///     chooses it, and body, the stored datatype properties of its message body, read through the class dictionary), eventLog (the rows of
 ///     the failures' sessions and of the log keys), items (the named item only, with its settings) and trace (the first failure's session, at
-///     most TRACEMAX headers). The settings whose name holds credentials, password, token or key (CredentialName) are left out after the
-///     switch, before Evidence returns. The texts are raw: the caller redacts them.
+///     most TRACEMAX headers). The settings whose name holds credential, password, passwd, passphrase, secret, token, key or auth
+///     (CredentialName) are left out after the switch, before Evidence returns, also when the read fails. The texts are raw, line breaks
+///     included: the caller redacts them.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
 /// Current, which calls no OcuTalon class while it is in the other namespace. A reader runs inside AI Hub's callback, so this class makes no
 /// AI Hub call, no Python call and no session call (AD-6).
@@ -48,6 +49,9 @@ Parameter LOGMAX = 100;
 
 /// The longest value of a message body's property in an evidence snapshot, in characters.
 Parameter VALUEMAX = 1000;
+
+/// The parts of a setting's name that make its value one that must never leave the reader, in lower case, comma-separated.
+Parameter CREDENTIALPARTS = "credential,password,passwd,passphrase,secret,token,key,auth";
 
 /// The trailing word that a name may carry: "the Orders production".
 Parameter SUFFIX = " production";
@@ -186,8 +190,6 @@ ClassMethod Evidence(namespace As %String, production As %String, item As %Strin
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	If '..Readable(user, namespace) Quit "unreadable"
 	Do ..Current(namespace, .description, production, "", 0, .rows, .outcome, .fault, item, $Get(keys), .snapshot)
-	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The evidence of "_production_" in "_namespace_" could not be read: "_fault))
-	If outcome '= "read" Quit outcome
 	Set items = snapshot.items
 	For i = 0:1:items.%Size() - 1 {
 		Set settings = items.%Get(i).settings
@@ -203,14 +205,20 @@ ClassMethod Evidence(namespace As %String, production As %String, item As %Strin
 			Do settings.%Remove(name)
 		}
 	}
+	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The evidence of "_production_" in "_namespace_" could not be read: "_fault))
 	Quit outcome
 }
 
-/// 1 when the name of a setting is one whose value must never leave the reader: it holds credentials, password, token or key, in any case (pure).
+/// 1 when the name of a setting is one whose value must never leave the reader: it holds one of CREDENTIALPARTS, in any case (pure).
 ClassMethod CredentialName(name As %String) As %Boolean
 {
 	Set lower = $ZConvert($Get(name), "L")
-	Quit (lower [ "credentials") || (lower [ "password") || (lower [ "token") || (lower [ "key")
+	Set parts = $ListFromString(..#CREDENTIALPARTS)
+	Set position = 0
+	While $ListNext(parts, position, part) {
+		If lower [ part Return 1
+	}
+	Quit 0
 }
 
 /// The name of the namespace's own current production, and its definition's Description, as written, in description: the running production as
@@ -313,7 +321,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 							If evidence {
 								Set failure = {"headerId": (id), "sessionId": (sessionId), "superSession": (result.%GetData(3)), "timeCreated": ($Translate($Piece(result.%GetData(11), ".", 1), " ", "T")_"Z"), "timeProcessed": ($Translate($Piece(result.%GetData(9), ".", 1), " ", "T")_"Z"), "sourceConfigName": (result.%GetData(4)), "targetConfigName": (target), "bodyClass": (result.%GetData(6)), "bodyId": (result.%GetData(10)), "status": (##class(Ens.DataType.MessageStatus).LogicalToDisplay(result.%GetData(12)))}
 								Do failure.%Set("isError", +result.%GetData(7), "boolean")
-								Set failure.error = $Translate(text, $Char(13, 10), "  ")
+								Set failure.error = text
 								Set body = {}
 								Set bodyClass = result.%GetData(6)
 								If (bodyClass '= "") && (result.%GetData(10) '= "") && ##class(%Dictionary.CompiledClass).%ExistsId(bodyClass) && $ClassMethod(bodyClass, "%Extends", "%Library.Persistent") {
@@ -321,6 +329,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 										Set object = $ClassMethod(bodyClass, "%OpenId", result.%GetData(10))
 										If $IsObject(object) {
 											Set props = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Type FROM %Dictionary.CompiledProperty WHERE parent = ? AND Private = 0 AND Calculated = 0 AND Transient = 0 AND MultiDimensional = 0 AND Relationship = 0 ORDER BY SequenceNumber", bodyClass)
+											If props.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, props.%Message))
 											While props.%Next() {
 												If ##class(%Dictionary.CompiledProperty).%OpenId(bodyClass_"||"_props.%Get("Name")).Collection '= "" Continue
 												Set type = ##class(%Dictionary.CompiledClass).%OpenId(props.%Get("Type"))
@@ -408,7 +417,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 						While (snapshot.eventLog.%Size() < ..#LOGMAX) && result.%Next() {
 							If $Data(logged(result.%Get("ID"))) Continue
 							Set logged(result.%Get("ID")) = ""
-							Do snapshot.eventLog.%Push({"id": (result.%Get("ID")), "timeLogged": ($Translate($Piece(result.%Get("TimeLogged"), ".", 1), " ", "T")_"Z"), "type": (##class(Ens.DataType.LogType).LogicalToDisplay(result.%Get("Type"))), "configName": (result.%Get("ConfigName")), "sourceClass": (result.%Get("SourceClass")), "sourceMethod": (result.%Get("SourceMethod")), "sessionId": (result.%Get("SessionId")), "text": ($Translate(result.%Get("Text"), $Char(13, 10), "  "))})
+							Do snapshot.eventLog.%Push({"id": (result.%Get("ID")), "timeLogged": ($Translate($Piece(result.%Get("TimeLogged"), ".", 1), " ", "T")_"Z"), "type": (##class(Ens.DataType.LogType).LogicalToDisplay(result.%Get("Type"))), "configName": (result.%Get("ConfigName")), "sourceClass": (result.%Get("SourceClass")), "sourceMethod": (result.%Get("SourceMethod")), "sessionId": (result.%Get("SessionId")), "text": (result.%Get("Text"))})
 						}
 					}
 					If $Get(traceSession) '= "" {

@@ -18,9 +18,9 @@
 ///     failure that came meanwhile moves the end. The settle rule ends when the quiet time (setting watch.settleQuietSeconds, 10 by default) has passed
 ///     since LastAt or the maximum (watch.settleMaxSeconds, 30) since FirstAt, whichever comes first: it sets NoticeCount to Count, once, and completes.
 ///     A waiter whose incident is gone, closed or settled completes and writes nothing.
-///   - At the settle end the waiter diagnoses the incident (Story 5.4, AD-6, AD-15): it stores the code noun of the sample's body class
-///     (OcuTalon.Watch.ItemNoun) on the row, publishes watch.progress diagnosing after the commit, builds the evidence pack of the live incident
-///     (OcuTalon.Watch.EvidencePack) and sends one OcuTalon.Bridge.Msg.Request to the Decide item, asynchronously, with a response required and the
+///   - At the settle end the waiter diagnoses the incident (Story 5.4, AD-6, AD-15): it builds the evidence pack of the live incident
+///     (OcuTalon.Watch.EvidencePack), stores the code noun of the sample's body class (OcuTalon.Watch.ItemNoun) on the row, publishes watch.progress
+///     diagnosing after that commit and sends one OcuTalon.Bridge.Msg.Request to the Decide item, asynchronously, with a response required and the
 ///     completion key diagnose: kind diagnose, provenance untrusted, ItemId the incident's Ref, OwnerRef its owner, TraceRef the waiter's
 ///     SuperSession, ThreadSessionId the waiter's own session (the incident's TraceHeaderId), a code-written Summary and the pack as Input. It never
 ///     goes to OutcomeRouter (AD-30). The answer (a DecisionResponse) sets DecisionRef, Fallback and FallbackReason on the row; a usable answer (Fallback

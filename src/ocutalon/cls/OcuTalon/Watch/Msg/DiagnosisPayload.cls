@@ -3,11 +3,12 @@
 ///   - causeCategory, one of CAUSECATEGORIES, and elementAtFault;
 ///   - evidence, a list of references of at most MAXEVIDENCE entries;
 ///   - fixKind, repair_resend or empty, and fixParameters {field, sourceFormat, targetFormat};
-///   - cause and fixSummary, the two texts that Decide filters (FILTERED), and itemNoun {one, other}.
-/// Import refuses a field that is not declared here. %OnValidateObject adds, after the parent's check: the outcome act; a category of the list; a
-/// cause that is not blank; the fixKind repair_resend exactly when the category is data_format_change (then elementAtFault, fixSummary and
-/// fixParameters.field are not blank; any other category has no fixKind and no fixParameters); an itemNoun, when given, with neither form blank;
-/// and no clock time (h:mm) in cause or fixSummary. Lane A.
+///   - cause and fixSummary, and itemNoun {one, other}.
+/// Decide filters every text of the model that the payload holds (FILTERED, AD-31). Import refuses a field that is not declared here.
+/// %OnValidateObject adds, after the parent's check: the outcome act; a category of the list; a cause that is not blank; the fixKind repair_resend
+/// exactly when the category is data_format_change (then elementAtFault, fixSummary and fixParameters.field are not blank; any other category has no
+/// fixKind, no fixParameters and no fixSummary); an itemNoun, when given, with neither form blank; and no clock time (h:mm, an hour of 0 to 23 and
+/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary. Lane A.
 Class OcuTalon.Watch.Msg.DiagnosisPayload Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
 
@@ -20,8 +21,12 @@ Parameter FIXKINDS = "repair_resend";
 /// The category that has a fix.
 Parameter FIXCATEGORY = "data_format_change";
 
-/// The properties that Decide filters before it records the payload (comma-separated).
-Parameter FILTERED = "Cause,FixSummary";
+/// The properties that Decide filters before it records the payload (comma-separated; a dotted name is a property of an object property, and a
+/// list is filtered item by item): every text of the model that the payload holds.
+Parameter FILTERED = "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,ItemNoun.Other,FixParameters.Field,FixParameters.SourceFormat,FixParameters.TargetFormat";
+
+/// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit.
+Parameter CLOCKTIME = "(?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])";
 
 /// The most references in the evidence list.
 Parameter MAXEVIDENCE = 20;
@@ -69,11 +74,12 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 	} Else {
 		If ..FixKind '= "" Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixKind")
 		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixParameters")
+		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixSummary")
 	}
 	If $IsObject(..ItemNoun) && (..Blank(..ItemNoun.One) || ..Blank(..ItemNoun.Other)) {
 		Quit $$$ERROR($$$GeneralError, "The itemNoun has a blank form")
 	}
-	If $Locate(..Cause, "[0-9]{1,2}:[0-9]{2}") || $Locate(..FixSummary, "[0-9]{1,2}:[0-9]{2}") {
+	If $Locate(..Cause, ..#CLOCKTIME) || $Locate(..FixSummary, ..#CLOCKTIME) {
 		Quit $$$ERROR($$$GeneralError, "The cause and the fixSummary hold no time of day")
 	}
 	Quit $$$OK

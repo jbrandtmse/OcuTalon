@@ -1,11 +1,12 @@
 /// Tests of the pure parts of Story 5.4's diagnosis: the checked payload OcuTalon.Watch.Msg.DiagnosisPayload (as Decide checks a diagnose reply with it,
 /// Decide.CheckReply) and the item noun of OcuTalon.Watch.ItemNoun. They need no production and no namespace, so they run anywhere, a slot included.
-///   - TestPayloadAccepted (row Payload check): a usable data-format reply with its fix and noun, a usable partner_outage without a fix or a noun, and an
-///     unknown, are accepted and keep their values;
+///   - TestPayloadAccepted (row Payload check): a usable data-format reply with its fix and noun, a usable partner_outage without a fix or a noun, an
+///     unknown, and a connection_failure whose cause names an address with a port (10.0.0.5:1972, no time of day), are accepted and keep their values;
 ///   - TestPayloadRefused (row Payload check): outcome tellnow, an unlisted category, a fixKind on partner_outage, a data-format change without fixKind,
 ///     fixSummary, fixParameters.field or elementAtFault, a blank cause, a noun with a blank form, an unknown field, a confidence of 2, no reasons, more than 20
-///     evidence references and a cause that holds "since 14:12" (or a fixSummary that holds a time) are refused, each with an error that names the reply check;
-///   - TestFilteredParameter: the parameter FILTERED names Cause and FixSummary, which Decide filters;
+///     evidence references, a fixSummary on partner_outage and a cause that holds "since 14:12" (or a fixSummary that holds a time) are refused, each with an
+///     error that names the reply check;
+///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
 ///   - TestItemNoun (row Item noun): the Orders body class gives order/orders, any other class and an empty one message/messages, as JSON text.
 Class OcuTalon.Test.Watch.Payload Extends %UnitTest.TestCase
 {
@@ -44,6 +45,8 @@ Method TestPayloadAccepted()
 	If $IsObject(payload) Do $$$AssertEquals(payload.FixKind_"|"_$IsObject(payload.FixParameters)_"|"_$IsObject(payload.ItemNoun), "|0|0", "it has no fix kind, no parameters and no noun")
 	Set unknown = {"outcome": "act", "causeCategory": "unknown", "cause": "The messages show no one cause.", "reasons": ["Nothing links them."], "confidence": 0.2}
 	Do $$$AssertStatusOK(..Check(unknown), "an unknown diagnosis is accepted")
+	Set connection = {"outcome": "act", "causeCategory": "connection_failure", "cause": "The partner at 10.0.0.5:1972 refused the connection.", "reasons": ["The error names the address."], "confidence": 0.8}
+	Do $$$AssertStatusOK(..Check(connection), "a cause that names an address with a port, and no time of day, is accepted")
 }
 
 Method TestPayloadRefused()
@@ -60,6 +63,9 @@ Method TestPayloadRefused()
 	Set reply = ..Outage()
 	Set reply.fixParameters = {"field": "OrderDate"}
 	Do ..AssertRefused(reply, "fixParameters on partner_outage")
+	Set reply = ..Outage()
+	Set reply.fixSummary = "retry the orders later"
+	Do ..AssertRefused(reply, "a fixSummary on partner_outage")
 	For name = "fixKind", "fixSummary", "fixParameters", "elementAtFault" {
 		Set reply = ..Usable()
 		Do reply.%Remove(name)
@@ -105,7 +111,7 @@ Method AssertRefused(reply As %DynamicObject, label As %String) [ Private ]
 
 Method TestFilteredParameter()
 {
-	Do $$$AssertEquals($Parameter(..#CLASS, "FILTERED"), "Cause,FixSummary", "Decide filters the cause and the fix summary")
+	Do $$$AssertEquals($Parameter(..#CLASS, "FILTERED"), "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,ItemNoun.Other,FixParameters.Field,FixParameters.SourceFormat,FixParameters.TargetFormat", "Decide filters every text of the model: the cause, the fix summary, the element, the evidence, the noun and the fix parameters")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "FILTERED"), "", "and the parent names none, so a reply class without FILTERED behaves as before")
 }
 

@@ -10,7 +10,7 @@
 ///     the pattern Settle.Pattern of its error sentence. The sample is the first failure, the settings the item's entry of items, the trace trace.
 ///   - A read that is unreadable, not current or failed leaves out the sample, the settings and the trace; the counts and the pattern stay.
 /// A setting whose name Reader.CredentialName gives is left out, and every string taken from the watched production goes through
-/// OcuTalon.Bridge.Redact.Text. An error text is ErrorText.Sentence(Redact.Text(raw)), as FailurePoller makes it. Read is what the pack and the
+/// OcuTalon.Bridge.Redact.Text; a body, the settings and a trace entry go through it as one JSON object, so that its key rule applies. An error text is ErrorText.Sentence(Redact.Text(raw)), as FailurePoller makes it. Read is what the pack and the
 /// read tools of the Diagnosis agent (OcuTalon.Tools.WatchReads) share; the tools take the incident of the bridge context (Scope). A tool method runs
 /// inside AI Hub's callback, so this class makes no AI Hub call and no Python call, and writes nothing (AD-6).
 Class OcuTalon.Watch.EvidencePack
@@ -185,7 +185,7 @@ ClassMethod LogMessage(row As %DynamicObject, item As %Boolean) As %DynamicObjec
 	Quit message
 }
 
-/// The settings of the item in the snapshot, without the credential names, redacted; {} when the item has no entry.
+/// The settings of the item in the snapshot, without the credential names, redacted (Cleaned); {} when the item has no entry.
 ClassMethod Settings(snapshot As %DynamicObject, item As %String) As %DynamicObject [ Private ]
 {
 	Set settings = {}
@@ -195,11 +195,11 @@ ClassMethod Settings(snapshot As %DynamicObject, item As %String) As %DynamicObj
 		Set pairs = entry.settings.%GetIterator()
 		While pairs.%GetNext(.name, .value) {
 			If ##class(OcuTalon.Watch.Reader).CredentialName(name) Continue
-			Do settings.%Set(..Clean(name), ..Clean(value), entry.settings.%GetTypeOf(name))
+			Do settings.%Set(name, value, $Select($IsObject(value): "", 1: entry.settings.%GetTypeOf(name)))
 		}
 		Quit
 	}
-	Quit settings
+	Quit ..Cleaned(settings)
 }
 
 /// The error sentence of a raw error text: ErrorText.Sentence(Redact.Text(raw)).
@@ -214,28 +214,19 @@ ClassMethod Clean(text As %String) As %String [ Private ]
 	Quit ##class(OcuTalon.Bridge.Redact).Text($Get(text))
 }
 
-/// A copy of the dynamic object with its names and its string values through the redactor; other values keep their type. A value that is itself an
-/// object or an array is copied the same way.
+/// A copy of the dynamic object or array redacted as one JSON text by the redactor, so that its key rule applies (the value of a key such as Password,
+/// Secret or UserId is replaced, at any depth) as well as its patterns (in names and in string values, nested objects and arrays included); other
+/// values keep their type. A text that the redactor cannot check gives an empty object or array.
 ClassMethod Cleaned(node As %DynamicAbstractObject) As %DynamicAbstractObject [ Private ]
 {
 	If '$IsObject(node) Quit {}
-	Set array = node.%IsA("%Library.DynamicArray")
-	Set copy = $Select(array: [], 1: {})
-	Set iterator = node.%GetIterator()
-	While iterator.%GetNext(.key, .value) {
-		Set type = node.%GetTypeOf(key)
-		If type = "object" {
-			Set value = ..Cleaned(value)
-		} ElseIf type = "string" {
-			Set value = ..Clean(value)
-		}
-		If array {
-			Do copy.%Push(value, type)
-		} Else {
-			Do copy.%Set(..Clean(key), value, type)
-		}
+	Set empty = $Select(node.%IsA("%Library.DynamicArray"): [], 1: {})
+	Try {
+		Set copy = ##class(%Library.DynamicAbstractObject).%FromJSON(##class(OcuTalon.Bridge.Redact).Text(node.%ToJSON()))
+	} Catch {
+		Set copy = empty
 	}
-	Quit copy
+	Quit $Select($IsObject(copy): copy, 1: empty)
 }
 
 /// The input of the diagnose request: the line INPUTLINE, a line break and the pack as JSON.

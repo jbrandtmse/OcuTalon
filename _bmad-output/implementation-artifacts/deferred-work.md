@@ -1250,23 +1250,63 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Reader.cls CredentialName equals the recorded snapshot rule; a setting named ClientSecret reaches the pack and the settings tool, with only the redactor's patterns as a backstop
 - 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=ruled_veto_U-91:widen_to_secret,passphrase,passwd,auth;code_review_patches_it
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=widened_per_U-91:CREDENTIALPARTS_adds_credential,passwd,passphrase,secret,auth;TestCredentialsLeftOut_mutation_red
 
 ### DW-256: Only Cause and FixSummary are in DiagnosisPayload's FILTERED list, so the stored Element and the model's noun forms bypass the reply filter (AD-31: every stored model text is filtered)
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: DiagnosisPayload FILTERED; IncidentManager Answered stores Element (128) and itemNoun one/other, which Story 5.8's notice may render
 - 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_patches_it_or_routes_to_5-7(ReplyGuard)
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=AD-31:FILTERED_names_every_model_text(dotted,list);Decide_loop;TestFilterDiagnosis_mutation_red
 
 ### DW-257: Message body properties reach the evidence pack in logical form, so a %Date or Boolean property reaches the model as its internal value
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Reader.Current reads each stored datatype property with $Property; the demo's OrderDate is a string; a date-format diagnosis on a %Date field would see a day number; needs a measured LogicalToDisplay while switched
 - 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=regraded_low:a_stored_%Date_is_valid,format_faults_sit_in_strings;reopen_if=a_diagnosis_misreads_a_%Date_value
 
 ### DW-258: The credential removal inside Reader.Evidence is never run against a credential-named setting (EvidencePack.Settings removes the same names again)
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Deleting the loop in Reader.Evidence leaves every test green; a test needs a production item with a Credentials or Password setting in OCUORDERS
 - 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=QA_TestReaderDropsCredentialSettings;mutation(loop_disabled)_red;lane-a_shards_fresh_green_in_review
 
 ### DW-259: Test.Bridge.CodeRules does not check that a watch tool calls only the classes of CALLBACKHELPERS and READERCLASSES; it scans the listed classes only
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: A call to an unlisted class (OcuTalon.Data.Delivery) added to a WatchReads method leaves CodeRules green (demonstrated warm); mechanism from Story 5.1
 - 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=TestWatchReadsCallOnlyListed(WATCHREADS_scan);mutation(unlisted_call_in_WatchReads)_red
+
+### DW-261: EvidencePack.Sentence repeats FailurePoller's ErrorText.Sentence(Redact.Text(raw)) composition instead of one ErrorText helper that both use
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Rule 2 copy with no stated reason: the spec's Extend-don't-copy note says a second call site moves into one ErrorText helper; Watch/EvidencePack.cls Sentence and Watch/FailurePoller.cls:112
+- 2026-10-26T12:03:18Z status=routed owner=burndown by=cr note=in-epic:ErrorText,FailurePoller_are_Story_5.2's(done);add_one_ErrorText_helper_and_use_it_in_both
+
+### DW-262: Test.Watch.Diagnose Row and Test.Watch.Evidence Fixture build incident rows that Test.Data.Fixture.Incident already builds
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2, weak reason: Fixture.Incident registers rows for Fixture.Clean while Case cleans by floor, so reusing it mixes two clean-up regimes
+- 2026-10-26T12:03:18Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=reopen_if=a_third_Test.Watch_incident_row_builder_appears_or_Case_adopts_Fixture.Clean
+
+### DW-263: Reader's VALUEMAX cut of a message body value is never exercised by a test
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestEventLogCapped pins LOGMAX and MAXLOG; no fixture body holds a stored value over 1000 characters (the PartnerOrder fields are short)
+- 2026-10-26T12:03:18Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=reopen_if=a_pack_or_tool_result_holds_a_body_value_over_1000_characters
+
+### DW-264: The pack and read_event_log send Ens_Util.Log row ids (logId) to the model, while the Identifiers row lets only Ens header and session ids leave the server
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The spec's pack shape defines logId (EvidencePack LogMessage, EventLog); whether the model provider counts as leaving the server is an interpretation of the row
+- 2026-10-26T12:03:18Z status=decision-pending owner=burndown by=cr note=Identifiers_row:does_the_model_provider_count_as_leaving_the_server?if_yes,a_pack-local_log_reference
+
+### DW-265: The watch read tools open the failed message's body object, so a watched body class's %OnOpen or property getters run inside AI Hub's callback
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current calls $ClassMethod(bodyClass,%OpenId) and $Property, reached from Tools.WatchReads through EvidencePack.Read; AD-6 forbids Python and %AI calls inside a callback
+- 2026-10-26T12:03:18Z status=wontfix-theoretical owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=real_when_a_watched_body_class's_%OnOpen_or_a_getter_calls_Python_or_%AI;then_read_stored_values_by_SQL
+
+### DW-266: The pack's body holds only stored datatype properties, so a virtual document (HL7, X12) or a stream body gives the model no field values
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current skips collections, object and stream properties by the spec's rule (stored datatype properties through the class dictionary); only the flat Orders body is exercised
+- 2026-10-26T12:03:18Z status=by-design owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=spec-bound(Always:_body_is_the_stored_datatype_properties);reopens_by_spec_amendment_for_virtual_docs
+
+### DW-267: An incident keeps no diagnosis outcome when its queued diagnose request is aborted or purged, or when Answered's row save fails
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Diagnose sets no wait of its own; Decide's TimerSeconds starts only once Decide takes the request; a send to a disabled Decide queues until it is enabled again
+- 2026-10-26T12:03:18Z status=wontfix-theoretical owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=real_when_an_operator_aborts_or_purges_a_queued_diagnose_request_or_the_row_save_fails;then_a_waiter_timer
