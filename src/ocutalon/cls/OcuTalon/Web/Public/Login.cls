@@ -92,14 +92,17 @@ ClassMethod UseSplash() As %Boolean
 }
 
 /// Sends the page: the response headers, then the page. state is "" for the page that a request without a
-/// session gets, or "norole" for a signed-in user who lacks the OcuTalon user role. writeHeader is 1 where
+/// session gets, "norole" for a signed-in user who lacks the OcuTalon user role, or on the online demo "addressLimit" for a
+/// sign-in that the address limit refused, with until the UTC time ("...Z") at which the address can start another session
+/// (the local page ignores it). writeHeader is 1 where
 /// nothing has been sent yet (the Login method of a dispatch class), and 0 inside a REST dispatch, where the
 /// first write sends the header and writing it again would put a second header in the page. Returns the
 /// status of writing the header or the page.
-ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1) As %Status
+ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1, until As %String = "") As %Status
 {
-	If ..UseSplash() Quit ##class(OcuTalon.Web.Public.Splash).Show(state, writeHeader)
+	If ..UseSplash() Quit ##class(OcuTalon.Web.Public.Splash).Show(state, writeHeader, until)
 	Set %OcuTalonState = state
+	Set %OcuTalonUntil = until
 	If '..OnPreHTTP() Quit $SYSTEM.Status.OK()
 	If writeHeader {
 		Set sc = %response.WriteHTTPHeader()

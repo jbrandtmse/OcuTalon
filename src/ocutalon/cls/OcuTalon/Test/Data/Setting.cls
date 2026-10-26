@@ -156,6 +156,39 @@ Method TestEveryPublicKeyIsDelegated()
 	Do $$$AssertEquals(error, "", "the checks ran without an error")
 }
 
+/// The address limit's key and seed (Story 16.3, matrix row 14): the two parameters, and the Web step's seed with the flag on writes the
+/// seed when the key is absent and keeps an existing value, and with the flag off writes no row. The key's row and the flag are put back.
+Method TestAddressLimitSetting()
+{
+	Set key = "onlineDemo.sessionsPerAddress"
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "ADDRESSLIMITKEY"), key, "the key")
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "ADDRESSLIMITSEED"), 5, "the seed is 5")
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id)
+	Set saved = $Select(existed: ##class(OcuTalon.Data.Setting).%OpenId(id).Value, 1: "")
+	Try {
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 1, "writes the row of the absent key")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 5, "with the value 5")
+		Do ..RemoveRow(key)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Seed(key, "7"), "a changed value is written")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on and the key present")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 7, "keeps the value 7")
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag off")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row")
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "0")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag 0")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row either")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the checks ran without an exception")
+	}
+	Do ..RemoveRow(key)
+	If existed Do ##class(OcuTalon.Data.Setting).Seed(key, saved)
+}
+
 /// Removes the fixture's rows and cache entries.
 Method Clean() [ Private ]
 {

@@ -2,6 +2,10 @@
 /// read what a session owns. Lane B.
 ///   - SessionRef resolves the caller's session from the CSP session, never from the client and never from the user
 ///     name; Attach records the user's durable session in the CSP session.
+///   - On the online demo (onlineDemo on) the session is a visitor's, not the user's (DW-16, Story 16.3): the shared demo
+///     account signs in many times, so SessionRef resolves only a Ref that the sign-in recorded in the CSP session
+///     (Resume of the visitor's cookie, or StartVisitor), and a CSP session without one gets "" and an error. It never
+///     attaches by user name there.
 ///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision;
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
@@ -114,9 +118,9 @@ ClassMethod Sum(rows As %ListOfObjects, cost As %DynamicObject, Output models As
 }
 
 /// The Ref of the caller's durable session. It is the Ref recorded in the CSP session when that session row exists
-/// and belongs to the signed-in user (matched without regard to case); otherwise the user's durable session is
-/// attached first. With no CSP session the result is "" and sc an error. This is the one resolution method: the online
-/// demo's session choice (Story 16.3) extends it here.
+/// and belongs to the signed-in user (matched without regard to case); otherwise, on a local install, the user's durable
+/// session is attached first, and on the online demo (onlineDemo on) the result is "" and sc an error, with nothing attached
+/// or created. With no CSP session the result is "" and sc an error. This is the one resolution method.
 ClassMethod SessionRef(Output sc As %Status) As %String
 {
 	Set sc = $SYSTEM.Status.OK()
@@ -129,9 +133,50 @@ ClassMethod SessionRef(Output sc As %Status) As %String
 		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 		If $IsObject(row), $ZConvert(row.IrisUser, "U") = $ZConvert($Username, "U") Quit ref
 	}
+	If ..LocalFlag() = 0 {
+		Set sc = $SYSTEM.Status.Error(5001, "This CSP session has no OcuTalon session of the signed-in user")
+		Quit ""
+	}
 	Set sc = ..Attach()
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit $Get(%session.Data(..#SESSIONKEY))
+}
+
+/// The online demo's resume (AD-4): the row that the resume reference opens (Session.ForResume), when it belongs to the
+/// signed-in user (matched without regard to case, as SessionRef matches it). The row's CspSessionId becomes the CSP
+/// session's id, whatever it was, and its Ref is recorded in the CSP session. Returns the Ref, or "" with sc OK when the
+/// reference opens no row of the user (the caller then starts a visitor), or "" with an error status when the row can't be
+/// saved or there is no CSP session. The reference is never written anywhere.
+ClassMethod Resume(reference As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If '$IsObject($Get(%session)) {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
+		Quit ""
+	}
+	Set row = ##class(OcuTalon.Data.Session).ForResume(reference)
+	If '$IsObject(row) || ($ZConvert(row.IrisUser, "U") '= $ZConvert($Username, "U")) Quit ""
+	Set row.CspSessionId = %session.SessionId
+	Set sc = row.%Save()
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set %session.Data(..#SESSIONKEY) = row.Ref
+	Quit row.Ref
+}
+
+/// The online demo's first sign-in of a browser: a new row for the signed-in user (Session.NewVisitor) that records the
+/// CSP session's id, and its Ref in the CSP session. reference is the new resume reference, for the caller's cookie alone.
+/// Returns the Ref, or "" with an error status.
+ClassMethod StartVisitor(Output reference As %String, Output sc As %Status) As %String
+{
+	Set reference = ""
+	If '$IsObject($Get(%session)) {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
+		Quit ""
+	}
+	Set row = ##class(OcuTalon.Data.Session).NewVisitor($Username, %session.SessionId, .reference, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set %session.Data(..#SESSIONKEY) = row.Ref
+	Quit row.Ref
 }
 
 /// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session.

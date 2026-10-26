@@ -92,6 +92,43 @@ Method TestPurgeDeclaration()
 	Do $$$AssertEquals(seq, 3, "and continues the stream's Seq")
 }
 
+/// The Web area's purge also keeps the address counter to one hour (AD-27, Story 16.3, matrix row 13): Purge(90) and Purge(0) each delete
+/// a counter row that is 61 minutes old, keep one that is 59 minutes old and still purge the live events older than 24 hours. Like
+/// TestPurgeDeclaration it deletes the rows of every address and stream, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeAddressCounter()
+{
+	Set address = "zz-webinstall-"_..Number_"-counter"
+	Set hash = ##class(OcuTalon.Data.Session).Hash(address)
+	Set stream = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("WebInstall", "streams", stream) = ""
+	For days = 90, 0 {
+		Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
+		Set old = ..CounterRow(hash, 3660)
+		Set recent = ..CounterRow(hash, 3540)
+		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+		Set payload.Ref = "ZzWeb"_..Number_"c"_days
+		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "an event is published")
+		Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(stream, seq, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(25))
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).Recent(address, .oldest), 1, "Recent counts the 59-minute row only (days "_days_")")
+		Do $$$AssertEquals(oldest, ##class(OcuTalon.Data.AddressCounter).%OpenId(recent).CreatedAt, "and returns its time as the oldest")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(days), "the Web area's Purge("_days_")")
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).%ExistsId(old), 0, "the 61-minute row is deleted")
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).%ExistsId(recent), 1, "the 59-minute row is kept")
+		Do $$$AssertEquals($ListFind($ListFromString(##class(OcuTalon.Test.Data.Fixture).EventSeqs(stream)), seq), 0, "the aged live event is purged too (days "_days_")")
+	}
+	Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
+}
+
+/// A counter row of the hash created the given number of seconds ago; returns its id.
+ClassMethod CounterRow(hash As %String, secondsAgo As %Integer) As %Integer [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.AddressCounter).%New()
+	Set row.AddressHash = hash
+	Set row.CreatedAt = ##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
+	Do row.%Save()
+	Quit row.%Id()
+}
+
 /// The trace application of a namespace: its name from the namespace, AD-24's seven permitted classes, no
 /// application roles and no dispatch class.
 Method TestTraceApp()

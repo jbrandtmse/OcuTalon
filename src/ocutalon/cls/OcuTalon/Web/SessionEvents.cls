@@ -4,8 +4,20 @@
 /// row. OnLogin always answers OK: an error status would neither log the user out nor show the sign-in page, and
 /// a session that was not attached here is attached by the first API call (Ownership.SessionRef). A failure is
 /// written to the console log, without the user name.
+/// On the online demo (onlineDemo on, read through Data.Setting) the sign-in gives the visitor a session of their own
+/// instead (AD-4, AD-13, Story 16.3), and only /ocutalon does so, because the trace applications have no session event class:
+///   - a cookie RESUMECOOKIE whose reference opens a row of the signed-in user attaches that row, sets no cookie and is
+///     never counted or refused;
+///   - otherwise a new row is created (Ownership.StartVisitor) and the cookie is set once, expiring at the next reset;
+///   - the creation is counted per client address (ClientAddress) in Data.AddressCounter when the request came through the
+///     proxy: at the limit nothing is created, and the refusal is recorded in the CSP session for Shell, which ends the CSP
+///     session in the same request and shows the splash's field error. A request that did not come through the proxy is exempt.
+/// The resume reference is held in local variables of this request and the cookie alone; no line of the log carries it.
 Class OcuTalon.Web.SessionEvents Extends %CSP.SessionEvents [ ProcedureBlock ]
 {
+
+/// The name of the resume cookie (AD-4). Story 16.4 expires it at sign-out.
+Parameter RESUMECOOKIE = "OcuTalonResume";
 
 /// Attaches the signed-in user's durable session when the user holds the OcuTalon user role.
 ClassMethod OnLogin() As %Status
@@ -19,13 +31,77 @@ ClassMethod AttachFor(hasRole As %Boolean) As %Status
 {
 	Try {
 		If hasRole {
-			Set sc = ##class(OcuTalon.Data.Ownership).Attach()
+			If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 {
+				Set sc = ..AttachVisitor()
+			} Else {
+				Set sc = ##class(OcuTalon.Data.Ownership).Attach()
+			}
 			If $SYSTEM.Status.IsError(sc) Do ..Log("the session could not be attached, error "_$SYSTEM.Status.GetErrorCodes(sc))
 		}
 	} Catch exception {
 		Do ..Log("the session could not be attached, error "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
 	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// The online demo's attach: resumes the row of the browser's cookie, or creates a visitor's row and sets the cookie, or
+/// records the refusal at the address limit. Returns the first error status.
+ClassMethod AttachVisitor() As %Status [ Private ]
+{
+	Set reference = $Get(%request.Cookies(..#RESUMECOOKIE, 1))
+	If reference '= "" {
+		Set ref = ##class(OcuTalon.Data.Ownership).Resume(reference, .sc)
+		If (ref '= "") || $SYSTEM.Status.IsError(sc) Quit sc
+	}
+	Set reference = ""
+	Set address = ..ClientAddress($Get(%request.CgiEnvs("REMOTE_ADDR")), $Get(%request.CgiEnvs("HTTP_X_FORWARDED_FOR")), ##class(OcuTalon.Data.Public.Settings).Get("proxyAddress"), .proxied)
+	If 'proxied {
+		Set ref = ##class(OcuTalon.Data.Ownership).StartVisitor(.reference, .sc)
+	} Else {
+		If '##class(OcuTalon.Data.AddressCounter).Lock(address) Quit $SYSTEM.Status.Error(5001, "The address counter is busy")
+		Try {
+			Set limit = +##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Data.Setting).#ADDRESSLIMITKEY, ##class(OcuTalon.Data.Setting).#ADDRESSLIMITSEED)
+			If ##class(OcuTalon.Data.AddressCounter).Recent(address, .oldest) >= limit {
+				Set until = ##class(OcuTalon.Data.AddressCounter).Shift(oldest, ##class(OcuTalon.Data.AddressCounter).#WINDOW)
+				Set %session.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY) = $ListBuild("addressLimit", until)
+				Set sc = $SYSTEM.Status.OK()
+			} Else {
+				Set ref = ##class(OcuTalon.Data.Ownership).StartVisitor(.reference, .sc)
+				If $SYSTEM.Status.IsOK(sc) Set sc = ##class(OcuTalon.Data.AddressCounter).Add(address)
+			}
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		Do ##class(OcuTalon.Data.AddressCounter).Unlock(address)
+	}
+	If $SYSTEM.Status.IsOK(sc), reference '= "" {
+		Do %response.SetCookie(..#RESUMECOOKIE, reference, ..CookieExpiry(##class(OcuTalon.Data.Public.Settings).NextReset()), "/ocutalon/", "", 1, 1, "Strict")
+	}
+	Quit sc
+}
+
+/// The client address that the address limit counts, and whether the request is proxied. A request is proxied when proxy is
+/// set and equals remote exactly (the proxy's own address); its address is the right-most entry of the forwarded list,
+/// trimmed, or remote when the list has none. A request that is not proxied is exempt: proxied is 0, the result is "", and
+/// its forwarded list is ignored, because only the proxy overwrites it (AD-13).
+ClassMethod ClientAddress(remote As %String, forwarded As %String, proxy As %String, Output proxied As %Boolean) As %String
+{
+	Set proxied = (proxy '= "") && (proxy = remote)
+	If 'proxied Quit ""
+	Set last = $ZStrip($Piece(forwarded, ",", $Length(forwarded, ",")), "<>W")
+	Quit $Select(last = "": remote, 1: last)
+}
+
+/// A UTC time, YYYY-MM-DDThh:mm:ssZ, as the RFC 1123 date of a cookie's Expires ("Sun, 25 Oct 2026 20:00:00 GMT"); "" for an
+/// empty or unreadable time, which makes the cookie a browser-session cookie.
+ClassMethod CookieExpiry(nextReset As %String) As %String
+{
+	If nextReset '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
+	Set horolog = $ZDateTimeH($Translate($Extract(nextReset, 1, 19), "T", " "), 3, 1, , , , , , , "")
+	If horolog = "" Quit ""
+	Set weekday = $Piece(##class(OcuTalon.Data.Time).#WEEKDAYS, ",", ($ZDate(+horolog, 10) + 1))
+	Set month = $Piece(##class(OcuTalon.Data.Time).#MONTHS, ",", +$Extract(nextReset, 6, 7))
+	Quit $Extract(weekday, 1, 3)_", "_$Extract(nextReset, 9, 10)_" "_month_" "_$Extract(nextReset, 1, 4)_" "_$Extract(nextReset, 12, 19)_" GMT"
 }
 
 /// Writes one line to the console log; a failure of the log itself is ignored.

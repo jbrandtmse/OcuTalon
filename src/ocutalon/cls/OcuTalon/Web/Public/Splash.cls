@@ -47,6 +47,10 @@ Parameter TELEGRAMLINE = "Have Telegram? You can scan a QR code inside to get th
 
 Parameter LIMITLINE = "Each session can send {limit} messages an hour in the chat or Telegram.";
 
+/// The address-limit error (EXPERIENCE: Too many sessions); {time} is written by the server as the page's time element and
+/// filled by the script.
+Parameter TOOMANY = "Too many new sessions from your network this hour. You can start another at {time}.";
+
 Parameter SHELLLINE = "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.";
 
 /// The Visual Trace card's text: the part up to and including the first comma is the card's heading, the rest its paragraph.
@@ -84,13 +88,19 @@ ClassMethod UseSplash() As %Boolean
 
 /// Writes the page. A wrong password marks both fields, keeps the typed user name and leaves the password empty; the no-role
 /// state marks nothing and keeps the published values. Each puts its message under the button and focuses it. With no message
-/// nothing has the focus. A reset time or an interval that is not set leaves out the reset line, no allowance leaves out the
+/// nothing has the focus. The state "addressLimit" (a sign-in that the address limit refused) puts TOOMANY there, with {time} as
+/// a time element whose datetime is the until time that Show was given (empty in the markup, filled by the script), keeps the
+/// published values and marks nothing. A reset time or an interval that is not set leaves out the reset line, no allowance leaves out the
 /// limit line, and no read-only user or password leaves out the Visual Trace card.
 ClassMethod OnLoginPage() As %Status
 {
 	Set state = $Get(%OcuTalonState)
-	Kill %OcuTalonState
+	Set until = $Get(%OcuTalonUntil)
+	Kill %OcuTalonState, %OcuTalonUntil
 	Set message = ..Message(state, $Get(%request.Data("Error:ErrorCode", 1)), 0)
+	If state = "addressLimit" {
+		Set message = $Replace(..#TOOMANY, "{time}", "<time class=""tnum"" id=""ocu-error-time"" datetime="""_$ZConvert(until, "O", "HTML")_"""></time>")
+	}
 	Set marked = (message = ..#ERRORCREDENTIALS)
 	Set base = %request.Application
 	If $Extract(base, $Length(base)) '= "/" Set base = base_"/"

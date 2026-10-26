@@ -167,6 +167,18 @@
     window.setInterval(tick, 1000);
   }
 
+  function fillErrorTime() {
+    var stamp = document.getElementById('ocu-error-time');
+    if (!stamp) {
+      return;
+    }
+    var at = Date.parse(stamp.getAttribute('datetime'));
+    if (isNaN(at)) {
+      return;
+    }
+    stamp.textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(at));
+  }
+
   var form = document.forms.Login;
   if (form) {
     form.addEventListener('submit', function () {
@@ -183,4 +195,5 @@
     });
   }
   startCountdown();
+  fillErrorTime();
 }());

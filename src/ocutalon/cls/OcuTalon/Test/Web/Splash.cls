@@ -28,6 +28,7 @@ Method TestTexts()
 	Set texts = texts_$ListBuild($ListBuild("OWNLINE", "Your chat, phone, mailbox and orders are yours alone."))
 	Set texts = texts_$ListBuild($ListBuild("TELEGRAMLINE", "Have Telegram? You can scan a QR code inside to get the notices on your own phone."))
 	Set texts = texts_$ListBuild($ListBuild("LIMITLINE", "Each session can send {limit} messages an hour in the chat or Telegram."))
+	Set texts = texts_$ListBuild($ListBuild("TOOMANY", "Too many new sessions from your network this hour. You can start another at {time}."))
 	Set texts = texts_$ListBuild($ListBuild("SHELLLINE", "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."))
 	Set texts = texts_$ListBuild($ListBuild("VISUALTRACE", "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step."))
 	Set texts = texts_$ListBuild($ListBuild("COPYTRACEUSERNAME", "Copy Visual Trace user name"))
@@ -222,6 +223,33 @@ Method TestNoRole()
 	Do $$$AssertTrue(page [ "value=""demo-secret""", "the password field holds the published value")
 }
 
+/// The address-limit refusal (Story 16.3): Login.Show with the state "addressLimit" and the time puts the AC's sentence under the
+/// button, with the time element (datetime escaped, empty in the markup) where {time} is; nothing is marked, the button is enabled, the
+/// published values stay in the fields, the error has the focus, and the policy is the splash's. TOOMANY is the catalog's text.
+Method TestTooManySessions()
+{
+	Set until = "2026-10-25T15:20:00Z"
+	Set page = ..Render("show", "addressLimit", .policy, "", "", 0, until)
+	Set error = "<p class=""field-error"" id=""ocu-error"" tabindex=""-1"" autofocus>"
+	Do $$$AssertTrue(page [ error, "the error is a focusable element that has the focus")
+	Do $$$AssertTrue(page [ "<span>Too many new sessions from your network this hour. You can start another at <time class=""tnum"" id=""ocu-error-time"" datetime=""2026-10-25T15:20:00Z""></time>.</span></p>", "the AC's sentence with the time element")
+	Do $$$AssertTrue($Find(page, error) > $Find(page, "Sign in and start</button>"), "the error comes after the button")
+	Do $$$AssertTrue(page '[ "aria-invalid", "no field is marked")
+	Do $$$AssertTrue(page '[ "disabled", "the button is enabled")
+	Do $$$AssertEquals(..Count(page, "autofocus"), 1, "only the error has the focus")
+	Do $$$AssertTrue(page [ "value=""DemoVisitor""", "the user field holds the published value")
+	Do $$$AssertTrue(page [ "value=""demo-secret""", "the password field holds the published value")
+	Do $$$AssertEquals(policy, ##class(OcuTalon.Web.Public.Splash).Policy(), "the splash's exact policy")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Splash).#TOOMANY, ##class(OcuTalon.Msg.Catalog).Entry("splash.tooManySessions").text, "TOOMANY is the catalog's text")
+	Set hostile = ..Render("show", "addressLimit", .policy, "", "", 0, "x""><b id=pwned>&")
+	Do $$$AssertTrue(hostile [ "datetime=""x&quot;&gt;&lt;b id=pwned&gt;&amp;""", "the time attribute is escaped")
+	Do $$$AssertTrue(hostile '[ "<b id=pwned>", "and never written raw")
+	Set plain = ..Render("show", "", .policy, "", "", 0, until)
+	Do $$$AssertTrue(plain '[ "id=""ocu-error""", "a state of no refusal shows no error, whatever time is given")
+	Set again = ..Render("show", "norole", .policy, "", "", 0, "")
+	Do $$$AssertTrue(again '[ "<time class=""tnum"" id=""ocu-error-time""", "no other state writes the time element")
+}
+
 /// (QA) The typed user name comes back from the request, so it is escaped where it is written, whatever it holds: a name with markup
 /// is never written raw and never closes the value attribute, and the page still has its one style and one script.
 Method TestTypedNameIsEscaped()
@@ -377,7 +405,7 @@ Method Page(state As %String, code As %String, user As %String, signedOut As %Bo
 ///   splash  Splash.OnPage (and Splash's OnPreHTTP, for the policy)
 ///   login   Login's own OnPreHTTP, then its OnPage
 ///   show    Login.Show with no header to write, as the shell's dispatch calls it
-Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0) As %String [ Private ]
+Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "") As %String [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(%CSP.Request).%New()
@@ -389,6 +417,7 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	If user '= "" Set %request.Data("IRISUsername", 1) = user
 	If signedOut Set %request.Data("signedOut", 1) = 1
 	Set %OcuTalonState = state
+	Set %OcuTalonUntil = until
 	Set file = ##class(%File).TempFilename("html")
 	Set io = $IO
 	Open file:("NWS"):5
@@ -396,7 +425,7 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	Use file
 	Try {
 		If mode = "show" {
-			Set sc = ##class(OcuTalon.Web.Public.Login).Show(state, 0)
+			Set sc = ##class(OcuTalon.Web.Public.Login).Show(state, 0, until)
 		} ElseIf mode = "login" {
 			Do ##class(OcuTalon.Web.Public.Login).OnPreHTTP()
 			Set sc = ##class(OcuTalon.Web.Public.Login).OnPage()
@@ -409,7 +438,7 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	}
 	Use io
 	Close file
-	Kill %OcuTalonState
+	Kill %OcuTalonState, %OcuTalonUntil
 	Set policy = %response.GetHeader("Content-Security-Policy")
 	Set stream = ##class(%Stream.FileCharacter).%New()
 	Do stream.LinkToFile(file)

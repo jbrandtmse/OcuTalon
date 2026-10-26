@@ -1,5 +1,10 @@
 /// A signed-in session (AD-4). Lane B. Each IRIS user has one durable row on a local install; ForUser finds or
 /// creates it. Only Ownership.Attach calls ForUser: the REST surface resolves the caller through Ownership.SessionRef.
+/// On the online demo every sign-in is a visitor of its own (Story 16.3): NewVisitor creates a row and a resume reference,
+/// and ForResume opens the row of a reference. Two stored fields serve that:
+///   - ResumeHash is the SHA-256 of the resume reference (Hash), the only form of the reference that any row keeps; the
+///     reference is a bearer secret that lives in the visitor's cookie alone (AD-4);
+///   - CspSessionId is the CSP session last attached to the row.
 /// Recipients says which sessions an owner's records go to. The row also keeps the session's trace thread for the day
 /// (AD-26): ThreadSessionId and ThreadDay, which Core.Trace reads and writes under the row's own lock.
 Class OcuTalon.Data.Session Extends %Persistent
@@ -31,11 +36,20 @@ Property ThreadSessionId As %Integer;
 /// The instance-zone local date, YYYY-MM-DD, of the thread in ThreadSessionId.
 Property ThreadDay As %String(MAXLEN = 10);
 
+/// The SHA-256 of the row's resume reference (Hash), base64url without padding; empty for a row that has no resume
+/// reference (a local user's durable row). The collation is exact because base64url is case-sensitive.
+Property ResumeHash As %String(COLLATION = "EXACT", MAXLEN = 43);
+
+/// The id of the CSP session last attached to the row (Ownership.Resume, Ownership.StartVisitor).
+Property CspSessionId As %String(MAXLEN = 64);
+
 Index RefIndex On Ref [ Unique ];
 
 Index TraceRefIndex On TraceRef [ Unique ];
 
 Index IrisUserIndex On IrisUser;
+
+Index ResumeHashIndex On ResumeHash [ Unique ];
 
 /// The IRIS user's one session row, created at the first call. The user name is matched without regard to case,
 /// as IRIS matches user names. The lookup is OcuTalon's own query, with the user name as a parameter, and runs for
@@ -65,12 +79,7 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 				Set session = ..%OpenId(result.%Get("ID"), , .sc)
 				If $SYSTEM.Status.IsOK(sc), '$IsObject(session) Set sc = $SYSTEM.Status.Error(5001, "The session row of '"_irisUser_"' could not be opened")
 			} Else {
-				Set session = ..%New()
-				Set session.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-				Set session.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-				Set session.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
-				Set session.IrisUser = irisUser
-				Set session.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+				Set session = ..NewRow(irisUser)
 				Set sc = session.%Save()
 			}
 		}
@@ -80,6 +89,61 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 	Lock -^OcuTalon.Data.Session($ZConvert(irisUser, "U"))
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit session
+}
+
+/// A new, unsaved row for an IRIS user: a new Ref, TraceRef and Epoch, and the creation time.
+ClassMethod NewRow(irisUser As %String) As OcuTalon.Data.Session [ Private ]
+{
+	Set session = ..%New()
+	Set session.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set session.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set session.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set session.IrisUser = irisUser
+	Set session.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit session
+}
+
+/// The SHA-256 of the UTF-8 text, base64url without padding (43 characters): the form in which the resume reference and
+/// a client address are stored.
+ClassMethod Hash(text As %String) As %String
+{
+	Quit $Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, $ZConvert(text, "O", "UTF8")), 1), "+/=", "-_")
+}
+
+/// A new row for a visitor of the online demo, always created (never found): a new Ref, TraceRef and Epoch, the IRIS user,
+/// the CSP session id and a new resume reference (Bridge.Ids.NewRef), of which the row keeps only the hash. reference is the
+/// plaintext, for the caller's cookie alone. sc holds the error status when the user name is empty or the row can't be
+/// saved, and the result and reference are then "".
+ClassMethod NewVisitor(irisUser As %String, cspSessionId As %String, Output reference As %String, Output sc As %Status) As OcuTalon.Data.Session
+{
+	Set reference = ""
+	Set sc = $SYSTEM.Status.OK()
+	If irisUser = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "A session needs an IRIS user name")
+		Quit ""
+	}
+	Try {
+		Set session = ..NewRow(irisUser)
+		Set reference = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set session.ResumeHash = ..Hash(reference)
+		Set session.CspSessionId = cspSessionId
+		Set sc = session.%Save()
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) {
+		Set reference = ""
+		Quit ""
+	}
+	Quit session
+}
+
+/// The row of a resume reference, or "" when the reference is not 22 characters of A-Z, a-z, 0-9, - and _ or no row has
+/// its hash. It opens by the hash index, with no SQL: the caller may hold no SQL privilege.
+ClassMethod ForResume(reference As %String) As OcuTalon.Data.Session
+{
+	If '$Match(reference, "^[A-Za-z0-9_-]{22}$") Quit ""
+	Quit ..ResumeHashIndexOpen(..Hash(reference))
 }
 
 /// The SessionRefs that receive what the owner owns, as a list:
@@ -130,6 +194,12 @@ Storage Default
 </Value>
 <Value name="8">
 <Value>ThreadDay</Value>
+</Value>
+<Value name="9">
+<Value>ResumeHash</Value>
+</Value>
+<Value name="10">
+<Value>CspSessionId</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SessionD</DataLocation>

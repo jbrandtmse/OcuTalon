@@ -2,13 +2,15 @@
 /// sign-in group.
 ///   - /ocutalon: dispatched by OcuTalon.Web.Public.Shell, password authentication, serving the built Angular
 ///     files from the durable csp/ocutalon-web/ folder; its session event class OcuTalon.Web.SessionEvents attaches
-///     the user's durable session at sign-in (AD-4);
+///     the user's durable session at sign-in, or on the online demo the visitor's own (AD-4);
 ///   - /ocutalon/api: OcuTalon.Web.Api, the REST surface;
 ///   - /ocutalon/trace/ocutalon: the Visual Trace portal pages of OCUTALON, restricted to AD-24's seven classes;
 ///   - /ocutalon/public: OcuTalon.Web.Public.Status, unauthenticated and outside the sign-in group.
 /// The applications are structural (AD-19): every start rewrites each one to exactly these properties, with
 /// Modify, never delete and create, so nothing attached to an application is lost. The OCUORDERS trace
 /// application is the Demo step's, built from TraceApp, and exists only with demo mode on.
+/// With the online demo on, the step also seeds the per-address session limit (SeedSettings), and its purge declaration
+/// covers the address counter (AddressCounter, one hour) as well as the live events.
 /// The bundle lives in csp/ocutalon-web/, not in csp/ocutalon/, which the non-Health image's default application
 /// /csp/ocutalon serves without sign-in (DW-5); every start removes OcuTalon's own files from the old folder.
 Class OcuTalon.Install.Step.Web Extends OcuTalon.Install.Step
@@ -52,6 +54,8 @@ ClassMethod Run() As %Status
 {
 	Set sc = ..Prepare($SYSTEM.Util.DataDirectory())
 	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set sc = ..SeedSettings()
+	If $SYSTEM.Status.IsError(sc) Quit sc
 	Do ..Definitions(.apps)
 	Set name = ""
 	For {
@@ -83,11 +87,24 @@ ClassMethod Reconcile() As %Status
 	Quit ##class(OcuTalon.Core.Conversation).Reconcile()
 }
 
+/// With the online demo on, seeds the new sessions per client address per hour (Setting ADDRESSLIMITKEY, ADDRESSLIMITSEED)
+/// when the key is absent, so a value changed afterwards is kept. With the flag off it writes nothing.
+ClassMethod SeedSettings() As %Status
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit $SYSTEM.Status.OK()
+	Quit ##class(OcuTalon.Data.Setting).Seed(##class(OcuTalon.Data.Setting).#ADDRESSLIMITKEY, ##class(OcuTalon.Data.Setting).#ADDRESSLIMITSEED)
+}
+
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
-/// touched. This is Lane B's live-event retention, declared in the Web area, which the purge task calls (Story 30.2).
+/// touched; then the address counter's rows older than one hour are deleted, whatever daysToKeep is (AddressCounter.Purge).
+/// This is Lane B's retention, declared in the Web area, which the purge task calls (Story 30.2). The result is the first
+/// error, and the counter is purged after a failed event purge too.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
-	Quit ##class(OcuTalon.Live.Event).Purge(daysToKeep)
+	Set sc = ##class(OcuTalon.Live.Event).Purge(daysToKeep)
+	Set counter = ##class(OcuTalon.Data.AddressCounter).Purge(daysToKeep)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit counter
 }
 
 /// The trace role holds exactly: Use on %Ens_Portal, %Ens_MessageTrace, %Ens_MessageHeader and

@@ -8,6 +8,12 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Setting";
 /// How long Get keeps a value in the per-process cache (AD-19).
 Parameter CACHESECONDS = 60;
 
+/// The key of the new sessions per client address per hour, online demo (Web.SessionEvents; seeded by Install.Step.Web).
+Parameter ADDRESSLIMITKEY = "onlineDemo.sessionsPerAddress";
+
+/// The seeded value of ADDRESSLIMITKEY: new sessions per client address per hour, online demo.
+Parameter ADDRESSLIMITSEED = 5;
+
 /// The key; unique. Product keys are dotted, such as digest.time.
 Property Key As %String(MAXLEN = 128);
 

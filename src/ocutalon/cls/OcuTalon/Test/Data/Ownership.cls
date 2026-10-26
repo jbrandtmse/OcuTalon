@@ -94,6 +94,97 @@ Method TestSessionRefFromTheCspSession()
 	Do $$$AssertStatusNotOK(sc, "and the status an error")
 }
 
+/// On the online demo (Story 16.3, matrix row 8) SessionRef never resolves by user name: with no Ref in the CSP session the result is
+/// "" with an error and no row is created for the user; the Ref of a row of the signed-in user is returned; the Ref of another user's
+/// row gives "" and an error. With the flag off the lazy attach of Story 2.2 is unchanged for the same three calls.
+Method TestSessionRefOnTheOnlineDemo()
+{
+	New %session
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"onlineother")
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set %session = ##class(%CSP.Session).%New("ZzOwnOnline", 0)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertEquals(ref, "", "online: with no Ref attached the result is empty")
+	Do $$$AssertStatusNotOK(sc, "and the status an error")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "and no row is created for the user")
+	Do $$$AssertEquals($Get(%session.Data("OcuTalon.SessionRef")), "", "nothing is attached")
+	Set %session.Data("OcuTalon.SessionRef") = mine
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertStatusOK(sc, "online: the Ref of the user's row is resolved")
+	Do $$$AssertEquals(ref, mine, "it is returned")
+	Set %session.Data("OcuTalon.SessionRef") = foreign
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertEquals(ref, "", "online: another user's Ref gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Set %session.Data("OcuTalon.SessionRef") = "zzmissing"_..Number
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(.sc), "", "online: a Ref with no row gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "no row is created by any of this")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Kill %session.Data("OcuTalon.SessionRef")
+	Set expected = ##class(OcuTalon.Data.Session).ForUser($Username).Ref
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(.sc), expected, "flag off: no Ref is attached from the user name")
+	Set %session.Data("OcuTalon.SessionRef") = mine
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), mine, "flag off: the user's Ref is returned")
+	Set %session.Data("OcuTalon.SessionRef") = foreign
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), expected, "flag off: another user's Ref is replaced by the user's own")
+}
+
+/// StartVisitor and Resume (Story 16.3, matrix rows 3 and 8): StartVisitor creates a row of the signed-in user with the CSP session
+/// id and a hash of the new reference, and records its Ref; Resume of that reference in another CSP session records the same Ref and
+/// the new id; Resume answers "" with OK for a reference of no row or of another user's row, and an error with no CSP session.
+Method TestResumeAndStartVisitor()
+{
+	New %session
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorA", 0)
+	Set ref = ##class(OcuTalon.Data.Ownership).StartVisitor(.reference, .sc)
+	Do $$$AssertStatusOK(sc, "StartVisitor answers OK")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "it returns the Ref of a new row")
+	If $IsObject(row) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before + 1, "one row is created")
+	Do $$$AssertEquals(%session.Data("OcuTalon.SessionRef"), ref, "its Ref is in the CSP session")
+	Do $$$AssertTrue(reference ? 22(1AN,1"-",1"_"), "the reference is 22 base64url characters")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.IrisUser, $Username, "the row is the signed-in user's")
+		Do $$$AssertEquals(row.CspSessionId, "ZzOwnVisitorA", "it records the CSP session")
+		Do $$$AssertEquals(row.ResumeHash, ##class(OcuTalon.Data.Session).Hash(reference), "and the hash of the reference")
+	}
+
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorB", 0)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(reference, .sc), ref, "Resume returns the row's Ref")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(%session.Data("OcuTalon.SessionRef"), ref, "records it in the new CSP session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzOwnVisitorB", "and the new CSP session on the row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before + 1, "no row is created")
+
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorC", 0)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(##class(OcuTalon.Bridge.Ids).NewRef(), .sc), "", "an unknown reference gives an empty result")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume("short", .sc), "", "so does a malformed one")
+	Do $$$AssertEquals($Get(%session.Data("OcuTalon.SessionRef")), "", "and nothing is attached")
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"resumeother")
+	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set foreignRow = ##class(OcuTalon.Data.Session).RefIndexOpen(foreign)
+	Set foreignRow.ResumeHash = ##class(OcuTalon.Data.Session).Hash(other)
+	Do foreignRow.%Save()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(other, .sc), "", "another user's row is not resumed")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(foreign).CspSessionId, "", "and is not touched")
+
+	Set %session = ""
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(reference, .sc), "", "with no CSP session Resume gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).StartVisitor(.again, .sc), "", "so does StartVisitor")
+	Do $$$AssertStatusNotOK(sc, "with an error")
+	Do $$$AssertEquals(again, "", "and no reference")
+}
+
 /// A session reads its own records of every kind and none of another session's.
 Method TestOwnRecordsOnly()
 {

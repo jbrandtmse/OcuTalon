@@ -6,6 +6,9 @@
 ///   - A signed-in request is first checked for the role OcuTalonUser: without it the CSP session ends and the
 ///     sign-in page shows the no-role message. With it, GET serves the files of the application's Path, and
 ///     only those, through %CSP.StreamServer, index.html with its own Content-Security-Policy and no caching.
+///   - On the online demo the sign-in hook (OcuTalon.Web.SessionEvents) may record a refusal in the CSP session, under REFUSALKEY, as
+///     $ListBuild(state, until). A signed-in request that finds it ends the CSP session at once, as the no-role request does, and
+///     is answered with the sign-in page in that state (Login.Show, the splash's field error for "addressLimit").
 ///   - The POST that signs in is answered with a redirect to the same URL and query, so the page that was asked
 ///     for is the page that loads.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP and its own package (AD-3).
@@ -18,6 +21,10 @@ Parameter CONTENTTYPE = "text/html";
 
 /// The role that opens the application after sign-in.
 Parameter ROLE = "OcuTalonUser";
+
+/// The key of the CSP session's data that holds a sign-in refusal, $ListBuild(state, until): the sign-in hook writes it and
+/// OnPreDispatch reads it, so the key lives in this public class, which the hook may name (AD-3).
+Parameter REFUSALKEY = "OcuTalon.Refused";
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -50,10 +57,19 @@ ClassMethod Login(skipheader As %Boolean = 1) As %Status
 	Quit ##class(OcuTalon.Web.Public.Login).Show("")
 }
 
-/// A signed-in request without the role ends the session and gets the no-role sign-in page.
+/// A signed-in request without the role ends the session and gets the no-role sign-in page. With the role, a refusal that the
+/// sign-in hook recorded ends the session the same way and gets the sign-in page in the refusal's state, with its time.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
-	If ..HasRole() Quit $SYSTEM.Status.OK()
+	If ..HasRole() {
+		Set marker = $Get(%session.Data(..#REFUSALKEY))
+		If marker = "" Quit $SYSTEM.Status.OK()
+		Set continue = 0
+		Do %session.Logout(1)
+		Set %session.EndSession = 1
+		Set %request.Data("Error:FullURL", 1) = ..FullUrl()
+		Quit ##class(OcuTalon.Web.Public.Login).Show($List(marker, 1), 0, $ListGet(marker, 2))
+	}
 	Set continue = 0
 	Do %session.Logout(1)
 	Set %session.EndSession = 1

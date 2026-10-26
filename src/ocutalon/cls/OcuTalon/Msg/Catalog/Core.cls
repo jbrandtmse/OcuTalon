@@ -481,6 +481,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {"limit": "count"},
   "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
  },
+ "splash.tooManySessions": {
+  "text": "Too many new sessions from your network this hour. You can start another at {time}.",
+  "slots": {"time": "text"},
+  "source": "EXPERIENCE State Patterns / Too many sessions"
+ },
  "splash.shellLine": {
   "text": "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.",
   "slots": {},

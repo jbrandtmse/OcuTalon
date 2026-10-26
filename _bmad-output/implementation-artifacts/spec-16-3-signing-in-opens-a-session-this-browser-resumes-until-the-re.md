@@ -2,9 +2,10 @@
 title: 'Story 16.3: Signing in opens a session this browser resumes until the reset'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4c70aa27b56afda59b5fe9d7df7872014285655c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-4, lines 152-175; AD-13, lines 342-386, the sign-in, session-lifetime, forwarded-address and busy bullets; AD-27, lines 742-751; AD-19''s seed and product-values bullets, 493-498, its proxy-address row, 508, and its public-settings bullet, 514-517; AD-25''s proxy bullet, 682-694, probe bullet, 710-713, and capacity bullet, 714-716)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only The splash screen, lines 98-124; Formats, 176-190; State Patterns › Too many sessions, line 347)'
@@ -172,7 +173,7 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (implement, on lane C's throwaway; record each result under Verification): measure (a) to (d) below. Use the unit's first run, with `MEASURED` lines where the unit can print them. Any temporary diagnostic line must be reverted byte-identical and never committed.
+- [x] Task 0 (implement, on lane C's throwaway; record each result under Verification): measure (a) to (d) below. Use the unit's first run, with `MEASURED` lines where the unit can print them. Any temporary diagnostic line must be reverted byte-identical and never committed.
   - (a) The Set-Cookie that `%response.SetCookie` writes in `OnLogin` is in the sign-in POST's 303 answer and in a group-carried first `/ocutalon/` GET. Print its attributes with the value replaced as `MEASURED resume Set-Cookie attributes:`.
     - If it is missing, the call moves to `Shell.OnPreDispatch` in the same request: the reference is handed over in a process-private `%`-variable that is killed at once. Record this under Design Notes and keep every other Always line.
   - (b) Chromium keeps a Secure cookie set over `http://127.0.0.1:<port>` (row 1's assertion).
@@ -180,50 +181,50 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
     - If neither host keeps it, stop with `## Clarification Needed`.
   - (c) The exact `REMOTE_ADDR` that IRIS sees for the host's requests on the developer machine, and how the unit derives it. Candidates: the iris container's default gateway (`/proc/net/route`), the project network's gateway (`docker network inspect`), or else a temporary echo application created on the throwaway at run time and never in `src/`. Phase 2's precondition guards it on CI.
   - (d) Whether build 154 reuses `%session.SessionId` after `?IRISLogout=end` and a new sign-in in the same jar. Print `MEASURED CSP session id reused on resume: yes|no`.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Session.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Data/Session.cls`:
   - `Property ResumeHash As %String(COLLATION = "EXACT", MAXLEN = 43)` with `Index ResumeHashIndex On ResumeHash [ Unique ]`, and `Property CspSessionId As %String(MAXLEN = 64)`, both appended to the storage;
   - `Hash(text)`: SHA-256 of the UTF-8 text, base64url, no padding;
   - a private `NewRow(irisUser)` holding `ForUser`'s row initialisation, with `ForUser` otherwise unchanged;
   - `NewVisitor(irisUser, cspSessionId, Output reference, Output sc)`: `NewRow` plus a new reference, its hash and the CSP session id, saved;
   - `ForResume(reference)`: "" unless the reference is 22 characters of `A-Za-z0-9-_`, else `ResumeHashIndexOpen(..Hash(reference))`;
   - the class comment names both properties and why -- rows 1, 3, 5.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`:
   - `Resume(reference, Output sc) As %String`: `Session.ForResume`; only a row of `$Username`; records the CSP session on the row and its Ref in `%session.Data`; returns the Ref or "";
   - `StartVisitor(Output reference, Output sc) As %String`: `Session.NewVisitor($Username, %session.SessionId, ...)`, recorded the same way;
   - `SessionRef`: after the existing check, `If ..LocalFlag() = 0` answers "" with an error (no `Attach`);
   - the class comment states the online-demo resolution (DW-16) -- rows 1, 2, 3, 7, 8.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls`:
   - `Recent(address, Output oldest) As %Integer`: the rows of `Session.Hash(address)` created in the past hour, by walking the class's own `AddressHashIndex` with `$SYSTEM.Util.Collation(hash, 7)` and comparing the opened row's `AddressHash` exactly; no SQL;
   - `Add(address) As %Status`;
   - `Lock(address) As %Boolean` (5 s) and `Unlock(address)`, on `^OcuTalon.Data.AddressCounter(<hash>)`;
   - `Purge(daysToKeep) As %Status`: a checked `DELETE ... WHERE CreatedAt < <now - 3600 s>`;
   - the comment cites AD-13 and AD-27 -- rows 10 to 13.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- `Parameter ADDRESSLIMITKEY = "onlineDemo.sessionsPerAddress";` and `Parameter ADDRESSLIMITSEED = 5;`, each with a doc line ("new sessions per client address per hour, online demo"). No existing line changes -- row 14.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- `Parameter ADDRESSLIMITKEY = "onlineDemo.sessionsPerAddress";` and `Parameter ADDRESSLIMITSEED = 5;`, each with a doc line ("new sessions per client address per hour, online demo"). No existing line changes -- row 14.
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls`:
   - `SeedSettings()`: with the flag on, `Setting.Seed(Setting.#ADDRESSLIMITKEY, Setting.#ADDRESSLIMITSEED)`;
   - `Run` calls it before the applications;
   - `Purge` returns the first error of `Live.Event.Purge` and then `AddressCounter.Purge`;
   - the class comment and `Purge`'s comment name the counter -- rows 13, 14.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls`:
   - `Parameter RESUMECOOKIE = "OcuTalonResume"`;
   - `AttachFor` keeps its no-role and always-OK contract, and with the flag on calls `AttachVisitor()`: the cookie (`Ownership.Resume`); else `ClientAddress`; when proxied, `AddressCounter.Lock`, `Recent`, then either the refusal marker or `Ownership.StartVisitor` plus `Add`, then `Unlock`; when exempt, `StartVisitor` alone; then `SetCookie` per Always;
   - `ClientAddress(remote, forwarded, proxy, Output proxied)` and `CookieExpiry(nextReset)` are public class methods, so they can be tested;
   - log lines carry error codes only;
   - the class comment states the branch -- rows 1, 3, 10, 12.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls`:
   - `Parameter REFUSALKEY = "OcuTalon.Refused"`;
   - `OnPreDispatch`: with the role and a marker, it ends the session and returns `Login.Show($List(marker, 1), 0, $ListGet(marker, 2))` as the no-role path does;
   - the class comment names it -- rows 10, 11.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Public/Login.cls` -- `Show(state, writeHeader, until As %String = "")` sets `%OcuTalonUntil` beside `%OcuTalonState` and passes `until` in its hand-over line. No other line changes; the local output is unchanged -- rows 9, 15.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Public/Splash.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Web/Public/Login.cls` -- `Show(state, writeHeader, until As %String = "")` sets `%OcuTalonUntil` beside `%OcuTalonState` and passes `until` in its hand-over line. No other line changes; the local output is unchanged -- rows 9, 15.
+- [x] `src/ocutalon/cls/OcuTalon/Web/Public/Splash.cls`:
   - `Parameter TOOMANY = "Too many new sessions from your network this hour. You can start another at {time}."`;
   - `OnLoginPage` reads and kills `%OcuTalonUntil`. State "addressLimit" gives that message with `{time}` replaced by the escaped `<time>` element, and `marked` stays 0;
   - the class comment names the state -- rows 11, 15.
-- [ ] `web/src/signin/splash.js`, then `npm --prefix web run tokens` (which regenerates `Web/Public/SplashAssets.cls`; never edit that file by hand) -- `#ocu-error-time` gets the formatted time of its `datetime` once, with `startCountdown`'s formatter options. ASCII, no `//` -- row 11.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` and `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` (footprint extensions) -- add `splash.tooManySessions` with the slot `time` (`text`) and a `source` naming EXPERIENCE › State Patterns › Too many sessions; update the counts, `Keys` and a `Fixtures` entry ("15:20") -- row 15.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls` -- classify `TOOMANY` under `compared` (a key with slots, compared with `Entry(key).text`); the counts move by exactly one -- row 15.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls` -- `TestTexts` gains `TOOMANY`; new `TestTooManySessions` covers row 15 -- row 15.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` -- saves and restores `onlineDemo`, `proxyAddress`, `resetAnchor` and `resetIntervalHours` through `Public.Settings`, and removes its rows and counter rows (also after a failure). New tests:
+- [x] `web/src/signin/splash.js`, then `npm --prefix web run tokens` (which regenerates `Web/Public/SplashAssets.cls`; never edit that file by hand) -- `#ocu-error-time` gets the formatted time of its `datetime` once, with `startCountdown`'s formatter options. ASCII, no `//` -- row 11.
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` and `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` (footprint extensions) -- add `splash.tooManySessions` with the slot `time` (`text`) and a `source` naming EXPERIENCE › State Patterns › Too many sessions; update the counts, `Keys` and a `Fixtures` entry ("15:20") -- row 15.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls` -- classify `TOOMANY` under `compared` (a key with slots, compared with `Entry(key).text`); the counts move by exactly one -- row 15.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls` -- `TestTexts` gains `TOOMANY`; new `TestTooManySessions` covers row 15 -- row 15.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` -- saves and restores `onlineDemo`, `proxyAddress`, `resetAnchor` and `resetIntervalHours` through `Public.Settings`, and removes its rows and counter rows (also after a failure). New tests:
   - `TestFirstSignIn`: row 1's row and cookie fields, and the expiry string for a fixed anchor;
   - `TestResume`: row 3;
   - `TestUnknownCookie`: an unknown, a malformed and a deleted row's reference each give a fresh row and cookie;
@@ -231,21 +232,21 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
   - `TestExempt`;
   - `TestClientAddress`: row 12;
   - `TestFlagOff`: row 9 -- rows 1, 3, 5, 9, 10, 12.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- `TestSessionRefOnTheOnlineDemo` (row 8) and `TestResumeAndStartVisitor`. The class keeps clearing the flag for its other tests -- rows 3, 8.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Session.cls` -- `TestNewVisitorAndForResume`: the hash shape, no property equal to the reference, `ForResume` of a malformed value -- rows 1, 5.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/AddressCounter.cls` (new; the `Data` area is in shard `lane-b`) -- `TestRecentWindow` and `TestAddStoresOnlyTheHash` -- rows 12, 13.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls` -- `TestPurgeAddressCounter`: row 13 through `Web.Purge` (throwaway only, like `TestPurgeDeclaration`) -- row 13.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls` -- `TestAddressLimitSetting`: the two parameters, and row 14 with the flag and the key's row saved and restored. No existing method changes -- row 14.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- the `Session` entry gains both properties and `ResumeHashIndex` (in the contract's own syntax); the Lane A entries are untouched.
-- [ ] `web/e2e-online/support.ts` -- add:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- `TestSessionRefOnTheOnlineDemo` (row 8) and `TestResumeAndStartVisitor`. The class keeps clearing the flag for its other tests -- rows 3, 8.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Session.cls` -- `TestNewVisitorAndForResume`: the hash shape, no property equal to the reference, `ForResume` of a malformed value -- rows 1, 5.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/AddressCounter.cls` (new; the `Data` area is in shard `lane-b`) -- `TestRecentWindow` and `TestAddStoresOnlyTheHash` -- rows 12, 13.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls` -- `TestPurgeAddressCounter`: row 13 through `Web.Purge` (throwaway only, like `TestPurgeDeclaration`) -- row 13.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls` -- `TestAddressLimitSetting`: the two parameters, and row 14 with the flag and the key's row saved and restored. No existing method changes -- row 14.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- the `Session` entry gains both properties and `ResumeHashIndex` (in the contract's own syntax); the Lane A entries are untouched.
+- [x] `web/e2e-online/support.ts` -- add:
   - `RESUME_COOKIE`;
   - `resumeCookie(context)`;
   - `sha256url(text)` (node `crypto`);
   - `sessionRow(epoch)` (`irisScript`: the row's Ref, TraceRef, ResumeHash and CspSessionId by `Epoch`);
   - `signInOverHttpFrom(playwright, address)` (an API context with `X-Forwarded-For`) -- rows 1, 2, 5, 7, 11.
-- [ ] `web/e2e-online/resume.spec.ts` (new) -- rows 1, 2, 5 and 7 as R1, R2, R4 and R5, plus the two `notBuilt` declarations of row 2. Each case removes its fixture rows (`Fixture.Clean` by Refs, the `BreakFeedRun` row by id) and signs out in `finally` -- rows 1, 2, 5, 7.
-- [ ] `web/e2e-online/address-limit.spec.ts` (new) -- row 11 as L1. It is skipped with the reason "runs in the unit's proxied phase" unless `OCUTALON_ONLINE_PROXIED=1`, and its address comes from `OCUTALON_ONLINE_LIMIT_ADDRESS` -- row 11.
-- [ ] `docker/tests/test-online-demo.sh` -- the header names the new checks. Changes:
+- [x] `web/e2e-online/resume.spec.ts` (new) -- rows 1, 2, 5 and 7 as R1, R2, R4 and R5, plus the two `notBuilt` declarations of row 2. Each case removes its fixture rows (`Fixture.Clean` by Refs, the `BreakFeedRun` row by id) and signs out in `finally` -- rows 1, 2, 5, 7.
+- [x] `web/e2e-online/address-limit.spec.ts` (new) -- row 11 as L1. It is skipped with the reason "runs in the unit's proxied phase" unless `OCUTALON_ONLINE_PROXIED=1`, and its address comes from `OCUTALON_ONLINE_LIMIT_ADDRESS` -- row 11.
+- [x] `docker/tests/test-online-demo.sh` -- the header names the new checks. Changes:
   - after row 11, self-contained blocks for rows 4, 6, 12 and 14 (live);
   - the reference search reuses `check_logs_clean`'s searches and adds the global scan;
   - Task 0's `MEASURED` lines;
@@ -261,6 +262,43 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-25 -- Review pass
+- verdicts: 33 findings -- high 0, medium 4, low 21, false 8, maybe-false 0 (the medium rows group into three patched entries: the lock and its concurrency test, the limit test, and R2's assertion)
+- findings:
+  - `[low]` `reject` (blind) address limit 0, negative or non-numeric refuses every sign-in and the time reads empty -- an operator typo only; the key is seeded and not edited by the product; the fix adds a guard and a fallback.
+  - `[low]` `reject` (blind) the counted address is an unsalted SHA-256 -- AD-13 and the spec prescribe "a hashed address with timestamps"; rows live one hour; the fix amends the spec.
+  - `[low]` `reject` (blind) lock timeout or `Add` failure leaves a visitor half attached -- the lock-timeout behaviour (500 until Story 16.4) is the lead's accepted interim; an `Add` failure needs a database fault; the fix adds cleanup branches.
+  - `[false]` `reject` (blind) the refusal sentence has no text before the script runs -- the spec fixes it: the `<time>` is empty in the markup and the script fills it, as the reset line's time is.
+  - `[low]` `reject` (blind) `Recent` hardcodes the index global and collation -- the spec says to walk the class's own index with collation 7; `TestRecentWindow` fails if the layout moves.
+  - `[false]` `reject` (blind) the cookie path `/ocutalon/` misses `/ocutalon` -- AD-4 fixes the exact `SetCookie` call; the splash form posts under the slash-terminated application path (`Splash.OnLoginPage` builds its base with the slash).
+  - `[low]` `reject` (blind) the test script restores `proxyAddress` to a literal and has no trap -- the literal is the script's own start value, and the stack is a throwaway that the unit tears down.
+  - `[low]` `reject` (blind) `%OcuTalonUntil` is left set on the local page -- it holds "" there (`until` is only given on the online demo) and the spec says to set it beside `%OcuTalonState`.
+  - `[medium]` `patch` (blind) no test of the concurrency the lock exists for -- patched with `Test.Data.AddressCounter.TestLockExcludesAnotherJob` (a second job probes the lock) and lock-release assertions in `TestLimit`; the same root cause as the verification-gap lock finding. A two-process race stays unproven (a deterministic one needs a harness); the lock's exclusion and release are pinned.
+  - `[low]` `reject` (edge) limit 0 or non-numeric gives an empty time -- the same claim as the blind row above.
+  - `[low]` `reject` (edge) a lowered limit shows a time that is too early -- the product never lowers the limit; the fix needs the n-th oldest row.
+  - `[low]` `reject` (edge) `Add` failure after `StartVisitor` leaves an uncounted attached row -- as the blind row above.
+  - `[low]` `reject` (edge) lock timeout or `Resume` failure records no marker -- the lead's spec gate accepts the interim (the API answers 500; Story 16.4 owns the return to the splash).
+  - `[false]` `reject` (edge) the `addressLimit` state on the local page -- the marker is written only on the online demo, where `UseSplash` is 1; the local page cannot receive it.
+  - `[low]` `reject` (edge) an empty `X-Forwarded-For` counts under the proxy's address; IPv6 forms -- both are in the spec's Decided in-stage (an empty entry cannot occur behind the proxy, which overwrites the header).
+  - `[false]` `reject` (edge) `SameSite=Strict` and the cookie path miss a sign-in at `/ocutalon` -- as the blind cookie-path row; R2 pins a cross-site arrival.
+  - `[low]` `reject` (edge) two CSP sessions can resume one row -- the spec says a resume attaches whatever the previous `CspSessionId` was.
+  - `[false]` `reject` (edge) `Shift` of an empty time makes `Recent` and `Purge` miscount -- `NowUtc()` always returns a valid time; the claim needs a failing clock.
+  - `[false]` `reject` (edge) the marker may not be a list -- only `OnLogin` writes it, as a `$ListBuild`.
+  - `[false]` `reject` (edge) `SameSite=Strict` with a cross-site POST (low confidence) -- the cookie is read on the sign-in POST, which the splash form sends from the same site; R2 passes.
+  - `[medium]` `patch` (gap) the limit is never varied by any test -- patched: `TestLimitIsTheSetting` (limits 2 and 7); mutation line recorded.
+  - `[medium]` `patch` (gap) `Lock` and `Unlock` cannot fail in any test -- patched: `TestLockExcludesAnotherJob` and lock-release assertions in `TestLimit`; mutation lines recorded.
+  - `[low]` `patch` (gap) row 11 passes on exit 0 and a skipped L1 also exits 0 -- patched: the unit requires "1 passed" and no "skipped" in the log.
+  - `[low]` `patch` (gap) several pinning tests have no mutation line -- patched: the cross-user `Resume` guard, `ClientAddress` equality, `SeedSettings` with the flag on and off, and the splash's `datetime` escaping each have a recorded mutation.
+  - `[medium]` `patch` (gap) R2's `cspSessionId` not empty cannot fail -- patched: the assertion is removed (build 154 reuses the id, so a browser case cannot see it change); `TestResume` pins the attach.
+  - `[low]` `patch` (gap) `TestFlagOff` can pass with a pre-existing limit row -- patched: the row is removed first and its absence asserted; the mutation line is recorded.
+  - `[low]` `reject` (gap) R5's trace-only step accepts any status of 400 or more -- Story 16.4 changes the interim 500 into a 401, so a stricter code would pin the interim; the recorded mutation turned it red.
+  - `[low]` `reject` (gap) `Web.Purge`'s first-error ordering is unpinned -- a pin needs an injectable failing `Live.Event.Purge`, which adds a seam for a one-line ordering.
+  - `[low]` `reject` (gap) the failure paths after `StartVisitor` are untested -- the behaviour is the lead's accepted interim and a fault injection is not available.
+  - `[low]` `reject` (gap) limit 0 or non-numeric -- as above.
+  - `[low]` `reject` (gap) `TestRecentWindow` boundary between 3541 and 3600 s -- the spec's row 13 names 59 and 61 minutes, which the test uses.
+  - `[low]` `reject` (gap) R2's request-header capture could flake -- it fails, never passes vacuously.
+  - `[false]` `reject` (intent-alignment) the descriptive report's divergences (hook tested through `AttachFor`, the refusal chain split between in-process and live checks, time text only in the browser) -- it claims no defect; each surface is covered by a named row.
 
 ## Design Notes
 
@@ -311,6 +349,16 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
 - **Counting without SQL** walks the counter's own index, because `OnLogin` runs as the demo account, which holds no SQL privilege, and the unchecked-prepare allow-list stays three entries.
 - **The limit's live check runs in a second phase,** with `proxyAddress` set to the host's connection address and then restored. In phase 1 every sign-in of the earlier specs is exempt, so none of them can be refused.
 - **The resume browser case** uses seeded rows (`Fixture.Turn`, `Approval`, `Pairing`) rather than a model turn, to keep the unit lean (DW-220). Row 6's curl path sends one real message, so a production message exists for the reference search.
+
+**Decided in-stage (implement):**
+- **Row 4 pins "no `OnLogin` in the trace applications" through the console log.** The trace applications' account has no write access to OCUTALON_PRIVATE (no application roles), so an `OnLogin` that ran there (the mutation of the table) fails with a protection error inside `NewVisitor` and creates no row and no cookie: the row-count and cookie checks alone cannot turn red. The unit therefore also compares the number of `OcuTalon.Web.SessionEvents:` lines in `messages.log` before and after the trace sign-in (an attach that fails writes one).
+- **Row 10 ages the first counter row to 50 minutes** before the sixth sign-in, so that the unit also pins the window: a `Recent` that counts only the past minute counts four and lets the sixth in. The unit's own times (five sign-ins within seconds) could not tell an hour from a minute.
+- **R5 gains a trace-only context.** A context that signed in only at the trace application and then calls `/state` has a CSP session that no `OnLogin` attached (the API application has no session event class), so `SessionRef` answers an error and the API answers 500 (a status of 400 or more is asserted, as 16.4 replaces it with 401). That is the only browser step where a lazy `Attach()` on the online demo would be visible: `Test.Data.Ownership.TestSessionRefOnTheOnlineDemo` pins it in process.
+- **R2 does not assert that the CSP session id changed.** Task 0 (d) measured that build 154 reuses `%session.SessionId` after `?IRISLogout=end` and a new sign-in in the same jar, so the row's `CspSessionId` may equal the old one; the cases assert it is set, and `TestResume` pins the attach with an equal and a different id.
+- **`Install.Step.Web.Purge` returns the first error but always runs both purges.** The counter is purged even when the live-event purge failed.
+- **Footprint additions inside the accepted paths:** `Shell.REFUSALKEY` is a new parameter of a public class, so `Test.Web.PublicTexts` classifies it under `notText` (26, not 25; `compared` is 36); `AddressCounter.Shift` is public (the hook and the tests use it); `Test.Web.SessionEvents.ReferenceHits` is the unit's global scan of row 6 and `DropVisitors` removes visitor rows of the test user that an earlier failed run left.
+- **A lock timeout on an address** (5 s) gives `AttachVisitor` an error status, which `AttachFor` logs by code and answers OK for; the visitor then has no session (500 at the API until Story 16.4).
+- **The Web step's seed reads the flag through `Setting.Get`**, as the contract says, not through `Public.Settings` directly.
 
 **For Story 10.3 and Story 12.7:** `web/e2e-online/resume.spec.ts` declares `notBuilt('R2b: /state returns the fixture pairing', '10.3')` and `notBuilt('R2c: the rail\'s Telegram card shows the fixture pairing', '12.7')`. The story that turns one on replaces it with the real check on R2's resumed session. If 10.3 reads its real `Pairing` row, it swaps the fixture for it.
 
@@ -396,7 +444,12 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
 - (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-c && pwd)" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=16 stage=implement' OCUTALON_RUN_TAG=e16s3i bash ci/iris.sh teardown` -- nothing tagged `e16s3i` is left.
 - The install, production, floor and demo-path units are left to CI.
 
-**Task 0 results:** the implement stage adds one result line per measurement (a) to (d) here, with the `MEASURED` text the unit printed and the decision rule taken, if any.
+**Task 0 results** (the unit's `MEASURED` lines on lane C's throwaway, build 154):
+- (a) The Set-Cookie is in the sign-in POST's 303 answer: `MEASURED resume Set-Cookie attributes (the sign-in POST's answer): OcuTalonResume=<value>; expires=Mon, 26 Oct 2026 04:00:00 GMT; path=/ocutalon/; secure; httpOnly; sameSite=strict;`. The first `/ocutalon/` GET after that POST carries none (the session is attached already). A sign-in that the group carried (trace application first) gets the same line on its first `/ocutalon/` GET: `MEASURED resume Set-Cookie attributes (the group-carried first /ocutalon/ GET): OcuTalonResume=<value>; expires=...; path=/ocutalon/; secure; httpOnly; sameSite=strict;`. The header name is written in capitals by the web server (`SET-COOKIE`), so the unit's sed/grep is case-insensitive. No fallback to `Shell.OnPreDispatch` is needed.
+- (b) `MEASURED Chromium keeps the Secure resume cookie over http://127.0.0.1:<port>: yes` (R1: `httpOnly`, `secure`, `sameSite: 'Strict'`, path and `expires` equal to `nextReset` to the second; Chromium reports a fractional `expires`, so the case floors it). `OCUTALON_URL` stays `http://127.0.0.1:<port>`.
+- (c) IRIS sees the iris container's default gateway as `REMOTE_ADDR` for the host's requests (`MEASURED REMOTE_ADDR of the host's requests, derived from the container's default gateway: 172.22.0.1` on the last run; 172.28.0.1 and 172.29.0.1 on others: it follows the project network). The unit derives it from `/proc/net/route` (little-endian hex of the default route's gateway), and phase 2's precondition (one proxied sign-in writes a counter row for its forwarded address) passed with it. Phase 2 sets `proxyAddress` to it and puts `192.0.2.10` back, read back.
+- (d) `MEASURED CSP session id reused on resume: yes`: build 154 reuses `%session.SessionId` after `?IRISLogout=end` and a new sign-in in the same jar. That is why nothing in the hook compares session ids.
+- The `online-demo` unit's new local time (DW-220's `reopen_if`): 195.5 s wall-clock for the last green run of `ci/iris.sh live online-demo` (3:15.5), 203 s for the first all-green one (3:23.2); a final run after the review patches took 201 s (rc 0, 119 PASS lines); Story 16.2 measured 165 to 204 s. The unit's default deadline is 540 s.
 
 **Shared surfaces:**
 - The online demo's sign-in now creates one `Session` row per sign-in. Story 16.1 and 16.2's specs and the unit's curl sign-ins are exempt in phase 1 and run unchanged; search `web/e2e-online/` and the unit for any assumption of one shared demo session and update it.
@@ -425,7 +478,56 @@ Rows 1, 2, 5 and 7 run as browser cases in `web/e2e-online/resume.spec.ts`, and 
 | AC 5 | `Test.Web.SessionEvents.TestClientAddress` | the left-most `X-Forwarded-For` entry is taken |
 | AC 5 | `Test.Web.Install.TestPurgeAddressCounter` | `Web.Purge` stops calling `AddressCounter.Purge` |
 
+**Mutation record** (Rule 19; each mutation applied temporarily, observed red, then reverted with the tree byte-identical, restored from a backup made before it; live ones in a fresh `live online-demo` run, three runs for the mutations that cannot share one):
+- mutation: `resume.spec.ts` R1 -- `SessionEvents` sets the cookie with HttpOnly 0 -- red: R1 failed in the unit's browser step (the Set-Cookie of the answer lost `httpOnly`).
+- mutation: `Test.Web.SessionEvents.TestFirstSignIn` -- `NewVisitor` stores the reference instead of its hash -- red: `TestFirstSignIn`, `TestResume`, `TestUnknownCookie` failed ("the row keeps the SHA-256 of the reference").
+- mutation: `resume.spec.ts` R2 -- `Ownership.Resume` always answers "" -- red: R2 failed in the browser step (a new epoch), and the unit's row 6 resume and row 10 cookie sign-in with it.
+- mutation: `Test.Web.SessionEvents.TestResume` -- `Resume` returns "" when the row's `CspSessionId` equals `%session.SessionId` -- red: `TestResume` failed ("the row is attached again"), `TestFlagOff` followed from the rows it left.
+- mutation: the unit's row 4 -- `Web.Common` gives every application `EventClass` `SESSIONEVENTS` -- red: row 4 failed on the console log's `OcuTalon.Web.SessionEvents:` lines (1 to 2); the first version of the row (cookie and row count only) stayed green, because the trace application's account cannot write the private database, so the check now counts the log lines (see Decided in-stage). The mutation also broke `/ocutalon/public/status` (rows 2 and 11) and, on the API, R5's trace-only step, which is why R5 has its own run.
+- mutation: `resume.spec.ts` R4 -- `ForResume` falls back to the user's first row (`ForUser`) when the hash opens none -- red: R4 failed ("with a different value": the unknown cookie resumed another row).
+- mutation: the unit's row 6 -- `AttachVisitor` logs the reference before the resume -- red: "row 6: '2' line(s) of the container's output, messages.log or the after-start log hold the resume reference", after the first start and after the restart.
+- mutation: `resume.spec.ts` R5 -- `Ownership.SessionRef` attaches by user name on the online demo too (the online-demo block removed) -- red: R5 failed on its trace-only step (status 200 instead of 400 or more); it is the run's only failure. Before that step existed, R5 could not see this mutation (every visitor has a Ref from `OnLogin`).
+- mutation: the unit's row 10 -- `AddressCounter.Recent` counts only the past minute (cutoff 60 s) -- red: row 10 failed (the sixth sign-in was let in: status 303, the shell) once the first counter row was aged to 50 minutes; with five fresh rows alone it stayed green.
+- mutation: `address-limit.spec.ts` L1 -- `Shell.OnPreDispatch` ignores the refusal marker -- red: L1 failed in the proxied phase (no error on the page), and row 10's sixth sign-in with it.
+- mutation: `Test.Web.SessionEvents.TestClientAddress` -- the left-most `X-Forwarded-For` entry is taken -- red: `TestClientAddress` ("'a, b' gives b", "the last of three", "an empty last entry ...") and `TestLimit` failed.
+- mutation: `Test.Web.Install.TestPurgeAddressCounter` -- `Web.Purge` stops calling `AddressCounter.Purge` -- red: `TestPurgeAddressCounter` ("the 61-minute row is deleted").
+- mutation: `Test.Web.SessionEvents.TestLimitIsTheSetting` -- `AttachVisitor` ignores the setting and uses the literal 5 -- red: "limit 2: creation 3 is refused".
+- mutation: `Test.Data.AddressCounter.TestLockExcludesAnotherJob` -- `Unlock` does nothing -- red: "after Unlock another job takes it at once"; `Test.Web.SessionEvents.TestLimit` failed too ("the address's lock is released after the creations" and "after the refusal").
+- mutation: `Test.Data.AddressCounter.TestLockExcludesAnotherJob` -- `Lock` answers 1 without locking -- red: "another job cannot take it while it is held".
+- mutation: `Test.Data.Ownership.TestResumeAndStartVisitor` -- `Resume` drops the `IrisUser` check -- red: "another user's row is not resumed" and "and is not touched".
+- mutation: `Test.Web.SessionEvents.TestClientAddress` and `TestExempt` -- `ClientAddress` treats every request as proxied when a proxy is set (no equality with `REMOTE_ADDR`) -- red: "not from the proxy: exempt", "the proxy's address is matched exactly" and `TestExempt` sign-in 6.
+- mutation: `Test.Data.Setting.TestAddressLimitSetting` -- `SeedSettings` seeds nothing -- red: "writes the row of the absent key", "with the value 5".
+- mutation: `Test.Web.SessionEvents.TestFlagOff` -- `SeedSettings` ignores the flag -- red: "and seeds nothing" (the limit's row is removed first, so the check can fail).
+- mutation: `Test.Web.Splash.TestTooManySessions` -- the `datetime` attribute is written unescaped -- red: "the time attribute is escaped", "and never written raw".
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** On the online demo every sign-in now gets its own `Session` row: `SessionEvents.AttachVisitor` resumes the row of a valid `OcuTalonResume` cookie, or creates a visitor row and sets the cookie once (22-character reference, only its SHA-256 stored, HttpOnly, Secure, `SameSite=Strict`, path `/ocutalon/`, expiring at the next reset). `Ownership.SessionRef` never attaches by user name there (DW-16). Proxied creations are counted per hashed client address under one lock; the sixth in an hour is refused by `Shell.OnPreDispatch`, which ends the CSP session and shows the splash's field error with a page time. Local and IPM installs keep one durable session per user. The limit is a seeded setting (5), and `Web.Purge` purges the counter (one hour).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Session.cls`: `ResumeHash` and `CspSessionId` appended to the storage, `Hash`, `NewVisitor`, `ForResume`, shared `NewRow`.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `Resume`, `StartVisitor`, the online-demo `SessionRef`.
+- `src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls`: `Recent`, `Add`, `Lock`, `Unlock`, `Purge`, `Shift`.
+- `src/ocutalon/cls/OcuTalon/Data/Setting.cls`: the limit's key and seed.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls`: `SeedSettings`, the counter's purge.
+- `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls`, `Web/Public/{Shell,Login,Splash,SplashAssets}.cls`, `web/src/signin/splash.js`: the hook, the refusal, the splash error and its time.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`, `Test/Msg/Catalog.cls`, `Test/Web/PublicTexts.cls`: `splash.tooManySessions` and the counts.
+- `src/ocutalon/cls/OcuTalon/Test/**` (Web and Data classes, the new `Test/Data/AddressCounter.cls`), `web/e2e-online/{support.ts,resume.spec.ts,address-limit.spec.ts}`, `docker/tests/test-online-demo.sh`: the tests and the unit's new rows and phase 2.
+
+**Review.** 33 findings from four layers: 7 patched (3 entries at medium: the lock and its concurrency test, the limit test, R2's assertion; 3 low), 0 deferred, 26 rejected with the reasons in the triage log (spec-decided, accepted interim, or not reachable). Patches applied: `TestLimitIsTheSetting`, `TestLockExcludesAnotherJob` with `FreeInAnotherJob`, lock-release assertions in `TestLimit`, row 11 requiring one passed and none skipped, the weak R2 assertion removed, `TestFlagOff` clearing the limit's row first, and eight new mutation lines.
+
+**Follow-up review recommended: true.** Three medium entries were patched (the limit test, the lock tests, R2's weak assertion). The unverified risk: the lock's two-process race on the last place is pinned by exclusion and release only, not by a concurrent sign-in test.
+
+**Verification performed.**
+- `npm --prefix web run tokens` (no change to `SignInAssets.cls`), `npm --prefix web test` (568 pass), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh`: all pass, after the patches.
+- Warm stack, one class per call, all passed: SessionEvents, Ownership, Session, AddressCounter, Setting, Tables, Install, Splash, PublicTexts, Status, SignIn, Api (one pre-existing skip), Msg.Catalog; after the patches SessionEvents, AddressCounter, Ownership and Splash again, and the other classes through `shard lane-b`.
+- `live online-demo`: green before and after the patches (201 s after); `live sign-in` green (438 s); `live storage-roundtrip` green; `shard lane-b` passed (44 classes, 115 s); `shard lane-a` passed (47 classes, 412 s); teardown left nothing tagged `e16s3i` or `e16s3iw`.
+- Mutations (Rule 19): every line in the Mutation record turned red and was reverted byte-identical from a backup (compared with `cmp`).
+
+**Residual risks.**
+- The handoff subagent ran eleven warm class runs in one message, against the one-class-per-call rule. All passed, and this stage re-ran every class one per call.
+- An address-lock timeout or an `OnLogin` failure leaves the visitor with no session until Story 16.4 (the API answers 500; the lead accepted this interim).
+- The hashed address is an unsalted SHA-256, as AD-13 prescribes; an IPv4 value could be brute-forced from a counter row within its one-hour life.
