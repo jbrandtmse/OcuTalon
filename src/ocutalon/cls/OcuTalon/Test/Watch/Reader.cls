@@ -17,10 +17,14 @@
 ///     SuperSession, item, sender, body class, time, the id of the log row of the error and its raw text), in time and id order, at most limit, and nothing
 ///     for a limit of 0;
 ///   - TestFailureDefinition (Story 5.2): from fixture headers, a header in the error status is a failure whatever its IsError, a response header with only IsError
-///     is not one, and the text of a failure is, in turn, the log row of its message, the session's log row at its target, the header's own error status when
-///     IsError, and empty;
+///     is not one, and the text of a failure is, in turn, the log row of its message (before an earlier row at its target), the session's log row at its target
+///     (not an earlier row of another item), the header's own error status when IsError, and empty;
+///   - TestFailuresHeaderless (Story 5.2, QA; row Headerless log row): event-log rows with no session are failures of their own when their type is 2 (kind error)
+///     or 6 (kind alert), with the ConfigName as the item, no header, no session, the row's id and its text, in id order; a Type 3 row with no session and a Type 2
+///     row that has a session are not failures;
 ///   - TestFailuresUnreadable: with no Read on the Orders data database the outcome is unreadable and no row is given (a reader that skips the readability
-///     check reads the failures, which the service user must not see);
+///     check reads the failures, which the service user must not see), and a namespace that does not exist is unreadable with no error (a reader that
+///     entered the namespace before the check would throw);
 ///   - TestFailuresNotCurrent (DW-38): a production that is not its namespace's own gives not_current and no row: another production in OCUORDERS, and the
 ///     Orders production asked for in OCUTALON, which is readable;
 ///   - TestStoppedProduction (DW-222): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
@@ -150,13 +154,19 @@ Method TestFailures()
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows), "read", "the outcome is read")
 	Do $$$AssertEquals(rows.%Size(), 3, "three failures are given")
 	Do $$$AssertEquals(..HeaderIdsOf(rows), ..HeaderIds(failed), "the failed headers, in id order")
+	Set iterator = failed.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		Set expected(header.id) = header.sessionId_"|"_header.source_"|"_header.bodyClass_"|"_header.at
+	}
 	Set last = ""
 	Set iterator = rows.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		Do $$$AssertEquals(..SortedKeys(row), "at,bodyClass,errorText,headerId,item,kind,logId,sessionId,source,superSession", "a row has those ten fields")
 		Do $$$AssertEquals(row.kind_"|"_row.item_"|"_row.superSession, "header|OrdersFromPartner|"_trace, "a header failure of OrdersFromPartner with the SuperSession of the tag")
-		Do $$$AssertTrue((row.sessionId '= "") && (row.source '= "") && (row.bodyClass '= "") && (row.logId '= ""), "with its session, sender, body class and the log row of its error")
-		Do $$$AssertTrue(row.at ? 4N1"-"2N1"-"2N1" "2N1":"2N1":"2N1"."3N, "at is IRIS UTC with milliseconds: "_row.at)
+		Do $$$AssertEquals(row.sessionId_"|"_row.source_"|"_row.bodyClass_"|"_row.at, $Get(expected(row.headerId), "no failed header "_row.headerId), "with its header's session, sender, body class and time")
+		Do $$$AssertTrue((row.sessionId '= "") && (row.logId '= ""), "and a session and the log row of its error")
+		Do $$$AssertTrue(row.at ? 4N1"-"2N1"-"2N1" "2N1":"2N1":"2N0.1(1"."1.3N), "at is IRIS UTC with up to three fractional digits (IRIS drops the trailing zeros of a stored time): "_row.at)
+		Do $$$AssertTrue(##class(OcuTalon.Watch.Mark).Normal(row.at) '= "", "and Mark.Normal reads it as a stamp: "_row.at)
 		Do $$$AssertTrue('(last ]] row.at), "the rows are in time order")
 		Set last = row.at
 		Do $$$AssertTrue($Extract(row.errorText, 1, 42) = "ERROR <Ens>ErrBPTerminated: Terminating BP", "the text is the raw log text: "_$Extract(row.errorText, 1, 60))
@@ -176,8 +186,11 @@ Method TestFailureDefinition()
 	If '..Ready() Quit
 	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
 	Set byItem = ..FixtureHeader({})
-	Set byItemLog = ..FixtureLog(byItem, "", "zzPollerTarget", "zz text of the session's log row at the target")
 	Do ..FixtureLog(byItem, "", "zzOtherItem", "zz text of another item")
+	Set byItemLog = ..FixtureLog(byItem, "", "zzPollerTarget", "zz text of the session's log row at the target")
+	Set exact = ..FixtureHeader({})
+	Do ..FixtureLog(exact, "", "zzPollerTarget", "zz text of an earlier row at the target")
+	Set exactLog = ..FixtureLog(exact, exact, "zzOtherItem", "zz text of the row that names the message")
 	Set own = ..FixtureHeader({"IsError": 1, "ErrorStatus": "zz header status text"})
 	Set empty = ..FixtureHeader({})
 	Set response = ..FixtureHeader({"Type": 2, "Status": 3, "IsError": 1, "ErrorStatus": "zz response status text"})
@@ -186,11 +199,31 @@ Method TestFailureDefinition()
 	While iterator.%GetNext(, .row) {
 		Set found(row.headerId) = row
 	}
-	Do $$$AssertTrue($Data(found(byItem)) && $Data(found(own)) && $Data(found(empty)), "headers in the error status are failures, with IsError 0 or 1")
+	Do $$$AssertTrue($Data(found(byItem)) && $Data(found(exact)) && $Data(found(own)) && $Data(found(empty)), "headers in the error status are failures, with IsError 0 or 1")
 	Do $$$AssertTrue('$Data(found(response)), "a response header with only IsError is not a failure")
-	Do $$$AssertEquals($Select($Data(found(byItem)): found(byItem).errorText_"|"_found(byItem).logId, 1: "missing"), "zz text of the session's log row at the target|"_byItemLog, "no log row names the message: the session's row at its target gives the text")
+	Do $$$AssertEquals($Select($Data(found(exact)): found(exact).errorText_"|"_found(exact).logId, 1: "missing"), "zz text of the row that names the message|"_exactLog, "the session's row that names the message gives the text, before an earlier row at the target")
+	Do $$$AssertEquals($Select($Data(found(byItem)): found(byItem).errorText_"|"_found(byItem).logId, 1: "missing"), "zz text of the session's log row at the target|"_byItemLog, "no log row names the message: the session's row at its target gives the text, not an earlier row of another item")
 	Do $$$AssertEquals($Select($Data(found(own)): found(own).errorText, 1: "missing"), $SYSTEM.Status.GetErrorText($SYSTEM.Status.Error(5001, "zz header status text")), "no log row: the header's own error status gives it")
 	Do $$$AssertEquals($Select($Data(found(empty)): found(empty).errorText_"|"_found(empty).logId, 1: "missing"), "|", "none of them: empty")
+}
+
+Method TestFailuresHeaderless()
+{
+	If '..Ready() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Set config = "zzReaderLog"_..Number
+	Set error = ..HeaderlessLog(2, config)
+	Set warning = ..HeaderlessLog(3, config)
+	Set alert = ..HeaderlessLog(6, config)
+	Set tied = ..FixtureLog(987654321, "", config, "zz text of a row that has a session")
+	Do $$$AssertTrue((error '= "") && (warning '= "") && (alert '= "") && (tied '= ""), "rows of type 2, 3 and 6 with no session and a type 2 row with a session are written to the event log of "_..#ORDERS)
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 500, .rows), "read", "the outcome is read")
+	Set found = ""
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If row.item = config Set found = found_$Select(found = "": "", 1: ";")_row.kind_"|"_row.headerId_"|"_row.sessionId_"|"_row.superSession_"|"_row.logId_"|"_row.errorText
+	}
+	Do $$$AssertEquals(found, "error||||"_error_"|A fixture row with no session: "_config_";alert||||"_alert_"|A fixture row with no session: "_config, "only the type 2 and the type 6 row with no session are given, as failures of kind error and alert, in id order, with their id and text")
 }
 
 Method TestFailuresUnreadable()
@@ -204,10 +237,9 @@ Method TestFailuresUnreadable()
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .control), "read", "control: the failure is read while the service user can read the Orders data")
 	Do $$$AssertEquals(control.%Size(), 1, "and it is given")
 	Do ..RevokeRole(..#ORDERSDATA)
-	Set here = $Namespace
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows), "unreadable", "with no Read on "_..#ORDERSDATA_" the outcome is unreadable")
 	Do $$$AssertEquals(rows.%Size(), 0, "and no row is given")
-	Do $$$AssertEquals($Namespace, here, "the namespace is the one of the caller")
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", "ZZNOSUCHNAMESPACE", ..#ORDERSPRODUCTION, from, 10, .none), "unreadable", "a namespace that does not exist is unreadable and is never entered (entering it would throw)")
 }
 
 Method TestFailuresNotCurrent()

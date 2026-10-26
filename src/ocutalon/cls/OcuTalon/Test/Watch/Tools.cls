@@ -430,7 +430,7 @@ Method TestResolveStop()
 Method TestStopWatchOfAnUnlistedProduction()
 {
 	If '..Ready() Quit
-	If '..RestoreDouble() Quit
+	If '..UseReal() Quit
 	Set a = ..Session("realstop")
 	Set ref = ..Watch(a)
 	Do $$$AssertEquals(..Rows(a).%Size(), 1, "session A watches Orders")

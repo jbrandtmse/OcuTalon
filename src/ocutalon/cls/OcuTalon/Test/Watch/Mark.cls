@@ -1,7 +1,8 @@
 /// Tests of the pure classes of Story 5.2's failure reading, OcuTalon.Watch.ErrorText and OcuTalon.Watch.Mark (AD-5, AD-15; DW-35). They need no production and
 /// no namespace, so they run anywhere, a slot included.
 ///   - TestSentence: the error's own sentence of the measured wrapper text (the line break and the nested "  > " line are dropped), of a plain "ERROR #5001:"
-///     text, of text with no prefix (trimmed), of a long one (cut to 1000 characters) and of an empty or undefined one;
+///     text, of text with no prefix (trimmed), of nested wrappers (the innermost error), of a retry grace period's words and of a system error's logged-as
+///     tail (both dropped), of a long one (cut to 1000 characters) and of an empty or undefined one;
 ///   - TestNormal and TestShift: a stored time is made a stamp with three fractional digits, a text that is not a time is "", and a stamp moves by whole seconds
 ///     across a minute, a day and a year;
 ///   - TestStart: the start of a reading is the later of the mark (less the overlap) and the earliest CreatedAt, either of them alone, or the poll time
@@ -31,6 +32,10 @@ Method TestSentence()
 	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", own_"  > nested"), own, "and at a nested line")
 	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "ERROR #5001: ERROR #5001: "_own), own, "and a repeated prefix is dropped")
 	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "due to error: "_own), "due to error: "_own, "the wrapper is cut only when the text holds Terminating BP")
+	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "ERROR <Ens>ErrBPTerminated: Terminating BP Parent # due to error: ERROR <Ens>ErrBPTerminated: Terminating BP Child # due to error: ERROR #5001: "_own), own, "nested wrappers give the innermost error's sentence")
+	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "Not Alerting during retry grace period (60) for ERROR #5001: "_own), own, "a retry grace period's words are dropped")
+	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "Alerting at expiration of retry grace period (60) for ERROR #5001: "_own), own, "at its expiration too")
+	Do $$$AssertEquals($ClassMethod(..#SENTENCE, "Sentence", "ERROR #5002: "_own_" -- logged as '10/25/2026 22:46:48' number 7 @' Set x=y'"), own, "a system error stops before its varying logged-as tail")
 	Set long = $Justify("", 1500)
 	Set long = $Translate(long, " ", "x")
 	Set cut = $ClassMethod(..#SENTENCE, "Sentence", "ERROR #5001: "_long)

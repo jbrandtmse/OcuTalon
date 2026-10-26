@@ -61,8 +61,8 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// that it validates and saves, and the start message that the service sends.
 Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
 
-/// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production.
-Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo";
+/// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck).
+Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo";
 
 /// The classes that BridgeSink calls once it publishes, from the gate's callback (DW-177): the publisher and its event, the owner of the rows it reads, the session and
 /// the turn and incident rows behind them, and the payload builders of the events.
@@ -179,7 +179,7 @@ Method TestCallbackRule()
 	}
 	For readerClass = 1:1:$Length(..#READERCLASSES, ",") {
 		Set name = $Piece(..#READERCLASSES, ",", readerClass)
-		Do $$$AssertTrue($ListFind(listed, name) > 0 && ..IsCallbackClass(name), "the watch tools run " _ name _ " inside the callback (through Watch.Reader), so it is in CALLBACKHELPERS and scanned")
+		Do $$$AssertTrue($ListFind(listed, name) > 0 && ..IsCallbackClass(name), "the watch tools run " _ name _ " inside the callback, so it is in CALLBACKHELPERS and scanned")
 	}
 	For sinkClass = 1:1:$Length(..#SINKCLASSES, ",") {
 		Set name = $Piece(..#SINKCLASSES, ",", sinkClass)

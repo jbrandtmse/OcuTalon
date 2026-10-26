@@ -2,10 +2,11 @@
 /// OnProcessInput of a shadow instance of it, in its own process:
 ///   - with no ^||PollerProbe("mode"), the private read seam throws, as a read that cannot be done does, and the poller must warn, keep the mark and still
 ///     answer OK;
-///   - with the mode "rows", the read answers read with the rows of ^||PollerProbe("feed") (a JSON array of reader rows, in time order) from the stamp on, at
-///     most the limit it is given (each call's limit is kept in ^||PollerProbe("limit", n)), and a send is kept in ^||PollerProbe("sent", n) as a list of its
-///     target, OwnerRef, number of failures, first header id, SuperSession, SessionId and PolledAt instead of reaching a queue, or answers an error when
-///     ^||PollerProbe("send") is "fail".
+///   - with the mode "rows", the read answers not_current for every production but ^||PollerProbe("production"), so a watch row that the test did not make
+///     is never fed, and for that one it answers read with the rows of ^||PollerProbe("feed") (a JSON array of reader rows, in time order) from the stamp on,
+///     at most the limit it is given (each call's limit is kept in ^||PollerProbe("limit", n)); a send is kept in ^||PollerProbe("sent", n) as a list of its
+///     target, OwnerRef, number of failures, first header id, SuperSession, SessionId, PolledAt and first ErrorText instead of reaching a queue, or answers
+///     an error when ^||PollerProbe("send") is "fail".
 /// It is not an item of any production.
 Class OcuTalon.Test.Watch.PollerProbe Extends OcuTalon.Watch.FailurePoller
 {
@@ -20,6 +21,7 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 {
 	Set rows = []
 	If $Get(^||PollerProbe("mode")) '= "rows" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..#FAILURE))
+	If production '= $Get(^||PollerProbe("production")) Quit "not_current"
 	Set ^||PollerProbe("limit", $Increment(^||PollerProbe("limit"))) = limit
 	Set iterator = ##class(%DynamicArray).%FromJSON(^||PollerProbe("feed")).%GetIterator()
 	While iterator.%GetNext(, .row) {
@@ -33,7 +35,7 @@ Method SendRequestAsync(pTargetDispatchName As %String, pRequest As %Library.Per
 {
 	If $Get(^||PollerProbe("mode")) '= "rows" Quit ##super(pTargetDispatchName, pRequest, pDescription)
 	If $Get(^||PollerProbe("send")) = "fail" Quit $SYSTEM.Status.Error(5001, ..#SENDFAILURE)
-	Set ^||PollerProbe("sent", $Increment(^||PollerProbe("sent"))) = $ListBuild(pTargetDispatchName, pRequest.OwnerRef, pRequest.Failures.Count(), pRequest.Failures.GetAt(1).HeaderId, ..%SuperSession, ..%SessionId, pRequest.PolledAt)
+	Set ^||PollerProbe("sent", $Increment(^||PollerProbe("sent"))) = $ListBuild(pTargetDispatchName, pRequest.OwnerRef, pRequest.Failures.Count(), pRequest.Failures.GetAt(1).HeaderId, ..%SuperSession, ..%SessionId, pRequest.PolledAt, pRequest.Failures.GetAt(1).ErrorText)
 	Quit $$$OK
 }
 

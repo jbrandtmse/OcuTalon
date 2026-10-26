@@ -2,8 +2,9 @@
 /// the only place that checks the service user's read access to a namespace. The watch tools and WatchOps both use it, so a tool and the
 /// owner of the watch agree on what can be watched.
 ///   - Productions lists one entry per readable Interoperability namespace: its own current production, the one that
-///     Ens.Director.GetProductionStatus gives, else the last one started there (Ens.Director.GetActiveProductionName, so that a cleanly stopped
-///     production can still be watched and a watch on it stopped; DW-222). A namespace that never started a production has no entry, and no
+///     Ens.Director.GetProductionStatus gives, else the namespace's last production as Ens.Director.GetActiveProductionName gives it (the last one
+///     started there, or the one set to start automatically when none had started), so that a cleanly stopped production can still be watched and a
+///     watch on it stopped (DW-222). A namespace that never started a production has no entry, and no
 ///     other Ens.Config.Production row is ever an entry (DW-38). An entry is
 ///     {"namespace", "production" (the class name), "displayName"}. The display name is the Description of the production's definition, or the
 ///     class name when the description is empty. A namespace is readable when the user of the ServiceUser setting of Decide holds Read on the
@@ -158,7 +159,7 @@ ClassMethod Failures(namespace As %String, production As %String, from As %Strin
 }
 
 /// The name of the namespace's own current production, and its definition's Description, as written, in description: the running production as
-/// Ens.Director.GetProductionStatus gives it, else the last one started there (Ens.Director.GetActiveProductionName). "" when the namespace has
+/// Ens.Director.GetProductionStatus gives it, else the namespace's last production (Ens.Director.GetActiveProductionName). "" when the namespace has
 /// none, or when it cannot be entered or read (fault holds why). This is the one method that switches namespace, and it calls no OcuTalon class
 /// there, this one's methods included (Productions makes the display name, Failures its answers).
 /// When production is not empty it also reads that production's failures (Failures): outcome is not_current when production is not the name that

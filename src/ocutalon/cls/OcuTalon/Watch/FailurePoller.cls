@@ -6,12 +6,15 @@
 ///     namespace), and drops the failures that the mark's Seen set already holds and those beyond MAXFAILURES;
 ///   - scopes each new failure to the session whose TraceRef is its SuperSession (on any install, whether or not that session watches the
 ///     production), else to instance (AD-4), and sends IncidentManager one FailureBatch per scope, each its own trace session whose SuperSession
-///     is the scope session's TraceRef (empty for instance; AD-26);
+///     is the scope session's TraceRef (empty for instance; AD-26). A failure's ErrorText is the error's own sentence (OcuTalon.Watch.ErrorText) of
+///     its text after the redactor (OcuTalon.Bridge.Redact; Consistency Conventions: Redaction), so a secret in a watched production's error never
+///     reaches OcuTalon's messages;
 ///   - then saves the mark. A send cannot share a transaction with the save, so a crash between the two re-sends that poll's failures once and never
 ///     skips one. A run with nothing new sends nothing and saves nothing.
 /// A production that the reader does not read (unreadable, or not its namespace's own production) keeps its mark. Nothing that decides "new" lives in
 /// memory (AD-5). The service only reads: it never changes a production and never relies on its alerts. It logs only Type 3 warnings, one per
-/// poll of a production whose read or send threw (an unreadable production is not an error and logs nothing), and OnProcessInput always returns OK.
+/// poll of a production whose read or send threw (an unreadable production is not an error and logs nothing), with no trace session (not the one of a
+/// batch sent before it), and OnProcessInput always returns OK.
 Class OcuTalon.Watch.FailurePoller Extends Ens.BusinessService
 {
 
@@ -37,6 +40,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 			Try {
 				Do ..Poll(entry.namespace, entry.production, entry.created)
 			} Catch exception {
+				Set ..%SessionId = ""  Kill $$$JobSessionId
 				$$$LOGWARNING(..#LOGPOLL_entry.production_" in "_entry.namespace_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 			}
 		}
@@ -105,7 +109,7 @@ Method Poll(namespace As %String, production As %String, created As %String) [ P
 		Set item.ItemName = failure.item
 		Set item.SourceName = failure.source
 		Set item.BodyClass = failure.bodyClass
-		Set item.ErrorText = ##class(OcuTalon.Watch.ErrorText).Sentence(failure.errorText)
+		Set item.ErrorText = ##class(OcuTalon.Watch.ErrorText).Sentence(##class(OcuTalon.Bridge.Redact).Text(failure.errorText))
 		Set item.FailedAt = ##class(OcuTalon.Watch.Mark).FailedAt(failure.at)
 		Set item.LogId = failure.logId
 		Do batch(scope).Failures.Insert(item)

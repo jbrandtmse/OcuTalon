@@ -5,7 +5,7 @@
 ///   - Reason: "" when OCUORDERS exists, demo mode is on and the Orders production is current there;
 ///   - the changes that a test makes to the instance, each put back by OnAfterOneTest, also after a failure: SetOnlineDemo (the public flag), GrantRole
 ///     and RevokeRole (a resource of the service role), and Described (a production's description in a namespace's definition table);
-///   - UseDouble and RestoreDouble (Test.Tools.CommandsDouble behind the CommandsIn item), Begin (a bridge context for a turn), Calls (what the double
+///   - UseDouble and UseReal (Test.Tools.CommandsDouble behind the CommandsIn item, and the real service back), Begin (a bridge context for a turn), Calls (what the double
 ///     recorded), Rows and Row (the BackgroundCheck rows of a session) and Watch (a fixture session's watch of Orders);
 ///   - OnAfterOneTest and OnAfterAllTests delete the BackgroundCheck rows of the run's sessions, so a row that a test made through WatchOps is gone too;
 ///   - for the tests of the failure reading (Story 5.2): Fail (failing orders in OCUORDERS through the partner), WaitFailed, LateHeader and LateError (a
@@ -324,7 +324,7 @@ Method Unswap() As %Status [ Private ]
 
 /// For a test that needs the real service behind the item: puts it back if an earlier test of the class put the double there (UseDouble puts the double
 /// there again).
-Method RestoreDouble() As %Boolean [ Private ]
+Method UseReal() As %Boolean [ Private ]
 {
 	Set sc = ..Unswap()
 	Do $$$AssertStatusOK(sc, "the real "_..#ITEM_" is behind the item")
@@ -442,15 +442,16 @@ ClassMethod SendOrders(count As %Integer, traceRef As %String) As %Status [ Priv
 	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, "MM/DD/YYYY", traceRef, "2026-10-16")
 }
 
-/// The failed headers (Status 8) of OCUORDERS after the first Fail of the test, as a dynamic array of {"id", "superSession", "at"}, by id.
+/// The failed headers (Status 8) of OCUORDERS after the first Fail of the test, as a dynamic array of {"id", "superSession", "at", "sessionId", "source",
+/// "bodyClass"}, by id.
 ClassMethod Failed(floor As %Integer) As %DynamicArray
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
 	Set failed = []
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SuperSession, TimeProcessed FROM Ens.MessageHeader WHERE ID > ? AND Status = 8 ORDER BY ID", floor)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SuperSession, TimeProcessed, SessionId, SourceConfigName, MessageBodyClassName FROM Ens.MessageHeader WHERE ID > ? AND Status = 8 ORDER BY ID", floor)
 	While rs.%Next() {
-		Do failed.%Push({"id": (rs.%GetData(1)), "superSession": (rs.%GetData(2)), "at": (rs.%GetData(3))})
+		Do failed.%Push({"id": (rs.%GetData(1)), "superSession": (rs.%GetData(2)), "at": (rs.%GetData(3)), "sessionId": (rs.%GetData(4)), "source": (rs.%GetData(5)), "bodyClass": (rs.%GetData(6))})
 	}
 	Quit failed
 }

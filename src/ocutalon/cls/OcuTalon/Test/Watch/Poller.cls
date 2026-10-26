@@ -6,9 +6,9 @@
 /// clean-machine rehearsal). "No further batch" waits 7 seconds, two polls. Every failure, header, log row and batch of a test is removed after it.
 ///   - TestSessionTaggedAndUntagged (rows Session-tagged, Untagged, Fix copy; AC 1): three failing orders tagged with the TraceRef of session A, which watches
 ///     Orders, and two untagged ones arrive; the batches cover those five failures once, A's under A's Ref with SuperSession A's TraceRef, the others under
-///     instance with an empty SuperSession, each its own trace session, each Completed (Status 9) at IncidentManager, every failure a header failure of
-///     OrdersFromPartner with the error's own sentence, its header id and its time to the second, and no batch follows (the event-log rows of the failed
-///     headers are no failures of their own);
+///     instance with an empty SuperSession, each its own trace session, every failure a header failure of OrdersFromPartner with the error's own sentence,
+///     its header id, and its header's session, sender, body class and time to the second, and no batch follows within two polls (the event-log rows of the
+///     failed headers are no failures of their own), after which each batch is Completed (Status 9) at IncidentManager;
 ///   - TestScopesInOnePoll: A-tagged, B-tagged (B watches nothing) and untagged failures that wait while the poller is stopped arrive in one poll: three batches,
 ///     one per scope, with the same PolledAt, and B's failures are B's;
 ///   - TestAgainAfterRestart: the poller is stopped, two failures arrive and the poller is started: those two are batched once, and the earlier one is not
@@ -18,14 +18,19 @@
 ///   - TestUnreadable: with Read on the Orders data database removed from the service role nothing is read, no batch is sent and the mark is as it was; with
 ///     the grant back the failures that arrived are batched once;
 ///   - TestNotOwnProduction: a watch row for OCUTALON and the Orders production, with OCUTALON readable and a failed header in OCUTALON, reads nothing and makes no
-///     mark;
+///     mark, while the same session's watch of Orders in OCUORDERS is batched (the control that the poller ran);
 ///   - TestHeaderlessLog (row Headerless log row): an event-log row of type 2 and one of type 6 with no session are one failure each, of kind error and
 ///     alert, with the ConfigName as item, under instance;
 ///   - TestReadErrorWarns (row Read or send error): a read that throws gives one Type 3 warning that names the production, no error row, the mark as it was and an OK answer;
 ///   - TestSendErrorWarns (row Read or send error): with the probe's send failing, a poll of three failures gives one Type 3 warning that names the production and
 ///     the cause, an OK answer, no mark and nothing sent; with the send back the same three are sent once;
-///   - TestFlood (row Flood): two sessions watch a production that only the probe reads; 600 failures that the probe's read gives (on a production that only the probe reads) are sent 500 in the first poll and the other 100
-///     in the second, each once, and a third poll sends nothing and leaves the mark.
+///   - TestNothingNew (row Nothing new, QA): a poll whose read gives no failure, and one whose read gives only a failure that the mark holds as seen, send nothing and
+///     make or change no mark; a poll with a new failure sends it and makes the mark (the control);
+///   - TestUnknownSuperSession (rule "else instance"): a failure whose SuperSession is no session's TraceRef is sent under instance with an empty SuperSession;
+///   - TestErrorTextIsRedacted (Consistency Conventions: Redaction): a failure whose text holds a URL's password and a Bearer token is sent with both redacted;
+///   - TestFlood (row Flood): two sessions watch a production that only the probe reads, the first watch made later than the second and than the first
+///     failures (the reading starts at the earliest watch); 600 failures that the probe's read gives are sent 500 in the first poll and the other 100 in the
+///     second, each once, and a third poll sends nothing and leaves the mark.
 Class OcuTalon.Test.Watch.Poller Extends OcuTalon.Test.Watch.Case
 {
 
@@ -54,6 +59,10 @@ Method TestSessionTaggedAndUntagged()
 	Set failed = ..WaitFailed(5)
 	Do ..Split(failed, trace, .tagged, .rest)
 	Do $$$AssertEquals($Length(tagged, ","), 3, "three of the failed headers carry A's TraceRef")
+	Set iterator = failed.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set header(row.id) = row
+	}
 	Set batches = ..WaitBatched(since, 5)
 	Do $$$AssertEquals(..Count(batches), 5, "the batches hold five failures")
 	Do $$$AssertEquals(..Ids(batches, a), tagged, "A's scope holds the three tagged headers, once each")
@@ -61,7 +70,6 @@ Method TestSessionTaggedAndUntagged()
 	Set sessions = ""
 	Set iterator = batches.%GetIterator()
 	While iterator.%GetNext(, .batch) {
-		Do $$$AssertEquals(batch.status, 9, "batch "_batch.id_" is Completed at IncidentManager")
 		Do $$$AssertEquals(batch.namespace_"|"_batch.production, ..#ORDERS_"|"_..#ORDERSPRODUCTION, "batch "_batch.id_" names OCUORDERS and the Orders production")
 		Do $$$AssertTrue((batch.ownerRef = a) || (batch.ownerRef = "instance"), "its OwnerRef is A's Ref or instance: "_batch.ownerRef)
 		Do $$$AssertEquals(batch.superSession, $Select(batch.ownerRef = a: trace, 1: ""), "its SuperSession is the scope's TraceRef, empty for instance")
@@ -74,13 +82,19 @@ Method TestSessionTaggedAndUntagged()
 			Do $$$AssertEquals(failure.kind_"|"_failure.item, "header|OrdersFromPartner", "failure "_failure.headerId_" is a header failure of OrdersFromPartner")
 			Do $$$AssertEquals(failure.errorText, ..#ORDERDATETEXT, "with the error's own sentence")
 			Do $$$AssertTrue(failure.failedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "FailedAt is UTC to the second: "_failure.failedAt)
-			Do $$$AssertTrue((failure.sessionId '= "") && (failure.bodyClass '= "") && (failure.source '= "") && (failure.logId '= ""), "and it carries the session, the body class, the sender and the log row of the error")
+			Set expected = $Get(header(failure.headerId))
+			Do $$$AssertEquals(failure.sessionId_"|"_failure.source_"|"_failure.bodyClass_"|"_failure.failedAt, $Select($IsObject(expected): expected.sessionId_"|"_expected.source_"|"_expected.bodyClass_"|"_##class(OcuTalon.Watch.Mark).FailedAt(expected.at), 1: "no failed header "_failure.headerId), "it carries its header's session, sender, body class and time to the second")
+			Do $$$AssertTrue((failure.sessionId '= "") && (failure.logId '= ""), "and a session and the log row of the error")
 		}
 	}
 	Do ..Settle()
 	Set later = ..Batches(since)
 	Do $$$AssertEquals(later.%Size(), batches.%Size(), "no batch follows within two polls")
 	Do $$$AssertEquals(..Count(later), 5, "and still five failures were batched")
+	Set iterator = later.%GetIterator()
+	While iterator.%GetNext(, .batch) {
+		Do $$$AssertEquals(batch.status, 9, "batch "_batch.id_" is Completed at IncidentManager")
+	}
 }
 
 Method TestScopesInOnePoll()
@@ -157,11 +171,10 @@ Method TestLateError()
 	Set failed = ..WaitFailed(1)
 	Set first = ..WaitBatched(since, 1, a)
 	Do $$$AssertEquals(..Ids(first, a), ..HeaderIds(failed), "the failed order is batched")
-	Do $$$AssertTrue(late < failed.%Get(0).id, "and the header made earlier has the lower id")
 	Do $$$AssertStatusOK(..LateError(late), "the header made earlier enters the error status")
 	Set batches = ..WaitBatched(since, 2, a)
-	Do $$$AssertEquals(..Ids(batches, a), $Select(late < failed.%Get(0).id: late_",", 1: "")_failed.%Get(0).id, "it is batched once, later, and the first one is not batched again")
-	Do $$$AssertEquals(..Count(..Batches(since)), 2, "and no further failure is batched")
+	Do $$$AssertEquals(..Ids(batches, a), late_","_failed.%Get(0).id, "it is batched once, later, and the first one is not batched again")
+	Do $$$AssertEquals(..Count(..Batches(since)), 2, "and no other failure is in the batches by then")
 }
 
 Method TestWatchAfterFailures()
@@ -208,7 +221,7 @@ Method TestUnreadable()
 	Do ..GrantRole(..#ORDERSDATA)
 	Set batches = ..WaitBatched(since, 3, a)
 	Do $$$AssertEquals(..Ids(batches, a), ..IdsOf(failed, trace), "with the grant back the failures that arrived are batched, once each")
-	Do $$$AssertEquals(..Count(..Batches(since)), 3, "and no more at that point")
+	Do $$$AssertEquals(..Count(..Batches(since)), 3, "and no other failure is in the batches by then")
 }
 
 Method TestNotOwnProduction()
@@ -217,17 +230,26 @@ Method TestNotOwnProduction()
 	Set a = ..Session("notown")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Do ..ClearMark("OCUTALON")
+	Do ..ClearMark(..#ORDERS)
 	Do ..GrantRole(..#HOMEDATA)
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(a, "OCUTALON", ..#ORDERSPRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Do ..Watch(a)
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Reader).Failures("OCUTALON", ..#ORDERSPRODUCTION, "2000-01-01 00:00:00.000", 10, .rows), "not_current", "control: the reader answers not_current for it")
 	Set since = ..Since()
 	Set ..HomeHeader = ..MakeHomeFailure()
 	Do $$$AssertTrue(..HomeHeader '= "", "a failed header is made in OCUTALON, after the watch's CreatedAt")
 	If '..Fail(1, trace) Quit
 	Do ..WaitFailed(1)
+	Set batches = ..WaitBatched(since, 1, a)
+	Do $$$AssertEquals(..Count(batches, a), 1, "control: the poller runs, and batches the session's failure in "_..#ORDERS)
 	Do ..Settle()
-	Do $$$AssertEquals(..Batches(since).%Size(), 0, "nothing is read from OCUTALON for the Orders production")
+	Set home = 0
+	Set iterator = ..Batches(since).%GetIterator()
+	While iterator.%GetNext(, .batch) {
+		If batch.namespace '= ..#ORDERS Set home = home + batch.failures.%Size()
+	}
+	Do $$$AssertEquals(home, 0, "nothing is read from OCUTALON for the Orders production")
 	Do $$$AssertEquals(..Mark("OCUTALON", ..#ORDERSPRODUCTION).exists, 0, "and it makes no mark")
 }
 
@@ -256,7 +278,7 @@ Method TestHeaderlessLog()
 	}
 	Do $$$AssertEquals($Get(kinds("error")), config_"|||"_error_"|A fixture row with no session: "_config, "the error row: its ConfigName is the item, it has no header or session, and its text is the sentence")
 	Do $$$AssertEquals($Get(kinds("alert")), config_"|||"_alert_"|A fixture row with no session: "_config, "the alert row too")
-	Do $$$AssertEquals(..Count(..Batches(since)), 2, "and no further failure is batched")
+	Do $$$AssertEquals(..Count(..Batches(since)), 2, "and no other failure is in the batches by then")
 }
 
 Method TestReadErrorWarns()
@@ -272,7 +294,7 @@ Method TestReadErrorWarns()
 	If '$IsObject(host) Quit
 	Set sc = host.OnProcessInput("", .output)
 	Do $$$AssertStatusOK(sc, "OnProcessInput answers OK though the read throws")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#PROBE, "OnProcessInput", $ListBuild(..#ORDERSPRODUCTION, $Parameter(..#PROBE, "FAILURE"))), 1, "one warning of the poller (the probe is its class at run time) names the production and the cause")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#PROBE, "OnProcessInput", $ListBuild(..#ORDERSPRODUCTION_" in "_..#ORDERS, $Parameter(..#PROBE, "FAILURE"))), 1, "one warning of the poller (the probe is its class at run time) names the production and the cause")
 	Do $$$AssertEquals(..ErrorRows(mark), 0, "and it logs no error row")
 	Set after = ..Mark(..#ORDERS, ..#ORDERSPRODUCTION)
 	Do $$$AssertEquals(after.exists_"|"_after.markAt_"|"_after.seen, before.exists_"|"_before.markAt_"|"_before.seen, "the mark is as it was")
@@ -333,12 +355,40 @@ Method TestSendErrorWarns()
 	Do ..DropFlood()
 }
 
+Method TestNothingNew()
+{
+	If '..Ready() Quit
+	Set a = ..Session("nothingnew")
+	Do ..DropFlood()
+	Do ..FloodWatch(a)
+	Do ..Feed(0)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Set sc = host.OnProcessInput("", .output)
+	Do $$$AssertStatusOK(sc, "a poll with no failure answers OK")
+	Do $$$AssertEquals(+$Get(^||PollerProbe("limit")), 1, "control: the production was read")
+	Do $$$AssertEquals(+$Get(^||PollerProbe("sent")), 0, "nothing is sent")
+	Do $$$AssertEquals(..Mark(..#ORDERS, ..#FLOODPRODUCTION).exists, 0, "and no mark is made")
+	Do ..Feed(1)
+	Do host.OnProcessInput("", .output)
+	Do $$$AssertEquals(+$Get(^||PollerProbe("sent")), 1, "control: a new failure is sent")
+	Set marked = ..Mark(..#ORDERS, ..#FLOODPRODUCTION)
+	Do $$$AssertEquals(marked.exists_"|"_marked.seen, "1|h"_(..#FLOODFIRST + 1), "and makes the mark, which holds it as seen")
+	Do host.OnProcessInput("", .output)
+	Do $$$AssertEquals(+$Get(^||PollerProbe("limit")), 2, "control: the production was read again")
+	Do $$$AssertEquals(+$Get(^||PollerProbe("sent")), 1, "the failure that the mark holds as seen is not sent again")
+	Set after = ..Mark(..#ORDERS, ..#FLOODPRODUCTION)
+	Do $$$AssertEquals(after.markAt_"|"_after.seen, marked.markAt_"|"_marked.seen, "and the mark is as it was")
+	Do ..DropFlood()
+}
+
 Method TestFlood()
 {
 	If '..Ready() Quit
 	Set a = ..Session("flood")
 	Do ..DropFlood()
-	Do ..FloodWatch(a)
+	Do ..FloodWatch(a, "2026-10-25T08:05:00Z")
 	Do ..FloodWatch(..Session("floodtwo"))
 	Do ..Feed(600)
 	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
@@ -347,7 +397,7 @@ Method TestFlood()
 	Do host.OnProcessInput("", .output)
 	Do $$$AssertEquals(+$Get(^||PollerProbe("sent")), 1, "the first poll sends one batch")
 	Set batch = $Get(^||PollerProbe("sent", 1))
-	Do $$$AssertEquals($ListGet(batch, 3)_"|"_$ListGet(batch, 4)_"|"_$ListGet(batch, 2), "500|"_(..#FLOODFIRST + 1)_"|instance", "of the first 500 failures, in order, under the instance scope")
+	Do $$$AssertEquals($ListGet(batch, 3)_"|"_$ListGet(batch, 4)_"|"_$ListGet(batch, 2), "500|"_(..#FLOODFIRST + 1)_"|instance", "of the first 500 failures, in order, under the instance scope (from the earliest watch on, though the first watch row was made later)")
 	Set marked = ..Mark(..#ORDERS, ..#FLOODPRODUCTION)
 	Do $$$AssertEquals($Length(marked.seen, ","), 3, "the mark keeps the failures of its last 2 seconds as seen")
 	Do $$$AssertEquals(+$Get(^||PollerProbe("limit")), 1, "two sessions watch the production and it is read once")
@@ -364,22 +414,58 @@ Method TestFlood()
 	Do ..DropFlood()
 }
 
-/// The probe's feed: count failures of a header each, ids FLOODFIRST + 1 on, one second apart from FLOODSTART on, in the probe's rows mode.
-Method Feed(count As %Integer) [ Private ]
+Method TestUnknownSuperSession()
+{
+	If '..Ready() Quit
+	Set a = ..Session("unknownsuper")
+	Do ..DropFlood()
+	Do ..FloodWatch(a)
+	Do ..Feed(1, "zz-no-session-has-this-trace-ref")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Do $$$AssertStatusOK(host.OnProcessInput("", .output), "the poll answers OK")
+	Do $$$AssertEquals(+$Get(^||PollerProbe("sent")), 1, "the failure is sent")
+	Set batch = $Get(^||PollerProbe("sent", 1))
+	Do $$$AssertEquals($ListGet(batch, 2)_"|"_$ListGet(batch, 5), "instance|", "under instance with an empty SuperSession, since no session's TraceRef is its SuperSession")
+	Do ..DropFlood()
+}
+
+Method TestErrorTextIsRedacted()
+{
+	If '..Ready() Quit
+	Set a = ..Session("redacted")
+	Do ..DropFlood()
+	Do ..FloodWatch(a)
+	Do ..Feed(1, "", "ERROR #5001: Unable to reach https://zzuser:zzsecretword@orders.example/api with Authorization: Bearer zzTokenValue0123456789")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Do host.OnProcessInput("", .output)
+	Set text = $ListGet($Get(^||PollerProbe("sent", 1)), 8)
+	Do $$$AssertTrue($Extract(text, 1, 24) = "Unable to reach https://", "the failure is sent with the error's own sentence: "_text)
+	Do $$$AssertTrue((text [ "[redacted]") && '(text [ "zzsecretword") && '(text [ "zzTokenValue0123456789"), "with the URL's password and the Bearer token redacted: "_text)
+	Do ..DropFlood()
+}
+
+/// The probe's feed: count failures of a header each, ids FLOODFIRST + 1 on, one second apart from FLOODSTART on, with the SuperSession and the error text
+/// given, in the probe's rows mode, which answers only for the flood production.
+Method Feed(count As %Integer, superSession As %String = "", errorText As %String = "zz flood") [ Private ]
 {
 	Kill ^||PollerProbe
 	Set feed = []
 	For i = 1:1:count {
-		Do feed.%Push({"kind": "header", "headerId": (..#FLOODFIRST + i), "sessionId": "", "superSession": "", "item": "zzFlood", "source": "zzSource", "bodyClass": "Ens.StringRequest", "at": (##class(OcuTalon.Watch.Mark).Shift(..#FLOODSTART, i)), "logId": "", "errorText": "zz flood"})
+		Do feed.%Push({"kind": "header", "headerId": (..#FLOODFIRST + i), "sessionId": "", "superSession": (superSession), "item": "zzFlood", "source": "zzSource", "bodyClass": "Ens.StringRequest", "at": (##class(OcuTalon.Watch.Mark).Shift(..#FLOODSTART, i)), "logId": "", "errorText": (errorText)})
 	}
 	Set ^||PollerProbe("feed") = feed.%ToJSON()
+	Set ^||PollerProbe("production") = ..#FLOODPRODUCTION
 	Set ^||PollerProbe("mode") = "rows"
 }
 
-/// A watch row of the session on the production that only the probe reads, created before the feed's first failure.
-Method FloodWatch(sessionRef As %String) [ Private ]
+/// A watch row of the session on the production that only the probe reads, created at createdAt (by default before the feed's first failure).
+Method FloodWatch(sessionRef As %String, createdAt As %String = "2026-10-25T07:00:00Z") [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ..#ORDERS, ..#FLOODPRODUCTION, {"DisplayName": "Zz flood", "AskedBy": "zzfixture", "CreatedAt": "2026-10-25T07:00:00Z"})
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ..#ORDERS, ..#FLOODPRODUCTION, {"DisplayName": "Zz flood", "AskedBy": "zzfixture", "CreatedAt": (createdAt)})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 }
 

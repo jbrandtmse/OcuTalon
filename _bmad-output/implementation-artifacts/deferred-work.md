@@ -224,6 +224,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: measured in 0.10 Task 0.3b on build 154: IsError and ErrorStatus are set only on error response headers; the partner sends asynchronously
 - 2026-10-20T10:54:10Z status=routed owner=5-2-new-failures-are-picked-up-within-seconds by=harvest note=Lane A's poller and evidence (5.2, 5.4, 6.1's fallback line) key on Status 8 and the event log and parse the sentence out of the wrapper
+- 2026-10-26T02:31:02Z status=resolved-by:5-2-new-failures-are-picked-up-within-seconds by=adjudication note=failure = header Status 8 whatever IsError, or a sessionless Type 2/6 log row; Reader.Failures takes the error text from the log row whose MessageId is the header (else the session's row at the target, else ErrorStatus); ErrorText.Sentence strips the Terminating BP wrapper; Test.Watch.Reader TestFailureDefinition/TestFailures and Test.Watch.Mark TestSentence pin it
 
 ### DW-36: The Demo step's non-Health image path (ENSTEMP and SECONDARY databases, the SECONDARY resource and role the off path removes) has no run in the repository or in CI
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: high | footprint: in-epic
@@ -1159,6 +1160,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: irislib/Ens/Director.cls GetProductionStatus empties the name when no job, runtime or suspended node exists (a clean stop), not only when nothing ever ran (spec Task 0); start_watch and stop_watch both resolve through Reader.Find, so both answer unknown_production
 - 2026-10-25T21:52:35Z status=decision-pending owner=burndown by=cr note=product call: list a stopped namespace's last production and/or resolve stop_watch from the session's own rows
 - 2026-10-25T22:25:43Z status=routed owner=5-2-new-failures-are-picked-up-within-seconds by=spec_gate note=decided(U5_decision_dependency;FR-23:every_readable_namespace's_production):Watch.Reader also lists a readable namespace's last production when none runs (the platform's record of it measured in a Task 0 on a throwaway, never every Ens.Config.Production row, DW-38 kept), so a stopped production can be watched (its check reports the state, Story 5.6); stop_watch also resolves from the session's own BackgroundCheck rows, so a watch can always be stopped
+- 2026-10-26T02:31:02Z status=resolved-by:5-2-new-failures-are-picked-up-within-seconds by=adjudication note=Reader.Current falls back to Ens.Director.GetActiveProductionName() when nothing runs (a stopped production is listed and admitted); stop_watch resolves from the session's own watches through Ownership.Checks first; Test.Watch.Reader stopped-production test and Test.Watch.Tools own-row and real-path tests pin it
 
 ### DW-223: Install.Step.Demo.WithOrdersData (Story 5.1, U-79) is a near-copy of WithOrders (about 18 of its 20 lines), differing only in the resource list it edits
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1174,3 +1176,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 5.2 implement: shard lane-a passed 54 classes in 539 s (5.1: 52 classes 422-475 s; Epic 3: ~400 s); runner brief: split long runs into calls that finish well inside the cap; ci/iris.sh is not contended (Epic 5 footprint extension), test-ci-config.sh takes an appended block
 - 2026-10-26T00:59:33Z status=routed owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=lead_routed:tooling_before_5.3's_own_tests_grow_the_shard;CI_groups_unchanged(no_REL-4_impact)
+- 2026-10-26T02:18:48Z occurrence=5-2-new-failures-are-picked-up-within-seconds
+
+### DW-228: FailurePoller keeps a not_current production's mark, so when another production ran in the namespace meanwhile and the watched one is current again, the other's failures since the mark are batched as the watched one's
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Reader.Current reads every Status 8 header and sessionless Type 2/6 log row of the namespace from the mark with no production filter; Poll quits without saving on not_current (spec Design Notes; spine row Watch failures: a production the reader does not read keeps its mark)
+- 2026-10-26T02:18:48Z status=by-design owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=spec-bound; reopen via amendment: a not_current production's mark moves to the poll time (unreadable keeps it)
+
+### DW-229: A fault inside Reader.Current reaches FailurePoller as a poll warning only through Failures' fault check, which no test drives (TestReadErrorWarns throws at the poller's seam), so removing the check would make real read faults silent
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reader.Failures line 'If fault ... ThrowStatus'; deleting it returns an empty outcome, Poll quits silently and every test stays green (verification-gap layer); no cheap trigger makes Current fault without a new seam
+- 2026-10-26T02:18:48Z status=wontfix-accepted owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=reopen_if=a readable watched production whose read faults in Reader.Current leaves no Type 3 FailurePoller warning
+
+### DW-230: No test shows that one watched production's failing poll still lets the other watched productions be polled in the same FailurePoller run (the per-production Try in OnProcessInput)
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every Poller test watches one production; the probe's throw mode throws for every production; a second probe mode would be needed
+- 2026-10-26T02:18:48Z status=wontfix-accepted owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=reopen_if=after a FailurePoller warning for one production, another watched production's mark stops moving while its failures arrive
