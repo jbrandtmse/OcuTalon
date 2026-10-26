@@ -2,8 +2,8 @@
 title: 'Story 4.5: Get notifications on the simulated phone'
 type: 'feature'
 created: '2026-10-26'
-status: 'in-progress'
-baseline_revision: 'd32e2e986649640457c02851a18170b3880a4e55'
+status: 'done'
+baseline_revision: '54cc0e9ba4a31d561d1890c7a2ebdd32d7ab68f1'
 baseline_commit: 'd32e2e986649640457c02851a18170b3880a4e55'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -407,7 +407,7 @@ Applied: the device panel's phone panel is the body's height beside the chat (`f
 
 ### Rework 1 (CI red, 2026-10-26)
 
-- [ ] [CI] iris (shards) / live:floor: `web/e2e/floor/devices.spec.ts:143` D2 red on the Linux CI host, "at 1280x600 the page does not scroll": expected <= 0, received 21 (run 40367647349, job 121729597423, https://github.com/jbrandtmse/OcuTalon/actions/runs/40367647349). The 21 px is DW-274's root cause, which this rework now fixes at the source: the CDK live announcer's element (`div.cdk-live-announcer-element.cdk-visually-hidden`, Story 2.12's `web/src/app/shared/announcer.ts`) has no visually-hidden style until a dialog's focus trap loads one, so its last announced text lies as plain text below the page and the page scrolls by a line once an announcement lands (timing: it landed before D2's measurement on Linux, after it on macOS). Fix: give `.cdk-visually-hidden` its visually-hidden style for the whole page app from the start (for example the CDK's own rule from `@angular/cdk/a11y-prebuilt.css`, in `web/src/styles/` or the build's styles; never under `web/src/signin/**`, which is contended), so the announcer never adds height. Then restore D2's short-window loop (600 and 480) to the whole-document check the review replaced with the app-root check, and pin the fix: a floor check that makes an announcement land first (any announcing action) and then asserts at 1280x600 and 1280x480 that `document.documentElement.scrollHeight - clientHeight <= 0` and that the announcer's element is visually hidden (1x1 px, clipped). Run `live floor` clean in all three projects after `ci/iris.sh build`, and write the `mutation:` lines (remove the new rule -> the new check and D2 red).
+- [x] [CI] iris (shards) / live:floor: `web/e2e/floor/devices.spec.ts:143` D2 red on the Linux CI host, "at 1280x600 the page does not scroll": expected <= 0, received 21 (run 40367647349, job 121729597423, https://github.com/jbrandtmse/OcuTalon/actions/runs/40367647349). The 21 px is DW-274's root cause, which this rework now fixes at the source: the CDK live announcer's element (`div.cdk-live-announcer-element.cdk-visually-hidden`, Story 2.12's `web/src/app/shared/announcer.ts`) has no visually-hidden style until a dialog's focus trap loads one, so its last announced text lies as plain text below the page and the page scrolls by a line once an announcement lands (timing: it landed before D2's measurement on Linux, after it on macOS). Fix: give `.cdk-visually-hidden` its visually-hidden style for the whole page app from the start (for example the CDK's own rule from `@angular/cdk/a11y-prebuilt.css`, in `web/src/styles/` or the build's styles; never under `web/src/signin/**`, which is contended), so the announcer never adds height. Then restore D2's short-window loop (600 and 480) to the whole-document check the review replaced with the app-root check, and pin the fix: a floor check that makes an announcement land first (any announcing action) and then asserts at 1280x600 and 1280x480 that `document.documentElement.scrollHeight - clientHeight <= 0` and that the announcer's element is visually hidden (1x1 px, clipped). Run `live floor` clean in all three projects after `ci/iris.sh build`, and write the `mutation:` lines (remove the new rule -> the new check and D2 red).
 
 ## Spec Change Log
 
@@ -439,6 +439,24 @@ Applied: the device panel's phone panel is the body's height beside the chat (`f
   - `[low]` `[reject]` Verification gap: the dispatch cases need a fresh stack - recorded in Verification (fresh only); not a defect
   - `[false]` `[reject]` Intent: readings A-D, the diff implements A end to end; no divergence in the surface (the 5-second check N11 runs on the live stack)
   - `[false]` `[reject]` Intent: tab persistence and mailbox badges go beyond the intent - matrix rows 8 and 9 name both
+
+### 2026-10-26 - Review pass (rework 1, CI item)
+- verdicts: 14 findings - high 0, medium 0, low 8, false 4, maybe-false 2
+- findings:
+  - `[low]` `[reject]` Blind, Edge, Verification gap: D6 has no `@browsers` tag, so Firefox and WebKit do not pin the fix (and `clip` serialises per engine) - the item asks `live floor` clean in all three projects, not D6 in each; the rule is plain CSS; a tag needs the registered `@browsers` ids and a three-engine run
+  - `[low]` `[patch]` Blind: the header names D1 to D6 but does not describe D6 - one sentence added to the header of `devices.spec.ts`
+  - `[low]` `[reject]` Blind: DW-274 is not closed in the ledger and the Review Findings row still says D2 checks app-root - the ledger is the lead's (Rule 15) and the rework item is the record of the reversal; a fix would edit this spec's history
+  - `[false]` `[reject]` Blind: `.cdk-visually-hidden` lacks the CDK's `outline: 0` and `appearance: none` - the announcer's element is not focusable and not a form control; the dialog's later CDK rule still loads for focus-trap anchors
+  - `[low]` `[reject]` Blind: D6 reads the announcer's text only before the measurement and a later announcement could clear it - the CDK clears and re-sets within about 100 ms of an announcement, none is made during the resize; it could only turn the check green, and the recorded mutation turned it red
+  - `[low]` `[reject]` Edge: the same D6 `@browsers` claim - carried
+  - `[low]` `[reject]` Edge: the size check is `<= 1`, so a collapsed element passes - a collapsed element is visually hidden as well
+  - `[false]` `[reject]` Edge: D2's restored check never makes an announcement land - the item asks for exactly that restoration, and D6 is the deterministic pin
+  - `[false]` `[reject]` Edge: the strict announcer locator throws on a second match - the CDK keeps one announcer element and the floor's A-cases assert one `[aria-live]`
+  - `[low]` `[reject]` Verification gap: D6 waits for any announcer text, not the arrival's - any text reproduces the 21 px under the mutation
+  - `[false]` `[reject]` Verification gap: D2's 600px iteration cannot fail reliably - the finding itself says D6 is the pin
+  - `[maybe-false]` `[reject]` Verification gap: no mutation per D6 assertion - Rule 19 asks one demonstrated mutation per AC; would only be low
+  - `[maybe-false]` `[reject]` Intent auditor: row 15 is met by a style rule on a third-party element - descriptive; the surface tested is the document, as the row says
+  - `[low]` `[reject]` Verification gap: D6 runs in Chromium only - carried
 
 ## Design Notes
 
@@ -639,6 +657,9 @@ Rebuild the web bundle with `<B> OCUTALON_RUN_TAG=e4s5i ci/iris.sh build` before
 - mutation: AC7 (row 15) beside the chat the phone keeps its 360px minimum (the device panel's `--phone-screen-min` set to `var(--space-phone-screen-min-height)`) -> `D5b` red (New messages at 615-647px under a panel body view ending at 600px), and `D2` and `D1` red (`D1` in Chromium, Firefox and WebKit)
 - mutation: AC3 `Save` records no phone Delivery row -> `TestThroughNotify` red ("one phone Delivery row, for the message"), with `TestTellNow`, `TestReminder`, `TestPublishFailure` and `TestSaveFailureKeepsNothing`
 
+**Rework 1 mutations** (stage `e4s5i2`; applied, observed red on a fresh throwaway after `ci/iris.sh build`, reverted from a backup with `git status --short` and `git diff --stat` unchanged). The fix: `web/src/styles/base.css` gives `.cdk-visually-hidden` (the CDK live announcer's element) the `.visually-hidden` rule for the whole page app; D2's short-window loop reads the whole document again; D6 (new, `devices.spec.ts`) lands an announcement through Notify, then asserts at 1280x600 and 1280x480 that the document does not scroll and that the announcer is out of the flow, 1px and clipped.
+- mutation: AC8 (DW-274) `.cdk-visually-hidden` dropped from the visually-hidden rule of `base.css` -> `D6` red (the announcer is `position: static`, 21px high, the document scrolls by 21px) and `D2` red (480px: the page scrolls by 21px; at 600px this host measured before the text landed)
+
 **Shared surfaces:**
 - `/state`'s keys (`Test.Web.Api`, `api.spec.ts:116`, F9);
 - SimMessage's contract (`Test.Data.Tables`);
@@ -669,3 +690,16 @@ Blocking condition: none
 **Verification.** `npm --prefix web test` 640 of 640, `npm --prefix web run lint` exit 0, `bash ci/checks.sh` and `bash docker/tests/test-web-build.sh` pass; `class` runs of `Test.Demo.SimPhoneOut` (fresh), `Test.Core.WebChatOut`, `Test.Data.Ownership`, `Test.Data.Tables` and `Test.Web.Api` (warm) pass; `live sign-in` (217 passed), `live floor` (86 passed in the three projects), `live demo-switch`, `live production` and `live demo-path` pass; `shard lane-b` (55 classes) and `shard lane-a` (47 classes) pass. Every mutation in the list was applied, observed red and reverted. No stack with the tags `e4s5i` is left.
 
 **Residual risks / deviations.** (1) D1 at 1280x600 accepts at least 85% of the phone feed in view when the column is shorter than the feed (the Break the feed box leaves it under about 330 px); the stacked screen minimum is `min(360px, 70vh)`. (2) While the snapshot loads the "Skip to simulated devices" link is absent (demo mode unknown), so the loading page keeps the order chat, status, home link. (3) The demo-switch phone spec removes its own chat cards and phone rows in `finally` (the stack's S0 hash comparison would fail otherwise), so the note that README gains two cards per run does not hold. (4) `/state.phone` payloads omit an empty `approvalRef` (the JSON adapter drops it); `TestStatePhone` pins four keys. (5) The initial bundle is 576 kB, over the 500 kB warning budget, under the error level (`test-web-build.sh` passes). (6) The "neither has a response header" clause of `TestThroughNotify` guards Notify's routing and no SimPhoneOut mutation turns it red.
+
+### Rework 1 pass (2026-10-26, stage e4s5i2)
+
+Status: done
+Blocking condition: none
+
+**Implemented.** DW-274 is fixed at the source: `web/src/styles/base.css` gives the CDK live announcer's element (`.cdk-visually-hidden`) the `.visually-hidden` rule from the start, so an announcement adds no height. D2's short-window loop reads the whole document again, and the new D6 in `web/e2e/floor/devices.spec.ts` lands an announcement and then asserts, at 1280x600 and 1280x480, that the document does not scroll and that the announcer is a clipped pixel out of the flow. The `[CI]` item is checked, and its `mutation:` line is in `## Verification`.
+
+**Review.** 14 findings: patches applied 1 (low: the header now describes D6), deferred 0, rejected 13 with reasons in the triage log. Follow-up review not recommended (no high patched).
+
+**Verification.** `ci/iris.sh build`, then `live floor` 89 passed in the three projects (88 plus D6), `live sign-in` 217 passed, `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass, `npm --prefix web test` 640 of 640, lint exit 0 (rerun after the comment patch). Mutation: `.cdk-visually-hidden` dropped from the rule -> D6 red (announcer static, 21px high, document scrolls 21px) and D2 red at 480px. Fresh tag `e4s5i2`; torn down.
+
+**Residual risks.** D6 runs in Chromium only (not tagged `@browsers`); at 600px D2 depends on the timing of the announcement, so D6 is the deterministic pin. Outside the footprint: none (`web/src/styles/base.css` is Lane B's web home).

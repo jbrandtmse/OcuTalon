@@ -21,7 +21,7 @@ import { cleanFixtureRows, fixtureUser, sendNotification } from '../support/iris
 import { fromBottom, scrollListTo } from '../support/page';
 
 /**
- * Story 4.5, the simulated device panel and the simulated phone on the floor stack, as the FLOOR user (D1 to D5b; the floor stack is in
+ * Story 4.5, the simulated device panel and the simulated phone on the floor stack, as the FLOOR user (D1 to D6; the floor stack is in
  * demo mode). D1 runs in all three engines (tag @browsers): the tab stops of the panel in order, the arrow keys and the rings inside the
  * viewport at 1280x720 and 1280x600. D2 reads the layout: 384px from 1440px and 352px below it, the column under the Break the feed
  * box, the drawer band, the stacked order and the short windows, where the phone screen yields to the column. D3 sends real
@@ -29,7 +29,8 @@ import { fromBottom, scrollListTo } from '../support/page';
  * messages focuses the first new message, and an unselected tab shows a badge with its count and is never switched by content. D4
  * holds the feed for a pending approval request that a message names. D5 and D5b hold an arrival in the 1280x600 window: New messages
  * is the tab stop after the feed and Enter on it focuses the first new message (D5), and the button is in view of the panel body and
- * the window (D5b). A case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR
+ * the window (D5b). D6 lands an announcement and holds that the live region adds no height: the document does not scroll at 1280x600
+ * and 1280x480, and the announcer's element is a clipped pixel out of the flow. A case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR
  * session is no fixture session, so Fixture.Clean keeps them. The fixture messages of D2, D4 and D5 are named by their text and live
  * only in the snapshot that the page receives.
  */
@@ -223,13 +224,13 @@ async function layoutCase(page: Page): Promise<void> {
     await page.setViewportSize({ width: 1280, height });
     await settled(page);
     const fit = await page.evaluate(() => {
-      const app = document.querySelector('app-root') as HTMLElement;
+      const root = document.scrollingElement!;
       const body = document.querySelector('app-device-panel .body') as HTMLElement;
       const view = body.getBoundingClientRect();
       const screen = document.querySelector('app-simulated-phone .screen')!.getBoundingClientRect();
       const feed = document.querySelector('app-simulated-phone .feed') as HTMLElement;
       return {
-        app: app.scrollHeight - window.innerHeight,
+        page: root.scrollHeight - root.clientHeight,
         bodyScrolls: body.scrollHeight - body.clientHeight,
         screen: screen.height,
         screenBottom: screen.bottom,
@@ -237,7 +238,7 @@ async function layoutCase(page: Page): Promise<void> {
         feedScrolls: feed.scrollHeight - feed.clientHeight,
       };
     });
-    expect(fit.app, `in a window of ${height}px high nothing of the page reaches below the window`).toBeLessThanOrEqual(0);
+    expect(fit.page, `in a window of ${height}px high the page does not scroll`).toBeLessThanOrEqual(0);
     expect(fit.screen, `the column is shorter than the phone, so its screen yields to it (${JSON.stringify(fit)})`).toBeLessThan(359.5);
     expect(fit.bodyScrolls, 'and the panel body holds nothing that it does not show').toBeLessThanOrEqual(1);
     expect(fit.screenBottom, 'the screen ends inside the panel body').toBeLessThanOrEqual(fit.bodyBottom + 0.5);
@@ -399,4 +400,39 @@ test('D5b: in a short window the New messages button is in view without scrollin
     expect(seen.bottom, `nor below it, where the panel body clips it (${JSON.stringify(seen)})`).toBeLessThanOrEqual(seen.bodyBottom + 0.5);
     expect(seen.bottom, 'and it is inside the window').toBeLessThanOrEqual(seen.height + 0.5);
   });
+});
+
+/**
+ * D6: once an announcement has landed, the live region adds no height to the page: at 1280x600 and 1280x480 the document does not
+ * scroll, and the announcer's element is visually hidden (a pixel, clipped).
+ */
+test('D6: after an announcement the page does not scroll in a short window, and the live region is visually hidden', async ({ page }) => {
+  test.setTimeout(150_000);
+  const { user } = fixtureUser(KIND);
+  const start = startTime();
+  try {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openFloor(page);
+    await arrive(page, user, unique('D6 arrival'));
+    const announcer = page.locator('.cdk-live-announcer-element');
+    await expect(announcer, 'the announcement landed in the one live region').toHaveText(/\S/, { timeout: CARD_MS });
+    for (const height of [600, 480]) {
+      await page.setViewportSize({ width: 1280, height });
+      await settled(page);
+      const seen = await announcer.evaluate((el) => {
+        const root = document.documentElement;
+        const style = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        return { scrolls: root.scrollHeight - root.clientHeight, width: box.width, height: box.height, position: style.position, clip: style.clip, overflow: style.overflow };
+      });
+      expect(seen.scrolls, `at 1280x${height} the document does not scroll (${JSON.stringify(seen)})`).toBeLessThanOrEqual(0);
+      expect(seen.width, 'the announcer is a pixel wide').toBeLessThanOrEqual(1);
+      expect(seen.height, 'and a pixel high').toBeLessThanOrEqual(1);
+      expect(seen.position, 'out of the flow').toBe('absolute');
+      expect(seen.clip.replace(/,/g, ''), 'and clipped').toBe('rect(0px 0px 0px 0px)');
+      expect(seen.overflow, 'its overflow hidden').toBe('hidden');
+    }
+  } finally {
+    await dropPhone(user, start);
+  }
 });
