@@ -405,6 +405,8 @@ Conventions:
 
 ## Design Notes
 
+**Lead ruling on QA's clarification (runner, 2026-10-26; decide):** at 1280x600 the device column is shorter than the phone screen's 360 px minimum, so the phone's "New messages" button floats below the visible panel body (QA's D5b, marked `test.fail()`). AC7's New-messages pattern must hold at every supported size, so the button must be visible inside the panel body. Ruling: when the column is shorter than the phone's minimum, the phone screen yields to the available height (its minimum becomes the smaller of 360 px and the space the panel body gives it), so the feed scrolls inside the screen and the button sits at the screen's visible bottom; at normal heights nothing changes. Use DESIGN's tokens and no height queries, sticky positioning or observers (floor rules, Decided 11); if that cannot work, place the button at the panel body's visible bottom instead. The code review applies it as an in-story patch, removes D5b's `test.fail()`, and runs `live floor` and `live sign-in` clean after `ci/iris.sh build`.
+
 **Lead rulings at the spec gate (runner, 2026-10-26; policy 9e90866):**
 - **V1 (veto, kept; inbox U-89):** `Data.SimMessage.Text`, appended to storage, as recommended.
 - **Spine:** the "Live events" conventions row now names the snapshot's demo-only `phone` and `guide` keys (Rule 20, a conventions row; no AD change).
@@ -586,6 +588,15 @@ Rebuild the web bundle with `<B> OCUTALON_RUN_TAG=e4s5i ci/iris.sh build` before
 - mutation: AC4 `/state` drops one phone row (the loop stops one short) -> `TestStatePhone` red (the three messages, oldest first, at most PHONEMAX)
 - mutation: AC4 `/state.phone` is always empty -> the demo-switch phone spec red on the reload (the texts are not there after it)
 - mutation: AC1 `DeviceTabs.select` does not store the tab -> `P1` red (the choice is not remembered after a reload)
+
+**QA additions (QA)** (stage `e4s5qa`; the tests close three gaps the implement stage left, and one defect they found):
+- `web/e2e/phone/phone.spec.ts` (QA): P3's messages case gains the clause that the empty text is gone once the phone holds a message (row 11).
+- `web/e2e/floor/devices.spec.ts` (QA): D3 gains the clause that the selected phone tab takes no count and no badge from what arrives on it (row 9), and D5 and D5b (row 13 and row 15 together, short window): New messages is the tab stop after the feed, its ring is inside the viewport, Enter focuses the first new message (D5); at 1280x600 the button is in view of the panel body (D5b, `test.fail()`: a known defect, see Issues).
+- Judged and left as they are: the loading-time skip link is pinned by K1 (`keyboard.spec.ts`, the page still loading: Skip to chat, then Skip to status); D1's 85% clause at 1280x600 is the engine-neutral reading of a ring that cannot be wholly in view, and D5 and D5b now pin what it left open (the New messages stop and its place).
+- mutation: AC6 the empty text is shown beside messages -> `P3` (messages case) red
+- mutation: AC7 the New messages button placed before the feed in the template -> `D5` red (the stop after the feed is not New messages)
+- mutation: AC2 the badge counts arrivals on the selected tab -> `D3` red (the selected phone tab has a count in its name)
+- mutation: AC7 `aria-live="polite"` on the phone feed -> `announce-focus-sources.test.mjs` red (the live-attribute ban; node test only, no browser run)
 
 **Shared surfaces:**
 - `/state`'s keys (`Test.Web.Api`, `api.spec.ts:116`, F9);
