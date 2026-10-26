@@ -919,7 +919,7 @@ Method SendBatch(namespace As %String, production As %String, ownerRef As %Strin
 }
 
 /// The Incident rows of the owner for the production, by ID, as a dynamic array of {"id", "ref", "ownerRef", "namespace", "production", "state", "openVariant",
-/// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "traceHeaderId", "firstHeaderId", "sampleHeaderId", "sampleError", "requestRefs", "decisionRef",
+/// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "closedAt", "traceHeaderId", "firstHeaderId", "sampleHeaderId", "sampleError", "requestRefs", "decisionRef",
 /// "fallback", "fallbackReason", "causeCategory"}.
 ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArray
 {
@@ -928,7 +928,7 @@ ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArr
 	While rs.%Next() {
 		Set row = ##class(OcuTalon.Data.Incident).%OpenId(rs.%GetData(1))
 		If '$IsObject(row) Continue
-		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "traceHeaderId": (row.TraceHeaderId), "firstHeaderId": (row.FirstHeaderId), "sampleHeaderId": (row.SampleHeaderId), "sampleError": (row.SampleError), "requestRefs": (row.RequestRefs), "decisionRef": (row.DecisionRef), "fallback": (+row.Fallback), "fallbackReason": (row.FallbackReason), "causeCategory": (row.CauseCategory)})
+		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "closedAt": (row.ClosedAt), "traceHeaderId": (row.TraceHeaderId), "firstHeaderId": (row.FirstHeaderId), "sampleHeaderId": (row.SampleHeaderId), "sampleError": (row.SampleError), "requestRefs": (row.RequestRefs), "decisionRef": (row.DecisionRef), "fallback": (+row.Fallback), "fallbackReason": (row.FallbackReason), "causeCategory": (row.CauseCategory)})
 	}
 	Quit incidents
 }

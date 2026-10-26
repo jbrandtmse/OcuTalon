@@ -1,9 +1,12 @@
-/// An IncidentManager that a test can call Tell and the diagnose handlers on (test only; Story 5.3, ledger entry DW-241, Story 5.4 and Story 5.8). Tell is private to IncidentManager, and its error
+/// An IncidentManager that a test can call Tell and the diagnose handlers on (test only; Story 5.3, ledger entry DW-241, Story 5.4, Story 5.8 and Story 5.5). Tell is private to IncidentManager, and its error
 /// branches (a failed Session.Recipients read, a failed publish while other recipients still get the event, a failed send of a notice) have no seam in the product, so
 /// Test.Watch.Tell makes a shadow instance of this class in its own process and calls Say, which is Tell and nothing else; Refuse is OnError with the
 /// diagnose key and nothing else, and Answer is OnResponse with the diagnose key and nothing else. It overrides SendNotice only: a shadow instance
 /// cannot SendRequestAsync (its primary request header is not there), so the override records each Notification in Sent, as a dynamic object of the
-/// fields the tests check, and answers OK, or an error for a SessionRef that FailFor names. It is not an item of any production.
+/// fields the tests check, and answers OK, or an error for a SessionRef that FailFor names. It overrides SendExecute for the same reason (Story 5.5): it records each
+/// order in Executed, as {approvalRef, sessionId} (the session that the order would go in), and answers OK, or an error when FailExecute is set, and DemoMode, so that a test sets the
+/// mode without writing the setting: it gives DemoModeIs when that is set (0 or 1), else the product's own reading. The handlers of Story 5.5 are reached through
+/// OnRequest, as the framework calls them. It is not an item of any production.
 Class OcuTalon.Test.Watch.IncidentProbe Extends OcuTalon.Watch.IncidentManager
 {
 
@@ -12,6 +15,31 @@ Property Sent As %DynamicArray [ Transient ];
 
 /// The SessionRefs, comma-separated, whose send answers an error.
 Property FailFor As %String(MAXLEN = "") [ Transient ];
+
+/// The orders that SendExecute recorded, in order, each {approvalRef, sessionId}.
+Property Executed As %DynamicArray [ Transient ];
+
+/// 1 to make SendExecute answer an error.
+Property FailExecute As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 0 or 1 to fix the demo mode that DemoMode gives; empty for the product's own reading.
+Property DemoModeIs As %String [ Transient ];
+
+/// Records the order instead of sending it, with the session that the order would go in.
+Method SendExecute(order As OcuTalon.Fix.Msg.Execute) As %Status [ Private ]
+{
+	If '$IsObject(..Executed) Set ..Executed = []
+	Do ..Executed.%Push({"approvalRef": (order.ApprovalRef), "sessionId": (..%SessionId)})
+	If ..FailExecute Quit $SYSTEM.Status.Error(5001, "The execute order of "_order.ApprovalRef_" is refused")
+	Quit $$$OK
+}
+
+/// The fixed demo mode when DemoModeIs is set.
+Method DemoMode() As %Boolean [ Private ]
+{
+	If ..DemoModeIs '= "" Quit ''..DemoModeIs
+	Quit ##super()
+}
 
 /// Records the Notification instead of sending it.
 Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]

@@ -2,12 +2,21 @@
 title: 'An incident moves through its states and closes'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '38d126f368ed18ddb137b6c548ff7d824e020422'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The real Execute order (target FixExecutor, the incident's trace SessionId and the kept SuperSession) is observed only at the test seam, not on a real message header.
+    evidence: |-
+      Test.Watch.IncidentProbe overrides SendExecute, so Lifecycle never runs SendRequestAsync; Closing only rejects. FixExecutor is a stub until Story 7.3, so a real approval has no handler to receive it. Lifecycle.TestExecuteTarget pins the item name only.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls (Execute, SendExecute)
+    severity: low
+
 ---
 
 <intent-contract>
@@ -175,6 +184,38 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 28 findings - high 0, medium 5, low 11, false 12, maybe-false 0
+- findings:
+  - `[false]` `[reject]` blind: `Purge` is never called and its query has no index - the caller is Story 30.2 (the intent's Never list), and the daily purge scans the closed rows once a day
+  - `[false]` `[reject]` blind: an interrupted run resolves the incident - the intent says `finished` is `Final` or `Interrupted` (spec-bound; Story 7.4 owns the counts)
+  - `[low]` `[reject]` blind: a cancelled outcome can leave `awaiting_approval` with nothing to move it - the intent refuses `cancelled`, "which the hold never sends"; theoretical
+  - `[false]` `[reject]` blind: `raised` is never sent - the intent gives the sender to Stories 7.2 to 7.4
+  - `[low]` `[reject]` blind: weak Execute failure handling, an empty `TraceHeaderId` - the warning and the unchanged row are the specified handling, `Record` always sets `TraceHeaderId`, and `Tell` uses the same session swap
+  - `[low]` `[patch]` blind: the `failed` answer is missing from the class doc, and its branches are untested - the doc line is added; the branches have no seam (the same gap Story 5.3 accepted), so no test
+  - `[low]` `[patch]` blind: a stray tab before `Do ..Deliver` in `Notice` - removed; the quiet quit on a refused `notice` is right (`Open` already checks closed and noticed)
+  - `[medium]` `[patch]` blind: `TestPurge` deletes rows it did not make - it skips when the namespace holds a closed incident older than 59 days; the "minute" comment now says an hour (an exact-boundary case cannot be built: the cutoff is computed inside `Purge`)
+  - `[false]` `[reject]` blind: `closeQuiet` checks quiet before the table - the intent fixes the order (step 4 before step 5)
+  - `[false]` `[reject]` edge: `FixResult` has no row check - the intent refuses it only when its request is not the incident's
+  - `[low]` `[reject]` edge: cancelled leaves `awaiting_approval` - same as the third finding above
+  - `[medium]` `[patch]` edge: `TestPurge` over the whole table - same root cause as the blind finding, one patch
+  - `[false]` `[reject]` edge: a refused `notice` is silent - `Open` guards closed and noticed rows, and a notice that does not apply is not an event to log
+  - `[low]` `[reject]` edge: `SendExecute` throwing leaves `%SessionId` changed - `SendRequestAsync` answers a status and the handler's request ends anyway; Execute's swap follows `Tell`'s
+  - `[false]` `[reject]` edge: `raised` on a noticed `open` incident is refused - AD-15's table has it only for an unnoticed one
+  - `[false]` `[reject]` edge: a timer or system `Dismiss` has no session - the intent makes a `dismiss` need a recipient session
+  - `[false]` `[reject]` edge: `closeQuiet` on an empty `LastAt` - `Record` always sets `LastAt`
+  - `[false]` `[reject]` edge: claim "a repeat is refused by the row" - it is said of `ApprovalOutcome`, and its row check is there
+  - `[low]` `[reject]` edge: a second `finished` can send the same `Execute` before `FixExecutor` changes the row - `FixExecutor` refuses it (Story 7.3); the intent's row rule is kept
+  - `[medium]` `[patch]` verification-gap: the real `SendExecute` (target and header) is never run - `Lifecycle.TestExecuteTarget` now pins that `FIXEXECUTOR` is an enabled item of the production; the header (target, session, SuperSession) stays unobserved until Story 7.3's handler test, deferred below
+  - `[medium]` `[patch]` verification-gap: the item's own `DemoMode()` reading is not asserted - `TestCloseQuiet` now writes `demo.mode` 1 and 0 with `DemoModeIs` unset and puts the row back
+  - `[low]` `[patch]` verification-gap: the unknown-class error and the `failed` answers have no test - `TestUnknownRequest` added; `failed` has no seam (rejected as above)
+  - `[low]` `[patch]` verification-gap: seven pinning tests have no `mutation:` line - the lines are demonstrated and written in `## Verification`
+  - `[medium]` `[patch]` verification-gap: `TestPurge` not self-contained - same root cause as the first `TestPurge` finding
+  - `[false]` `[reject]` verification-gap: `Closing` relies on the install account `ocutalon` - it asserts it with a reason; the account is the installer's by design
+  - `[false]` `[reject]` intent-alignment: `Data` is absent on a non-recipient `not_found` - right: it must not tell a non-recipient the incident's state
+  - `[low]` `[patch]` intent-alignment: the 5001 fallthrough has no test - `TestUnknownRequest`
+  - `[low]` `[patch]` intent-alignment: `Execute` is observed only at the seam - same as the `SendExecute` finding; the residual is deferred
+
 ## Design Notes
 
 **Ruling (R1) RULED 2026-10-26 by the epic lead as recommended (a)** (unattended, decide: a split into siblings planned next in the same epic, within `limits.split_children`). Epic 5's 5.5 block carries an `[AMENDED …]` marker, Story 5.9 "Ask OcuTalon in the chat to dismiss an incident" is added (key `5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident`, run right after 5.5), and the three spine candidates below are written: the Conventions row "Incident commands" (the result codes, `Data`, the session rule, `QUIETSECONDS`, and what "pending" means in AD-15's overlap rows; recorded as a Conventions row, so AD-15's text is unchanged) and the "SQL reserved words" row's `SqlTableName` clause. Originally: the plan halted on R1.
@@ -301,11 +342,59 @@ Conventions: "SQL reserved words" (applied here to a table name), "Messages", "T
 | AC 7 | `STUB` is kept | `Install.Production.TestStubsAnswer` |
 | Notice | `Notice` sets `fixing` | `Tell.TestNoticeToEachRecipient` |
 
+**Mutations applied (Rule 19, implement stage; each reverted byte-identically, checked with `cmp` against a backup made first):**
+
+- mutation: `dismiss` accepted in `awaiting_approval` (Transitions) -> `Transitions.TestRefusedMoves`, `Lifecycle.TestDismiss` red
+- mutation: `pending` ignores an `approved` request while `awaiting_approval` (`Facts`) -> `Lifecycle.TestApprovalOutcomes` red (`Transitions.TestRows` cannot see it: the fact is read in `IncidentManager`, not in the table; the table-side twin, `rejected` ignoring `pending`, turns `Transitions.TestRows` red)
+- mutation: `finished` ignores `waiting` (Transitions) -> `Transitions.TestRows`, `Lifecycle.TestFixResults` red
+- mutation: the latest waiting request gets the `Execute` (`Facts`) -> `Lifecycle.TestFixResults` red
+- mutation: an outcome is accepted whatever its row shows (`Outcome`) -> `Lifecycle.TestRefusedEvents` red
+- mutation: the `Execute` clears the session (`Execute` sets `%SessionId` to "") -> `Lifecycle.TestApprovalOutcomes` red
+- mutation: `closeQuiet` closes an `open` incident with demo mode on (Transitions) -> `Lifecycle.TestCloseQuiet` red
+- mutation: the `LastAt` check is dropped (`Command`) -> `Lifecycle.TestCloseQuiet` red
+- mutation: `dismiss` skips `Recipients` (`Command`) -> `Lifecycle.TestDismiss`, `Closing.TestDismissThroughCommandsIn` red
+- mutation: an accepted move publishes nothing (`Move`) -> `Lifecycle.TestEveryChangePublishes` (and six more Lifecycle tests), `Closing.TestDismissThroughCommandsIn` and `Closing.TestRejectThroughTheHold` red
+- mutation: `ClosedAt` is left empty (`Move`) -> `Lifecycle.TestDismiss`, `Lifecycle.TestCloseForReplay`, `Lifecycle.TestPurge` red
+- mutation: `rejected` maps to `expired` (Transitions) -> `Closing.TestRejectThroughTheHold` red
+- mutation: `Find` takes `closed` incidents (SQL filter and object check dropped) -> `Closing.TestDismissThroughCommandsIn`, `Incidents.TestClosedOpensNew` red (the first version of the Closing test sent a text of another pattern, so the mutation stayed green; the second batch now has the first one's text)
+- mutation: the cutoff moves by one day (`daysToKeep - 1`) -> `Lifecycle.TestPurge` red; `Purge` selecting and deleting every incident older than the cutoff, `open` ones included -> `Lifecycle.TestPurge` red
+- mutation: `FixResult` loses `Skipped` -> `Lifecycle.TestFixMessages` red
+- mutation: `STUB` is kept -> `Install.Production.TestStubsAnswer` red
+- mutation: `Notice` sets `fixing` -> `Tell.TestNoticeToEachRecipient` (and `TestFailedSendLeavesTheOthersTheirNotice`, `TestNobodyToNotice`) red
+- mutation: `DemoMode` gives 0 (review pass; the item's own reading of `demo.mode`) -> `Lifecycle.TestCloseQuiet` red
+- mutation: `FIXEXECUTOR` names an item the production does not have -> `Lifecycle.TestExecuteTarget` red
+- mutation: an unknown request class answers OK (`OnRequest`) -> `Lifecycle.TestUnknownRequest` red
+- mutation: `Result` ignores `Interrupted` -> `Lifecycle.TestFixResults` red
+- mutation: a failed `SendExecute` is not logged (`Execute`) -> `Lifecycle.TestExecuteSendFails` red
+- mutation: `dismiss` accepted on a `closed` incident (Transitions) -> `Lifecycle.TestRepeatDismiss`, `Lifecycle.TestDismiss` red
+- mutation: `closeForReplay` accepted on a noticed `open` incident (Transitions) -> `Lifecycle.TestCloseForReplay` red
+- mutation: `dismiss` skips the `Recipients` check (`Command`) also turns `Lifecycle.TestInstanceDismiss` red
+- mutation: `Execute` loses `SqlTableName = FixExecute` -> `Test.Data.Tables.TestSqlNames` red (AC 7, reserved-word half)
+- mutation: `Transitions` deletes an incident row (`%DeleteId`) -> `Test.Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` red (AC 7, only-writer half)
+
+**Runs (stage loop):** warm (`e5s5iw`, up in 80 s): `Test.Watch.Transitions`, `Lifecycle`, `Tell`, `Settle`, `Test.Bridge.CodeRules`, `Test.Data.Tables`, `Test.Install.Production` passed. Fresh (`e5s5i`): `Closing` (27 s test, 100 s with the start), `Notices`, `Diagnose`, `Incidents`, `Test.Core.CommandsInProduction`, `Test.Bridge.Approval` passed.
+
+**Beyond the spec's file list (needed to keep the tree green):** `Test.Core.CommandsInProduction.TestStubOwnersAnswerPlainEnglish` also sent a `Dismiss` to `IncidentManager` and expected `not_built`; that row is removed (the class doc follows), because the owner is no longer a stub. Method names of `IncidentManager` that the probe or `Ens.BusinessProcess` already use (`Answer`, `Refuse`, `Reply`) were avoided (`Verdict`, `Drop`). `IncidentManager.Purge(daysToKeep)` overrides the internal `Ens.BusinessProcess.Purge` ClassMethod with a different signature, as the spec requires; the framework calls only `Ens.BusinessProcess.Purge` on the base class.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Spec gate, 2026-10-26: the lead ruled R1 (a) and set the spec `ready-for-dev`. The plan stage's halt read: intent gap: R1 (split). Story 5.5's block holds two story-sized units: the incident lifecycle in IncidentManager, and the chat dismiss tool (Tools, Agent/Chat.cls instructions, a mock turn, and seven tests that assert the tool list). Recommended (a): 5.5 keeps every criterion except the "Given a user asks in the chat to dismiss an incident" paragraph and its And. That paragraph moves verbatim to a new sibling, Story 5.9 "Ask OcuTalon in the chat to dismiss an incident", planned next and run right after 5.5, before 5.6. The spec is written to (a). On that ruling the lead amends Epic 5's blocks and sets status ready-for-dev.
+Summary: the incident lifecycle (AD-15) is built. `Watch.Transitions.Next` is the one pure table; `IncidentManager` applies it to the notice step, the `dismiss`, `closeForReplay` and `closeQuiet` commands (answered synchronously), `ApprovalOutcome` and `FixResult`; an accepted move saves, publishes the full `incident` view and, where the table says so, sends `Fix.Msg.Execute` in the incident's trace session. `STUB` is gone; any other request class is a 5001 error naming the class. `IncidentManager.Purge(daysToKeep)` is added. The chat dismiss tool is Story 5.9 (R1).
 
-Plan stage, 2026-10-26: the plan is complete and checked against the READY-FOR-DEVELOPMENT standard. The only open item is R1, a split that the lead decides (the 5.4 precedent).
+Files changed (all under `src/ocutalon/cls/OcuTalon/`):
+- `Watch/Transitions.cls` (new): the table.
+- `Watch/IncidentManager.cls`: handlers, facts, `Move`, `SendExecute`, `DemoMode`, `Purge`; `STUB` removed.
+- `Watch/Settle.cls`: `Quiet`.
+- `Fix/Msg/Execute.cls` (new, table `FixExecute`), `Fix/Msg/FixResult.cls` (new).
+- `Test/Watch/Transitions.cls`, `Lifecycle.cls`, `Closing.cls` (new); `IncidentProbe.cls`, `Case.cls` (changed).
+- `Test/Install/Production.cls` (oracle row `stub` 0), `Test/Core/CommandsInProduction.cls` (the dismiss assertion, and the stub-owner row for a dismiss, removed).
+
+Review: 28 findings across four layers - high 0, medium 5, low 11, false 12. Patches applied (grouped): `TestPurge` skips when it would delete rows it did not make; `RealDemoMode` pins the item's own reading of `demo.mode`; `TestExecuteTarget` pins the `FixExecutor` item name; `TestUnknownRequest` pins the 5001 error; the `failed` outcome is in the class doc; a stray tab is removed; ten `mutation:` lines are demonstrated and written. Deferred: one (the real Execute header, for Story 7.3). Every rejected finding and its reason is in the triage log.
+
+Follow-up review recommended: true. Three medium entries were patched (`TestPurge` hermeticity, the `SendExecute` target, the `DemoMode` reading). The unverified risk: a real `Execute` message header (target, session, SuperSession) is not observed until Story 7.3's handler exists.
+
+Verification: warm (`e5s5iw`) `Watch.Transitions`, `Lifecycle`, `Tell`, `Settle`, `Bridge.CodeRules`, `Data.Tables`, `Install.Production` passed; fresh `Watch.Closing`, `Notices`, `Diagnose`, `Incidents`, `Core.CommandsInProduction` and `Bridge.Approval` passed. The shards ran after the implement pass: `lane-a` part 1/2 (33 classes, 396 s) and part 2/2 (32 classes, 408 s), `lane-b` (42 classes, 115 s), `bash ci/checks.sh` passed. After the review patches (one Lifecycle test file, one tab and one doc line in `IncidentManager`) `lane-a` part 2/2 (32 classes, 413 s) and `lane-b` (42 classes, 112 s) ran again and passed; part 1/2 (Agent and Bridge classes, no Watch class) was not rerun, because no file it covers changed in behavior. All stacks are torn down.
+
+Residual risks: the real Execute header (deferred); the `failed` answers of `Command` have no seam to force them (as Story 5.3's recipients read); `Purge` has no caller until Story 30.2; an `Interrupted` run resolves the incident by the spec's own rule.

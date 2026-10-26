@@ -7,6 +7,8 @@
 ///   - Wait says how long the settle rule still runs: it ends when LastAt is quiet seconds ago or FirstAt is max seconds ago, whichever comes first.
 ///   - Alarm gives the seconds of the waiter's next alarm: the wait, at most LONGESTALARM, because only two business processes hold a timer longer than two
 ///     minutes (AD-5). The waiter re-reads the rows on each wake, so a longer wait is several alarms.
+///   - Quiet says whether an incident has been quiet for longer than a number of seconds: 1 when lastAt is more than that before now, 0 when it is not or a
+///     stamp is not one (IncidentManager's closeQuiet).
 ///   - Hold gives a group's Seen set after a batch, and which of the batch's keys were new. A key already in the set is never counted again.
 /// A stamp is UTC, YYYY-MM-DDTHH:MM:SSZ, as the failures of a batch carry it.
 Class OcuTalon.Watch.Settle
@@ -73,6 +75,15 @@ ClassMethod Wait(firstAt As %String, lastAt As %String, now As %String, quiet As
 	If (first = "") || (last = "") || (current = "") Quit 0
 	Set end = $Select((last + quiet) < (first + max): last + quiet, 1: first + max)
 	Quit $Select(current '< end: 0, 1: end - current)
+}
+
+/// 1 when lastAt is more than seconds before now (both stamps), 0 when it is that or less or when a stamp cannot be read.
+ClassMethod Quiet(lastAt As %String, now As %String, seconds As %Integer) As %Boolean
+{
+	Set last = ..Seconds($Get(lastAt))
+	Set current = ..Seconds($Get(now))
+	If (last = "") || (current = "") Quit 0
+	Quit ((current - last) > seconds)
 }
 
 /// The seconds of the waiter's next alarm for a wait of seconds: the wait, at most LONGESTALARM.

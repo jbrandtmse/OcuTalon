@@ -1,8 +1,8 @@
 /// End-to-end tests of the command gate over the running production (Story 2.3; AD-1, AD-22, AD-26). THIS CLASS RUNS IN
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has. Where the
 /// production does not run, every test fails with that reason, so that a broken start can never give a green shard. Every
-/// test goes through OcuTalon.Core.Commands.Submit, to the four stub owners (ReminderOps, SettingsOps,
-/// SessionOps and IncidentManager). Each owner's story rewrites its row here when it builds the owner.
+/// test goes through OcuTalon.Core.Commands.Submit, to the stub owners (ReminderOps, SettingsOps and
+/// SessionOps) and to IncidentManager, which Story 5.5 built. Each owner's story rewrites its row here when it builds the owner.
 ///   - TestStubOwnersAnswerPlainEnglish: a command to each stub owner gives status OK and a CommandResult with Ok 0, not_built
 ///     and the plain-English text;
 ///   - TestTraceAndThread: outside a turn the command and the owner's answer are messages of one session whose SuperSession is
@@ -11,7 +11,7 @@
 ///   - TestGovernanceRefusedFromTool: inside a context the governance verbs are refused and no header goes to SettingsOps or
 ///     SessionOps;
 ///   - TestToolDismissReachesIncidentManager: inside a context, the Dismiss of the session's own noticed incident reaches
-///     IncidentManager, and the Dismiss of another session's incident is not_found with no header.
+///     IncidentManager and closes it (Ok 1, closed), and the Dismiss of another session's incident is not_found with no header.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("CommandsInProduction","n")) and the clean-up are those
 /// of Test.Core.InProduction; the SuperSessions of the tests' contexts are added to the run's, so that the clean-up removes
 /// their messages too.
@@ -22,7 +22,7 @@ Class OcuTalon.Test.Core.CommandsInProduction Extends OcuTalon.Test.Core.InProdu
 Parameter NOTBUILT = "This part of OcuTalon isn't built yet. Nothing was changed.";
 
 /// Each stub owner gets one verb with an origin it accepts: ReminderOps (SetReminder), SettingsOps
-/// (SetDemoMode from the system, with the mode it already has), SessionOps (EndSession) and IncidentManager (Dismiss). Each
+/// (SetDemoMode from the system, with the mode it already has) and SessionOps (EndSession). Each
 /// answers with status OK and a CommandResult that carries nothing out, in plain English.
 Method TestStubOwnersAnswerPlainEnglish()
 {
@@ -30,7 +30,7 @@ Method TestStubOwnersAnswerPlainEnglish()
 	Set a = ..Session("stubs")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Set mode = (..Mode() = "1")
-	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "SetDemoMode|SettingsOps|system", "EndSession|SessionOps|web_user", "Dismiss|IncidentManager|web_user")
+	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "SetDemoMode|SettingsOps|system", "EndSession|SessionOps|web_user")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
 		Set owner = $Piece($List(table, i), "|", 2)
@@ -38,7 +38,6 @@ Method TestStubOwnersAnswerPlainEnglish()
 		Set command.SessionRef = a
 		Set command.IdempotencyKey = "zzkey"_..Number_verb
 		If verb = "SetDemoMode" Set command.DemoMode = mode
-		If verb = "Dismiss" Set command.IncidentRef = "zzinc"_..Number
 		Set before = ..Sent(owner)
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, $Piece($List(table, i), "|", 3), .result)
 		Do $$$AssertStatusOK(sc, verb_" to "_owner_": the status is OK")
@@ -148,7 +147,7 @@ Method TestGovernanceRefusedFromTool()
 	Do $$$AssertEquals(..Mode(), mode, "and demo.mode is as it was")
 }
 
-/// Inside a context, the Dismiss of session A's own noticed incident reaches IncidentManager (the stub answers not_built);
+/// Inside a context, the Dismiss of session A's own noticed incident reaches IncidentManager, which closes it (Story 5.5);
 /// the Dismiss of session B's incident is not_found, and no header goes to IncidentManager.
 Method TestToolDismissReachesIncidentManager()
 {
@@ -166,7 +165,7 @@ Method TestToolDismissReachesIncidentManager()
 		Set before = ..Sent("IncidentManager")
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(..Dismissal(a, own), "web_user", .result)
 		Do $$$AssertStatusOK(sc, "the Dismiss of the session's own incident is submitted")
-		Do $$$AssertEquals($IsObject(result) && (result.Ok_"|"_result.Outcome = "0|not_built"), 1, "it reached the stub: not_built")
+		Do $$$AssertEquals($IsObject(result) && (result.Ok_"|"_result.Outcome = "1|closed"), 1, "it reached IncidentManager, which closed the incident")
 		Do $$$AssertEquals(..Sent("IncidentManager"), before + 1, "and a header went to IncidentManager")
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(..Dismissal(a, other), "web_user", .result)
 		Do $$$AssertStatusOK(sc, "the Dismiss of another session's incident is submitted")
