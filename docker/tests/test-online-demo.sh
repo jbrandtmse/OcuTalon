@@ -48,6 +48,17 @@
 #     connection (row 6), and with the cap one lower (so that row 6 pins OWNCONNECTIONS at 1) a proxied sign-in and one with a valid resume cookie are refused with the busy splash,
 #     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
+#   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
+#     before the password-log checks: eight runs on one state folder with stub alert and reset commands that append "alert <outcome>
+#     <line>" or "reset" to one record file: P1 healthy (row 1: exit 0, no alert or reset, exactly one new Session row whose CSP session
+#     no longer exists), P2 a wrong password (row 2, auth_failed count=1), P3 the online-demo flag "0" (row 3, no_splash), P4 the cap at the
+#     HTTP view plus the reserve (row 4, busy, today's line of busy-per-day, no new Session row), P5 the Conversation item disabled with a
+#     10 s wait (row 5, no_decision count=2, the reset line right before the alert line), P6 a wrong password (row 6, the count starts
+#     again), P7 the mock's daily-cap marker (row 7, capped with fallback=daily_cap, the day's mark removed), P8 a wrong password (row 8,
+#     capped cleared the count); row 9: the eight log lines in order, six alert lines and one reset line in the record, the AddressCounter
+#     rows unchanged, neither password anywhere, and the flag, the cap, the Conversation item and the capped mark read back. Task 0's
+#     MEASURED lines (a) to (f) give a healthy turn's events, the capped mark, the disabled Conversation item, the sign-out (a control
+#     session, then the probe's), the splash cookie and the phase's time. The phase starts only with 150 s of the deadline left;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -1250,6 +1261,377 @@ if [ "$(set_proxy "$proxy_start")" = "$proxy_start" ]; then
 else
   fail "phase 2: the proxy address could not be put back to $proxy_start"
 fi
+
+# --- Story 16.6: the probe (rows 1 to 9, and Task 0 (a) to (f)) ---
+
+# docker/probe.sh runs against this unit's own throwaway, directly (no request is proxied: the proxy address is back at its start value),
+# with the demo account and its published password, a state folder of its own and two stub commands that append one line per call to one
+# record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Eight runs on one state folder:
+# P1 healthy, P2 wrong password, P3 online-demo flag "0", P4 cap lowered to the boundary, P5 Conversation disabled, P6 wrong password,
+# P7 the daily-cap mock marker, P8 wrong password. Every setting a run changes is put back at once and read back at the end of the phase.
+probe_started=$SECONDS
+probe_state="$tmp/probe-state"
+probe_record="$tmp/probe-record"
+wrong_password=$(hexpw)
+mkdir -p "$probe_state"
+: > "$probe_record"
+cat > "$tmp/probe-alert.sh" <<'EOF'
+#!/bin/sh
+echo "alert $1 $2" >> "$PROBE_TEST_RECORD"
+EOF
+cat > "$tmp/probe-reset.sh" <<'EOF'
+#!/bin/sh
+echo "reset" >> "$PROBE_TEST_RECORD"
+EOF
+chmod 755 "$tmp/probe-alert.sh" "$tmp/probe-reset.sh"
+
+# probe_run <label> [VAR=value]...: one run of docker/probe.sh with this unit's configuration plus the overrides. It leaves the exit code in
+# probe_rc, stdout in $tmp/probe.<label>.out and stderr in $tmp/probe.<label>.err. The passwords reach the probe through the environment
+# of a subshell, so they are on no command line.
+probe_run() {
+  local label=$1 kv
+  shift
+  (
+    export OCUTALON_PROBE_URL="$base" OCUTALON_DEMO_USER="$demo_user" OCUTALON_DEMO_PASSWORD="$demo_password"
+    export OCUTALON_PROBE_ALERT_COMMAND="$tmp/probe-alert.sh" OCUTALON_PROBE_RESET_COMMAND="$tmp/probe-reset.sh"
+    export OCUTALON_PROBE_STATE_DIR="$probe_state" PROBE_TEST_RECORD="$probe_record"
+    for kv in "$@"; do export "$kv"; done
+    exec bash "$root/docker/probe.sh"
+  ) > "$tmp/probe.$label.out" 2> "$tmp/probe.$label.err" < /dev/null
+  probe_rc=$?
+}
+# probe_expect <label> <label of the check> <exit> <text>: the run's exit code, one stdout line that is also the log's last line, and the
+# text after the time.
+probe_expect() {
+  local out="$tmp/probe.$1.out" got last lines
+  got=$(sed 's/^[^ ]* //' "$out")
+  last=$(tail -n 1 "$probe_state/probe.log" 2> /dev/null)
+  lines=$(wc -l < "$out" | tr -d ' ')
+  if [ "$probe_rc" = "$3" ] && [ "$got" = "$4" ] && [ "$lines" = 1 ] && [ "$(cat "$out")" = "$last" ] && grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ' "$out"; then
+    pass "Story 16.6, $2: exit $3, the log's last line and stdout are '<time> $4'"
+  else
+    fail "Story 16.6, $2: exit $probe_rc (wanted $3), '$got' (wanted '$4'), $lines stdout line(s), the log's last line is '$(printf '%s' "$last" | sed 's/^[^ ]* //')'"
+  fi
+}
+# probe_counts: "<alert lines> <reset lines>" of the command record so far.
+probe_counts() { printf '%s %s' "$(grep -c '^alert ' "$probe_record")" "$(grep -c '^reset$' "$probe_record")"; }
+# probe_calls_ok <check label> <alerts> <resets>: the record holds this many alert and reset lines.
+probe_calls_ok() {
+  if [ "$(probe_counts)" = "$2 $3" ]; then
+    pass "Story 16.6, $1: the record holds $2 alert line(s) and $3 reset line(s)"
+  else
+    fail "Story 16.6, $1: the record holds '$(probe_counts)' alert and reset lines, wanted '$2 $3'"
+  fi
+}
+
+# set_flag <0|1>: sets the public online-demo flag and prints what it reads back.
+set_flag() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"onlineDemo\",\"$1\")" 'Write !,"CHK|flag|",##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")' 'Halt' | session_value OCUTALON flag; }
+# conversation_enabled <0|1>: puts the Conversation item in the wanted state (the director refuses to enable an enabled item, so it is
+# called only when the item is in the other state) and prints "<status ok>,<enabled items>" as the director reads it back, with the first
+# words of the error text after a third comma when the status is an error.
+conversation_enabled() {
+  printf '%s\n' 'Set sc=1 Set en=##class(Ens.Director).IsItemEnabled("Conversation",.st)' \
+    "If en'=$1 { Set sc=##class(Ens.Director).EnableConfigItem(\"Conversation\",$1) Set en=##class(Ens.Director).IsItemEnabled(\"Conversation\",.st) }" \
+    'Write !,"CHK|conv|",$SYSTEM.Status.IsOK(sc),",",en,$Select($SYSTEM.Status.IsOK(sc):"",1:","_$Extract($SYSTEM.Status.GetErrorText(sc),1,120))' 'Halt' | session_value OCUTALON conv
+}
+# keys_point: points the model keys of the three runners at the mock key variable (Test.Agent.RunnerFixture, which exists in throwaways and
+# CI only: a start in the CI override has no key, so every decision would be the no_key fallback) and waits until the runners have recorded
+# it; prints 1 when they have. keys_restore puts the entries back to the Provider step's placeholder and prints 1 when they read as that.
+keys_point() {
+  printf '%s\n' 'Set ok=0 Set fixture="OcuTalon.Test.Agent.RunnerFixture"' \
+    'If $ClassMethod(fixture,"GuardReason")="" { Set sc=$ClassMethod(fixture,"PointKeys") Set ok=$SYSTEM.Status.IsOK(sc) If ok Set ok=$ClassMethod(fixture,"WaitRecords") }' \
+    'Write !,"CHK|keys|",ok' 'Halt' | session_value OCUTALON keys
+}
+keys_restore() {
+  printf '%s\n' 'Set fixture="OcuTalon.Test.Agent.RunnerFixture" Set sc=$ClassMethod(fixture,"RestoreKeys")' \
+    'Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc)&&$ClassMethod(fixture,"KeysAre",##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' 'Halt' | session_value OCUTALON keys
+}
+# capped_mark: $Data of today's capped mark of the bridge. capped_unmark: removes it and prints $Data after.
+capped_mark() { printf '%s\n' 'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' 'Halt' | session_value OCUTALON mark; }
+capped_unmark() { printf '%s\n' 'Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))' 'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' 'Halt' | session_value OCUTALON mark; }
+# session_newest: the highest Session row id. session_csp <id>: the CSP session id of a Session row. csp_alive <id>: 1 when %CSP.Session holds it.
+session_newest() { printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT NVL(MAX(ID),0) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|newest|",rs.%GetData(1)' 'Halt' | session_value OCUTALON newest; }
+session_csp() { printf '%s\n' "Set r=##class(OcuTalon.Data.Session).%OpenId(\"$1\") Write !,\"CHK|csp|\",\$Select(\$IsObject(r):r.CspSessionId,1:\"\")" 'Halt' | session_value OCUTALON csp; }
+csp_alive() { printf '%s\n' "Write !,\"CHK|alive|\",##class(%CSP.Session).%ExistsId(\"$1\")" 'Halt' | session_value %SYS alive; }
+csp_gone() { [ "$(csp_alive "$1")" = 0 ]; }
+
+cat > "$tmp/turn-events.js" <<'EOF'
+const fs = require("fs");
+const [file, clientId] = process.argv.slice(2);
+let body;
+try { body = JSON.parse(fs.readFileSync(file, "utf8")); } catch { console.log("unreadable"); process.exit(0); }
+const mine = (body.events || []).filter((e) => e.type === "chat.message" && e.payload && e.payload.clientId === clientId);
+const done = mine.find((e) => e.payload.state === "done");
+const reason = (o) => (o && "fallbackReason" in o ? (o.fallbackReason === "" ? "empty" : o.fallbackReason) : "absent");
+const states = mine.filter((e) => e.payload.decision).map((e) => e.payload.state).join(",") || "none";
+console.log(`${done ? "done" : "waiting"} decision-on=${states} chat.fallbackReason=${done ? reason(done.payload) : "n/a"} decision.fallbackReason=${done && done.payload.decision ? reason(done.payload.decision) : "n/a"}`);
+EOF
+
+# turn_events <message> <polls>: signs in as the demo account on a jar of its own, posts the message, polls the events up to <polls> times
+# (2 s apart) until the turn is done, signs out, and prints "<POST status> <done or waiting> decision-on=<states of the turn's chat.message
+# events that carry a decision> chat.fallbackReason=<..> decision.fallbackReason=<..>" (absent, empty or the value).
+turn_events() {
+  local jar client code n=0 verdict=""
+  next_probe
+  jar="$tmp/jar.turn.$probes"
+  : > "$jar"
+  online_signin "$jar" "" "" > /dev/null
+  client="zz-turn-$(date +%s)-$probes"
+  next_probe
+  code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar" -c "$jar" -H 'Content-Type: application/json' -H 'X-OcuTalon-Request: 1' -H "Origin: $base" \
+    --data "{\"clientId\":\"$client\",\"text\":\"$1\",\"fromGuide\":false}" "$base/ocutalon/api/v1/messages?probe=$probes")
+  while [ "$n" -lt "$2" ]; do
+    n=$((n + 1))
+    next_probe
+    curl -s --max-time 30 -b "$jar" -c "$jar" "$base/ocutalon/api/v1/events?after=0&afterInstance=0&probe=$probes" > "$tmp/turn.events"
+    verdict=$(node "$tmp/turn-events.js" "$tmp/turn.events" "$client")
+    case $verdict in done*) break ;; esac
+    sleep 2
+  done
+  logout_all "$jar" /ocutalon/
+  printf '%s %s' "$code" "$verdict"
+}
+
+probe_ok=0
+remaining=$((deadline - SECONDS))
+if [ "$remaining" -lt 150 ]; then
+  fail "Story 16.6: only $remaining s are left of the deadline: too little for the probe phase"
+else
+  probe_ok=1
+  flag_start=$(public_value onlineDemo)
+  mark_before=$(capped_mark)
+  conv_start=$(conversation_enabled 1)
+  echo "MEASURED Task 0 (c): the Conversation item reads '$conv_start' (status ok, enabled items) before the phase"
+  if [ "$flag_start" = 1 ] && [ "$(public_value connectionCap)" = "$cap_start" ] && [ "$conv_start" = "1,1" ]; then
+    pass "Story 16.6: the phase starts with the flag '1', the cap $cap_start and the Conversation item enabled"
+  else
+    probe_ok=0
+    fail "Story 16.6: the phase's start values are not the flag '1', the cap $cap_start and Conversation enabled (flag '$flag_start', cap '$(public_value connectionCap)', Conversation '$conv_start')"
+  fi
+fi
+keys_attempted=0
+if [ "$probe_ok" = 1 ]; then
+  keys_attempted=1
+  if [ "$(keys_point)" = 1 ]; then
+    pass "Story 16.6: the runners' model keys point at the mock key variable and the runners have recorded it (a healthy turn reaches the mock)"
+  else
+    probe_ok=0
+    fail "Story 16.6: the runners' model keys could not be pointed at the mock key variable"
+  fi
+fi
+
+if [ "$probe_ok" = 1 ]; then
+  # Task 0 (e): the splash GET's cookie, and whether the sign-in POST carries it (counted from curl's request headers; no value is printed).
+  jar_e="$tmp/jar.splashcookie"
+  : > "$jar_e"
+  next_probe
+  curl -s --max-time 30 -c "$jar_e" -b "$jar_e" -D "$tmp/splash-e.h" -o /dev/null "$base/ocutalon/?probe=$probes"
+  e_set=$(tr -d '\r' < "$tmp/splash-e.h" | grep -ci '^set-cookie: CSPSESSIONID')
+  next_probe
+  curl -sv --max-time 30 -c "$jar_e" -b "$jar_e" -D "$tmp/signin-e.h" -o /dev/null --data-urlencode "IRISUsername=$demo_user" --data-urlencode "IRISPassword=$demo_password" \
+    --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/?probe=$probes" 2> "$tmp/signin-e.v"
+  e_carried=$(grep -ci '^> cookie: .*CSPSESSIONID' "$tmp/signin-e.v")
+  e_reset=$(tr -d '\r' < "$tmp/signin-e.h" | grep -ci '^set-cookie: CSPSESSIONID')
+  logout_all "$jar_e" /ocutalon/
+  echo "MEASURED Task 0 (e): the splash GET sets $e_set CSP session cookie(s); the sign-in POST carries one: $([ "$e_carried" -ge 1 ] && echo yes || echo no); the POST sets $e_reset"
+
+  # Task 0 (d), the control: a session signed in with online_signin has a live %CSP.Session for its row, and none after logout_all.
+  jar_c="$tmp/jar.control"
+  : > "$jar_c"
+  online_signin "$jar_c" "" "" > /dev/null
+  control_epoch=$(jar_epoch "$jar_c")
+  control_csp=$(row_field "$control_epoch" CspSessionId)
+  control_before=$([ -n "$control_csp" ] && csp_alive "$control_csp")
+  logout_all "$jar_c" /ocutalon/
+  control_gone_after=0
+  if [ -n "$control_csp" ] && wait_until 9 csp_gone "$control_csp"; then control_gone_after=1; fi
+  echo "MEASURED Task 0 (d): control session: CspSessionId read '$([ -n "$control_csp" ] && echo yes || echo no)', alive before the sign-out '${control_before:-?}', gone after logout_all '$control_gone_after'"
+  if [ "$control_before" = 1 ] && [ "$control_gone_after" = 1 ]; then
+    pass "Story 16.6, Task 0 (d): a session signed in with online_signin has a live CSP session, and logout_all ends it"
+  else
+    fail "Story 16.6, Task 0 (d): the control session's CSP session was not alive before ('${control_before:-?}') and gone after ('$control_gone_after') its sign-out, so row 1's read proves nothing"
+  fi
+  drop_session "$control_epoch"
+
+  # Task 0 (a): a healthy turn's events, read by a session of this test.
+  echo "MEASURED Task 0 (a): $(turn_events 'zz measure healthy turn' 40)"
+
+  counter_phase_before=$(counter_rows)
+
+  # P1, row 1: healthy.
+  rows_before=$(session_rows)
+  newest_before=$(session_newest)
+  probe_run p1
+  probe_expect p1 "row 1" 0 "healthy count=0"
+  rows_after=$(session_rows)
+  newest_after=$(session_newest)
+  probe_calls_ok "row 1" 0 0
+  if [ "$((rows_after - rows_before))" = 1 ] && [ "${newest_after:-0}" -gt "${newest_before:-0}" ]; then
+    p1_csp=$(session_csp "$newest_after")
+    if [ -n "$p1_csp" ]; then
+      p1_gone=0
+      if csp_gone "$p1_csp"; then p1_gone=1; elif wait_until 9 csp_gone "$p1_csp"; then p1_gone=2; fi
+      echo "MEASURED Task 0 (d): P1's CSP session is gone $([ "$p1_gone" = 1 ] && echo 'right after the run' || { [ "$p1_gone" = 2 ] && echo 'within 9 s of the run' || echo 'NOT within 9 s'; })"
+      if [ "$p1_gone" != 0 ]; then
+        pass "Story 16.6, row 1: exactly one new Session row, and its CSP session no longer exists after the probe's sign-out"
+      else
+        fail "Story 16.6, row 1: the probe's CSP session still exists after its run (the sign-out did not end it)"
+      fi
+    else
+      fail "Story 16.6, row 1: the new Session row has no CspSessionId"
+    fi
+  else
+    fail "Story 16.6, row 1: the Session rows went from '$rows_before' to '$rows_after' (newest id '$newest_before' to '$newest_after'), wanted exactly one new row"
+  fi
+
+  # P2, row 2: a wrong password.
+  rows_before=$(session_rows)
+  probe_run p2 "OCUTALON_DEMO_PASSWORD=$wrong_password"
+  probe_expect p2 "row 2" 1 "auth_failed count=1"
+  probe_calls_ok "row 2" 1 0
+  if [ "$(grep -c '^alert auth_failed ' "$probe_record")" = 1 ] && [ "$(session_rows)" = "$rows_before" ]; then
+    pass "Story 16.6, row 2: one alert for auth_failed and no new Session row"
+  else
+    fail "Story 16.6, row 2: the alert is not one auth_failed line, or the Session rows changed from '$rows_before' to '$(session_rows)'"
+  fi
+
+  # P3, row 3: no splash (the online-demo flag "0").
+  flag_read=$(set_flag 0)
+  probe_run p3
+  flag_back=$(set_flag "$flag_start")
+  [ "$flag_read" = 0 ] || fail "Story 16.6, row 3: the flag could not be set to 0 (read '$flag_read')"
+  probe_expect p3 "row 3" 1 "no_splash count=1"
+  probe_calls_ok "row 3" 2 0
+  if [ "$flag_back" = "$flag_start" ]; then
+    pass "Story 16.6, row 3: the online-demo flag is back to '$flag_start'"
+  else
+    fail "Story 16.6, row 3: the online-demo flag reads '$flag_back' after being put back to '$flag_start'"
+  fi
+
+  # P4, row 4: busy (the cap at the HTTP view plus the reserve, Story 16.5's row 1 boundary).
+  rows_before=$(session_rows)
+  view=$(http_view)
+  if [ -n "$view" ] && [ "$(set_cap "$((view + reserve_start))")" = "$((view + reserve_start))" ] && [ "$(status_read | cut -d' ' -f1)" = true ]; then
+    probe_run p4
+    set_cap "$cap_start" > /dev/null
+    probe_expect p4 "row 4" 1 "busy count=1"
+    probe_calls_ok "row 4" 3 0
+    if [ "$(cat "$probe_state/busy-per-day" 2> /dev/null)" = "$(TZ=UTC0 date +%Y-%m-%d) 1" ] && [ "$(session_rows)" = "$rows_before" ]; then
+      pass "Story 16.6, row 4: busy-per-day holds today's line with 1, and no Session row was added"
+    else
+      fail "Story 16.6, row 4: busy-per-day is '$(tr '\n' '|' < "$probe_state/busy-per-day" 2> /dev/null)' or the Session rows changed from '$rows_before' to '$(session_rows)'"
+    fi
+  else
+    set_cap "$cap_start" > /dev/null
+    fail "Story 16.6, row 4: the cap could not be set to the boundary (view '${view:-<unknown>}'), so the status was not busy"
+  fi
+  cap_back=$(public_value connectionCap)
+  if [ "$cap_back" = "$cap_start" ]; then
+    pass "Story 16.6, row 4: the connection cap is back to $cap_start"
+  else
+    set_cap "$cap_start" > /dev/null
+    fail "Story 16.6, row 4: the connection cap read '$cap_back' after being put back to $cap_start"
+  fi
+
+  # P5, row 5: no decision (the Conversation item disabled), then the reset.
+  conv_off=$(conversation_enabled 0)
+  p5_post=$(turn_events 'zz measure disabled' 0)
+  echo "MEASURED Task 0 (c): with the Conversation item disabled the director reads '$conv_off' (status ok, enabled items), and POST /messages answers ${p5_post%% *}"
+  probe_run p5 OCUTALON_PROBE_DECISION_WAIT=10
+  conv_on=$(conversation_enabled 1)
+  probe_expect p5 "row 5" 1 "no_decision count=2 reset=0"
+  if [ "$conv_off" = "1,0" ] && [ "$conv_on" = "1,1" ]; then
+    pass "Story 16.6, row 5: the Conversation item was disabled ('$conv_off') and is enabled again ('$conv_on')"
+  else
+    fail "Story 16.6, row 5: the Conversation item reads '$conv_off' after being disabled and '$conv_on' after being enabled (wanted 1,0 and 1,1)"
+  fi
+  probe_calls_ok "row 5" 4 1
+  if [ "$(sed -n 4p "$probe_record")" = reset ] && [ "$(sed -n 5p "$probe_record" | cut -c1-18)" = "alert no_decision " ] && [ "$(cat "$probe_state/counted-failures" 2> /dev/null)" = 0 ]; then
+    pass "Story 16.6, row 5: the reset line comes right before this run's alert line, and the stored count is 0"
+  else
+    fail "Story 16.6, row 5: the record's lines 4 and 5 are '$(sed -n 4p "$probe_record")' and '$(sed -n 5p "$probe_record" | cut -c1-30)', the stored count '$(cat "$probe_state/counted-failures" 2> /dev/null)'"
+  fi
+
+  # P6, row 6: the count starts again.
+  probe_run p6 "OCUTALON_DEMO_PASSWORD=$wrong_password"
+  probe_expect p6 "row 6" 1 "auth_failed count=1"
+  probe_calls_ok "row 6" 5 1
+
+  # P7, row 7: capped (Lane A's daily-cap mock scenario answers the gateway's HTTP 403 "daily cost cap reached").
+  probe_run p7 "OCUTALON_PROBE_MESSAGE=[[mock:daily-cap]] probe capped check"
+  mark_after=$(capped_mark)
+  probe_expect p7 "row 7" 0 "capped count=0 fallback=daily_cap"
+  probe_calls_ok "row 7" 5 1
+  mark_removed=""
+  if [ "$mark_before" = 0 ]; then mark_removed=$(capped_unmark); fi
+  echo "MEASURED Task 0 (b): the capped run's done decision carries fallbackReason daily_cap (the log line says so); the day's mark reads $mark_after after it (before: $mark_before) and ${mark_removed:-<kept>} after the removal"
+  if [ "$mark_before" != 0 ]; then
+    pass "Story 16.6, row 7: the day's capped mark existed before the phase and is kept"
+  elif [ "$mark_after" != 0 ] && [ "$mark_removed" = 0 ]; then
+    pass "Story 16.6, row 7: the capped run marked the day, and the removal clears the mark"
+  else
+    fail "Story 16.6, row 7: the day's capped mark reads '$mark_after' after the run and '$mark_removed' after its removal (wanted set, then 0)"
+  fi
+
+  # P8, row 8: the capped run cleared the count.
+  probe_run p8 "OCUTALON_DEMO_PASSWORD=$wrong_password"
+  probe_expect p8 "row 8" 1 "auth_failed count=1"
+  probe_calls_ok "row 8" 6 1
+
+  # Row 9: the phase as a whole.
+  if [ "$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')" = "healthy auth_failed no_splash busy no_decision auth_failed capped auth_failed " ]; then
+    pass "Story 16.6, row 9: probe.log holds exactly eight lines: healthy, auth_failed, no_splash, busy, no_decision, auth_failed, capped, auth_failed"
+  else
+    fail "Story 16.6, row 9: probe.log's outcomes are '$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')'"
+  fi
+  : > "$tmp/probe-expected"
+  for label in p2 p3 p4 p5 p6 p8; do
+    if [ "$label" = p5 ]; then echo reset >> "$tmp/probe-expected"; fi
+    printf 'alert %s %s\n' "$(sed 's/^[^ ]* //; s/ .*//' "$tmp/probe.$label.out")" "$(cat "$tmp/probe.$label.out")" >> "$tmp/probe-expected"
+  done
+  if cmp -s "$tmp/probe-expected" "$probe_record"; then
+    pass "Story 16.6, row 9: the record holds six alert lines (each with its outcome and its run's line) and one reset line, in the order of the runs"
+  else
+    fail "Story 16.6, row 9: the command record is not the six alerts and the one reset of the runs ($(grep -c '^alert ' "$probe_record") alert, $(grep -c '^reset$' "$probe_record") reset line(s))"
+  fi
+  counter_phase_after=$(counter_rows)
+  if [ "$counter_phase_after" = "$counter_phase_before" ]; then
+    pass "Story 16.6, row 9: the AddressCounter row count is unchanged ($counter_phase_after): the probe is exempt"
+  else
+    fail "Story 16.6, row 9: the AddressCounter rows went from '$counter_phase_before' to '$counter_phase_after'"
+  fi
+  leaks=0
+  for secret in "$demo_password" "$wrong_password"; do
+    leaks=$((leaks + $(cat "$tmp"/probe.p*.out "$tmp"/probe.p*.err "$probe_state"/* "$probe_record" | grep -cF -e "$secret")))
+  done
+  if [ "$leaks" = 0 ]; then
+    pass "Story 16.6, row 9: neither the published nor the wrong password is in the probe's stdout, stderr, state files or record"
+  else
+    fail "Story 16.6, row 9: a password is in $leaks line(s) of the probe's output, state files or record"
+  fi
+
+  # The settings the phase changed, read back.
+  restored_flag=$(public_value onlineDemo)
+  restored_cap=$(public_value connectionCap)
+  restored_conv=$(conversation_enabled 1)
+  restored_mark=$(capped_mark)
+  if [ "$restored_flag" = "$flag_start" ] && [ "$restored_cap" = "$cap_start" ] && [ "$restored_conv" = "1,1" ] && { [ "$mark_before" != 0 ] || [ "$restored_mark" = 0 ]; }; then
+    pass "Story 16.6, row 9: the flag '$restored_flag', the cap $restored_cap, the Conversation item ('$restored_conv') and the day's capped mark ('$restored_mark') are as before the phase"
+  else
+    if [ "$mark_before" = 0 ]; then capped_unmark > /dev/null; fi
+    set_flag "$flag_start" > /dev/null
+    set_cap "$cap_start" > /dev/null
+    fail "Story 16.6, row 9: after the phase the flag reads '$restored_flag', the cap '$restored_cap', the Conversation item '$restored_conv' and the capped mark '$restored_mark' (before: '$flag_start', $cap_start, enabled, '$mark_before')"
+  fi
+fi
+if [ "$keys_attempted" = 1 ]; then
+  if [ "$(keys_restore)" = 1 ]; then
+    pass "Story 16.6: the runners' model keys are back to the Provider step's placeholder"
+  else
+    fail "Story 16.6: the runners' model keys could not be put back to the Provider step's placeholder"
+  fi
+fi
+echo "MEASURED Task 0 (f): the probe phase took $((SECONDS - probe_started)) s; the unit has run $SECONDS s at this point (deadline $((deadline - SECONDS)) s away)"
 
 # --- the published passwords stay out of the logs and the event log (Never) ---
 

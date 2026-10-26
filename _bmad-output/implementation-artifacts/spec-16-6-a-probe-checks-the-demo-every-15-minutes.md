@@ -2,7 +2,8 @@
 title: 'Story 16.6: A probe checks the demo every 15 minutes'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ec0b2532651ca771f8d02b55c44e5fdbd822bf11'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -282,7 +283,53 @@ Where each row runs:
 
 ## Spec Change Log
 
+- Implement stage (2026-10-26): the live phase also points the runners' model keys at the mock key variable (`Test.Agent.RunnerFixture.PointKeys`, put back by `RestoreKeys` and read back by `KeysAre`). The spec assumed the mock answers the probe's fixed message; a throwaway in the CI override has no key, so Decide stops at `no_key` first (see "Measured"). No ObjectScript changed; the helper is Lane A's existing test class, called through `iris_script` (Rule 2).
+- Implement stage: the `Conversation` helper calls `Ens.Director.EnableConfigItem` only when the item is in the other state, because the director returns an error for enabling an enabled item.
+
 ## Review Triage Log
+
+### 2026-10-26 - Review pass
+- verdicts: 36 findings - high 0, medium 2, low 34, false 0, maybe-false 0 (rejected rows carry their reason: by design, theoretical, or not worth the fix)
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` `docker/tests/test-probe.sh` mode 100644 beside 100755 siblings -- fixed with `chmod +x`.
+    - `[low]` `[reject]` reset and alert commands have no timeout, so runs could overlap -- the spec says no lock and no loop, the commands are the host's (Story 29.3), and every probe request is time-limited; a bound on the host's own commands would add behaviour the contract does not ask for.
+    - `[low]` `[reject]` the TERM/INT trap exits 130 and writes no log line -- the sign-out runs on that exit and is now pinned by a test; a killed run writing a log line is not in the contract. The finding that the trap was untested is the verification-gap one below.
+    - `[low]` `[patch]` the restore branch's `capped_unmark` kills a mark that existed before the phase -- guarded on `mark_before = 0`.
+    - `[low]` `[reject]` the phase restores its settings inline, with no trap -- the unit's throwaway is discarded when the unit ends, and the 16.5 rows use the same inline restores; no user-reachable failure.
+    - `[low]` `[reject]` the 150 s gate does not match the phase's worst case -- the gate is the contract's (Boundaries, "The deadline"); the phase took 27 s.
+    - `[low]` `[reject]` every 503 is `busy` -- the contract's busy rule (AC 2: "HTTP 503 or a busy status").
+    - `[low]` `[reject]` a decision with another fallback reason is healthy -- the contract's outcome definition (AC 2) and a Design Notes decision; the log line carries `fallback=`.
+    - `[low]` `[reject]` `probe.log` and `busy-per-day` are never rotated -- about 96 short lines a day; the host's scheduler and logrotate are Story 29.3's.
+    - `[low]` `[reject]` no deployment note for the host -- docs, README and the host side are out of scope here (DW-254, Story 29.3).
+  - Edge Case Hunter
+    - `[low]` `[reject]` a sign-in that redirects to a page that is not the shell leaves the session unended (two findings, the claim and the case) -- the contract defines signed in as `<app-root` and forbids any API call before it; the session ends by its own CSP timeout. Fixing it would change the specified behaviour.
+    - `[low]` `[reject]` the reset command hangs, the alert command hangs (two findings) -- same as the Blind Hunter's: host commands, no lock by contract.
+    - `[medium]` `[patch]` a stored count with a leading zero (`08`) is an octal arithmetic error in `read_count` -- the contract says an unreadable value counts as 0: `0?*` is now unreadable, with a test.
+    - `[low]` `[reject]` the loop can outlast 120 s by one poll (up to about 22 s) -- the spec bounds a run at about 5 minutes, not the wait to the second.
+    - `[low]` `[reject]` the session token is read only as `name=... value=...` and not entity-decoded -- build 154 carries no token (DW-226); speculative.
+    - `[low]` `[reject]` a fallback reason outside `[A-Za-z0-9_]` is dropped from the log line -- reasons are snake-case identifiers.
+    - `[low]` `[reject]` curl missing gives `no_splash` -- the host provides curl (Story 29.3); a guard adds code for an environment the contract fixes.
+    - `[low]` `[reject]` a control character in the test-only message override breaks the JSON -- test-only override, never set by the host.
+    - `[low]` `[reject]` no lock between overlapping runs -- the contract says no lock.
+    - `[low]` `[patch]` (same root cause as the Blind Hunter's) the unconditional `capped_unmark` -- fixed once.
+    - `[low]` `[reject]` the phase starts with a capped mark present -- the throwaway is fresh; a mark never exists at the start.
+    - `[low]` `[reject]` P1's CSP session may be gone only within 9 s and still pass -- the 9 s read is the unit's own wait helper; the recorded mutation (no sign-out) went red, and the measured result is "right after the run".
+    - `[low]` `[reject]` the 150 s gate versus the worst case -- as above.
+    - `[low]` `[patch]` (same root cause as the first Blind Hunter finding) mode 100644 -- fixed once.
+  - Verification Gap
+    - `[medium]` `[patch]` the temporary folder's removal at exit is untested -- every hermetic run now uses its own `TMPDIR`, and a final check finds it empty; mutation recorded.
+    - `[low]` `[patch]` the sign-out on a TERM (the EXIT trap) is untested -- a hermetic row sends TERM after the first events poll and counts session/end; mutation recorded.
+    - `[low]` `[patch]` the JSON escaping of the message is unpinned -- a hermetic row with a quote and a backslash; mutation recorded.
+    - `[low]` `[patch]` the mutation record has no entry for AC 3's alert arguments, AC 4's log append or AC 6's password-not-stored; AC 5 has no row -- three mutations and a note on AC 5 added to the record.
+    - `[low]` `[reject]` the "tracked with mode 100755" check passes when the file is untracked -- the mode is read from the index after the commit; the executable-bit check is the one that can fail before.
+    - `[low]` `[reject]` row 7's mark check is a PASS when the mark existed before -- only reachable when the day's mark pre-existed, which a fresh throwaway never has.
+    - `[low]` `[patch]` two configuration cases did not assert that the line names the variable -- the greps added.
+    - `[low]` `[reject]` the poll-count condition of the cursor check, the Node version in the header, and the phase's dependence on its own earlier runs (the matrix's own order) -- by design or no failure.
+  - Intent Alignment (descriptive)
+    - `[low]` `[reject]` `daily_cap` is looked for on the whole event line, and `fallback=` is read from its first `fallbackReason` -- the chat payload and the decision carry the same reason (Task 0 (a), (b)); no case separates the scopes.
+    - `[low]` `[reject]` the phase also points the runners' model keys at the mock -- recorded in the Spec Change Log by the implement stage: the premise that the mock answers the fixed message did not hold on a CI-override start; the call is Lane A's existing test class, no class changed.
+    - `[low]` `[reject]` Row 15's "`test-boundaries.sh` passes over it" has no new test -- `ci/checks.sh` runs `boundaries` over `docker/probe.sh` and passes.
 
 ## Design Notes
 
@@ -450,21 +497,59 @@ Everything else is inside the footprint: `docker/probe.sh` and `docker/tests/tes
 
 **Mutation record:** the stage that adds or changes each pinning test writes its `mutation:` line here.
 
+Implement stage (2026-10-26). Each mutation was applied to `docker/probe.sh` only, observed red, and reverted byte-identical (checked by `cmp` against a backup in the scratchpad, and by `git status --short`). The live ones were batched in three fresh `live online-demo` runs (M1, M2, M3), the hermetic ones ran through `bash docker/tests/test-probe.sh`.
+- mutation: the probe skips `POST /api/v1/session/end` (M1) -> live row 1 red ("the probe's CSP session still exists after its run").
+- mutation: the events GET also sends `-u "$user:$password"` -> hermetic row 10 red ("request N carries an Authorization header", both variants).
+- mutation: the `daily_cap` test is removed, every decision is healthy (M1) -> live row 7 red (`healthy count=0 fallback=daily_cap` instead of `capped ...`) and row 9.
+- mutation: a run with no decision by the deadline is classified healthy (M2) -> live row 5 red (`healthy count=0`, no reset) and row 9.
+- mutation: the busy rule ignores both `"busy":true` and the marker header (M3) -> live row 4 red (`healthy count=0` instead of `busy count=1`, no busy-per-day line).
+- mutation: a 503 on the message POST is classified `no_decision` -> hermetic row 11 red ("a 503 at the message POST").
+- mutation: the wait's default becomes 60 -> hermetic row 15 red ("the wait's default reads '60'").
+- mutation: `busy` clears the count (M1) -> live rows 5 and 9 red (also row 4's `busy count=0` and row 6).
+- mutation: `capped` does not clear the count (M2, with the no-decision mutation) -> live row 8 red (`auth_failed count=2 reset=0` instead of `count=1`).
+- mutation: the reset runs at the first counted failure (M3) -> live row 2 red (`auth_failed count=1 reset=0`, a reset line in the record).
+- mutation: the busy count is not written (M2) -> live row 4 red ("busy-per-day is ''").
+- mutation: the probe gains a default URL, as dead code `OCUTALON_PROBE_URL=http://203.0.113.9:52773` (so that no packet leaves) -> hermetic row 15 red ("holds a host detail on line 65").
+- mutation: the configuration error line prints the variable's value -> hermetic row 14 red ("a URL with a path" and "a URL with a user": the value is in the stderr line).
+- mutation (review pass, hermetic): the alert call drops the run's line (`"$outcome"` only) -> row 13 red ("the alert's arguments are not the outcome and the log line"; AC 3).
+- mutation (review pass, hermetic): the password is added to the log line -> row 10 red (the password check, and the expected log text; AC 6).
+- mutation (review pass, hermetic): the log line is not appended to `probe.log` -> rows 10 and 11 red (the log's last line is empty; AC 4).
+- mutation (review pass, hermetic): `cleanup` no longer removes the temporary folder -> "the probe's temporary folder ... is removed" red (26 folders left).
+- mutation (review pass, hermetic): `cleanup` no longer posts session/end -> row 13 "a run sent TERM" red (session/end posted 0 times).
+- mutation (review pass, hermetic): the message text is no longer JSON-escaped -> row 13 "a message with a quote and a backslash" red.
+- mutation (review pass, hermetic): `read_count` accepts a leading zero -> row 13 "a stored count with a leading zero" red.
+- AC 5 has no mutation of its own: it is pinned by rows 1 to 9, whose mutations are the live ones above (AC 2 and AC 3).
+
+**Measured (implement stage):**
+- `bash docker/tests/test-probe.sh`: all checks PASS, about 11 s. `bash ci/checks.sh`: every block passes (`probe`, `boundaries`, `ci-config`).
+- `ci/iris.sh live online-demo` (tag `e16s6i`, lane C), the passing run: exit 0, `test-online-demo: all checks passed`, 5 min 4 s wall clock (304 s) with the phase. The same unit with the phase gated out (an earlier run of this stage, otherwise identical) took 4 min 43 s (283 s). So the phase adds about 21 s (in-script `MEASURED Task 0 (f)`: the probe phase took 27 s, the unit had run 276 s at the end of the phase, 264 s of the 540 s deadline left). The spec's estimate of 330 to 370 s was high; the unit is at about 300 s (DW-220).
+- Task 0 (a): a healthy turn (the mock, the runners' keys pointed at the mock key variable) has `"decision":{` on the `running` and on the `done` chat.message events of the turn. A model decision has no `fallbackReason` key at all (absent, neither empty nor a value), on the chat payload and on the decision. The probe reads only `done`.
+- Task 0 (b): with the `daily-cap` marker the `done` event's decision carries `"fallbackReason":"daily_cap"` (the log line `capped count=0 fallback=daily_cap`), `^OcuTalonBP.UsageCapped(<today>)` appears (`$Data` 1), and `Kill` clears it (`$Data` 0).
+- Task 0 (c): with `Conversation` disabled, `POST /messages` answers 202 (not 500), the turn queues, and the probe's run is `no_decision`. The item's state is read back with `Ens.Director.IsItemEnabled("Conversation")` (1 enabled, 0 disabled). `Ens.Director.EnableConfigItem("Conversation",1)` on an item that is already enabled returns an error status ("Item Conversation already enabled in Production OcuTalon.Production"), so the helper calls it only when the item is in the other state. Row 13 (the restart) stays green after the item is enabled again.
+- Task 0 (d): control: a session signed in with `online_signin` has a live `%CSP.Session` for its row's `CspSessionId`, and none after `logout_all`. P1's CSP session no longer exists right after the probe's `session/end` (no wait needed).
+- Task 0 (e): the splash GET sets one `CSPSESSIONID` cookie, the sign-in POST carries it, and the POST sets a (re)issued session cookie.
+- Task 0 (f): see the time above.
+- New fact (not in the spec's premise): a start in `ci/compose.ci.yml` has no model key, so every decision is the `no_key` fallback and the mock is never reached. The probe phase therefore calls `Test.Agent.RunnerFixture.PointKeys` before P1 and `RestoreKeys` after P8 (read back with `KeysAre`), exactly as `Test.Agent.Decide` does; only then does the fixed message get `A/triage.json` and `A/chat.json` and the `[[mock:daily-cap]]` marker reach the gateway reply. Without it, row 1 reads `healthy count=0 fallback=no_key` and row 7 cannot be `capped`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (2026-10-26).** Sources:
-- the cached `epic-16-context.md`, and Story 16.5's spec for continuity;
-- the spine's AD-13, AD-19, AD-22 and AD-25;
-- Stories 16.6 and 29.3 in `epics.md`, and FR-59;
-- the code the probe calls.
-
-The spec passed the READY FOR DEVELOPMENT standard. The run halted after planning, as the dispatch asked.
-- **Warnings:** `oversized`.
-- **Decided in-stage:** under Design Notes.
-- **Items for the lead's gate:** under For the lead (the probe's message text, the host interface as a seam with Story 29.3, host prerequisites, healthy with another fallback reason, DW-220's growth).
-- **Ledger inbox:** none.
-- **Footprint extensions:** `docker/tests/test-probe.sh` (new) and one `ci/units.sh` token.
-- **No new mock scenario:** Lane A's `daily-cap` is reused, although the lead allowed one under `ci/mock/scenarios/B/`.
+**Implement and review (2026-10-26).**
+- **Summary.** `docker/probe.sh` is the probe: status, splash, form sign-in, one fixed message, polling for the turn's decision, sign-out, outcome and effects, exit codes 0, 1 and 2, and a state folder. `docker/tests/test-probe.sh` runs rows 10 to 15 against a stub server. The `online-demo` unit has a probe phase (rows 1 to 9). `ci/units.sh` gained the token `probe`.
+- **Files changed.**
+  - `docker/probe.sh` (new, 100755): the probe.
+  - `docker/tests/test-probe.sh` (new, 100755): the hermetic rows 10 to 15, plus the temporary folder, the TERM sign-out, the message escaping and the leading-zero count.
+  - `docker/tests/test-online-demo.sh`: the probe phase, its restores and Task 0's `MEASURED` lines.
+  - `ci/units.sh`: the `probe` token in `CHECK_SCRIPTS`.
+  - This spec: Verification (mutation record, measured values), Spec Change Log, triage log.
+- **Review.** Four layers, 36 findings. Patched: 2 medium (leading-zero count, temporary folder untested) and 6 low (mode, unconditional mark removal, TERM sign-out test, escaping test, mutation lines, two configuration-line greps). Deferred: none. The rest are rejected with a reason in the triage log, most of them as the contract's own rules (no lock, 503 is busy, another fallback reason is healthy, host commands are the host's).
+- **Follow-up review recommended:** false (no high; two medium patches, both small and covered by tests with a recorded mutation).
+- **Verification.** `bash docker/tests/test-probe.sh`: all PASS (13 s). `bash ci/checks.sh`: all scripts pass, including `probe`, `boundaries` and `ci-config`. `ci/iris.sh live online-demo` on lane C (tag `e16s6i`) after the last patch: exit 0, 171 PASS lines, no FAIL, 290 s (DW-220: 280 s before this story; the probe phase took 27 s). `ci/iris.sh teardown` for `e16s6i`: nothing left. HEAD stayed at the baseline until finalize; nothing was pushed.
+- **Residual risks.**
+  - On a host with no model key the probe reads `healthy ... fallback=no_key` (a fallback other than `daily_cap` is healthy by the contract), so only the log line shows it.
+  - The live phase relies on `Test.Agent.RunnerFixture`, which exists in throwaways and CI only.
+  - A sign-in that answers a redirect and then something that is not the shell leaves the session to its CSP timeout.
+- **Spine row "Online-demo probe":** no variable, exit code or outcome rule differs. The row does not list the two test-only overrides (`OCUTALON_PROBE_MESSAGE`, `OCUTALON_PROBE_DECISION_WAIT`), which the host never sets.
+- **Footprint extensions:** `docker/tests/test-probe.sh` (new) and one `probe` token in `ci/units.sh`.
