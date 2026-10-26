@@ -1,10 +1,10 @@
 /**
- * The status banners of the page (Story 2.10, UX-DR34, UX-DR97 to UX-DR100, UX-DR116): the closed catalog of nine banners and the
+ * The status banners of the page (Story 2.10, UX-DR34, UX-DR97 to UX-DR100, UX-DR116): the closed catalog of ten banners and the
  * view of the live store that the banner stack renders. A framework-free module: it imports only types and uses only erasable
  * TypeScript syntax, so Node runs it as it is. Every value it reuses (the catalog's texts, the page time, the cost format, the
  * README addresses) comes in through BannerFormat, which the component builds from the real modules.
  *
- * - BANNERS is the table of the nine banners in the order they stack: each one's id (the data-banner), variant, icon, catalog
+ * - BANNERS is the table of the ten banners in the order they stack: each one's id (the data-banner), variant, icon, catalog
  *   key, action and whether it can be closed. Variants, icons, actions and closing are page presentation; the texts are the
  *   catalog's (AD-32).
  * - bannersView(input, format) gives the banners to show, in table order: the store's active conditions that the table knows
@@ -16,16 +16,19 @@
  * - Closing (only Reset soon and Reconnecting can be closed): closeBanner remembers the banner's signature, its id and slots;
  *   the banner stays away while its condition holds with that signature. retainClosed drops the records of a condition that
  *   has cleared or whose slots changed, so it shows again when the condition starts again or gets worse.
+ * - demoBusy (Story 16.5) is the online demo's own condition: the demo cannot take another session, found by an API 503 or by a
+ *   trace check that said busy (live/demo-busy.ts). It shows only when onlineDemo is true, and cannot be closed.
  * - REPLACED_BY names the banner that takes over another's place when it leaves (Story 2.11; UX-DR131): Unreachable replaces
  *   Reconnecting, and the stack moves focus there when the replaced banner held it.
  */
 import type { StatusPayload, StatusSlots } from '../live/payloads';
 
-/** The nine banners, by the id that the page marks them with (data-banner). */
+/** The ten banners, by the id that the page marks them with (data-banner). */
 export type BannerId =
   | 'allowance'
   | 'dailyCap'
   | 'unreachable'
+  | 'demoBusy'
   | 'noModelKey'
   | 'costCap'
   | 'heartbeatStalled'
@@ -33,8 +36,8 @@ export type BannerId =
   | 'resetSoon'
   | 'reconnecting';
 
-/** The conditions that only the page knows (Story 2.11): no event carries them. */
-export type OwnCondition = 'unreachable' | 'reconnecting';
+/** The conditions that only the page knows (Stories 2.11 and 16.5): no event carries them. */
+export type OwnCondition = 'unreachable' | 'reconnecting' | 'demoBusy';
 
 export type BannerVariant = 'danger' | 'warning' | 'info';
 
@@ -64,6 +67,7 @@ export const BANNERS: readonly BannerSpec[] = [
   { id: 'allowance', condition: 'allowance', key: 'banner.allowance', variant: 'danger', icon: 'circle-alert', action: { key: 'bannerAction.installYourself', target: 'readme' }, closable: false },
   { id: 'dailyCap', condition: 'dailyCap', onlineDemo: true, key: 'banner.dailyCap', variant: 'danger', icon: 'circle-alert', action: { key: 'bannerAction.installYourself', target: 'readme' }, closable: false },
   { id: 'unreachable', condition: 'unreachable', key: 'banner.unreachable', variant: 'danger', icon: 'circle-alert', closable: false },
+  { id: 'demoBusy', condition: 'demoBusy', onlineDemo: true, key: 'banner.demoBusy', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.installYourself', target: 'readme' }, closable: false },
   { id: 'noModelKey', condition: 'noModelKey', key: 'banner.noModelKey', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.howToSetKey', target: 'readme' }, closable: false },
   { id: 'costCap', condition: 'dailyCap', onlineDemo: false, key: 'banner.costCap', variant: 'warning', icon: 'triangle-alert', closable: false },
   { id: 'heartbeatStalled', condition: 'heartbeatStalled', key: 'banner.heartbeatStalled', variant: 'warning', icon: 'triangle-alert', closable: false },
@@ -76,7 +80,7 @@ export const BANNERS: readonly BannerSpec[] = [
 export const REPLACED_BY: Readonly<Partial<Record<BannerId, BannerId>>> = { reconnecting: 'unreachable' };
 
 /** The conditions that only the page knows. */
-const OWN_CONDITIONS: readonly string[] = ['unreachable', 'reconnecting'];
+const OWN_CONDITIONS: readonly string[] = ['unreachable', 'reconnecting', 'demoBusy'];
 
 /**
  * Every fixed string of the banners that the catalog does not hold. The words that say a link opens a new tab are CHAT_TEXTS.opensInNewTab.

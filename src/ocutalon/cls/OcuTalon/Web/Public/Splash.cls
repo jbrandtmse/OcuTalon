@@ -7,6 +7,11 @@
 /// IRISUsername, IRISPassword and IRISLogin. Its POST carries no field but IRISSessionToken and those three.
 /// The state "addressLimit" (a sign-in that the per-address limit refused, Story 16.3) shows TOOMANY under the button, with a time
 /// element whose datetime is the until time that Show was given and that the script fills in page time.
+/// The state "busy" (the demo cannot take another session, Story 16.5) shows BUSY under the button, then the README link as the footer
+/// writes it (ReadmeLink), and keeps the published values and marks nothing. OnPreHTTP decides it once, before the header is written: a
+/// request with no state and no message (no wrong-credentials code, no no-role state) is shown in state busy while Status.Busy() is 1,
+/// and every page in state busy, this one or the post-sign-in refusal's, carries the header Status.BUSYHEADER. Show and a direct render
+/// call OnPreHTTP first. Without a valid connection cap Busy answers 0, so a local install never shows it.
 /// Every other value comes from OcuTalon.Data.Public.Settings and is HTML-escaped where it is written. The page has one inline style,
 /// one inline script, no style attribute, no external file and no font. Its own texts are parameters, each equal to a splash.*
 /// catalog key except the interval words, which the UX does not quote alone; the labels and the error texts are Login's, equal to
@@ -53,6 +58,9 @@ Parameter LIMITLINE = "Each session can send {limit} messages an hour in the cha
 /// filled by the script.
 Parameter TOOMANY = "Too many new sessions from your network this hour. You can start another at {time}.";
 
+/// The busy error (EXPERIENCE: Demo busy), equal to the catalog's banner.demoBusy; the README link follows it.
+Parameter BUSY = "The demo is busy right now. Try again in a few minutes, or install it yourself.";
+
 Parameter SHELLLINE = "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.";
 
 /// The Visual Trace card's text: the part up to and including the first comma is the card's heading, the rest its paragraph.
@@ -88,6 +96,18 @@ ClassMethod UseSplash() As %Boolean
 	Quit 0
 }
 
+/// Decides the busy state before the header is written: with no state and no message, and the demo busy, the state becomes "busy"
+/// (OnLoginPage reads it). The state "busy" gets the marker header Status.BUSYHEADER, whichever way it came.
+ClassMethod OnPreHTTP() As %Boolean [ ServerOnly = 1 ]
+{
+	Set ok = ##super()
+	If ($Get(%OcuTalonState) = "") && (..Message("", $Get(%request.Data("Error:ErrorCode", 1)), 0) = "") && ##class(OcuTalon.Web.Public.Status).Busy() {
+		Set %OcuTalonState = "busy"
+	}
+	If $Get(%OcuTalonState) = "busy" Do %response.SetHeader(##class(OcuTalon.Web.Public.Status).#BUSYHEADER, "1")
+	Quit ok
+}
+
 /// Writes the page. A wrong password marks both fields, keeps the typed user name and leaves the password empty; the no-role
 /// state marks nothing and keeps the published values. Each puts its message under the button and focuses it. With no message
 /// nothing has the focus. The state "addressLimit" (a sign-in that the address limit refused) puts TOOMANY there, with {time} as
@@ -103,6 +123,7 @@ ClassMethod OnLoginPage() As %Status
 	If state = "addressLimit" {
 		Set message = $Replace(..#TOOMANY, "{time}", "<time class=""tnum"" id=""ocu-error-time"" datetime="""_$ZConvert(until, "O", "HTML")_"""></time>")
 	}
+	If state = "busy" Set message = ..#BUSY_" "_..ReadmeLink()
 	Set marked = (message = ..#ERRORCREDENTIALS)
 	Set base = %request.Application
 	If $Extract(base, $Length(base)) '= "/" Set base = base_"/"
@@ -163,12 +184,18 @@ ClassMethod OnLoginPage() As %Status
 	Write "</main>", !
 
 	Write "<footer class=""splash-footer""><p>", ..#FOOTERNOTE, "</p>"
-	Write "<a class=""link"" href=""", ..#README, """ target=""_blank"" rel=""noopener noreferrer"">", ..#INSTALL, "<span class=""sr-only""> ", ..#NEWTAB, "</span>", ..Icon(..#ICONEXTERNAL), "</a></footer>", !
+	Write ..ReadmeLink(), "</footer>", !
 	Write "</div>", !
 	Write "<div class=""sr-only"" id=""ocu-live"" role=""status"" aria-live=""polite"" aria-atomic=""true""></div>", !
 	Write "<script>", ..#SCRIPT, "</script>", !
 	Write "</body></html>", !
 	Quit $SYSTEM.Status.OK()
+}
+
+/// The README link: the footer's, and the busy error's.
+ClassMethod ReadmeLink() As %String [ Private ]
+{
+	Quit "<a class=""link"" href="""_..#README_""" target=""_blank"" rel=""noopener noreferrer"">"_..#INSTALL_"<span class=""sr-only""> "_..#NEWTAB_"</span>"_..Icon(..#ICONEXTERNAL)_"</a>"
 }
 
 /// The copy button of the element with the id source.

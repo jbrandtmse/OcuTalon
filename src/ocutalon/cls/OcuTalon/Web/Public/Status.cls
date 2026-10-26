@@ -1,8 +1,11 @@
 /// The dispatch class of the application /ocutalon/public (AD-13): GET /status, answered to anyone, with no
 /// session. It reports readiness, the next reset, busy, and the last reset's time and kind from the public
 /// settings, and always returns every key, null where a value is unset. Busy is true when the instance's licence
-/// connections reach the stored cap minus the stored reserve; the count is read without taking a connection. An
-/// error is answered with its status line only, so its cause never reaches the anonymous caller.
+/// connections reach the stored cap minus the stored reserve (Busy); the count is read without taking a connection, and
+/// the cap is the public setting, never the instance's high-water mark. While the answer reports busy it carries the
+/// header X-OcuTalon-Busy: 1 (BUSYHEADER), which the demo host's proxy counts; the status code stays 200. After sign-in
+/// Busy(own) leaves out the connections that the new session itself holds. An error is answered with its status line
+/// only, so its cause never reaches the anonymous caller.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP, dynamic objects, $SYSTEM.License, $SYSTEM.Status,
 /// its own package and OcuTalon.Data.Public.Settings (AD-3).
 Class OcuTalon.Web.Public.Status Extends %CSP.REST
@@ -13,6 +16,9 @@ Parameter UseSession = 0;
 Parameter CONTENTTYPE = "application/json";
 
 Parameter HandleCorsRequest = 0;
+
+/// The marker header of a busy answer (value "1"): this status, the splash in state busy and the post-sign-in refusal.
+Parameter BUSYHEADER = "X-OcuTalon-Busy";
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -40,7 +46,9 @@ ClassMethod ReportHttpStatusCode(pHttpStatus, pSC As %Status = {$$$OK}) As %Stat
 ClassMethod Show() As %Status
 {
 	Do %response.SetHeader("Cache-Control", "no-store")
-	Write ..Body().%ToJSON()
+	Set body = ..Body()
+	If body.busy Do %response.SetHeader(..#BUSYHEADER, "1")
+	Write body.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -51,11 +59,18 @@ ClassMethod Body() As %DynamicObject
 	Set body = {}
 	Do body.%Set("ready", ''##class(OcuTalon.Data.Public.Settings).Get("ready"), "boolean")
 	Do ..SetOrNull(body, "nextReset", ##class(OcuTalon.Data.Public.Settings).NextReset())
-	Set busy = ..IsBusy($SYSTEM.License.InstanceConnections(), ##class(OcuTalon.Data.Public.Settings).Get("connectionCap"), ##class(OcuTalon.Data.Public.Settings).Get("connectionReserve"))
-	Do body.%Set("busy", busy, "boolean")
+	Do body.%Set("busy", ..Busy(), "boolean")
 	Do ..SetOrNull(body, "lastReset", ##class(OcuTalon.Data.Public.Settings).Get("lastReset"))
 	Do ..SetOrNull(body, "lastResetKind", ##class(OcuTalon.Data.Public.Settings).Get("lastResetKind"))
 	Quit body
+}
+
+/// 1 when the instance's licence connections, less own of them, have reached the stored cap minus the stored reserve (IsBusy).
+/// Before sign-in own is 0. The hook of a new session passes that session's own connection, so that it refuses exactly when
+/// the connections exceed the cap minus the reserve. The count is read without taking a connection.
+ClassMethod Busy(own As %Integer = 0) As %Boolean
+{
+	Quit ..IsBusy($SYSTEM.License.InstanceConnections() - own, ##class(OcuTalon.Data.Public.Settings).Get("connectionCap"), ##class(OcuTalon.Data.Public.Settings).Get("connectionReserve"))
 }
 
 /// 1 when connections have reached cap minus reserve. 0 without a valid cap (a whole number above zero); an empty

@@ -1,6 +1,6 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
 // check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
-// catalog, the 12 banner and action keys with their slot types (Story 2.10), and fixtures for the output's shape, the web text
+// catalog, the 13 banner and action keys with their slot types (Stories 2.10 and 16.5), and fixtures for the output's shape, the web text
 // over the text, the merge of the Core and Watch catalogs, the time, cost and count slots that take the caller's string, and each
 // way the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
 // block, a reason with no text) and a stale file.
@@ -25,7 +25,7 @@ after(() => rmSync(work, { recursive: true, force: true }));
 
 const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 
-/** The nine banner texts and the three action texts that the page renders (Story 2.10), in the generator's order. */
+/** The ten banner texts and the three action texts that the page renders (Stories 2.10 and 16.5), in the generator's order. */
 const BANNER_KEYS = [
   'banner.allowance',
   'banner.dailyCap',
@@ -36,6 +36,7 @@ const BANNER_KEYS = [
   'banner.telegramPaused',
   'banner.resetSoon',
   'banner.reconnecting',
+  'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
   'bannerAction.setUpBot',
@@ -54,18 +55,18 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences and the 12 banner and action keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences and the 13 banner and action keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     const checks = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...BANNER_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 27);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 28);
   });
 
-  it('holds the 12 banner and action keys with the slot types of the catalog, and no key that waits for another story', () => {
-    assert.equal(BANNER_KEYS.length, 12);
+  it('holds the 13 banner and action keys with the slot types of the catalog, and no key that waits for another story', () => {
+    assert.equal(BANNER_KEYS.length, 13);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS]);
     const slots = {
       'banner.allowance': { limit: 'count', time: 'time' },
@@ -91,6 +92,7 @@ describe('the real tree', () => {
       "You've used this session's 20 messages for the hour (messages you send in the chat or Telegram). You can send more at 5:30 PM.",
     );
     assert.equal(real.renderPageText('banner.reconnecting'), 'Reconnecting\u2026 New messages may be delayed.');
+    assert.equal(real.renderPageText('banner.demoBusy'), 'The demo is busy right now. Try again in a few minutes, or install it yourself.');
     assert.equal(real.renderPageText('banner.dailyCap', { time: '$&' }), "The online demo has used today's model allowance. Decisions use fixed rules until $&.", 'a value is never read as a replacement pattern');
     assert.equal(real.renderPageText('banner.dailyCap'), "The online demo has used today's model allowance. Decisions use fixed rules until .", 'a missing slot renders empty');
     assert.equal(real.renderPageText('banner.dailyCap', { time: 5 }), "The online demo has used today's model allowance. Decisions use fixed rules until .", 'a value that is no string renders empty');
@@ -180,6 +182,7 @@ const BANNERS = {
   'banner.telegramPaused': { text: 'Paused until {time}.', slots: { time: 'time' }, source: 'fixture' },
   'banner.resetSoon': { text: 'Resets soon.', slots: {}, source: 'fixture' },
   'banner.reconnecting': { text: 'Reconnecting.', slots: {}, source: 'fixture' },
+  'banner.demoBusy': { text: 'Busy.', slots: {}, source: 'fixture' },
   'bannerAction.installYourself': { text: 'Install.', slots: {}, source: 'fixture' },
   'bannerAction.howToSetKey': { text: 'Set a key.', slots: {}, source: 'fixture' },
   'bannerAction.setUpBot': { text: 'Set up.', slots: {}, source: 'fixture' },

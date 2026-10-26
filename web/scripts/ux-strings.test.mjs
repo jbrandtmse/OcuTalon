@@ -240,6 +240,7 @@ const SOURCES = {
     'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot.',
     'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.',
     'Reconnecting\u2026 New messages may be delayed.',
+    'The demo is busy right now. Try again in a few minutes, or install it yourself.',
     'Install it yourself',
     'How to set a key',
     'Set up a bot',

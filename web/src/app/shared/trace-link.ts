@@ -12,6 +12,8 @@ import {
 } from '@angular/core';
 
 import { Icon } from '../icon/icon';
+import { DemoBusyState } from '../live/demo-busy-state';
+import { LiveState } from '../live/live-state';
 import { Popovers, type PopoverRef } from './popover';
 import { TraceHelp } from './trace-help';
 import { TRACE_TEXTS } from './trace-view';
@@ -90,6 +92,8 @@ export class TraceHelpBlock {
  * `url` exactly as served in a new tab. It sits beside a row's button and never inside one, and its owner renders it only
  * when the payload has a `traceUrl`.
  * - Its name is "Trace (opens in a new tab)": the visible text and a visually hidden suffix.
+ * - On the online demo a press that opens the tab is taken over (Story 16.5): the page checks the public status first and opens the
+ *   tab only when the demo is not busy (DemoBusyState.openTrace); a busy answer shows the "Demo busy" banner and opens nothing.
  * - While the sign-in help is needed (TraceHelp) its name is "Open in Visual Trace (shows sign-in help first)" with
  *   aria-haspopup="dialog", and a press opens no tab: it shows the help popover with the link as its trigger and records that
  *   the help was seen. The popover's "Open Visual Trace" opens the link's target and closes the popover.
@@ -149,6 +153,8 @@ export class TraceLink {
 
   protected readonly help = inject(TraceHelp);
   protected readonly texts = TRACE_TEXTS;
+  private readonly live = inject(LiveState);
+  private readonly demoBusy = inject(DemoBusyState);
   protected readonly headingId = newTraceHeadingId();
   private readonly popovers = inject(Popovers);
   private readonly container = inject(ViewContainerRef);
@@ -164,6 +170,10 @@ export class TraceLink {
   protected press(event: MouseEvent): void {
     if (!this.help.needed()) {
       this.popover?.close();
+      if (this.live.snapshot()?.onlineDemo === true) {
+        event.preventDefault();
+        void this.demoBusy.openTrace(this.url());
+      }
       return;
     }
     event.preventDefault();

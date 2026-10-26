@@ -8,7 +8,7 @@
 ///     only those, through %CSP.StreamServer, index.html with its own Content-Security-Policy and no caching.
 ///   - On the online demo the sign-in hook (OcuTalon.Web.SessionEvents) may record a refusal in the CSP session, under REFUSALKEY, as
 ///     $ListBuild(state, until). A signed-in request that finds it ends the CSP session at once, as the no-role request does, and
-///     is answered with the sign-in page in that state (Login.Show, the splash's field error for "addressLimit").
+///     is answered with the sign-in page in that state (Login.Show, the splash's field error for "addressLimit" and for "busy").
 ///   - The POST that signs in is answered with a redirect to the same URL and query, so the page that was asked
 ///     for is the page that loads.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP and its own package (AD-3).

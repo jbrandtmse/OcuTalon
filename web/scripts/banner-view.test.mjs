@@ -1,4 +1,4 @@
-// Tests the status banners' view (src/app/banners/banner-view.ts, Story 2.10): the closed table of nine banners with its ids, variants,
+// Tests the status banners' view (src/app/banners/banner-view.ts, Story 2.10): the closed table of ten banners with its ids, variants,
 // icons, actions and closing; the exact texts of the catalog with their slots; the stacking order on a local install and on the online
 // demo; the closing rule (a closed banner stays away while its condition holds with the same slots, and returns on a changed slot and
 // on clear-then-active); that an inactive, unknown or absent condition shows nothing; that a missing or unreadable slot renders empty
@@ -52,14 +52,14 @@ const SIX = [
 ];
 
 describe('the table of banners', () => {
-  it('holds the nine banners of the closed catalog, in the order they stack (UX-DR100)', () => {
+  it('holds the ten banners of the closed catalog, in the order they stack (UX-DR100)', () => {
     assert.deepEqual(
       BANNERS.map((banner) => banner.id),
-      ['allowance', 'dailyCap', 'unreachable', 'noModelKey', 'costCap', 'heartbeatStalled', 'telegramPaused', 'resetSoon', 'reconnecting'],
+      ['allowance', 'dailyCap', 'unreachable', 'demoBusy', 'noModelKey', 'costCap', 'heartbeatStalled', 'telegramPaused', 'resetSoon', 'reconnecting'],
     );
-    assert.equal(BANNERS.length, 9);
-    assert.equal(new Set(BANNERS.map((banner) => banner.id)).size, 9, 'each id once');
-    assert.equal(new Set(BANNERS.map((banner) => banner.key)).size, 9, 'each catalog key once');
+    assert.equal(BANNERS.length, 10);
+    assert.equal(new Set(BANNERS.map((banner) => banner.id)).size, 10, 'each id once');
+    assert.equal(new Set(BANNERS.map((banner) => banner.key)).size, 10, 'each catalog key once');
   });
 
   it('gives each banner its catalog key, variant, icon, action and closing as the UX table does', () => {
@@ -70,6 +70,7 @@ describe('the table of banners', () => {
     assert.deepEqual(row('allowance'), ['banner.allowance', 'danger', 'circle-alert', 'bannerAction.installYourself', 'readme', false]);
     assert.deepEqual(row('dailyCap'), ['banner.dailyCap', 'danger', 'circle-alert', 'bannerAction.installYourself', 'readme', false]);
     assert.deepEqual(row('unreachable'), ['banner.unreachable', 'danger', 'circle-alert', null, null, false]);
+    assert.deepEqual(row('demoBusy'), ['banner.demoBusy', 'warning', 'triangle-alert', 'bannerAction.installYourself', 'readme', false]);
     assert.deepEqual(row('noModelKey'), ['banner.noModelKey', 'warning', 'triangle-alert', 'bannerAction.howToSetKey', 'readme', false]);
     assert.deepEqual(row('costCap'), ['banner.costCap', 'warning', 'triangle-alert', null, null, false]);
     assert.deepEqual(row('heartbeatStalled'), ['banner.heartbeatStalled', 'warning', 'triangle-alert', null, null, false]);
@@ -80,7 +81,8 @@ describe('the table of banners', () => {
 
   it('shares the daily cap condition between two banners, by onlineDemo, and gives the others one condition each', () => {
     assert.deepEqual(BANNERS.filter((banner) => banner.condition === 'dailyCap').map((banner) => [banner.id, banner.onlineDemo]), [['dailyCap', true], ['costCap', false]]);
-    for (const banner of BANNERS.filter((one) => one.condition !== 'dailyCap')) assert.equal(banner.onlineDemo, undefined, banner.id);
+    for (const banner of BANNERS.filter((one) => one.condition !== 'dailyCap' && one.id !== 'demoBusy')) assert.equal(banner.onlineDemo, undefined, banner.id);
+    assert.equal(BANNERS.find((banner) => banner.id === 'demoBusy').onlineDemo, true, 'Demo busy is the online demo\'s only');
   });
 
   it('closes only Reset soon and Reconnecting', () => {
@@ -199,6 +201,30 @@ describe('the actions', () => {
     assert.equal(action(on('resetSoon')), undefined);
     assert.equal(view([], { own: ['unreachable'] })[0].action, undefined);
     assert.equal(view([], { own: ['reconnecting'] })[0].action, undefined);
+  });
+});
+
+describe('the demo busy banner (Story 16.5, row 13)', () => {
+  const busyText = 'The demo is busy right now. Try again in a few minutes, or install it yourself.';
+
+  it('shows once, after Unreachable, with the catalog text and the README action, on the online demo', () => {
+    const banners = view([], { own: ['demoBusy'], onlineDemo: true });
+    assert.deepEqual(ids(banners), ['demoBusy']);
+    assert.equal(banners[0].text, busyText);
+    assert.deepEqual(banners[0].action, { text: 'Install it yourself', href: README_URL });
+    assert.deepEqual([banners[0].variant, banners[0].icon, banners[0].closable], ['warning', 'triangle-alert', false]);
+    assert.deepEqual(ids(view([on('noModelKey')], { own: ['reconnecting', 'demoBusy', 'unreachable'], onlineDemo: true })), ['unreachable', 'demoBusy', 'noModelKey', 'reconnecting']);
+  });
+
+  it('is the online demo\'s only: a local install shows none, whatever the page holds', () => {
+    assert.deepEqual(view([], { own: ['demoBusy'], onlineDemo: false }), []);
+    assert.deepEqual(activeBanners({ status: {}, own: ['demoBusy'], onlineDemo: false }, format), []);
+  });
+
+  it('cannot be closed, and the store cannot raise it', () => {
+    const [banner] = view([], { own: ['demoBusy'], onlineDemo: true });
+    assert.deepEqual(closeBanner({}, banner), {});
+    assert.deepEqual(view([on('demoBusy')], { onlineDemo: true }), [], 'a store condition of that name shows nothing: it is the page\'s own');
   });
 });
 

@@ -149,3 +149,65 @@ export async function signInOverHttpFrom(playwright: PlaywrightWorkerArgs['playw
   const { user, password } = fixtureUser('DEMOACCOUNT');
   return { api, answer: await signInOverHttp(api, user, password, probedSplash()) };
 }
+
+/** The busy text of the splash, the host's busy page and the page's "Demo busy" banner (catalog key banner.demoBusy), written out as the oracle of the page's own. */
+export const DEMO_BUSY_TEXT = 'The demo is busy right now. Try again in a few minutes, or install it yourself.';
+
+/** The marker header of every busy answer that IRIS renders (OcuTalon.Web.Public.Status.#BUSYHEADER). */
+export const BUSY_HEADER = 'x-ocutalon-busy';
+
+let publicProbes = 0;
+
+/** The value of a public setting (OcuTalon.Data.Public.Settings), read in the container; "" when it is unset. */
+export async function publicValue(key: string): Promise<string> {
+  const lines = await irisScript(`Write !,"CHK|value|",##class(OcuTalon.Data.Public.Settings).Get(${quoted(key)})`);
+  return chk(lines, 'value') ?? '';
+}
+
+/** Sets a public setting in the container and reads it back; it throws when the read-back differs, so that a cap is never left unrestored unseen. */
+export async function setPublic(key: string, value: string): Promise<void> {
+  const lines = await irisScript(
+    [`Do ##class(OcuTalon.Data.Public.Settings).Set(${quoted(key)},${quoted(value)})`, `Write !,"CHK|value|",##class(OcuTalon.Data.Public.Settings).Get(${quoted(key)})`].join('\n'),
+  );
+  const read = chk(lines, 'value');
+  if (read !== value) throw new Error(`the public setting ${key} reads '${read ?? '<nothing>'}' after it was set to '${value}'`);
+}
+
+/** What /ocutalon/public/status answered: its busy value, the marker header (undefined when absent) and the status code. */
+export interface StatusReading {
+  busy: boolean;
+  header: string | undefined;
+  code: number;
+}
+
+/** GET /ocutalon/public/status with a query that no other request of the run used, so that no cache answers; the request carries no session. */
+export async function readStatus(api: APIRequestContext): Promise<StatusReading> {
+  publicProbes += 1;
+  const response = await api.get(`/ocutalon/public/status?probe=${Date.now()}${publicProbes}`);
+  const body = (await response.json()) as { busy: boolean };
+  return { busy: body.busy, header: response.headers()[BUSY_HEADER], code: response.status() };
+}
+
+/**
+ * The HTTP view of the instance's licence connections: what /ocutalon/public/status counts, which is one less than the count that an
+ * iris_script reads (its own process holds one). It is found by the flip of Task 0 (a): with r the script's count, the cap is set to
+ * r plus the reserve, and a busy status means the view is r, otherwise it is r - 1 (checked with the cap at r - 1 plus the reserve). The
+ * cap is put back to what it was and read back, on every path. `api` must carry no session.
+ */
+export async function httpConnections(api: APIRequestContext): Promise<number> {
+  const savedCap = await publicValue('connectionCap');
+  const reserve = Number(await publicValue('connectionReserve'));
+  if (!Number.isInteger(reserve)) throw new Error('connectionReserve is not a whole number');
+  const count = chk(await irisScript('Write !,"CHK|r|",$SYSTEM.License.InstanceConnections()'), 'r');
+  const r = Number(count);
+  if (!Number.isInteger(r)) throw new Error(`InstanceConnections() read '${count ?? '<nothing>'}'`);
+  try {
+    await setPublic('connectionCap', String(r + reserve));
+    if ((await readStatus(api)).busy) return r;
+    await setPublic('connectionCap', String(r - 1 + reserve));
+    if (!(await readStatus(api)).busy) throw new Error(`the HTTP view of the connections is neither ${r} nor ${r - 1}`);
+    return r - 1;
+  } finally {
+    await setPublic('connectionCap', savedCap);
+  }
+}

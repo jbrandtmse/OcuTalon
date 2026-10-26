@@ -18,6 +18,7 @@ import {
 
 import { ABOUT_TITLE_ID, AboutDialog } from '../about/about-dialog';
 import { Icon } from '../icon/icon';
+import { DemoBusyState } from '../live/demo-busy-state';
 import { LiveState } from '../live/live-state';
 import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
@@ -337,6 +338,7 @@ export class Header {
   protected readonly theme = inject(Theme);
   private readonly dialogs = inject(Dialogs);
   private readonly gate = inject(SessionGate);
+  private readonly demoBusy = inject(DemoBusyState);
   private readonly accountTrigger = viewChild.required<ElementRef<HTMLElement>>('accountTrigger');
   private readonly traceTrigger = viewChild.required<ElementRef<HTMLElement>>('traceTrigger');
   private readonly tracePanel = viewChild.required<TemplateRef<unknown>>('tracePanel');
@@ -427,10 +429,21 @@ export class Header {
     this.tracePopover?.close();
   }
 
-  /** "Open my conversation in Visual Trace": with a turn the press opens the tab and closes the popover; with none it does nothing. */
+  /**
+   * "Open my conversation in Visual Trace": with a turn the press opens the tab and closes the popover; with none it does nothing.
+   * On the online demo the press is taken over (Story 16.5): the page checks the public status first, and opens the tab only when
+   * the demo is not busy (DemoBusyState.openTrace).
+   */
   protected pressConversation(event: MouseEvent): void {
-    if (this.conversation() === undefined) {
+    const url = this.conversation();
+    if (url === undefined) {
       event.preventDefault();
+      return;
+    }
+    if (this.live.snapshot()?.onlineDemo === true) {
+      event.preventDefault();
+      this.closeTrace();
+      void this.demoBusy.openTrace(url);
       return;
     }
     this.closeTrace();

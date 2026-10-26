@@ -93,7 +93,8 @@ ClassMethod UseSplash() As %Boolean
 
 /// Sends the page: the response headers, then the page. state is "" for the page that a request without a
 /// session gets, "norole" for a signed-in user who lacks the OcuTalon user role, or on the online demo "addressLimit" for a
-/// sign-in that the address limit refused, with until the UTC time ("...Z") at which the address can start another session
+/// sign-in that the address limit refused, or "busy" for a sign-in that the busy check refused (the splash shows its busy text; the
+/// local page ignores it), with until the UTC time ("...Z") at which the address can start another session
 /// (the local page ignores it). writeHeader is 1 where
 /// nothing has been sent yet (the Login method of a dispatch class), and 0 inside a REST dispatch, where the
 /// first write sends the header and writing it again would put a second header in the page. Returns the

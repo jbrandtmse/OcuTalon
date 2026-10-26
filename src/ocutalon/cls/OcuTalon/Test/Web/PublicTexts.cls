@@ -36,7 +36,7 @@ Method TestCopiesEqualTheCatalog()
 			Do $$$AssertEquals(decoded, text, class_"."_name_" equals the catalog key "_key)
 		}
 	}
-	Do $$$AssertEquals(count, 36, "36 parameters are compared with the catalog")
+	Do $$$AssertEquals(count, 37, "37 parameters are compared with the catalog")
 }
 
 /// Every own parameter of every class of both public packages is in exactly one list, and no list names a parameter that the
@@ -79,9 +79,9 @@ Method TestEveryParameterIsClassified()
 			}
 		}
 	}
-	Do $$$AssertEquals(counts("compared"), 36, "36 parameters are compared")
+	Do $$$AssertEquals(counts("compared"), 37, "37 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 2, "2 parameters are not in the UX")
-	Do $$$AssertEquals(counts("notText"), 26, "26 parameters are not texts")
+	Do $$$AssertEquals(counts("notText"), 27, "27 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
 	Set stale = ""
@@ -158,6 +158,7 @@ XData Classified [ MimeType = application/json ]
    "TELEGRAMLINE": "splash.telegramLine",
    "LIMITLINE": "splash.limitLine",
    "TOOMANY": "splash.tooManySessions",
+   "BUSY": "banner.demoBusy",
    "SHELLLINE": "splash.shellLine",
    "VISUALTRACE": "splash.visualTrace",
    "COPYTRACEUSERNAME": "splash.copyTraceUserName",
@@ -177,7 +178,7 @@ XData Classified [ MimeType = application/json ]
   "OcuTalon.Web.Public.SignInAssets": ["CSS", "SCRIPT"],
   "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "ICONWARNING", "README"],
   "OcuTalon.Web.Public.SplashAssets": ["CSS", "SCRIPT"],
-  "OcuTalon.Web.Public.Status": ["CONTENTTYPE", "HandleCorsRequest", "UseSession"],
+  "OcuTalon.Web.Public.Status": ["BUSYHEADER", "CONTENTTYPE", "HandleCorsRequest", "UseSession"],
   "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY"]
  }
 }

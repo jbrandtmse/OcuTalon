@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, viewChild } from '@angular/core';
 
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS } from './chat-view';
@@ -13,6 +13,8 @@ const MAX_LINES = 5;
  * up to five lines, then scrolls. Its height is a count of lines in line-height units (lh) plus its padding, so a change of the text
  * size keeps the lines it holds in view with no keystroke; the lines are counted again at the next input. It is never disabled: each message becomes its own turn, also while another turn runs. After a
  * send the field is empty, shrunk and focused. It takes no focus on its own.
+ * On the online demo a message that the server refused with 503 comes back (Story 16.5): the outbox offers its text and the field takes
+ * it only while it is empty, never moving focus; a field that holds other text keeps it.
  */
 @Component({
   selector: 'app-composer',
@@ -72,6 +74,21 @@ export class Composer {
   private readonly field = viewChild.required<ElementRef<HTMLTextAreaElement>>('field');
 
   protected readonly texts = CHAT_TEXTS;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(this.outbox.takeBackTo((text) => this.takeBack(text)));
+  }
+
+  /** Puts a refused message's text back into the field when the field is empty, without a focus; false when the field holds text. */
+  private takeBack(text: string): boolean {
+    const field = this.field().nativeElement;
+    if (field.value !== '') {
+      return false;
+    }
+    field.value = text;
+    this.grow();
+    return true;
+  }
 
   /** Enter sends; Shift+Enter, and Enter while an IME composition is open, do not. */
   protected onKey(event: KeyboardEvent): void {

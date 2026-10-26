@@ -48,6 +48,7 @@ export const LISTED_KEYS = [
   'banner.telegramPaused',
   'banner.resetSoon',
   'banner.reconnecting',
+  'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
   'bannerAction.setUpBot',

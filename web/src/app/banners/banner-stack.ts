@@ -4,6 +4,7 @@ import { CHAT_TEXTS } from '../chat/chat-view';
 import { formatCost } from '../chat/decision-view';
 import { pageTime } from '../chat/page-time';
 import { Icon } from '../icon/icon';
+import { DemoBusyState } from '../live/demo-busy-state';
 import { LiveState } from '../live/live-state';
 import { README_URL } from '../links';
 import { renderPageText } from '../msg/catalog';
@@ -11,7 +12,7 @@ import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
-import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, closeName, REPLACED_BY, retainClosed } from './banner-view';
+import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed } from './banner-view';
 
 /** The values banner-view.ts reuses, from the real modules. */
 const FORMAT: BannerFormat = {
@@ -153,6 +154,7 @@ const FOCUS_RULE: FocusRule = {
 })
 export class BannerStack {
   private readonly live = inject(LiveState);
+  private readonly demoBusy = inject(DemoBusyState);
   private readonly announcer = inject(Announcer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -171,7 +173,11 @@ export class BannerStack {
       return undefined;
     }
     const contact = this.live.contact();
-    return { status: store.status, own: contact === 'ok' ? [] : [contact], onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
+    const own: OwnCondition[] = contact === 'ok' ? [] : [contact];
+    if (this.demoBusy.busy()) {
+      own.push('demoBusy');
+    }
+    return { status: store.status, own, onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
   });
 
   /** Every banner whose condition holds, closed or not. */

@@ -29,6 +29,7 @@ Method TestTexts()
 	Set texts = texts_$ListBuild($ListBuild("TELEGRAMLINE", "Have Telegram? You can scan a QR code inside to get the notices on your own phone."))
 	Set texts = texts_$ListBuild($ListBuild("LIMITLINE", "Each session can send {limit} messages an hour in the chat or Telegram."))
 	Set texts = texts_$ListBuild($ListBuild("TOOMANY", "Too many new sessions from your network this hour. You can start another at {time}."))
+	Set texts = texts_$ListBuild($ListBuild("BUSY", "The demo is busy right now. Try again in a few minutes, or install it yourself."))
 	Set texts = texts_$ListBuild($ListBuild("SHELLLINE", "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."))
 	Set texts = texts_$ListBuild($ListBuild("VISUALTRACE", "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step."))
 	Set texts = texts_$ListBuild($ListBuild("COPYTRACEUSERNAME", "Copy Visual Trace user name"))
@@ -250,6 +251,72 @@ Method TestTooManySessions()
 	Do $$$AssertTrue(again '[ "<time class=""tnum"" id=""ocu-error-time""", "no other state writes the time element")
 }
 
+/// The busy state (Story 16.5, rows 2 and 3): with the demo busy (a reserve larger than the cap forces it), a request with no state
+/// and no message shows the busy text, then the README link as the footer writes it, under the button, and the page and the marker
+/// header agree. Nothing is marked, the button is enabled, the published values stay, the error has the focus and the policy is the
+/// splash's. The other messages win, and a page that is not busy has no error and no header. BUSY is the catalog's text.
+Method TestDemoBusy()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Do $ClassMethod(settings, "Set", "connectionCap", 1)
+	Do $ClassMethod(settings, "Set", "connectionReserve", 9)
+	Set link = ..Link(..Render("show", "", .policy, "", "", 0, "", .header))
+	Do $$$AssertTrue(link [ "href=""https://github.com/jbrandtmse/OcuTalon#readme"" target=""_blank"" rel=""noopener noreferrer"">Install it yourself (README)<span class=""sr-only""> (opens in a new tab)</span><svg", "the footer's link: the README, a new tab, its text, the sr-only text and the icon")
+	Set busy = "<span>The demo is busy right now. Try again in a few minutes, or install it yourself. "_link_"</span></p>"
+	For mode = "show", "splash" {
+		Set page = ..Render(mode, "", .policy, "", "", 0, "", .header)
+		Set error = "<p class=""field-error"" id=""ocu-error"" tabindex=""-1"" autofocus>"
+		Do $$$AssertTrue(page [ error, mode_": the error is a focusable element that has the focus")
+		Do $$$AssertTrue(page [ busy, mode_": the busy text, then the README link as the footer writes it")
+		Do $$$AssertTrue($Find(page, error) > $Find(page, "Sign in and start</button>"), mode_": the error comes after the button")
+		Do $$$AssertTrue(page '[ "aria-invalid", mode_": no field is marked")
+		Do $$$AssertTrue(page '[ "disabled", mode_": the button is enabled")
+		Do $$$AssertEquals(..Count(page, "autofocus"), 1, mode_": only the error has the focus")
+		Do $$$AssertTrue(page [ "value=""DemoVisitor""", mode_": the user field holds the published value")
+		Do $$$AssertTrue(page [ "value=""demo-secret""", mode_": the password field holds the published value")
+		Do $$$AssertEquals(policy, ##class(OcuTalon.Web.Public.Splash).Policy(), mode_": the splash's exact policy")
+		Do $$$AssertEquals(header, "1", mode_": the marker header")
+	}
+	Do $$$AssertEquals(..Count(..Render("show", "", .policy, "", "", 0, "", .header), link), 2, "a busy page writes the link twice: the error's and the footer's")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Splash).#BUSY, ##class(OcuTalon.Msg.Catalog).Render("banner.demoBusy", "", "web"), "BUSY is the catalog's text")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Status).#BUSYHEADER, "X-OcuTalon-Busy", "the header's name is Status'")
+
+	Set credentials = ..Render("show", "", .policy, 822, "someone", 0, "", .header)
+	Do $$$AssertTrue(credentials [ "That user name and password didn't work.", "the wrong-credentials error wins")
+	Do $$$AssertTrue(credentials [ "aria-invalid=""true""", "and marks both fields")
+	Do $$$AssertTrue(credentials '[ "The demo is busy", "and shows no busy text")
+	Do $$$AssertEquals(header, "", "and sets no header")
+	Set norole = ..Render("show", "norole", .policy, "", "", 0, "", .header)
+	Do $$$AssertTrue(norole [ "This IRIS account doesn't have the OcuTalon user role.", "the no-role text wins")
+	Do $$$AssertTrue(norole '[ "The demo is busy", "and shows no busy text")
+	Do $$$AssertEquals(header, "", "and sets no header")
+	Set limit = ..Render("show", "addressLimit", .policy, "", "", 0, "2026-10-25T15:20:00Z", .header)
+	Do $$$AssertTrue(limit [ "Too many new sessions from your network this hour.", "TOOMANY shows")
+	Do $$$AssertTrue(limit '[ "The demo is busy", "and shows no busy text")
+	Do $$$AssertEquals(header, "", "and sets no header")
+
+	Set refusal = ..Render("show", "busy", .policy, "", "", 0, "", .header)
+	Do $$$AssertTrue(refusal [ busy, "the post-sign-in refusal's state shows the busy error")
+	Do $$$AssertEquals(header, "1", "and carries the marker header")
+
+	Do $ClassMethod(settings, "Set", "connectionCap", 1000000)
+	Do $ClassMethod(settings, "Set", "connectionReserve", 2)
+	Set plain = ..Render("show", "", .policy, "", "", 0, "", .header)
+	Do $$$AssertTrue(plain '[ "id=""ocu-error""", "a demo that is not busy shows no error")
+	Do $$$AssertEquals(header, "", "and no header")
+	Do $ClassMethod(settings, "Set", "connectionCap", "")
+	Set plain = ..Render("splash", "", .policy, "", "", 0, "", .header)
+	Do $$$AssertTrue(plain '[ "id=""ocu-error""", "without a cap there is no error")
+	Do $$$AssertEquals(header, "", "and no header")
+}
+
+/// The README link as the footer of a page writes it: the anchor, from its tag to its end tag.
+ClassMethod Link(page As %String) As %String [ Private ]
+{
+	Set footer = $Piece($Piece(page, "<footer class=""splash-footer"">", 2), "</footer>", 1)
+	Quit $Piece(footer, "</p>", 2, *)
+}
+
 /// (QA) The typed user name comes back from the request, so it is escaped where it is written, whatever it holds: a name with markup
 /// is never written raw and never closes the value attribute, and the page still has its one style and one script.
 Method TestTypedNameIsEscaped()
@@ -352,7 +419,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	While $ListNext(keys, position, key) {
 		Set ^||SplashSaved(key) = $ClassMethod(settings, "Get", key)
 	}
-	Set values = $ListBuild($ListBuild("onlineDemo", "1"), $ListBuild("demoUser", "DemoVisitor"), $ListBuild("demoPassword", "demo-secret"), $ListBuild("readonlyUser", "TraceReader"), $ListBuild("readonlyPassword", "trace-secret"), $ListBuild("resetIntervalHours", 4), $ListBuild("resetAnchor", "2026-10-18T00:00:00Z"), $ListBuild("messageAllowance", 50))
+	Set values = $ListBuild($ListBuild("onlineDemo", "1"), $ListBuild("demoUser", "DemoVisitor"), $ListBuild("demoPassword", "demo-secret"), $ListBuild("readonlyUser", "TraceReader"), $ListBuild("readonlyPassword", "trace-secret"), $ListBuild("resetIntervalHours", 4), $ListBuild("resetAnchor", "2026-10-18T00:00:00Z"), $ListBuild("messageAllowance", 50), $ListBuild("connectionCap", ""))
 	Set position = 0
 	While $ListNext(values, position, pair) {
 		Do $ClassMethod(settings, "Set", $List(pair, 1), $List(pair, 2))
@@ -405,7 +472,8 @@ Method Page(state As %String, code As %String, user As %String, signedOut As %Bo
 ///   splash  Splash.OnPage (and Splash's OnPreHTTP, for the policy)
 ///   login   Login's own OnPreHTTP, then its OnPage
 ///   show    Login.Show with no header to write, as the shell's dispatch calls it
-Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "") As %String [ Private ]
+/// busyHeader is the marker header that the response then holds.
+Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "", Output busyHeader As %String) As %String [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(%CSP.Request).%New()
@@ -440,6 +508,7 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	Close file
 	Kill %OcuTalonState, %OcuTalonUntil
 	Set policy = %response.GetHeader("Content-Security-Policy")
+	Set busyHeader = %response.GetHeader(##class(OcuTalon.Web.Public.Status).#BUSYHEADER)
 	Set stream = ##class(%Stream.FileCharacter).%New()
 	Do stream.LinkToFile(file)
 	Set page = stream.Read(200000)

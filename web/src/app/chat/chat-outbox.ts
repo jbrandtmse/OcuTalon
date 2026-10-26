@@ -18,6 +18,10 @@ import { CHAT_TEXTS, newClientId, type OutboxEntry, type OutboxStatus } from './
  * failure that comes after the live store holds the message says nothing, because the page shows it as sent (the store is read at
  * the failure itself, not the entry list, which follows the store a render later). A retry that fails
  * is a new failure, and a 401 is the session gate's and says nothing here.
+ * On the online demo a 503 is the busy state, not a failure (Story 16.5): a typed message's text is offered back to the composer
+ * (takeBackTo), which takes it only while its field is empty, and the entry leaves the chat; a guide prompt's entry just leaves; when
+ * the composer holds other text, or none is on the page, the entry stays failed as today. None of these says "Message not sent"
+ * except that last one.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatOutbox {
@@ -27,6 +31,9 @@ export class ChatOutbox {
   private readonly list = signal<readonly OutboxEntry[]>([]);
 
   private readonly sends = signal(0);
+
+  /** The composer's offer to take a refused message's text back: true when it took it. */
+  private takeBack: ((text: string) => boolean) | undefined;
 
   /** The messages that the store does not hold yet, in send order. */
   readonly entries = this.list.asReadonly();
@@ -58,6 +65,16 @@ export class ChatOutbox {
     return true;
   }
 
+  /** The composer registers how it takes a refused message's text back; the returned function removes the registration. */
+  takeBackTo(taker: (text: string) => boolean): () => void {
+    this.takeBack = taker;
+    return () => {
+      if (this.takeBack === taker) {
+        this.takeBack = undefined;
+      }
+    };
+  }
+
   /** Posts a failed message again with the same clientId. */
   retry(clientId: string): void {
     const entry = this.list().find((candidate) => candidate.clientId === clientId);
@@ -75,6 +92,9 @@ export class ChatOutbox {
       .subscribe({
         next: () => this.mark(entry.clientId, 'sent'),
         error: (error: unknown) => {
+          if (error instanceof HttpErrorResponse && error.status === 503 && this.live.snapshot()?.onlineDemo === true && this.refuse(entry)) {
+            return;
+          }
           if (!(error instanceof HttpErrorResponse && error.status === 401)) {
             const unsent = !this.held().has(entry.clientId) && this.list().some((candidate) => candidate.clientId === entry.clientId);
             this.mark(entry.clientId, 'failed');
@@ -84,6 +104,21 @@ export class ChatOutbox {
           }
         },
       });
+  }
+
+  /**
+   * The online demo's 503 rule: a guide prompt's entry leaves, and a typed message's entry leaves when the composer takes its text back.
+   * True when the entry left (so nothing is announced); false leaves the entry to fail as today.
+   */
+  private refuse(entry: OutboxEntry): boolean {
+    if (!this.list().some((candidate) => candidate.clientId === entry.clientId)) {
+      return false;
+    }
+    if (!entry.fromGuide && this.takeBack?.(entry.text) !== true) {
+      return false;
+    }
+    this.list.update((entries) => entries.filter((candidate) => candidate.clientId !== entry.clientId));
+    return true;
   }
 
   /** The clientIds of the chat.message entries that the live store holds: the messages the page shows as sent (chatView). */

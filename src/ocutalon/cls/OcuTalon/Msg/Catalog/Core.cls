@@ -321,6 +321,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Reconnecting"
  },
+ "banner.demoBusy": {
+  "text": "The demo is busy right now. Try again in a few minutes, or install it yourself.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Demo busy"
+ },
  "bannerAction.installYourself": {
   "text": "Install it yourself",
   "slots": {},

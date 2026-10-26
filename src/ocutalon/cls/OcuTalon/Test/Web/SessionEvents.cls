@@ -29,7 +29,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses
 	Set settings = "OcuTalon.Data.Public.Settings"
-	For key = "onlineDemo", "proxyAddress", "resetAnchor", "resetIntervalHours" {
+	For key = "onlineDemo", "proxyAddress", "resetAnchor", "resetIntervalHours", "connectionCap", "connectionReserve" {
 		Set ^||SessionEventsSaved(key) = $ClassMethod(settings, "Get", key)
 	}
 	Set limitKey = ##class(OcuTalon.Data.Setting).#ADDRESSLIMITKEY
@@ -38,6 +38,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Do $ClassMethod(settings, "Set", "proxyAddress", "")
 	Do $ClassMethod(settings, "Set", "resetAnchor", "2026-10-18T00:00:00Z")
 	Do $ClassMethod(settings, "Set", "resetIntervalHours", 4)
+	Do $ClassMethod(settings, "Set", "connectionCap", "")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -243,6 +244,99 @@ Method TestLimit()
 	Do $$$AssertTrue($Get(listed.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "it is allowed: the right-most entry counts")
 	Do $$$AssertEquals(..CounterRows(other), 1, "and counts the other address")
 	Do $$$AssertEquals(..CounterRows(address), 5, "not the first")
+}
+
+/// The busy refusal (Story 16.5, row 5): with the demo busy (a reserve larger than the cap forces it), a proxied sign-in records the marker
+/// $ListBuild("busy") and nothing else: no session row, no Ref in the CSP session, no cookie, no counter row, no lock afterwards. A
+/// valid resume cookie does not attach its row either: the row's CSP session is unchanged.
+Method TestBusyRefusal()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Set address = ..Address("busy")
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusyFirst", "192.0.2.10", address, .first, .response), "a sign-in while the demo is not busy answers OK")
+	Set ref = $Get(first.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
+	Do ..AdoptRef(ref)
+	Set cookie = $Get(response.Cookies(1, "v"))
+	Do $$$AssertTrue((ref '= "") && (cookie '= ""), "it gets a session and a cookie")
+	Do $$$AssertEquals($Data(first.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "and no refusal")
+	Do $$$AssertEquals(..CounterRows(address), 1, "it is counted once")
+
+	Do ..ForceBusy()
+	Set rows = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusyNew", "192.0.2.10", address, .refused, .response), "a proxied sign-in while busy answers OK")
+	Do $$$AssertEquals($Get(refused.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "the marker is $ListBuild(""busy"")")
+	Do $$$AssertEquals($Get(refused.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "it attaches nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), rows, "it creates no row")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "it sets no cookie")
+	Do $$$AssertEquals(..CounterRows(address), 1, "it writes no counter row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.AddressCounter).FreeInAnotherJob(address), 1, "no lock is held afterwards")
+
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzBusyCookie", "192.0.2.10", address, .resumed, .response), "a proxied sign-in with a valid cookie while busy answers OK")
+	Do $$$AssertEquals($Get(resumed.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "its marker is busy too")
+	Do $$$AssertEquals($Get(resumed.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "the cookie's row is not attached")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzBusyFirst", "the cookie's row keeps its CSP session")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "and no cookie is set")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.AddressCounter).FreeInAnotherJob(address), 1, "no lock is held after the cookie case either")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("connectionCap", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusyAfter", "192.0.2.10", address, .after, .response), "with no cap a proxied sign-in answers OK")
+	Do ..AdoptRef($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+	Do $$$AssertTrue($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "and is let in")
+}
+
+/// A request that is not proxied is exempt from the busy refusal (Story 16.5, row 7): with the demo busy, a sign-in with no proxy set,
+/// and one from a remote other than the proxy, each creates a row and sets the cookie and records no refusal.
+Method TestBusyExempt()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ..ForceBusy()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusyNoProxy", "192.0.2.10", "", .one, .response), "with no proxy set a sign-in while busy answers OK")
+	Do ..AdoptRef($Get(one.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+	Do $$$AssertTrue($Get(one.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "it is attached: a new row")
+	Do $$$AssertTrue($Get(response.Cookies(1, "v")) '= "", "and the cookie is set")
+	Do $$$AssertEquals($Data(one.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "with no marker")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusyOther", "192.0.2.77", ..Address("busyother"), .two, .response), "a remote other than the proxy, while busy, answers OK")
+	Do ..AdoptRef($Get(two.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+	Do $$$AssertTrue($Get(two.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "it is attached: a new row")
+	Do $$$AssertTrue($Get(response.Cookies(1, "v")) '= "", "and the cookie is set")
+	Do $$$AssertEquals($Data(two.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "with no marker")
+}
+
+/// The busy check comes before the resume and the counter (Story 16.5, row 8): at an address with five counter rows (the default
+/// limit), a busy sign-in is refused as "busy", not "addressLimit", and the counter rows stay five; with a resumable cookie the
+/// row is still not attached.
+Method TestBusyBeforeTheCounter()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Do ..SetLimit(5)
+	Set address = ..Address("busycounter")
+	Set cookie = ""
+	For i = 1:1:5 {
+		Do $$$AssertStatusOK(..SignIn("", "ZzBusyCounter"_i, "192.0.2.10", address, .made, .response), "creation "_i_" answers OK")
+		Do ..AdoptRef($Get(made.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+		If i = 1 Set cookie = $Get(response.Cookies(1, "v")), ref = $Get(made.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
+	}
+	Do $$$AssertEquals(..CounterRows(address), 5, "five counter rows")
+	Do ..ForceBusy()
+	Do $$$AssertStatusOK(..SignIn("", "ZzBusySixth", "192.0.2.10", address, .sixth, .response), "the sixth, while busy, answers OK")
+	Do $$$AssertEquals($Get(sixth.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "its marker is busy, not addressLimit")
+	Do $$$AssertEquals(..CounterRows(address), 5, "the counter rows are unchanged")
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzBusyResume", "192.0.2.10", address, .resumed, .response), "a resumable cookie, while busy, answers OK")
+	Do $$$AssertEquals($Get(resumed.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "its marker is busy")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzBusyCounter1", "the cookie's row is not attached")
+	Do $$$AssertEquals(..CounterRows(address), 5, "and the counter rows are still five")
+}
+
+/// Forces the busy state: a reserve larger than the cap is always busy, whatever the connections are.
+Method ForceBusy() [ Private ]
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("connectionCap", 1)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("connectionReserve", 9)
 }
 
 /// The limit is the setting's value (matrix row 10, AC 5): with 2 the third creation of an address is refused, and with 7 the

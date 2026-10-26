@@ -2,7 +2,8 @@
 title: 'Story 16.5: A full demo says it is busy, and the host''s busy and maintenance pages are ready'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'dde430026f83883af8b79240c090b8a9288867ea'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -11,7 +12,21 @@ context:
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/DESIGN.md (read only the splash-canvas token, lines 543-546; the Full logo, line 848; the canvas and card rules, lines 700-702; the contrast table, lines 626-644)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/splash.html (the too-many-sessions field error, lines 629-648; the resetting card, lines 651-671; .centered-page and .single-card, lines 419-429)'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A signed-in CSP session is not counted in $SYSTEM.License.InstanceConnections() on the throwaway (build 154, Community key, the image's own web server), so no number of sign-ins moves the status or the post-sign-in check toward the cap. The cap is the only lever the tests have, and whether the real demo host counts sessions is unmeasured.
+    evidence: |-
+      Task 0 (a) to (d), measured in the online-demo unit and by hand on lane C's warm stack: the count reads 1 (the reading script itself) with no session, with one, with two (the second from the browser), over keep-alive connections and after the first sign-out; the status's own count (HTTP view) stays 0; UserList shows no CSP user. AD-13's "every signed-in CSP session holds a licence connection" (S13) and the matrix rows 1, 5, 6 and 9 assume a count that sessions raise.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Public/Status.cls (Busy); src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls (OWNCONNECTIONS); docker/tests/test-online-demo.sh; web/e2e-online/busy.spec.ts
+    severity: high
+  - summary: >-
+      No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test.
+    evidence: |-
+      ChatOutbox.send(text, fromGuide) has no caller with fromGuide true in web/src/app; the first caller is Epic 4's guide. The rule is in ChatOutbox.refuse; B2 sends typed text only.
+    location: >-
+      web/src/app/chat/chat-outbox.ts (refuse)
+    severity: medium
 ---
 
 <intent-contract>
@@ -356,6 +371,48 @@ Where each row runs:
 
 ## Review Triage Log
 
+### 2026-10-26 -- Review pass
+- verdicts: 38 findings -- high 3, medium 7, low 23, false 4, maybe-false 1
+- findings:
+  - `[high]` `[defer]` (Blind) A signed-in CSP session does not raise InstanceConnections() on the throwaway, so the busy states never move through visitors and nothing tests a real host that counts sessions -- measured in Task 0 (b); the code follows AD-13/the spec, the premise is the architecture's and outside this change; recorded as the deferred high item for the lead (a real-host measurement or a counter fallback is a product call)
+  - `[medium]` `[defer]` (Blind) Rows 5 and 6 run only at degenerate cap/reserve values (cap below reserve), and OWNCONNECTIONS = 1 is unverified -- same root cause as the premise row: the sessions add 0 here, so the lever is the cap; folded into the deferred item
+  - `[low]` `[reject]` (Blind) Row 1 is circular (its thresholds come from the flip that uses IsBusy) -- TestIsBusy pins >= with literals and the recorded mutation went red; fix would add complexity for a test already pinned
+  - `[low]` `[patch]` (Blind) Several new tests have no mutation line -- lines added for TestBusyOwn, TestBusyRefusal, TestBusyBeforeTheCounter, B3, B3b and B2's second half
+  - `[low]` `[reject]` (Blind) DemoBusyWatch.stop() is never called -- SessionGate.onSignedOut does location.replace, so the page and its timer are discarded on every sign-out; no stale state survives
+  - `[low]` `[reject]` (Blind) window.open runs after an awaited fetch, with no fallback in other browsers -- spec-bound: Task 0 (e) measured Chromium and the spec fixes the fallback only for that case
+  - `[medium]` `[reject]` (Blind) maintenance.html's relative logo names break at a deep path -- by-design: the AC names the logo by bare file name beside the page, and Story 29.3 is told where to serve them (DW-240); noted under residual risks
+  - `[low]` `[patch]` (Blind) SessionEvents class comment says a valid resume cookie is never refused -- comment now says never counted or refused at the address limit, the busy refusal coming first
+  - `[low]` `[patch]` (Blind) busy.html carries a dead .logo rule -- rule removed; host-pages tests assert the rule only on the maintenance page
+  - `[low]` `[reject]` (Blind) Splash (own 0) and the hook (own 1) disagree by one connection at the boundary -- spec-bound: the AC has the splash read Busy() and the hook Busy(own); row 6 pins it
+  - `[low]` `[reject]` (Edge) window.open after the await may be blocked outside Chromium -- duplicate of the Blind row; spec-bound
+  - `[low]` `[reject]` (Edge) A 503 or HTML answer to the status check is read as no answer -- by-design: the spec opens the window on a failed check because the proxy's busy page covers a full demo
+  - `[low]` `[reject]` (Edge) The sign-in help path opens unguarded; modified clicks are intercepted -- spec-bound: the help path stays as it is and middle-click is not taken over; a modified click still opens a window
+  - `[false]` `[reject]` (Edge) A press before the snapshot loads skips the check -- trace links and the conversation link render only from loaded payloads, so the snapshot exists when they can be pressed
+  - `[low]` `[reject]` (Edge) stop() never called -- duplicate; the sign-out replaces the page
+  - `[low]` `[reject]` (Edge) No in-flight guard on a double press; an older answer can re-raise the banner -- a double click on an anchor opened two tabs before this change; a busy flip between two answers inside milliseconds is not a user-reachable case
+  - `[medium]` `[reject]` (Edge) maintenance.html logo at a deep path -- duplicate of the Blind row; by-design
+  - `[low]` `[reject]` (Edge) Two proxied sign-ins at the boundary can both pass -- by-design: Design Notes decide no lock and the reserve absorbs one
+  - `[low]` `[patch]` (Edge) The unit's S2 cookie is not asserted non-empty, so the cookie sign-in could be vacuous -- row 5 now fails when S2 gave no resume cookie
+  - `[low]` `[patch]` (Edge) drop_session runs its SQL with an empty epoch when a sign-in failed -- drop_session returns at once for an empty epoch
+  - `[high]` `[defer]` (Edge) Tests do not prove that sessions drive busy (AC 6 wording) -- duplicate of the premise row; folded into the deferred item
+  - `[maybe-false]` `[defer]` (Edge) OWNCONNECTIONS = 1 may under- or over-count by one on a host that counts sessions -- cannot be settled without a host that counts sessions; folded into the deferred item
+  - `[low]` `[reject]` (Edge) Row 1's mutation went red at the flip, not at row 1 -- duplicate of the Blind row
+  - `[medium]` `[patch]` (Verification) The fail-open rule (a status check that fails opens the window) has no test -- B3b added (a non-JSON status answer opens the tab, no banner) with a mutation line
+  - `[medium]` `[defer]` (Verification) The guide-prompt branch of the 503 rule has no test -- no page control calls ChatOutbox.send with fromGuide true yet (the caller is Epic 4's guide); a test needs that caller
+  - `[medium]` `[defer]` (Verification) The live no-licence-connection check cannot fail on this stack -- the view is 0 whatever the pages do; a Set-Cookie assertion cannot be added without measuring whether the login page sets a CSP cookie; folded into the premise item, with TestNoHighWaterMark as the falsifiable pin
+  - `[low]` `[patch]` (Verification) Pinning tests with no mutation line -- same as the Blind row: lines added
+  - `[low]` `[reject]` (Verification) Row 1 is red only by accident -- duplicate
+  - `[low]` `[reject]` (Verification) TestNoHighWaterMark's control is a tautology -- the recorded mutation (Busy reads InstanceConnectionsMax) turns the test red, so the scan reads bodies
+  - `[high]` `[defer]` (Verification) Live busy rows are driven by the cap, not by sessions -- duplicate of the premise row
+  - `[low]` `[reject]` (Verification) TestBusyOwn reads the count one statement before it asserts -- the count changes only by this process's own work on the warm stack; not user-reachable
+  - `[low]` `[reject]` (Verification) H2 asserts the exact served list while the 10 s refresh runs -- the assertion runs within a second of load; a 10 s stall of the case is not expected
+  - `[low]` `[reject]` (Verification) Source-text assertions of host-pages.test.mjs match wording only -- H1 and H2 run the behaviour; the node test pins the public-text rules
+  - `[false]` `[reject]` (Verification) The unit skips the busy block when proxied_ok is not 1 -- the earlier phase has already failed the unit in that case
+  - `[false]` `[reject]` (Verification) The flip is an inference between r and r-1 -- the unit fails loudly when neither holds
+  - `[medium]` `[defer]` (Intent) The tests exercise the cap lever, not the real session-to-connection count -- descriptive; duplicate of the premise row
+  - `[low]` `[reject]` (Intent) The help popover's Open Visual Trace opens the link without the status check -- spec-bound: the help path is unchanged
+  - `[false]` `[reject]` (Intent) Narrower divergences (B1's splash and status made busy by the cap) -- descriptive; the live rows are assigned to the surfaces the matrix names
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -380,6 +437,13 @@ Where each row runs:
   - **"Shared look outside Angular":** the maintenance page is one self-contained HTML file. The AC's logo files beside it are its only companions.
 - **AD-22, AD-29, AD-33:** throwaways only, Lane B's files.
 - No AC contradicts an AD's Rule. No NFR is unmeasurable: NFR-23's "busy, never an error page" is observed by rows 2, 9, 11 and 14.
+
+**Decided in implement (Task 0 (b)):**
+- **The cap is the lever, not the sessions.** A CSP session does not change `InstanceConnections()` on the throwaway (Task 0 results), so the matrix rows that bring the connections to the cap with a third and fourth sign-in reach the same boundary with `connectionCap` instead, derived from the HTTP view b at run time:
+  - the status is busy at cap b + reserve and not busy at b + reserve + 1 (row 1);
+  - at cap b + reserve a proxied sign-in is allowed, because `Busy(own)` leaves out `OWNCONNECTIONS` (row 6), and at cap b - own + reserve it is refused with the busy splash (rows 5 and 6);
+  - B1 sets the cap to b + reserve with P and S2 signed in, and "a place is free" is a cap one higher, set after S2 signs out.
+  The unit asserts that two sessions leave the view at b, so a change in IRIS's behaviour turns it red. Task 0 (e)'s fallback (an `about:blank` window opened before the check) was not needed.
 
 **Decided in-stage:**
 - **The page's busy handling is the online demo's only.** On a local install the cap is unset, so status is never busy, and "The demo is busy" is the demo's own text. A local 503 and a local trace link behave as today, which the local suites pin.
@@ -509,7 +573,14 @@ Everything else is inside the footprint: `Web/Public/**`, `Web/SessionEvents.cls
 - (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-c && pwd)" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=16 stage=implement' OCUTALON_RUN_TAG=e16s5i bash ci/iris.sh teardown` -- nothing tagged `e16s5i` is left. `ci/warm.sh down` has already removed `e16s5iw`.
 - The install, production, floor and demo-path units are left to CI.
 
-**Task 0 results:** the implement stage records (a) to (f) here, from the unit's `MEASURED` lines on lane C's throwaway, build 154.
+**Task 0 results** (implement stage, `online-demo` unit on lane C's throwaway, build 154, Community key; the unit's `MEASURED` lines unless marked):
+- (a) MEASURED: with no session `InstanceConnections()` in an `iris_script` reads 1 (the script's own process), and the HTTP view of the connections, found by the flip, is 0 (the status's count).
+- (b) MEASURED: a signed-in curl session does not raise the HTTP view. With one signed-in session the script reads 1 and the view is 0; with two (S1 and S2) 1 and 0; B1 read the view 0 with P (browser) and S2 signed in. The group sign-out has nothing to lower. The premise "a session raises the view by 1" does not hold on this stack. Also MEASURED by hand on the warm stack (flag off, the instance's own web server, a test user): the count stays 1 after a sign-in, after `/state`, over keep-alive connections, with a second session and after both sign-outs; `ShowSummary` reads 1 licence unit and 1 connection while a session is open, and `UserList` shows no CSP user. (inference) The demo host may count sessions, which this stack cannot show.
+- (c) MEASURED: five `/status` GETs and five splash GETs on no jar leave the view at 0 (before 0).
+- (d) MEASURED: `OWNCONNECTIONS` = 1 holds at the lever. With the view at 0 the status is busy at cap 2 (b + reserve) and a proxied sign-in is allowed there (the shell, a cookie, one counter row), and at cap 1 (b - own + reserve) it is refused with the busy splash. (inference) Whether `OnLogin` counts the new session itself is not measurable here, because a session adds 0; 1 stays the spec's default.
+- (e) MEASURED (`busy.spec.ts` B1, Desktop Chrome): `window.open` called after the awaited status check opened the trace window (`context.waitForEvent('page')` received the page at the turn's trace URL); no popup block. The fallback is not needed.
+- (f) MEASURED: two GETs of the same `/ocutalon/public/status?probe=...` URL with the cap changed between them answered busy=true and then busy=false: the web gateway does not cache the answer. Story 16.8's poll needs no unique query for the gateway's sake (a browser or the proxy may still cache; the page adds `?t=` either way).
+- DW-220, MEASURED: the `online-demo` unit takes 249 s locally with this story (248 s on the earlier run, 246 to 250 s on the mutation runs), against Story 16.3's 195 to 219 s: about 30 to 54 s more.
 
 **Shared surfaces:**
 - **The public `connectionCap`.** B1, the proxied phase and the in-process tests lower it, then restore it and read it back. Every splash and status test of Stories 16.1 to 16.3 assumes the start value 8, with reserve 2.
@@ -541,11 +612,31 @@ Everything else is inside the footprint: `Web/Public/**`, `Web/SessionEvents.cls
 | AC 6 | the unit's rows 2 and 5 | Splash's `OnPreHTTP` sets no header |
 | AC 6 | `Test.Web.Status.TestBusyHeader` | `Show` sets no header |
 
-**Mutation record:** the stage that adds or changes each pinning test writes its `mutation:` line here.
+**Mutation record:** the stage that adds or changes each pinning test writes its `mutation:` line here. Each mutation was applied from a backup, observed red and reverted; the tree was checked byte-identical by SHA-256 of every touched file and `git status --short`.
+- mutation: the unit's row 1 -- `IsBusy` compares with `>` instead of `>=` -- red: the unit failed at Task 0 (a)'s flip ("the HTTP view of the connections could not be found by the flip"), before row 1, which is derived from it; the rows after it did not run.
+- mutation: `Test.Web.Splash.TestDemoBusy` -- Splash's `OnPreHTTP` skips the busy decision (`&& 0`) -- red: `TestDemoBusy` failed ("the busy text, then the README link", "the marker header", "the link twice").
+- mutation: `Test.Web.Status.TestNoHighWaterMark` -- `Busy` reads `InstanceConnectionsMax()` -- red: `TestNoHighWaterMark` failed ("no method body reads the high-water mark"), and `TestBusyOwn` with it.
+- mutation: the unit's row 5 -- `AttachVisitor` checks busy after the counter -- red: row 5 failed (S3: a cookie in the POST, a new row, a counter row; the cookie sign-in: status 303, attached) and row 6's refused half.
+- mutation: the unit's row 6 -- `Busy(0)` in place of `Busy(..#OWNCONNECTIONS)` -- red: row 6's allowed half failed (the sign-in at the boundary gave `other`, no cookie, 0 counter rows); run together with the header mutation below, which failed rows 2 and 5 only.
+- mutation: `Test.Web.SessionEvents.TestBusyExempt` -- the busy check ignores `proxied` -- red: `TestBusyExempt` failed (no new row, no cookie, a marker).
+- mutation: `busy.spec.ts` B1 -- `pressConversation` skips `openTrace` -- red: B1 failed in the unit's browser step (the window opened and no banner showed); run together with the next one.
+- mutation: `busy.spec.ts` B2 -- the outbox marks a 503 as failed on the online demo too -- red: B2 failed (no text back in the composer, "Not sent" shown).
+- mutation: `demo-busy.test.mjs` -- `DemoBusyWatch` never re-checks (`arm` returns at once) -- red: four tests of the trace cause failed.
+- mutation: `banner-view.test.mjs` (row 13) -- the `demoBusy` row drops `onlineDemo: true` -- red: the table test and "is the online demo's only" failed.
+- mutation: `host-pages.spec.ts` H1 -- `busy.html` links a stylesheet at `/ocutalon/x.css` -- red: H1 failed in both schemes ("and nobody was asked"; the unit's local run, no stack).
+- mutation: `host-pages.spec.ts` H2 -- the refresh element is removed -- red: H2 (light) failed after 15 s ("the refresh lands on the splash address").
+- mutation: `host-pages.test.mjs` -- `maintenance.html` names an address (`http://203.0.113.9/`) -- red: the no-address test and the address-list test failed.
+- mutation: the unit's rows 2 and 5 -- Splash's `OnPreHTTP` sets no header -- red: row 2 failed (header none) and row 5 failed on "header" for S3 and for the cookie sign-in.
+- mutation: `Test.Web.Status.TestBusyHeader` -- `Show` sets no header -- red: `TestBusyHeader` failed ("a busy status carries X-OcuTalon-Busy: 1").
+- mutation: `Test.Web.Status.TestBusyOwn` -- `Busy` does not subtract `own` (`InstanceConnections()` in place of `InstanceConnections() - own`) -- red: `TestBusyOwn` failed ("with one own connection left out it is not").
+- mutation: `Test.Web.SessionEvents.TestBusyRefusal` and `TestBusyBeforeTheCounter` -- `AttachVisitor` never checks busy (`If proxied, 0, ...`) -- red: both failed (the marker, the row, the cookie and the counter assertions); `TestFlagOff` also failed from the rows the mutated run left, and the class was green again after the revert.
+- mutation: `busy.spec.ts` B3 -- `TraceLink.press` skips `openTrace` -- red: B3 failed ("after the press: the Demo busy banner shows") and `demo-account.spec.ts` O4 failed (no tab opened); run in one unit run with the next three.
+- mutation: `busy.spec.ts` B3b -- `openTrace` returns when the status check gave no answer (`status === undefined`) -- red: B3b failed ("a status answer that is not JSON opens the tab").
+- mutation: `busy.spec.ts` B2, second half -- the composer takes a refused message's text back without the empty-field check; and the envelope interceptor does not report a 2xx to `DemoBusyState` -- red: B2 failed in that unit run; the two were applied together, so which of the two assertions failed first was not captured (inference: either alone turns B2 red).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-25).** The story was planned from the cached `epic-16-context.md`, Story 16.3's spec (continuity), the spine's AD-3, AD-13 and AD-25, and the UX's Demo busy, resetting and banner passages. The spec passed the READY FOR DEVELOPMENT standard and the run halted after planning, as the dispatch asked.
@@ -555,3 +646,27 @@ Blocking condition: none
 - **Items for the lead's gate:** under For the lead (the tenth banner row, the busy page's title, the first-load 503 reading, DW-220's growth).
 - **Ledger inbox:** none.
 - **Footprint extensions:** under Design Notes.
+
+**Implement and review (2026-10-26).**
+- **Summary.** The server marks and shows the busy states (`Status.Busy(own)`, the `X-OcuTalon-Busy` header on a busy status, the splash's busy state and the post-sign-in refusal that comes before the resume and the counter). The signed-in page checks the status before opening a trace window, turns an API 503 into one "Demo busy" banner, and returns a refused message's text to an empty composer. `docker/busy.html` and `docker/maintenance.html` are the two host pages. The catalog gains `banner.demoBusy`.
+- **Files changed.**
+  - Server: `Web/Public/{Status,Splash,Login,Shell}.cls`, `Web/SessionEvents.cls`, `Msg/Catalog/Core.cls`.
+  - Page: `web/src/app/{api/envelope.interceptor,banners/banner-view,banners/banner-stack,header/header,shared/trace-link,chat/chat-outbox,chat/composer}.ts`, new `live/demo-busy.ts` and `live/demo-busy-state.ts`, generated `msg/catalog.ts`.
+  - Host pages: new `docker/busy.html` and `docker/maintenance.html`.
+  - Tests: `Test/Web/{Status,Splash,SessionEvents,PublicTexts}.cls`, `Test/Msg/Catalog.cls`; `web/scripts/{catalog,banner-view,catalog.test,ux-strings,demo-busy,host-pages}`; `web/e2e-online/{busy,host-pages}.spec.ts` and `support.ts`; `docker/tests/test-online-demo.sh`.
+- **Review pass.** 38 findings from four layers: 23 low, 7 medium, 3 high, 4 false, 1 maybe-false. Patched (all in-story): the SessionEvents class comment, dead CSS in `busy.html`, the unit's cookie and empty-epoch guards, B3b (the fail-open rule, a medium), and six `mutation:` lines. Deferred: the high premise item and the guide-prompt test (frontmatter `deferred:`). The others are rejected with their reasons in the triage log.
+- **For the lead: the licence-connection premise (high, deferred).** On the throwaway (build 154, Community key, the image's own web server) a signed-in CSP session never raises `$SYSTEM.License.InstanceConnections()`. The matrix rows 1, 5, 6 and 9 and the AC wording "two signed-in sessions make the demo busy" therefore reach busy with the cap, derived from the measured baseline at run time; the unit asserts that two sessions leave the count unchanged, so a change in IRIS turns it red. Whether the real demo host counts sessions is not measured here. If it does not, the busy splash, banner and refusal never fire there and only the proxy's own 503 and busy page remain. Story 29.3 or the owner needs a measurement on the host, or a counter of the visitor sessions in place of the licence count; that is a product and architecture call (AD-13 S13), not made here.
+- **Verification performed (final tree).**
+  - Node: 598 tests pass; `npm --prefix web run lint`, `tokens` (no change to the Assets classes) and `catalog` clean; `docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass (the boundaries check scans both host pages).
+  - Warm classes: Status, Splash, SessionEvents, PublicTexts, Msg.Catalog, SignIn, Api pass.
+  - `live online-demo`: 38 browser cases and every unit row pass; the unit took 283 s wall on the final run (249 s on the implement run, Story 16.3 195 to 219 s; DW-220).
+  - `live sign-in`: 192 passed, 1 skipped. `shard lane-b`: 44 classes pass. `shard lane-a`: 47 classes pass.
+  - Rule 19: 21 `mutation:` lines, each applied from a backup, observed red and reverted (SHA-256 of every touched file identical, `git status --short` unchanged). Where two mutations ran together the line says so.
+  - The warm stack and the tagged throwaways are torn down (`ci/warm.sh down`, `ci/iris.sh teardown`); HEAD was `dde4300` throughout.
+- **Residual risks.**
+  - The premise above.
+  - `docker/maintenance.html` names its logos by bare file name, as the AC says, so a visitor on a deep path during a reset sees the alt text unless the proxy serves the logos at that depth (Story 29.3, DW-240).
+  - `window.open` after the status check was measured in Chromium only (Task 0 (e)).
+  - The guide prompt's 503 path has no test until Epic 4's guide calls `send(text, true)`.
+- **Follow-up review recommended:** false (patched this pass: 1 medium, the rest low).
+- **Ledger inbox:** none. Footprint extensions as under Design Notes; no contended path was edited.
