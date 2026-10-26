@@ -171,3 +171,4 @@
 2026-10-26T15:32:05Z	Story 4.5	hold_restored	story=4-5-get-notifications-on-the-simulated-phone patch_deleted=yes tree=QA_tests_uncommitted(web/e2e/floor/devices.spec.ts,web/e2e/phone/phone.spec.ts)
 2026-10-26T15:32:05Z	Story 4.4	ci_resolved	story=4.4 sha=0cd85a2 runs=40304315110,40304315077 result=success failed=none via=none resolved_at=resume
 2026-10-26T15:32:17Z	Epic 4	resume_local_ahead	repo=. local=7137d7a origin=0cd85a2 unpushed=6 action=push_with_4.5_story_commit(bc1d758_unreviewed_build;mid-pipeline)
+2026-10-26T15:34:07Z	Epic 4	cross_epic_clarification	to=orchestrator q1=4.5_build_bc1d758_edited_now-contended_Epic16_paths(Test/Data/{Ownership,Tables,Fixture}.cls,Test/Web/Api.cls,web/src/app/header/skip-links.ts)_with_additive_entries q2=4.6_must_replace_stub_Channel/SimMailbox/In.cls(in_both_footprints;16.9_waits_on_epic-6) recommended=proceed_additive;report_footprint_extensions;union_at_integrate-forward
