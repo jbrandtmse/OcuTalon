@@ -1229,3 +1229,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: ChatOutbox.send(text, fromGuide) has no caller with fromGuide true in web/src/app; the first caller is Epic 4's guide; the rule is in ChatOutbox.refuse; B2 sends typed text only
 - 2026-10-26T07:48:33Z status=routed owner=burndown by=harvest note=testable once Epic 4's guide sends prompts and has been integrated forward; the burn-down gate checks
+
+### DW-254: The demo host must run docker/probe.sh every 15 minutes with bash and curl, reach IRIS directly from an address other than the public proxyAddress, and provide its environment (OCUTALON_PROBE_URL, the demo credentials, alert and reset commands, a state directory)
+- source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.6 spec gate: the probe's host interface is recorded in the spine's Consistency Conventions row 'Online-demo probe'; a probe reaching IRIS from proxyAddress is counted and refused like a visitor
+- 2026-10-26T09:37:00Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 installs and schedules the probe per the spine's 'Online-demo probe' row and checks its alert and reset wiring on the host
