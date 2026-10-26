@@ -1,10 +1,26 @@
 /// IncidentManager, the business process that settles failures into incidents and moves each incident through its states (AD-15). Built in parts
-/// during Epic 5; a stub until it is whole.
-///   - A FailureBatch (OcuTalon.Watch.Msg.FailureBatch, from FailurePoller) is accepted: the request completes with no response and nothing is written.
-///     Story 5.3 groups the failures of a batch into incidents and ignores a failure it already holds, known by its key (OcuTalon.Watch.Mark.Key):
-///     the header id of a header failure, the log id of an event-log row with no session, whose HeaderId is empty.
-///   - Anything else is still answered "not implemented" (the stub's answer), so the commands and the approval outcomes that Story 5.3 and 5.5
-///     build are not accepted by mistake.
+/// during Epic 5. It alone writes OcuTalon.Data.Incident and OcuTalon.Data.FailureGroup, and alone publishes the incident and watch.progress events,
+/// through OcuTalon.Live.Publish and only after its own change has committed (AD-12, AD-33). Its item keeps PoolSize 1, so one job serializes every row
+/// change. Nothing of what it decides is in memory: the rows and the persisted waiter instances are the state (AD-5).
+///   - A FailureBatch (OcuTalon.Watch.Msg.FailureBatch, from FailurePoller) is grouped by production item and error pattern (OcuTalon.Watch.Settle.Pattern),
+///     per production and scope (the batch's OwnerRef). A failure joins the newest not-closed incident of its cause, compared exactly; with none, the
+///     batch makes an open incident and its group, with its Ref (OcuTalon.Bridge.Ids.NewRef) at the first failure. A failure is held once, by its key
+///     (OcuTalon.Watch.Mark.KeyOf) in the group's Seen set (the newest OcuTalon.Watch.Settle SEENMAX keys): a key already held adds no count and no
+///     time. Count is the failures held, FirstAt and LastAt the earliest and latest FailedAt. The batch's rows are saved in one transaction.
+///   - After the commit, each new incident is announced on its recipients' streams (watch.progress noticed), each new group gets one waiter (a
+///     OcuTalon.Watch.Msg.Settle that IncidentManager sends itself, with the session cleared so that the incident has its own trace session, AD-26),
+///     and, for an incident that has been noticed (NoticedAt set), the new count goes out as one incident event (Live.Payload.Incident.FromRow) to
+///     each recipient. The recipients are those of OcuTalon.Data.Session.Recipients. A failed read of them, or a failed publish, logs one Type 3
+///     warning and publishes nothing more; the rows stand, and a failed read never means that nobody watches.
+///   - The waiter records the incident's trace session (TraceHeaderId), publishes watch.progress settling, and waits with an alarm
+///     (Ens.BusinessProcess.SetTimer) for as long as OcuTalon.Watch.Settle.Wait says. On each wake it re-reads the incident and group rows, so a
+///     failure that came meanwhile moves the end. The settle rule ends when the quiet time (setting watch.settleQuietSeconds, 10 by default) has passed
+///     since LastAt or the maximum (watch.settleMaxSeconds, 30) since FirstAt, whichever comes first: it sets NoticeCount to Count, once, and completes.
+///     A waiter whose incident is gone, closed or settled completes and writes nothing.
+///   - NoticedAt, the notice and the incident's states beyond open are not set here: the notice is sent after the diagnosis (Story 5.4) and the state
+///     table is Story 5.5's.
+///   - Anything else is still answered "not implemented" (the stub's answer), so the commands and the approval outcomes that Story 5.5 builds are not
+///     accepted by mistake.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
 {
 
@@ -12,11 +28,231 @@ Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
 /// Story 11.5's release check refuses an enabled item whose class still has it.
 Parameter STUB = 1;
 
+/// The states and stages that this class writes, from Msg.Enum.
+Parameter OPEN = "open";
+
+Parameter CLOSED = "closed";
+
+/// The completion key of the waiter's alarm.
+Parameter ALARMKEY = "settle";
+
+Parameter LOGTELL = "IncidentManager could not tell the sessions of incident ";
+
+Parameter LOGPUBLISH = "IncidentManager could not publish to the sessions of incident ";
+
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
-	If $IsObject(request) && request.%IsA("OcuTalon.Watch.Msg.FailureBatch") Quit $$$OK
+	If $IsObject(request) {
+		If request.%IsA("OcuTalon.Watch.Msg.FailureBatch") Quit ..Batch(request)
+		If request.%IsA("OcuTalon.Watch.Msg.Settle") Quit ..Begin(request)
+	}
 	Quit $$$ERROR($$$NotImplemented)
+}
+
+/// The alarm of the waiter has gone off: look at the rows again and end the settle rule or wait on.
+Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
+{
+	If $IsObject(request) && request.%IsA("OcuTalon.Watch.Msg.Settle") Quit ..Check(request.IncidentRef)
+	Quit $$$OK
+}
+
+/// A batch: groups its failures, saves the rows of every cause in one transaction and then tells the sessions and starts the waiters.
+Method Batch(batch As OcuTalon.Watch.Msg.FailureBatch) As %Status [ Private ]
+{
+	Set sc = ..Record(batch, .count, .rows, .added)
+	If $$$ISERR(sc) Quit sc
+	For i = 1:1:count {
+		If added(i) = "new" {
+			Set payload = ##class(OcuTalon.Live.Payload.WatchProgress).%New()
+			Set payload.Ref = rows(i).Ref
+			Set payload.Stage = "noticed"
+			Do ..Tell(rows(i), "watch.progress", payload)
+		}
+	}
+	For i = 1:1:count {
+		If added(i) = "new" Set sc = $SYSTEM.Status.AppendStatus(sc, ..Start(rows(i).Ref))
+	}
+	For i = 1:1:count {
+		If (added(i) '= "new") && (rows(i).NoticedAt '= "") Do ..Tell(rows(i), "incident", ##class(OcuTalon.Live.Payload.Incident).FromRow(rows(i)))
+	}
+	Quit sc
+}
+
+/// The failures of the batch, grouped by cause, saved as incident and group rows in one transaction. count is the number of causes that gained
+/// failures and rows(i) their saved incidents; added(i) is "new" for an incident that this batch made, "more" for one that gained failures.
+Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer, Output rows, Output added) As %Status [ Private ]
+{
+	Set count = 0
+	Kill rows, added
+	Set causes = 0
+	For i = 1:1:batch.Failures.Count() {
+		Set failure = batch.Failures.GetAt(i)
+		Set text = ##class(OcuTalon.Watch.Settle).Pattern(failure.ErrorText)
+		Set cause = 0
+		For c = 1:1:causes {
+			If (itemOf(c) = failure.ItemName) && (patternOf(c) = text) {
+				Set cause = c
+				Quit
+			}
+		}
+		If 'cause {
+			Set causes = causes + 1
+			Set cause = causes
+			Set itemOf(cause) = failure.ItemName
+			Set patternOf(cause) = text
+			Set keysOf(cause) = ""
+		}
+		Set key = ##class(OcuTalon.Watch.Mark).KeyOf(failure.Kind, failure.HeaderId, failure.LogId)
+		If '$Data(failedAt(cause, key)) {
+			Set failedAt(cause, key) = $Select(failure.FailedAt '= "": failure.FailedAt, 1: batch.PolledAt)
+			Set keysOf(cause) = keysOf(cause)_$Select(keysOf(cause) = "": "", 1: ",")_key
+		}
+	}
+	Set sc = $$$OK
+	Set level = $TLevel
+	TSTART
+	Try {
+		For cause = 1:1:causes {
+			Set incident = ..Find(batch, itemOf(cause), patternOf(cause), .group)
+			Set new = '$IsObject(incident)
+			If new {
+				Set incident = ##class(OcuTalon.Data.Incident).%New()
+				Set incident.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+				Set incident.OwnerRef = batch.OwnerRef
+				Set incident.Namespace = batch.Namespace
+				Set incident.Production = batch.Production
+				Set incident.State = ..#OPEN
+				Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+				Set group.IncidentRef = incident.Ref
+				Set group.ItemName = itemOf(cause)
+				Set group.ErrorPattern = patternOf(cause)
+			}
+			Set group.Seen = ##class(OcuTalon.Watch.Settle).Hold(group.Seen, keysOf(cause), .fresh)
+			If fresh = "" Continue
+			For i = 1:1:$Length(fresh, ",") {
+				Set at = failedAt(cause, $Piece(fresh, ",", i))
+				If (incident.FirstAt = "") || (incident.FirstAt ] at) Set incident.FirstAt = at
+				If (incident.LastAt = "") || (at ] incident.LastAt) Set incident.LastAt = at
+			}
+			Set incident.Count = incident.Count + $Length(fresh, ",")
+			$$$ThrowOnError(group.%Save())
+			$$$ThrowOnError(incident.%Save())
+			Set count = count + 1
+			Set rows(count) = incident
+			Set added(count) = $Select(new: "new", 1: "more")
+		}
+		TCOMMIT
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $TLevel > level TROLLBACK 1
+	If $$$ISERR(sc) Set count = 0
+	Quit sc
+}
+
+/// The newest incident of the batch's owner, production and namespace that is not closed and whose group has the item and pattern, compared exactly (the
+/// statements only narrow the rows by the collated indexes); "" when there is none. group is that incident's group.
+Method Find(batch As OcuTalon.Watch.Msg.FailureBatch, item As %String, pattern As %String, Output group As OcuTalon.Data.FailureGroup) As OcuTalon.Data.Incident [ Private ]
+{
+	Set group = ""
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ? AND Namespace = ? AND Production = ? AND State <> 'closed' ORDER BY ID DESC", batch.OwnerRef, batch.Namespace, batch.Production)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The incidents could not be read: "_rs.%Message))
+	While rs.%Next() {
+		Set incident = ##class(OcuTalon.Data.Incident).%OpenId(rs.%GetData(1))
+		If '$IsObject(incident) Continue
+		If (incident.OwnerRef '= batch.OwnerRef) || (incident.Namespace '= batch.Namespace) || (incident.Production '= batch.Production) || (incident.State = ..#CLOSED) Continue
+		Set groups = ..Groups(incident.Ref)
+		For i = 1:1:groups.Count() {
+			Set candidate = groups.GetAt(i)
+			If (candidate.ItemName = item) && (candidate.ErrorPattern = pattern) {
+				Set group = candidate
+				Quit
+			}
+		}
+		If $IsObject(group) Quit
+	}
+	Quit $Select($IsObject(group): incident, 1: "")
+}
+
+/// The group rows of the incident, by ID, as a list of objects.
+ClassMethod Groups(ref As %String) As %ListOfObjects [ Private ]
+{
+	Set list = ##class(%ListOfObjects).%New()
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID", ref)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failure groups could not be read: "_rs.%Message))
+	While rs.%Next() {
+		Set group = ##class(OcuTalon.Data.FailureGroup).%OpenId(rs.%GetData(1))
+		If $IsObject(group) && (group.IncidentRef = ref) Do list.Insert(group)
+	}
+	Quit list
+}
+
+/// Sends the incident's waiter: a Settle request to this item, started with the session cleared, so that the waiter has a trace session of its own, and
+/// with the batch's SuperSession kept. The batch's session is put back afterwards.
+Method Start(ref As %String) As %Status [ Private ]
+{
+	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
+	Set request.IncidentRef = ref
+	Set session = ..%SessionId
+	Set ..%SessionId = ""
+	Set sc = ..SendRequestAsync(..%ConfigName, request, 0)
+	Set ..%SessionId = session
+	Quit sc
+}
+
+/// The waiter's start: records its own session as the incident's trace session, tells the sessions that the incident is settling and waits.
+Method Begin(request As OcuTalon.Watch.Msg.Settle) As %Status [ Private ]
+{
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
+	If '..Waiting(incident) Quit $$$OK
+	Set incident.TraceHeaderId = ..%SessionId
+	Set sc = incident.%Save()
+	If $$$ISERR(sc) Quit sc
+	Set payload = ##class(OcuTalon.Live.Payload.WatchProgress).%New()
+	Set payload.Ref = incident.Ref
+	Set payload.Stage = "settling"
+	Do ..Tell(incident, "watch.progress", payload)
+	Quit ..Check(request.IncidentRef)
+}
+
+/// The settle rule at this moment, from the rows: the rule ends (NoticeCount is set to Count) or the waiter waits on for the seconds that are left.
+Method Check(ref As %String) As %Status [ Private ]
+{
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If '..Waiting(incident) Quit $$$OK
+	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
+	Set seconds = ##class(OcuTalon.Watch.Settle).Wait(incident.FirstAt, incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max)
+	If seconds > 0 Quit ..SetTimer(seconds, ..#ALARMKEY)
+	Set incident.NoticeCount = incident.Count
+	Quit incident.%Save()
+}
+
+/// 1 when the incident exists, is not closed, has not settled and has a group row: its settle rule still runs.
+ClassMethod Waiting(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	If '$IsObject(incident) || (incident.State = ..#CLOSED) || (incident.NoticeCount '= "") Quit 0
+	Quit ..Groups(incident.Ref).Count() > 0
+}
+
+/// Publishes the payload as an event of the type on the stream of each session that Session.Recipients gives for the incident. An error in reading them
+/// publishes nothing, and an error in a publish leaves the other sessions their event; each logs one Type 3 warning, and the rows stand.
+Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %RegisteredObject) [ Private ]
+{
+	Set recipients = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGTELL_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit
+	}
+	Set failed = ""
+	Set position = 0
+	While $ListNext(recipients, position, stream) {
+		Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)
+		If $$$ISERR(sc) Set failed = sc
+	}
+	If failed '= "" {
+		$$$LOGWARNING(..#LOGPUBLISH_incident.Ref_" ("_type_"): "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))
+	}
 }
 
 Storage Default

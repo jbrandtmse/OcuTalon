@@ -2,12 +2,21 @@
 title: 'Same-cause failures become one incident by the settle rule'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '361f6010213caef0f2d0a42a310a50ce587a474a'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The error branches of IncidentManager.Tell (a failed Session.Recipients read; a failed publish while other recipients still get the event) have no test.
+    evidence: |-
+      Tests assert only that no warning is logged on the success and nobody-watches paths. Forcing Recipients or Publish to return an error needs a seam (a double or a refused stream) that the story does not add; the code logs one Type 3 warning per event and leaves the rows standing, as the intent says.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls Tell
+    severity: low
+
 ---
 
 <intent-contract>
@@ -141,6 +150,43 @@ Every `OcuTalon/...` path is under `src/ocutalon/cls/`.
 
 ## Review Triage Log
 
+### 2026-10-26 — Review pass
+- verdicts: 32 findings — high 0, medium 4, low 26, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: the waiter is lost if `Start` fails or the job dies between the commit and the send — the window is one send to the item's own queue; a recovery sweep is new behaviour beyond a direct correction (reopen_if: a waiter-less incident is seen in a run).
+  - `[low]` `[patch]` Blind 2: `Find` scans every incident of the owner — the SQL now also filters Namespace, Production and `State <> 'closed'` (the ObjectScript check stays exact).
+  - `[low]` `[patch]` Blind 3: bare `TROLLBACK` undoes outer transactions — `Record` keeps `$TLevel` before `TSTART` and rolls back one level only.
+  - `[low]` `[patch]` Blind 4: `Settle.Seconds` throws on a well-formed impossible stamp — Try/Catch gives "" (rule ended); `TestWait` pins it.
+  - `[low]` `[patch]` Blind 5: the code rule misses `DELETE` without `FROM`, `INSERT OR UPDATE`, `%DeleteExtent`/`%KillExtent` — the pattern and its sample lines now cover them; the header names the remaining blind spots.
+  - `[low]` `[reject]` Blind 6: `PASS shard part` prints after the "all rules passed" line — the block is appended after the file's last line by the lead's ruling, and the intent says it runs only after that summary.
+  - `[low]` `[reject]` Blind 7: short fixed `Hang` before an absence assertion — each follows a wait for the positive marker (`WaitCount`, `Events` with a count) in the same job that publishes, so a second event cannot be pending; the trickle has 6 s of slack and ran green five times.
+  - `[low]` `[defer]` Blind 8: no test of the failed `Recipients` read, the failed publish, a failed `Start` or a rolled-back `Record` — needs a seam the story does not add; deferred (frontmatter).
+  - `[false]` `[reject]` Blind 9: the `Seen` cap re-counts a cut key — that is ruling R1 (newest 1000, a re-send of a cut key is theoretical) and `TestHold` pins it.
+  - `[low]` `[patch]` Blind 10: truncated `WaitNoticeCount` comment fixed; the other helper remarks (an unchecked session in `SendBatch`, the cache node layout the spec names) stay.
+  - `[medium]` `[patch]` Edge 1: `--part=` or `--part ""` skipped validation and ran the whole shard — `part_given` is tracked, an empty value exits 2; the block checks both forms.
+  - `[low]` `[reject]` Edge 2: a held failure re-sent after its incident closed makes a ghost incident — the spec's in-stage decision names it theoretical (a dismiss inside the 3 s window).
+  - `[low]` `[reject]` Edge 3: duplicate of Blind 1.
+  - `[false]` `[reject]` Edge 4: pattern over 1000 or item over 128 characters — `Failure.ErrorText` is MAXLEN 1000 and `ItemName` 128, and the pattern is never longer than the text.
+  - `[low]` `[patch]` Edge 5: duplicate of Blind 3.
+  - `[low]` `[patch]` Edge 6: duplicate of Blind 2.
+  - `[low]` `[reject]` Edge 7: a `FirstAt` in the future stretches the wait — `FailedAt` is IRIS's own clock on one instance; theoretical.
+  - `[low]` `[patch]` Edge 8: duplicate of Blind 4.
+  - `[low]` `[reject]` Edge 9: an absurd setting value — a positive whole number is what the spec accepts.
+  - `[low]` `[reject]` Edge 10: `KeyOf` with an empty id — the reader always supplies the id of its kind.
+  - `[low]` `[patch]` Edge 11: duplicate of Blind 5.
+  - `[low]` `[reject]` Edge 12: an event type held in a variable or a call over lines is invisible to the scan — a documented limit of a static scan.
+  - `[low]` `[reject]` Edge 13: a literal `#` in an error text collides with a masked digit — the masking is the spec's contract.
+  - `[medium]` `[patch]` VGap 1: a batch joining an unnoticed incident publishing an `incident` event was not pinned — `TestResent` asserts no event; mutation demonstrated.
+  - `[medium]` `[patch]` VGap 2: Namespace, Production and case in the cause key were not pinned — `TestPattern` sends the same item and text for another production, another namespace and an upper-cased item; mutation demonstrated.
+  - `[medium]` `[patch]` VGap 3: `TestWaitersAfterRestart` stopped the item before the waiters had started — it waits for both `TraceHeaderId`s first, and also checks the waiters' sessions and the event log for errors; mutation demonstrated.
+  - `[low]` `[defer]` VGap 4: duplicate of Blind 8.
+  - `[low]` `[patch]` VGap 5: the `--part` block did not check `--part=k/n`, the position before the name, the label, the no-part title, a seven-digit value or the refusal message — all added; two mutations demonstrated.
+  - `[low]` `[patch]` VGap 6a: the "nor on a session's stream" assertion of `TestNobodyToTell` could not fail — removed.
+  - `[low]` `[reject]` VGap 6b: matrix rows without a mutation line — Rule 19 scopes one line per AC, which all have; the Restart row, which the finding names, now has one.
+  - `[low]` `[reject]` VGap 6c: `TestTrickle`'s quiet-window assertion has about 4 s of slack — ran green five times; not worth a guard.
+  - `[low]` `[reject]` VGap 6d: `TestInstanceShared` and `TestValues` assume no foreign instance incident or `watch.settle*` setting row — the cleanup floors and the no-seeding rule hold that.
+- intent-alignment: no finding; its readings (runtime behaviour in a running production, with Task 0 at the command line) match the implemented one.
+
 ## Design Notes
 
 **Rulings (the plan halted on them; both are now ruled as recommended, so the spec stands as written):**
@@ -195,11 +241,18 @@ Spine conventions: "Watch failures" (the dedupe key), "Times", "Identifiers", "L
 - **No setting rows are seeded.** `Get` with the code defaults is the setting until the settings page exists.
 - **The lookup** selects candidates by `OwnerRef` (indexed) and compares in ObjectScript, so the comparison is exact.
 - **`STUB` stays**: commands come in 5.5.
+- **Implement stage, `--part`:** `ci/iris.sh shard` also takes `--part=k/n`; k and n are at most six digits (a longer number is refused with exit 2); the check that n does not exceed the class count runs after the shard's classes are known.
+- **Implement stage, failure times:** a failure with an empty `FailedAt` is held with the batch's `PolledAt` (the rule never reads an empty time).
+- **Implement stage, errors:** a batch whose rows fail to save rolls back, publishes nothing and answers the error status (the message shows in error); a failed `Settle` send is answered as an error after the events went out, and the rows stand.
+- **Implement stage, warnings:** `Tell` logs at most one Type 3 warning per event (the failed `Recipients` read, or the first failed publish when other recipients got the event).
+- **Implement stage, tests:** a persistent object that a test still holds shows the values it was opened with (an `%OpenId` of the same row returns the held object), so `Case.WaitCount` and `Case.WaitNoticeCount` reopen the row afresh on each poll. `Case.SendBatch` records the `HomeFloor` itself, so the batches of a test are removed. `TestTrickle` sends seven failures 4 s apart (the last at 24 s), so the maximum (30 s) ends the rule before the quiet time after the last failure (34 s), then one more after the notice.
 
 **(inference), pinned by the tests and recorded by the implement stage:**
 - A BP send with `%SessionId` cleared starts a new session, and the BP's own `%SessionId` is put back afterwards.
 - `Ens.Alarm` wakes are within about 1 s.
 - Pending alarms and waiting BP instances survive a temporary stop of the item (matrix row Restart while settling).
+
+Results (implement stage, fresh lane-A stack): all three hold. A `Settle` sent with `%SessionId` cleared starts a session of its own: the incident's `TraceHeaderId` is that session, none of the batches' sessions, and its first header is the `Settle` request with the scope's `TraceRef` as `SuperSession` (`TestBurstThroughThePoller`; with `%SessionId` kept it is red). The alarm wakes were within the tests' bounds (burst: `NoticeCount` set within 20 s of the failures; trickle: set at the 30 s maximum within the 45 s bound); the wake delay was not measured more finely. With the item stopped 2 s during the wait and started again, the kept incident still settled with `NoticeCount` 1, and the deleted incident's waiter completed with no error and wrote nothing (`TestWaitersAfterRestart`).
 
 **DW entries:** DW-227 is addressed (Task 0, AC 5). **Declined:** none.
 
@@ -221,6 +274,41 @@ Spine conventions: "Watch failures" (the dedupe key), "Times", "Identifiers", "L
 - (once) `<lane> OCUTALON_RUN_TAG=e5s3i ci/iris.sh shard lane-b` -- it holds `Test.Data.Tables` (the R1 entry), `Test.Data.Ownership` and `Test.Core.CommandsInProduction`. Expected: passed.
 - (once) `bash ci/checks.sh` -- expected: all pass (storage blocks, class rules).
 - (once) `<lane> OCUTALON_RUN_TAG=e5s3iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e5s3i ci/iris.sh teardown`.
+
+**Implement-stage results (lane-A throwaways, tags e5s3ih / e5s3ihw):**
+- `bash docker/tests/test-ci-config.sh` -- all rules passed, then `PASS shard part`; `bash ci/checks.sh` -- all scripts passed.
+- Warm (`e5s3ihw`): `Test.Watch.Settle`, `Test.Watch.Mark`, `Test.Bridge.CodeRules` and `Test.Install.Production` passed. Fresh: `Test.Watch.Incidents` passed in 59.8 s (class time; a first run before the stale-object fix of `Case.WaitCount`/`WaitNoticeCount` failed), `Test.Watch.Poller` passed in 63 s.
+- `shard lane-b` passed (42 classes, 133 s).
+- `shard lane-a --part 1/2` passed: 28 classes, 374 s (including the 72 s start). `shard lane-a --part 2/2` passed: 28 classes, 280 s (including the 73 s start). Each part is well under the 480 s limit, so no `--part k/3` run was needed.
+- Teardown: `ci/warm.sh down` (tag e5s3ihw) and `ci/iris.sh teardown` (tag e5s3ih) left nothing behind.
+
+**Mutation results** (each applied, observed red, and reverted byte-identically, checked by `shasum` against the backup; "fresh" is `Test.Watch.Incidents` on a fresh lane-A stack):
+- mutation: AC 1, a new incident for every batch (no lookup) -> red: `TestTrickle`, `TestResent`, `TestPattern`, `TestInstanceShared` (`TestBurstThroughThePoller` stayed green: the burst reached `IncidentManager` as batches that the test did not split; the trickle and the re-sent rows pin the lookup).
+- mutation: AC 1 quiet, the waiter ignores `quiet` -> red: `TestBurstThroughThePoller` (`NoticeCount` not set within the bound), `TestWaitersAfterRestart`.
+- mutation: AC 1 max, the waiter ignores `max` -> red: `TestTrickle` (the rule did not end by the maximum).
+- mutation: AC 1 re-read, the alarm ends the settle without re-reading the rows -> red: `TestTrickle` (`NoticeCount` is the count of the first wake, and the rule had not ended by the maximum); `TestBurstThroughThePoller` stayed green because its 50 failures arrive within the quiet time of one another, so the first wake is already the right end.
+- mutation: AC 1 trace, the `Settle` send keeps `%SessionId` -> red: `TestBurstThroughThePoller` (Trace: the trace session is the batch's, and its first header is not the waiter's).
+- mutation: AC 2, `NoticedAt` set when the incident is made -> red: `TestBurstThroughThePoller` and `TestTwoSessions` (visible before the notice).
+- mutation: AC 3, a scratch class outside `OcuTalon.Test` publishing "incident" -> red: `Test.Bridge.CodeRules` `TestOnlyIncidentManagerWritesIncidents` (warm; green again on the same stack after the scratch class was deleted).
+- mutation: AC 4, `IncidentManager` accepts every request -> red: `Test.Install.Production` `TestStubsAnswer` (fresh stack).
+- mutation: AC 5, the last class of the last part dropped -> red: `test-ci-config.sh` prints `FAIL shard part`.
+- mutation: Re-sent, `Seen` not checked -> red: `TestResent`.
+- mutation: Pattern, the pattern is the unmasked text -> red: `TestPattern` (also `TestResent`, `TestTrickle`, `TestInstanceShared`, `TestTwoSessions` and the group assertion of `TestBurstThroughThePoller`).
+- mutation: Two sessions, `OwnerRef` left out of the lookup -> red: `TestTwoSessions`.
+- mutation: Instance shared, publish to the first recipient only -> red: `TestInstanceShared`.
+- mutation: After the notice, no `incident` event after the notice -> red: `TestInstanceShared`.
+- mutation: After the notice, `NoticeCount` set to `Count` again when the count moves -> red: `TestInstanceShared` (and `TestTrickle`).
+- mutation: Closed, `closed` incidents joined -> red: `TestClosedOpensNew`.
+- mutation: Settings, `Values` always gives the default for `quiet` -> red: `Test.Watch.Settle` `TestValues` (warm; green again on the same stack after the revert).
+
+**Review-pass results (lead, lane-A throwaways, tags e5s3i / e5s3iw, after the review patches):**
+- `bash docker/tests/test-ci-config.sh`: all rules passed, then `PASS shard part`; `bash ci/checks.sh`: all scripts passed.
+- Warm: `Test.Watch.Settle`, `Test.Watch.Mark`, `Test.Bridge.CodeRules`, `Test.Install.Production` passed. Fresh: `Test.Watch.Incidents` passed (60.5 s class time), `Test.Watch.Poller` passed (63 s).
+- `shard lane-a --part 1/2` passed (28 classes, 370 s including the 69 s start); `--part 2/2` passed (28 classes, 281 s). `shard lane-b` passed (42 classes, 115 s). Teardown of both tags left nothing behind.
+- mutation: Before the notice, the `NoticedAt` guard dropped, so a batch that joins an unnoticed incident publishes an `incident` event -> red: `TestResent` (green again after the revert).
+- mutation: Cause scope, Namespace and Production left out of the lookup (the SQL and the exact check) -> red: `TestPattern` (another production and another namespace); green again after the revert.
+- mutation: Restart row, the waiter's wake answers an error status when its incident is gone -> red: `TestWaitersAfterRestart` ("the event log holds no error of the item"; the same mutation was green before the test read the event log); green again after the revert.
+- mutation: AC 5, the `--part=*` branch removed -> `FAIL shard part`; an empty `--part` skipping validation -> `FAIL shard part`; both reverted byte-identically (`shasum`).
 
 **Shared surfaces:**
 - The `Incident` and `FailureGroup` tables: the real IncidentManager now makes rows from every watched failure, `Test.Watch.Poller`'s included, and the `Case` cleanup removes them.
@@ -255,7 +343,23 @@ Spine conventions: "Watch failures" (the dedupe key), "Times", "Identifiers", "L
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage, 2026-10-26: the plan halted `blocked` on R1 (contended `Test/Data/Tables.cls` entry, schema) and R2 (the notice needs 5.4's diagnosis); the epic runner applied the orchestrator's R1 ruling and its own R2 and schema rulings (Design Notes, Spec Change Log) and set the spec `ready-for-dev`.
+**Summary.** `IncidentManager` now groups each `FailureBatch`'s new failures into one open incident per cause (production item and digit-masked error pattern, per namespace, production and scope), gives each new incident its `Ref`, publishes `watch.progress` `noticed` and `settling` to `Session.Recipients`, and runs one persisted waiter per new group that ends the settle rule (10 s quiet or 30 s after the first failure, from settings) by fixing `NoticeCount`. After a notice (fixture-set in 5.3; sent in 5.4) a batch that adds failures publishes one `incident` event. Task 0 (DW-227): `ci/iris.sh shard <name> --part k/n`, with the lane-a shard measured at 370 s and 281 s as two parts.
+
+**Files changed.**
+- `ci/iris.sh`: `--part k/n` (also `--part=k/n`), validation, title `part k/n`, usage header.
+- `docker/tests/test-ci-config.sh`: one appended `shard part` block (and the `PASS shard part` line).
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`: grouping, settle waiter, events.
+- `src/ocutalon/cls/OcuTalon/Watch/Settle.cls`, `Watch/Msg/Settle.cls`: pure rules and the waiter's request (new).
+- `src/ocutalon/cls/OcuTalon/Watch/Mark.cls`: `KeyOf`. `Data/FailureGroup.cls`: `Seen`. `Test/Data/Tables.cls`: the one `FailureGroup` Contracts entry (ruling R1).
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Settle.cls`, `Test/Watch/Incidents.cls` (new); `Test/Watch/Case.cls` (helpers and cleanup); `Test/Bridge/CodeRules.cls` (`TestOnlyIncidentManagerWritesIncidents`).
+
+**Review.** 32 findings (high 0, medium 4, low 26, false 2). Patches applied: 4 medium (empty `--part` skipped validation; three tests that did not pin the pre-notice event, the cause scope, and the started-waiter restart) and 8 low rows over 6 root causes (`Find` SQL narrowing, `TROLLBACK` level, impossible stamp, code-rule coverage, comment, vacuous assertion, `--part` block checks). Deferred: 1 (the untested error branches of `Tell`, frontmatter). Rejected with reasons: see the Review Triage Log (a waiter lost between commit and send, a ghost incident after a close, the summary order of the appended block, short absence waits, a future `FirstAt`, a huge setting, an empty id, a variable event type, a literal `#`, the `Seen` cap (R1), and `MAXLEN` overflow, which cannot happen).
+
+**Follow-up review recommended: true.** Four medium findings were patched in this pass (threshold two). The unverified risk: `Find` now narrows by Namespace, Production and `State` in SQL, which relies on SQL equality under the property collation being a superset of the exact comparison that follows (it holds for the values the product writes; `TestPattern` and the lane-a runs are green).
+
+**Verification.** Every `## Verification` command ran green after the last patch (see "Review-pass results"); the matrix audit holds for each row (`TestBurstThroughThePoller`, `TestTrickle`, `TestResent`, `TestPattern`, `TestTwoSessions`, `TestInstanceShared`, `TestClosedOpensNew`, `TestWaitersAfterRestart`, `TestNobodyToTell`, and `Test.Watch.Settle`).
+
+**Residual risks.** The `Ens.Alarm` wake delay was shown to be inside the test bounds, not measured finely. The `Tell` error branches are untested (deferred). A job death between the commit and the `Settle` send would leave an incident without a waiter (rejected as a rare window; reopen if seen).

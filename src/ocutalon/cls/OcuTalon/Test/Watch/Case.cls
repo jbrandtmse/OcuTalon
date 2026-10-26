@@ -14,6 +14,11 @@
 ///     OrdersRunning, and ClearMark. Every message and row that they make in OCUORDERS (the headers after the first Fail, the fixture headers and log
 ///     rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
 ///     stopped them.
+///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
+///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
+///     sets NoticedAt and NoticeCount as Story 5.4's notice will) and Notifications. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
+///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
+///     untagged failures of the poller tests make are gone too.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -48,6 +53,15 @@ Parameter ORDERDATETEXT = "The order date was not in the expected format. Expect
 Parameter POLLER = "FailurePoller";
 
 Parameter MANAGER = "IncidentManager";
+
+/// The longest a test waits for an incident or its settle to end (a test bound, not NFR-7), in seconds, and the same for a trickle that runs past the
+/// settle maximum.
+Parameter WAITINCIDENT = 20;
+
+Parameter WAITTRICKLE = 45;
+
+/// The first synthetic header id of the failures that SendBatch makes (above any real header id of a throwaway).
+Parameter SYNTHFIRST = 900000000;
 
 /// The longest a test waits for a batch, in seconds (a test bound, not NFR-7), and the pause that proves no further batch comes: two polls.
 Parameter WAITBATCH = 30;
@@ -95,10 +109,22 @@ Property FixtureLogs As %List;
 /// 1 while the test has the FailurePoller item temporarily stopped, and while it has stopped the Orders production.
 Property PollerStopped As %Boolean [ InitialExpression = 0 ];
 
+/// The newest Incident ID before the class began and before the test began: the instance incidents above it are the run's.
+Property ClassFloor As %Integer;
+
+Property IncidentFloor As %Integer;
+
 Property OrdersStopped As %Boolean [ InitialExpression = 0 ];
+
+Method OnBeforeAllTests() As %Status
+{
+	Set ..ClassFloor = ..Top("OcuTalon_Data.Incident", $Namespace)
+	Quit ##super()
+}
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
+	Set ..IncidentFloor = ..Top("OcuTalon_Data.Incident", $Namespace)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
 	Set ..OrdersFloor = ""
@@ -124,6 +150,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..ItemIds = ""
 	If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() && (..SessionMark '= "") Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ..DropRows()
+	Do ..DropIncidents(..IncidentFloor)
 	Do ..DropMessages()
 	Quit sc
 }
@@ -137,6 +164,7 @@ Method OnAfterAllTests() As %Status
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys())
 	}
 	Do ..DropRows()
+	Do ..DropIncidents(..ClassFloor)
 	Do ..DropMessages()
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
@@ -836,6 +864,169 @@ ClassMethod DropBatches(floor As %Integer) [ Private ]
 		Quit:id=""
 		Do ##class(OcuTalon.Watch.Msg.FailureBatch).%DeleteId(body)
 		Do ##class(Ens.MessageHeader).%DeleteId(id)
+	}
+}
+
+/// A failure item name of this run: zzIncidents, the run's number and the suffix, so that a group never matches a real failure of Orders.
+Method Item(suffix As %String) As %String [ Private ]
+{
+	Quit "zzIncidents"_..Number_suffix
+}
+
+/// Sends IncidentManager a FailureBatch of the production in the namespace for the owner (a fixture session's Ref, or instance) from an adapterless host in
+/// the test process, as the poller does: its SuperSession is the owner's TraceRef (none for instance), and PolledAt is now. failures is a dynamic array of
+/// {"item", "text", "at"} and, optionally, "id" (a header id; one of the run's own range is made when it is absent) and "kind" and "logId" (a log row is
+/// then sent with no header id). The ids of the failures are given back, in order, as a dynamic array of keys.
+Method SendBatch(namespace As %String, production As %String, ownerRef As %String, failures As %DynamicArray, Output keys As %DynamicArray) As %Status [ Private ]
+{
+	Set keys = []
+	If ..HomeFloor = "" Do ..Since()
+	Set batch = ##class(OcuTalon.Watch.Msg.FailureBatch).%New()
+	Set batch.Namespace = namespace
+	Set batch.Production = production
+	Set batch.OwnerRef = ownerRef
+	Set batch.PolledAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set iterator = failures.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set failure = ##class(OcuTalon.Watch.Msg.Failure).%New()
+		Set failure.Kind = $Select(entry.kind '= "": entry.kind, 1: "header")
+		If failure.Kind = "header" {
+			Set failure.HeaderId = $Select(entry.id '= "": entry.id, 1: ..#SYNTHFIRST + $Increment(^OcuTalonTest("WatchCase", "synthetic")))
+			Set failure.SessionId = failure.HeaderId
+			Set failure.SourceName = "zzIncidentsSource"
+		} Else {
+			Set failure.LogId = $Select(entry.logId '= "": entry.logId, 1: ..#SYNTHFIRST + $Increment(^OcuTalonTest("WatchCase", "synthetic")))
+		}
+		Set failure.ItemName = entry.item
+		Set failure.ErrorText = entry.text
+		Set failure.FailedAt = entry.at
+		Do batch.Failures.Insert(failure)
+		Do keys.%Push(##class(OcuTalon.Watch.Mark).KeyOf(failure.Kind, failure.HeaderId, failure.LogId))
+	}
+	Set super = $Select(ownerRef = "instance": "", 1: ##class(OcuTalon.Data.Session).RefIndexOpen(ownerRef).TraceRef)
+	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set service.%SuperSession = super
+	Quit service.SendRequestAsync(..#MANAGER, batch)
+}
+
+/// The Incident rows of the owner for the production, by ID, as a dynamic array of {"id", "ref", "ownerRef", "namespace", "production", "state", "openVariant",
+/// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "traceHeaderId"}.
+ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArray
+{
+	Set incidents = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ? AND Production = ? ORDER BY ID", ownerRef, production)
+	While rs.%Next() {
+		Set row = ##class(OcuTalon.Data.Incident).%OpenId(rs.%GetData(1))
+		If '$IsObject(row) Continue
+		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "traceHeaderId": (row.TraceHeaderId)})
+	}
+	Quit incidents
+}
+
+/// The failure groups of the incident as {"count", "itemName", "errorPattern", "seen"}: the number of groups and the first one's fields.
+ClassMethod Group(ref As %String) As %DynamicObject
+{
+	Set group = {"count": 0, "itemName": "", "errorPattern": "", "seen": ""}
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID", ref)
+	While rs.%Next() {
+		Set row = ##class(OcuTalon.Data.FailureGroup).%OpenId(rs.%GetData(1))
+		If '$IsObject(row) || (row.IncidentRef '= ref) Continue
+		Set group.count = group.count + 1
+		If group.count = 1 {
+			Set group.itemName = row.ItemName
+			Set group.errorPattern = row.ErrorPattern
+			Set group.seen = row.Seen
+		}
+	}
+	Quit group
+}
+
+/// Waits up to seconds (WAITINCIDENT by default), polling every half second, for count Incident rows of the owner for the production; the rows as Incidents gives
+/// them. A shortfall is the caller's assertion.
+Method WaitIncident(ownerRef As %String, production As %String, count As %Integer = 1, seconds As %Integer = {..#WAITINCIDENT}) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set incidents = ..Incidents(ownerRef, production)
+		If (incidents.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit incidents
+}
+
+/// Waits up to seconds (WAITINCIDENT by default), polling every half second, until the incident's NoticeCount is set (the row is opened afresh each time, as an
+/// object that is still held would show the values it was opened with); the NoticeCount then. "" when the incident is gone.
+Method WaitNoticeCount(ref As %String, seconds As %Integer = {..#WAITINCIDENT}) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '$IsObject(row) Quit
+		If (row.NoticeCount '= "") || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit $Select($IsObject(row): row.NoticeCount, 1: "")
+}
+
+/// Waits up to seconds (WAITINCIDENT by default), polling every half second, until the incident's Count is at least count; the Count then. "" when the incident
+/// is gone.
+Method WaitCount(ref As %String, count As %Integer, seconds As %Integer = {..#WAITINCIDENT}) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '$IsObject(row) Quit
+		If (row.Count '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit $Select($IsObject(row): row.Count, 1: "")
+}
+
+/// The fixture of a notice: sets NoticedAt (now) and NoticeCount (the Count at that moment) of the incident, as Story 5.4's notice will.
+ClassMethod Notice(ref As %String) As %Status
+{
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If '$IsObject(row) Quit $SYSTEM.Status.Error(5001, "No incident "_ref)
+	Set row.NoticedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	If row.NoticeCount = "" Set row.NoticeCount = row.Count
+	Quit row.%Save()
+}
+
+/// The number of Notification messages that carry the incident's Ref.
+ClassMethod Notifications(ref As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Msg.Notification WHERE IncidentRef = ?", ref)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups.
+Method DropIncidents(floor As %Integer) [ Private ]
+{
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set ref = $Piece(..Sessions, ",", i)
+		If ref '= "" Do ..DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ?", ref)
+	}
+	If floor '= "" Do ..DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = 'instance' AND ID > ?", floor)
+}
+
+ClassMethod DropIncidentRows(select As %String, value As %String) [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, select, value)
+	While rs.%Next() {
+		Set ids(rs.%GetData(1)) = ""
+	}
+	Set id = ""
+	For {
+		Set id = $Order(ids(id))
+		Quit:id=""
+		Set row = ##class(OcuTalon.Data.Incident).%OpenId(id)
+		If '$IsObject(row) Continue
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", row.Ref)
+		Do ##class(OcuTalon.Data.Incident).%DeleteId(id)
 	}
 }
 

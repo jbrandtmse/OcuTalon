@@ -14,6 +14,10 @@ Property ItemName As %String(MAXLEN = 128);
 /// The normalised error text that groups the failures.
 Property ErrorPattern As %String(MAXLEN = 1000);
 
+/// The keys (h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the group's newest failures, comma-separated, newest last, at
+/// most OcuTalon.Watch.Settle SEENMAX of them. IncidentManager holds a failure once by this set.
+Property Seen As %String(MAXLEN = "");
+
 Index IncidentRefIndex On IncidentRef;
 
 Storage Default
@@ -30,6 +34,9 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>ErrorPattern</Value>
+</Value>
+<Value name="5">
+<Value>Seen</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FailGroupD</DataLocation>

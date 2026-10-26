@@ -524,7 +524,8 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "IncidentRef": "%String(MAXLEN=22)",
    "ItemName": "%String(MAXLEN=128)",
-   "ErrorPattern": "%String(MAXLEN=1000)"
+   "ErrorPattern": "%String(MAXLEN=1000)",
+   "Seen": "%String(MAXLEN=)"
   },
   "indexes": {
    "IncidentRefIndex": "IncidentRef"

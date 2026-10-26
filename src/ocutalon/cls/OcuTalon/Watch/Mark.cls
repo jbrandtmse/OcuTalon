@@ -6,7 +6,7 @@
 ///     or the poll time when neither is known. The overlap re-reads the failures whose time IRIS assigned just before its write committed.
 ///   - Fresh drops the failures of the Seen set and caps what is left at MAXFAILURES, in the order read.
 ///   - Next gives the mark after a poll that took failures: MarkAt is the newest time taken, and Seen holds the failures read whose time is still
-///     inside the overlap before it and that were already batched (earlier or now). A failure is h<header id> or l<log id> (Key).
+///     inside the overlap before it and that were already batched (earlier or now). A failure is h<header id> or l<log id> (Key, KeyOf).
 ///   - FailedAt is a stamp as the batch carries it: YYYY-MM-DDTHH:MM:SSZ.
 /// A failure of the reader is a dynamic object with at least kind, headerId, logId and at (see OcuTalon.Watch.Reader.Failures).
 Class OcuTalon.Watch.Mark
@@ -60,7 +60,13 @@ ClassMethod Start(markAt As %String, created As %String, polledAt As %String) As
 /// The key of a failure of the reader: h<header id> for a message header, l<log id> for a log row.
 ClassMethod Key(failure As %DynamicObject) As %String
 {
-	Quit $Select(failure.kind = "header": "h"_failure.headerId, 1: "l"_failure.logId)
+	Quit ..KeyOf(failure.kind, failure.headerId, failure.logId)
+}
+
+/// The key of a failure by its parts (a FailureBatch item has them as Kind, HeaderId and LogId): h<header id> for kind header, otherwise l<log id>.
+ClassMethod KeyOf(kind As %String, headerId As %Integer, logId As %Integer) As %String
+{
+	Quit $Select(kind = "header": "h"_headerId, 1: "l"_logId)
 }
 
 /// The new failures among rows (a dynamic array in the reader's order): those whose key is not in seen (comma-separated), at most limit
