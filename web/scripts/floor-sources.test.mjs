@@ -217,7 +217,7 @@ describe('heights are minimums', () => {
     'app/app.ts': { values: ['100dvh', '100vh'], why: 'the app root is the height of the viewport, so that the routed page\'s regions scroll on their own' },
     'app/chat/ocutalon-reply.ts': { values: ['var(--chat-message-ocutalon-avatar-size)'], why: 'the reply avatar is an image whose size is a token, and it holds no text' },
     'app/main-page/main-page.ts': { values: ['10px', '12px', '14px', '16px', '40px'], why: 'the static skeleton blocks: aria-hidden stand-ins for content on its way, with no text in them' },
-    'styles/base.css': { values: ['1px'], why: '.visually-hidden clips its box to a pixel' },
+    'styles/base.css': { values: ['1px'], why: '.visually-hidden and the CDK live announcer\'s .cdk-visually-hidden clip their box to a pixel' },
   };
   const HEIGHT = /(?:^|[^-\w$.])(?:height|block-size)\s*:\s*([^;}\n`]+)/g;
 

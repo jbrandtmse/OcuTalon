@@ -29,10 +29,11 @@ import { fromBottom, scrollListTo } from '../support/page';
  * messages focuses the first new message, and an unselected tab shows a badge with its count and is never switched by content. D4
  * holds the feed for a pending approval request that a message names. D5 and D5b hold an arrival in the 1280x600 window: New messages
  * is the tab stop after the feed and Enter on it focuses the first new message (D5), and the button is in view of the panel body and
- * the window (D5b). D6 lands an announcement and holds that the live region adds no height: the document does not scroll at 1280x600
- * and 1280x480, and the announcer's element is a clipped pixel out of the flow. A case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR
- * session is no fixture session, so Fixture.Clean keeps them. The fixture messages of D2, D4 and D5 are named by their text and live
- * only in the snapshot that the page receives.
+ * the window (D5b). D6 runs in all three engines too (tag @browsers): it lands an announcement and holds that the live region adds no
+ * height, so the document does not scroll at 1280x600 and 1280x480 and the announcer's element is a clipped pixel out of the flow. A
+ * case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR session is no fixture
+ * session, so Fixture.Clean keeps them. The fixture messages of D2, D4 and D5 are named by their text and live only in the snapshot
+ * that the page receives.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -406,7 +407,7 @@ test('D5b: in a short window the New messages button is in view without scrollin
  * D6: once an announcement has landed, the live region adds no height to the page: at 1280x600 and 1280x480 the document does not
  * scroll, and the announcer's element is visually hidden (a pixel, clipped).
  */
-test('D6: after an announcement the page does not scroll in a short window, and the live region is visually hidden', async ({ page }) => {
+test('D6: after an announcement the page does not scroll in a short window, and the live region is visually hidden', { tag: '@browsers' }, async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const start = startTime();

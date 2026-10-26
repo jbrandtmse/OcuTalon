@@ -1188,6 +1188,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T16:49:28Z status=routed owner=burndown by=cr note=pre-existing (Story 2.12 announcer); D2 now checks app-root overflow; fix: style .cdk-visually-hidden
 - 2026-10-26T16:52:48Z status=routed owner=4-7-finish-the-demo-guide by=adjudication note=in-epic MED routed to the story that adds the finish-state and step announcements on the framed page: style .cdk-visually-hidden so the live announcer never lies below the page (D2 at 1280x480)
 - 2026-10-26T18:04:55Z status=open owner=4-5-get-notifications-on-the-simulated-phone by=rework note=pulled into Story 4.5's CI rework 1: the root cause of D2's red on d341d29 (run 40367647349); the 4.7 bullet is removed
+- 2026-10-26T19:08:37Z status=resolved-by:4-5-get-notifications-on-the-simulated-phone by=adjudication note=5955043 base.css .cdk-visually-hidden rule from page load; D6 (@browsers) pins it after an announcement lands; mutation red in all three engines
 
 ### DW-275: U-72 (owner decision): the terminal command SetDemoMode accepts a caller holding OcuTalonAdmin OR %All; every other caller is refused as now; the web endpoints stay OcuTalonAdmin only; the audit entry still names the person (U-74's ActingUser) and T5 still refuses when the audit entry cannot be written; tests: %All accepted, OcuTalonAdmin accepted, neither refused (AD-19 terminal entry amended)
 - source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
