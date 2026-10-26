@@ -100,7 +100,7 @@ development_status:
   4-1-switch-demo-mode-from-the-terminal: done
   4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: done
   4-3-break-the-feed-with-a-real-batch-of-50-orders: done
-  4-4-show-the-demo-guide-and-the-break-the-feed-box: ready-for-dev
+  4-4-show-the-demo-guide-and-the-break-the-feed-box: in-progress
   4-5-get-notifications-on-the-simulated-phone: backlog
   4-6-simulate-incoming-email-in-the-simulated-mailbox: backlog
   4-7-finish-the-demo-guide: backlog
