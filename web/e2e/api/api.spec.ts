@@ -58,13 +58,13 @@ const ENVELOPE_TEXT = {
   wrong_origin: 'OcuTalon refused this request because it came from another site.',
 } as const;
 
+const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
 const NOT_BUILT = "This part of OcuTalon isn't built yet.";
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 
-/** The routes that answer 501 not_built, with the method that each takes. Session/end (Story 2.2) and messages (Story 2.4) are built, and the two routes that name a record answer 404 first. */
+/** The routes that answer 501 not_built, with the method that each takes. Session/end (Story 2.2), messages (Story 2.4) and break-feed (Story 4.3) are built, and the two routes that name a record answer 404 first. */
 const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
-  ['POST', '/ocutalon/api/v1/demo/break-feed'],
   ['POST', '/ocutalon/api/v1/mailbox/incoming'],
   ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
 ];
@@ -242,8 +242,9 @@ test.describe('row 15: the browser envelope', () => {
   });
 
   test('the whole envelope is let through, with or without a charset', async () => {
-    await expectError(await call(signedIn, 'POST', BREAK_FEED), 501, 'not_built', NOT_BUILT);
-    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
+    // README watches nothing on this stack, so a press that gets through the envelope is refused with no side effect (Story 4.3).
+    await expectError(await call(signedIn, 'POST', BREAK_FEED), 409, 'not_watching', NOT_WATCHING);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 409, 'not_watching', NOT_WATCHING);
   });
 
   test('only the Content-Type is wrong: not_json', async () => {

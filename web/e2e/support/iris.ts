@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 /**
  * What the specs of Story 2.2 need from the throwaway stack that docker/tests/test-sign-in.sh starts (or, for the floor specs of
@@ -9,6 +9,33 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user)`);
   return value;
+}
+
+/** The container found by the web port, kept for the run. */
+let foundContainer: string | undefined;
+
+/**
+ * The IRIS container of the stack under test. Two ways name it, in this order:
+ *   - OCUTALON_E2E_IRIS_CONTAINER, which the sign-in and floor scripts set;
+ *   - the web port of OCUTALON_URL, which the demo-path script sets: the one container that publishes that port (only the iris service of
+ *     ci/compose.ci.yml publishes it, and each runner and lane uses its own port). Exactly one container must publish it, else this fails
+ *     naming the variable and the port.
+ */
+function irisContainer(): string {
+  const named = process.env['OCUTALON_E2E_IRIS_CONTAINER'];
+  if (named) return named;
+  if (foundContainer) return foundContainer;
+  const port = new URL(required('OCUTALON_URL')).port;
+  if (!port) throw new Error('OCUTALON_E2E_IRIS_CONTAINER is not set and OCUTALON_URL names no port to find the IRIS container by');
+  const ids = execFileSync('docker', ['ps', '--filter', `publish=${port}`, '--format', '{{.ID}}'], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  if (ids.length !== 1) {
+    throw new Error(`OCUTALON_E2E_IRIS_CONTAINER is not set, and ${ids.length} containers publish port ${port} (OCUTALON_URL): exactly one is needed`);
+  }
+  foundContainer = ids[0];
+  return foundContainer;
 }
 
 /** The kinds of fixture user of the sign-in unit, and FLOOR, the floor unit's. */
@@ -22,7 +49,7 @@ export function fixtureUser(kind: FixtureKind): { user: string; password: string
 /** Runs one script in a session of the container and returns whatever it printed. */
 function runOnce(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['exec', '-i', required('OCUTALON_E2E_IRIS_CONTAINER'), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
+    const child = spawn('docker', ['exec', '-i', irisContainer(), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
       stdio: ['pipe', 'pipe', 'ignore'],
     });
     let out = '';

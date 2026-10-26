@@ -2,7 +2,8 @@
 title: 'Story 4.3: Break the feed with a real batch of 50 orders'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '84b49dda308b8f63420765723aff38479f8efe2c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -250,6 +251,39 @@ Conventions for the rows:
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 29 findings -- high 0, medium 1, low 17, false 11, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind: a refused or failed second close leaves the first incident closed -- closing a noticed resolved incident is the replay's own preparation and harmless to keep; a pre-check of all closes adds a branch for a case that needs two resolved incidents and a refusing IncidentManager
+  - `[false]` `[reject]` blind: a failed send leaves no terminal event -- the specified behaviour (Decided in-stage 6: no `failed` state; the guide's 180 s rule frees the control), pinned by TestTriggerFails
+  - `[false]` `[reject]` blind: the audit entry is written before the send -- the specified order (AD-17, L3), so that a failed audit sends nothing
+  - `[low]` `[reject]` blind: `WriteAudit`'s `description` argument is unused in the product -- the signature is the spec's seam; the production test checks the real description
+  - `[false]` `[reject]` blind: `TestAuditBeforeSend`'s weak `||` assertion -- `Record`'s only refusal text contains "refuses", so the assertion fails on exactly a shape refusal, and the control line next to it shows the refusal is real
+  - `[low]` `[reject]` blind: no overall deadline across lock, closes and send -- worst case 50 s for one resolved incident (Decided in-stage 2), more than one is not reachable in a normal run; NFR-7 is measured in the rehearsal
+  - `[false]` `[reject]` blind: exact four-event order in `TestPressSendsFiftyRealFailures` -- the hook publishes `guide.state` in the press's own process after each progress event, so the order is deterministic (passed on every run)
+  - `[low]` `[reject]` blind: fixed sleeps and the 1 s double delay in the production tests -- they can only make a negative assertion pass early, never fail it; the lock mutation was demonstrated red
+  - `[low]` `[reject]` blind: the 04 test leaves state and assumes a fresh README session -- the demo-path stack is a throwaway, retries are 0 and the leftovers are listed under Shared surfaces; `api.spec.ts` runs on the sign-in stack
+  - `[false]` `[reject]` blind: the `incident_in_progress` hint for a concurrent press -- the specified code and text (Decided in-stage 2)
+  - `[low]` `[reject]` edge: partial close on a refusal -- same as the first blind finding
+  - `[low]` `[reject]` edge: `MarkSent` fails after a successful send, the answer is an error -- needs a failing save of a row just saved; the run stays `sending` as in the specified failed-partner case
+  - `[false]` `[reject]` edge: a send timeout looks like a failure -- the timeout is the specified 500 with the run left `sending` (row 9)
+  - `[false]` `[reject]` edge: `Start` failure not logged -- `Web.Api.ServerError` writes the status text to the console log for every error status
+  - `[false]` `[reject]` edge: the audit claims 50 orders before a failed send -- same as the audit-order finding
+  - `[low]` `[reject]` edge: an empty `TraceRef` on the session row -- every session row is created with a TraceRef; theoretical
+  - `[low]` `[patch]` edge: `result` is not cleared between closes, so an unanswered close reads as the previous incident's Ok -- `Kill result` before each `Close`; `SendRequestSync` leaves a by-reference response as it was
+  - `[low]` `[reject]` edge: the route answers 200 with an empty state if `BreakFeedIn` omits it -- theoretical; `BreakFeedIn` always sets both
+  - `[false]` `[reject]` edge: `IncidentManager` is a stub, so a resolved incident makes the press a 500 -- named in the spec (Code Map, Design Notes 8): Epic 5's Story 5.5 builds `closeForReplay`
+  - `[medium]` `[patch]` verification-gap: nothing checks that the session's lock is released after a press -- `TestSent`, `TestNotWatching`, `TestCloseFails` and `TestTriggerFails` now end with `AssertUnlocked` (a JOBbed `TryLock` takes the lock without waiting); mutation recorded
+  - `[low]` `[patch]` verification-gap: the close commands' `SuperSession` is recorded but not asserted -- `TestReplayClosesFirst` asserts each close's `superSession` equals the session's `TraceRef`; mutation recorded
+  - `[low]` `[reject]` verification-gap: a failed `breakfeed.progress` publish is unpinned -- a test needs a product seam on `Publish`; the log-and-go-on branch is one line
+  - `[false]` `[reject]` verification-gap: "not a turn" is pinned structurally -- spec-bound: Decided in-stage 9 labels it (the allowance keeps no count until Story 16.9)
+  - `[low]` `[reject]` verification-gap (other): the 04 test is not self-contained -- see the blind finding on state; the stack is a throwaway and retries are 0
+  - `[false]` `[reject]` verification-gap (other): `TestAuditBeforeSend` false-pass risk -- see the weak-assertion finding
+  - `[low]` `[reject]` verification-gap (other): timed 3 s waits for the refused press's audit -- the deterministic cover is `Test.Demo.BreakFeedIn`, which asserts `Trigger` is never called for an inactive press
+  - `[low]` `[reject]` verification-gap (other): the AC 2 and `DATEFORMAT` mutation lines do not cover every named test -- `live:demo-switch` step 5 ran green on the final tree, and the `DATEFORMAT` mutation is demonstrated on `Test.Demo.PartnerTrigger`; the production class would pass the 10-minute cap
+  - `[low]` `[reject]` verification-gap (other): `irisContainer()`'s error branches are untested -- a one-function support helper whose success path demo-path exercises
+  - `[low]` `[reject]` verification-gap (other): `Set ..%SessionId = ""` is a dead line -- harmless; it states AD-26's own trace session
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`):
@@ -298,6 +332,13 @@ Conventions for the rows:
 9. **"Never counts toward the allowance."** The allowance keeps no count until Story 16.9. So it is pinned structurally: the press's classes name no `Core.Allowance`, and no `Turn` row is made (labelled).
 10. **`api.spec.ts` "let through".** It now expects 409 `not_watching`, which has no side effect. The README session watches nothing on the sign-in stack: no spec seeds an Orders check there.
 11. **Demo-path fixture.** A fixture Orders check for README stands in for Lane A's watch (Epic 5's `WatchOps`), as the AC's "fixtures for Lane A's incident path" asks. Epic 11 replaces it with the real chat watch.
+
+12. **The audit's shape (lead ruling L3).** `Bridge.Audit.Record("Action", data)` takes exactly `action, target, result, counts, approvalRef, irisUser, sessionRef, channel`, so the entry is: action "Break the feed", result "50 orders" (Record's own description, "Break the feed: 50 orders"), target "OcuTalon.Demo.Orders.Production (MM/DD/YYYY)", counts `{"orders": 50}`, approvalRef "", the session row's `IrisUser` as `irisUser`, `sessionRef` and channel "web". The matrix's `user`, `orders` and `dateFormat` are these members (the key is `irisUser`, not `user`). `Record` itself redacts the data (`Bridge.Redact.Text`) before it writes, so `PartnerTrigger` does not redact twice; its test pins that the redaction leaves the data unchanged. `WriteAudit(data, description)` keeps the description for the seam's tests.
+13. **Test helpers made public.** `Test.Demo.Production` also makes `Running` and `Headers` public (the spec lists five): the production test reuses them instead of copying them (Rule 2). The audit reads use `Test.Bridge.AuditLog` (Lane A, call only), which already holds `Now`, `Entries`, `Wait`, `EventState` and `SetEvent`, so nothing is copied from `WebStatus`.
+14. **Session resolution in the REST test.** `Ownership.SessionRef` attaches the signed-in user's own session when the CSP session's Ref is not that user's, so `Test.Web.BreakFeedApi` uses the running user's fixture session. The "session can't be read" case is a request with no CSP session at all.
+15. **Row 6's strength.** The double holds a command for `^OcuTalonTest("IncidentManagerDouble","delay")` seconds; the two-presses test gives the session a resolved incident and a 1 s delay, because without a slow step a press that let go of the lock early still won the race.
+16. **Parameters of `BreakFeedIn`.** Besides the five of the task list it has `INCIDENTTARGET` ("IncidentManager") and `TARGET` ("PartnerTrigger"), the item names of the two sends, as `WebChatIn` has its `TARGET`. The probe's `LOCKWAIT` 1 is read by the inherited method (the held-lock test asserts the press ends in under 8 s, and passes).
+17. **Task 0.** The first press over real HTTP (04's new test, `live demo-path`) was sent in 0.6 s: `SendRequestSync` is allowed in the REST process, and no grant was needed.
 
 **Veto-window item (written with the recommendation):**
 - **V1 (stored data: a new message class).**
@@ -404,6 +445,25 @@ Conventions for the rows:
 | 7 | `COUNT` 49 | `live:demo-path` 04 |
 | — | `resolvedIncidents` without the owner check | `OwnershipGuide` |
 
+**Mutation results (Rule 19; each applied, observed red, reverted byte-identical; product files matched the pre-mutation checksums):**
+- mutation: the availability check skipped (`If 0` for `If 'guide.BreakFeed.Active`) -> `Test.Demo.BreakFeedIn` red (TestNotWatching, TestBusy)
+- mutation: the lock released before the run is written -> `Test.Demo.BreakFeedProduction` TestTwoQuickPressesSendOneBatch red (sent,sent; two runs; 100 headers). It first survived: the window was too small, so the test now gives the session a resolved incident and the double holds its close for 1 s
+- mutation: `Web.Api.BreakFeed` without its demo-off check -> `Test.Web.BreakFeedApi` TestDemoOff red (`live:demo-switch` step 5 not run here: it is in the `(once)` list)
+- mutation: the run written before `Close` -> `Test.Demo.BreakFeedIn` red (TestReplayClosesFirst "comes before any run", TestCloseRefused, TestCloseFails)
+- mutation: a refusal ignored (`If 0` for the `Ok` check) -> `Test.Demo.BreakFeedIn` TestCloseRefused red
+- mutation: `MarkSent` dropped -> `Test.Demo.BreakFeedIn` red (TestSent, TestReplayClosesFirst)
+- mutation: `PartnerTrigger` sends `traceRef` "" -> `Test.Demo.BreakFeedProduction` red (TestPressSendsFiftyRealFailures, TestOtherMeansFailTheSame, TestReplayClosesTheResolvedIncident, TestTwoQuickPressesSendOneBatch, TestTwoSessionsGetTheirOwnBatch: no 50 headers by the TraceRef)
+- mutation: `DATEFORMAT` "YYYY-MM-DD" -> `Test.Demo.PartnerTrigger` red (TestBatch, TestAuditBeforeSend). The production class was not run for this one: its seven 60 s waits would pass the 10-minute cap
+- mutation: the first session's `TraceRef` used for both (within 3 s) -> `Test.Demo.BreakFeedProduction` TestTwoSessionsGetTheirOwnBatch red (and TestReplayClosesTheResolvedIncident, which ran inside the 3 s window)
+- mutation: `WriteAudit` skipped -> `Test.Demo.PartnerTrigger` red (TestAuditBeforeSend, TestFailedAuditSendsNothing, TestFailedSendIsAnError) and `Test.Demo.BreakFeedProduction` TestPressIsAudited red ("exactly one Action entry names the session")
+- mutation: `BreakFeedIn` also calls `Allowance.TryConsume` -> `Test.Demo.BreakFeedIn` TestNotATurn red ("does not name Allowance"; structural, as Design Notes 9 says)
+- mutation: `COUNT` 49 -> `live:demo-path` red (04's new test: the 60 s poll for 50 failed orders ran out)
+- mutation: `resolvedIncidents` without the owner check -> `Test.Data.OwnershipGuide` TestResolvedIncidents red
+- mutation: `Lock -` dropped from `BreakFeedIn.OnProcessInput` -> `Test.Demo.BreakFeedIn` red (TestSent, TestNotWatching, TestCloseFails, TestTriggerFails: "the press has released the session's lock"); reverted by checksum, green again
+- mutation: `Set ..%SuperSession` moved to after the close loop -> `Test.Demo.BreakFeedIn` TestReplayClosesFirst red ("close 1 and 2 carry the session's TraceRef as their SuperSession"); reverted by checksum, green again
+- mutation (DW-98 evidence): `BridgeSink.Recorded` made to publish nothing (a `Quit` at its top) -> `Test.Core.RoutingProduction` red (TestUntrustedItemReachesTheWebChat: "one decision event is published") and `Test.Core.ConversationProduction` red (TestTurnThroughProduction: "the stream holds two decision events"); reverted byte-identical (checksum), `RoutingProduction` green again on the same warm stack
+- (once) lines, run by the implement stage after the last patch, all green: `shard lane-b`, `shard lane-a` (both fresh), `live demo-switch` (step 5 now 404), `live sign-in`, `live production`, `live demo-path`, `class OcuTalon.Test.Bridge.CodeRules` (warm), `npm --prefix web test` (567 passed), `npm --prefix web run lint`, `bash ci/checks.sh`
+
 **Shared surfaces:**
 - the route table (`TestRoutes`, `api.spec.ts` `UNBUILT`) and the envelope rows of `api.spec.ts`;
 - `live:demo-switch` step 5;
@@ -418,7 +478,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the plan's footprint question was answered at the spec gate: rulings L1 and L2 under Design Notes)
+Status: done
+Blocking condition: none
 
-**For the spec gate.** Veto V1 is the new message class `OcuTalon.Demo.Msg.SendOrders`. DW-98 is declined, with a re-own to `3-2-one-gate-decides-every-tool-call` recommended (Design Notes, Ledger). The spine needs one edge relabel, `Guide --> DemoKey` to `Demo --> DemoKey` (Rule 20, an edge only). Task 0 was measured in this plan on the throwaway `e4s3pw`, now torn down.
+**Summary.** Break the feed works end to end. `POST /api/v1/demo/break-feed` hands the press to `BreakFeedIn`, which, under the session's lock, checks `Guide.Compute`, closes the session's own noticed resolved Orders incidents (`closeForReplay`, oldest first), writes the run (`sending`), publishes `breakfeed.progress`, asks `PartnerTrigger` synchronously, marks the run `sent` and publishes again. `PartnerTrigger` writes the `Action` audit entry through `Bridge.Audit.Record`, then its one `New $NAMESPACE` method has the Orders partner send the session's 50 `MM/DD/YYYY` orders tagged with the `TraceRef`, which fail for real in OCUORDERS. Task 0: `SendRequestSync` works from the REST process (the first press over real HTTP was sent in about 0.6 s), so no grant was needed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Demo/BreakFeedIn.cls`, `PartnerTrigger.cls`: the two stubs, built; new `Demo/Press.cls` and `Demo/Msg/SendOrders.cls` (V1).
+- `src/ocutalon/cls/OcuTalon/Data/{BreakFeedRun,Ownership}.cls`, `Live/Payload/BreakFeedProgress.cls`: `Start` and `MarkSent`, the `resolvedIncidents` kind with `ResolvedIncidents`, `FromRow`.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: the route's `BreakFeed`, a private `Press`, the two hints, a 409 branch in `Fail`.
+- `src/ocutalon/cls/OcuTalon/Test/Demo/{BreakFeedIn,BreakFeedInProbe,PartnerTrigger,PartnerTriggerProbe,IncidentManagerDouble,BreakFeedProduction}.cls`, `Test/Web/BreakFeedApi.cls`: new tests and doubles; `Test/Demo/Production.cls` (helpers public), `Test/Web/{Api,ApiProbe}.cls`, `Test/Data/OwnershipGuide.cls`, `Test/Core/ProductionItems.cls` (`"stub": 0`): shared surfaces.
+- `web/e2e/demo-path/04-incident.spec.ts` (the row 15 `@floor` test), `web/e2e/api/api.spec.ts` (409 `not_watching`), `web/e2e/support/iris.ts` (container by `OCUTALON_URL`'s port, L2).
+- `docker/tests/test-demo-switch.sh`: step 5 expects 404 (L1). `docker/tests/test-demo-path.sh` is not edited (L2).
+- No contended path was edited. Outside the listed footprint, none that is contended: see Design Notes "For the lead".
+
+**Review.** 29 findings (high 0, medium 1, low 17, false 11). Patches applied: 3 (the lock-release check in `Test.Demo.BreakFeedIn` with its mutation; the close commands' `SuperSession` assertion with its mutation; `Kill result` before each `Close` in `BreakFeedIn`). Deferred: none. Every rejected finding and its reason is in the Review Triage Log.
+
+**Follow-up review recommended:** false (one medium patched, no high; patched counts: medium 1, low 2).
+
+**Verification.** On the final tree: `class Test.Demo.BreakFeedIn` (warm) passed after the patches and after both mutations were reverted; `class Test.Demo.BreakFeedProduction` (fresh) passed; `class Test.Bridge.CodeRules` (warm) passed. Before the patches, on the same code otherwise: `shard lane-b` and `shard lane-a` (fresh) every class passed; `live demo-path` (04's new test passed), `live demo-switch` (step 5 now 404), `live sign-in` (192 passed), `live production` all passed; `npm --prefix web test` 567 passed; `npm --prefix web run lint` and `bash ci/checks.sh` exit 0. The DW-98 mutation was demonstrated red on `RoutingProduction` and `ConversationProduction` and reverted byte-identical. All stacks with the tags `e4s3i` and `e4s3iw` are torn down.
+
+**Residual risks.** `IncidentManager` is a stub until Epic 5's Story 5.5, so a session with a resolved Orders incident gets a 500 on a real stack until then (the double stands in, only in tests). "Not a turn" is pinned structurally for the allowance (Decided in-stage 9). A failed `breakfeed.progress` publish (log and go on) has no test. The first press over real HTTP was measured once on the throwaway; NFR-7's 60 s is measured in the rehearsal.

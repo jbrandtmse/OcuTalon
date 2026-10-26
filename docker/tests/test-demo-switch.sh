@@ -13,7 +13,7 @@
 #   4. an OcuTalonAdmin holder (no %All) runs SetDemoMode(0): the off line is printed, the row is "0", the surfaces equal F0 less
 #      OCUORDERS, and the off checks of the Demo step pass. The Demo step ran in the SettingsOps job (Story 4.1, Task 0);
 #   5. from 61 s after step 4 returned, every /state answer reports demoMode false (polled every 2 s), the chat and rail equal S0,
-#      POST /v1/demo/break-feed still answers 501 not_built, a new tell-now Notification leaves no header to SimPhoneOut, and the
+#      POST /v1/demo/break-feed answers 404 not_found (Story 4.3), a new tell-now Notification leaves no header to SimPhoneOut, and the
 #      page shows no demo badge (web/e2e/demo-switch/badge.spec.ts with OCUTALON_E2E_DEMO_MODE=0);
 #   6. the admin runs SetDemoMode(1): the on line is printed, the row is "1", the on checks pass, the Orders production runs with its
 #      two jobs, and the surfaces equal F0;
@@ -312,8 +312,8 @@ check_demo_off "step 4"
 
 poll_state "step 5" "$t_off" false
 code=$(api_post demo/break-feed '{}')
-if [ "$code" = 501 ] && grep -q '"not_built"' "$tmp/post.body"; then
-  pass "step 5: POST /v1/demo/break-feed still answers 501 not_built"
+if [ "$code" = 404 ] && grep -q '"not_found"' "$tmp/post.body"; then
+  pass "step 5: POST /v1/demo/break-feed answers 404 not_found"
 else
   fail "step 5: POST /v1/demo/break-feed answered '$code'"
 fi

@@ -1,4 +1,4 @@
-/// A Break the feed run, owned by Lane B (AD-33).
+/// A Break the feed run, owned by Lane B (AD-33). Demo.BreakFeedIn is the only caller of its writers, Start and MarkSent.
 Class OcuTalon.Data.BreakFeedRun Extends %Persistent
 {
 
@@ -15,6 +15,25 @@ Property State As %String(MAXLEN = 32);
 Property StartedAt As %String(MAXLEN = 20);
 
 Index SessionRefIndex On SessionRef;
+
+/// A new run of the session, saved: state sending, started now (UTC, to the second). sc is the save's status, and the result
+/// is "" when it failed.
+ClassMethod Start(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.BreakFeedRun
+{
+	Set run = ..%New()
+	Set run.SessionRef = sessionRef
+	Set run.State = "sending"
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = run.%Save()
+	Quit $Select($SYSTEM.Status.IsOK(sc): run, 1: "")
+}
+
+/// Marks the run sent and saves it.
+Method MarkSent() As %Status
+{
+	Set ..State = "sent"
+	Quit ..%Save()
+}
 
 /// Whole seconds from StartedAt to now (UTC times); a large value when either time is unreadable.
 Method Age(now As %String) As %Integer

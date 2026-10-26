@@ -6,7 +6,11 @@
 ///     route of the release answers 501 not_built until its story ships, and the pairing routes answer 404 while
 ///     Telegram is not included. POST /v1/guide/markers takes {marker: trace_opened | run_again}, writes that UI-only marker of the
 ///     session's GuideState, refreshes the guide and answers 200 with the guide view (404 not_found with demo mode off, 400
-///     bad_marker for any other body). The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
+///     bad_marker for any other body). POST /v1/demo/break-feed presses Break the feed: with demo mode off the answer is 404 not_found
+///     before anything else, the body is not read, and the session is the CSP session's; BreakFeedIn (Demo.BreakFeedIn, through the
+///     production) answers 200 {"state":"sent","startedAt"}, or 409 {"error":{"code","message"}} with the code not_watching or
+///     incident_in_progress and its plain-English hint when the press is not available (nothing is sent then); a session that
+///     can't be read and any other failure are 500 server_error. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, and, last and only while demo mode is on, the guide that Demo.Guide.Compute derives.
@@ -45,6 +49,10 @@ Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
 
 Parameter MESSAGEBADMARKER = "A guide marker must be trace_opened or run_again.";
 
+Parameter MESSAGENOTWATCHING = "Ask OcuTalon to watch the Orders production first (step 1).";
+
+Parameter MESSAGEINCIDENTINPROGRESS = "Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.";
+
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
 Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.";
@@ -61,7 +69,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/messages" Method="POST" Call="Messages"/>
 <Route Url="/v1/approvals/:ref/answer" Method="POST" Call="AnswerApproval"/>
 <Route Url="/v1/incidents/:ref/dismiss" Method="POST" Call="DismissIncident"/>
-<Route Url="/v1/demo/break-feed" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/demo/break-feed" Method="POST" Call="BreakFeed"/>
 <Route Url="/v1/mailbox/incoming" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/mailbox/samples/:name" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/guide/markers" Method="POST" Call="GuideMarkers"/>
@@ -212,6 +220,46 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 	Set sc = ##class(Ens.Director).CreateBusinessService("WebChatIn", .service)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Quit service.ProcessInput(input, .output)
+}
+
+/// Hands the input (a Demo.Press) to BreakFeedIn: the service is created in this process and takes the input with ProcessInput, so
+/// that the press enters the production through its business service (AD-1). output is the service's JSON answer. An error status
+/// means the press failed.
+ClassMethod Press(input As %RegisteredObject, Output output As %String) As %Status [ Private ]
+{
+	Set output = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService("BreakFeedIn", .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit service.ProcessInput(input, .output)
+}
+
+/// POST /v1/demo/break-feed: see the class comment. The order is demo mode off (404), a session that can't be read (500), the press
+/// (BreakFeedIn), an inactive or refused press (409, code = the reason), a sent one (200) and any other failure (500).
+ClassMethod BreakFeed() As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set input = ##class(OcuTalon.Demo.Press).%New()
+	Set input.SessionRef = session.Ref
+	Set sc = ..Press(input, .output)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
+		Set outcome = answer.outcome
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If outcome = "inactive" {
+		If answer.reason = "not_watching" Quit ..Fail(409, "not_watching", ..#MESSAGENOTWATCHING)
+		If answer.reason = "incident_in_progress" Quit ..Fail(409, "incident_in_progress", ..#MESSAGEINCIDENTINPROGRESS)
+	}
+	If outcome '= "sent" Quit ..ServerError($SYSTEM.Status.Error(5001, "BreakFeedIn answered an outcome that the route doesn't know"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"state": (answer.state), "startedAt": (answer.startedAt)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
 }
 
 /// POST /v1/approvals/:ref/answer: 404 not_found for a request the session can't see (Ownership.Approval), and 501
@@ -521,6 +569,7 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String) As %St
 		403: ..#HTTP403FORBIDDEN,
 		404: ..#HTTP404NOTFOUND,
 		405: ..#HTTP405METHODNOTALLOWED,
+		409: ..#HTTP409CONFLICT,
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)

@@ -1,5 +1,6 @@
 /// Tests of the six reads that Story 4.2 adds to Data.Ownership for the demo guide: ReminderSetOrFired, NewestIncident,
-/// IncidentInProgress, IncidentApprovals, LatestBreakFeedRun and LastEvent. For each: its content and order, the isolation between two
+/// IncidentInProgress, IncidentApprovals, LatestBreakFeedRun and LastEvent, and of the one that Story 4.3 adds for the press,
+/// ResolvedIncidents. For each: its content and order, the isolation between two
 /// sessions A and B (a row of the other session, instance or eval never shows, and an instance incident shows only on a local install
 /// to the session that watches its production), and the refusal of an empty, instance or eval owner through Test.Data.OwnershipProbe,
 /// which calls Rows. Every row comes from Test.Data.Fixture; the users are zzownguide<n>. onlineDemo is saved and put back.
@@ -120,6 +121,41 @@ Method TestIncidentInProgress()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).IncidentInProgress(watcher, "ZZNS", "Zz.Production", .sc), "", "and not with onlineDemo 1")
 }
 
+/// Row 14: the session's own noticed resolved incidents of the production, oldest first. An instance incident, another session's, an
+/// unnoticed one, an incident in another state and an incident of another production never show, whatever the local flag.
+Method TestResolvedIncidents()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set a = ..NewSession(), b = ..NewSession()
+	Do $ClassMethod(fixture, "Check", a, "ZZNS", "Zz.Production")
+	Set rows = ##class(OcuTalon.Data.Ownership).ResolvedIncidents(a, "ZZNS", "Zz.Production", .sc)
+	Do $$$AssertStatusOK(sc, "the read works")
+	Do $$$AssertEquals(rows.Count(), 0, "a session with no incident gets none")
+	Set second = $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:02Z", , , {"State": "resolved"})
+	Set first = $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:01Z", , , {"State": "resolved"})
+	Set tie = $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:02Z", , , {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", a, "", , , {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:03Z", , , {"State": "closed"})
+	Do $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:03Z", , , {"State": "open"})
+	Do $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:03Z", "ZZNS", "Zz.Other", {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", a, "2030-01-01T10:00:03Z", "ZZOTHER", "Zz.Production", {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", b, "2030-01-01T10:00:03Z", , , {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", "instance", "2030-01-01T10:00:03Z", , , {"State": "resolved"})
+	Do $ClassMethod(fixture, "Incident", "eval", "2030-01-01T10:00:03Z", , , {"State": "resolved"})
+	For local = "", 1 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", local)
+		Set rows = ##class(OcuTalon.Data.Ownership).ResolvedIncidents(a, "ZZNS", "Zz.Production", .sc)
+		Do $$$AssertStatusOK(sc, "the read works (onlineDemo '"_local_"')")
+		Set refs = ""
+		For i = 1:1:rows.Count() Set refs = refs_$ListBuild(rows.GetAt(i).Ref)
+		Do $$$AssertEquals(refs, $ListBuild(first, second, tie), "A's own noticed resolved incidents of the production, by NoticedAt and then ID (onlineDemo '"_local_"')")
+	}
+	Set rows = ##class(OcuTalon.Data.Ownership).ResolvedIncidents(b, "ZZNS", "Zz.Production", .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "B gets its own incident only")
+	Set rows = ##class(OcuTalon.Data.Ownership).ResolvedIncidents(a, "zzns", "Zz.Production", .sc)
+	Do $$$AssertEquals(rows.Count(), 3, "the namespace is matched without regard to case, as the guide's reads match it")
+}
+
 /// The requests of one incident that the session can see, in any state, by RaisedAt and then ID. Another session sees none of them,
 /// and an instance request shows to a session that watches the instance incident's production on a local install.
 Method TestIncidentApprovals()
@@ -194,7 +230,7 @@ Method TestLastEvent()
 Method TestRefusedOwners()
 {
 	Set probe = "OcuTalon.Test.Data.OwnershipProbe"
-	Set kinds = $ListBuild($ListBuild("reminderSetOrFired"), $ListBuild("newestIncident", "ZZNS", "Zz.Production", "", 1), $ListBuild("incidentInProgress", "ZZNS", "Zz.Production", 1), $ListBuild("incidentApprovals", "zz", 1), $ListBuild("latestBreakFeedRun"), $ListBuild("lastEvent", "guide.state"))
+	Set kinds = $ListBuild($ListBuild("reminderSetOrFired"), $ListBuild("newestIncident", "ZZNS", "Zz.Production", "", 1), $ListBuild("incidentInProgress", "ZZNS", "Zz.Production", 1), $ListBuild("incidentApprovals", "zz", 1), $ListBuild("latestBreakFeedRun"), $ListBuild("lastEvent", "guide.state"), $ListBuild("resolvedIncidents", "ZZNS", "Zz.Production"))
 	Set owners = $ListBuild("", "instance", "INSTANCE", "Instance ", "eval", "EVAL")
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
@@ -221,6 +257,9 @@ Method TestRefusedOwners()
 		Do $$$AssertStatusNotOK(sc, "LatestBreakFeedRun refuses '"_owner_"'")
 		Do ##class(OcuTalon.Data.Ownership).LastEvent(owner, "status", .sc)
 		Do $$$AssertStatusNotOK(sc, "LastEvent refuses '"_owner_"'")
+		Set rows = ##class(OcuTalon.Data.Ownership).ResolvedIncidents(owner, "ZZNS", "Zz.Production", .sc)
+		Do $$$AssertStatusNotOK(sc, "ResolvedIncidents refuses '"_owner_"'")
+		Do $$$AssertEquals(rows.Count(), 0, "ResolvedIncidents returns nothing for '"_owner_"'")
 	}
 }
 

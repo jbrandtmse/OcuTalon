@@ -12,7 +12,8 @@
 ///     fresh recording has the same projection as the committed one.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in Snapshot, the private class methods below and Test.Data.Fixture.RemoveMessages, each of
+/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts and Resend; all but Resend
+/// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path step) and Test.Data.Fixture.RemoveMessages, each of
 /// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
 /// values or dynamic objects.
 /// Every test makes its references before it switches, and OnAfterAllTests deletes the headers, bodies and event-log rows of the
@@ -319,7 +320,7 @@ ClassMethod ReadJson(file As %String) As %DynamicObject [ Private ]
 }
 
 /// Polls up to WAITSECONDS for count headers of the reference at the item in the status, and returns the count last seen.
-ClassMethod WaitCount(ref As %String, item As %String, status As %Integer, count As %Integer) As %Integer [ Private ]
+ClassMethod WaitCount(ref As %String, item As %String, status As %Integer, count As %Integer) As %Integer
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
 	For {
@@ -331,7 +332,7 @@ ClassMethod WaitCount(ref As %String, item As %String, status As %Integer, count
 }
 
 /// Whether the Orders production runs in OCUORDERS.
-ClassMethod Running() As %Boolean [ Private ]
+ClassMethod Running() As %Boolean
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
@@ -339,7 +340,7 @@ ClassMethod Running() As %Boolean [ Private ]
 }
 
 /// Sends a batch through the partner in OCUORDERS; "" when it is accepted, else the error text.
-ClassMethod Send(count, dateFormat As %String, ref As %String, orderDate As %String) As %String [ Private ]
+ClassMethod Send(count, dateFormat As %String, ref As %String, orderDate As %String) As %String
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
@@ -348,7 +349,7 @@ ClassMethod Send(count, dateFormat As %String, ref As %String, orderDate As %Str
 }
 
 /// The number of headers of the reference at the item in the status.
-ClassMethod Count(ref As %String, item As %String, status As %Integer) As %Integer [ Private ]
+ClassMethod Count(ref As %String, item As %String, status As %Integer) As %Integer
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
@@ -358,7 +359,7 @@ ClassMethod Count(ref As %String, item As %String, status As %Integer) As %Integ
 }
 
 /// The number of different sessions among the headers of the reference.
-ClassMethod Sessions(ref As %String) As %Integer [ Private ]
+ClassMethod Sessions(ref As %String) As %Integer
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#NAMESPACE
@@ -369,7 +370,7 @@ ClassMethod Sessions(ref As %String) As %Integer [ Private ]
 
 /// The headers whose SuperSession is the reference, in order, as dynamic objects: id, sessionId, superSession, source, target,
 /// bodyClass, bodyId, status (the number), isError, errorText, type, timeCreated, timeProcessed and the body's own fields.
-ClassMethod Headers(ref As %String) As %DynamicArray [ Private ]
+ClassMethod Headers(ref As %String) As %DynamicArray
 {
 	Set result = []
 	New $NAMESPACE
@@ -396,7 +397,7 @@ ClassMethod Headers(ref As %String) As %DynamicArray [ Private ]
 }
 
 /// The texts of the event-log rows of Type 2 (Error) for the session at OrdersFromPartner, as a dynamic array.
-ClassMethod ErrorTexts(session As %String) As %DynamicArray [ Private ]
+ClassMethod ErrorTexts(session As %String) As %DynamicArray
 {
 	Set result = []
 	New $NAMESPACE
