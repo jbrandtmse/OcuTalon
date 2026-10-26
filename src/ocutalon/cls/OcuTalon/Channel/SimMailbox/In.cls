@@ -1,7 +1,8 @@
 /// SimMailboxIn, the adapterless service through which a simulated email arrives (AD-1, AD-14, AD-30). The REST surface creates
 /// it in its own process (Ens.Director.CreateBusinessService) and calls ProcessInput with a Channel.SimMailbox.Mail, the typed
 /// email or the name of a sample. Any other input, and a Mail with an empty session, a session with no Session row, an unknown
-/// sample or a blank subject or body answers an error status and records and sends nothing. In order, the service:
+/// sample, a blank subject or body, or a body over BODYMAX characters answers an error status and records and sends nothing.
+/// In order, the service:
 ///   - fills the three fields from the sample's parameters, when a sample is named;
 ///   - sets the service's SuperSession to the session's TraceRef, so the email has a trace session of its own under the
 ///     session's, and does not join the daily thread (AD-26);
@@ -25,6 +26,9 @@ Parameter CHANNEL = "mailbox";
 /// The names of the sample emails, in the order of the page's chips.
 Parameter SAMPLES = "newsletter,partner-notice,suspicious-request";
 
+/// The most characters an email's body may hold; a longer body is refused (the REST route and the page's form hold the same bound).
+Parameter BODYMAX = 10000;
+
 Parameter NEWSLETTERFROM = "Integration Tips Newsletter <newsletter@example.com>";
 
 Parameter NEWSLETTERSUBJECT = "This week: five tips for faster transforms";
@@ -45,7 +49,7 @@ Parameter SUSPICIOUSBODY = "Hello, this is the order partner's integration team.
 
 Parameter ERRORINPUT = "SimMailboxIn takes an email from the page and nothing else.";
 
-Parameter ERRORMAIL = "An email needs a session, a subject and a body.";
+Parameter ERRORMAIL = "An email needs a session, a subject and a body of at most 10000 characters.";
 
 Parameter ERRORSAMPLE = "SimMailboxIn has no such sample email.";
 
@@ -91,7 +95,7 @@ Method Accept(mail As OcuTalon.Channel.SimMailbox.Mail, Output output As %String
 	If mail.Sample '= "" {
 		If '..Sample(mail.Sample, .sender, .subject, .text) Quit $SYSTEM.Status.Error(5001, ..#ERRORSAMPLE)
 	}
-	If (mail.SessionRef = "") || ($ZStrip(subject, "<>WC") = "") || ($ZStrip(text, "<>WC") = "") Quit $SYSTEM.Status.Error(5001, ..#ERRORMAIL)
+	If (mail.SessionRef = "") || ($ZStrip(subject, "<>WC") = "") || ($ZStrip(text, "<>WC") = "") || ($Length(text) > ..#BODYMAX) Quit $SYSTEM.Status.Error(5001, ..#ERRORMAIL)
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mail.SessionRef)
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERRORSESSION)
 	Set ..%SuperSession = session.TraceRef

@@ -6,7 +6,7 @@
 ///     route of the release that no story has shipped answers 501 not_built, and the pairing routes answer 404 while
 ///     Telegram is not included. POST /v1/mailbox/incoming and /v1/mailbox/samples/:name simulate an incoming email: with demo
 ///     mode off both answer 404 not_found before anything else is read. The first takes {from, subject, body} (strings; from
-///     optional, at most 1000 characters with the subject): a blank subject or body is 400 bad_email with its field error (the
+///     optional, at most 1000 characters with the subject; the body at most SimMailboxIn's BODYMAX): a blank subject or body is 400 bad_email with its field error (the
 ///     subject first), and any other bad body is 400 bad_email with the general text; the second takes the name of a sample
 ///     (newsletter, partner-notice, suspicious-request, else 404 not_found) and does not read the body. Both hand SimMailboxIn
 ///     (through the production, AD-1) a Channel.SimMailbox.Mail for the CSP session's session and answer 202 {"ref"}; a session
@@ -64,7 +64,7 @@ Parameter MESSAGEEMPTYSUBJECT = "Enter a subject.";
 
 Parameter MESSAGEEMPTYBODY = "Enter a body.";
 
-Parameter MESSAGEBADEMAIL = "An email needs a subject and a body, and from and subject can be at most 1000 characters.";
+Parameter MESSAGEBADEMAIL = "An email needs a subject and a body. From and subject can be at most 1000 characters, and the body at most 10000.";
 
 Parameter MESSAGEBADMARKER = "A guide marker must be trace_opened or run_again.";
 
@@ -345,7 +345,7 @@ ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ 
 }
 
 /// The fields of the request body, and 1 when it is a valid email: a JSON object whose from, subject and body are strings (a
-/// missing one is empty), from and subject at most 1000 characters, subject and body not blank (blank is empty after stripping
+/// missing one is empty), from and subject at most 1000 characters, the body at most Channel.SimMailbox.In's BODYMAX, subject and body not blank (blank is empty after stripping
 /// white space and control characters). Otherwise 0, with the fields empty and message the plain-English reason: the subject's
 /// field error first, then the body's, and the general text for any other bad body.
 ClassMethod MailBody(Output from As %String, Output subject As %String, Output body As %String, Output message As %String) As %Boolean [ Private ]
@@ -367,7 +367,7 @@ ClassMethod MailBody(Output from As %String, Output subject As %String, Output b
 	Set sender = $Select(object.%GetTypeOf("from") = "string": object.from, 1: "")
 	Set title = $Select(object.%GetTypeOf("subject") = "string": object.subject, 1: "")
 	Set text = $Select(object.%GetTypeOf("body") = "string": object.body, 1: "")
-	If ($Length(sender) > 1000) || ($Length(title) > 1000) Quit 0
+	If ($Length(sender) > 1000) || ($Length(title) > 1000) || ($Length(text) > ##class(OcuTalon.Channel.SimMailbox.In).#BODYMAX) Quit 0
 	If $ZStrip(title, "<>WC") = "" {
 		Set message = ..#MESSAGEEMPTYSUBJECT
 		Quit 0

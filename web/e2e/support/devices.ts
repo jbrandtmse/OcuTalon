@@ -72,38 +72,31 @@ export async function dropPhone(user: string, sinceUtc: string): Promise<void> {
   if (chk(lines, 'dropped') !== '1') throw new Error(`the phone rows could not be removed (${lines.join(' ')})`);
 }
 
-/** The number of SimMessage rows of kind phone of the user's session. */
-export async function phoneRows(user: string): Promise<number> {
+/** The count that a `SELECT COUNT(*)` query gives for the user's session, whose Ref is its one parameter; `what` names the rows in the error. */
+async function sessionCount(user: string, sql: string, what: string): Promise<number> {
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
       'Set a=##class(%SQL.Statement).%New()',
-      'Set sc=a.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = \'phone\'")',
+      `Set sc=a.%Prepare(${quoted(sql)})`,
       'Set r=a.%Execute(s.Ref)',
       'Do r.%Next()',
       'Write !,"CHK|rows|",r.%GetData(1)',
     ].join('\n'),
   );
   const raw = chk(lines, 'rows') ?? '';
-  if (!/^\d+$/.test(raw)) throw new Error(`the phone rows could not be counted (${lines.join(' ')})`);
+  if (!/^\d+$/.test(raw)) throw new Error(`the ${what} could not be counted (${lines.join(' ')})`);
   return Number(raw);
 }
 
+/** The number of SimMessage rows of kind phone of the user's session. */
+export function phoneRows(user: string): Promise<number> {
+  return sessionCount(user, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone'", 'phone rows');
+}
+
 /** The number of SimMessage rows of kind mailbox of the user's session. */
-export async function mailRows(user: string): Promise<number> {
-  const lines = await irisScript(
-    [
-      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
-      'Set a=##class(%SQL.Statement).%New()',
-      'Set sc=a.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = \'mailbox\'")',
-      'Set r=a.%Execute(s.Ref)',
-      'Do r.%Next()',
-      'Write !,"CHK|rows|",r.%GetData(1)',
-    ].join('\n'),
-  );
-  const raw = chk(lines, 'rows') ?? '';
-  if (!/^\d+$/.test(raw)) throw new Error(`the mailbox rows could not be counted (${lines.join(' ')})`);
-  return Number(raw);
+export function mailRows(user: string): Promise<number> {
+  return sessionCount(user, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox'", 'mailbox rows');
 }
 
 /** Deletes the SimMessage rows of kind mailbox of the user's session. */
@@ -148,20 +141,8 @@ export async function mailOutcome(user: string, sender: string): Promise<MailOut
 }
 
 /** The number of Turn rows of the user's session. */
-export async function turnRows(user: string): Promise<number> {
-  const lines = await irisScript(
-    [
-      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
-      'Set a=##class(%SQL.Statement).%New()',
-      'Set sc=a.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?")',
-      'Set r=a.%Execute(s.Ref)',
-      'Do r.%Next()',
-      'Write !,"CHK|rows|",r.%GetData(1)',
-    ].join('\n'),
-  );
-  const raw = chk(lines, 'rows') ?? '';
-  if (!/^\d+$/.test(raw)) throw new Error(`the turns could not be counted (${lines.join(' ')})`);
-  return Number(raw);
+export function turnRows(user: string): Promise<number> {
+  return sessionCount(user, 'SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?', 'turns');
 }
 
 /**

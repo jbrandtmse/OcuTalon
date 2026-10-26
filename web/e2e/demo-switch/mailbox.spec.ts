@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { STATE, post } from '../support/api';
-import { dropMail, dropPhone, mailOutcome, mailRows, pointKeys, restoreKeys, turnRows } from '../support/devices';
-import { announcements, recordAnnouncements, tokenColor } from '../support/page';
+import { STATE, changeSnapshot, post } from '../support/api';
+import { dropMail, dropPhone, mailOutcome, mailRows, pointKeys, publishFixtureEvent, publishMailbox, restoreKeys, turnRows } from '../support/devices';
+import { announcedTexts, announcements, recordAnnouncements, tokenColor } from '../support/page';
 import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
 
 /**
@@ -188,9 +188,13 @@ test('MB3: the compose form prefills From, shows its field errors, and a send mo
     expect(requests, 'no request was made').toEqual([]);
     expect(await mailRows(USER), 'and no row was made').toBe(0);
 
+    await expect(body, 'the body holds at most 10000 characters').toHaveAttribute('maxlength', '10000');
     await from.fill(sender);
     await subject.fill(`zz MB3 subject ${stamp}`);
     await body.fill('zz MB3 body [[mock:mail-tell-now]]');
+    await simulateOf(mailbox).click();
+    await expect(from, 'Simulate pressed again focuses From').toBeFocused();
+    await expect(subject, 'and keeps what was typed').toHaveValue(`zz MB3 subject ${stamp}`);
     await page.route(`**${INCOMING}`, (route) =>
       route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'bad_email', message: 'zz the server refused this email' } }) }),
     );
@@ -198,7 +202,6 @@ test('MB3: the compose form prefills From, shows its field errors, and a send mo
     await expect(mailbox.locator('#mailbox-send-error'), 'an error answer shows its message under Send').toContainText('zz the server refused this email');
     await expect(subject, 'and marks no field').not.toHaveAttribute('aria-invalid', 'true');
     await expect(body).not.toHaveAttribute('aria-invalid', 'true');
-    expect(await mailRows(USER), 'and no row was made').toBe(0);
     await page.unroute(`**${INCOMING}`);
     await formOf(mailbox).getByRole('button', { name: 'Send', exact: true }).click();
     const row = rowsOf(mailbox, stamp);
@@ -234,6 +237,7 @@ test('MB4: Ignore and Digest notify nobody, and Tell now and Act do, and Act rai
       { marker: 'mail-digest', chip: 'Digest', outcome: 'digest', reason: 'The CI mock keeps this email for the digest.' },
       { marker: 'mail-act', chip: 'Act', outcome: 'act', reason: 'The CI mock asks for an action on this email.' },
     ];
+    const quiet: string[] = [];
     for (const one of outcomes) {
       const sender = `zz ${one.marker} ${stamp} <mb4@example.com>`;
       await compose(mailbox, sender, `zz ${one.marker}`, `zz body [[mock:${one.marker}]]`);
@@ -250,10 +254,14 @@ test('MB4: Ignore and Digest notify nobody, and Tell now and Act do, and Act rai
         expect((await mailOutcome(USER, sender)).deliveries, `${one.marker}: no Delivery row for its decision`).toBe(0);
         await expect(phoneMessages(page, sender), `${one.marker}: no phone message`).toHaveCount(0);
         await expect(cards(page, sender), `${one.marker}: no chat card`).toHaveCount(0);
+        quiet.push(sender);
       }
       if (one.outcome === 'ignore') {
-        await expect(decisionRows(page, `zz ${one.marker}`).first(), 'ignore: a Recent decisions row').toContainText(one.reason);
+        await expect(decisionRows(page, `zz ${one.marker} ${stamp}`).first(), 'ignore: a Recent decisions row of this run').toContainText(one.reason);
       }
+    }
+    for (const sender of quiet) {
+      expect((await mailOutcome(USER, sender)).deliveries, `${sender}: still no Delivery row once Act, decided later, has notified`).toBe(0);
     }
     expect(await turnRows(USER), 'no Turn was made').toBe(turns);
     expect(await approvals(), 'and no approval request was raised').toBe(approvalsBefore);
@@ -304,4 +312,191 @@ test('MB6: with demo mode off there is no mailbox, both routes answer 404 not_fo
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe('not_found');
   }
   expect(await mailRows(USER), 'no SimMessage row was made').toBe(before);
+});
+
+/** A fixture email of the snapshot's mailbox: an incoming one by default, with the ref and the item that the tag makes unique. */
+const fixtureMail = (tag: string, n: number, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  ref: `zzq${tag}m${n}`,
+  direction: 'in',
+  itemId: `zzq${tag}i${n}`,
+  sender: `Zz Sender ${n} <zz${n}@example.com>`,
+  subject: `zz MBQ ${tag} subject ${n}`,
+  text: `zz MBQ body ${n}`,
+  unread: true,
+  createdAt: new Date(Date.now() - (10 - n) * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  ...over,
+});
+
+/** A fixture decide decision of the snapshot entry's item. */
+const fixtureDecision = (mail: Record<string, unknown>, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  ref: `zzqd${String(mail['ref'])}`,
+  kind: 'decide',
+  itemId: mail['itemId'],
+  outcome: 'digest',
+  reasons: 'zz reason',
+  confidence: 0.8,
+  fallback: false,
+  recordedAt: String(mail['createdAt']),
+  ...over,
+});
+
+/** Answers /state with this mailbox, before the sign-in; the cases that use it write nothing on the server. */
+const withMailbox = (page: Page, mailbox: Array<Record<string, unknown>>): Promise<void> =>
+  changeSnapshot(page, (snapshot) => {
+    snapshot['mailbox'] = mailbox;
+  });
+
+test('MB7: a snapshot email shows what it carries: its own decision silently, a fallback as Tell now with its flag, a sent email no status, an undecided one Deciding', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'demo mode on only');
+  const tag = stampOf();
+  const ignored = fixtureMail(tag, 1);
+  ignored['decision'] = fixtureDecision(ignored, { outcome: 'ignore', reasons: 'zz first reason\nzz second reason', traceUrl: '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42' });
+  const fallback = fixtureMail(tag, 2);
+  fallback['decision'] = fixtureDecision(fallback, { outcome: 'digest', reasons: 'zz kept reason', fallback: true, fallbackReason: 'no_key' });
+  const sent = fixtureMail(tag, 3, { direction: 'out', itemId: '', sender: 'OcuTalon' });
+  const pending = fixtureMail(tag, 4);
+  await withMailbox(page, [ignored, fallback, sent, pending]);
+  const mailbox = await openMailbox(page);
+  const rowOf = (mail: Record<string, unknown>): Locator => rowsOf(mailbox, String(mail['subject']));
+  await expect(mailbox.locator('.row'), 'four rows').toHaveCount(4);
+  await expect(mailbox.locator('.row').first(), 'newest first: the last of the snapshot is the first row').toContainText(String(pending['subject']));
+  await expect(rowOf(ignored).locator('app-outcome-chip'), 'the entry\'s own decision gives its chip').toHaveText('Ignore');
+  await expect(rowOf(fallback).locator('app-outcome-chip'), 'a fallback shows Tell now whatever the outcome').toHaveText('Tell now');
+  await expect(rowOf(sent).locator('.deciding, app-outcome-chip'), 'a sent email has no status').toHaveCount(0);
+  await expect(rowOf(pending).locator('.deciding'), 'an undecided one is deciding').toHaveText('Deciding\u2026');
+  await expect(rowOf(pending).locator('app-outcome-chip'), 'with no chip').toHaveCount(0);
+  await page.waitForTimeout(1000);
+  expect((await announcedTexts(page)).filter((text) => text.includes("Email '")), 'the decisions present at load are not announced').toEqual([]);
+
+  await rowOf(ignored).click();
+  await expect(mailbox.locator('.strip app-outcome-chip'), 'the open email shows its outcome').toHaveText('Ignore');
+  await expect(mailbox.locator('.strip .reason'), 'and every reason line').toHaveText(['zz first reason', 'zz second reason']);
+  await expect(mailbox.locator('.strip app-trace-link'), 'and the trace link of the decision').toHaveCount(1);
+  await expect(mailbox.locator('.strip app-trace-link a.trace-link'), 'which goes to its traceUrl').toHaveAttribute('href', String((ignored['decision'] as Record<string, unknown>)['traceUrl']));
+  await expect(mailbox.locator('.strip app-fallback-flag'), 'no flag').toHaveCount(0);
+  await mailbox.getByRole('button', { name: 'Back', exact: true }).click();
+  await rowOf(fallback).click();
+  await expect(mailbox.locator('.strip app-outcome-chip'), 'the fallback is Tell now').toHaveText('Tell now');
+  await expect(mailbox.locator('.strip app-fallback-flag'), 'with the Fallback flag').toHaveCount(1);
+  await expect(mailbox.locator('.strip .reason'), 'the fallback sentence first, then the reason').toHaveCount(2);
+  await expect(mailbox.locator('.strip .reason').first(), 'in the warning style').toHaveClass(/fallback/);
+  await expect(mailbox.locator('.strip .reason').last()).toHaveText('zz kept reason');
+  await expect(mailbox.locator('.strip app-trace-link'), 'a decision with no trace has no link').toHaveCount(0);
+  await mailbox.getByRole('button', { name: 'Back', exact: true }).click();
+  await rowOf(sent).click();
+  await expect(mailbox.getByRole('heading', { level: 3, name: String(sent['subject']) }), 'a sent email opens too').toBeFocused();
+  await expect(mailbox.locator('.text'), 'with its text').toHaveText('zz MBQ body 3');
+  await expect(mailbox.locator('.strip'), 'and no decision strip').toHaveCount(0);
+  await mailbox.getByRole('button', { name: 'Back', exact: true }).click();
+  await rowOf(pending).click();
+  await expect(mailbox.locator('.strip .deciding'), 'an undecided email opened says it is deciding').toHaveText('Deciding\u2026');
+  await expect(mailbox.locator('.strip app-outcome-chip'), 'with no chip').toHaveCount(0);
+});
+
+test('MB8: a decide decision that lands after load joins its email by itemId, is announced once, and a turn decision of the same item is no decision of the email', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'demo mode on only');
+  const tag = stampOf();
+  const mail = fixtureMail(tag, 1);
+  await withMailbox(page, [mail]);
+  const mailbox = await openMailbox(page);
+  const row = rowsOf(mailbox, String(mail['subject']));
+  await expect(row.locator('.deciding'), 'the email is deciding').toHaveText('Deciding\u2026');
+  const subject = String(mail['subject']);
+  const itemId = String(mail['itemId']);
+  await publishFixtureEvent(USER, 'decision', 'OcuTalon.Live.Payload.Decision', { Ref: `zzqd${tag}t`, Kind: 'turn', ItemId: itemId, Outcome: 'act', Reasons: 'zz turn reason' });
+  const sentinel = `zz MBQ ${tag} sentinel`;
+  await publishMailbox(USER, `zzq${tag}m9`, { Direction: 'in', ItemId: `zzq${tag}i9`, Sender: 'Zz Sentinel <zz9@example.com>', Subject: sentinel, Text: 'zz sentinel body' });
+  await expect(rowsOf(mailbox, sentinel), 'a later event of the stream has landed, so the turn decision has too').toHaveCount(1, { timeout: 30_000 });
+  await expect(row.locator('.deciding'), 'a turn decision of the same item is no decision of the email').toHaveText('Deciding\u2026');
+  await expect(row.locator('app-outcome-chip'), 'and gives it no chip').toHaveCount(0);
+  await publishFixtureEvent(USER, 'decision', 'OcuTalon.Live.Payload.Decision', { Ref: `zzqd${tag}d`, Kind: 'decide', ItemId: itemId, Outcome: 'digest', Reasons: 'zz decide reason' });
+  await expect(row.locator('app-outcome-chip'), 'the decide decision gives the chip').toHaveText('Digest', { timeout: 30_000 });
+  await expect
+    .poll(() => announcements(page, `Email '${subject}': Digest`), { message: 'the decision is announced once' })
+    .toBe(1);
+  await page.waitForTimeout(1500);
+  expect(await announcements(page, `Email '${subject}': Digest`), 'and not again').toBe(1);
+  expect(await announcements(page, `Email '${subject}': Act`), 'the turn decision of the same item says nothing about the email').toBe(0);
+  await row.click();
+  await expect(mailbox.locator('.strip .reason'), 'the open email shows the decide decision\'s reason').toHaveText('zz decide reason');
+});
+
+test('MB9: a chip press that is refused shows the server message under the chips, which describes the chip, and an accepted one is announced as arrived and then as decided', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'demo mode on only');
+  const tag = stampOf();
+  const arrival = fixtureMail(tag, 1, { subject: `zz MBQ ${tag} arrived` });
+  const ref = String(arrival['ref']);
+  const subject = String(arrival['subject']);
+  let accept = false;
+  await page.route('**/api/v1/mailbox/samples/partner-notice', (route) =>
+    accept
+      ? route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ ref }) })
+      : route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'bad_email', message: 'zz the chip was refused' } }) }),
+  );
+  await withMailbox(page, []);
+  const mailbox = await openMailbox(page);
+  const chip = chipOf(mailbox, 'Sample: partner notice');
+  await chip.click();
+  await expect(mailbox.locator('#mailbox-chip-error'), 'a refused press shows the server\'s message under the chips').toContainText('zz the chip was refused');
+  await expect(chip, 'the message describes the chip').toHaveAttribute('aria-describedby', /(^| )mailbox-chip-error( |$)/);
+  await expect(mailbox.locator('.row'), 'no row was made').toHaveCount(0);
+  await expect(chip, 'focus stays on the chip').toBeFocused();
+
+  accept = true;
+  const answered = page.waitForResponse((response) => response.url().includes('/mailbox/samples/partner-notice'));
+  await chip.click();
+  await answered;
+  await expect(mailbox.locator('#mailbox-chip-error'), 'the next press clears the message').toHaveCount(0);
+  await expect(chip, 'and the description').not.toHaveAttribute('aria-describedby', /mailbox-chip-error/);
+  expect((await announcedTexts(page)).filter((text) => text.includes("Email '")), 'nothing about an email is announced before its row is in the list').toEqual([]);
+  await publishMailbox(USER, ref, { Direction: 'in', ItemId: String(arrival['itemId']), Sender: String(arrival['sender']), Subject: subject, Text: 'zz arrival body' });
+  const row = rowsOf(mailbox, subject);
+  await expect(row, 'the row arrives').toHaveCount(1, { timeout: 30_000 });
+  await expect
+    .poll(() => announcements(page, `Email '${subject}': Deciding\u2026`), { message: 'the accepted press is announced as arrived' })
+    .toBe(1);
+  await expect(row.locator('.deciding'), 'still deciding').toHaveText('Deciding\u2026');
+  await publishFixtureEvent(USER, 'decision', 'OcuTalon.Live.Payload.Decision', { Ref: `zzqd${tag}d`, Kind: 'decide', ItemId: String(arrival['itemId']), Outcome: 'ignore', Reasons: 'zz reason' });
+  await expect(row.locator('app-outcome-chip'), 'then it is decided').toHaveText('Ignore', { timeout: 30_000 });
+  await expect
+    .poll(() => announcements(page, `Email '${subject}': Ignore`), { message: 'and announced as decided' })
+    .toBe(1);
+  expect(await announcements(page, `Email '${subject}': Deciding\u2026`), 'the arrival was announced once').toBe(1);
+  await expect(chip, 'focus stayed on the chip').toBeFocused();
+});
+
+test('MB10: when the browser storage throws, an opened email is still read for the life of the page, and nothing is logged as an error', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'demo mode on only');
+  const tag = stampOf();
+  const mail = fixtureMail(tag, 1);
+  mail['decision'] = fixtureDecision(mail);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    const blocked = 'ocutalon.mailbox.opened';
+    const getItem = Storage.prototype.getItem;
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.getItem = function (this: Storage, key: string): string | null {
+      if (key === blocked) throw new Error('zz storage blocked');
+      return getItem.call(this, key);
+    };
+    Storage.prototype.setItem = function (this: Storage, key: string, value: string): void {
+      if (key === blocked) throw new Error('zz storage blocked');
+      setItem.call(this, key, value);
+    };
+  });
+  await withMailbox(page, [mail]);
+  const mailbox = await openMailbox(page);
+  expect(await page.evaluate(() => { try { localStorage.getItem('ocutalon.mailbox.opened'); return 'reads'; } catch { return 'throws'; } }), 'the storage throws for the mailbox\'s key').toBe('throws');
+  const row = rowsOf(mailbox, String(mail['subject']));
+  await expect(row.locator('.visually-hidden'), 'the email is unread').toHaveText('Unread');
+  await row.click();
+  await expect(mailbox.getByRole('heading', { level: 3, name: String(mail['subject']) }), 'it opens').toBeFocused();
+  await mailbox.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(row, 'Back focuses the row').toBeFocused();
+  await expect(row.locator('.visually-hidden'), 'and it is read for the life of the page').toHaveCount(0);
+  expect(errors.filter((text) => text.includes('zz storage blocked')), 'no error was logged for the storage').toEqual([]);
 });

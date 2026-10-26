@@ -62,7 +62,11 @@ interface FormErrors {
   body?: string;
 }
 
-/** The message of an error answer `{"error":{"code","message"}}`, or empty for any other failure (the server button's notice covers an unreachable server). */
+/**
+ * The message of an error answer `{"error":{"code","message"}}`, or empty for any other failure, which adds no text (as Break the feed
+ * does): a call with no answer gets the server button's notice after 10 seconds, and an unreachable server the page's Reconnecting
+ * and Unreachable banners.
+ */
 function messageOf(error: unknown): string {
   const message = (error as { error?: { error?: { message?: unknown } } } | null)?.error?.error?.message;
   return typeof message === 'string' ? message : '';
@@ -96,7 +100,12 @@ function messageOf(error: unknown): string {
   template: `
     <div class="chips">
       @for (sample of samples; track sample.name) {
-        <app-server-button variant="chip" [label]="nameOf(sample.label)" [action]="samplePress(sample.name)">
+        <app-server-button
+          variant="chip"
+          [label]="nameOf(sample.label)"
+          [action]="samplePress(sample.name)"
+          [describedBy]="chipError() === '' ? [] : ['mailbox-chip-error']"
+        >
           <app-icon name="mail" [size]="16" />
           {{ sample.label }}
         </app-server-button>
@@ -138,6 +147,7 @@ function messageOf(error: unknown): string {
               id="mailbox-body"
               class="input"
               rows="5"
+              maxlength="10000"
               [class.invalid]="errors().body"
               [attr.aria-invalid]="errors().body ? 'true' : null"
               [attr.aria-describedby]="errors().body ? 'mailbox-body-error' : null"
@@ -291,7 +301,7 @@ function messageOf(error: unknown): string {
       align-items: center;
       gap: var(--space-1);
       min-width: 0;
-      font-weight: 600;
+      font-weight: var(--type-body-strong-font-weight);
       overflow-wrap: anywhere;
     }
     .dot {
@@ -336,7 +346,7 @@ function messageOf(error: unknown): string {
     .input {
       box-sizing: border-box;
       width: 100%;
-      min-height: var(--space-control-height-lg);
+      min-height: var(--text-input-min-height);
       padding: var(--space-2) var(--space-3);
       background: var(--text-input-background);
       color: var(--ink);
@@ -530,14 +540,16 @@ export class SimulatedMailbox {
     );
   };
 
-  /** The form opens in place of the list, with From prefilled and focused. */
+  /** The form opens in place of the list, with From prefilled and focused; pressed while the form is open, it keeps what was typed. */
   protected openForm(): void {
-    this.from.set(MAILBOX_TEXTS.fromPrefill);
-    this.subject.set('');
-    this.body.set('');
-    this.errors.set({});
-    this.sendError.set('');
-    this.view.set('form');
+    if (this.view() !== 'form') {
+      this.from.set(MAILBOX_TEXTS.fromPrefill);
+      this.subject.set('');
+      this.body.set('');
+      this.errors.set({});
+      this.sendError.set('');
+      this.view.set('form');
+    }
     this.focusLater(() => this.host.nativeElement.querySelector<HTMLElement>('#mailbox-from'));
   }
 
@@ -604,13 +616,8 @@ export class SimulatedMailbox {
       return;
     }
     for (const row of rows) {
-      if (this.awaiting.delete(row.ref)) {
-        if (row.chip !== undefined) {
-          this.announced.add(row.ref);
-          this.announcer.announce(decidedText(row.subject, LABELS[row.chip]));
-        } else {
-          this.announcer.announce(arrivedText(row.subject));
-        }
+      if (this.awaiting.delete(row.ref) && row.chip === undefined) {
+        this.announcer.announce(arrivedText(row.subject));
       }
       if (row.chip !== undefined && !this.announced.has(row.ref)) {
         this.announced.add(row.ref);

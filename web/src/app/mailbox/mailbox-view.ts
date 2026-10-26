@@ -93,10 +93,10 @@ export function senderName(from: string | undefined): string {
   return name === '' ? value : name;
 }
 
-/** True when the text is empty after the whitespace and control characters are stripped. */
+/** True when the text is empty after the whitespace and control characters (C0, DEL and C1, as the server's check) are stripped. */
 export function isBlank(text: string): boolean {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/[\s\u0000-\u001f\u007f]/g, '') === '';
+  return text.replace(/[\s\u0000-\u001f\u007f-\u009f]/g, '') === '';
 }
 
 /** The field errors of the form: the subject's and the body's, each undefined when the field has text. */

@@ -3,9 +3,9 @@
 /// for SimMailboxIn (^OcuTalonTest("ApiProbe", "mail")) and records each input under ^OcuTalonTest("ApiProbe", "mails", n), so
 /// that no production is needed:
 ///   - TestIncoming: 202 {"ref"}; SimMailboxIn is asked once, with the CSP session's Ref and the three fields; a sessionRef in the
-///     body is ignored; a missing from is empty;
-///   - TestFieldErrors: a blank subject (checked first), a blank body, both, and every other bad body are 400 bad_email with their
-///     texts, and SimMailboxIn is never asked;
+///     body is ignored; a missing from is empty; a body of SimMailboxIn's BODYMAX characters is handed on whole;
+///   - TestFieldErrors: a blank subject (checked first), a blank body, both, and every other bad body (a body over BODYMAX
+///     characters among them) are 400 bad_email with their texts, and SimMailboxIn is never asked;
 ///   - TestSamples: each sample name is 202 and passes Sample, with the body unread; an unknown name is 404 and nothing is asked;
 ///   - TestDemoOff: with demo mode off, or with no demo.mode row, both routes are 404 not_found before the body or the session is
 ///     read;
@@ -73,6 +73,11 @@ Method TestIncoming()
 	Set long = $Translate($Justify("", 1000), " ", "x")
 	Do ..Post("MailboxIncoming", ..Csp(ref), {"from": (long), "subject": (long), "body": "zz b"}.%ToJSON(), .response)
 	Do $$$AssertEquals(response.Status, "202 Accepted", "202 for a from and a subject of 1000 characters")
+	Kill ^OcuTalonTest("ApiProbe", "mails")
+	Set text = $Translate($Justify("", ##class(OcuTalon.Channel.SimMailbox.In).#BODYMAX), " ", "y")
+	Do ..Post("MailboxIncoming", ..Csp(ref), {"subject": "zz s", "body": (text)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "202 for a body of BODYMAX characters")
+	Do $$$AssertEquals($Length(^OcuTalonTest("ApiProbe", "mails", 1, "text")), 10000, "and the whole body is handed on")
 }
 
 /// Field errors and bad bodies: 400 bad_email with the text of the first blank field (subject, then body) or the general text;
@@ -84,8 +89,10 @@ Method TestFieldErrors()
 	Set emptyBody = ##class(OcuTalon.Web.Api).#MESSAGEEMPTYBODY
 	Set general = ##class(OcuTalon.Web.Api).#MESSAGEBADEMAIL
 	Do $$$AssertEquals(subject_"|"_emptyBody, "Enter a subject.|Enter a body.", "the field texts")
-	Do $$$AssertEquals(general, "An email needs a subject and a body, and from and subject can be at most 1000 characters.", "the general text")
+	Do $$$AssertEquals(general, "An email needs a subject and a body. From and subject can be at most 1000 characters, and the body at most 10000.", "the general text")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.SimMailbox.In).#BODYMAX, 10000, "the body's bound")
 	Set long = $Translate($Justify("", 1001), " ", "x")
+	Set longBody = $Translate($Justify("", 10001), " ", "y")
 	Set cases = $ListBuild($ListBuild("a blank subject", "{""subject"":"""",""body"":""zz b""}", subject))
 	Set cases = cases_$ListBuild($ListBuild("a blank body", "{""subject"":""zz s"",""body"":""""}", emptyBody))
 	Set cases = cases_$ListBuild($ListBuild("both blank (the subject first)", "{""subject"":"""",""body"":""""}", subject))
@@ -97,6 +104,7 @@ Method TestFieldErrors()
 	Set cases = cases_$ListBuild($ListBuild("a from that is not a string", "{""from"":[],""subject"":""zz s"",""body"":""zz b""}", general))
 	Set cases = cases_$ListBuild($ListBuild("a from over 1000 characters", "{""from"":"""_long_""",""subject"":""zz s"",""body"":""zz b""}", general))
 	Set cases = cases_$ListBuild($ListBuild("a subject over 1000 characters", "{""subject"":"""_long_""",""body"":""zz b""}", general))
+	Set cases = cases_$ListBuild($ListBuild("a body over 10000 characters", "{""subject"":""zz s"",""body"":"""_longBody_"""}", general))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set body = ..Post("MailboxIncoming", ..Csp(ref), $List(case, 2), .response)

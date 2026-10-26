@@ -148,6 +148,12 @@ describe('fieldErrors', () => {
     assert.equal(isBlank(' a '), false);
     assert.deepEqual(fieldErrors('  \t', '\n\n'), { subject: 'Enter a subject.', body: 'Enter a body.' });
   });
+
+  it('counts the C1 controls as blank, as the server does ($ZStrip "C" strips U+0080 to U+009F)', () => {
+    assert.equal(isBlank('\u0080\u0085\u009f'), true);
+    assert.equal(isBlank('\u00a1'), false);
+    assert.deepEqual(fieldErrors('\u0085', 'b'), { subject: 'Enter a subject.' });
+  });
 });
 
 describe('the announcement texts', () => {

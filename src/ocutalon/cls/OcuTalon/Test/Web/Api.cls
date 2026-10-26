@@ -293,6 +293,31 @@ Method TestStateMailbox()
 	Do $$$AssertEquals(body.mailbox.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the five older emails are cut")
 }
 
+/// The decision of a snapshot mailbox entry carries its trace like a rail decision does (matrix row 7, "with its traceUrl"): the
+/// header, the namespace and the URL that opens the decision's own trace session, so that the open email's trace link survives a
+/// reload; a decision with no trace carries none.
+Method TestStateMailboxTrace()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapimailtrace"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set traced = ##class(OcuTalon.Bridge.Ids).NewRef(), bare = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in", "ItemId": (traced), "Sender": "zz A", "Subject": "zz traced", "Text": "zz"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "in", "ItemId": (bare), "Sender": "zz B", "Subject": "zz bare", "Text": "zz"})
+	Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:05Z", {"ItemId": (traced)})
+	Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:06Z", {"ItemId": (bare), "TraceSessionId": ""})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.mailbox.%Size(), 2, "two emails")
+	If body.mailbox.%Size() '= 2 Quit
+	Set decision = body.mailbox.%Get(0).decision
+	Do $$$AssertEquals(decision.traceHeaderId_"|"_decision.traceNamespace, "42|"_$Namespace, "a decided email's decision names its trace session and namespace")
+	Do $$$AssertEquals(decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "and carries the URL that opens it, with no PAGE")
+	Set none = body.mailbox.%Get(1).decision
+	Do $$$AssertEquals(none.%IsDefined("traceUrl"), 0, "a decision with no trace carries no URL")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+}
+
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
 /// filters: the chat merges the turns and the visible noticed incidents by time (a turn before an incident of the same
 /// time), the rail holds the pending requests, every check, the pending reminders and the 20 newest decide decisions,

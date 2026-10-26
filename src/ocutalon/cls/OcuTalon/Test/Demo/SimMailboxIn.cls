@@ -8,8 +8,8 @@
 ///     the output {"ref"};
 ///   - TestSamples: each sample gives exactly the text of the UX, and its Item is a typed email's with those fields; nothing in the
 ///     row, the Item or the event names the sample;
-///   - TestRefused: an input that is no Mail, an empty or unknown session, a blank subject or body and an unknown sample are errors
-///     with no row, no event and no send;
+///   - TestRefused: an input that is no Mail, an empty or unknown session, a blank subject or body, a body over BODYMAX characters
+///     and an unknown sample are errors with no row, no event and no send; a body of exactly BODYMAX characters is accepted;
 ///   - TestSendFailure: a send that fails deletes the row, publishes nothing and answers the error;
 ///   - TestSendThrows: a send that throws is returned as an error and deletes the row;
 ///   - TestRevealsFlags: Reveals names a body property that holds the simulation's words and passes an ordinary body;
@@ -141,12 +141,17 @@ Method TestRefused()
 	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "", "zz a", $Char(9)_"  "_$Char(10), "zz c"), .output), "a subject of white space and control characters")
 	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "", "zz a", "zz b", ""), .output), "a blank body")
 	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "", "zz a", "zz b", "   "), .output), "a body of spaces")
+	Set bound = ##class(OcuTalon.Channel.SimMailbox.In).#BODYMAX
+	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "", "zz a", "zz b", $Translate($Justify("", bound + 1), " ", "y")), .output), "a body over BODYMAX characters")
 	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "zz", "", "", ""), .output), "an unknown sample")
 	Do $$$AssertStatusNotOK(in.OnProcessInput(..Mail(session, "Newsletter", "", "", ""), .output), "a sample of another case")
 	Do $$$AssertEquals(output, "", "the output stays empty")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(session, 10).Count(), 0, "no row is recorded")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "mailbox").%Size(), 0, "no event is published")
 	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), 0, "and nothing is sent")
+	Set edge = ..Session("refusededge")
+	Do $$$AssertStatusOK(in.OnProcessInput(..Mail(edge, "", "zz a", "zz b", $Translate($Justify("", bound), " ", "y")), .output), "a body of exactly BODYMAX characters is accepted")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(edge, 10).Count(), 1, "and recorded")
 }
 
 /// A send that fails: the error comes back, the row is deleted and no event is published, so no row waits for a decision that

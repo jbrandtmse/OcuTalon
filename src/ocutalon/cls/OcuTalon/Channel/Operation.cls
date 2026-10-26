@@ -1,4 +1,4 @@
-/// Operation, the abstract base of the channel operations (WebChatOut, SimPhoneOut; AD-14, AD-4, AD-12). It holds what they share:
+/// Operation, the abstract base of the channel operations (WebChatOut, SimPhoneOut, SimMailboxOut; AD-14, AD-4, AD-12). It holds what they share:
 /// the check that a message's owner is a session, and the publish of a live event that is logged and goes no further when it fails.
 /// A subclass sets LOGNOTASESSION and LOGPUBLISH, the start of its two warnings. Keep records a device message with its
 /// Delivery row in one transaction.

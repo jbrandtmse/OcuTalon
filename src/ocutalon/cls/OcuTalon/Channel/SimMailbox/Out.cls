@@ -2,8 +2,8 @@
 /// takes OcuTalon.Msg.Outbound only, and it acts only when the message's SessionRef is a session (Session.Recipients gives it
 /// back); for any other owner it logs a warning and records nothing (AD-4). It renders Msg.Catalog.Render(CatalogKey, Slots,
 /// "mailbox") when the message has a key, otherwise it takes the message's Text, and in one transaction (Operation.Keep) saves
-/// the sent mail (a SimMessage of Kind mailbox, direction out, Sender "OcuTalon", Subject the first line of the text, no
-/// ItemId) and its Delivery row (channel mailbox, the SimMessage's Ref as ChannelMessageId, the DecisionRef, no kind or text).
+/// the sent mail (a SimMessage of Kind mailbox, direction out, Sender "OcuTalon", Subject Conversation.Summary of the text: its
+/// first line, cut at 80 characters, no ItemId) and its Delivery row (channel mailbox, the SimMessage's Ref as ChannelMessageId, the DecisionRef, no kind or text).
 /// After the commit it publishes one mailbox event on the session's stream with Live.Payload.Mailbox.FromRow of the row (the
 /// other publisher is SimMailboxIn, AD-33). A render error is returned with no row and no event; a failed save keeps nothing
 /// and a failed publish is logged and leaves the rows.
