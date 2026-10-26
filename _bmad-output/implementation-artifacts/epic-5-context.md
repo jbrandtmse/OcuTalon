@@ -23,12 +23,12 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
   - For an unknown name, OcuTalon creates nothing, lists the productions it can see and asks which was meant.
   - The online demo watches only Orders.
   - Stopping removes that session's watch only.
-  - A stopped production must also be watchable, and a watch must always be stoppable (DW-222, Story 5.2).
+  - A cleanly stopped production is still watchable, and a watch can always be stopped from chat.
 - **Reacting:**
   - Pickup takes at most 15 s, typically under 3 s.
   - It works on any production without changing it or relying on its alerts.
-  - No failure is batched twice or skipped, including across restarts.
-  - Each poll sends one batch per scope, and only when something is new.
+  - No failure is skipped or counted twice, including across restarts.
+  - Each poll sends one batch per production and scope, and only when something is new.
   - Namespaces the service user can't read are never read.
 - **Settle rule:** the notice step starts after 10 s with no new same-cause failure, or 30 s after the first failure, whichever comes first. Both values come from settings.
   - A burst of 50 gives one incident with `NoticeCount` 50.
@@ -54,7 +54,7 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
 
 - **Ownership (Lane A):**
   - production items `FailurePoller`, `IncidentManager` and `WatchOps` (`OcuTalon.Watch.FailurePoller`, `.IncidentManager`, `.Ops`) and `Checks` (`OcuTalon.Checks.Process`);
-  - tables `BackgroundCheck`, `WatchMark`, `Incident` and `FailureGroup`. `WatchOps` alone writes watch rows, and `IncidentManager` alone writes incidents and groups and publishes `incident` and `watch.progress`. `Checks` alone publishes `check`, including when a watch starts or stops.
+  - tables `BackgroundCheck`, `WatchMark`, `Incident` and `FailureGroup`. `WatchOps` alone writes watch rows, `FailurePoller` alone writes `WatchMark`, and `IncidentManager` alone writes incidents and groups and publishes `incident` and `watch.progress`. `Checks` alone publishes `check`, including when a watch starts or stops.
 
   Catalog keys go in `OcuTalon.Msg.Catalog.Watch`, mock scenarios in `ci/mock/scenarios/A/`, and edits to the production class only in Lane A's region. Lane B owns `Session`, `Ownership`, `Live`, `Msg`, `Core` and `Schedule`: ask, don't edit.
 - **Commands (AD-1):** state-changing tools submit `OcuTalon.Msg.Command` verbs through `OcuTalon.Tools.CommandCall.Run`, which goes through `Commands.Submit` with origin `tool` and an `IdempotencyKey` of `ItemId:position`. They return the owner's synchronous `CommandResult`, never write tables, and are tested against the `CommandsIn` double. Owners ignore repeats.
@@ -68,11 +68,15 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
     - Diagnosis's toolset `OcuTalon.Tools.Watch` is read-only and never trusted. The Chat agent's toolset is `OcuTalon.Tools.Watching`.
   - **Callback safety:** tools run inside AI Hub callbacks, so they make no `%AI` native calls, run no Python and make no session calls. Every class they call there must be in `CodeRules.CALLBACKHELPERS`.
 - **Reading IRIS (AD-3):**
-  - Only `OcuTalon.Watch.Reader` switches namespace, in one `New $NAMESPACE` method.
-  - A namespace is readable when `$SYSTEM.Security.CheckUserPermission` gives the service user Read on its data database.
-  - The reader offers each readable namespace's own production, never every `Ens.Config.Production` row (DW-38).
+  - Only `OcuTalon.Watch.Reader` switches namespace, in one `New $NAMESPACE` method that calls no OcuTalon class while switched.
+  - A namespace is readable when `$SYSTEM.Security.CheckUserPermission` gives the service user Read on its data database, checked before any switch.
+  - A production is read only while it is its namespace's own: the running one, else the last active one (`Ens.Director.GetActiveProductionName()`), never another `Ens.Config.Production` row (DW-38, DW-222).
   - With demo mode on, the Demo step gives `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` only (no code database, SQL or write), and the off and keep paths remove it. That grant is what lets an install find Orders.
-  - On build 154, a failed Orders message is recognized by its header `Status` 8 plus its event-log row, since `IsError` stays 0. Its sentence is parsed out of the "Terminating BP" wrapper.
+- **Watch failures (AD-15):**
+  - A failure is a message header in `Status` 8 (Error), whatever its `IsError` (build 154 leaves it 0), or an event-log row of `Type` 2 (Error) or 6 (Alert) with no `SessionId`. A log row with a session only gives its header's error text.
+  - Error text enters OcuTalon's messages redacted: `OcuTalon.Watch.ErrorText.Sentence` takes the error's own sentence out of the "Terminating BP" wrapper after `OcuTalon.Bridge.Redact`.
+  - `FailurePoller` reads from a time-based mark on `WatchMark`: `MarkAt` (the newest failure time read) and `Seen` (the failures already batched within a 2-second overlap before it), starting no earlier than the earliest watch's `BackgroundCheck.CreatedAt`. A production the reader does not read keeps its mark.
+  - Each poll sends `IncidentManager` one `FailureBatch` per production and scope (at most 500 failures), each its own trace session with the scope's `TraceRef` as `SuperSession`, then saves the mark. Send and save can't share a transaction, so a crash between them re-sends that poll once and never skips; `IncidentManager` ignores a failure it already holds (`h<HeaderId>` or `l<LogId>`).
 - **Scope (AD-4):**
   - A failure belongs to the session whose `TraceRef` is the message's `SuperSession`, otherwise to `instance`.
   - A failure of a copy a fix registered is the fix's, never a group's.
@@ -138,18 +142,20 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
 ## Cross-Story Dependencies
 
 - **Built by 5.1 (done), to reuse rather than duplicate:**
-  - `Watch.Reader` (`Productions`, `Find`, `Admits`), which 5.2's poller, 5.4's evidence and toolset, and 5.6's checks read through;
+  - `Watch.Reader` (`Productions`, `Find`, `Admits`), which 5.4's evidence and toolset and 5.6's checks read through;
   - the real `WatchOps`. Its rows have `Kind` `production`, a `NextDueAt` of the creation time (so the first `Tick` runs the check) and an empty `Result`;
   - `Tools.WatchTools`, `Tools.WatchAnswers` and `Tools.Watching`, and the generalised `CommandCall`, which 5.5's dismiss tool and 5.7's `check_status` follow;
   - the Demo step's service-role grant.
+- **Built by 5.2 (done), to reuse rather than duplicate:**
+  - `FailurePoller` (every 3 s) and its contract `Watch.Msg.FailureBatch` of `Watch.Msg.Failure` items;
+  - `Watch.Mark` (the mark rules and the failure key `Mark.Key`) and `Watch.ErrorText.Sentence`, which 5.4's evidence and 6.1's fallback "Failures:" line reuse;
+  - `Reader.Failures`, answering `read`, `unreadable` or `not_current`, which 5.4's evidence pack and 5.6's new-errors check read through; the stopped-production listing, whose state 5.6 reports; and the shared name matcher `Reader.Matches`;
+  - `BackgroundCheck.CreatedAt` (written by `WatchOps` with `NextDueAt`) and the stop resolver `WatchAnswers.ResolveStop`, which reads the session's own watches through `Ownership.Checks` before the reader.
 
-  DW-74, DW-164 (warm `READY` only after `RESULT OK`) and DW-177 are closed.
-- **5.2 takes DW-222:**
-  - when no production runs in a readable namespace, the reader also lists that namespace's last production, taken from the platform's record that a Task 0 measures, never from every production row;
-  - `stop_watch` also resolves from the session's own watch rows.
+  `IncidentManager` is still a stub: it completes a `FailureBatch`, writes nothing, answers 5003 to anything else and keeps `STUB`. Dropping `STUB` (5.3, 5.5) changes `Test.Install.Production`'s stub oracle and Epic 4's `CommandsInProduction` row that expects `Dismiss` to answer `not_built`. DW-35, DW-74, DW-164, DW-177 and DW-222 are closed.
 - **Within the epic:**
   - 5.1's rows feed 5.2 and 5.6;
-  - 5.2 feeds 5.3, and 5.4 runs when the settle rule ends;
+  - 5.2's batches feed 5.3, which groups by production item plus `ErrorText` pattern per `OwnerRef` and ignores keys it already holds; 5.4 runs when the settle rule ends;
   - 5.5's table governs the moves in 5.3, 5.4 and 5.6;
   - 5.6 publishes the `check` event for watch starts and stops (5.1 publishes none) and feeds 5.7.
 - **Merged:**
@@ -160,12 +166,16 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
 - **Not merged, so tests use fixtures or direct calls:**
   - Epic 4's Break the feed: fixtures add failing Orders messages tagged with a test session's `TraceRef`;
   - Epic 8's `HeartbeatIn`: tests send `Tick` directly;
+  - Epic 7's fix-copy registry (7.3, 7.4): until then every failure is batched by scope, with the `HeaderId` and `Namespace` that 7.4's match needs;
   - Epics 6, 7 and 11, and Stories 30.2 (purge task) and 30.4 (findings);
   - Epic 9's evaluation runs will drive `WatchOps`, `IncidentManager` and `EvidencePack` with owner `eval`.
 - **Later consumers:**
   - `SessionOps.End` stops a session's watches through `WatchOps` (16.4; the real path in 31.3);
   - steps 4 and 5 add `BackgroundCheck` kinds.
-- **Shared files:** `Install/Step/Demo.cls` and `Test/Core/CommandsInProduction.cls` are Epic 4's. 5.1 edited them by ruling, so Epic 4 merges forward as a plain union, and DW-223 folds `WithOrdersData` into `WithOrders` after Epic 4 merges.
+- **Shared files:**
+  - `Install/Step/Demo.cls` and `Test/Core/CommandsInProduction.cls` are Epic 4's. 5.1 edited them by ruling, so Epic 4 merges forward as a plain union, and DW-223 folds `WithOrdersData` into `WithOrders` after Epic 4 merges.
+  - `Test/Data/Tables.cls` (Epic 16's) pins table property sets in its Contracts XData; a one-time ruling let 5.2 change only the `WatchMark` and `BackgroundCheck` entries (a plain union at merge-forward), so another change there needs its own ruling.
 - **Test pitfalls:**
-  - A warm stack reloads classes, but running production jobs keep their old code, so changes to production items are proven through the production only on a fresh stack.
+  - A warm stack reloads classes, but running production jobs keep their old code, so changes to production items (the poller included) are proven through the production only on a fresh stack.
   - Watch tests need demo mode and the grant. A test that reruns the Roles step must restore the service role, as `Test.Install.Registry` does.
+  - The fresh `lane-a` shard took 539 s with 54 classes, near the 10-minute cap, so chain nothing after it in the same call. DW-227 (5.3) gives `ci/iris.sh shard` a local split (`--part k/n` over the sorted class list, `--reverse`), with the CI groups unchanged.
