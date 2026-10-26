@@ -1,19 +1,23 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
+import { LiveState } from '../live/live-state';
 import { Layout } from '../shared/layout';
 
-/** A skip link: its text and the selector of the region it moves focus to. */
+/** A skip link: its text, the selector of the region it moves focus to, and whether it shows only in demo mode. */
 export interface SkipLink {
   text: string;
   target: string;
+  demo?: boolean;
 }
 
 /**
- * The skip links in tab order (UX: Skip to chat, Skip to status). The targets are the page's own regions: main takes focus without
- * being a tab stop (tabindex -1), and the rail is one only while it scrolls on its own (tabindex -1 when stacked). A later story adds its link here, in the place the UX gives it.
+ * The skip links in tab order (UX: Skip to chat, Skip to simulated devices in demo mode, Skip to status). The targets are the page's own
+ * regions: main takes focus without being a tab stop (tabindex -1), the simulated devices region takes it the same way (tabindex -1),
+ * and the rail is one only while it scrolls on its own (tabindex -1 when stacked). A later story adds its link here, in the place the UX gives it.
  */
 export const SKIP_LINKS: readonly SkipLink[] = [
   { text: 'Skip to chat', target: 'main.main' },
+  { text: 'Skip to simulated devices', target: 'app-device-panel section', demo: true },
   { text: 'Skip to status', target: 'section.rail' },
 ];
 
@@ -21,7 +25,7 @@ export const SKIP_LINKS: readonly SkipLink[] = [
  * The skip links (Story 2.14; NFR-25, UX-DR11): the first tab stops of the page, before the header. Each is a link with the
  * page's own address (href="#/"), so a middle-click opens the same page; a press, by click or by Enter, never follows it. It moves
  * focus to the region through Layout.focusRegion, which is the user's own move: "Skip to status" opens a closed drawer first (Story
- * 2.15). It does nothing when the page has no such region. A skip link is visually
+ * 2.15). It does nothing when the page has no such region. The link to the simulated devices exists only while demo mode is on. A skip link is visually
  * hidden until it has focus; with focus it shows at the top left of the page, above the header, with the text link's look and its
  * focus ring inside the viewport. The component is no landmark: it renders no nav.
  */
@@ -29,7 +33,7 @@ export const SKIP_LINKS: readonly SkipLink[] = [
   selector: 'app-skip-links',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @for (link of links; track link.target) {
+    @for (link of links(); track link.target) {
       <a class="link skip-link" href="#/" (click)="skip($event, link.target)">{{ link.text }}</a>
     }
   `,
@@ -58,7 +62,10 @@ export const SKIP_LINKS: readonly SkipLink[] = [
 })
 export class SkipLinks {
   private readonly layout = inject(Layout);
-  protected readonly links = SKIP_LINKS;
+  private readonly live = inject(LiveState);
+
+  /** The links that show: the demo-only link only while the snapshot says demo mode is on. */
+  protected readonly links = computed(() => SKIP_LINKS.filter((link) => link.demo !== true || this.live.snapshot()?.demoMode === true));
 
   /** Moves focus to the region (opening the drawer that holds it) and keeps the press from following the link. */
   protected skip(event: Event, target: string): void {

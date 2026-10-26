@@ -113,7 +113,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'guide']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'guide']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);

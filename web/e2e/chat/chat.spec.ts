@@ -552,6 +552,9 @@ test('C5: seeded turns in CreatedAt order, with captions, lists, links and text 
     { createdAt: '2025-06-01T10:02:00Z', text: `zz C5 ${stamp} second`, replyText: 'Sent from the guide.', fromGuide: true },
     { createdAt: '2025-06-01T10:04:00Z', text: `zz C5 ${stamp} long ${long}`, replyText: 'A reply to a long message.' },
   ];
+  // The chat shares the page with the status rail and the simulated devices, so main is narrow at 1280px: the window is wide enough for a
+  // bubble to reach its 72ch cap.
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await open(page);
   const { user } = fixtureUser('PANEL');
   const seeded = await seedTurns(user, turns);

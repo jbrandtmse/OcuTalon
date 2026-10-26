@@ -112,6 +112,8 @@ describe('focus moves only for the user or through the focus rule', () => {
   const FOCUS_CALLS = {
     'app/chat/composer.ts': [1, 'the field takes focus after the user\'s own Send'],
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
+    'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
+    'app/phone/simulated-phone.ts': [1, 'the target of the phone\'s New messages button, which the user pressed'],
     'app/shared/popover.ts': [2, 'a popover returns focus to its trigger when the user closes it, and takes it into its panel when the user opens it'],
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
     'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
@@ -131,12 +133,13 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the device panel, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
     const hosts = {
       'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
       'app/chat/chat-panel.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{PART\}\]\[\$\{KEY\}\]`/,
+      'app/devices/device-panel.ts': /const FOCUS_RULE: FocusRule = \{\};/,
       'app/guide/demo-guide.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{FOCUS_KEY\}\]`[\s\S]*?whenGone:/,
       'app/main-page/main-page.ts': /const LOAD_ERROR_RULE: FocusRule = \{ within: '\.load-error' \}[\s\S]*const NOTE_RULE: FocusRule = \{ within: '\.narrow-note' \}/,
     };

@@ -1,3 +1,4 @@
+import { publishFixtureEvent } from './devices';
 import { chk, irisScript, quoted } from './iris';
 
 /**
@@ -13,20 +14,8 @@ export const ORDERS = { namespace: 'OCUORDERS', production: 'OcuTalon.Demo.Order
  * Publishes a `watch.progress` event on the user's own session stream, as the incident manager will (Epic 5), and returns its Seq. Nothing
  * publishes one in this tree, so a case does it through Live.Publish, as publishCheck does for a check.
  */
-export async function publishWatchProgress(user: string, fields: { ref: string; stage: 'noticed' | 'settling' | 'diagnosing' }): Promise<number> {
-  const lines = await irisScript(
-    [
-      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
-      'Set p=##class(OcuTalon.Live.Payload.WatchProgress).%New()',
-      `Set p.Ref=${quoted(fields.ref)}`,
-      `Set p.Stage=${quoted(fields.stage)}`,
-      'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"watch.progress",p,.q)',
-      'Write !,"CHK|seq|",q',
-    ].join('\n'),
-  );
-  const seq = Number(chk(lines, 'seq'));
-  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the watch.progress event could not be published (${lines.join(' ')})`);
-  return seq;
+export function publishWatchProgress(user: string, fields: { ref: string; stage: 'noticed' | 'settling' | 'diagnosing' }): Promise<number> {
+  return publishFixtureEvent(user, 'watch.progress', 'OcuTalon.Live.Payload.WatchProgress', { Ref: fields.ref, Stage: fields.stage });
 }
 
 /**

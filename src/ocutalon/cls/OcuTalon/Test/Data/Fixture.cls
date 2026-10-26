@@ -210,6 +210,22 @@ ClassMethod Delivery(ownerRef As %String, fields As %DynamicObject = "") As %Str
 	Quit ..Keep(row, $Select(row.ChannelMessageId '= "": row.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef()))
 }
 
+/// A message on the session's simulated phone: a SimMessage of Kind phone, direction out, with the text "zz phone <ref>" and
+/// CreatedAt now unless fields, an object of property names and values, sets others. Clean removes it with the others, and with
+/// its session. Returns the row's Ref.
+ClassMethod SimMessage(sessionRef As %String, fields As %DynamicObject = "") As %String
+{
+	Set row = ##class(OcuTalon.Data.SimMessage).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = sessionRef
+	Set row.Kind = "phone"
+	Set row.Direction = "out"
+	Set row.Text = "zz phone "_row.Ref
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..SetFields(row, fields)
+	Quit ..Keep(row)
+}
+
 /// The session's Telegram pairing.
 ClassMethod Pairing(sessionRef As %String, displayName As %String = "Zz chat") As %String
 {
@@ -331,6 +347,7 @@ ClassMethod Clean(refs As %String = "")
 			If class = "OcuTalon.Data.Session" {
 				Do ..DropStream(ref)
 				Do ..DropDeliveries(ref)
+				Do ..DropSimMessages(ref)
 				Do ..DropGuide(ref)
 			}
 			Do $ClassMethod(class, "%DeleteId", id)
@@ -462,6 +479,14 @@ ClassMethod DropDeliveries(ownerRef As %String) [ Private ]
 	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?")
 	Do statement.%Execute(ownerRef)
+}
+
+/// Removes the SimMessage rows of a session, the rows that SimPhoneOut made for a fixture session included.
+ClassMethod DropSimMessages(sessionRef As %String) [ Private ]
+{
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?")
+	Do statement.%Execute(sessionRef)
 }
 
 /// Removes the GuideState and BreakFeedRun rows of a session, the rows that the product made for a fixture session included.

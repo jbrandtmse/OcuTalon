@@ -121,7 +121,8 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,guide", "the snapshot's keys, with the guide last while demo mode is on")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,phone,guide", "the snapshot's keys, with the phone and then the guide last while demo mode is on")
+	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
 	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
 	Do $$$AssertEquals(body.guide.%ToJSON(), guideJson, "the guide is Demo.Guide.Compute's view")
 	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
@@ -174,17 +175,59 @@ Method TestStateFlags()
 			Do $$$AssertEquals(body.demoMode, mode, label_": demoMode")
 			Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", label_": both are booleans")
 			Do $$$AssertEquals(body.%IsDefined("guide"), mode, label_": guide is present exactly when demoMode is true")
+			Do $$$AssertEquals(body.%IsDefined("phone"), mode, label_": phone is present exactly when demoMode is true")
 		}
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do ##class(OcuTalon.Test.Demo.Step).Remove()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
-	Do $$$AssertEquals(body.%IsDefined("guide"), 0, "and the snapshot has no guide")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone"), "00", "and the snapshot has no guide and no phone")
 	Do ##class(OcuTalon.Test.Demo.Step).Put("yes", ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
-	Do $$$AssertEquals(body.%IsDefined("guide"), 0, "and the snapshot has no guide for another value")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone"), "00", "and the snapshot has no guide and no phone for another value")
+}
+
+/// The snapshot's phone holds the session's own simulated-phone messages (Kind phone) as Phone payloads, the newest PHONEMAX,
+/// oldest first; a mailbox message, another session's messages and (with demo mode off) every message are not in it.
+Method TestStatePhone()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapiphone"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapiphoneother"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set m1 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Text": ("zz first"_$Char(10)_"second line")})
+	Set m2 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Text": "zz second"})
+	Set m3 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Text": "zz third"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:09Z", "Kind": "mailbox", "Text": "zz mail"})
+	Do $ClassMethod(fixture, "SimMessage", theirs, {"CreatedAt": "2030-01-01T10:00:09Z", "Text": "zz theirs"})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.phone.%Size(), 3, "the session's three phone messages")
+	Set refs = ""
+	For i = 0:1:body.phone.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_body.phone.%Get(i).ref
+	}
+	Do $$$AssertEquals(refs, m1_","_m2_","_m3, "oldest first, the later ID last at the same second")
+	Set first = body.phone.%Get(0)
+	Set keys = ""
+	Set iterator = first.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "ref,direction,text,createdAt", "a message is a Phone payload, which leaves out its empty approvalRef")
+	Do $$$AssertEquals(first.direction_"|"_first.text_"|"_first.approvalRef_"|"_first.createdAt, "out|zz first"_$Char(10)_"second line||2030-01-01T10:00:01Z", "with its direction, text and time")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.%IsDefined("phone"), 0, "with demo mode off the snapshot has no phone")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	For i = 1:1:##class(OcuTalon.Web.Api).#PHONEMAX {
+		Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T11:00:00Z"})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.phone.%Size(), ##class(OcuTalon.Web.Api).#PHONEMAX, "at most PHONEMAX messages")
+	Do $$$AssertEquals(body.phone.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the three older messages are cut")
 }
 
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its

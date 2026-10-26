@@ -356,7 +356,7 @@ Method TestIsolationEveryRowKind()
 	Do ..ReadAll(b, .seenB, rb("decision"), rb("deliveryapproval"), rb("itemid"))
 	Do ..ReadAll(b, .crossB, ra("decision"), ra("deliveryapproval"), ra("itemid"))
 	Do ..ReadAll(a, .crossA, rb("decision"), rb("deliveryapproval"), rb("itemid"))
-	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("turnofitem", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("delivery", "notice"))
+	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("turnofitem", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("recentphone", "phone"), $ListBuild("delivery", "notice"))
 	Set position = 0
 	While $ListNext(kinds, position, pair) {
 		Set read = $List(pair, 1), kind = $List(pair, 2)
@@ -405,7 +405,7 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "deliveryByApproval" {
+	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "deliveryByApproval" {
 		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
@@ -454,6 +454,9 @@ Method TestRowsRefuses()
 	Set result = ##class(OcuTalon.Data.Ownership).RecentNotices("", 100, .sc)
 	Do $$$AssertStatusNotOK(sc, "RecentNotices with an empty SessionRef is an error")
 	Do $$$AssertEquals(result.Count(), 0, "and reads no row")
+	Set result = ##class(OcuTalon.Data.Ownership).RecentPhone("", 100, .sc)
+	Do $$$AssertStatusNotOK(sc, "RecentPhone with an empty SessionRef is an error")
+	Do $$$AssertEquals(result.Count(), 0, "and reads no row")
 	Set found = ##class(OcuTalon.Data.Ownership).DeliveryFor(ra("deliveryapproval"), "web", "", .sc)
 	Do $$$AssertEquals(found, "", "DeliveryFor with an empty SessionRef finds nothing")
 	Do $$$AssertStatusNotOK(sc, "and says why")
@@ -463,6 +466,9 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "and says why")
 		Set result = ##class(OcuTalon.Data.Ownership).RecentNotices(owner, 100, .sc)
 		Do $$$AssertEquals(result.Count(), 0, "RecentNotices for the owner "_owner_" reads no row")
+		Do $$$AssertStatusNotOK(sc, "and says why")
+		Set result = ##class(OcuTalon.Data.Ownership).RecentPhone(owner, 100, .sc)
+		Do $$$AssertEquals(result.Count(), 0, "RecentPhone for the owner "_owner_" reads no row")
 		Do $$$AssertStatusNotOK(sc, "and says why")
 	}
 	Set cost = ##class(OcuTalon.Data.Ownership).RunCost("", "", .sc)
@@ -758,6 +764,27 @@ Method TestRecentNotices()
 	Do $$$AssertEquals($ClassMethod(ownership, "DeliveryFor", approval, "", a), "", "an empty channel finds nothing")
 }
 
+/// RecentPhone gives the session's simulated-phone messages (SimMessage rows of Kind phone), newest CreatedAt first and then
+/// newest ID first, at most max: a mailbox message and another session's messages are left out.
+Method TestRecentPhone()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"pa")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"pb")
+	Do $$$AssertEquals(..Refs($ClassMethod(ownership, "RecentPhone", a)), "", "no messages to begin with")
+	Set m1 = $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:02Z"})
+	Set m2 = $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:03Z"})
+	Set m3 = $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:03Z"})
+	Set m4 = $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:01Z"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:09Z", "Kind": "mailbox"})
+	Do $ClassMethod(fixture, "SimMessage", b, {"CreatedAt": "2030-01-01T10:00:09Z"})
+	Do $$$AssertEquals(..Refs($ClassMethod(ownership, "RecentPhone", a)), m3_","_m2_","_m1_","_m4, "the phone messages, newest first, the later ID first at the same second")
+	Do $$$AssertEquals(..Refs($ClassMethod(ownership, "RecentPhone", a, 2)), m3_","_m2, "at most max of them, the newest")
+	Do $$$AssertEquals($ClassMethod(ownership, "RecentPhone", b).Count(), 1, "another session has its own message only")
+	Do $$$AssertEquals($ClassMethod(ownership, "RecentPhone", ##class(OcuTalon.Bridge.Ids).NewRef()).Count(), 0, "a session with no row has none")
+}
+
 /// --- helpers ---
 /// One row of every kind for the session: ref(kind) = the row's Ref. Its incident is noticed and its approval pending.
 ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
@@ -783,6 +810,8 @@ ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 	Set ref("notice") = ##class(OcuTalon.Test.Data.Fixture).Delivery(sessionRef, {"ApprovalRef": (ref("deliveryapproval")), "Kind": "reminder"})
 	Do ##class(OcuTalon.Test.Data.Fixture).Delivery(sessionRef, {"Kind": "incident", "ChannelMessageId": ""})
 	Do ##class(OcuTalon.Test.Data.Fixture).Delivery(sessionRef, {"Channel": "telegram", "ApprovalRef": (ref("deliveryapproval"))})
+	Set ref("phone") = ##class(OcuTalon.Test.Data.Fixture).SimMessage(sessionRef)
+	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(sessionRef, {"Kind": "mailbox", "Direction": "in"})
 }
 
 /// Every read of the session: seen(read) = the Refs it returned, comma-separated (a usage row stands for its DecisionRef).
@@ -830,6 +859,9 @@ Method ReadAll(sessionRef As %String, Output seen, decisionRef As %String = "", 
 	Set rows = ##class(OcuTalon.Data.Ownership).RecentNotices(sessionRef, 100, .sc)
 	Do $$$AssertStatusOK(sc, "RecentNotices reads")
 	Set seen("recentnotices") = ..Refs(rows)
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(sessionRef, 100, .sc)
+	Do $$$AssertStatusOK(sc, "RecentPhone reads")
+	Set seen("recentphone") = ..Refs(rows)
 	Set found = ##class(OcuTalon.Data.Ownership).DeliveryFor(approvalRef, "web", sessionRef, .sc)
 	Do $$$AssertStatusOK(sc, "DeliveryFor reads")
 	Set seen("delivery") = $Select($IsObject(found): found.ChannelMessageId, 1: "")

@@ -2,7 +2,8 @@
 title: 'Story 4.5: Get notifications on the simulated phone'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd32e2e986649640457c02851a18170b3880a4e55'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -253,23 +254,23 @@ Conventions:
 ## Tasks & Acceptance
 
 **Execution** (in dependency order):
-- [ ] `src/ocutalon/cls/OcuTalon/Data/SimMessage.cls` -- add `Property Text As %String(MAXLEN = "")` ("the message's text as the device shows it"), appended to storage as Value 8 (V1). Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/Operation.cls` (new, abstract, `Extends Ens.BusinessOperation`) -- holds what both channel operations share:
+- [x] `src/ocutalon/cls/OcuTalon/Data/SimMessage.cls` -- add `Property Text As %String(MAXLEN = "")` ("the message's text as the device shows it"), appended to storage as Value 8 (V1). Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/Operation.cls` (new, abstract, `Extends Ens.BusinessOperation`) -- holds what both channel operations share:
   - `IsSession(ownerRef)`: `Session.Recipients`, plus one warning from the parameter `LOGNOTASESSION`;
   - `Announce(ownerRef, type, payload)`: `Live.Publish.Publish`, where a status error or an exception logs `LOGPUBLISH` and goes no further.
 
   Rule 2.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls` -- extend `OcuTalon.Channel.Operation`. Drop its own `IsSession` and the try block of `Announce`, which now calls the base with `"notification"`. Behaviour is unchanged, and `Test.Core.WebChatOut` stays green as written.
-- [ ] `src/ocutalon/cls/OcuTalon/Live/Payload/Phone.cls` -- `ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Phone`: ref, direction, text and createdAt from the row, and `ApprovalRef` "" (Story 6.3 sets it).
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls` -- the real operation (rows 1-5). It extends `Channel.Operation`:
+- [x] `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls` -- extend `OcuTalon.Channel.Operation`. Drop its own `IsSession` and the try block of `Announce`, which now calls the base with `"notification"`. Behaviour is unchanged, and `Test.Core.WebChatOut` stays green as written.
+- [x] `src/ocutalon/cls/OcuTalon/Live/Payload/Phone.cls` -- `ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Phone`: ref, direction, text and createdAt from the row, and `ApprovalRef` "" (Story 6.3 sets it).
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls` -- the real operation (rows 1-5). It extends `Channel.Operation`:
   - parameters `CHANNEL = "phone"`, `TEXTCHANNEL = "phone"` and `CARDKINDS = "tellnow,reminder"`;
   - a MessageMap with `OcuTalon.Msg.Notification` → `OnNotification` only;
   - the steps: owner check → kind filter → `Render` → `TSTART`, save the SimMessage (new Ref, `Data.Time.NowUtc()`), `Delivery.Record(session,"phone",ref,ApprovalRef,Kind,"",DecisionRef)`, `TCOMMIT` (`TROLLBACK 1` and return the error on a failure) → `Announce(session,"phone",Phone.FromRow(row))`.
   - The response is "". Remove `STUB` and update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the `recentPhone` statement: `SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' ORDER BY CreatedAt DESC, ID DESC` (class SimMessage, binds `ao`). Add the public `RecentPhone(sessionRef, max = 100, .sc)` and the header line.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- `PHONEMAX = 100`. Just before the `guide` line, when `body.demoMode`: `body.phone` = `RecentPhone` reversed to oldest first, each `PayloadObject(Phone.FromRow(row))`. The reader's status goes through `..Check(sc)` (`:511`), as `ChatItems`' readers do (`:405-418`; row 6). Update `StateBody`'s doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls` -- `DropSimMessages(sessionRef)` (SQL delete by SessionRef), called from `Clean` beside `DropDeliveries`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls` (new; lane-b `Demo`; shadow instance + `Test.Core.Observe` + `Test.Data.Fixture`):
+- [x] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the `recentPhone` statement: `SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' ORDER BY CreatedAt DESC, ID DESC` (class SimMessage, binds `ao`). Add the public `RecentPhone(sessionRef, max = 100, .sc)` and the header line.
+- [x] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- `PHONEMAX = 100`. Just before the `guide` line, when `body.demoMode`: `body.phone` = `RecentPhone` reversed to oldest first, each `PayloadObject(Phone.FromRow(row))`. The reader's status goes through `..Check(sc)` (`:511`), as `ChatItems`' readers do (`:405-418`; row 6). Update `StateBody`'s doc.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls` -- `DropSimMessages(sessionRef)` (SQL delete by SessionRef), called from `Clean` beside `DropDeliveries`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls` (new; lane-b `Demo`; shadow instance + `Test.Core.Observe` + `Test.Data.Fixture`):
   - `TestTellNow` and `TestReminder` (row 1 exactly, Text = `RenderAt(...,"telegram",...)` and the same with `"phone"`);
   - `TestOnlineDemoTimesNameTheZone` (row 2);
   - `TestOtherKindsRecordOnly` (row 3);
@@ -279,29 +280,29 @@ Conventions:
   - `TestThroughNotify`: in the running production with demo on, a Notification from a `CreateBusinessService` host to Notify for a fixture session gives its SimMessage within 5 s. The `Ens.MessageHeader`s from Notify to WebChatOut and to SimPhoneOut have the same `MessageBodyClassName` (`OcuTalon.Msg.Notification`), `MessageBodyId` and `SessionId`, both are completed with no error, and neither has a response header. Only `TargetConfigName` differs (AC3, the Visual Trace clause).
 
   Clean in `OnAfterAllTests` on every path.
-- [ ] Server pins:
+- [x] Server pins:
   - `Test/Data/Tables.cls` -- SimMessage gains `"Text": "%String(MAXLEN=)"`;
   - `Test/Data/Ownership.cls` -- `recentPhone` joins both kind lists, plus a reader case: oldest/newest order, cap, and another session's rows absent;
   - `Test/Web/Api.cls` -- `TestStateBody`'s keys gain `phone` before `guide`; `TestStateFlags` asserts `phone` exactly when `demoMode`; a new `TestStatePhone` covers row 6's content and order;
   - `Test/Core/ProductionItems.cls:22` -- `"stub": 0`.
-- [ ] `web/src/app/shared/follow-bottom.ts` (new) -- `BOTTOM_SLACK_PX` and `atBottom(el, slack)`, moved from `chat-panel.ts`. `chat-panel.ts` imports them, with no change in behaviour (Rule 2: the phone's follow rule is the chat's).
-- [ ] `web/src/app/devices/device-view.ts` (new; framework-free, erasable TS):
+- [x] `web/src/app/shared/follow-bottom.ts` (new) -- `BOTTOM_SLACK_PX` and `atBottom(el, slack)`, moved from `chat-panel.ts`. `chat-panel.ts` imports them, with no change in behaviour (Rule 2: the phone's follow rule is the chat's).
+- [x] `web/src/app/devices/device-view.ts` (new; framework-free, erasable TS):
   - `DEVICE_TEXTS`: region, the two tab names, `'Simulated'`, the badge pattern, the skip text;
   - `type DeviceTab`, `TAB_KEY = 'ocutalon.devices.tab'`, `tabName(tab, count)`, `otherTab(tab)`;
   - `newRefs(seen, refs)` for the badge counts (row 9).
-- [ ] `web/src/app/devices/device-tabs.ts` (new; `@Injectable({providedIn:'root'})`) -- the `selected` signal, read from and written with `stored-flag` (value `'mailbox'`; anything else is phone), and `select(tab)`. Story 4.7's Show me calls `select('phone')`.
-- [ ] `web/src/app/devices/simulated-label.ts` (new component) -- the static amber outlined pill "Simulated" (`--simulated-label-*`), with no tabindex. The phone and Story 4.6's mailbox header both use it.
-- [ ] `web/src/app/phone/phone-view.ts` (new; framework-free) -- holds:
+- [x] `web/src/app/devices/device-tabs.ts` (new; `@Injectable({providedIn:'root'})`) -- the `selected` signal, read from and written with `stored-flag` (value `'mailbox'`; anything else is phone), and `select(tab)`. Story 4.7's Show me calls `select('phone')`.
+- [x] `web/src/app/devices/simulated-label.ts` (new component) -- the static amber outlined pill "Simulated" (`--simulated-label-*`), with no tabindex. The phone and Story 4.6's mailbox header both use it.
+- [x] `web/src/app/phone/phone-view.ts` (new; framework-free) -- holds:
   - `PHONE_TEXTS`: "OcuTalon", the empty text;
   - `type PhoneSnapshot`, and `phoneOf(snapshot, store)`, which returns `undefined` unless `demoMode` (merge rule above);
   - `pendingApproval(list, approvals)`.
-- [ ] `web/src/app/phone/simulated-phone.ts` (new component `app-simulated-phone`) -- rows 10-13:
+- [x] `web/src/app/phone/simulated-phone.ts` (new component `app-simulated-phone`) -- rows 10-13:
   - the frame, the top bar and `app-simulated-label`;
   - the feed: a scroller with `tabindex="0"`, `role="region"` and `aria-labelledby` its tab's id (input);
   - notifications as `[data-key]` with `tabindex="-1"`, `white-space: pre-line`, and the caption from `pageTimeBeside`;
   - the empty text;
   - follow / hold / New messages, mirroring `chat-panel.ts` with `follow-bottom.ts` plus the pending-approval hold. The New messages button is placed after the feed in tab order.
-- [ ] `web/src/app/devices/device-panel.ts` (new component `app-device-panel`) -- rows 7-9, 14, 15:
+- [x] `web/src/app/devices/device-panel.ts` (new component `app-device-panel`) -- rows 7-9, 14, 15:
   - The host shows only in demo mode; otherwise it is `display:none` with no region.
   - `section` region "Simulated devices" with `tabindex="-1"` (the skip target).
   - A tablist of two `button role="tab"` with roving tabindex, `aria-selected`, `aria-controls` and a `(keydown)` that handles only ArrowLeft and ArrowRight, focusing and selecting the other tab.
@@ -309,15 +310,15 @@ Conventions:
   - Badge counts with `newRefs` (the badge `aria-hidden`, and the count inside the tab's name).
   - Width `--space-device-width`, `-wide` from 1440, auto when stacked. The panel body scrolls (`overflow-y:auto`, gutter).
   - `keepFocus` with the default fallback.
-- [ ] `web/src/app/main-page/main-page.ts` -- `<app-device-panel />` as the host's third child, after `main`. `place()` puts the rail after the device panel when stacked (main, devices, rail) and before main when framed. Update the doc.
-- [ ] `web/src/app/header/skip-links.ts` -- three entries; the middle one is `{text:'Skip to simulated devices', target:'app-device-panel section', demo:true}`, shown only while `snapshot.demoMode`. Update the doc.
-- [ ] `web/scripts/device-view.test.mjs` and `phone-view.test.mjs` (new) -- cover:
+- [x] `web/src/app/main-page/main-page.ts` -- `<app-device-panel />` as the host's third child, after `main`. `place()` puts the rail after the device panel when stacked (main, devices, rail) and before main when framed. Update the doc.
+- [x] `web/src/app/header/skip-links.ts` -- three entries; the middle one is `{text:'Skip to simulated devices', target:'app-device-panel section', demo:true}`, shown only while `snapshot.demoMode`. Update the doc.
+- [x] `web/scripts/device-view.test.mjs` and `phone-view.test.mjs` (new) -- cover:
   - tab names with and without counts;
   - `otherTab` wrapping;
   - `newRefs` (no count for refs seen at load);
   - `phoneOf`: demo off is `undefined`, the merge order, and a ref in both;
   - `pendingApproval` (pending, approved, absent).
-- [ ] Shared-surface unit tests, each edited with its reason:
+- [x] Shared-surface unit tests, each edited with its reason:
   - `floor-sources.test.mjs`:
     - the tab ban allows `app/devices/device-panel.ts` ("ARIA tabs of the simulated device panel; content never switches them (EXPERIENCE L296)"). The pattern is case-insensitive, so no other file may contain `tablist` or `tabpanel`, identifiers included;
     - the keys literal set gains `ArrowLeft` and `ArrowRight`, and the device panel's `(keydown)` joins the binding list;
@@ -329,30 +330,30 @@ Conventions:
     - `IMPORTED` gains `DEVICE_TEXTS` and `PHONE_TEXTS`;
     - the skip-link grab (`:83`, which matches `{ text: '...', target: '...' }` exactly) allows the optional `demo` field, and its count becomes 3;
   - `playwright-projects.test.mjs`: D1 is `@browsers`.
-- [ ] `web/e2e/support/devices.ts` (new) -- three helpers:
+- [x] `web/e2e/support/devices.ts` (new) -- three helpers:
   - `publishFixtureEvent(user, type, payloadClass, fields)`, generalized from `publishWatchProgress`, which then calls it;
   - `publishMailbox(user, ref)`, a fixture `mailbox` event on the user's stream (nothing publishes one before Story 4.6);
   - `dropPhone(user, sinceUtc)`, which deletes the session's `SimMessage` rows and its phone and web `Delivery` rows from that time on, for FLOOR and README, which are not fixture sessions.
-- [ ] `web/e2e/phone/phone.spec.ts` (new; chromium, `live sign-in`, README with `changeSnapshot`, no server writes):
+- [x] `web/e2e/phone/phone.spec.ts` (new; chromium, `live sign-in`, README with `changeSnapshot`, no server writes):
   - P1, region and tabs (row 7): names, `aria-selected`, roving tabindex, the arrows (row 8), reload memory, storage that throws, and the middle skip link focusing the region;
   - P2, look (row 10): the top bar text exactly, the label unfocusable with its token colours, the frame radius 28px, a shadow, no textbox;
   - P3, the empty text (`phone: []`) and the messages (row 11): order, line break, caption time in a browser zone unlike the instance's;
   - P4: `demoMode` false with a `phone` key gives no region and no middle skip link.
-- [ ] `web/e2e/chat/notice.spec.ts` -- N11 replaces the `notBuilt`. It uses N10's path and budget: `started` is taken before `sendItem`, and the unique tell-now text must be on the phone feed in under 5000 ms (row 16). Update the header comment.
-- [ ] `web/e2e/demo-switch/phone.spec.ts` (new; the demo-switch project, README, `stackMode()`; row 17, AC4):
+- [x] `web/e2e/chat/notice.spec.ts` -- N11 replaces the `notBuilt`. It uses N10's path and budget: `started` is taken before `sendItem`, and the unique tell-now text must be on the phone feed in under 5000 ms (row 16). Update the header comment.
+- [x] `web/e2e/demo-switch/phone.spec.ts` (new; the demo-switch project, README, `stackMode()`; row 17, AC4):
   - `sendNotification('ocutalon', T with a unique stamp)` and R;
   - mode 1: both texts on the phone in order, both after a reload, and the SimMessage count of README's session +2 (`irisScript`);
   - mode 0: both chat cards visible, no region, `/state` without `phone`, and the SimMessage count +0.
 
   All assertions are relative.
-- [ ] `web/e2e/floor/devices.spec.ts` (new; the floor stack, FLOOR):
+- [x] `web/e2e/floor/devices.spec.ts` (new; the floor stack, FLOOR):
   - D1 `@browsers`: tab order (skip links, tabs, the feed), the arrows, rings inside the viewport and the panel at 1280x720 and 1280x600 (row 8);
   - D2, layout: 1440 (384px), 1280 (352px, under the Break the feed box's left edge), 1100 (352px, drawer), 1000 (stacked order and tab order main, devices, rail), and 1280x600 with no page scroll (rows 7, 14, 15);
   - D3, real arrivals with `sendNotification(FLOOR)`: follow at the bottom (row 12), hold when scrolled up and New messages focusing the first new notification (row 13), mailbox selected giving the phone badge with no switch and clearing on select, then two `publishMailbox` giving "Simulated mailbox, 2 new" (row 9);
   - D4, the pending-approval hold: `changeSnapshot` adds a pending approval to `rail.approvals` and a `phone` entry naming it, then a real arrival does not move the feed and shows New messages (row 13).
 
   No live attributes anywhere in the region. Each case's `finally` calls `dropPhone(FLOOR, start)`.
-- [ ] Existing e2e, edited for the region and the skip link:
+- [x] Existing e2e, edited for the region and the skip link:
   - `frame/frame.spec.ts` F1: the device panel after main in the DOM order, once; F9: the keys gain `phone`;
   - `api/api.spec.ts:116`: the keys gain `phone`;
   - `floor/keyboard.spec.ts` K1 (Tab 2 is Skip to simulated devices, Tab 3 Skip to status, Tab 4 the home link, at all three places) and K4 (three Tabs);
@@ -376,6 +377,30 @@ Conventions:
 - 2026-10-26, spec gate (runner): V1 kept as a veto item (U-89); spine conventions row updated.
 
 ## Review Triage Log
+
+### 2026-10-26 - Review pass
+- verdicts: 20 findings - high 0, medium 1, low 14, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: card kinds, the Delivery branch and the render skeleton repeat WebChatOut's - the lists agree today and the two skeletons differ (Save versus Delivery.Record with text, due time and reason); folding them is more than a direct correction -> reject (a copy of two lines of constant; the sibling's own Delivery call cannot be shared)
+  - `[low]` `[patch]` Blind: `tabOf` is exported and tested but the app never calls it - removed it, and the unit test now pins `readFlag` against the stored values (Mailbox, empty, null, other), which is what `DeviceTabs` calls
+  - `[low]` `[reject]` Blind: `dropPhone` depends on the host and instance clocks (2 s margin) - same machine and one worker; a test-only helper; no failing case shown
+  - `[low]` `[patch]` Blind: `playwright.config.ts` comment names the demo-switch specs as badge and guide only - now names the phone spec
+  - `[low]` `[reject]` Blind: the `docker/tests/test-demo-switch.sh` comment says only WebChatOut drops the control Notification - contended path; a comment only
+  - `[low]` `[reject]` Blind: the DeviceTabs comment lists a guide's Show me - Story 4.7 uses `select` per the spec; the comment states the contract
+  - `[false]` `[reject]` Blind: the empty phone text promises approval requests - the text is EXPERIENCE's verbatim string, fixed by the spec's exact-text rule
+  - `[false]` `[reject]` Blind: the feed region repeats its tabpanel's name - the feed is the scroller and tab stop, a region named by its tab, by spec Design Note 11 (a tabpanel is not a region landmark)
+  - `[low]` `[reject]` Blind: IsSession and Announce are public on the base - callable by subclasses either way; no harm
+  - `[medium]` `[patch]` Blind (verification gap): `Save` has no failure test - added `TestSaveFailureKeepsNothing` (an ApprovalRef over its 22 characters fails the Delivery row: error status, no message, no row, no event, no open transaction); mutation line added
+  - `[low]` `[patch]` Edge: `FromRow` was evaluated outside Announce's Try, a change from WebChatOut's behaviour - `Announce` now takes the payload class and the row and builds the payload inside its Try; both callers updated
+  - `[low]` `[reject]` Edge: `TROLLBACK 1` inside an already open transaction - the operation runs as a production host, never inside a caller's transaction; the one test that opens one (TestPublishFailure) commits it
+  - `[low]` `[reject]` Edge: same claim as the FromRow finding for WebChat/Out.cls:54 - carried, patched once
+  - `[low]` `[reject]` Edge: same claim as the dropPhone clock finding - carried
+  - `[low]` `[patch]` Verification gap: `TestPublishFailure` leaves a transaction open if `OnNotification` throws - the call is now in a Try with the status taken from the exception
+  - `[low]` `[patch]` Verification gap: mutation lines missing for the online-demo " ET", rollback, ordering/PHONEMAX, reload and persistence clauses - lines added after demonstrating each; the Visual Trace line is recorded with its limit (see the mutation list)
+  - `[false]` `[reject]` Verification gap: `TestNotASession`'s "no event" line may be vacuous - `Observe.Phones` reads each owner's own stream, so a published event for `instance` or the unknown Ref would be seen
+  - `[low]` `[reject]` Verification gap: the dispatch cases need a fresh stack - recorded in Verification (fresh only); not a defect
+  - `[false]` `[reject]` Intent: readings A-D, the diff implements A end to end; no divergence in the surface (the 5-second check N11 runs on the live stack)
+  - `[false]` `[reject]` Intent: tab persistence and mailbox badges go beyond the intent - matrix rows 8 and 9 name both
 
 ## Design Notes
 
@@ -536,6 +561,31 @@ Rebuild the web bundle with `<B> OCUTALON_RUN_TAG=e4s5i ci/iris.sh build` before
 | 7 | the follow scrolls when scrolled up | D3 |
 | 8 | `place()` keeps rail after main when stacked | D2; G4 |
 
+**Mutations run (Rule 19).** Each was applied, observed red, and reverted (files byte-identical to the backups).
+- mutation: AC1 `phoneOf` ignores `demoMode` -> `phone-view.test.mjs` red (the demo-off case)
+- mutation: AC1 the panel's `demo()` ignores `demoMode` -> `F2` and `P4` red (region count)
+- mutation: AC1 the skip link's `demo` flag ignored -> `P4` red (a middle skip link with demo off)
+- mutation: AC1 ArrowRight focuses without selecting -> `D1` red in Chromium, Firefox and WebKit (`aria-selected`)
+- mutation: AC2 `newRefs` counts what was seen -> `device-view.test.mjs` red (two cases); the badge of the snapshot's content
+- mutation: AC2 content selects the unselected tab -> `D3` red (the phone tab with the count is not found; the mailbox no longer stays selected)
+- mutation: AC3 `TEXTCHANNEL` `"web"` -> `TestTextIsTheTelegramWording` red (the web render of `answered.approved` differs from the telegram one). `TestTellNow` stays green: `notice.tellNow` and `reminder.*` have no web wording, so a key that words the web differently is needed (added test)
+- mutation: AC3 the owner check after `Render` -> `TestNotASession` red (render error for the `{}` slot set)
+- mutation: AC3 no `Delivery.Record` for the phone -> `TestTellNow`, `TestReminder`, `TestPublishFailure` red
+- mutation: AC4 `Web.Api` adds `phone` whatever `demoMode` -> `TestStateFlags` red and the demo-switch phone spec red in mode 0 (`/state` has no phone key)
+- mutation: AC5 the phone feed drops live `phone` events -> `N11` red
+- mutation: AC6 `white-space: pre-line` removed -> `P3` red
+- mutation: AC6 the label gets `tabindex="0"` -> `P2` red
+- mutation: AC7 the follow ignores the pending-approval hold -> `D4` red
+- mutation: AC7 the follow scrolls when scrolled up (the ResizeObserver always scrolls) -> `D3` and `D4` red
+- mutation: AC8 `place()` keeps the rail after main when stacked -> `D2`, `G4` (three cases), `G5` and `G6` red
+- mutation: AC3 `Save` ends with `TCOMMIT` instead of `TROLLBACK 1` (a failed Delivery row keeps the message) -> `TestSaveFailureKeepsNothing` red (the phone message is kept)
+- mutation: AC3 the text is rendered with the online-demo flag forced off (`RenderAt(..., "", 0)`) -> `TestOnlineDemoTimesNameTheZone` red (no " ET")
+- mutation: AC3 the operation returns an `Ens.Response` -> `TestTellNow` red (with no response). `TestThroughNotify`'s "neither has a response header" stays green under this mutation: the clause guards Notify's routing, which this story does not change (inference: an asynchronous send records no response header for a response nobody asked for)
+- mutation: AC4 `Ownership.RecentPhone` orders ascending -> `TestRecentPhone` red (newest first, and the newest max)
+- mutation: AC4 `/state` drops one phone row (the loop stops one short) -> `TestStatePhone` red (the three messages, oldest first, at most PHONEMAX)
+- mutation: AC4 `/state.phone` is always empty -> the demo-switch phone spec red on the reload (the texts are not there after it)
+- mutation: AC1 `DeviceTabs.select` does not store the tab -> `P1` red (the choice is not remembered after a reload)
+
 **Shared surfaces:**
 - `/state`'s keys (`Test.Web.Api`, `api.spec.ts:116`, F9);
 - SimMessage's contract (`Test.Data.Tables`);
@@ -554,7 +604,15 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as the dispatch directed. One veto-window item is for the spec gate: V1, the `SimMessage.Text` column (recommendation: keep). The ledger inbox was empty.
+**Implemented.** `SimPhoneOut` is a real channel: for the card kinds (`tellnow`, `reminder`) it renders the telegram text, saves a `SimMessage` (new `Text` column) and its phone `Delivery` row in one transaction, then publishes `phone`; other kinds record only their Delivery row; non-session owners are dropped with one warning. `/state.phone` (demo mode only, newest 100, oldest first) is read through `Ownership.RecentPhone`. The page has the "Simulated devices" region (ARIA tabs, skip link, phone feed with the "New messages" pattern, a header-only mailbox shell). `Channel.Operation` is the new abstract base (`IsSession`, `Announce`) that `WebChat.Out` now shares.
+
+**Files changed** (one line each): server - `Channel/Operation.cls` (new base), `Channel/SimPhone/Out.cls` (real channel), `Channel/WebChat/Out.cls` (extends the base), `Data/SimMessage.cls` (`Text`), `Data/Ownership.cls` (`RecentPhone`), `Live/Payload/Phone.cls` (`FromRow`), `Web/Api.cls` (`phone` in `/state`); tests - `Test/Demo/SimPhoneOut.cls` (new), `Test/Data/{Tables,Ownership,Fixture}.cls`, `Test/Web/Api.cls`, `Test/Core/ProductionItems.cls`; web - `src/app/devices/**`, `src/app/phone/**`, `shared/follow-bottom.ts` (new), `chat/chat-panel.ts`, `main-page/main-page.ts`, `header/skip-links.ts`; e2e and node tests - `e2e/phone/phone.spec.ts`, `e2e/floor/devices.spec.ts`, `e2e/demo-switch/phone.spec.ts`, `e2e/support/devices.ts`, edits to the frame, api, chat, notice (N11 real), floor and support specs, and the source-scan tests under `web/scripts/`. Outside the stated footprint: `web/e2e/chat/chat.spec.ts` (C5 and the empty-chat G4 case open larger windows because the device column narrows main), `web/playwright.config.ts` (a comment only).
+
+**Review.** 20 findings: patches applied 5 (the `TestSaveFailureKeepsNothing` test, `Announce` builds the payload inside its Try, the dead `tabOf` removed with its test now pinning `readFlag`, `TestPublishFailure` kept hermetic, the config comment), nothing deferred, 15 rejected with reasons in the triage log (spec-mandated texts and region, theoretical or test-only clock and transaction claims, a comment in a contended script, descriptive intent findings). Patched by verdict: medium 1, low 4. Follow-up review not recommended.
+
+**Verification.** `npm --prefix web test` 640 of 640, `npm --prefix web run lint` exit 0, `bash ci/checks.sh` and `bash docker/tests/test-web-build.sh` pass; `class` runs of `Test.Demo.SimPhoneOut` (fresh), `Test.Core.WebChatOut`, `Test.Data.Ownership`, `Test.Data.Tables` and `Test.Web.Api` (warm) pass; `live sign-in` (217 passed), `live floor` (86 passed in the three projects), `live demo-switch`, `live production` and `live demo-path` pass; `shard lane-b` (55 classes) and `shard lane-a` (47 classes) pass. Every mutation in the list was applied, observed red and reverted. No stack with the tags `e4s5i` is left.
+
+**Residual risks / deviations.** (1) D1 at 1280x600 accepts at least 85% of the phone feed in view when the column is shorter than the feed (the Break the feed box leaves it under about 330 px); the stacked screen minimum is `min(360px, 70vh)`. (2) While the snapshot loads the "Skip to simulated devices" link is absent (demo mode unknown), so the loading page keeps the order chat, status, home link. (3) The demo-switch phone spec removes its own chat cards and phone rows in `finally` (the stack's S0 hash comparison would fail otherwise), so the note that README gains two cards per run does not hold. (4) `/state.phone` payloads omit an empty `approvalRef` (the JSON adapter drops it); `TestStatePhone` pins four keys. (5) The initial bundle is 576 kB, over the 500 kB warning budget, under the error level (`test-web-build.sh` passes). (6) The "neither has a response header" clause of `TestThroughNotify` guards Notify's routing and no SimPhoneOut mutation turns it red.

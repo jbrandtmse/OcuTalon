@@ -37,6 +37,9 @@ Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
 /// The most entries the snapshot's chat holds: the newest, oldest first (DW-65).
 Parameter CHATMAX = 100;
 
+/// The most simulated-phone messages the snapshot's phone holds: the newest, oldest first.
+Parameter PHONEMAX = 100;
+
 Parameter MESSAGEBADCURSOR = "The after and afterInstance values must be whole numbers of zero or more.";
 
 Parameter MESSAGENOTJSON = "OcuTalon refused this request because it wasn't sent as JSON.";
@@ -349,9 +352,9 @@ ClassMethod Pairing() As %Status
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
-/// and the session's pairing, status: the active status conditions, and, last and only while demo mode is on, guide: the
-/// guide that Demo.Guide.Compute derives. instanceStream is the stream reported as
-/// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
+/// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
+/// newest PHONEMAX simulated-phone messages, oldest first, and last guide: the guide that Demo.Guide.Compute derives.
+/// instanceStream is the stream reported as instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
 	Set streams = {
@@ -388,7 +391,14 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
-	If body.demoMode Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
+	If body.demoMode {
+		Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(sessionRef, ..#PHONEMAX, .sc)
+		Do ..Check(sc)
+		Set phone = []
+		For i = rows.Count():-1:1 Do phone.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Phone).FromRow(rows.GetAt(i))))
+		Set body.phone = phone
+		Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
+	}
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body

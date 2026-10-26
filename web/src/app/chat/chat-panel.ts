@@ -17,6 +17,7 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
@@ -29,9 +30,6 @@ import { NoticeCard } from './notice-card';
 import { OcutalonReply, replyFallbackText } from './ocutalon-reply';
 import { parseReply, plainText } from './reply-text';
 import { UserMessage } from './user-message';
-
-/** How far from the bottom (px) the list still counts as at the bottom. */
-const BOTTOM_SLACK_PX = 24;
 
 /** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, or a notice card. */
 interface Target {
@@ -328,7 +326,7 @@ export class ChatPanel {
     const top = list.scrollTop;
     const up = top < this.lastTop;
     this.lastTop = top;
-    if (list.scrollHeight - top - list.clientHeight <= BOTTOM_SLACK_PX) {
+    if (atBottom(list, BOTTOM_SLACK_PX)) {
       this.atBottom = true;
       this.seenAll();
     } else if (up) {

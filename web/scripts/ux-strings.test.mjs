@@ -50,6 +50,8 @@ const IMPORTED = [
   ['msg/catalog.ts', ['PAGE_TEXTS']],
   ['guide/guide-view.ts', ['GUIDE_TEXTS']],
   ['feed/break-feed-view.ts', ['FEED_TEXTS']],
+  ['devices/device-view.ts', ['DEVICE_TEXTS']],
+  ['phone/phone-view.ts', ['PHONE_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -80,7 +82,7 @@ const QUOTED = "(?:'([^']*)'|\"([^\"]*)\")";
 const fromSource = [
   ['BUSY_NOTICE', grab('shared/server-button.ts', new RegExp(`export const BUSY_NOTICE = ${QUOTED};`, 'g'), 1)[0]],
   ['LOAD_FAILED', grab('live/live-state.ts', new RegExp(`export const LOAD_FAILED = ${QUOTED};`, 'g'), 1)[0]],
-  ...grab('header/skip-links.ts', new RegExp(`\\{ text: ${QUOTED}, target: ${QUOTED} \\}`, 'g'), 2).map((text) => ['SKIP_LINKS', text]),
+  ...grab('header/skip-links.ts', new RegExp(`\\{ text: ${QUOTED}, target: ${QUOTED}(?:, demo: true)? \\}`, 'g'), 3).map((text) => ['SKIP_LINKS', text]),
   ['ABOUT_CLOSE_NAME', grab('about/about-dialog.ts', new RegExp(`export const ABOUT_CLOSE_NAME = ${QUOTED};`, 'g'), 1)[0]],
   ['theme prefix', grab('header/header.ts', /`(Theme: )\$\{THEME_OPTIONS/g, 1)[0]],
   ['Online demo', grab('header/header.ts', new RegExp(`return ${QUOTED};\\s*\\}\\s*return snapshot\\?\\.demoMode`, 'g'), 1)[0]],
@@ -253,6 +255,7 @@ const SOURCES = {
     'Couldn\'t reach OcuTalon. Try again. Nothing was changed.',
     'Couldn\'t load your session.',
     'Skip to chat',
+    'Skip to simulated devices',
     'Skip to status',
     'System',
     'Light',
@@ -301,6 +304,12 @@ const SOURCES = {
     'Working out the cause from the failed messages',
     'Still waiting. The notice will appear in the chat and on the Simulated phone tab.',
     "No notice after 3 minutes, so something went wrong with this run. Open the Orders watch's trace in Background checks, or try again.",
+    'Simulated devices',
+    'Simulated phone',
+    'Simulated mailbox',
+    'Simulated',
+    '{tab}, {n} new',
+    "Notifications, reminders and approval requests appear here. The simulated phone is a real channel in the production; you'll see it in the trace.",
   ],
   design: [
     'Repair and resend',

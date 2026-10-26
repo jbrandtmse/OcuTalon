@@ -6,6 +6,7 @@ import {
   HEADER,
   MOST_STOPS,
   SKIP_CHAT,
+  SKIP_DEVICES,
   SKIP_STATUS,
   addReminder,
   applied,
@@ -91,8 +92,8 @@ function layers(page: Page): Promise<{ header: number; slot: number; guide: numb
   });
 }
 
-/** What the focused element is: a skip link, in the header, in the demo guide, in main, in the rail, or elsewhere. */
-function placeOfFocus(page: Page): Promise<'skip' | 'header' | 'guide' | 'main' | 'rail' | 'other'> {
+/** What the focused element is: a skip link, in the header, in the demo guide, in main, in the simulated devices, in the rail, or elsewhere. */
+function placeOfFocus(page: Page): Promise<'skip' | 'header' | 'guide' | 'main' | 'devices' | 'rail' | 'other'> {
   return page.evaluate(() => {
     const el = document.activeElement;
     if (el === null) return 'other';
@@ -100,6 +101,7 @@ function placeOfFocus(page: Page): Promise<'skip' | 'header' | 'guide' | 'main' 
     if (el.closest('app-header')) return 'header';
     if (el.closest('app-demo-guide')) return 'guide';
     if (el.closest('main.main')) return 'main';
+    if (el.closest('app-device-panel')) return 'devices';
     if (el.closest('section.rail')) return 'rail';
     return 'other';
   });
@@ -351,6 +353,7 @@ test('G3: Skip to status opens the drawer, and a change of band keeps focus in t
 
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
     await expect(skipLink(page, SKIP_STATUS)).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(button, 'Enter on Skip to status opens the drawer').toHaveAttribute('aria-expanded', 'true');
@@ -422,7 +425,7 @@ async function narrowFrom1280(page: Page, user: string, refs: string[], narrow: 
 /** The checks of the stacked column that G4 makes at each of its sizes. */
 async function expectColumn(page: Page, wideBlock: number, link: Locator): Promise<void> {
   await expect(noteOf(page), 'the narrow-window note shows').toHaveCount(1);
-  await expect(page.locator('main.main + section.rail'), 'the rail follows main in the DOM').toHaveCount(1);
+  await expect(page.locator('main.main + app-device-panel + section.rail'), 'the devices follow main and the rail follows the devices in the DOM').toHaveCount(1);
   await expect(link, 'a rail control that held focus keeps it when the layout moves the rail').toBeFocused();
   await settled(page);
   const tops = await layers(page);
@@ -494,14 +497,14 @@ test('G4: at 1000x800 the page is one column with the rail after main, and only 
  * 70% of the window, and the list scrolls.)
  */
 test('G4: below 1024px an empty chat list is as tall as its content', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+  await page.setViewportSize({ width: 1000, height: 1900 });
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
     const rail = snapshot['rail'] as Record<string, unknown>;
     for (const section of ['approvals', 'checks', 'reminders', 'decisions']) rail[section] = [];
   });
   await openFloor(page);
-  await expect(page.locator('main.main + section.rail'), 'the column').toHaveCount(1);
+  await expect(page.locator('main.main + app-device-panel + section.rail'), 'the column').toHaveCount(1);
   const sizes = await page.locator('app-chat-panel .list').evaluate((el) => ({
     client: el.clientHeight,
     scroll: el.scrollHeight,
@@ -544,7 +547,7 @@ test.describe('at 200%: 640x360 at device scale 2', () => {
     try {
       await seedScrollingPage(user, refs, unique('G5'));
       await openFloor(page);
-      await expect(page.locator('main.main + section.rail'), 'the column').toHaveCount(1);
+      await expect(page.locator('main.main + app-device-panel + section.rail'), 'the column').toHaveCount(1);
       await settled(page);
 
       // The skip links show above the header, with nothing painted over them; every other stop must lie below it.
@@ -573,7 +576,7 @@ test.describe('at 200%: 640x360 at device scale 2', () => {
       expect(stops.some((one) => one.place === 'main'), 'the walk passed main').toBe(true);
       expect(stops.filter((one) => one.place === 'rail').length, 'and the rail').toBeGreaterThan(12);
       const order = stops.map((one) => one.place).join(',');
-      expect(order, 'main comes before the rail').toMatch(/main(,main)*,rail/);
+      expect(order, 'main comes before the devices, and the devices before the rail').toMatch(/main(,main)*(,devices)+,rail/);
 
       // Backwards, a stop scrolls to the top edge of the window, where the header would cover it.
       await railOf(page).locator('a[href], button:not([disabled])').last().focus();
@@ -621,6 +624,7 @@ test.describe('at 200%: 640x360 at device scale 2', () => {
         expect(reading.ring.top, `${name}: and its top is inside the window (${reading.viewport.bottom}; the page is scrolled to ${scrolled})`).toBeLessThan(reading.viewport.bottom);
       };
       await target(SKIP_STATUS, railElement(page));
+      await target(SKIP_DEVICES, page.locator('app-device-panel section'));
       await target(SKIP_CHAT, mainOf(page));
 
       const account = page.locator('app-header button.header-button').last();
@@ -681,7 +685,7 @@ test('G6: the note shows once per session, is silent at load, and its Close is r
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(note, 'at 1280px the note is gone').toHaveCount(0);
   await page.setViewportSize({ width: 1000, height: 800 });
-  await expect(page.locator('main.main + section.rail')).toHaveCount(1);
+  await expect(page.locator('main.main + app-device-panel + section.rail')).toHaveCount(1);
   await settled(page);
   await expect(note, 'narrowed again in the same session it does not come back').toHaveCount(0);
   await page.reload();

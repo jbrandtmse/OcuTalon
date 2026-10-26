@@ -1,6 +1,6 @@
 // Tests the rules of the page's accessibility floor that no single browser state shows (Story 2.14; NFR-25, UX-DR14, UX-DR125,
 // UX-DR129, UX-DR134, UX-DR135), by reading every source under web/src/ (.ts, .js, .html and .css, comments left out):
-//   keys     only Enter and Escape are handled: no single-character shortcut, no accesskey, no keyup or keypress handler;
+//   keys     only Enter and Escape are handled, and the two arrows of the device tabs (Story 4.5): no single-character shortcut, no accesskey, no keyup or keypress handler;
 //   Esc      one Esc acts on one layer: a shown tooltip takes it in the capture phase, a disclosure asks the popovers first;
 //   heights  a height is a minimum: every fixed height of the app and the styles is on the list below, with its reason;
 //   motion   nothing scrolls smoothly, nothing transitions, and every animation stops under prefers-reduced-motion: reduce;
@@ -91,7 +91,7 @@ describe('the scan', () => {
   });
 });
 
-describe('keys: only Enter and Escape', () => {
+describe('keys: only Enter and Escape, and the arrows of the device tabs', () => {
   const KEY_LITERAL = /\.key(?:\.\w+\(\))?\s*[!=]==?\s*(['"`])([^'"`]*)\1/g;
   const KEY_LITERAL_FIRST = /(['"`])([^'"`]*)\1\s*[!=]==?\s*[\w$.]*\.key\b/g;
   const KEY_CODE = /\b(?:keyCode|charCode|which)\s*[!=]==?\s*(\d+)/g;
@@ -103,6 +103,7 @@ describe('keys: only Enter and Escape', () => {
   const KEY_HANDLERS = {
     'app/chat/composer.ts': 'Enter sends and Shift+Enter adds a line; the IME guard (keyCode 229) keeps a composition open',
     'app/chat/decision-strip.ts': 'Escape collapses the details when focus is inside the strip',
+    'app/devices/device-panel.ts': 'ArrowLeft and ArrowRight move between the two device tabs, as the ARIA tabs pattern asks (EXPERIENCE L296)',
     'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
     'app/shared/popover.ts': 'Escape closes the popover (the CDK overlay\'s keydown stream)',
@@ -130,7 +131,7 @@ describe('keys: only Enter and Escape', () => {
     assert.match("@HostListener('document:keydown', ['$event'])", KEY_LISTENER);
   });
 
-  it('compares a key only with Enter and Escape, and a key code only with the IME guard', () => {
+  it('compares a key only with Enter, Escape and the two arrows of the device tabs, and a key code only with the IME guard', () => {
     const literals = new Set();
     const codes = new Set();
     for (const one of files) {
@@ -138,18 +139,19 @@ describe('keys: only Enter and Escape', () => {
       for (const match of one.code.matchAll(KEY_LITERAL_FIRST)) literals.add(match[2]);
       for (const match of one.code.matchAll(KEY_CODE)) codes.add(match[1]);
     }
-    assert.deepEqual([...literals].sort(), ['Enter', 'Escape']);
+    assert.deepEqual([...literals].sort(), ['ArrowLeft', 'ArrowRight', 'Enter', 'Escape']);
+    assert.deepEqual(filesWith(/\.key\s*[!=]==?\s*['"`]Arrow/), ['app/devices/device-panel.ts']);
     assert.deepEqual([...codes], ['229']);
     assert.deepEqual(filesWith(new RegExp(KEY_CODE.source)), ['app/chat/composer.ts']);
     assert.deepEqual(filesWith(KEY_LOOKUP), [], 'no key is looked up in a table, a list or a switch');
   });
 
-  it('binds a template key event only to Enter or Escape, and a bare keydown only on the composer', () => {
+  it('binds a template key event only to Enter or Escape, and a bare keydown only on the composer and the device tabs', () => {
     const bindings = [];
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_BINDING)) bindings.push(`${one.name} ${match[1]} ${match[2] ?? ''}`.trim());
     }
-    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape']);
+    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape']);
   });
 
   it('has no keyup or keypress handler and no accesskey', () => {
@@ -295,7 +297,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/main-page/main-page.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -359,7 +361,12 @@ describe('the banned patterns (UX-DR129)', () => {
     },
     { what: 'a progress bar or a model-progress meter', pattern: /<progress\b|progressbar|aria-valuenow/, sample: '<div role="progressbar" aria-valuenow="40">', allowed: {} },
     { what: 'an intersection observer (infinite scroll)', pattern: /IntersectionObserver/, sample: 'new IntersectionObserver(load)', allowed: {} },
-    { what: 'tabs', pattern: /role\s*=\s*["']tab(?:list|panel)?["']|tablist|tabpanel/i, sample: '<div role="tablist">', allowed: {} },
+    {
+      what: 'tabs',
+      pattern: /role\s*=\s*["']tab(?:list|panel)?["']|tablist|tabpanel/i,
+      sample: '<div role="tablist">',
+      allowed: { 'app/devices/device-panel.ts': 'ARIA tabs of the simulated device panel; content never switches them (EXPERIENCE L296)' },
+    },
     { what: 'a native alert, confirm, prompt or modal dialog', pattern: /(?:^|[^\w$.])(?:window\.)?(?:alert|confirm|prompt)\s*\(|\bshowModal\b/, sample: "if (confirm('Sure?')) go();", allowed: {} },
     { what: 'a celebration', pattern: /confetti|celebrat/i, sample: 'launchConfetti()', allowed: {} },
     {
@@ -451,7 +458,7 @@ describe('the width bands (Story 2.15)', () => {
     for (const [name, condition] of found) assert.ok(QUERIES.includes(condition), `${name}: ${condition} is one of the four queries`);
     assert.deepEqual(
       [...new Set(found.map(([name]) => name))].sort(),
-      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
+      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/devices/device-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
     );
   });
 

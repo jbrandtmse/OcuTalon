@@ -1,4 +1,5 @@
-/// A message on the simulated phone or mailbox (AD-14). Lane B.
+/// A message on the simulated phone or mailbox (AD-14). Lane B. A phone message (Kind phone) is recorded by SimPhoneOut with the
+/// text as the device shows it; the mailbox's rows (Kind mailbox) carry an ItemId.
 Class OcuTalon.Data.SimMessage Extends %Persistent
 {
 
@@ -22,6 +23,9 @@ Property ItemId As %String(MAXLEN = 22);
 
 /// When the row was created, UTC to the second.
 Property CreatedAt As %String(MAXLEN = 20);
+
+/// The message's text as the device shows it; empty for a row that has none.
+Property Text As %String(MAXLEN = "");
 
 Index RefIndex On Ref [ Unique ];
 
@@ -52,6 +56,9 @@ Storage Default
 </Value>
 <Value name="7">
 <Value>CreatedAt</Value>
+</Value>
+<Value name="8">
+<Value>Text</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SimMsgD</DataLocation>

@@ -7,7 +7,8 @@
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
 ///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
-///     cards (RecentNotices) and the delivery of an approval message (DeliveryFor).
+///     cards (RecentNotices), the messages of the simulated phone (RecentPhone) and the delivery of an approval message
+///     (DeliveryFor).
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
 ///   - The snapshot's chat reads only the newest turns, the newest noticed incidents and the newest notice cards
@@ -265,6 +266,13 @@ ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Dat
 ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("recentNotices", sessionRef, .sc, +max)
+}
+
+/// The session's newest simulated-phone messages: the SimMessage rows of Kind phone, newest CreatedAt first and then newest ID
+/// first, at most max. sc is an error status when the read failed.
+ClassMethod RecentPhone(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentPhone", sessionRef, .sc, +max)
 }
 
 /// The session's newest Delivery row for the approval request and channel, or "": a row of owner eval, instance or another
@@ -595,6 +603,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
 		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder') ORDER BY RecordedAt DESC, ID DESC"
+	}
+	If kind = "recentPhone" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' ORDER BY CreatedAt DESC, ID DESC"
 	}
 	If kind = "deliveryByApproval" {
 		Set class = "OcuTalon.Data.Delivery", binds = "aao"
