@@ -2,7 +2,7 @@
 title: 'Same-cause failures become one incident by the settle rule'
 type: 'feature'
 created: '2026-10-25'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -137,12 +137,14 @@ Every `OcuTalon/...` path is under `src/ocutalon/cls/`.
 
 ## Spec Change Log
 
+- 2026-10-26, spec gate (Epic 5 runner): R1 ruled by the orchestrator (option (a), decide; standing ruling for Lane A tables' Contracts entries) with the schema change as veto U-87; R2 ruled by the runner (option (a), veto U-86; epics.md 5.3 and 5.4 blocks amended); the spine candidates written into the "Watch failures" row; status set to `ready-for-dev`.
+
 ## Review Triage Log
 
 ## Design Notes
 
-**Pending rulings (this plan HALTs on them; the spec assumes the recommended answer to each):**
-- **R1. Schema and contended contract.** IncidentManager cannot ignore a failure it already holds (spine row "Watch failures"; epic context "ignores keys it already holds") without storing keys, and neither `Incident` nor `FailureGroup` has a property for them. Recommended (a):
+**Rulings (the plan halted on them; both are now ruled as recommended, so the spec stands as written):**
+- **R1. Schema and contended contract.** [RULED 2026-10-26: (a), orchestrator decide for the `Test/Data/Tables.cls` entry (and a standing ruling for the rest of Epic 5: only the Contracts entries of Lane A's own tables `BackgroundCheck`, `WatchMark`, `Incident`, `FailureGroup`, `FixRun`); the schema change is the runner's veto U-87] IncidentManager cannot ignore a failure it already holds (spine row "Watch failures"; epic context "ignores keys it already holds") without storing keys, and neither `Incident` nor `FailureGroup` has a property for them. Recommended (a):
   - `OcuTalon.Data.FailureGroup` gains one stored property, `Seen As %String(MAXLEN = "")`. This is a schema change, a veto item.
   - Epic 16's `Test/Data/Tables.cls` changes one Contracts entry only: in `"OcuTalon.Data.FailureGroup"` → `"props"`, add `"Seen": "%String(MAXLEN=)"`. Nothing else in the file changes, and a conflict at merge-forward is a plain union, as 5.2's was.
 
@@ -201,9 +203,9 @@ Spine conventions: "Watch failures" (the dedupe key), "Times", "Identifiers", "L
 
 **DW entries:** DW-227 is addressed (Task 0, AC 5). **Declined:** none.
 
-**Footprint extensions** (not contended): `ci/iris.sh` (DW-227), `docker/tests/test-ci-config.sh` (one appended block, by the lead's direction), `Test/Bridge/CodeRules.cls` (one test). Under ruling R1 also Epic 16's `Test/Data/Tables.cls` (one entry).
+**Footprint extensions** (not contended): `ci/iris.sh` (DW-227), `docker/tests/test-ci-config.sh` (one appended block, by the lead's direction), `Test/Bridge/CodeRules.cls` (one test). By the orchestrator's R1 ruling also Epic 16's `Test/Data/Tables.cls` (the `FailureGroup` Contracts entry only). `docker/tests/test-ci-config.sh` is also changed on Epic 10's unmerged branch: keep this story's edit to the one self-contained block appended at its end.
 
-**Spine candidates for the lead (Rule 20):** the "Watch failures" row could add: same cause = item plus the digit-masked `ErrorText` per production and scope; a group holds the keys of its newest 1000 failures (`Seen`); the settle settings are `watch.settleQuietSeconds` and `watch.settleMaxSeconds`.
+**Spine (Rule 20), written by the lead at the spec gate into the "Watch failures" row:** the "Watch failures" row could add: same cause = item plus the digit-masked `ErrorText` per production and scope; a group holds the keys of its newest 1000 failures (`Seen`); the settle settings are `watch.settleQuietSeconds` and `watch.settleMaxSeconds`.
 
 ## Verification
 
@@ -253,5 +255,7 @@ Spine conventions: "Watch failures" (the dedupe key), "Times", "Identifiers", "L
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap. (R1) Story 5.3 must ignore a failure IncidentManager already holds (spine row "Watch failures"), but neither `OcuTalon.Data.Incident` nor `OcuTalon.Data.FailureGroup` can store failure keys, and Epic 16's contended `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` pins both property sets. Recommended: allow `FailureGroup.Seen As %String(MAXLEN = "")` (schema change, veto) and the one Contracts entry `"OcuTalon.Data.FailureGroup"` → `"props"` + `"Seen": "%String(MAXLEN=)"`, nothing else in the file; the alternative (dedupe against the previous `FailureBatch` of the same scope in the message store, no schema change) is under Design Notes. (R2) 5.3's criteria need a notice ("sets NoticedAt only at the notice", "one notice per watcher session", "after the notice"), but every notice variant needs Story 5.4's diagnosis (the fallback text names a model fallback reason that only the bridge classifies, AD-8), so 5.3 cannot send an honest notice. Recommended: 5.3 ends at the settle rule (`NoticeCount` fixed) and pins the post-notice rules on a fixture-noticed incident; "one notice per watcher session" for an `instance` incident moves to Story 5.4's notice criterion (veto: AC moved within the release; the proposed 5.4 line is under Design Notes). Alternative: 5.3 builds the delivery behind a test-only seam. The spec is complete under both recommended answers; on the rulings, set `status: ready-for-dev`.
+Status: ready-for-dev
+Blocking condition: none
+
+Plan stage, 2026-10-26: the plan halted `blocked` on R1 (contended `Test/Data/Tables.cls` entry, schema) and R2 (the notice needs 5.4's diagnosis); the epic runner applied the orchestrator's R1 ruling and its own R2 and schema rulings (Design Notes, Spec Change Log) and set the spec `ready-for-dev`.
