@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-26-2026 01:36
+last_updated: 10-26-2026 03:18
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -192,7 +192,7 @@ development_status:
   epic-16: in-progress
   16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: done
   16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: done
-  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: in-progress
+  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: review
   16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: backlog
   16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: backlog
   16-6-a-probe-checks-the-demo-every-15-minutes: backlog
