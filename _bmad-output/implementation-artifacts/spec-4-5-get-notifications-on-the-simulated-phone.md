@@ -2,7 +2,7 @@
 title: 'Story 4.5: Get notifications on the simulated phone'
 type: 'feature'
 created: '2026-10-26'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'd32e2e986649640457c02851a18170b3880a4e55'
 baseline_commit: 'd32e2e986649640457c02851a18170b3880a4e55'
 review_loop_iteration: 0
@@ -405,9 +405,14 @@ Applied: the device panel's phone panel is the body's height beside the chat (`f
 - `false` D1 does not walk the skip links with Tab (acceptance-auditor) - K1 walks the three links in all three engines.
 - `false` While the snapshot loads only two skip links show (acceptance-auditor) - the middle link is shown only while `snapshot.demoMode`, which is unknown before the snapshot (residual risk (2), judged by QA).
 
+### Rework 1 (CI red, 2026-10-26)
+
+- [ ] [CI] iris (shards) / live:floor: `web/e2e/floor/devices.spec.ts:143` D2 red on the Linux CI host, "at 1280x600 the page does not scroll": expected <= 0, received 21 (run 40367647349, job 121729597423, https://github.com/jbrandtmse/OcuTalon/actions/runs/40367647349). The 21 px is DW-274's root cause, which this rework now fixes at the source: the CDK live announcer's element (`div.cdk-live-announcer-element.cdk-visually-hidden`, Story 2.12's `web/src/app/shared/announcer.ts`) has no visually-hidden style until a dialog's focus trap loads one, so its last announced text lies as plain text below the page and the page scrolls by a line once an announcement lands (timing: it landed before D2's measurement on Linux, after it on macOS). Fix: give `.cdk-visually-hidden` its visually-hidden style for the whole page app from the start (for example the CDK's own rule from `@angular/cdk/a11y-prebuilt.css`, in `web/src/styles/` or the build's styles; never under `web/src/signin/**`, which is contended), so the announcer never adds height. Then restore D2's short-window loop (600 and 480) to the whole-document check the review replaced with the app-root check, and pin the fix: a floor check that makes an announcement land first (any announcing action) and then asserts at 1280x600 and 1280x480 that `document.documentElement.scrollHeight - clientHeight <= 0` and that the announcer's element is visually hidden (1x1 px, clipped). Run `live floor` clean in all three projects after `ci/iris.sh build`, and write the `mutation:` lines (remove the new rule -> the new check and D2 red).
+
 ## Spec Change Log
 
 - 2026-10-26, spec gate (runner): V1 kept as a veto item (U-89); spine conventions row updated.
+- 2026-10-26, rework 1 (runner, CI red on d341d29): re-opened for the [CI] item (D2 at 1280x600 on Linux; DW-274 pulled into this story).
 
 ## Review Triage Log
 
