@@ -161,3 +161,13 @@
 2026-10-26T13:52:27Z	Epic 4	hold_ordered	reason=owner:97pct_usage;account_switch;next_start_is_the_relaunch(HOLD_requested_at=2026-10-26T13:32:49Z) seen_at=stage_boundary_after_4.5_qa(before_code-review_spawn)
 2026-10-26T13:52:34Z	Story 4.5	hold_saved	story=4-5-get-notifications-on-the-simulated-phone stage=qa patch=<state>/patches/epic-4/4-5-get-notifications-on-the-simulated-phone-qa.patch(QA_tests:web/e2e/floor/devices.spec.ts,web/e2e/phone/phone.spec.ts) tree=clean resume=apply_patch_then_code-review(spec_carries_the_lead_ruling_on_New_messages)
 2026-10-26T13:52:34Z	Epic 4	hold_complete	shas=local_head_pending(see_next_line) pushed_head=0cd85a2(4.4,green) local_only=bc1d758(4.5_build,unreviewed)+bookkeeping throwaways=none_up note=4.5_mid-pipeline:QA_done,code_review_not_started
+2026-10-26T15:32:05Z	Epic 4	runner_unattended_start	run=20261026T1518Z-1-37 policy=36abb05 doctrine=3d11cec policy_full=36abb05b2ba2f34d6e14569e62a14b8fcd06550f doctrine_full=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 hold_at=none lane=B slot=ocutalon-slot-b dispatch=re-dispatch(relaunch_after_account-switch_hold;prev_run=20261021T1347Z-1-16,29-32)
+2026-10-26T15:32:05Z	Epic 4	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-26T15:32:05Z	Epic 4	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=ok
+2026-10-26T15:32:05Z	Epic 4	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-10-26T15:32:05Z	Epic 4	telemetry_gate	pending=0 action=none
+2026-10-26T15:32:05Z	Epic 4	epic_branch_checked_out	repos=. head=7137d7a mode=RESUME origin=0cd85a2 ci_expected=ci.yml,lane-a.yml
+2026-10-26T15:32:05Z	Epic 4	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-26T15:32:05Z	Story 4.5	hold_restored	story=4-5-get-notifications-on-the-simulated-phone patch_deleted=yes tree=QA_tests_uncommitted(web/e2e/floor/devices.spec.ts,web/e2e/phone/phone.spec.ts)
+2026-10-26T15:32:05Z	Story 4.4	ci_resolved	story=4.4 sha=0cd85a2 runs=40304315110,40304315077 result=success failed=none via=none resolved_at=resume
+2026-10-26T15:32:17Z	Epic 4	resume_local_ahead	repo=. local=7137d7a origin=0cd85a2 unpushed=6 action=push_with_4.5_story_commit(bc1d758_unreviewed_build;mid-pipeline)
