@@ -27,12 +27,17 @@ export async function signOutGroup(target: Page | BrowserContext): Promise<void>
   }
 }
 
+let probes = 0;
+/** The splash's address with a probe that no other request of the run used (the unit's test discipline). */
+const probedSplash = (): string => `/ocutalon/?probe=${Date.now()}${(probes += 1)}`;
+
 /**
- * Signs in from the splash at path: it opens the page, fills a field only when its value is given (the exact labels "User name" and
- * "Password"; the fields are prefilled with the published values), presses **Sign in and start** and returns the server's answer to
- * the form. The caller then asserts what the next page shows, with an assertion that waits for it.
+ * Signs in from the splash at path (by default the splash with a fresh probe): it opens the page, fills a field only when its value is
+ * given (the exact labels "User name" and "Password"; the fields are prefilled with the published values), presses **Sign in and
+ * start** and returns the server's answer to the form. The caller then asserts what the next page shows, with an assertion that waits
+ * for it.
  */
-export async function signInFromSplash(page: Page, user?: string, password?: string, path = '/ocutalon/'): Promise<Response> {
+export async function signInFromSplash(page: Page, user?: string, password?: string, path = probedSplash()): Promise<Response> {
   await page.goto(path);
   if (user !== undefined) await page.getByLabel('User name', { exact: true }).fill(user);
   if (password !== undefined) await page.getByLabel('Password', { exact: true }).fill(password);

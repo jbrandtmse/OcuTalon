@@ -305,8 +305,9 @@ test('O10: the Visual Trace menu with the credential rows has no scan finding, i
     await menu.getByRole('button', { name: COPY_USER, exact: true }).click();
     const copied = menu.getByText('Copied', { exact: true });
     await expect(copied, 'a copy that succeeds says Copied').toBeVisible();
-    // The page's clock stops here, so that "Copied" (2 seconds) stays through both scans; nothing after this waits on a page timer.
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1));
+    // The page's clock stops here, so that "Copied" (2 seconds) stays through both scans; nothing after this waits on a page timer. The
+    // clock still runs until the pause, so the pause is set 500 ms ahead, past the round trip.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
     await expectNoFinding(page, 'the Visual Trace menu with Copied', false);
     await expect(copied, 'Copied stayed through both scans').toBeVisible();
   } finally {

@@ -131,7 +131,9 @@ Method TestPage()
 	Do $$$AssertEquals(..Count(page, "type=""button"""), 4, "four buttons that are not the submit button")
 	Do $$$AssertTrue(page '[ "Show password", "there is no show or hide toggle")
 	Do $$$AssertTrue(page [ "<p class=""hint"">Your session is yours alone and lasts until the next reset. Signing in again from this browser picks it up.</p>", "the session line")
-	Do $$$AssertTrue(page [ "<p>Other visitors can see messages in Visual Trace, so don't type personal information.</p></div>"_$Char(10)_"<button class=""btn-primary"" type=""submit"" name=""IRISLogin"" value=""Sign in and start"">Sign in and start</button>", "the warning is the element just before the button")
+	Do $$$AssertTrue(page [ "<p>Other visitors can see messages in Visual Trace, so don't type personal information.</p></div>"_$Char(10)_"<button class=""btn-primary"" type=""submit"" name=""IRISLogin"" value=""Sign in and start"" aria-describedby=""ocu-warning"">Sign in and start</button>", "the warning is the element just before the button, which it describes")
+	Do $$$AssertTrue(page [ "<div class=""notice"" id=""ocu-warning""><svg", "the warning notice has the id the button names")
+	Do $$$AssertTrue(page [ "<path d=""m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3""/>", "the warning notice draws the warning triangle")
 	Do $$$AssertTrue(page [ "<h2 class=""card-title"" id=""ocu-before-h"">Before you start</h2>", "the Before you start card")
 	Do $$$AssertTrue(page [ "<li>The demo resets every 4 hours. Next reset: <span class=""nowrap""><time class=""tnum"" id=""ocu-reset-time"" datetime=""", "the reset line's start")
 	Do $$$AssertTrue(page [ "data-step=""14400""></time> (<span class=""tnum"" id=""ocu-countdown"" aria-hidden=""true""></span><span class=""sr-only"" id=""ocu-countdown-spoken""></span>).</span></li>", "the reset line's time and countdown elements, for the script")
@@ -149,6 +151,7 @@ Method TestPage()
 	Do $$$AssertTrue(page '[ "id=""ocu-error""", "no error element")
 
 	Do $$$AssertEquals(..Count(page, "<form "), 1, "one form")
+	Do $$$AssertTrue(page [ "<form name=""Login"" method=""post"" action=""/ocutalon/x?a=1&amp;b=2"">", "the action is Error:FullURL, escaped")
 	Set formText = $Piece($Piece(page, "<form ", 2), "</form>", 1)
 	Set allowed = $ListBuild("IRISSessionToken", "IRISUsername", "IRISPassword", "IRISLogin")
 	Set names = "", at = 0
@@ -217,6 +220,43 @@ Method TestNoRole()
 	Do $$$AssertTrue(page '[ "aria-invalid", "no field is marked")
 	Do $$$AssertTrue(page [ "value=""DemoVisitor""", "the user field holds the published value")
 	Do $$$AssertTrue(page [ "value=""demo-secret""", "the password field holds the published value")
+}
+
+/// (QA) The typed user name comes back from the request, so it is escaped where it is written, whatever it holds: a name with markup
+/// is never written raw and never closes the value attribute, and the page still has its one style and one script.
+Method TestTypedNameIsEscaped()
+{
+	Set hostile = "x""><b id=pwned>&'"
+	Set page = ..Page("", $SYSTEM.Status.Error(822), hostile)
+	Do $$$AssertTrue(page [ "spellcheck=""false"" value=""x&quot;&gt;&lt;b id=pwned&gt;&amp;", "the typed name is escaped in the user field")
+	Do $$$AssertTrue(page '[ "<b id=pwned>", "the typed markup is never written raw")
+	Do $$$AssertTrue(page '[ "pwned>", "the typed angle bracket is not written raw")
+	Do $$$AssertTrue(page '[ "&'""", "the typed apostrophe is not written raw")
+	Do $$$AssertEquals(..Count(page, "<style>"), 1, "still one inline style")
+	Do $$$AssertEquals(..Count(page, "<script>"), 1, "still one inline script")
+	Do $$$AssertEquals(..Count(page, "aria-invalid=""true"" aria-describedby=""ocu-error"""), 2, "both fields are still marked")
+}
+
+/// (QA) Every error code but 864 is a refusal: the wrong-credentials text under the button, both fields marked, the user name kept
+/// and the password empty. The first visit (864), no code and the signed-out query show none of it.
+Method TestEveryCodeButTheFirstVisitIsARefusal()
+{
+	For code = 801, 822, 853, 863, 885, 5001 {
+		Set page = ..Page("", $SYSTEM.Status.Error(code), "carol")
+		Do $$$AssertTrue(page [ "<span>That user name and password didn't work.</span></p>", "code "_code_": the wrong-credentials text")
+		Do $$$AssertEquals(..Count(page, "aria-invalid=""true"" aria-describedby=""ocu-error"""), 2, "code "_code_": both fields are marked")
+		Do $$$AssertTrue(page [ "spellcheck=""false"" value=""carol"" aria-invalid=""true""", "code "_code_": the typed name is kept")
+		Do $$$AssertTrue(page [ "name=""IRISPassword"" autocomplete=""off"" autocapitalize=""none"" spellcheck=""false"" value="""" aria-invalid=""true""", "code "_code_": the password is empty")
+		Do $$$AssertTrue(page '[ "demo-secret", "code "_code_": the published password is not written")
+		Do $$$AssertEquals(..Count(page, "autofocus"), 1, "code "_code_": only the error has the focus")
+	}
+	For code = "", $SYSTEM.Status.Error(864) {
+		Set page = ..Page("", code, "carol")
+		Do $$$AssertTrue(page '[ "id=""ocu-error""", "no error element for code '"_$Select(code = "": "none", 1: "864")_"'")
+		Do $$$AssertTrue(page '[ "aria-invalid", "no field is marked")
+		Do $$$AssertTrue(page [ "value=""DemoVisitor""", "the published user name is shown, not the typed one")
+		Do $$$AssertEquals(..Count(page, "autofocus"), 0, "nothing has the focus")
+	}
 }
 
 /// Values that are not set leave their line or card out, one hour reads in the singular, and a value is escaped where it is written.

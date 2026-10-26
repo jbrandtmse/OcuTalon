@@ -14,11 +14,12 @@
 #     page has no old-password or repeat-password field and neither has a trace application's page for %CSP.PasswordChange.cls with no
 #     session; F12 posts IRIS's own password-change page of each trace application (served to a signed-in user on build 154) the same way;
 #   - the splash with no session (Story 16.2, row 11): the /ocutalon* applications in IRIS are exactly the five, every OcuTalon path that
-#     needs a sign-in gives the splash (the h1, no app-root), a sign-in image is served, /ocutalon/public/status answers and
-#     /ocutalon/public/x does not, the API answers 401 signed_out and the trace applications' pages give IRIS's sign-in page; the
-#     splash form's input names are printed as "MEASURED splash form inputs:" and none is outside the four of the proxy's allow-list;
-#   - the browser (rows 7 to 12, and the splash's S1 to S10 and the REL-2 online run's step 1 of Story 16.2): the project online-demo of
-#     web/playwright.config.ts (web/e2e-online/) as both public accounts;
+#     needs a sign-in gives the splash (the h1, no app-root, the splash's exact policy over its own two hashed blocks, and no-store), a
+#     sign-in image is served, /ocutalon/public/status answers and /ocutalon/public/x does not, the API answers 401 signed_out and the
+#     trace applications' pages give IRIS's sign-in page; the splash form's input names are printed as "MEASURED splash form inputs:"
+#     and none is outside the four of the proxy's allow-list;
+#   - the browser (rows 7 to 12, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2): the
+#     project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -449,9 +450,34 @@ splash_get() {
   jar="$tmp/jar.$probes"
   : > "$jar"
   case $1 in *\?*) sep='&' ;; esac
-  code=$(curl -s --max-time 30 -o "$tmp/splash.body" -w '%{http_code}' -c "$jar" -b "$jar" "$base$1${sep}probe=$probes")
+  rm -f "$tmp/splash.headers" "$tmp/splash.body"
+  code=$(curl -s --max-time 30 -D "$tmp/splash.headers" -o "$tmp/splash.body" -w '%{http_code}' -c "$jar" -b "$jar" "$base$1${sep}probe=$probes")
   logout_all "$jar" /ocutalon/
   printf '%s' "$code"
+}
+
+# splash_envelope: reads $tmp/splash.headers and $tmp/splash.body (QA): prints "ok" when the Content-Security-Policy header is the
+# splash's policy over the SHA-256 of the body's one <style> and one <script> (exactly one script hash, one style hash, no
+# unsafe-inline or unsafe-eval) and Cache-Control is no-store, otherwise what differs.
+splash_envelope() {
+  node -e '
+    const fs = require("fs"), crypto = require("crypto");
+    const headers = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+    const body = fs.readFileSync(process.argv[2], "utf8");
+    const header = (name) => headers.filter((line) => line.toLowerCase().startsWith(name + ":")).map((line) => line.slice(name.length + 1).trim());
+    const hash = (text) => crypto.createHash("sha256").update(text, "utf8").digest("base64");
+    const styles = [...body.matchAll(/<style>([\s\S]*?)<\/style>/g)], scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    const problems = [];
+    if (styles.length !== 1 || scripts.length !== 1) problems.push("the body has " + styles.length + " style and " + scripts.length + " script blocks");
+    const policy = header("content-security-policy");
+    if (policy.length !== 1) problems.push(policy.length + " Content-Security-Policy headers");
+    const want = "default-src \x27none\x27; script-src \x27sha256-" + hash(scripts[0] ? scripts[0][1] : "") + "\x27; style-src \x27sha256-" + hash(styles[0] ? styles[0][1] : "") + "\x27; img-src \x27self\x27; form-action \x27self\x27; frame-ancestors \x27none\x27; base-uri \x27none\x27";
+    if (policy[0] !== want) problems.push("policy is not the splash policy over the body blocks");
+    if (/unsafe-/.test(policy.join(" "))) problems.push("policy has an unsafe- keyword");
+    if ((policy.join(" ").match(/sha256-/g) || []).length !== 2) problems.push("policy does not hold exactly two hashes");
+    if (header("cache-control").join(",") !== "no-store") problems.push("Cache-Control is " + header("cache-control").join(","));
+    console.log(problems.length === 0 ? "ok" : problems.join("; "));
+  ' "$tmp/splash.headers" "$tmp/splash.body" 2>&1 | tr '\n' ' '
 }
 
 check_session "row 11: the /ocutalon* applications in IRIS are exactly the five" %SYS \
@@ -470,6 +496,12 @@ for path in /ocutalon/ '/ocutalon/x/y?a=1' /ocutalon/index.html "/ocutalon/$bund
     pass "row 11: with no session $path gives the splash (200, its h1, no app-root)"
   else
     fail "row 11: with no session $path gives status '$code', not the splash"
+  fi
+  envelope=$(splash_envelope)
+  if [ "$envelope" = "ok " ]; then
+    pass "row 11 (QA): $path is answered with the splash's exact policy over its one style and one script (two hashes, no unsafe- keyword) and no-store"
+  else
+    fail "row 11 (QA): $path's envelope: $envelope"
   fi
   if [ "$path" = '/ocutalon/x/y?a=1' ]; then
     inputs=$(grep -o '<input [^>]*' "$tmp/splash.body" | sed -n 's/.* name="\([^"]*\)".*/\1/p' | sort -u | tr '\n' ' ')

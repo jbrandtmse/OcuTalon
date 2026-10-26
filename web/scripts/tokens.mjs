@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Turns the front matter of DESIGN.md into the app's token stylesheet and into the sign-in page's
-// inline assets. Dependency-free.
+// Turns the front matter of DESIGN.md into the app's token stylesheet and into the inline assets of the
+// sign-in page and of the online demo's splash screen. Dependency-free.
 //
-//   node scripts/tokens.mjs            writes src/styles/tokens.css and SignInAssets.cls
-//   node scripts/tokens.mjs --check    writes nothing; exits 1 when either file differs from its fresh output
+//   node scripts/tokens.mjs            writes src/styles/tokens.css, SignInAssets.cls and SplashAssets.cls
+//   node scripts/tokens.mjs --check    writes nothing; exits 1 when any of the three differs from its fresh output
 //
 // Options: --design <file> --css-out <file> --cls-out <file> --signin-css <file> --signin-js <file>
+//          --splash-css <file> --splash-js <file> --splash-cls-out <file>
 // (the defaults are the repository's own files; tests point them at fixtures).
 //
 // The front matter shape this reads (anything else is refused with the line number):

@@ -3,8 +3,8 @@
 /// catalog. The XData block Classified puts every own parameter of every class of OcuTalon.Web.Public and
 /// OcuTalon.Data.Public in exactly one list:
 ///   - compared: a text with a catalog key, which must equal the key's web rendering (&middot; stands for U+00B7, and any
-///     other &name; entity fails); a key with slots has no rendering without them, so its text must equal the entry's own text,
-///     placeholders included;
+///     other &name; entity fails); a key with slots has no rendering without them, so its text must equal the entry's own page
+///     wording (web, else text), placeholders included;
 ///   - notInUx: a text that the UX does not quote, so the catalog has no key for it;
 ///   - notText: a parameter that is not a text.
 /// TestEveryParameterIsClassified takes the classes from Test.Web.Status.PublicClasses and their own parameters from the class
@@ -28,7 +28,7 @@ Method TestCopiesEqualTheCatalog()
 			Set entry = ##class(OcuTalon.Msg.Catalog).Entry(key, .sc)
 			Do $$$AssertStatusOK(sc, key_" is a catalog key")
 			If entry.slots.%Size() {
-				Set text = entry.text
+				Set text = $Select(entry.%IsDefined("web"): entry.web, 1: entry.text)
 			} Else {
 				Set text = ##class(OcuTalon.Msg.Catalog).Render(key, "", "web", .sc)
 				Do $$$AssertStatusOK(sc, key_" renders")
@@ -81,7 +81,7 @@ Method TestEveryParameterIsClassified()
 	}
 	Do $$$AssertEquals(counts("compared"), 35, "35 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 2, "2 parameters are not in the UX")
-	Do $$$AssertEquals(counts("notText"), 24, "24 parameters are not texts")
+	Do $$$AssertEquals(counts("notText"), 25, "25 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
 	Set stale = ""
@@ -174,7 +174,7 @@ XData Classified [ MimeType = application/json ]
   "OcuTalon.Web.Public.Login": ["FAVICON", "ICONALERT", "ICONEYE", "IMAGES", "LOGODARK", "LOGOLIGHT"],
   "OcuTalon.Web.Public.Shell": ["CONTENTTYPE", "ROLE", "UseSession"],
   "OcuTalon.Web.Public.SignInAssets": ["CSS", "SCRIPT"],
-  "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "README"],
+  "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "ICONWARNING", "README"],
   "OcuTalon.Web.Public.SplashAssets": ["CSS", "SCRIPT"],
   "OcuTalon.Web.Public.Status": ["CONTENTTYPE", "HandleCorsRequest", "UseSession"],
   "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY"]

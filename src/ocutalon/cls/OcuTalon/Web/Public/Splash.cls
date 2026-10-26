@@ -6,8 +6,9 @@
 /// and keeps %CSP.Login's form contract: the action Error:FullURL, InsertHiddenFields right after the form tag, and the fields
 /// IRISUsername, IRISPassword and IRISLogin. Its POST carries no field but IRISSessionToken and those three.
 /// Every value comes from OcuTalon.Data.Public.Settings and is HTML-escaped where it is written. The page has one inline style,
-/// one inline script, no style attribute, no external file and no font. The texts are its own parameters, each equal to a
-/// splash.* catalog key or a signIn.* key (AD-3); a non-ASCII character in them would be an HTML entity.
+/// one inline script, no style attribute, no external file and no font. Its own texts are parameters, each equal to a splash.*
+/// catalog key except the interval words, which the UX does not quote alone; the labels and the error texts are Login's, equal to
+/// signIn.* keys (AD-3). A non-ASCII character in them would be an HTML entity.
 Class OcuTalon.Web.Public.Splash Extends (OcuTalon.Web.Public.Login, OcuTalon.Web.Public.SplashAssets) [ Inheritance = right ]
 {
 
@@ -68,10 +69,12 @@ Parameter INTERVALOTHER = "{n} hours";
 
 Parameter README = "https://github.com/jbrandtmse/OcuTalon#readme";
 
-/// Lucide copy and external-link (ISC), drawn on a 24 grid.
+/// Lucide copy, external-link and triangle-alert (ISC), drawn on a 24 grid; the triangle marks the warning notice.
 Parameter ICONCOPY = "<rect width=""14"" height=""14"" x=""8"" y=""8"" rx=""2"" ry=""2""/><path d=""M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2""/>";
 
 Parameter ICONEXTERNAL = "<path d=""M15 3h6v6""/><path d=""M10 14 21 3""/><path d=""M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6""/>";
+
+Parameter ICONWARNING = "<path d=""m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3""/><path d=""M12 9v4""/><path d=""M12 17h.01""/>";
 
 /// The splash does not hand the page on again.
 ClassMethod UseSplash() As %Boolean
@@ -127,8 +130,8 @@ ClassMethod OnLoginPage() As %Status
 	Write "<span class=""copied"" data-copied hidden>", ..#COPIED, "</span>", ..CopyButton("ocu-pass", ..#COPYPASSWORD), "</div></div>", !
 	Write ..Failure(), !
 	Write "<p class=""hint"">", ..#SESSIONNOTE, "</p>", !
-	Write "<div class=""notice"">", ..Icon(..#ICONALERT), "<p>", ..#WARNING, "</p></div>", !
-	Write "<button class=""btn-primary"" type=""submit"" name=""IRISLogin"" value=""", ..#SUBMIT, """>", ..#SUBMIT, "</button>", !
+	Write "<div class=""notice"" id=""ocu-warning"">", ..Icon(..#ICONWARNING), "<p>", ..#WARNING, "</p></div>", !
+	Write "<button class=""btn-primary"" type=""submit"" name=""IRISLogin"" value=""", ..#SUBMIT, """ aria-describedby=""ocu-warning"">", ..#SUBMIT, "</button>", !
 	If message '= "" {
 		Write "<p class=""field-error"" id=""ocu-error"" tabindex=""-1"" autofocus>", ..Icon(..#ICONALERT), "<span>", message, "</span></p>", !
 	}

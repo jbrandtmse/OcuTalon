@@ -12,8 +12,9 @@ import { SIGN_IN_IMAGES, watchViolations } from '../e2e/sign-in/helpers';
 import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnouncements } from './support';
 
 /**
- * Story 16.2, the online demo's splash screen in a real browser on the online-demo throwaway (S1 to S10; matrix rows 1 to 10). The page
- * is the sign-in page of every request without a session, with the published values that the unit's test start values wrote. Every case
+ * Story 16.2, the online demo's splash screen in a real browser on the online-demo throwaway (S1 to S12, S2b, S6b and S8b; matrix rows 1
+ * to 10). The page is the sign-in page of every request without a session, with the published values that the unit's test start values
+ * wrote. Every case
  * opens the page with its own unique probe=<n> (the web gateway keeps the answer to a URL) and signs out of the whole sign-in group in
  * `finally`, whether it signed in or not.
  * - S1: the head and the sign-in card: the texts, the prefilled text inputs with their 88px labels, the four copy buttons, the session
@@ -31,6 +32,8 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S9: the focus order, the ring at every stop, Enter and Space on a copy button.
  * - S10: the envelope: the exact policy over the hashes of the one style and the one script, no-store, no other file.
  * - S2b, S11, S12: the singular countdown words, the address's fragment through sign-in, and the cards stacked at phone width.
+ * - S6b, S8b: a refused name that holds markup is kept exactly and escaped, under the same policy, with the focused error's ring; the
+ *   button's whole box and the scheme's logo at 1280x600.
  * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 120_000 });
@@ -55,6 +58,8 @@ const FOOTER_NOTE = 'OcuTalon is inspired by OpenClaw and is not affiliated with
 const INSTALL = 'Install it yourself (README) (opens in a new tab)';
 
 const COPY_BUTTONS = ['Copy user name', 'Copy password', 'Copy Visual Trace user name', 'Copy Visual Trace password'] as const;
+/** The only fields that AD-25's proxy admits in a sign-in POST. */
+const ALLOWED_FIELDS = new Set(['IRISSessionToken', 'IRISUsername', 'IRISPassword', 'IRISLogin']);
 
 const demo = (): { user: string; password: string } => fixtureUser('DEMOACCOUNT');
 const readonly = (): { user: string; password: string } => fixtureUser('READONLYACCOUNT');
@@ -124,6 +129,7 @@ test.describe('S1 to S2, the page', () => {
 
       const button = submitButton(page);
       await expect(button).toHaveAttribute('name', 'IRISLogin');
+      await expect(button, 'the button is described by the warning').toHaveAccessibleDescription(WARNING);
       const before = await button.evaluate((el) => {
         const sibling = el.previousElementSibling;
         return { text: (sibling?.textContent ?? '').trim(), notice: sibling?.classList.contains('notice') ?? false };
@@ -306,12 +312,13 @@ test.describe('S3 to S4, the copy buttons', () => {
       const values = [demo().user, typed, readonly().user, readonly().password];
       for (const [index, name] of COPY_BUTTONS.entries()) {
         const before = (await splashAnnouncements(page)).length;
+        const pressed = Date.now();
         await copyButton(page, name).click();
         const mark = copiedOf(page, name);
         await expect(mark, `${name}: Copied shows in its row`).toBeVisible();
         expect(await page.evaluate(() => navigator.clipboard.readText()), `${name}: the clipboard holds exactly the value`).toBe(values[index]);
-        await page.waitForTimeout(1000);
-        await expect(mark, `${name}: it is still there after 1 s`).toBeVisible();
+        await page.waitForTimeout(Math.max(0, 1000 - (Date.now() - pressed)));
+        await expect(mark, `${name}: it is still there 1 s after the press`).toBeVisible();
         await expect(mark, `${name}: it is gone within 3.5 s`).toBeHidden({ timeout: 2500 });
         await expect.poll(() => announcedSince(page, before), { message: `${name}: Copied is announced once` }).toEqual(['Copied']);
         await expect(page.locator('[data-failure]:visible')).toHaveCount(0);
@@ -365,11 +372,16 @@ test.describe('S3 to S4, the copy buttons', () => {
       await page.evaluate(() => {
         (window as unknown as { rejectCopy: boolean }).rejectCopy = false;
       });
+      // Each success's "Copied" is spoken a moment after the press: wait for it, so that the next count starts after it.
+      before = (await splashAnnouncements(page)).length;
       await copyButton(page, 'Copy user name').click();
       await expect(failure(signInCard)).toBeHidden();
+      await expect.poll(() => announcedSince(page, before)).toEqual(['Copied']);
       await expect(failure(traceCard), "the other card's line stays").toBeVisible();
+      before = (await splashAnnouncements(page)).length;
       await copyButton(page, 'Copy Visual Trace password').click();
       await expect(failure(traceCard)).toBeHidden();
+      await expect.poll(() => announcedSince(page, before)).toEqual(['Copied']);
 
       // No clipboard at all.
       await page.evaluate(() => {
@@ -442,7 +454,13 @@ test.describe('S5 to S7, signing in', () => {
       await passwordInput(page).fill(readonly().password);
       const answered = page.waitForResponse((response) => response.request().method() === 'POST');
       await submitButton(page).click();
-      await answered;
+      // The retry is posted from the refusal page, where the browser holds a CSP session: still only the proxy's four fields.
+      const retry = (await answered).request();
+      const names = [...new URLSearchParams(retry.postData() ?? '').keys()];
+      console.log(`MEASURED the refusal page's POST fields: ${names.join(' ')}`);
+      expect(retry.headers()['content-type'], 'the retry is urlencoded').toBe('application/x-www-form-urlencoded');
+      expect(names.filter((name) => !ALLOWED_FIELDS.has(name)), 'the POST from the refusal page carries no field outside the four').toEqual([]);
+      for (const name of ['IRISUsername', 'IRISPassword', 'IRISLogin']) expect(names, `the retry carries ${name}`).toContain(name);
       await expect(page.locator('#ocu-error')).toHaveText(NO_ROLE);
       await expect(page.locator('app-root'), 'the shell is never served').toHaveCount(0);
       await expect(userInput(page), 'with no field marked, the fields hold the published values').toHaveValue(demo().user);
@@ -455,7 +473,7 @@ test.describe('S5 to S7, signing in', () => {
   /** S7: the form's POST carries no field but the four of the proxy's allow-list. */
   test('S7: the sign-in POST carries only IRISSessionToken, IRISUsername, IRISPassword and IRISLogin', async ({ page }) => {
     try {
-      const allowed = new Set(['IRISSessionToken', 'IRISUsername', 'IRISPassword', 'IRISLogin']);
+      const allowed = ALLOWED_FIELDS;
       for (const path of [splashPath(), splashPath('since=2026-10-25T00:00:00Z&')]) {
         const posts: Array<{ url: string; type: string; names: string[] }> = [];
         const watch = (request: { method: () => string; url: () => string; postData: () => string | null; headers: () => Record<string, string> }): void => {
@@ -543,8 +561,10 @@ test.describe('S8 to S10, the layout, the keyboard and the envelope', () => {
         const second = await box(cards.nth(1));
         expect(first.top, `${scheme}: the two cards' tops are equal`).toBeCloseTo(second.top, 0);
         expect(first.left, `${scheme}: side by side`).not.toBeCloseTo(second.left, 0);
-        // The logo carries the alt that the page requires, so the scan's rule against a read image is not held against it.
-        const findings = (await scanPage(page, scheme)).filter((finding) => !finding.includes('- img "OcuTalon"'));
+        // The logo carries the alt that the page requires, so the scan's one finding against it, a read image, is left out: exactly one.
+        const scanned = await scanPage(page, scheme);
+        const findings = scanned.filter((finding) => !finding.includes('- img "OcuTalon"'));
+        expect(scanned.length - findings.length, `${scheme}: exactly one finding is left out, the logo's`).toBe(1);
         expect(findings, `${scheme}: the in-house scan finds nothing`).toEqual([]);
       }
     } finally {
@@ -659,6 +679,79 @@ test.describe('S8 to S10, the layout, the keyboard and the envelope', () => {
       await expect(page.locator('#ocu-countdown')).not.toHaveText('');
       await copyButton(page, 'Copy user name').click();
       expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+    } finally {
+      await signOutGroup(page);
+    }
+  });
+});
+
+test.describe('QA (Story 16.2): the refusal, and the first screen at 1280x600', () => {
+  /** The policy and the cache header that a response to this page must carry, over the hashes of the blocks of its own body. */
+  function expectEnvelope(headers: Record<string, string>, body: string, what: string): void {
+    const style = /<style>([\s\S]*?)<\/style>/.exec(body)?.[1] ?? '';
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? '';
+    expect(body.match(/<style>/g)?.length, `${what}: one inline style`).toBe(1);
+    expect(body.match(/<script>/g)?.length, `${what}: one inline script`).toBe(1);
+    const policy = headers['content-security-policy'] ?? '';
+    expect(policy, `${what}: the splash's policy over its own style and script`).toBe(
+      `default-src 'none'; script-src 'sha256-${sha256(script)}'; style-src 'sha256-${sha256(style)}'; ` +
+        "img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    );
+    expect(policy.match(/sha256-/g)?.length, `${what}: exactly one script hash and one style hash`).toBe(2);
+    expect(policy, `${what}: no unsafe keyword`).not.toMatch(/unsafe-/);
+    expect(headers['cache-control'], `${what}: no-store`).toBe('no-store');
+  }
+
+  /** S6b: a refusal of a typed name that holds markup (QA, the typed-name half of AC 3 that S6 cannot tell from the prefilled name). */
+  test('S6b: a refused name is kept exactly and written escaped, the answer is under the same hashed policy, and the error is on the first screen', async ({ page }) => {
+    try {
+      await page.setViewportSize({ width: 1280, height: 600 });
+      const violations = watchViolations(page);
+      const marker = `pwned-${probe()}`;
+      const typed = `x"><b id="${marker}">&'`;
+      const answer = await signInFromSplash(page, typed, `wrong-${probe()}`, splashPath());
+      expect(answer.status(), 'the refusal is a page, not an error').toBe(200);
+      expectEnvelope(answer.headers(), await answer.text(), 'the refusal');
+
+      await expect(page.locator('#ocu-error')).toHaveText(WRONG);
+      await expect(page.locator(`[id="${marker}"]`), 'the typed markup was not made an element').toHaveCount(0);
+      await expect(userInput(page), 'the user field holds exactly what was typed, not the published name').toHaveValue(typed);
+      await expect(passwordInput(page), 'the password field is empty').toHaveValue('');
+      expect(await page.evaluate(() => document.activeElement?.id), 'the error has the focus').toBe('ocu-error');
+      const ring = await readFocus(page);
+      expect(ring, 'the focused error has a ring to read').not.toBeNull();
+      await expectRing(page, ring as Reading, 'the focused error');
+      const error = await box(page.locator('#ocu-error'));
+      expect(error.top, 'the error is on the screen: top').toBeGreaterThanOrEqual(0);
+      expect(error.bottom, 'the error is on the screen: bottom').toBeLessThanOrEqual(600);
+      expect(await page.locator('script:not([src])').count(), 'still one script').toBe(1);
+      expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+    } finally {
+      await signOutGroup(page);
+    }
+  });
+
+  /** S8b: the button's whole box lies inside the 1280x600 viewport at scroll 0, and the logo of the scheme is drawn (QA, AC 4). */
+  test('S8b: at 1280x600 in light and dark the button box lies inside the viewport at scroll 0 and the scheme logo is loaded', async ({ page }) => {
+    try {
+      await page.setViewportSize({ width: 1280, height: 600 });
+      for (const scheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto(splashPath());
+        await expect(submitButton(page)).toBeVisible();
+        const found = await box(submitButton(page));
+        expect(await page.evaluate(() => window.scrollY), `${scheme}: the page is not scrolled`).toBe(0);
+        expect(found.top, `${scheme}: the button's top is inside`).toBeGreaterThanOrEqual(0);
+        expect(found.left, `${scheme}: the button's left is inside`).toBeGreaterThanOrEqual(0);
+        expect(found.right, `${scheme}: the button's right is inside`).toBeLessThanOrEqual(1280);
+        expect(found.bottom, `${scheme}: the button's bottom is inside`).toBeLessThanOrEqual(600);
+        const logo = await page.getByRole('img', { name: 'OcuTalon', exact: true }).evaluate((img) => ({
+          drawn: (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0,
+          src: (img as HTMLImageElement).currentSrc,
+        }));
+        expect(logo.drawn, `${scheme}: the logo file loaded`).toBe(true);
+        expect(logo.src, `${scheme}: the logo of the scheme is the one used`).toContain(`OcuTalon-Logo-${scheme}-`);
+      }
     } finally {
       await signOutGroup(page);
     }
