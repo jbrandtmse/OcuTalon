@@ -9,7 +9,7 @@
 ///     plus the dry run's;
 ///   - TestEveryChannel: every variant renders on web, phone, mailbox and telegram;
 ///   - TestGroupLines: two groups give two lines in order, a group with no NoticeCount is left out, an empty error summary is written as no error text, and each line's
-///     count is the group's NoticeCount;
+///     count is the group's NoticeCount, not its Count that moved on, so the lines add up to the count slot;
 ///   - TestCountAndNoun: count is the NoticeCount, not the Count, and the noun falls back to message/messages when the row has none or it cannot be read;
 ///   - TestCannotBuild: slots that cannot be built (no group that settled, an empty cause, no first failure time) give "" and an error;
 ///   - TestErrorText and TestSummary: Text redacts and gives the error's own sentence, Summary is the first sentence of it, at most 80 characters, a longer one cut
@@ -51,26 +51,27 @@ ClassMethod Row(category As %String, fallback As %Boolean = 0, reason As %String
 	Quit row
 }
 
-/// A group (not saved).
-ClassMethod Group(seq As %Integer, item As %String, noticeCount As %Integer, summary As %String, firstAt As %String) As OcuTalon.Data.FailureGroup
+/// A group (not saved): count failures (noticeCount when count is empty), of which noticeCount settled with the notice.
+ClassMethod Group(seq As %Integer, item As %String, noticeCount As %Integer, summary As %String, firstAt As %String, count As %Integer = "") As OcuTalon.Data.FailureGroup
 {
 	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
 	Set group.Seq = seq
 	Set group.ItemName = item
 	Set group.NoticeCount = noticeCount
-	Set group.Count = noticeCount
+	Set group.Count = $Select(count '= "": count, 1: noticeCount)
 	Set group.ErrorSummary = summary
 	Set group.FirstAt = firstAt
 	Quit group
 }
 
-/// The groups of a notice: two that settled and one that did not.
+/// The groups of a notice: two that settled (the first has gained a failure since, so its Count is 31 against its NoticeCount of 30) and one that did not,
+/// 52 failures in all, as the Row.
 ClassMethod Groups() As %ListOfObjects
 {
 	Set list = ##class(%ListOfObjects).%New()
-	Do list.Insert(..Group(1, "OrdersFromPartner", 30, ..#SENTENCE, ..#FIRST))
+	Do list.Insert(..Group(1, "OrdersFromPartner", 30, ..#SENTENCE, ..#FIRST, 31))
 	Do list.Insert(..Group(2, "OrdersToWarehouse", 20, "", ..#SECOND))
-	Do list.Insert(..Group(3, "OrdersLate", "", "Joined after the settle.", ..#SECOND))
+	Do list.Insert(..Group(3, "OrdersLate", "", "Joined after the settle.", ..#SECOND, 1))
 	Quit list
 }
 
@@ -217,7 +218,8 @@ Method TestGroupLines()
 	Do $$$AssertEquals(lines.%Size(), 2, "two groups: the one without a NoticeCount is left out")
 	Do $$$AssertEquals(lines.%Get(0).itemName_"|"_lines.%Get(0).count_"|"_lines.%Get(0).errorSummary_"|"_lines.%Get(0).firstAt, "OrdersFromPartner|30|"_..#SENTENCE_"|"_..#FIRST, "the first group, in Seq order")
 	Do $$$AssertEquals(lines.%Get(1).itemName_"|"_lines.%Get(1).count_"|"_lines.%Get(1).errorSummary_"|"_lines.%Get(1).firstAt, "OrdersToWarehouse|20|no error text|"_..#SECOND, "the second, with the fixed value for an empty summary")
-	Do $$$AssertEquals(lines.%Get(0).count + lines.%Get(1).count, 50, "the lines add up to the count slot")
+	Set slots = ..SlotsOf(..Row("partner_outage"), "the count slot")
+	If $IsObject(slots) Do $$$AssertEquals(lines.%Get(0).count + lines.%Get(1).count, slots.count, "the lines add up to the count slot, although the first group's Count has moved on")
 }
 
 Method TestCountAndNoun()

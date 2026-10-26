@@ -1,3 +1,5 @@
+Include Ensemble
+
 /// The base of the Story 5.1 test classes that run over the running production (Test.Watch.Reader, Grant, Ops, Tools and Turns). THEY RUN IN THROWAWAY
 /// STACKS AND IN CI ONLY (Rule 21), with demo mode on: they need the running OcuTalon.Production and the Orders demo production in OCUORDERS, and fail
 /// with the reason where they do not have them (Reason), so that a broken start can never give a green shard. It extends Test.Core.InProduction (Guard,
@@ -18,7 +20,8 @@
 ///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects; Group also lists every group, Story 5.8), Stream (a session's events
 ///     of any type in Seq order) and NoticeBodies (the Notification messages of an incident's Ref as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
 ///     sets NoticedAt and NoticeCount as a notice will), Notifications, and (Story 5.4) WaitDiagnosed, which a test calls before Notice so that a whole-row save by
-///     IncidentManager cannot write over the fixture. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
+///     IncidentManager cannot write over the fixture; (Story 5.8) WaitNotices, and WaitAnswered, which returns once IncidentManager has handled Decide's answer,
+///     so that the notice step, or its absence, is done. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
 ///     untagged failures of the poller tests make are gone too.
 /// It has no Test methods.
@@ -978,7 +981,8 @@ Method WaitCount(ref As %String, count As %Integer, seconds As %Integer = {..#WA
 }
 
 /// Waits up to seconds, polling every half second, until the incident's property is set (least "") or at least least; the property's value then, "" when
-/// the incident is gone. The row is opened afresh each time, as an object that is still held would show the values it was opened with.
+/// the incident is gone. The row is opened afresh each time, as an object that is still held would show the values it was opened with: so the caller
+/// holds no object of the row either, or the open gives back that object.
 Method WaitRow(ref As %String, property As %String, least As %Integer, seconds As %Integer) As %String [ Private ]
 {
 	Set end = $ZHorolog + seconds
@@ -1058,6 +1062,31 @@ Method WaitNotices(ref As %String, count As %Integer) [ Private ]
 		If (..Notifications(ref) '< count) || ($ZHorolog > end) Quit
 		Hang 0.5
 	}
+}
+
+/// Waits up to seconds (WAITINCIDENT by default), polling every half second, until IncidentManager has handled Decide's answer to the incident's diagnose
+/// request: the answer's header in the trace session (the incident's TraceHeaderId when session is empty) is Completed, which the framework sets once
+/// OnResponse has returned, so the notice step that follows the stored diagnosis has run. 1 when it is handled; 0 when the time has passed or there is no
+/// trace session.
+Method WaitAnswered(ref As %String, session As %String = "", seconds As %Integer = {..#WAITINCIDENT}) As %Boolean [ Private ]
+{
+	If session = "" {
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		Set session = $Select($IsObject(row): row.TraceHeaderId, 1: "")
+		Kill row
+	}
+	If session = "" Quit 0
+	Set end = $ZHorolog + seconds
+	For {
+		Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session), 2, "Decide", ..#MANAGER)
+		Set handled = 0
+		For i = 0:1:answers.%Size() - 1 {
+			If answers.%Get(i).status = $$$eMessageStatusCompleted Set handled = 1
+		}
+		If handled || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit handled
 }
 
 /// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups and their diagnose

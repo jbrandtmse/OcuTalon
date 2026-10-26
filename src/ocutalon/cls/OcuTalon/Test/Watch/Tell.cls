@@ -13,9 +13,13 @@
 ///     partner_outage: each watcher gets one recorded Notification (kind incident, incident.noFix, the slots count, time, itemNoun, cause and groups, the row's
 ///     DecisionRef, no ApprovalRef) and one incident event, the third gets neither, and the row is noticed, open and no_fix;
 ///   - TestFailedSendLeavesTheOthersTheirNotice: with the send to the first recipient answering an error, the second still gets its Notification and both get
-///     the event, one warning that starts with LOGSEND names the incident, and the row stays noticed;
+///     the event, one warning that starts with LOGSEND names the incident, and the row stays noticed; with both sends refused, a second incident's notice is
+///     still logged once, with the first refused send's error;
 ///   - TestNobodyToNotice: an eval incident, and an instance incident of a watched production with the online demo on, are noticed (NoticedAt, open, no_fix) with
 ///     no Notification, no event and no warning.
+///   - TestUnbuildableNoticeLeavesTheRowUnnoticed (QA): an answer whose notice cannot be built (an incident with no group, and one whose cause is empty, both of a
+///     production that two sessions watch) is stored and then not noticed: NoticedAt stays empty, the state and open variant stay as they were, nothing is sent or published, and one Type 3 warning with
+///     LOGNOTICE names the incident.
 /// The failed Recipients read has no test: Session.Recipients is called by name, so a probe cannot replace it, and the only way it answers an error is the
 /// privilege check of its watchers' statement, which needs a process without %All (SET $ROLES can only add roles) and so an IRIS user made for the purpose.
 /// The fixture rows are removed after each test, with their streams, and so are the warnings that these tests made.
@@ -177,6 +181,14 @@ Method TestFailedSendLeavesTheOthersTheirNotice()
 	Kill row
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= ""), "open|no_fix|1", "the row stays noticed")
+	Set again = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", "", "ZZNS", "Zz.Tell"_..Number_".send")
+	Set ..Refs = ..Refs_","_again
+	Do ..Group(again, 1)
+	Set host.FailFor = first_","_second
+	Set before = ..Warned()
+	Do $$$AssertStatusOK(host.Answer(again, ..Diagnosis("partner_outage", "zz outage")), "a second incident's answer is handled with both sends refused")
+	Do $$$AssertEquals(..Warned(.text) - before, 1, "one warning for that notice, not one for each refused send")
+	Do $$$AssertTrue($Find(text, again) && $Find(text, first) && '$Find(text, second), "naming the incident and the first refused send only: "_text)
 }
 
 Method TestNobodyToNotice()
@@ -206,6 +218,36 @@ Method TestNobodyToNotice()
 		Set warned = warned + ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, , method, "IncidentManager could not")
 	}
 	Do $$$AssertEquals(warned, 0, "and nothing was logged")
+}
+
+Method TestUnbuildableNoticeLeavesTheRowUnnoticed()
+{
+	Do ..Setup("unbuilt", .a, .b, .incident, .row)
+	If '$IsObject($Get(row)) Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set log = $Parameter(..#PROBE, "LOGNOTICE")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Data.Session).Recipients("instance", incident, .sc)), 2, "control: two sessions watch the production, so a notice that could be built would be sent")
+	Do $$$AssertEquals(##class(OcuTalon.Data.FailureGroup).OfIncident(incident).Count(), 0, "the incident has no group")
+	Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("partner_outage", "zz outage")), "the answer is handled")
+	Kill row
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(row.Cause_"|"_row.CauseCategory, "zz outage|partner_outage", "the diagnosis is stored")
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.NoticedAt, "open|fix|", "but the incident is not noticed: state and variant stand and NoticedAt is empty")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "nothing was sent")
+	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "0|0", "nothing was published")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Notice", log_incident), 1, "one Type 3 warning names the incident")
+
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", "", "ZZNS", "Zz.Tell"_..Number_".unbuilt")
+	Set ..Refs = ..Refs_","_other
+	Do ..Group(other, 1)
+	Do $$$AssertStatusOK(host.Answer(other, ..Diagnosis("partner_outage", "")), "the answer with an empty cause is handled")
+	Set noticed = ##class(OcuTalon.Data.Incident).RefIndexOpen(other)
+	Do $$$AssertEquals(noticed.State_"|"_noticed.OpenVariant_"|"_noticed.NoticedAt, "open|fix|", "an empty cause is not noticed either")
+	Kill noticed
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Notice", log_other), 1, "with one warning naming that incident")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "and nothing was sent to the two sessions that watch its production")
+	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "0|0", "nor published")
 }
 
 /// --- helpers ---
@@ -293,6 +335,7 @@ Method Warned(Output text As %String) As %Integer
 Method RemoveWarnings()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tell", "IncidentManager could not")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Notice", $Parameter(..#PROBE, "LOGNOTICE"))
 }
 
 /// Another job takes the stream's lock and holds it until ReleaseStream; this returns once the job holds it.

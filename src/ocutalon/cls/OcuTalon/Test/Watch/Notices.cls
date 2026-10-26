@@ -4,18 +4,21 @@ Include Ensemble
 /// AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case, over the RUNNING production: IncidentManager, Notify, WebChatOut, Decide and DiagnosisAgent are
 /// items of it, so the class runs fresh (a warm stack's running job keeps its old code). The model is the CI mock: a failure whose text holds a [[mock:<name>]] marker
 /// picks the scenario. They fail with the reason where OCUORDERS or demo mode is missing. A test waits at most 90 seconds for a diagnosis and 20 for the rest,
-/// polling every half second (test bounds, not NFR-7). The rows, events and notifications of a test are removed after it.
+/// polling every half second (test bounds, not NFR-7). The rows and events of a test are removed after it; its Notification messages stay, each found by its
+/// incident's own Ref.
 ///   - TestNoticeVariants: session A, which does not watch Orders (so the poller makes no incident of its own), has one batch with a real failed order of OCUORDERS
-///     (diagnosis-nofix, with the header id, as Test.Watch.Diagnose does) and one with three ZZNS failures (diagnosis-unknown, invalid-reply, refusal). Each of the four
+///     (diagnosis-nofix, with the header id, as Test.Watch.Diagnose does) and one with three ZZNS failures (diagnosis-unknown and invalid-reply as headers, refusal as an
+///     event-log row). Each of the four
 ///     incidents is noticed with its catalog key and open variant (No fix: incident.noFix and no_fix; Unknown: incident.noFixUnknown, no_fix and no cause slot; Fallback:
-///     incident.fallback, fallback and the reason), A has one kind-incident Notification for each, with the slots of Watch.Notice, the row's DecisionRef and no ApprovalRef, and
-///     WebChatOut records one incident Delivery row for each. A's stream shows, for each incident and in Seq order, noticed, settling, diagnosing and then one incident event
+///     incident.fallback, fallback and the reason), A has one kind-incident Notification for each, with the slots of Watch.Notice, the row's DecisionRef and no ApprovalRef,
+///     in the incident's own trace session (AD-26), and WebChatOut records one incident Delivery row for each. A's stream shows, for each incident and in Seq order, noticed, settling, diagnosing and then one incident event
 ///     (open, the variant, groups, evidence items and the diagnosis trace target). For the real order, evidence.sampleHeaderId is that header's id and sampleError is
 ///     ErrorText.Text of its real error, traceTargets.sample and firstFailure are that id in OCUORDERS and diagnosis is the incident's TraceHeaderId in OCUTALON; the
-///     incidents of ZZNS, where nothing can be read, have no sample and no sample trace target but keep their evidence items;
+///     incidents of ZZNS, where nothing can be read, have no sample and no sample trace target but keep their evidence items, and a first failure that is a header is
+///     the firstFailure trace target, while the event-log row's incident has no FirstHeaderId and no firstFailure;
 ///     and Web.Api.StateBody(A) shows each incident with the same groups, evidence and traceTargets as its event;
-///   - TestInstanceNotice (U-86): sessions A and B watch Orders and C does not; an untagged no-fix failure of Orders makes one instance incident, and A and B each get one
-///     Notification and one incident event, C gets neither.
+///   - TestInstanceNotice (U-86): sessions A and B watch Orders and C does not; an untagged no-fix failure of Orders makes one instance incident of the test's item
+///     (instance incidents of other items are not the test's), and A and B each get one Notification and one incident event, C gets neither.
 Class OcuTalon.Test.Watch.Notices Extends OcuTalon.Test.Watch.Case
 {
 
@@ -38,7 +41,9 @@ Method TestNoticeVariants()
 	Do $$$AssertStatusOK(..SendBatch(..#ORDERS, ..#ORDERSPRODUCTION, a, order), "a failure of that order is sent")
 	Set failures = []
 	For marker = "diagnosis-unknown", "invalid-reply", "refusal" {
-		Do failures.%Push({"item": (..Item(marker)), "text": ("[[mock:"_marker_"]] Field 'Qty' was empty"), "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1))})
+		Set failure = {"item": (..Item(marker)), "text": ("[[mock:"_marker_"]] Field 'Qty' was empty"), "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1))}
+		If marker = "refusal" Set failure.kind = "error"
+		Do failures.%Push(failure)
 	}
 	Do $$$AssertStatusOK(..SendBatch(..#SYNTHNS, ..#SYNTH, a, failures), "one batch of three failures is sent")
 	Set synth = ..WaitIncident(a, ..#SYNTH, 3)
@@ -87,6 +92,7 @@ Method TestNoticeVariants()
 			Set note = bodies.%Get(0)
 			Set slots = note.slots
 			Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.decisionRef_"|"_note.approvalRef, a_"|incident|"_key_"|"_row.DecisionRef_"|", label_"to A, kind incident, the key, the row's DecisionRef and no ApprovalRef")
+			Do $$$AssertEquals(..NoticeSessions(ref), row.TraceHeaderId, label_"the Notification lies in the incident's own trace session (AD-26)")
 			Do $$$AssertEquals(slots.count_"|"_slots.time_"|"_slots.itemNoun.one_"|"_slots.itemNoun.other, "1|"_row.FirstAt_"|"_$Select(i = 1: "order|orders", marker = "diagnosis-unknown": "invoice|invoices", 1: "message|messages"), label_"count, time and noun")
 			Do $$$AssertEquals(slots.groups.%Size()_"|"_slots.groups.%Get(0).itemName_"|"_slots.groups.%Get(0).count_"|"_slots.groups.%Get(0).firstAt, "1|"_group.itemName_"|1|"_group.firstAt, label_"one group line")
 			Do $$$AssertTrue(slots.groups.%Get(0).errorSummary '= "", label_"with an error summary: "_slots.groups.%Get(0).errorSummary)
@@ -120,6 +126,8 @@ Method TestNoticeVariants()
 		} Else {
 			Do $$$AssertEquals(sentEvent.evidence.%IsDefined("sampleHeaderId")_"|"_sentEvent.traceTargets.%IsDefined("sample"), "0|0", label_"where nothing could be read there is no sample and no sample trace target")
 			Do $$$AssertEquals(sentEvent.evidence.items.%Size(), 1, label_"but the items stay")
+			Set logRow = (marker = "refusal")
+			Do $$$AssertEquals((row.FirstHeaderId '= "")_"|"_sentEvent.traceTargets.%IsDefined("firstFailure"), $Select(logRow: "0|0", 1: "1|1"), label_$Select(logRow: "a first failure that is an event-log row has no FirstHeaderId and no firstFailure trace target", 1: "a first failure that is a header is the firstFailure trace target"))
 		}
 		Set found = ""
 		Set iterator = state.chat.%GetIterator()
@@ -132,6 +140,21 @@ Method TestNoticeVariants()
 			Do $$$AssertEquals(..Targets(found.traceTargets), ..Targets(sentEvent.traceTargets), label_"and the same trace targets (the snapshot adds each one's link)")
 		}
 	}
+}
+
+/// The sessions of the message headers that carry the incident's Notification messages (IncidentManager's send and the routing after it), each once,
+/// comma-separated, in header ID order.
+ClassMethod NoticeSessions(ref As %String) As %String
+{
+	Set sessions = ""
+	Set notes = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Msg.Notification WHERE IncidentRef = ? ORDER BY ID", ref)
+	While notes.%Next() {
+		Set headers = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Msg.Notification' AND MessageBodyId = ? ORDER BY ID", notes.%GetData(1))
+		While headers.%Next() {
+			If (","_sessions_",") '[ (","_headers.%GetData(1)_",") Set sessions = sessions_$Select(sessions = "": "", 1: ",")_headers.%GetData(1)
+		}
+	}
+	Quit sessions
 }
 
 /// The trace targets as "<name>=<id>@<namespace>" for each of diagnosis, sample and firstFailure that is there, comma-separated. The snapshot's
@@ -155,11 +178,16 @@ Method TestInstanceNotice()
 	Do ..Watch(a)
 	Do ..Watch(b)
 	Set item = ..Item("i")
+	Set before = ..Incidents("instance", ..#ORDERSPRODUCTION).%Size()
 	Do $$$AssertStatusOK(..SendBatch(..#ORDERS, ..#ORDERSPRODUCTION, "instance", [{"item": (item), "text": "[[mock:diagnosis-nofix]] Field 'Qty' was empty in order 1", "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1))}]), "an untagged failure of Orders is sent")
-	Set rows = ..WaitIncident("instance", ..#ORDERSPRODUCTION)
-	Do $$$AssertEquals(rows.%Size(), 1, "one instance incident")
-	If rows.%Size() '= 1 Quit
-	Set ref = rows.%Get(0).ref
+	Set rows = ..WaitIncident("instance", ..#ORDERSPRODUCTION, before + 1)
+	Set ref = ""
+	Set mine = 0
+	For i = 0:1:rows.%Size() - 1 {
+		If ..Group(rows.%Get(i).ref).itemName = item Set ref = rows.%Get(i).ref, mine = mine + 1
+	}
+	Do $$$AssertEquals(mine, 1, "one instance incident of the test's item")
+	If mine '= 1 Quit
 	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
 	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and is noticed")
 	Do ..WaitNotices(ref, 2)

@@ -7,8 +7,9 @@ Include Ensemble
 /// for a diagnosis, polling every half second (a test bound, not NFR-7). The rows, events and decisions of a test are removed after it.
 ///   - TestDemoDiagnosis (rows Demo and What the model saw): session A watches Orders and 50 failing orders tagged with A become an incident whose stream gets
 ///     noticed, settling and diagnosing in that order; Decide records one diagnose decision for the incident in the incident's own trace session; the row holds the
-///     scenario's diagnosis, the noun order/orders, no fallback and the decision's Ref, the sample's header id (one of the real failed orders) and its error, and NoticedAt is
-///     still empty with no Notification and no incident event (a usable data-format diagnosis has a fix, so its notice is Story 7.2's);
+///     scenario's diagnosis, the noun order/orders, no fallback and the decision's Ref, the sample's header id (one of the real failed orders) and its error, and once IncidentManager has
+///     handled the answer (Case.WaitAnswered) NoticedAt is still empty with no Notification and no incident event (a usable data-format diagnosis has a fix, so its
+///     notice is Story 7.2's);
 ///     the first model request holds the pack, the second the result of read_failed_messages built from the real failed orders;
 ///   - TestDiagnosisVariants (rows No fix, Unknown, Invalid / refusal): one batch of four failures whose texts hold the markers diagnosis-nofix,
 ///     diagnosis-unknown, invalid-reply and refusal gives four incidents that settle together: partner_outage without a fix and with the noun message/messages,
@@ -59,6 +60,7 @@ Method TestDemoDiagnosis()
 	Set ref = rows.%Get(0).ref
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
+	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer, so the notice step has run before the negatives below")
 	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 20)
 	Do $$$AssertEquals(progress.%Size(), 3, "A's stream holds three watch.progress events")
 	If progress.%Size() = 3 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(2).payload.stage_"|"_progress.%Get(2).payload.ref, "noticed|settling|diagnosing|"_ref, "noticed, settling and diagnosing, in that order, for the incident")
@@ -81,7 +83,7 @@ Method TestDemoDiagnosis()
 	}
 	Do $$$AssertEquals(..Notifications(ref), 0, "no notification carries the incident's Ref")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size(), 0, "and no incident event was published")
-	Set steps = ##class(OcuTalon.Test.Agent.RunnerFixture).Headers(rows.%Get(0).traceHeaderId, "IncidentManager")
+	Set steps = ##class(OcuTalon.Test.Agent.RunnerFixture).Headers($Select($IsObject(row): row.TraceHeaderId, 1: ""), "IncidentManager")
 	Do $$$AssertTrue(steps.%Size() > 0, "the waiter's session holds the messages it sent")
 	Set sent = ""
 	Set iterator = steps.%GetIterator()
@@ -149,8 +151,8 @@ Method TestDiagnosisVariants()
 			Continue
 		}
 		Do $$$AssertEquals(row.DecisionRef, decision.Ref, marker_": the DecisionRef is the decision's")
-		Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", marker_": the incident is noticed")
 		Kill row
+		Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", marker_": the incident is noticed")
 		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "open|"_$Select($Piece(marker, "-", 1) = "diagnosis": "no_fix", 1: "fallback"), marker_": open, with the variant of its outcome")
 		Do ..WaitNotices(ref, 1)
@@ -176,8 +178,8 @@ Method TestDiagnosisVariants()
 	Do $$$AssertTrue(..WaitDiagnosed(ref), "it holds its diagnosis")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.ItemNoun, "1|invalid|"_..#ORDERNOUN, "its fallback keeps the code noun of the sample's body class: order and orders")
-	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and it is noticed")
 	Kill row
+	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and it is noticed")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do ..WaitNotices(ref, 1)
 	Set note = ..NoticeBodies(ref)
@@ -209,19 +211,7 @@ Method TestGoneBeforeTheAnswer()
 		Hang 0.5
 	}
 	Do $$$AssertTrue($IsObject(decision), "Decide answered, and recorded its decision")
-	If $IsObject(decision) {
-		Set end = $ZHorolog + 40
-		For {
-			Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(decision.TraceSessionId), 2, "Decide", ..#MANAGER)
-			Set handled = 0
-			For i = 0:1:answers.%Size() - 1 {
-				If answers.%Get(i).status = $$$eMessageStatusCompleted Set handled = handled + 1
-			}
-			If handled || ($ZHorolog > end) Quit
-			Hang 0.5
-		}
-		Do $$$AssertTrue(handled, "and IncidentManager handled the answer")
-	}
+	If $IsObject(decision) Do $$$AssertTrue(..WaitAnswered(ref, decision.TraceSessionId, 40), "and IncidentManager handled the answer")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(ref), 0, "no row came back")
 	Do $$$AssertEquals(..Incidents(a, ..#SYNTH).%Size(), 0, "also by a read of the owner's incidents")
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND ConfigName = ?", mark, ..#MANAGER)

@@ -300,9 +300,10 @@ Method TestLogKeys()
 	Set secret = "sk-"_"ant-api03-ABCDEFGHIJKLMNOPQRSTUV"
 	Set mark = ##class(OcuTalon.Bridge.Redact).#REDACTED
 	Set id = ..FixtureLog("", "", "OrdersFromPartner", "The order failed: the key "_secret_" was refused")
-	Do $$$AssertTrue(id '= "", "a log row is made")
-	If id = "" Quit
-	Set incident = ..Fixture(owner, id, , , "l")
+	Set id2 = ..FixtureLog("", "", "OrdersFromPartner", "The order failed again")
+	Do $$$AssertTrue((id '= "") && (id2 '= ""), "two log rows are made")
+	If (id = "") || (id2 = "") Quit
+	Set incident = ..Fixture(owner, id_","_id2, , , "l")
 	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "OrdersFromPartner", "l"_id, .snapshot)
 	Do $$$AssertEquals(outcome, "read", "Evidence reads a log key")
 	Do $$$AssertEquals(snapshot.failures.%Size()_"|"_snapshot.eventLog.%Size(), "0|1", "it gives the row as an event-log row and no failure")
@@ -311,20 +312,23 @@ Method TestLogKeys()
 	If $IsObject($Get(pack)) {
 		Do $$$AssertEquals(pack.sample.logRef_"|"_pack.sample.bodyClass, "1|", "its sample is the log row, by its position in the event log (logRef), with no body class")
 		Do $$$AssertEquals(pack.sample.%IsDefined("logId"), 0, "and no log row id")
+		Do $$$AssertTrue(pack.%ToJSON() '[ """logId""", "nor anywhere in the pack")
 		Do $$$AssertTrue(pack.%ToJSON() '[ "ABCDEFGHIJ", "and the secret of its text is not in the pack")
 	}
 	Do ..Begin(owner, incident.Ref, "untrusted")
 	Set result = $ClassMethod(..#TOOLS, "ReadFailedMessages")
-	Do $$$AssertEquals(result.count_"|"_result.items.%Size(), "1|1", "read_failed_messages gives the log row as the failed message")
-	If result.items.%Size() = 1 {
-		Do $$$AssertEquals(result.items.%Get(0).logRef, 1, "with its logRef, the position in the event log")
+	Do $$$AssertEquals(result.count_"|"_result.items.%Size(), "2|2", "read_failed_messages gives the two log rows as the failed messages")
+	If result.items.%Size() = 2 {
+		Do $$$AssertEquals(result.items.%Get(0).logRef_","_result.items.%Get(1).logRef, "1,2", "with their logRefs 1 and 2, their positions in the event log")
 		Do $$$AssertEquals(result.items.%Get(0).%IsDefined("logId"), 0, "and no log row id")
 		Do $$$AssertTrue(result.items.%Get(0).error '[ "ABCDEFGHIJ", "and its text redacted")
 	}
+	Do $$$AssertTrue(result.%ToJSON() '[ """logId""", "no log row id anywhere in the answer")
 	Set result = $ClassMethod(..#TOOLS, "ReadEventLog")
-	Do $$$AssertEquals(result.items.%Size(), 1, "read_event_log gives the row")
-	If result.items.%Size() = 1 Do $$$AssertEquals(result.items.%Get(0).logRef_"|"_result.items.%Get(0).%IsDefined("logId"), "1|0", "as logRef 1, the same as read_failed_messages gave, and with no log row id")
-	If result.items.%Size() = 1 Do $$$AssertTrue((result.items.%Get(0).text [ mark) && (result.items.%Get(0).text '[ "ABCDEFGHIJ"), "with its text redacted: "_result.items.%Get(0).text)
+	Do $$$AssertEquals(result.items.%Size(), 2, "read_event_log gives the two rows")
+	If result.items.%Size() = 2 Do $$$AssertEquals(result.items.%Get(0).logRef_","_result.items.%Get(1).logRef_"|"_result.items.%Get(0).%IsDefined("logId"), "1,2|0", "as logRefs 1 and 2, the same as read_failed_messages gave, and with no log row id")
+	If result.items.%Size() = 2 Do $$$AssertTrue((result.items.%Get(0).text [ mark) && (result.items.%Get(0).text '[ "ABCDEFGHIJ"), "with the first row's text redacted: "_result.items.%Get(0).text)
+	Do $$$AssertTrue(result.%ToJSON() '[ """logId""", "and no log row id anywhere in that answer")
 }
 
 Method TestMultiLineError()

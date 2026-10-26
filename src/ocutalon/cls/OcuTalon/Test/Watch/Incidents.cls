@@ -77,8 +77,8 @@ Method TestBurstThroughThePoller()
 	If rows.%Size() < 1 Quit
 	Set ref = rows.%Get(0).ref
 	Set noticeCount = ..WaitNoticeCount(ref)
-	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis, so the negatives below follow the notice step")
-	Hang 1
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
+	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer, so the negatives below follow the notice step")
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row = ..Incidents(a, ..#ORDERSPRODUCTION).%Get(0)
 	Do $$$AssertEquals(..Incidents(a, ..#ORDERSPRODUCTION).%Size(), 1, "and still one when the settle has ended")
@@ -256,6 +256,7 @@ Method TestTwoSessions()
 	Do $$$AssertEquals(..Incidents(b, ..#SYNTH).%Get(0).count, 1, "and B's holds B's one")
 	Do $$$AssertTrue(..WaitDiagnosed(refA), "A's incident holds its diagnosis")
 	Do $$$AssertTrue(..WaitDiagnosed(refB), "and B's holds its")
+	Do $$$AssertTrue(..WaitAnswered(refA) && ..WaitAnswered(refB), "and IncidentManager has handled both answers, so the negatives below follow the notice step")
 	Set progressA = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 5)
 	Set progressB = ##class(OcuTalon.Test.Core.Observe).Events(b, "watch.progress", 3, 5)
 	Do $$$AssertEquals(progressA.%Size()_"|"_progressB.%Size(), "3|3", "each stream holds three watch.progress events, the third once the settle rule has ended")

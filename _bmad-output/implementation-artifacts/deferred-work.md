@@ -1281,6 +1281,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Rule 2 copy with no stated reason: the spec's Extend-don't-copy note says a second call site moves into one ErrorText helper; Watch/EvidencePack.cls Sentence and Watch/FailurePoller.cls:112
 - 2026-10-26T12:03:18Z status=routed owner=burndown by=cr note=in-epic:ErrorText,FailurePoller_are_Story_5.2's(done);add_one_ErrorText_helper_and_use_it_in_both
 - 2026-10-26T12:41:18Z owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=5.8's_fallback_notice_needs_the_same_redacted_first_sentence:unify_FailurePoller's_and_EvidencePack's_Sentence(Redact.Text(raw))_into_one_ErrorText_helper_there
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=ErrorText.Text(raw)_is_the_one_composition;FailurePoller_and_EvidencePack_use_it(EvidencePack.Sentence_gone);ErrorText.Summary_builds_on_it;NoticeText.TestErrorText+mutation_Text_skips_Redact(8d354fe)
 
 ### DW-262: Test.Watch.Diagnose Row and Test.Watch.Evidence Fixture build incident rows that Test.Data.Fixture.Incident already builds
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
@@ -1297,6 +1298,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The spec's pack shape defines logId (EvidencePack LogMessage, EventLog); whether the model provider counts as leaving the server is an interpretation of the row
 - 2026-10-26T12:03:18Z status=decision-pending owner=burndown by=cr note=Identifiers_row:does_the_model_provider_count_as_leaving_the_server?if_yes,a_pack-local_log_reference
 - 2026-10-26T12:41:18Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=decided(U5_decision_dependency;spine_Identifiers_row:database_row_ids_never_leave_the_server,and_the_model_provider_is_outside_it):the_pack_and_read_event_log_carry_a_pack-local_log_reference(an_ordinal),never_an_Ens_Util.Log_row_id;Ens_header_and_session_ids_may_stay
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=pack,read_failed_messages,read_event_log_give_logRef_1..n_and_no_logId;Evidence.TestLogKeys(+cr_logRef_1..n_both_tools)+mutation_LogMessage_gives_logId(8d354fe)
 
 ### DW-265: The watch read tools open the failed message's body object, so a watched body class's %OnOpen or property getters run inside AI Hub's callback
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
@@ -1332,3 +1334,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-91 (owner decision 2026-10-26T13:11:36Z#273) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Reader.cls CREDENTIALPARTS = credential,password,passwd,passphrase,secret,token,key,auth (5.4, 61e074e); a setting named SessionCookie or BearerValue reaches the pack and the settings tool
 - 2026-10-26T15:31:39Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=owner_decision U-91 at=2026-10-26T13:11:36Z#273: keep and widen; a false positive only hides a value, a miss sends one to the model
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=Reader.CREDENTIALPARTS_adds_bearer,cookie(case-insensitive_substring);Evidence.TestCredentialsLeftOut;mutations_lose_cookie(implement)_and_lose_bearer(QA)_red(8d354fe);owner_answer_U-91_applied
+
+### DW-276: The spine's Conventions row 'Incident notice' builds each group line from FailureGroup Count; the spec and Watch.Notice use the group's NoticeCount, settled groups only
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine row: '(FailureGroup.Seq, Count, FirstAt, ErrorSummary...)'; spec Always (the slots) and matrix row 'Count moved', and Watch/Notice.cls Groups, use NoticeCount
+- 2026-10-26T18:49:28Z status=escalated owner=burndown by=cr note=recommend: the lead amends the row to NoticeCount, groups settled with the notice (Rule 20 light path); code stays
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=the_lead_corrected_its_own_spine_row(Incident_notice:NoticeCount,groups_settled_with_the_notice)_to_the_spec-gate_decision;the_reviewer's_recommended_fix;no_product_call;code_unchanged
+
+### DW-277: An orphan event-log error with an empty ConfigName gives a FailureGroup with an empty ItemName; Watch.Notice passes it to the groups slot, which the catalog refuses, and the row is noticed
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Reader orphan rows take ConfigName as the item, FailurePoller copies it, Catalog groups types itemName as a non-empty text; Watch.Notice.Groups has no check
+- 2026-10-26T18:49:28Z status=wontfix-accepted owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=reopen_if=a FailureGroup row with ItemName '' is stored, or an *Out render fails: the slot 'itemName' is empty
+
+### DW-278: Live.Payload.Incident evidence.items has one entry per failure group, while AD-12 says failures per item
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Details adds one IncidentEvidenceItem per OfIncident group; Record makes one group per incident, so groups and items coincide before Story 7.2
+- 2026-10-26T18:49:28Z status=wontfix-theoretical owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=real when an incident holds two groups of one item (Story 7.2's later groups): merge the items per item then (AD-12)
+
+### DW-279: Four test classes build FailureGroup fixture rows by hand (Tell.Group, Payloads.Group, Diagnose.Row, NoticeText.Group), each with other fields
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2: no shared group fixture; the natural home Test/Data/Fixture.cls is contended while another epic is live
+- 2026-10-26T18:49:28Z status=wontfix-accepted owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=reopen_if=a FailureGroup schema change has to edit more than two hand-built fixture groups under Test/
