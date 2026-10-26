@@ -2,7 +2,7 @@
 title: 'Story 16.8: The page counts down to the reset and waits it out'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'in-progress'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
