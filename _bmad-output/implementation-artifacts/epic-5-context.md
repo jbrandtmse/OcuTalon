@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "watch the Orders production" and "approve the fix". A user asks in plain words to watch a production, or to stop. New failures are picked up within seconds, and same-cause failures become one incident by the settle rule. The Diagnosis agent then explains the incident from the failed messages: a plain-English cause, the element at fault and a proposed fix. Each noticed incident then says what broke, how many items and since when, with the evidence behind Show details. Each incident moves through a fixed state table and closes. The heartbeat runs every watch's check, and "is everything fine?" is answered from results computed by code, so OcuTalon never gives a false all-clear. Epic 6 (incident cards) and Epic 7 (dry run, approval and fix) build on this epic.
+A user asks OcuTalon in plain words to watch, or stop watching, an Interoperability production. New failures are picked up within seconds. A same-cause burst becomes a single incident under the settle rule. The Diagnosis agent then explains it: a plain-English cause, the element at fault and a proposed fix, with the evidence behind Show details. The incident moves through a fixed state table. Asked "is everything fine?", OcuTalon answers only from check results that code computes, so it never gives a false all-clear. This is the "what broke" half of the demo path (Break the feed, then one notice in about 35 s), and Epic 7's approve-and-fix builds on it.
 
 ## Stories
 
@@ -19,192 +19,106 @@ Epic 5 (Lane A) builds OcuTalon's IRIS watch, the middle of the demo between "wa
 
 ## Requirements & Constraints
 
-- **Watching:** needs no configuration.
-  - A production is matched by display name in any namespace whose data database the service user may read.
-  - For an unknown name, OcuTalon creates nothing, lists the productions it can see and asks which was meant.
-  - The online demo watches only Orders.
-  - Stopping removes that session's watch only.
-  - A cleanly stopped production is still watchable, and a watch can always be stopped from chat.
-- **Reacting:**
-  - Pickup takes at most 15 s, typically under 3 s.
-  - It works on any production without changing it or relying on its alerts.
-  - No failure is skipped or counted twice, including across restarts.
-  - Each poll sends one batch per production and scope, and only when something is new.
-  - Namespaces the service user can't read are never read.
-- **Settle rule:** the notice step starts after 10 s with no new same-cause failure, or 30 s after the first failure, whichever comes first. Both values come from settings.
-  - A burst of 50 gives one incident with `NoticeCount` 50.
-  - A trickle gives one incident 30 s after its first failure.
-  - Later same-cause failures update `Count` only, never giving a second incident or notice.
-- **Scope:** a session-tagged failure stays that session's. Untagged (`instance`) failures give one incident per cause, shared by every session watching that production, with one notice per watcher session.
-- **Notices:** a typical diagnosis needs one model request. Each notice is one of three variants, all with the count, the start time and the item noun:
-  - **with a fix:** a data-format cause, with the agent's cause and fix summary. Story 7.2 adds the dry run and the approval (see ruling R2 below);
-  - **no fix:** any other cause, `unknown` included, with the cause sentence, one line per group and no `ApprovalRef`;
-  - **fallback:** fixed grouping by production item plus error pattern, flagged, with no cause and no fix, the fallback reason and one line per group, all written by code.
-- **Time budget:** at most 60 s from Break the feed to the notice in 19 of 20 runs, about 30–35 s typical; the diagnosis within 20 s. Both are measured in the clean-machine rehearsal, never in CI.
-- **Closing:**
-  - A resolved incident closes after 15 quiet minutes, on Dismiss, or for a replay.
-  - An open incident (fallback, no fix, rejected or expired) closes on Dismiss, and after 15 quiet minutes only with demo mode off.
-  - An incident awaiting approval or fixing never closes this way.
-  - Only a recipient session may dismiss.
-  - A same-cause failure after closing opens a new incident.
-- **No false all-clear:** code alone decides it. With Orders failing, "is everything OK?" gets no all-clear, even when the mock model claims everything is fine.
-- **Retention:** incidents closed longer ago than `daysToKeep` (default 90) are deleted with their failure groups.
-- **Plain English:** class names, error codes and class paths appear only behind Show details.
+- **Watching:**
+  - A production is matched by display name across namespaces whose data database the service user may read.
+  - For an unknown name, nothing is created; OcuTalon lists the productions it can see and asks which one was meant.
+  - On the online demo, only Orders can be watched.
+  - Stop removes only that session's watch. The watch appears in the background-check list.
+- **Pickup:** within 15 s (typically under 3 s), with no wait for the heartbeat, no change to the watched production and no reliance on its alerts. No failure is ever batched twice or skipped, including across a restart.
+- **Settle rule:** the notice step starts after 10 s with no same-cause failure, or 30 s after the first failure, whichever comes first. Both values are settings. A burst of 50 gives one incident with a notice count of 50. Later same-cause failures update only the running count: no second incident, no second notice.
+- **Scope:** a failure tagged with a session's trace reference belongs to that session; an untagged one is `instance`. Local watchers of one production share an instance incident per cause, and each gets its own notification. A copy that a fix resent counts against the fix, never against a failure group.
+- **Visibility:** until its notice, an incident is hidden from the snapshot, the guide and Break the feed, and no count is published.
+- **Diagnosis:** gives a cause category, the element at fault, evidence references, a fix kind with parameters, the cause and fix as plain sentences, the item noun (singular and plural), and reasons with a confidence from 0 to 1. A typical diagnosis takes one model request. An invalid reply falls back: the failures stay grouped by the fixed rules, with no cause, no fix and a fallback flag.
+- **Lifecycle:**
+  - States: open (with the variants fallback, no fix, rejected and expired), awaiting approval, fixing, resolved and closed. Any other move is refused.
+  - Dismiss is accepted only from a recipient session, on an open or resolved incident.
+  - Quiet close after 15 min: resolved incidents always; open incidents only with demo mode off. Awaiting-approval and fixing incidents never close on their own.
+  - After a close, a same-cause failure opens a new incident.
+  - Incidents closed more than the retention period ago (90 days by default) are purged.
+- **Heartbeat:** each due check runs once per tick, even after several missed runs. Every run records passed, failed (with the finding) or not checked (with the reason), plus the time and a trace target. A reader error or a timeout counts as not checked.
+- **All-clear:** comes only from code. The guard strips reserved sentences and the banned phrases ("all good", "everything's fine", "everything is fine", "no issues", "no problems", "nothing to worry about") from model text. A failing check is named first.
+- **Security:**
+  - Start watch, stop watch and dismiss are safe but not read-only. They run in a user's turn without approval and are denied in an untrusted or tainted turn. Listing productions and `check_status` are read-only.
+  - An injected "stop watching" stops nothing.
+  - Diagnosis runs with provenance `untrusted`.
+  - Credential-like setting values never leave the reader. A setting is credential-like when its name contains, case-insensitively, any of: credential, password, token, key, secret, passphrase, passwd, auth, bearer or cookie.
+  - Database row ids never reach the model.
+- **Timing:** the notice arrives within 60 s in 19 of 20 runs, with diagnosis within 20 s. This is measured in the rehearsal and never asserted in CI.
 
 ## Technical Decisions
 
 - **Ownership (Lane A):**
-  - production items `FailurePoller`, `IncidentManager` and `WatchOps` (`OcuTalon.Watch.FailurePoller`, `.IncidentManager`, `.Ops`) and `Checks` (`OcuTalon.Checks.Process`);
-  - tables `BackgroundCheck`, `WatchMark`, `Incident` and `FailureGroup`. `WatchOps` alone writes watch rows, `FailurePoller` alone writes `WatchMark`, and `IncidentManager` alone writes incidents and groups and publishes `incident` and `watch.progress`. `Checks` alone publishes `check`, including when a watch starts or stops.
+  - Packages: `OcuTalon.Watch` (`FailurePoller`, `IncidentManager`, `Ops` = `WatchOps`, `Reader`, `EvidencePack`, `ErrorText`, `ItemNoun`, `Notice`), `OcuTalon.Checks` (`Process`, `Render`, `ReplyGuard`) and `OcuTalon.Tools`.
+  - Tables: `BackgroundCheck`, `WatchMark`, `Incident` and `FailureGroup`.
+  - Single event publishers: `IncidentManager` for `incident` and `watch.progress`, `Checks` for `check`.
+  - Keys go in `Msg.Catalog.Watch`.
+  - Edit only Lane A's region of the production XData. Never edit Lane B files (`Core`, `Data.Session`, `Data.Ownership`, `Live`, `Msg`, `Web`, `Schedule`); ask for properties instead.
+- **Commands:** state-changing tools submit `OcuTalon.Msg.Command` verbs through `Core.Commands.Submit`, with origin `tool` and an `IdempotencyKey` made of the turn's `ItemId` plus the call's position. They return the owner's synchronous `CommandResult` and never write domain tables. Tests use a `CommandsIn` test double.
+- **Reader:**
+  - Only `Watch.Reader` switches namespace, in one `New $NAMESPACE` method, gated by `$SYSTEM.Security.CheckUserPermission`.
+  - It reads only a namespace's own production: the running one, else the last active one (`Ens.Director.GetActiveProductionName()`), never other `Ens.Config.Production` rows.
+- **What counts as a failure:**
+  - a header with `Status` 8, whatever `IsError` says;
+  - an event-log row of `Type` 2 or 6 that has no `SessionId`.
 
-  Catalog keys go in `OcuTalon.Msg.Catalog.Watch`, mock scenarios in `ci/mock/scenarios/A/`, and edits to the production class only in Lane A's region. Lane B owns `Session`, `Ownership`, `Live`, `Msg`, `Core`, `Setting` and `Schedule`: ask, don't edit.
-- **Commands (AD-1):** state-changing tools submit `OcuTalon.Msg.Command` verbs through `OcuTalon.Tools.CommandCall.Run`, which goes through `Commands.Submit` with origin `tool` and an `IdempotencyKey` of `ItemId:position`. They return the owner's synchronous `CommandResult`, never write tables, and are tested against the `CommandsIn` double. Owners ignore repeats.
-- **Tools:**
-  - **Declaration:** each tool declares `CLASSIFICATION`, `READONLY`, `TRUSTEDOUTPUT`, `STEPLABEL` and `RESOURCES` as parameters suffixed with the tool name, and returns only through `Return` (`OcuTalon.Tools.Result`) as a dynamic object or text.
-  - **The gate:** in an untrusted or tainted turn it runs only safe, read-only calls, and allowing a tool that isn't trusted output taints the turn.
-  - **Classifications:**
-    - `start_watch`, `stop_watch` and dismiss are safe but not read-only;
-    - `list_productions` and `check_status` are read-only;
-    - the three watch tools and `check_status` are trusted output, built by code from OcuTalon's records and the instance's production registry;
-    - Diagnosis's toolset `OcuTalon.Tools.Watch` is read-only and never trusted. The Chat agent's toolset is `OcuTalon.Tools.Watching`.
-  - **Callback safety:** tools run inside AI Hub callbacks, so they make no `%AI` native calls, run no Python and make no session calls. Every class they call there must be in `CodeRules.CALLBACKHELPERS`.
-- **Reading IRIS (AD-3):**
-  - Only `OcuTalon.Watch.Reader` switches namespace, in one `New $NAMESPACE` method that calls no OcuTalon class while switched.
-  - A namespace is readable when `$SYSTEM.Security.CheckUserPermission` gives the service user Read on its data database, checked before any switch.
-  - A production is read only while it is its namespace's own: the running one, else the last active one (`Ens.Director.GetActiveProductionName()`), never another `Ens.Config.Production` row (DW-38, DW-222).
-  - With demo mode on, the Demo step gives `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` only (no code database, SQL or write), and the off and keep paths remove it. That grant is what lets an install find Orders.
-- **Watch failures (AD-15):**
-  - A failure is a message header in `Status` 8 (Error), whatever its `IsError` (build 154 leaves it 0), or an event-log row of `Type` 2 (Error) or 6 (Alert) with no `SessionId`. A log row with a session only gives its header's error text.
-  - Error text enters OcuTalon's messages redacted: `OcuTalon.Watch.ErrorText.Sentence` takes the error's own sentence out of the "Terminating BP" wrapper after `OcuTalon.Bridge.Redact`.
-  - `FailurePoller` reads from a time-based mark on `WatchMark`: `MarkAt` (the newest failure time read) and `Seen` (the failures already batched within a 2-second overlap before it), starting no earlier than the earliest watch's `BackgroundCheck.CreatedAt`. A production the reader does not read keeps its mark.
-  - Each poll sends `IncidentManager` one `FailureBatch` per production and scope (at most 500 failures), each its own trace session with the scope's `TraceRef` as `SuperSession`, then saves the mark. Send and save can't share a transaction, so a crash between them re-sends that poll once and never skips; `IncidentManager` ignores a failure it already holds (`h<HeaderId>` or `l<LogId>`).
-  - **Same cause** is the same namespace, production, scope, item and error pattern (the error text with each run of digits masked), compared exactly. A failure joins the newest incident of its cause that is not `closed`. `FailureGroup.Seen` holds the keys of the group's newest 1000 failures (two polls' worth).
-  - The settle values are the settings `watch.settleQuietSeconds` (default 10) and `watch.settleMaxSeconds` (default 30), read through `Data.Setting`. No setting rows are seeded until the settings page exists.
-- **Scope (AD-4):**
-  - A failure belongs to the session whose `TraceRef` is the message's `SuperSession`, otherwise to `instance`.
-  - A failure of a copy a fix registered is the fix's, never a group's.
-  - `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)` resolves an incident's sessions. A failed read never means "nobody watches" (DW-68).
-- **Incident lifecycle (AD-15):**
-  - `Ref` is set at the first failure. `IncidentManager` runs as one job (`PoolSize` 1), which serializes batches, settle wakes, diagnosis answers and, later, commands.
-  - Before the notice, only `watch.progress` goes out (`noticed`, `settling`, `diagnosing`), keyed by `Ref`, with no counts and no `incident` event.
-  - One waiter per new group (an `IncidentManager` instance started by a self-sent `Watch.Msg.Settle`) waits on the settle rule and re-reads the rows on each wake. Settle state lives only in rows and the persisted instance with its alarm (AD-5), and no alarm is longer than 120 s.
-  - The rule reads the failures' own times (`FirstAt`, `LastAt` from `FailedAt`), so the notice's start time and the 15-minute quiet close do too. `NoticeCount` is fixed once at the settle end; `Count` keeps moving.
-  - `NoticedAt` (UTC) is set only at the notice, and the ownership API hides the incident until then.
-  - Others reach `IncidentManager` only through `IncidentCommand` (`dismiss`, `closeForReplay` and `closeQuiet`, all synchronous), `ApprovalOutcome` and `FixResult`.
-
-  One transition table governs every move, with the states from `OcuTalon.Msg.Enum` and the open variant (`fallback`, `no_fix`, `rejected`, `expired`) stored beside the state:
-  - `open, not noticed` moves to `awaiting_approval` only on a notice with a fix and a valid dry run (`Raise`);
-  - while a fix runs, the state is `fixing`; otherwise `awaiting_approval` while any request is pending; otherwise the outcome that arrived last;
-  - one fix runs at a time per incident;
-  - a cancelled request sends no `ApprovalOutcome`.
-
-  Its unit test covers every row and every refused move. Story 5.5 creates `OcuTalon.Fix.Msg.Execute` and `.FixResult`.
-- **Diagnosis (AD-6/8/26/30/31):**
-  - At the settle end `IncidentManager` sends `Decide` one `diagnose` request per incident, in the incident's own trace session (`TraceHeaderId`, which the waiter started with `%SessionId` cleared, keeping the `SuperSession`). Its `ItemId` is the incident `Ref` and its provenance `untrusted`. The result never goes to `OutcomeRouter`.
-  - Its input is `OcuTalon.Watch.EvidencePack`'s one pack, built by one rule from the live reader or a recorded snapshot, with credential-type setting values removed inside `Watch.Reader` before anything leaves it.
-  - The read-only watch tools (`OcuTalon.Tools.Watch`, provider `Tools.WatchReads`) take no arguments and read only the incident named by the call's context (`ItemId`) and owner.
-  - The reply is checked against `OcuTalon.Watch.Msg.DiagnosisPayload` (`DiagnosisAgent`'s `ReplyClass`). `Decide` passes every property the reply class names in `FILTERED` through the reply filter once and validates again; a reply that fails is `invalid`. Only the bridge classifies fallbacks.
-  - The diagnosis or the bridge's fallback is stored on the incident row; the notice is 5.8's.
-  - When no usable noun comes back, code takes it from `OcuTalon.Watch.ItemNoun` ("order"/"orders" for the Orders class, otherwise "message"/"messages").
-  - A fallback error summary is the error's first sentence, at most 80 characters, through `OcuTalon.Bridge.Redact`.
-- **Notices and live payload (AD-12/32):**
-  - Each recipient session gets one `OcuTalon.Msg.Notification` of kind `incident`, with a catalog key and `Slots`: integer counts, UTC ISO 8601 times, `itemNoun: {"one","other"}`, and model sentences without times. An incident with an approval request carries its first request's `ApprovalRef` on every incident notice.
-  - Producers never render; render tests use `OcuTalon.Msg.Catalog.Render`, which refuses a missing slot.
-  - Each `incident` event carries the full current view (`OcuTalon.Live.Payload.Incident.FromRow`, including `CauseCategory`, `Element`, `Evidence`, `Groups`, `Requests` and `TraceTargets`). It is published through `OcuTalon.Live.Publish` after commit, never inside an open transaction.
-- **Checks (AD-18/28):**
-  - A `Tick` runs each due `BackgroundCheck` once, even after several missed runs.
-  - Each run records the last run, a result (`passed`, `failed` with the finding, or `not_checked` with the reason), the time and its trace header id.
-  - A production watch checks the running state, new errors, the open incident and the latest run time through the reader, and a reader error gives `not_checked`.
-  - `Checks` sends `closeQuiet` for incidents whose last failure is more than 15 minutes old.
-  - No finding becomes an Item here; that is Story 30.4.
-- **All-clear (AD-28/31):**
-  - `OcuTalon.Checks.Render(results, *rows)` returns a catalog key and code-computed rows `{result, entry, finding, checkedAt}`.
-  - `check_status` puts the results in `HostData.checks`, which `Conversation` (Lane B) passes to `Render` unread and attaches after the guard.
-  - `OcuTalon.Checks.ReplyGuard` extends `OcuTalon.Bridge.Ext.ReplyFilter` in place of Epic 0's stub. It runs exactly once on model text before the text leaves `Decide`, removes the reserved sentences and the banned phrases, and keeps the rest.
-- **Conventions:** times are stored as UTC and converted only by `OcuTalon.Data.Time`. Database row ids never leave the server; only Ens header and session ids may, for trace links. Tests call the Watch area's `Purge(daysToKeep)` directly until Story 30.2's task exists.
+  The error sentence comes out of the "Terminating BP" wrapper, after redaction, through one helper, `Watch.ErrorText` (`Text`, plus `Summary` of at most 80 characters). The poller, the evidence pack and the notices all use it.
+- **FailurePoller:**
+  - An `Ens.InboundAdapter` with `CallInterval` 3 s.
+  - It alone writes `WatchMark` (`MarkAt` and `Seen`, with a 2 s overlap), starting no earlier than the earliest watch's `CreatedAt`.
+  - Each poll sends one `FailureBatch` per production and scope (at most 500), each in its own trace session, then saves the mark. Delivery is at least once, and `IncidentManager` drops repeats by `h<HeaderId>` or `l<LogId>`.
+- **IncidentManager:**
+  - The only writer of `Incident` and `FailureGroup`.
+  - Groups by production, scope, item and error pattern (digits masked), keeping the newest 1000 keys in `FailureGroup.Seen`.
+  - An incident gets its `Ref` at the first failure.
+  - One instance per new group waits on settle, re-reading the row on every wake (`watch.settleQuietSeconds` and `watch.settleMaxSeconds` through `Data.Setting`), and emits `watch.progress` with `noticed`, `settling` and `diagnosing`.
+  - `Count` and `NoticeCount` are stored separately.
+  - Other parts reach it only through `IncidentCommand` (`dismiss`, `closeForReplay`, `closeQuiet`, each synchronous), `ApprovalOutcome` or `FixResult`.
+- **Diagnosis:**
+  - Runs in the incident's own trace session: clear `%SessionId`, keep `SuperSession`.
+  - One `diagnose` request goes through `Decide`, with `ItemId` set to the incident `Ref` and `EvidencePack.Build(source)` (live reader or recorded snapshot) as input.
+  - The reply class is `Watch.Msg.DiagnosisPayload`.
+  - The read-only `OcuTalon.Tools.Watch` tools take no arguments and read only the incident in context. Event-log rows are referred to by a pack-local `logRef`.
+  - `IncidentManager` consumes the result itself, never through `OutcomeRouter` (usable is `act`, fallback is `tellnow`), and stores it on the incident row.
+- **Notices:**
+  - `Watch.Notice` builds keys and slots only: one kind-`incident` `Notification` per `Session.Recipients(ownerRef, incidentRef)`.
+  - Slots: UTC ISO times, integer counts, `itemNoun: {"one","other"}`, and model text as plain sentences without times. Only the `*Out` operations render.
+  - Epic 5 stores a usable data-format diagnosis and leaves the incident unnoticed: Story 7.2 sends its with-fix notice.
+  - `Live.Payload.Incident.FromRow` uses object access only, never SQL (`/state` has no SQL grant), and reads requests through `Incident.RequestRefs`.
+  - Payloads are the entity's full view, keyed by `Ref` and published after commit.
+- **Transitions:** one table, unit-tested row by row, covering the overlap rows (one fix at a time per incident) and every refused move. A cancelled request changes nothing. Story 5.5 creates `Fix.Msg.Execute` and `FixResult`; Epic 7 handles them.
+- **Checks:**
+  - A `Tick` (from `HeartbeatIn`, or sent directly in tests) runs the due `BackgroundCheck` rows. A watch checks the running state, new errors, the open incident and the latest run time.
+  - `Checks` publishes `check` on change and on watch start or stop.
+  - It sends `closeQuiet` once a failure is more than 15 min old, and sends no finding Items yet.
+- **All-clear:**
+  - `Checks.Render(results, *rows)` returns a key plus rows `{result, entry, finding, checkedAt}`.
+  - `check_status` is `TrustedOutput` and fills `HostData.checks`.
+  - `ReplyGuard` extends `Bridge.Ext.ReplyFilter`, replacing Epic 0's stub, and runs exactly once before anything leaves `Decide`.
+- **Conventions:**
+  - Tools declare `CLASSIFICATION`, `READONLY`, `TRUSTEDOUTPUT`, `STEPLABEL` and `RESOURCES` class parameters (optionally `<NAME>`-suffixed). The watch tools are trusted output.
+  - Results return dynamic objects through `Tools.Result`.
+  - Refs come from `Bridge.Ids.NewRef()`. Times are UTC, rendered only through `Data.Time`.
+  - Tests live in `OcuTalon.Test.<Area>`, with recorded snapshots and the mock scenarios in `ci/mock/scenarios/A/`.
 
 ## UX & Interaction Patterns
 
-- **Watch replies** are in the Chat agent's instructions: "I'll watch the {production} production and stay quiet unless something needs you.", plus the catalog's `watch.unknownProduction` and `watch.onlyOrders` texts.
-- **Background-check row:** the name ("Orders production"), the schedule ("Live, plus a check every minute"), the last run, the result and a trace link to the latest run.
-- **Before the notice:** there is no incident card, only Break the feed's progress lines driven by `watch.progress`, without counts:
-  - "OcuTalon noticed failures in the Orders production"
-  - "Waiting for the failures to settle"
-  - "Working out the cause from the failed messages"
-- **Notices:** numbers first, then the cause, then the choice. The no-fix and fallback texts are fixed in the catalog and say "Nothing was changed."; the no-fix text is "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed." (the `unknown` variant says it couldn't tell the cause), then "Failures:" lines and "Details and trace: on your OcuTalon page." Each "Failures:" line gives the item, the count, the error summary in single quotes and the first time.
-- **Show details** needs:
-  - the cause category and the element;
-  - a sample failed message with its error;
-  - failures per item with their first and last times;
-  - trace links to the sample and the first failure.
-
-  The incident's own trace link opens the diagnosis session.
-- **Reserved sentences:**
-  - "Everything I checked passed." appears only when every check passed.
-  - Otherwise the failing entry comes first ("Not everything: {what failed, with its time}."), then "Everything else I checked passed." only if other checks passed.
-  - With nothing watched: "I'm not watching any productions yet, so I can't say. Ask me to watch one."
-
-  The guard always removes "all good", "everything's fine", "everything is fine", "no issues", "no problems" and "nothing to worry about".
+- Plain English: no class names, error codes or stack traces outside Show details, and quoted values in single quotes. Use the catalog's exact texts (watch confirmation, unknown production, Orders-only on the demo, check sentences, no-fix and fallback notices).
+- No counts before the notice: Break the feed's progress lines come from `watch.progress`.
+- A check row shows the name, the schedule ("Live, plus a check every minute"), the last run, the result and a trace link to the latest run. Rows under a "fine?" reply are code-computed: Passed, Failed or Not checked.
+- Show details shows the cause category, the element at fault, a sample failed message with its error, the failures per item with first and last times, and the trace targets `diagnosis`, `sample` and `firstFailure`.
 
 ## Cross-Story Dependencies
 
-- **Run order:** 5.1 to 5.4 are done. 5.8 is next, then 5.5, 5.6 and 5.7.
-- **Built by 5.1 (done), to reuse rather than duplicate:**
-  - `Watch.Reader` (`Productions`, `Find`, `Admits`), which 5.6's checks read through;
-  - the real `WatchOps`: rows of `Kind` `production`, a `NextDueAt` of the creation time (so the first `Tick` runs the check) and an empty `Result`;
-  - `Tools.WatchTools`, `Tools.WatchAnswers`, `Tools.Watching` and the generalised `CommandCall`, which 5.5's dismiss tool and 5.7's `check_status` follow;
-  - the Demo step's service-role grant.
-- **Built by 5.2 (done), to reuse rather than duplicate:**
-  - `FailurePoller` (every 3 s) and its contract `Watch.Msg.FailureBatch` of `Watch.Msg.Failure` items;
-  - `Watch.Mark` (the mark rules and the failure key) and `Watch.ErrorText.Sentence`;
-  - `Reader.Failures` (`read`, `unreadable` or `not_current`), which 5.6's new-errors check reads through; the stopped-production listing, whose state 5.6 reports; the name matcher `Reader.Matches`;
-  - `BackgroundCheck.CreatedAt` and the stop resolver `WatchAnswers.ResolveStop`.
-- **Built by 5.3 (done), to reuse rather than duplicate:**
-  - the real `IncidentManager` for `FailureBatch` and `Settle`: incidents and groups, `noticed` and `settling` to each `Session.Recipients` session (its `Tell` logs one Type 3 warning per failed event and leaves the rows standing), one `incident` event per batch that adds failures to a noticed incident, and the waiter, which sets `TraceHeaderId` and fixes `NoticeCount`;
-  - `Watch.Settle` (`Pattern`, `Values`, `Wait`, `Alarm`, `Hold`), `Watch.Msg.Settle`, `Mark.KeyOf` and `FailureGroup.Seen`;
-  - `CodeRules.TestOnlyIncidentManagerWritesIncidents`, which fails if any other product class creates or deletes `Incident` or `FailureGroup` rows or publishes `incident` or `watch.progress`;
-  - `Test.Watch.Case` helpers: `SendBatch`, `Incidents`, `Group`, `WaitIncident`, `WaitNoticeCount`, `Notice(ref)` (a fixture notice standing in for 5.8's), `Notifications(ref)`, and a cleanup of the run's incidents, groups and `diagnose` decisions.
-
-  `IncidentManager` keeps `STUB` and answers 5003 to anything else. Dropping `STUB` (5.5's commands) changes `Test.Install.Production`'s stub oracle and Epic 4's `CommandsInProduction` row that expects `Dismiss` to answer `not_built`. DW-241 stays open: `Tell`'s failed-`Recipients` branch has no test.
-- **Built by 5.4 (done), to reuse rather than duplicate:**
-  - `IncidentManager`'s settle-end step (code noun, `diagnosing`, live pack, one `diagnose` request). The answer is stored only on a row that exists, is not `closed` and has no `NoticedAt`; a refused request, a failed pack build or a failed send stores fallback `error` with one Type 3 warning, so every incident reaches 5.8 with an outcome. No notice, `State` or `OpenVariant` change;
-  - `Watch.EvidencePack`, `Reader.Evidence` (inside the one switch), `DiagnosisPayload` with `Watch.Msg.FixParameters`, `Watch.ItemNoun`, `Tools.WatchReads` (which replaced `WatchFixture`) and `Decide`'s `FILTERED` hook;
-  - `Case.WaitDiagnosed(ref, seconds)`: callers of `Notice` wait for the diagnosis first, so `IncidentManager`'s whole-row save cannot overwrite the fixture. `IncidentProbe.Refuse` and `.Answer` wrap the answer handlers;
-  - mock scenarios `diagnosis` (the default for real Orders failures), `diagnosis-nofix`, `diagnosis-unknown`, `diagnosis-late`, `refusal` and `invalid-reply`, chosen by a `[[mock:<name>]]` marker in a synthetic failure's error text.
-- **Story 5.8 (next):**
-  - It owns the whole notice: the variants, `NoticedAt`, one `Notification` per `Session.Recipients` session and the `incident` event on each watcher's stream (several watchers of an `instance` incident included, veto U-86). It reads `NoticeCount`, the stored diagnosis or fallback, `ItemNoun`, `DecisionRef` and `TraceHeaderId`.
-  - The evidence fields belong in `Live.Payload.Incident.FromRow`, which `/state` also calls (`Web/Api.cls`, contended), so the event and the snapshot don't drift; `Test.Live.Payloads.TestFromRow` asserts them absent today. The `groups` slot needs a count, first time and error summary per group, and the payload needs the sample and first-failure header ids; no row stores these, so a `FailureGroup` schema change is likely (a `Tables.cls` entry under the standing ruling). `Notify` already routes kind `incident`.
-  - DW-264: send a pack-local log ordinal to the model instead of the `logId` that the pack and `read_event_log` send. DW-261: one `ErrorText` helper for the redact-then-`Sentence` composition, used by `FailurePoller`, `EvidencePack` and the fallback summary.
-  - **Ruling R2, open before 5.8's plan:** the with-fix notice as written contradicts the transition table (`open, not noticed` leaves only with a valid dry run and `Raise`), AD-32's `ApprovalRef` on every incident notice, and the catalog (`incident.withFix` needs `field`, `before`, `after` and `resendCount`, and asks "Approve?"). Recommended: 7.2 sends it with the dry run and `Raise`; 5.8 builds the delivery 7.2 calls and a unit-tested with-fix slot builder, and the UJ-1 "50 orders … then the notice" check moves to 7.2.
-  - **Ruling R3, at 5.8's spec gate:** no table stores a request's `Result` before Epic 7. Recommended: list each request's `Ref` and `State` from `ApprovalRequest` rows by `IncidentRef` (pinned with a fixture row), with `Result` filled by 7.4.
-- **Within the epic:**
-  - 5.1's rows feed 5.2 and 5.6, 5.2's batches feed 5.3, and 5.3's settle end starts 5.4;
-  - 5.5's table governs the moves in 5.3, 5.4, 5.8 and 5.6. 5.3's lookup skips `closed` incidents, so a failure after closing opens a new one; `closeQuiet` reads `LastAt`;
-  - 5.6 reads the open incident and `LastAt`, publishes the `check` event for watch starts and stops (5.1 publishes none) and feeds 5.7;
-  - 5.7's `ReplyGuard` becomes the filter `Decide` applies to every `FILTERED` diagnosis text, so a cause it blanks makes the diagnosis `invalid`.
-- **Merged:**
-  - Epic 0: contracts, `Commands.Submit`, the renderer, Orders in OCUORDERS and the recorded snapshot (`eval/orders-date-format/snapshot.json`);
-  - Epic 1: `Decide`, the `DiagnosisAgent` runner and the mock;
-  - Epic 2: `Session.Recipients`, the `NoticedAt` filter, `Live.Publish`, `BridgeSink`, `Ownership.Checks` (the rail's read of watches) and `Conversation` calling `Render`;
-  - Epic 3: the gate, the Approval API and `ApprovalOutcome`.
-- **Not merged, so tests use fixtures or direct calls:**
-  - Epic 4's Break the feed: fixtures add failing Orders messages tagged with a test session's `TraceRef`;
-  - Epic 8's `HeartbeatIn`: tests send `Tick` directly;
-  - Epic 7's fix-copy registry (7.3, 7.4): until then every failure is batched by scope, with the `HeaderId` and `Namespace` that 7.4's match needs;
-  - Epics 6, 7 and 11, and Stories 30.2 (purge task) and 30.4 (findings).
-- **Later consumers:**
-  - 7.1 adds the fix kind's parameter check to `DiagnosisPayload`; 7.2's notice and `Raise` read the decision's `Payload`; Epic 6's cards show the cause and the element;
-  - Epic 9's evaluation runs drive `WatchOps`, `IncidentManager` and `EvidencePack.Build` (with snapshots) with owner `eval`;
-  - `SessionOps.End` stops a session's watches through `WatchOps` (16.4; the real path in 31.3);
-  - steps 4 and 5 add `BackgroundCheck` kinds;
-  - 7.2: post-notice same-cause failures that no request covers form a later group in the same incident (5.3 keeps one group per incident);
-  - 7.3: a group's full message list comes through the reader or an extended group, since `Seen` keeps only the newest 1000 keys.
-- **Shared files:**
-  - `Install/Step/Demo.cls` and `Test/Core/CommandsInProduction.cls` are Epic 4's. 5.1 edited them by ruling, so Epic 4 merges forward as a plain union, and DW-223 folds `WithOrdersData` into `WithOrders` after Epic 4 merges.
-  - `Test/Data/Tables.cls` (Epic 16's) pins table property sets in its Contracts XData. A standing ruling lets Epic 5 change only the entries of Lane A's own tables (`BackgroundCheck`, `WatchMark`, `Incident`, `FailureGroup`, `FixRun`), a plain union at merge-forward; any other change there needs its own ruling.
-- **Test pitfalls:**
-  - A warm stack reloads classes, but running production jobs keep their old code, so changes to production items (the poller and `IncidentManager` included) are proven through the production only on a fresh stack.
-  - A persistent object a test still holds shows the values it was opened with, so wait helpers reopen the row on each poll (`Case.WaitRow`).
-  - Watch tests need demo mode and the grant. A test that reruns the Roles step must restore the service role, as `Test.Install.Registry` does.
-  - No real model call: CI uses the mock only, and no time budget is asserted in CI.
-  - The lane-a shard (60 classes) runs locally as `ci/iris.sh shard lane-a --part 1/2` and `--part 2/2` (DW-227), each alone in its call with nothing chained after it (about 376 s and 357 s fresh); use `--part k/3` if a part passes 480 s. The CI groups are unchanged.
+- **Story order:** Story 5.8 (split from 5.4) runs after 5.4 and before 5.5. It received 5.3's "one notice per watcher". The with-fix notice, its demo slots and the request `Result` counts moved on to Stories 7.2 and 7.4.
+- **Upstream:**
+  - Epic 0: the Orders production and its tagged failure fixtures; `Commands.Submit`, `IncidentCommand`, `Live.Payload.Incident`, the `Catalog.Watch` keys and the pinned `Checks.Render` signature.
+  - Epic 1: `Decide`, the `DiagnosisAgent` runner and the fallback.
+  - Epic 3: the gate's classifications and resources, and `ApprovalOutcome`.
+  - Epic 2: `Session.Recipients`, the ownership API's notice filter and `Conversation` calling `Render`. The page's check row still needs the whatFailed slot and `Check.FromRow`.
+- **Downstream:**
+  - Epic 7: dry run, `Raise`, with-fix notice, the `Execute`/`FixResult` handlers, and `Fix.Run.Sweep` through `Checks`.
+  - Epic 6: incident cards and Show details.
+  - Epic 8: the heartbeat task and check rows.
+  - Epic 4: Break the feed reads `NoticedAt` and sends `closeForReplay`.
+  - Epic 30: the purge task (until then, tests call `Purge(daysToKeep)` directly) and the stopped-production and disabled-item findings.
+  - Epic 9: at least 80% of causes right on the evaluation set.
