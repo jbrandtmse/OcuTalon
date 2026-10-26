@@ -2,7 +2,7 @@
 title: 'Story 4.4: Show the demo guide and the Break the feed box'
 type: 'feature'
 created: '2026-10-25'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '59409294fa4171ceb00d4f826c9c26f41d83f333'
 baseline_commit: '59409294fa4171ceb00d4f826c9c26f41d83f333'
 review_loop_iteration: 0
@@ -307,6 +307,8 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
   - `floor/words.spec.ts` W2: the box's selector joins the list.
 - [ ] `web/e2e/demo-switch/badge.spec.ts` -- a test: the region "Demo guide" and the box show, and the empty chat's last line is the demo line, exactly when `OCUTALON_E2E_DEMO_MODE` is 1. With 0 there is no region and the line is `emptyAsk` (rows 2-3, on a real switch).
 
+- [ ] [CI] `ci` workflow, job `iris (browser)`, unit `live:sign-in`: `web/e2e/guide/guide.spec.ts:584` Q9 fails on the Linux CI host (ca4838f): "at the normal size the row is one line", expected 1 line, got 2 -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40285090544/job/121446738347 -- with the CI host's Chromium fonts, row 1 already wraps at 1280x800 at the normal text size, so Q9's premise is font-dependent (it passed on macOS). Fix it so the case passes on Linux and macOS alike: preferably keep row 1 on one line from 1280px at the normal size in both font sets (for example tighter gaps or a smaller ghost-button padding, within DESIGN's tokens, or switching to the numbered steps by measured fit instead of only by the 1280px breakpoint), and make Q9 independent of font metrics (it may measure the fit first and assert the wrap and "nothing runs past the row" relative to that); keep the case able to fail on the `.row1` `flex-wrap` mutation. You cannot see Linux fonts locally unless you run the browser in a Linux container; say in the spec how the fix is shown to hold on Linux (CI on the next push counts).
+
 **Acceptance Criteria:**
 - **AC1.** Given demo mode on, when the main page renders, then the region "Demo guide" sits between the banners and the rail and chat, with row 1, the sunken prompt bar and the box at the right. Its step markers, names and `aria-current` come from the server's guide view. The empty chat and Background checks show the demo texts. With demo mode off (a faked snapshot or a real switch) none of it shows and the old texts return.
 - **AC2.** Given the guide, when I select steps or a step's completion arrives from the server, then:
@@ -364,6 +366,8 @@ Rejected:
 - false: frontmatter `done` against sprint `review` -- `status:` is build-auto's machine state; sprint-status carries the review state.
 
 ## Spec Change Log
+
+- 2026-10-26, rework iteration 1 (trigger: CI red on ca4838f, `live:sign-in` Q9 on the Linux host): one `[CI]` item under Tasks & Acceptance.
 
 - 2026-10-26, spec gate (runner): V1 and V2 kept as veto items (U-84, U-85); DW-231 and DW-232 filed; focus reading confirmed against the spine.
 
