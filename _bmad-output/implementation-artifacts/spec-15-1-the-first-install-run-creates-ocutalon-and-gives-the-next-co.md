@@ -2,7 +2,8 @@
 title: 'Story 15.1: The first install run creates OCUTALON and gives the next command'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '03189a8e3a06ae2221e9f323a9c9c46de700b8f7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -169,6 +170,24 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 30 findings reported (blind 7, edge-case 11, verification-gap 7, intent-alignment 5), logged in 14 grouped rows - high 0, medium 3 rows, low 8 rows, false 3 rows, maybe-false 0; 6 rows patched, 8 rejected
+- findings:
+  - `[medium]` `[patch]` blind 1, edge 3 and 11, gap 2: `test-cpf.sh` rules 1 and 3 are subset checks, so an extra service, mapping or database line in `src/cpf/ocutalon.cpf` passes (the header claims the package changes no service) - `cpf_content` now also requires the non-header line count to equal the 16 wanted lines, with a sample that adds a `%Service_Bindings` line; mutation recorded.
+  - `[low]` `[patch]` gap 1, edge 6: rule 2's negative samples differ from the good one by more than the property they name (a header-only CRLF file, a service sample without `[Actions]`) - replaced by a full CRLF copy, a service sample with the header and an extra-mapping sample.
+  - `[medium]` `[patch]` blind 4, gap 3: nothing guards that `lane-a.yml` keeps job `ipm-install` running `release/ipm-install.sh` (`test-ci-config.sh` is contended and only checks `standalone-bridge`) - rule 6 added to `test-cpf.sh` with samples; mutation recorded.
+  - `[medium]` `[patch]` gap 5, intent 5, blind (last bullet): the preload resource and the one Invoke are pinned only by the live scripts - rule 5 added (exact preload resource, exactly one Invoke at Initialize, After); mutation recorded.
+  - `[low]` `[patch]` gap 4: AC 4 (IPM answers in OCUTALON) and the path B comparison had no `mutation:` line - both mutations run, red observed, reverted byte-identical, lines written.
+  - `[low]` `[patch]` blind 2 and gap other: the residue pass message and header say "outside OCUTALON" while the check also counts residue inside it - worded as "in USER, %SYS or OCUTALON".
+  - `[low]` `[reject]` blind 3, intent 3 and 4: no `%UnitTest` class for `MapAndStop`, the continuation in OCUTALON, the returned status of `Shell()` - Decided in-stage 9 (no `%UnitTest` class); `install-start` in `group install-fresh` pins the OCUTALON branch and the mutation "stops in OCUTALON too" went red there.
+  - `[low]` `[reject]` blind 5: the sentence is duplicated in the class and the script - the script is the independent oracle by design; the wording is fixed by the intent contract, so the "created namespace" text on repeat runs is by design.
+  - `[low]` `[reject]` blind 6: `run_rc` is set and unread - a failed `dc exec` produces no matching output and fails `stops_with_next_command`; the fix adds a branch for a case nobody will meet.
+  - `[low]` `[reject]` blind 7, edge 1 and 2, edge 7 to 10: deadline arithmetic below zero, other ANSI forms, other prompt shapes, a namespace changed by `Shell()`, a merge not yet visible - the arithmetic is the sibling `standalone-bridge.sh` pattern with a 1500 s deadline against a measured 100 s path A; the output forms are measured; `iris merge` is synchronous; none is reachable on the measured build.
+  - `[false]` `[reject]` edge 5: rule 1 passes vacuously on a missing file - rule 2's `cmp` and rule 3 fail on a missing `src/cpf/ocutalon.cpf`.
+  - `[false]` `[reject]` edge 4: `compare_chk` is a subset check - an extra non-%IPM line made by the step shows in the path A against path B view diff, because path B runs no step.
+  - `[low]` `[reject]` intent 1, 2 and 5: the evidence uses `zpm "load <sources>"` on a bare base image - the matrix names that command and instance; the registry `install ocutalon` run is Story 15.3.
+  - `[false]` `[reject]` intent 4 (the fourth preload resource line goes beyond three bridge-first lines) - the spec's Task adds it and `bridge_first` still passes.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -196,6 +215,13 @@ No AC contradicts an AD.
 - **Side notes:**
   - IPM's CPF processor leaves `zf100stdout` and `zf100stderr` in the process's directory; this is IPM's behaviour.
   - In %SYS, `enable -map -ns OCUTALON -q` printed IPM's version list despite `-q`; this is cosmetic.
+
+**Measured in implement** (2026-10-26, developer machine, ARM; `release/ipm-install.sh`, tag `e15s1i`, final run all checks passed):
+- `TIME ready 6s`, `first-user 24s`, `again-user 3s`, `again-sys 3s`, `ready-b 7s`, `merge 23s`; a whole run is about 90 s on this machine. Earlier runs measured ready 7 to 17 s and first-user 26 to 57 s.
+- The stop output is as measured at plan. Piped into `iris session`, the last line is `ERROR! ` (red) plus the sentence, followed by a prompt line (`USER>`); the script's `final_line` skips blanks and prompt lines.
+- Directory of a built-in-relative database is `ocutalon_*`; `Security.Resources.PublicPermission` reads `1` for Read and `0` for none; the OCUTALON mapping view of path A and B is 203 lines (system default routine maps included).
+- Deviation: the build context needed no inline Dockerfile; Compose built `release/ipm/Dockerfile` despite `.dockerignore`.
+- `ci/iris.sh group shards` takes 673 s (over one tool call's cap); it finished after being moved to the background.
 
 **Not measured, so inference:**
 - The hazard without suspension. Source: `Config.MapPackages` writes `^SYS("CONFIG")` inside IPM's transaction, while the CPF file and the active mapping are written outside it.
@@ -247,9 +273,9 @@ Consumes:
 
 ## Verification
 
-Every `[C]` command runs from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-15`, with `timeout: 600000`, in the foreground, one per call, and is prefixed with:
+Every `[C]` command runs from the epic-15 worktree root, with `timeout: 600000`, in the foreground, one per call, and is prefixed with:
 
-`OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=15 stage=implement' OCUTALON_RUN_TAG=e15s1i`
+`OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=15 stage=implement' OCUTALON_RUN_TAG=e15s1i`
 
 Each `[C]` command uses only throwaway stacks: `release/ipm-install.sh` uses its own lib-live project `ocutalon-ipm-e15s1i-*` (two fresh instances in turn), and the groups use `ci/iris.sh`'s projects. No warm stack and no slot or MCP call is needed. End with `[C] bash ci/iris.sh teardown`, also after a failure.
 
@@ -284,6 +310,23 @@ Each `[C]` command uses only throwaway stacks: `release/ipm-install.sh` uses its
 | Change one character of the sentence in `MapAndStop` | `ipm-install.sh`'s final-line check | exact stop line |
 | Drop the fork guard from job `ipm-install` | `test-ci-config.sh` | FR-57 job wiring |
 
+**Mutation results (Rule 19; each applied, red observed, reverted, tree byte-identical):**
+- mutation: `<CPF>` moved below the bridge resource -> `test-cpf.sh` FAIL rule 4.
+- mutation: `ModifyService:Name=%Service_CallIn,Enabled=1` added to `src/cpf/ocutalon.cpf` -> `test-cpf.sh` FAIL rules 1 and 2.
+- mutation: `,PublicPermission=R` dropped from both CPF files -> `test-cpf.sh` FAIL rule 3.
+- mutation: `MapAndStop` returns OK outside OCUTALON -> `ipm-install.sh` FAIL on the stop check and the residue check of the first run, the repeat and the %SYS run (6 failures).
+- mutation: `MapAndStop` sets `^OcuTalonMark` while suspended -> `ipm-install.sh` FAIL on the residue checks (USER `globals|1`; %SYS in the %SYS run).
+- mutation: `MapAndStop` passes `-repos` -> `ipm-install.sh` FAIL on "the run in %SYS: the configuration changed" (the repeat in %SYS differs from the first run), not on path B's comparison.
+- mutation: `MapAndStop` stops in OCUTALON too -> `ci/iris.sh live install-start` FAIL "row 1 the first start did not end ready within 400 s" (`group install-fresh` runs that unit first).
+- mutation: preload file renamed -> `test-pinned-sources.sh` FAIL "each resource's package is in its directory below src/".
+- mutation: one character of the sentence changed (`zn` to `zN`) -> `ipm-install.sh` FAIL on the stop check of all three runs.
+- mutation: fork guard dropped from job `ipm-install` -> `test-ci-config.sh` FAIL `fork-guard`.
+- mutation: `<Invoke ... MapAndStop ...>` line deleted from `src/module.xml` -> `test-cpf.sh` FAIL rule 5.
+- mutation: `run: bash release/ipm-install.sh` line deleted from job `ipm-install` -> `test-cpf.sh` FAIL rule 6.
+- mutation: `ModifyService:Name=%Service_Bindings,Enabled=1` appended to `src/cpf/ocutalon.cpf` -> `test-cpf.sh` FAIL rules 2 and 3 (rule 3 alone pins an extra line).
+- mutation: `MapAndStop` skips `enable -map -ns OCUTALON` (returns OK) -> `ipm-install.sh` FAIL on "IPM answers in OCUTALON" and on the %IPM mappings of the first run (5 failures).
+- mutation: path B merges a copy of the CPF file without the `IRIS.IF.*` mapping -> `ipm-install.sh` FAIL "path B: the OCUTALON view differs from path A's" (the only failure).
+
 **Shared surfaces:**
 - `src/module.xml`'s elements and their order: `test-pinned-sources.sh` `bridge_first` and `each_resource_has_its_package`, `test-compose-file.sh`'s FileCopy line, and the first `<Version>` that `docker/Dockerfile` and lib-live's `manifest_version` read.
 - `ci/units.sh` `CHECK_SCRIPTS`: `test-ci-config.sh`'s units rule and `ci/checks.sh`.
@@ -295,5 +338,27 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** The package's first resource is now the CPF merge (`src/cpf/ocutalon.cpf`, the image's merge file without `%Service_CallIn`). A preload class, `OcuTalon.Install.Ipm.MapAndStop`, invoked at Initialize, After, maps IPM into OCUTALON with transactions suspended and, outside OCUTALON, stops the run with the exact next command (IPM keeps its `ERROR!` prefix). `docker/tests/test-cpf.sh` pins the CPF file, its equality with `docker/merge.cpf`, the manifest's first resource and early step, and the lane-a job. `release/ipm-install.sh` and the new lane-a job `ipm-install` prove the first run, its repeat in USER and %SYS, IPM answering in OCUTALON, and the `iris merge` alternative on throwaway stacks of a clean build 154 image.
+
+**Files changed:**
+- `src/cpf/ocutalon.cpf` (new): the CPF resource.
+- `src/preload/cls/OcuTalon/Install/Ipm.cls` (new): the map-and-stop step.
+- `src/module.xml`: the CPF element first, the preload resource, the Invoke.
+- `docker/tests/test-cpf.sh` (new, hermetic, six rules each run first on samples) and `ci/units.sh` (`cpf` appended).
+- `docker/tests/test-pinned-sources.sh`: one branch for a preload `.CLS` resource.
+- `release/ipm-install.sh`, `release/ipm/Dockerfile`, `release/ipm/compose.ipm.yml` (new): the FR-57 script and its clean image.
+- `.github/workflows/lane-a.yml`: job `ipm-install` appended.
+- This spec: measurements, mutation lines, triage log.
+
+**Review:** 30 findings from four layers, in 14 logged rows. Patched 6 (the CPF exactness check, rule 2's samples, a rule for the Invoke and preload resource, a rule for the lane-a job, two mutation runs with their lines, the residue wording); rejected 8 (by design, theoretical, or false) with reasons in the triage log. Deferred: none. No HIGH.
+
+**Follow-up review recommended:** false (no HIGH, 3 MED patched, all test-side).
+
+**Verification performed:** after the last patch, in the foreground on tag `e15s1i`: `test-cpf.sh`, `test-pinned-sources.sh`, `test-ci-config.sh`, `test-boundaries.sh` (via `bash ci/checks.sh`, all scripts passed), `ci/iris.sh build`, `release/ipm-install.sh` (all checks passed), `group install-fresh` (358 s) and `group install-upgrade` (357 s) passed, `release/standalone-bridge.sh` passed, and teardown left nothing. The handoff pass ran `group production`, `shards`, `image` and `browser` (all passed) on the same `src/`, `ci/` and `docker/` inputs; the later patches touched only `docker/tests/test-cpf.sh`, `release/ipm-install.sh` wording and the spec, so they were not run a second time. All 15 mutations (10 planned, 5 added) were applied, seen red and reverted byte-identical.
+
+**Residual risks:** x64 timings of the new CI job and the plain IRIS image are unmeasured (inference); `group shards` takes about 673 s on the developer machine, over one tool call's cap, so split it if run again; `-dev` and `-DNoTransaction=1` runs are out of scope.
+
+**Footprint extension (for the lead):** `src/preload/**` (new; no other epic owns it).

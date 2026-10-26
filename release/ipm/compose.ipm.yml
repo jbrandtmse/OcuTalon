@@ -1,0 +1,10 @@
+# The override of release/ipm-install.sh (Story 15.1; AD-23, FR-57), added after the files of lib-live's live_start. It changes two
+# things of the service iris: the build uses release/ipm/Dockerfile (the repository root stays the context), a clean instance with
+# no merge file, after-start script or version file, and the health check asks only that IRIS runs, because the image's own
+# check (/opt/ocutalon/healthcheck.sh) is not in that image.
+services:
+  iris:
+    build:
+      dockerfile: release/ipm/Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "iris qlist | grep -q '\\^running'"]

@@ -135,12 +135,21 @@ check "ipm: the wanted version is the pinned 0.10.10" test "$(session_ipm_versio
 check "manifest: the sources root is the manifest's own directory" sources_root_is_dot src/module.xml
 check "manifest: the first three resources are the bridge package, the bridge example, then the product package" bridge_first src/module.xml
 
-# A resource "A.B.PKG" in directory D holds the classes of package A.B at src/D/A/B/.
+# A resource "A.B.PKG" in directory D holds the classes of package A.B at src/D/A/B/. A class resource "A.B.C.CLS" with
+# Preload="true" is IPM's preload step: its file is src/preload/D/A/B/C.cls.
 each_resource_has_its_package() {
   local name dir path
   resources src/module.xml | while read -r name dir; do
-    path="src/$dir/$(echo "${name%.PKG}" | tr . /)"
-    [ -n "$(find "$path" -type f -name '*.cls' 2>/dev/null | head -n 1)" ] || exit 1
+    case $name in
+      *.CLS)
+        grep -F "Name=\"$name\"" src/module.xml | grep -q 'Preload="true"' || exit 1
+        [ -f "src/preload/$dir/$(echo "${name%.CLS}" | tr . /).cls" ] || exit 1
+        ;;
+      *)
+        path="src/$dir/$(echo "${name%.PKG}" | tr . /)"
+        [ -n "$(find "$path" -type f -name '*.cls' 2>/dev/null | head -n 1)" ] || exit 1
+        ;;
+    esac
   done
 }
 check "manifest: each resource's package is in its directory below src/" each_resource_has_its_package

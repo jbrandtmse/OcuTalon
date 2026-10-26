@@ -6,10 +6,13 @@
       <Version>0.1.0</Version>
       <Packaging>module</Packaging>
       <SourcesRoot>.</SourcesRoot>
+      <CPF Name="ocutalon.cpf" Directory="cpf" Phase="Initialize" When="Before"/>
       <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
+      <Resource Name="OcuTalon.Install.Ipm.CLS" Directory="cls" Preload="true"/>
       <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
     </Module>
   </Document>
 </Export>
