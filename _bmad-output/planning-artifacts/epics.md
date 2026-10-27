@@ -3184,7 +3184,7 @@ So that I never silently lose a reminder.
 **Then** it fires, because `ReminderTimer`'s persistent properties are frozen (append-only, with its logic in other classes), its storage block is committed and CI's storage diff against the previous release tag passes; the full upgrade harness of FR-60 stays with Lane A's release work (NFR-17, AD-5)
 
 **Given** the restart cases above
-**When** CI runs the Schedule shard on the IRIS runner
+**When** CI runs the Schedule area's restart unit on the IRIS runner [AMENDED 2026-10-27, Story 8.5 plan, Rule 5 apply-and-report (intent unchanged): a `%UnitTest` shard runs inside the IRIS it would have to restart, so the restart cases are a live unit in their own compose project; it read "When CI runs the Schedule shard on the IRIS runner"]
 **Then** the tests restart IRIS in their own compose project and assert order and outcome (one notification per channel, late or not), never the seconds (NFR-10, NFR-16, AD-22)
 
 ### Story 8.6: Reminders through the chat on the demo path
