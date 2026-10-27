@@ -788,6 +788,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-23T02:34:42Z status=routed owner=burndown by=harvest note=when Lane A's emitter lands: a real Decide records a decision for a session and a decision event reaches that session's stream
 - 2026-10-25T06:36:24Z status=routed owner=4-3-break-the-feed-with-a-real-batch-of-50-orders by=burndown note=Lane A's emitter has merged (Epic 1); Story 4.3's real batch makes the real Decide record decisions for a session: assert that a decision.recorded (and a turn.step) the bridge emits reaches that session's stream through BridgeSink, not only OnEvent called directly
 - 2026-10-25T22:42:32Z status=routed owner=burndown by=spec_gate note=declined_by_4.3: the decision.recorded half is met by Story 2.17's RoutingProduction and ConversationProduction (4.3 re-runs their mutation as evidence); residual: a Test/Core test that drives the real gate (Story 3.2, merged into OCT-epic4 at 3d76632) and asserts that its turn.step reaches the session stream through BridgeSink, with no bridge edit
+- 2026-10-27T05:26:00Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=burndown note=overflow (remainder 2 under the cap of 8, no repeats, so no burn-down story): Story 6.2 drives the real gate's approval path; add a Test/Core test that drives the real gate (Story 3.2) and asserts its turn.step reaches the session stream through BridgeSink, with no bridge edit (the decision.recorded half is met by Story 2.17's RoutingProduction/ConversationProduction)
 
 ### DW-99: Story 2.8's real approval.result path for a replayed tool call has no story that turns it on (epics.md:1706); Story 30.3 must turn it on
 - source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1132,6 +1133,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
 - 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
+- 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
 
 ### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
@@ -1183,6 +1185,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 40285090544 job 121446738063 failed, rerun job 121457043804 success on ca4838f; 4.4 touched no lib-live file
 - 2026-10-26T09:02:44Z status=routed owner=burndown by=flake note=a timing-sensitive hermetic check; Epics 10 and 13 own docker/tests; re-own at the burn-down
+- 2026-10-27T05:26:00Z status=wontfix-accepted by=burndown note=one red in ~10 Epic 4 CI runs (run 40285090544), green on an unchanged rerun and on every later run; outside Epic 4's footprint (docker/tests, Epic 15); reopen_if=test-lib-live.sh live_first_start 'a failed wait was not reported' is red again on any branch's CI
 
 ### DW-274: The CDK live announcer's element has no visually-hidden style until a dialog's focus trap loads it, so its last text lies below a framed page and the page scrolls by a line
 - source: spec-4-5-get-notifications-on-the-simulated-phone.md | severity: med | fix-risk: low | footprint: in-epic
