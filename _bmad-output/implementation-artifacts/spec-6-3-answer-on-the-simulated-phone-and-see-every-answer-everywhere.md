@@ -176,7 +176,7 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
      - it then sends `SendRequestAsync("Notify", notification)` through a private `Send` seam (the probe's), and returns that status.
    - The class doc covers AD-26, AD-31 and AD-32 and names 31.2 and 16.9 as the senders to come.
 5. **`Test/Core/ProductionItems.cls`.** The NoticesIn row gets `"stub": 0` (own row).
-6. **`Core/BridgeSink.cls` (contended, pending the orchestrator's ruling; Design Notes).**
+6. **`Core/BridgeSink.cls` (contended, allowed by the orchestrator's ruling; Design Notes: only L145 and the doc clause at L10-11).**
    - Replace L145 with a check that quits only when the context's ItemId is neither `running.ItemId` nor `##class(OcuTalon.Core.Conversation).RetryItemId(running.ItemId)`.
    - In the doc (L10-11), add "or of its SessionBroken retry".
    - If the ruling is no, skip this task and Task 10 and apply the fallback.
@@ -309,9 +309,11 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - **AC7:** Given a pending request with an incident in the rail, when its row is pressed, then focus moves to its approval request card and the card scrolls into view (X6).
 - **AC8:** Given a pending request on the phone's screen, when another notification arrives, then the feed doesn't scroll and New messages shows, so Approve and Reject don't move (X7).
 - **AC9:** Given a fixture `Notification` sent through `NoticesIn` (an adapterless real item, not a stub), when it is received, then it joins the turn's thread through the context's `ThreadSessionId` when there is one, reaches `Notify` asynchronously, and is delivered on each of the session's channels (`Test.Core.NoticesIn`, `Test.Core.NoticesInProduction`).
-- **AC10 (DW-128, if ruled yes):** Given a SessionBroken retry's bridge context (`RetryItemId` of the running turn's ItemId), when the gate reports a step, then its `turn.step` reaches the session's stream with the turn's Ref (`Test.Core.BridgeSink`).
+- **AC10 (DW-128, ruled yes):** Given a SessionBroken retry's bridge context (`RetryItemId` of the running turn's ItemId), when the gate reports a step, then its `turn.step` reaches the session's stream with the turn's Ref (`Test.Core.BridgeSink`).
 
 ## Spec Change Log
+
+- 2026-10-27, runner (spec validation): the orchestrator allowed DW-128's contended edit in `Core/BridgeSink.cls` (option a: L145 and the doc clause at L10-11 only). Tasks 6 and 10 and AC10 stand; the fallback is dropped.
 
 ## Review Triage Log
 
@@ -345,7 +347,7 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - **What CI doesn't cover.** IncidentManager's real latency is Lane A's. Epic 11's end-to-end run and the rehearsal measure it over real networks.
 - **Where it runs.** `live:answers`, CI group `browser`, on its own throwaway in each run whose group inputs changed (`ci/changes.sh`).
 
-**Contended edit pending the orchestrator's ruling: DW-128.**
+**Contended edit, ALLOWED by the orchestrator's ruling (2026-10-27, decide, policy 36abb05): DW-128.** Option (a): `Step`'s L145 becomes the few lines that also accept `Conversation.RetryItemId(running.ItemId)`, plus the one doc clause at L10-11; nothing else in the class changes. The test is `Test.Core.BridgeSink:TestTurnStepOfARetry` (Epic 6's folder). The runner reports `Core/BridgeSink.cls` under footprint_extensions. Why: no open branch or live tree changes BridgeSink.cls against feature; a later Epic 16 edit elsewhere in the class merges as a plain union. The fallback below no longer applies.
 - **The edit.** File `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls` (Epic 16's contended path), method `Step`.
   - L145, `If ##class(OcuTalon.Bridge.Context).Active(), ##class(OcuTalon.Bridge.Context).Current().ItemId '= running.ItemId Quit`, is replaced by about 4 lines that also accept `##class(OcuTalon.Core.Conversation).RetryItemId(running.ItemId)`.
   - The doc's turn.step clause (L10-11) gains "or of its SessionBroken retry".
@@ -454,7 +456,7 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - 10.3 and 12.x: Telegram's edit in place, mirroring the phone's.
 - Epic 11: turns 04 and 05 on end to end, and replaces the fixture `answered` with IncidentManager's.
 
-**Ledger inbox:** DW-128 is addressed by Tasks 6 and 10 and AC10, pending the ruling above, with the stated fallback.
+**Ledger inbox:** DW-128 is addressed by Tasks 6 and 10 and AC10 (the ruling allowed the edit).
 
 **Known items, not re-filed:**
 - DW-292: after a reload, answered requests and the phone's dry-run styling rely on pending-only snapshot data.
