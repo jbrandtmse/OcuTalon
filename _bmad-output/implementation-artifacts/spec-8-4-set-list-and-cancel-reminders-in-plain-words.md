@@ -2,7 +2,7 @@
 title: 'Story 8.4: Set, list and cancel reminders in plain words'
 type: 'feature'
 created: '2026-10-27'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -22,7 +22,7 @@ deferred: []
 - **List.** It answers the session's pending reminders, earliest due first, in the shape the list tool reads (DW-135).
 - **Cancel.** Under the row's lock it marks the session's pending reminder cancelled and publishes the `reminder` event (cancelled). It then ends the waiter at once by interrupting its alarm. A waiter whose row isn't pending sends nothing (8.3).
 - **Repeats.** A repeated `IdempotencyKey` gets the first result back. A key reused for different fields is refused (AD-1, DW-141).
-- **Chat and demo path.** New CI-mock scenarios cover "Thursday at 10" and cancelling through the chat. REL-2's reminder step (`03-reminder.spec.ts`) is turned on.
+- **Split (lead ruling, 2026-10-27, decide, doctrine U5).** This story is the command side only. The chat side moved to Story 8.6 (`8-6-reminders-through-the-chat-on-the-demo-path`): the CI-mock scenarios ("Thursday at 10", cancelling through the chat, the `guide-reminder.json` extension of DW-232), the chat production test (`ReminderChat`), turning on REL-2's reminder step (`03-reminder.spec.ts`), DW-210, and the `test-demo-path.sh` header comment. 8.4 proves set, list, cancel and repeats through the commands the Chat agent's tools send (Story 1.10), in its own `Test/Schedule/**` tests and `web/e2e/reminder/reminder.spec.ts`; it writes no CI-mock scenario and does not touch the demo-path specs.
 
 ## Boundaries & Constraints
 
@@ -253,9 +253,22 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed Q1, Q2 and Q4 and routed DW-140/DW-142 (U-118); the lead split the story (8.4 command side, 8.6 chat side) and ruled Q3 decide. Recorded under Intent and Design Notes; Clarification Needed removed; status set to `draft` to re-plan this story as the command side.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Rulings in force (recorded by the lead, 2026-10-27):**
+- **Split (lead, decide, U5):** 8.4 is the command side; 8.6 takes the chat side (see Intent). The whole earlier plan is kept in git at 467dfae for reference.
+- **Q1, ALLOWED (orchestrator, decide):** `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` stub rows are shared by entry (since Epic 5's ruling). Remove ONLY the `SetReminder|ReminderOps|web_user` entry from `TestStubOwnersAnswerPlainEnglish`'s table, and ReminderOps from the stub-owner sentences of the class doc (L4-5) and the method doc (L27-29). `TestTraceAndThread` routes `ListReminders` to ReminderOps: if one of its assertions depends on the stub's answer, change only that assertion. Prove the built ReminderOps in Epic 8's own tests (`Test/Schedule/**`), not in that table. Expect a same-line conflict at integrate-forward with Epic 5 (it removes WatchOps and IncidentManager from the same sentences and table line): a plain union, every built owner removed. Reported as a footprint extension.
+- **Q2, ALLOWED (orchestrator, decide):** `docker/tests/test-production.sh` row 17: change only the two expected lines (`submit-user`, `submit-tool`) from `not_built` to `refused`, and the matching header phrase ("ReminderOps' plain-English refusal (the command names no session)"). Nothing else. Reported as a footprint extension.
+- **Q3 (lead, decide):** `Data.Reminder` gains `IdempotencyKey` and `CancelKey` (`%String(MAXLEN=128)`, no index), append-only (AD-5), for AD-1's repeat rule; Epic 8's own `OcuTalon.Data.Reminder` entry of `Test/Data/Tables.cls` XData `Contracts` gets the two matching lines (that XData is shared by entry).
+- **Q4 (orchestrator, decide):** belongs to Story 8.6 (the `docker/tests/test-demo-path.sh` header comment, only once 8.6 turns spec 03 on). Not this story.
+- **DW-140 and DW-142 (orchestrator, U-118):** declined here; the lead re-owns them at the spec gate (DW-142 to Story 11.1, DW-140 to Story 11.6). Never edit `Agent/Chat.cls` (Lane A's, AD-33).
+- **DW-210 and DW-232:** re-owned to Story 8.6 with the split; not this story's.
+- **Story 16.4 (U-107 kept; DW-291 under 16.4):** 8.4 delivers the real cancel path; 16.4's sign-out test uses it (or a recording double turned on by whichever of 8.4/16.4 merges second). 8.4 touches nothing of Epic 16. The sign-out cancels with one `CancelReminder` per pending Ref; no cancel-by-session entry point is needed.
+- **No local absolute paths** in this spec or any committed file (CI's `test-boundaries.sh`). Write the lane-C lock folder as `"$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c"` (it resolves from the worktree) or as the dispatch placeholder.
 
 **Governing ADs:**
 - AD-1: the command path; origin `tool` under a context; the owner ignores a repeat.
@@ -365,20 +378,6 @@ The success messages are `MESSAGESET` "The reminder is set." (8.3), `MESSAGELIST
 
 The plan above stays whole if the lead keeps one story.
 
-## Clarification Needed
-
-Once `ReminderOps` is built, as this story's ACs require, two contended files go red and can't be fixed by appending a block. Each needs the orchestrator's ruling before implement:
-
-- **Q1: `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls`.** `TestStubOwnersAnswerPlainEnglish` submits `SetReminder|ReminderOps|web_user` (`:35`, with no Text and no due form) and expects `0|not_built`, `NOTBUILT` and an error response header (`:50-56`). After this story, ReminderOps answers `0|refused` with a plain reason and a normal response.
-  - The class doc (`:4-5`) says "Each owner's story rewrites its row here when it builds the owner", but the file is contended.
-  - Recommended (decide): Epic 8 removes only its entry from that `table` list and ReminderOps from the doc's stub-owner sentences (`:4,6,11-12,27-29`). From then on the list is shared by entry, like ProductionItems' rows.
-  - `TestTraceAndThread` stays green unedited.
-- **Q2: `docker/tests/test-production.sh` row 17** (`:17-19`, `:194-197`). It submits a `ListReminders` with no `SessionRef` and expects `CHK|submit-user|1|0|not_built|web_user` and `CHK|submit-tool|1|0|not_built|tool`.
-  - Recommended (decide): the two lines become `...|1|0|refused|web_user` and `...|1|0|refused|tool`, and the header's "ReminderOps' plain-English not_built result" becomes "ReminderOps' plain-English refusal (the command names no session)". Nothing else changes.
-  - Row 16's stub sweep drops ReminderOps by itself.
-- **Q3 (lead classification, like 8.3's `TraceHeaderId`):** `Data.Reminder` gains two append-only properties, `IdempotencyKey` and `CancelKey` (`%String(MAXLEN=128)`, no index). AD-1's repeat rule, which AC 3 requires, is kept on the row, in a table not yet released. Recommended: decide.
-- **Q4 (optional, comment only):** `docker/tests/test-demo-path.sh:12-13` says no demo-path test sends a model request. 03 now points the keys at the mock and sends one. Recommended: allow that one comment line, or leave it to Story 11.1.
-
 ## Verification
 
 **Shared values.** Every `ci/iris.sh` and `ci/warm.sh` call starts with `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=<stage>'`, written out in full on each call. Each call is its own tool call, in the foreground, with `timeout: 600000`. Tags: fresh `e8s4i` and warm `e8s4iw` for implement; any other stage uses `e8s4<stage>` and `e8s4<stage>w`. Items that `ReminderOps`, `ReminderTimer` or `Schedule.Reminder` run are picked up on a warm stack only after the item restarts (8.3, Task 0).
@@ -430,20 +429,5 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: once ReminderOps is built (AC 1 and AC 3), two contended paths go red and can't be fixed by appending a block: src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls (TestStubOwnersAnswerPlainEnglish's SetReminder|ReminderOps|web_user entry expects 0|not_built) and docker/tests/test-production.sh (row 17 expects not_built from ReminderOps for a ListReminders with no SessionRef). See ## Clarification Needed Q1 and Q2 for the recommended rulings, plus Q3 (lead classification of two append-only Data.Reminder properties) and Q4 (optional comment line).
-
-**Plan stage (bmad-build-auto, halted after planning).** The spec is complete apart from the rulings. Once Q1 and Q2 are ruled as recommended (and Q3 is classified decide), the lead removes `## Clarification Needed` and sets `status: ready-for-dev`; no other edit is needed. If a ruling differs, only the conditional task under Tasks & Acceptance, and the `Test.Core.CommandsInProduction` and `live production` lines under Verification, change.
-
-**Investigated:**
-- The tools' contract (Story 1.10), the mock's selection and reply rules, the demo-path summary rule, the guide's step-2 rule, the oracle and contract tests.
-- Every IRIS and browser test that depends on ReminderOps' stub answer.
-- Measured on slot C (build 154): local-to-UTC conversion across both 2026 US daylight-saving changes and the 2030-11-07 Thursday.
-
-**Ledger inbox:**
-- DW-135, DW-141, DW-210 and DW-232: addressed.
-- DW-140 and DW-142: declined. Both need a live Haiku 5.5 run and a Lane A fix. DW-142 is flagged as a risk to UJ-1's live step 2.
-
-**Footprint extension:** `web/scripts/demo-path-summary.test.mjs`.
-
-**Proposed split:** see Design Notes.
+Status: draft
+Blocking condition: none (re-plan as the command side after the rulings)
