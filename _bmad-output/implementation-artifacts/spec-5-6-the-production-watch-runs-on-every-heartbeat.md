@@ -2,7 +2,7 @@
 title: 'The production watch runs on every heartbeat'
 type: 'feature'
 created: '2026-10-26'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -90,7 +90,7 @@ deferred: []
   - no `HeartbeatIn` or Task Manager task (Epic 8).
 - No new table or column, and no change to the `BackgroundCheck`, `Incident` or `Live.Payload.Check` property sets (so `web/src/app/live/payloads.ts` is not regenerated). No new catalog entry.
 - No check kind other than `production`. No namespace switch outside `Watch.Reader`. No raw error text in a row, a payload or a finding.
-- No edit to a contended path beyond the two that the rulings allow (`Test/Web/Api.cls` for Q1, `web/src/app/rail/rail-view.ts` for Q2). In particular nothing in `Demo/**`, `Install/**`, `Channel/**`, `Live/Publish*.cls`, `Data/{Session,Ownership,Setting}.cls`, `web/e2e/**` or `.github/**`.
+- No edit to a contended path beyond what the orchestrator's rulings allow: `Web/Api.cls` (the one `rail.checks` push line, and `CheckView` with its doc removed) and `Test/Web/Api.cls` (the three assertion lines L248, L250, L251) for Q1; one filter line of `web/src/app/rail/rail-view.ts` for Q2. In particular nothing in `Demo/**`, `Install/**`, `Channel/**`, `Live/Publish*.cls`, `Data/{Session,Ownership,Setting}.cls`, `web/e2e/**` or `.github/**`.
 
 ## I/O & Edge-Case Matrix
 
@@ -135,7 +135,7 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
   - `Live/Payload/Check.cls`: `Stopped` L20-21 and the trace fields L35-39;
   - `Live/Payload/Incident.cls` L128-150: the `$Namespace` trace target that `FromRow` follows;
   - `Live/Publish.cls` `Publish` L52 (refused inside a transaction; `check:Check` is already in `TYPES` L10).
-- **`Web/Api.cls`** (shared by entry; the check entry only): `RailBody` L351-367 (L359 pushes `CheckView`) and `CheckView` L369-389, which goes.
+- **`Web/Api.cls`** (contended; only the Q1 scope: the one push line, and `CheckView` removed): `RailBody` L351-367 (L359 pushes `CheckView`) and `CheckView` L369-389, which goes.
 - **Session reads** (`Data/Session.cls`, contended; call only): `RefIndexOpen(…).TraceRef` and `TraceRefIndexOpen`.
 - **Tests and their patterns:**
   - `Test/Watch/IncidentProbe.cls` and `Test/Watch/PollerProbe.cls`: the shadow-instance probes (seam overrides; a shadow cannot `SendRequestAsync` or `SendRequestSync`).
@@ -174,10 +174,10 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
   - it sends `CheckChanged` through `SendChanged`, as Always gives it, with the parameters `CHECKS` "Checks" and `LOGCHANGED`;
   - the class doc says `WatchOps` creates and removes the rows and that `Checks` records each run (AD-18).
 - `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls`: the class doc only. `WatchOps` creates and removes a row, and `Checks` records `LastRunAt`, `Result`, `Finding`, `LastRunHeaderId` and `NextDueAt`.
-- `src/ocutalon/cls/OcuTalon/Web/Api.cls` (shared by entry): `RailBody` uses `Check.FromRow`, `CheckView` is removed, and nothing else changes (DW-66).
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls` (contended, Epics 4, 6, 10 and 16; only under ruling Q1): exactly the one `rail.checks` push line switches to `##class(OcuTalon.Live.Payload.Check).FromRow(...)`, and the private `CheckView` method and its doc comment are removed. Nothing else in the file changes (DW-66).
 - `web/src/app/rail/rail-view.ts` (contended; only under ruling Q2):
-  - `railView` lists `inStoreOrder(store.checks).filter((check) => check.stopped !== true)`;
-  - the module doc's line "every check in store order" becomes "every check that is not stopped, in store order".
+  - ONE line changes: where `checks` is computed (L307), `railView` lists `inStoreOrder(store.checks).filter((check) => check.stopped !== true)` (or the same through a small new helper placed away from the lines below). No doc line changes.
+  - Never touch Epic 4's edited lines of this file: `emptyChecksDemo` (L32-35), the doc and `railView(store, format, demo = false)` signature (L305-306), or the checks `listSection` (L326) (orchestrator ruling Q2).
 - `web/scripts/rail-view.test.mjs` (footprint extension): a check with `stopped: true` is neither listed nor counted, and one with `stopped: false` or no `stopped` is.
 - `ci/units.sh` (Lane A's own entry): `lane-a) echo "Agent Bridge Checks Install Tools Digest Watch"`.
 - `src/ocutalon/cls/OcuTalon/Test/Checks/Probe.cls`: new, test only, and not an item of any production. It extends `Checks.Process`:
@@ -238,12 +238,13 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 ## Spec Change Log
 
 - 2026-10-27, spec gate (Epic 5 runner): Q2 ruled (a) (decide; not contended), Q3 ruled keep (veto U-105); Q1 (contended `Test/Web/Api.cls`) sent to the orchestrator; status stays `blocked` until Q1 is ruled.
+- 2026-10-27, spec gate (Epic 5 runner): the orchestrator ruled Q1 (a), scoped to the one push line and `CheckView`'s removal in `Web/Api.cls` (also contended) and the three test lines, and corrected Q2 (contended; one filter line away from Epic 4's lines, no doc change); the rail-view task, Never and Code Map follow; spine rows written; status set to `ready-for-dev`.
 
 ## Review Triage Log
 
 ## Design Notes
 
-**Rulings needed (plan halted; recommended answers are what this spec is written to). Q2 RULED 2026-10-27 by the epic lead: (a), decide — `web/src/app/rail/` is in no live epic's footprint, so `rail-view.ts` is a reported footprint extension, not a contended path. Q3 RULED 2026-10-27 by the epic lead: keep as worded, veto U-105. Q1 is with the orchestrator (`Test/Web/**` is Epic 16's).**
+**Rulings (all RULED 2026-10-27).** Q1 RULED by the orchestrator: decide, option (a), shared-by-entry — exactly the one `rail.checks` push line of `Web/Api.cls` (switched to `Check.FromRow`) and the removal of its private `CheckView` method and doc, plus the three assertion lines of `Test/Web/Api.cls` (L248 message, L250, L251); both files are contended (Epics 4, 6, 10 and 16) and are reported under `footprint_extensions:`; a conflict at integrate-forward is a plain union. The switch's reason (AD-26, UX-DR139): a check's latest run is the Tick's session in OCUTALON, so its trace target lies in OcuTalon's namespace. Q2 RULED by the orchestrator (correcting the lead's premise: `web/src/app/rail/` IS contended — it is in Epic 6's footprint, and Epic 4's branch edits `rail-view.ts`): allowed as ONE filter line placed away from Epic 4's lines (L32-35, L305-306, L326), with no doc change; reported under `footprint_extensions:`. Q3 RULED by the epic lead: keep as worded, veto U-105.
 - **Q1. Contended test `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` (DW-66).**
   - **Why `traceNamespace` must change.** The check's trace is its latest run. A run is the Tick's session in OcuTalon's own production (AD-26: "Rows that a link targets store the header id it needs (… latest check run …)"; UX-DR139: "check: latest run", apart from "evidence: failed messages in the Orders namespace"). So `traceNamespace` must be `$Namespace`, not the watched production's namespace. A header id of OCUTALON looked up in OCUORDERS opens the wrong message, or none.
   - **What that breaks.** Switching `StateBody` to `Check.FromRow` breaks two assertions:
@@ -341,7 +342,7 @@ Conventions:
 - A job that holds `^Ens.Runtime("ConfigItem")` makes `GetProductionStatus` with a 1-second wait answer its lock error while the production is stopped. That follows from the source at `irislib/Ens/Director.cls` L549-562; the skip for a running production does not apply then.
 - The BP's `SendRequestSync` carries `%SuperSession` onto the header (`irislib/Ens/BusinessProcess.cls` L153).
 
-**Footprint extensions** (none contended): `Live/Payload/Check.cls`, `Test/Live/Payloads.cls`, `Test/Install/Production.cls` (the Lane A row), `Test/Bridge/CodeRules.cls` and `web/scripts/rail-view.test.mjs`. These are shared by entry: `Web/Api.cls` (the check entry) and `ci/units.sh` (Lane A's areas). These are contended, only under the rulings: `Test/Web/Api.cls` (Q1) and `web/src/app/rail/rail-view.ts` (Q2).
+**Footprint extensions** (reported under `footprint_extensions:`): not contended — `Live/Payload/Check.cls`, `Test/Live/Payloads.cls`, `Test/Install/Production.cls` (the Lane A row), `Test/Bridge/CodeRules.cls`, `web/scripts/rail-view.test.mjs`; Lane A's own entry of `ci/units.sh`; contended, only within the orchestrator's rulings — `Web/Api.cls` and `Test/Web/Api.cls` (Q1), `web/src/app/rail/rail-view.ts` (Q2).
 
 **Spine candidates (Rule 20, for the lead):**
 - a row in "Cross-area classes": `OcuTalon.Checks.Msg.CheckChanged`, sent by `WatchOps` and handled by `Checks` (A, Story 5.6);
@@ -408,8 +409,10 @@ Conventions:
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Q1 contended path src/ocutalon/cls/OcuTalon/Test/Web/Api.cls (DW-66 makes a check's traceNamespace $Namespace, which breaks the L250 assertion "31|ZZNS" and the L251 assertion of no traceUrl); Q2 contended path web/src/app/rail/rail-view.ts (for "a stopped one leaves", the rail must drop a check whose stop event carries stopped true); Q3 veto window item 5: the finding and reason texts are public-facing and not in the UX or PRD. The recommended answers are in Design Notes (Q1 (a), Q2 (a), Q3 as worded); the spec is written to them and needs only status ready-for-dev once they are ruled.
+Status: ready-for-dev
+Blocking condition: none
+
+Spec gate, 2026-10-27: Q1 and Q2 ruled by the orchestrator, Q3 by the lead (veto U-105); the spine rows "Background checks" and the cross-area class row for `CheckChanged` are written; status set to `ready-for-dev`. The plan stage's halt read: intent gap: Q1 contended path src/ocutalon/cls/OcuTalon/Test/Web/Api.cls (DW-66 makes a check's traceNamespace $Namespace, which breaks the L250 assertion "31|ZZNS" and the L251 assertion of no traceUrl); Q2 contended path web/src/app/rail/rail-view.ts (for "a stopped one leaves", the rail must drop a check whose stop event carries stopped true); Q3 veto window item 5: the finding and reason texts are public-facing and not in the UX or PRD. The recommended answers are in Design Notes (Q1 (a), Q2 (a), Q3 as worded); the spec is written to them and needs only status ready-for-dev once they are ruled.
 
 - Plan stage, 2026-10-26: the spec is fully planned (Code Map, tasks, six ACs, matrix, mutations, verification). The READY standard fails only on "Sufficient": three items need the orchestrator or owner (Rule 11 (c); unattended policy, veto window item 5).
 - Read for planning: the epic context (cached, valid), the Story 5.6 block of `epics.md`, AD-1, AD-4, AD-12, AD-15, AD-18, AD-24, AD-26, AD-28 and AD-33, and the Conventions rows. No IRIS call was made and no runtime was started, so there is nothing to tear down.
