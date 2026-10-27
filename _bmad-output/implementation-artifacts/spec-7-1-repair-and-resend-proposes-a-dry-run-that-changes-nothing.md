@@ -121,7 +121,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
     - `itemNoun` comes from `Incident.ItemNoun`, else `Watch.ItemNoun.For` of the first in-scope failed message's `bodyClass`;
     - an outcome other than `read`, or no in-scope failed header, is an error status.
   -- Why: AC 1, AC 3, AC 4.
-- `src/bridge/cls/OcuTalon/Bridge/ReplyCheck.cls` (new) -- Holds the request whose reply Decide is checking: `FIELDS = "Kind,ItemId,OwnerRef,Input"`, `Begin(request As OcuTalon.Bridge.Msg.Request) As %Status` (refuses anything else), `End()`, `Active()` and `Value(name)` ("" for no check or an unknown name), kept in a process-private global. Its comments name no OcuTalon package outside the bridge. -- Why: the validation seam (Design Notes V1).
+- `src/bridge/cls/OcuTalon/Bridge/ReplyCheck.cls` (new) -- Holds the request whose reply Decide is checking: `FIELDS = "Kind,ItemId,OwnerRef,Input"`, `Begin(request As OcuTalon.Bridge.Msg.Request) As %Status` (refuses anything else), `End()`, `Active()` and `Value(name)` ("" for no check or an unknown name), kept in a process-private global. `Begin` first clears every earlier value, so nothing of an earlier request survives it. Its comments name no OcuTalon package outside the bridge. -- Why: the validation seam (Design Notes V1, U-125's condition).
 - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- `Interpret` begins `ReplyCheck` from `request` before `CheckReply`. It ends it on every exit after the check run again, an exception included (wrap the body). Update the class doc and `CheckReply`'s doc: a reply class's `%OnValidateObject` may read the request through `ReplyCheck`. -- Why: AC 2.
 - `Watch/EvidencePack.cls` -- `FromInput(text) As %DynamicObject` is the inverse of `Input`: the pack when the first line is `INPUTLINE` and the rest is a JSON object of `FORMAT`, else "". It calls no unlisted class (WATCHREADS). -- Why: the field check reads the pack the diagnosis was given.
 - `Watch/Msg/DiagnosisPayload.cls` -- Removes `FIXKINDS`; a `data_format_change`'s fix kind must satisfy `##class(OcuTalon.Fix.Kind).ForName(..FixKind) '= ""`, and the error names `Fix.Kind.Names()`.
@@ -140,6 +140,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - `Test/Bridge/ReplyCheck.cls` and `Test/Bridge/ProbeReplyCheck.cls` (new) -- The probe extends `Bridge.Msg.DecisionPayload` with one `FILTERED` property, so Decide checks it twice. It records `ReplyCheck.Active()` and its four values at each validation, and throws on request.
   - `Begin` refuses a non-Request; `Value` of an unknown name is "".
   - `Decide.Conclude` with the probe: both checks see the request's values, and `Active()` is 0 after it returns, also for an invalid reply and a throwing check.
+  - U-125's condition, in one job: (1) the error path: a check that throws inside `Interpret` leaves `Active()` 0 and every `Value` "" afterwards; (2) a second decision after the first: `Conclude` for request A, then `Conclude` for request B (different `ItemId`, `OwnerRef` and `Input`) in the same process, and B's checks see only B's values, never A's; and `Begin` for B after a `Begin` for A with no `End` between holds only B's values.
 - `Test/Fix/Reformat.cls` (new, pure) -- Every registered format:
   - converts a table of valid inputs exactly (all pairs within a family, sign, grouping, fractions, leap day);
   - refuses wrong separators, padding, length > 40, `2026-02-30`, `T`, Arabic-Indic digits and empty values;
@@ -181,8 +182,11 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - AC 3: Given a validated repair for an incident's failure group, when a `DryRun` message reaches the item `FixExecutor` by name (as IncidentManager will send it), then `DryRunResult` carries the ascending in-scope target ids and the `DryRun` JSON with exactly `DRYRUNKEYS`, and left-out messages are counted in `leftOut`.
 - AC 4: Given 50 failed orders made through `Partner.Send` on a throwaway, when the dry run runs, then no header, body, production or item setting, or queue in OCUTALON or OCUORDERS changed (apart from the dry run's own request and response, and any scheduled `HeartbeatIn` session that Task 0 confirms), the mock logged no request, and the values are those of the matrix's 50-orders row.
 - AC 5: Given the registered reformatters, when `OcuTalon.Test.Fix.Reformat` runs, then every format converts its valid inputs exactly, refuses every non-matching value, and never evaluates input.
+- AC 6 (owner U-125's condition): Given `OcuTalon.Bridge.ReplyCheck`, when `Decide.Interpret` validates replies in one production job, then `Begin` clears any earlier value, `End` runs on every exit of `Interpret`, errors included, and so a context left by one decision can never validate another decision's reply. `OcuTalon.Test.Bridge.ReplyCheck` pins both cases: the error path, and a second decision after the first in the same job.
 
 ## Spec Change Log
+
+- 2026-10-27, spec gate (lead): owner decision U-125 (through the Contest Planner, answer_ref 2026-10-27T22:08:24Z#378) chose (a) for both spine questions; AD-16 and the dependency diagram's "Bridge shared" node are amended in the spine, and the Diagnosis Conventions row names the kind check. U-125's condition on `ReplyCheck` added as AC 6, with its task lines (`Begin` clears earlier values; the error-path and second-decision tests).
 
 ## Review Triage Log
 
@@ -196,6 +200,14 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - The rule fails closed.
 
 This is a veto item for the spec gate, because it adds a bridge API.
+
+**U-125 (owner decision, 2026-10-27, through the Contest Planner; answer_ref 2026-10-27T22:08:24Z#378).** The owner chose (a) for both spec-gate questions:
+- Q1: AD-16's "The Fix area's messages" bullet now also names `OcuTalon.Fix.Msg.DryRun` (`IncidentRef`, `FixKind`, `Parameters`) and `OcuTalon.Fix.Msg.DryRunResult` (`IncidentRef`, `Targets`, `DryRun`, `Reason`) as the dry-run ask from `IncidentManager` to `FixExecutor`. The two new message tables are accepted.
+- Q2: `ReplyCheck` is added to the "Bridge shared" node of the dependency diagram.
+- **Condition (binding on implement):** `Begin` clears any earlier value; `End` runs on every exit of `Decide.Interpret`, errors included; so a context left by one decision can never validate another decision's reply in the same production job. A test pins both cases: the error path, and a second decision after the first in the same job (AC 6).
+- The spine edits carry `[AMENDED 2026-10-27, Story 7.1, Epic 7 runner, orchestrator, owner U-125]`. The Diagnosis Conventions row also names the kind check (light path).
+
+**Spec-gate rulings (lead, decide):** V1's design as planned (the spine listing is U-125's); V2's registered set as planned; V3 `STUB = 1` until 7.3.
 
 **V2. The registered set and the names the model sees** (Always, first bullet). This is decided in-stage: the AC says "a fixed set". Number names are written as examples because a comma list cannot hold them. The ruling may change members. The tests read `Reformat.Names()`.
 
@@ -320,6 +332,8 @@ Conventions: "Tool resources" (the tool form; one permission letter per check), 
 | AC 5 digits | the patterns use `\d` | `Reformat.TestRefuses` (Arabic-Indic digits) |
 | AC 5 never evaluates | `Convert` runs `Xecute "Set x="_value` | `Reformat.TestNeverEvaluates` |
 | stub | `FixExecutor` answers OK to other requests | `Install.Production` |
+| AC 6 clear | `ReplyCheck.Begin` keeps earlier values it is not given | `Bridge.ReplyCheck` (second decision in one job) |
+| AC 6 error path | `Interpret` ends `ReplyCheck` only on its normal exit | `Bridge.ReplyCheck` (error path) |
 
 ## Auto Run Result
 
