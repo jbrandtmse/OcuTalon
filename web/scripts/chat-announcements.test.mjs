@@ -1,5 +1,5 @@
 // Tests what the chat announces (src/app/chat/chat-announcements.ts): the diff of the entries against the last look, the
-// first sentence of a reply or a card, and what stays silent (the first look, the user's own messages, Deciding, Working, the
+// first sentence of a reply or a card, an incident card (new, state change, count-only change), and what stays silent (the first look, the user's own messages, Deciding, Working, the
 // seconds, a card updated in place, a reply that had already landed). The entries come from the real chatView, and the
 // format from fakes or from the real reply-text.ts. The module is imported as it is: Node strips its types, which holds only
 // while it keeps to erasable syntax and imports only types.
@@ -12,8 +12,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'chat', 'chat-announcements.ts');
-const { chatAnnouncements, firstSentence } = await import(pathToFileURL(source).href);
+const { chatAnnouncements, firstSentence, landed } = await import(pathToFileURL(source).href);
 const { chatView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
+const { announcementOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts')).href);
 const { parseReply, plainText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'reply-text.ts')).href);
 
 const NOW = 1_000_000;
@@ -24,6 +25,8 @@ const FAKE = {
   announceTellNow: 'Tell now:',
   replyText: (text) => text,
   fallbackText: (key, reason) => `Catalog ${key}: ${reason}. Second sentence.`,
+  // The real texts of an incident card, with a headline that carries the count so that a count change would show.
+  incidentText: (previous, incident) => announcementOf(previous, incident, `H${incident.count ?? ''}`),
 };
 
 /** A chat.message entry of the store: a done turn with a reply unless the state or the fields say otherwise. */
@@ -35,6 +38,7 @@ const queued = (ref) => turn(ref, { state: 'queued', replyText: '' });
 const running = (ref) => turn(ref, { state: 'running', replyText: '' });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Orders are failing. More.', whyNow: 'Why now: zz first.', ...over });
+const incident = (ref, over = {}) => ({ type: 'incident', payload: { ref, state: 'awaiting_approval', count: 50, noticeCount: 50, ...over } });
 const local = (clientId, status) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status });
 
 /** The entries the chat shows for the store's chat and the page's outbox. */
@@ -138,6 +142,61 @@ describe('a card', () => {
 
   it('is silent when the card was there at the first look', () => {
     assert.deepEqual(next([[tellNow('N1')]], [[tellNow('N1')]]).texts, []);
+  });
+});
+
+describe('an incident card', () => {
+  it('is announced once when it is new: "Incident: {headline}. Approval needed." for an incident awaiting approval', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), incident('I1')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.']);
+  });
+
+  it('is announced as "No fix proposed." when it is new and a fallback or a no-fix variant, and as its state otherwise', () => {
+    const { texts } = next(
+      [[]],
+      [[incident('F', { state: 'open', fallback: true }), incident('N', { state: 'open', openVariant: 'no_fix' }), incident('R', { state: 'open', openVariant: 'rejected' }), incident('X', { state: 'fixing' })]],
+    );
+    assert.deepEqual(texts, ['Incident: H50. No fix proposed.', 'Incident: H50. No fix proposed.', 'Incident: H50. Open.', 'Incident: H50. Fixing.']);
+  });
+
+  it('announces the new state once when a known card\'s state changes, and nothing for a count-only change or an unchanged update', () => {
+    const first = chatAnnouncements(undefined, view([incident('I1')]), FAKE);
+    assert.deepEqual(first.texts, []);
+    assert.equal(first.heard.get('incident:I1'), 'awaiting_approval', 'the record keeps the card\'s state');
+    const fixing = chatAnnouncements(first.heard, view([incident('I1', { state: 'fixing', count: 52 })]), FAKE);
+    assert.deepEqual(fixing.texts, ['Incident: H52. Fixing.']);
+    const again = chatAnnouncements(fixing.heard, view([incident('I1', { state: 'fixing', count: 53 })]), FAKE);
+    assert.deepEqual(again.texts, [], 'a count-only change');
+    const same = chatAnnouncements(again.heard, view([incident('I1', { state: 'fixing', count: 53 })]), FAKE);
+    assert.deepEqual(same.texts, [], 'an unchanged update');
+    const resolved = chatAnnouncements(same.heard, view([incident('I1', { state: 'resolved', count: 53 })]), FAKE);
+    assert.deepEqual(resolved.texts, ['Incident: H53. Resolved.']);
+    const closed = chatAnnouncements(resolved.heard, view([incident('I1', { state: 'closed', count: 53 })]), FAKE);
+    assert.deepEqual(closed.texts, ['Incident: H53. Closed.']);
+  });
+
+  it('is silent at the first look, whatever the incidents say, and records each one\'s state', () => {
+    const { texts, heard } = chatAnnouncements(undefined, view([incident('I1'), incident('I2', { state: 'closed' }), incident('I3', { state: undefined })]), FAKE);
+    assert.deepEqual(texts, []);
+    assert.deepEqual([...heard], [['incident:I1', 'awaiting_approval'], ['incident:I2', 'closed'], ['incident:I3', '']]);
+  });
+
+  it('announces a new ref after a closed one, and leaves the closed card alone', () => {
+    const { texts } = next([[incident('I1', { state: 'closed' })]], [[incident('I1', { state: 'closed' }), incident('I2')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.']);
+  });
+
+  it('counts as landed when present, and is read in the chat\'s order with the other entries', () => {
+    assert.equal(landed(view([incident('I1')])[0]), true);
+    const { texts } = next([[turn('A', { state: 'running', replyText: '' })]], [[incident('I1'), turn('A'), notice('N1')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.', 'OcuTalon replied: Reply A.', 'Reminder: stretch.']);
+  });
+
+  it('is announced again after it was gone from the chat (the record holds the current entries only)', () => {
+    const first = chatAnnouncements(undefined, view([incident('I1')]), FAKE);
+    const dropped = chatAnnouncements(first.heard, view([]), FAKE);
+    const back = chatAnnouncements(dropped.heard, view([incident('I1')]), FAKE);
+    assert.deepEqual(back.texts, ['Incident: H50. Approval needed.']);
   });
 });
 

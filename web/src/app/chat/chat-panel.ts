@@ -14,6 +14,8 @@ import {
 } from '@angular/core';
 
 import { Icon } from '../icon/icon';
+import { IncidentCard, incidentContext } from '../incidents/incident-card';
+import { announcementOf, incidentView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
@@ -31,10 +33,10 @@ import { OcutalonReply, replyFallbackText } from './ocutalon-reply';
 import { parseReply, plainText } from './reply-text';
 import { UserMessage } from './user-message';
 
-/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, or a notice card. */
+/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, a notice card or an incident card. */
 interface Target {
   key: string;
-  part: 'user' | 'reply' | 'notice';
+  part: 'user' | 'reply' | 'notice' | 'incident';
 }
 
 /** The attributes that mark an item of the list (a user message, a reply or a notice card) with its part and its key. */
@@ -50,8 +52,8 @@ const FOCUS_RULE: FocusRule = {
   keyOf: (item) => `${item.getAttribute(PART) ?? ''}:${item.getAttribute(KEY) ?? ''}`,
 };
 
-/** The texts of the chat's announcements and the reads of a reply, from the real modules. */
-const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
+/** The texts of the chat's announcements and the reads of a reply, from the real modules; the incident card's text needs the page's times, so the panel adds it. */
+const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
   announceReplied: CHAT_TEXTS.announceReplied,
   announceTellNow: CHAT_TEXTS.announceTellNow,
   replyText: (replyText) => plainText(parseReply(replyText)),
@@ -60,14 +62,15 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
 
 /**
  * The chat panel (UX-DR58, UX-DR67, UX-DR126), inside the page's main landmark once the snapshot has loaded. The list shows the
- * live store's chat.message entries and its tell-now and reminder notice cards in store order and then this page's own messages
+ * live store's chat.message entries, its incident cards (one per incident Ref, updated in place) and its tell-now and reminder notice cards in store order and then this page's own messages
  * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region.
  * From 1024px wide the panel fills main and the list takes the height that is left. Below it (the stacked column, Story 2.15) the list is
  * as tall as its content up to 70vh and scrolls on its own beyond that, with the composer under it.
  *
  * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
  * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
- * "Tell now:" and its first sentence, and a new reminder card is its text. The user's messages, Deciding and Working, the
+ * "Tell now:" and its first sentence, a new reminder card is its text, a new incident card is "Incident: {headline}. Approval needed."
+ * (or "No fix proposed.", or its state) and a known one says its state when that changes. The user's messages, Deciding and Working, the
  * seconds and a card updated in place are silent.
  *
  * The list is a tab stop (DW-89, Story 2.16): a region named by the hidden "Chat" heading of the main page, with its ring inside its own edge, so
@@ -90,7 +93,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
  */
 @Component({
   selector: 'app-chat-panel',
-  imports: [Composer, EmptyChat, Icon, NoticeCard, OcutalonReply, UserMessage],
+  imports: [Composer, EmptyChat, Icon, IncidentCard, NoticeCard, OcutalonReply, UserMessage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -113,6 +116,13 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
                   <app-user-message [turn]="entry" (retry)="outbox.retry(entry.key)" />
                   <app-ocutalon-reply [turn]="entry" />
                 </div>
+              } @else if (entry.entry === 'incident') {
+                <app-incident-card
+                  [incident]="entry.incident"
+                  [decisions]="decisions()"
+                  [instanceZone]="instanceZone()"
+                  [onlineDemo]="onlineDemo()"
+                />
               } @else {
                 <app-notice-card [notice]="entry" [instanceZone]="instanceZone()" />
               }
@@ -248,7 +258,13 @@ export class ChatPanel {
   /** The instance's time zone, from the snapshot; the notice cards' times name the browser's zone when its offset differs. */
   protected readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');
 
-  /** The entries to render: turns and notice cards in the store's order, then the page's own messages. */
+  /** True on the online demo: an incident card's headline time ends " ET". */
+  protected readonly onlineDemo = computed(() => this.live.snapshot()?.onlineDemo === true);
+
+  /** The live store's decisions, among which an incident card's footer decision is looked for. */
+  protected readonly decisions = computed(() => this.live.store()?.decisions ?? []);
+
+  /** The entries to render: turns, incident cards and notice cards in the store's order, then the page's own messages. */
   protected readonly entries = computed(() => {
     const chat = this.live.store()?.chat ?? [];
     this.clock();
@@ -308,7 +324,12 @@ export class ChatPanel {
 
   /** Announces what the entries show that the last look did not (chat-announcements.ts); the first look only records them. */
   private announce(entries: readonly ChatEntryView[]): void {
-    const { texts, heard } = chatAnnouncements(this.heard, entries, ANNOUNCE_FORMAT);
+    const context = incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo());
+    const format: ChatAnnounceFormat = {
+      ...ANNOUNCE_FORMAT,
+      incidentText: (previousState, incident) => announcementOf(previousState, incident, incidentView(incident, context).headline),
+    };
+    const { texts, heard } = chatAnnouncements(this.heard, entries, format);
     this.heard = heard;
     for (const text of texts) {
       this.announcer.announce(text);
@@ -362,7 +383,7 @@ export class ChatPanel {
       const before = this.landedBefore.get(entry.key);
       const now = landed(entry);
       if (first === undefined && before === undefined) {
-        first = { key: entry.key, part: entry.entry === 'notice' ? 'notice' : 'user' };
+        first = { key: entry.key, part: entry.entry === 'turn' ? 'user' : entry.entry };
       } else if (first === undefined && !before && now) {
         first = { key: entry.key, part: 'reply' };
       }

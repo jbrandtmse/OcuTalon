@@ -136,6 +136,28 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
 }
 
 /**
+ * Publishes one fixture incident on the user's own session stream and returns its Seq: the payload (a camelCase object of
+ * OcuTalon.Live.Payload.Incident, parts included: itemNoun, groups, requests, evidence, traceTargets) is imported into the payload
+ * class and published as the `incident` event, as IncidentManager will (Live.Publish.Publish). A later event with the same ref
+ * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it.
+ */
+export async function publishIncident(user: string, payload: Record<string, unknown>): Promise<number> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set p=##class(OcuTalon.Live.Payload.Incident).%New()',
+      `Set sc=p.%JSONImport(${quoted(JSON.stringify(payload))})`,
+      'If $System.Status.IsError(sc) { Write !,"CHK|seq|0" Halt }',
+      'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"incident",p,.q)',
+      'Write !,"CHK|seq|",q',
+    ].join('\n'),
+  );
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the incident could not be published (${lines.join(' ')})`);
+  return seq;
+}
+
+/**
  * A string as an ObjectScript expression: runs of printable ASCII are quoted, with each double quote doubled, and every other
  * character (control characters and non-ASCII) is written with $Char(n) by UTF-16 code unit, so that a character above U+FFFF
  * reaches IRIS as its surrogate pair (IRIS's $Char of such a code point is empty) and no value reaches the script as anything

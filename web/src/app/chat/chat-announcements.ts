@@ -4,24 +4,29 @@
  * the texts and the two ways to read a reply come in through the format.
  *
  * - The first look (no `heard`) announces nothing; it only records the entries. The record holds the current entries, by view key,
- *   with whether each one has landed (a turn's reply is text or a fallback; a card has landed when it is there).
+ *   with whether each one has landed (a turn's reply is text or a fallback; a card has landed when it is there), and for an
+ *   incident card the state it showed ("" for none).
  * - A turn whose reply has landed, and had not at the last look, whether the turn is new or known, gives "OcuTalon replied:" and
  *   the first sentence of the reply as the page shows it.
  * - A tell-now card that is new gives "Tell now:" and the first sentence of its text; a reminder card that is new gives its text.
+ * - An incident card that is new gives the incident's text (incidents/incident-view.ts announcementOf: "Approval needed", "No fix
+ *   proposed" or the state), and a known one gives the state's text once when its state changed; a count-only change, an
+ *   unchanged update and the first look say nothing. The format reads the card's text, which needs the page's times.
  * - Nothing else is announced: the user's own messages in any state, Deciding and Working, the seconds, a card that was there
  *   already (updated in place) and a reply that had already landed.
  * - The texts come in the chat's order.
  */
+import type { IncidentPayload } from '../live/payloads';
 import type { ChatEntryView, ReplyView } from './chat-view';
 
 /** True once a turn's reply has landed: the model's text or a fallback. */
 const replyLanded = (reply: ReplyView): reply is Extract<ReplyView, { kind: 'text' | 'fallback' }> => reply.kind === 'text' || reply.kind === 'fallback';
 
-/** True once an entry has landed: a turn whose reply has, or a notice card, which has landed when it is there. The chat panel's New messages button reads it too. */
-export const landed = (entry: ChatEntryView): boolean => entry.entry === 'notice' || replyLanded(entry.reply);
+/** True once an entry has landed: a turn whose reply has, or a card (notice or incident), which has landed when it is there. The chat panel's New messages button reads it too. */
+export const landed = (entry: ChatEntryView): boolean => entry.entry !== 'turn' || replyLanded(entry.reply);
 
-/** The entries of the last look, by view key, each with whether it had landed. */
-export type ChatHeard = ReadonlyMap<string, boolean>;
+/** The entries of the last look, by view key: whether each turn or notice had landed, and the state ("" for none) of each incident card. */
+export type ChatHeard = ReadonlyMap<string, boolean | string>;
 
 /** The texts of the announcements and the reads of a reply, from the real modules (the page) or fakes (a test). */
 export interface ChatAnnounceFormat {
@@ -33,6 +38,8 @@ export interface ChatAnnounceFormat {
   replyText(replyText: string): string;
   /** The sentence a fallback reply shows, from the catalog. */
   fallbackText(catalogKey: string, fallbackReason: string): string;
+  /** What an incident card announces: its text for the payload given the state at the last look (undefined at first sight), or undefined for none. */
+  incidentText(previousState: string | undefined, incident: IncidentPayload): string | undefined;
 }
 
 /** The marks that end a sentence, when they are followed by white space or the end. */
@@ -58,9 +65,20 @@ export function chatAnnouncements(
   entries: readonly ChatEntryView[],
   format: ChatAnnounceFormat,
 ): { texts: string[]; heard: ChatHeard } {
-  const now = new Map<string, boolean>();
+  const now = new Map<string, boolean | string>();
   const texts: string[] = [];
   for (const entry of entries) {
+    if (entry.entry === 'incident') {
+      now.set(entry.key, entry.incident.state ?? '');
+      if (heard !== undefined) {
+        const before = heard.get(entry.key);
+        const text = format.incidentText(typeof before === 'string' ? before : undefined, entry.incident);
+        if (text !== undefined) {
+          texts.push(text);
+        }
+      }
+      continue;
+    }
     if (entry.entry === 'notice') {
       now.set(entry.key, true);
       if (heard !== undefined && !heard.has(entry.key)) {

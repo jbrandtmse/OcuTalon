@@ -2,9 +2,10 @@
 title: 'Story 6.1: Show each incident as one card in the chat'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9b400ec4795b1d4600491de524917231344cba68'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-6-context.md'
 warnings: ['oversized']
@@ -142,6 +143,47 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-10-27 — Review pass
+- verdicts: 36 findings — high 0, medium 2, low 32, false 2, maybe-false 0
+- findings:
+  - Blind Hunter (10):
+    - `[low]` `[reject]` INCIDENTKINDS is not read by `OnNotification` — Task 8 and Decided 15 specify a named parameter with no behaviour change; `TestIncidentKindsRecordOnly` pins the value and the record-only behaviour; branching on it adds code for no behaviour.
+    - `[low]` `[reject]` absent `count` reads "0 messages failed" — a real payload always carries `count` (row-backed); the fix adds a guard branch for a payload no producer makes.
+    - `[low]` `[reject]` ref-less payloads share the key `incident:` — `Ref` is the incident's identity and always set; a guard is more than a direct correction.
+    - `[low]` `[reject]` the relative day goes stale past midnight — only an open page across midnight; the next payload or reload recomputes; the fix needs a clock input in the card.
+    - `[low]` `[reject]` literal `22px` and `1px` in styles — `fallback-flag.ts` and `outcome-chip.ts` use the same `min-height: 22px`; the border colour is a token.
+    - `[false]` `[reject]` the h3's `tabindex="-1"` is a stray stop — Decided 13 requires it (6.4's Dismiss focuses the compacted headline); `-1` is no tab stop.
+    - `[low]` `[reject]` no component-level tests — the web has no Angular test host; the floor cases I1-I10 drive the components in a browser.
+    - `[low]` `[reject]` some matrix edges unasserted (item times in Berlin, empty instance zone, re-send after reload) — not reachable on the floor stack or by a real payload; no user-visible defect named.
+    - `[low]` `[reject]` `ux-strings` sources padded — each string has a source as the spec requires; "Open", "Error" and "Awaiting approval" are held by EXPERIENCE.md.
+    - `[low]` `[patch]` spec bookkeeping: the garbled "Approve?" mutation line is rewritten; the `Status:` line is rewritten at finalize.
+  - Edge Case Hunter (17):
+    - `[low]` `[reject]` item line with an absent time or name or count (3 rows: itemLines time; itemLines name; headline count) — `IncidentEvidenceItem` always carries them; guards add branches for no producer.
+    - `[low]` `[reject]` fixing line "0 messages" with no count — same as the absent `count`.
+    - `[low]` `[reject]` "Held as" while a request is pending on a resolved or closed incident — 6.2 defines request states; no producer makes the combination now.
+    - `[low]` `[reject]` "Why?." from cause or fix text ending in "?" or "!" — Decided 12 specifies "drop one final '.', add '.'"; the texts are sentences from the catalog or the model.
+    - `[low]` `[reject]` a fixSummary with "Approve it?" — Decided 12 strips the trailing "Approve?" the message form carries; other forms are not published.
+    - `[low]` `[reject]` duplicate key of ref-less entries — same as the Blind Hunter's ref row.
+    - `[false]` `[reject]` a null payload throws in `chatView` — the store only holds typed events; `IncidentPayload` is required by the generated type; no producer sends null.
+    - `[low]` `[reject]` stale day past midnight — same as the Blind Hunter's row.
+    - `[low]` `[reject]` the panel reopens by itself when its rows return — a panel row never disappears from a card that had it (payloads are full views).
+    - `[low]` `[reject]` an intermediate state replaced twice between looks is never announced — the announcer says the state at each look; Decided 10 gives "announces when `state` changes" per look.
+    - `[low]` `[reject]` a closed incident first seen later is announced "Closed." — Decided 10 sets the state form for any other state at first sight.
+    - `[low]` `[reject]` `instanceZoneOf` repeats a throw on an empty zone — the snapshot always carries the zone; the throw is caught per call.
+    - `[low]` `[reject]` INCIDENTKINDS deletion and claim rows (3 rows) — same as the Blind Hunter's INCIDENTKINDS row.
+    - `[low]` `[reject]` AC11 "absent count shown as 0" — same as the absent `count` row.
+  - Verification Gap (9):
+    - `[medium]` `[patch]` AC5's " ET" is unpinned through the page wiring (`onlineDemo` to `incidentContext`) — added `I9` (a snapshot with `onlineDemo`: the headline and the announcement end " ET"); mutation `ChatPanel.onlineDemo` always false went red in I9.
+    - `[medium]` `[patch]` the New messages focus for an incident card (`noteArrivals`) is unpinned — added `I10`; mutation: part `user` went red in I10.
+    - `[low]` `[patch]` AC1 and AC10 had no demonstrated mutation — both demonstrated in the review pass (two floor runs) and recorded in `## Verification`; AC10 uses the lost `tabindex` because a lost `data-part` reddens every case.
+    - `[low]` `[reject]` I5 stays green if only one side regresses — each side has its own pin (`TestIncidentKindsRecordOnly`, `chat-view.test`); I5 is the end-to-end agreement of the two.
+    - `[low]` `[reject]` I5 and I4 assume an empty FLOOR chat — the floor project runs serially with `workers: 1` and every seeding case cleans in `finally`.
+    - `[low]` `[reject]` `itemTime` and `topTime` mapping half-pinned — I6 pins the top time's suffix; swapping the item time's formatter has no visible effect in the zones the cases use.
+    - `[low]` `[reject]` `headlineNoTime` is an unplanned text — recorded as Decided 16: the headline without its clause, no new claim.
+    - `[low]` `[reject]` `ux-strings` source for `headlineNoTime` is a substring match — same as the previous row.
+    - `[low]` `[reject]` source-text assertions are guards, not behaviour — they are labelled as guards in their headers and add no claim of behaviour.
+  - Intent Alignment Auditor: no findings (descriptive; readings A3, B1, C1, D1 and E1 are the planned ones).
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`):
@@ -189,6 +231,10 @@ deferred:
 13. **The headline is an `h3` with `tabindex="-1"`.** The chat's hidden heading is the `h2`, and 6.4's Dismiss focuses the compacted headline. The card root has `tabindex="-1"` so the focus rule and New messages can focus it.
 14. **No `/state` change.** The snapshot already carries noticed incidents through `Ownership` (Story 2.2, pinned in `Test.Web.Api`). The missing parts are Lane A's builder (deferred item 1). The card renders without them.
 15. **WebChatOut** gets a named parameter and its own test, with no behaviour change. The four kinds already took the record-only branch.
+
+**Decided in-stage (implement):**
+16. `INCIDENT_TEXTS.headlineNoTime` ("{count} {noun} failed"): the headline when `firstAt` is absent or unreadable, so it never reads "since" with nothing after it. It is the headline template without its time clause (no new claim; `ux-strings` sources it from EXPERIENCE.md's headline) and is not reachable with a real `IncidentManager` payload, whose `firstAt` is always set.
+17. Review pass: reviewer findings closed `reject` (see the triage log) include `INCIDENTKINDS` not being read by `OnNotification` (Task 8 and Decided 15 fix it as a named parameter with no behaviour change) and the headline's "0" for an absent `count` (not reachable from a real payload).
 
 **Veto-window choices** (the runner files them):
 - **V1: public texts not written in the UX.** The question is what the new labels and texts read. Choice: the mockup's labels, ruled in `ux-strings` as 'Story 6.1 veto item V1':
@@ -266,6 +312,8 @@ deferred:
 - **I6:** in Europe/Berlin, the top time ends with "CET"/"CEST" and the headline doesn't.
 - **I7:** focus on the footer Details button; after `closed` it is on the card (`[data-part="incident"]`).
 - **I8:** open with `rejected`, `expired`, `no_fix`, and `fallback: true`. The attention bar on all; the Fallback flag and no evidence line on the fallback card; "… No fix proposed." at first sight.
+- **I9** (review pass): `/state` says `onlineDemo`; the headline ends " ET" in the card and in the announcement, and the top time stays a page time.
+- **I10** (review pass): six cards make the list scroll; scrolled up, a new card shows New messages and the press focuses it.
 
 **Commands:**
 
@@ -311,11 +359,39 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | 10 | the card root loses `data-part` | I7 (focus falls to main) |
 | 11 | the view reads `payload.evidence.items` without a guard | `incident-view.test` (absent parts throw) |
 
+**Measured (implement stage, 2026-10-27).**
+- `live floor` (tag `e6s1i`): PASS, 109 passed (I1-I8 included, I1 in all three projects), Playwright 5.0 min, 385 s wall from the command to the lock release, against the 540 s deadline. The run before the selector fix (4 failures, all in I1/I2) took 365 s wall.
+- Review pass: I9 (the online demo's " ET" through the page) and I10 (New messages focuses an incident card that lands while the list is scrolled up) added; `live floor` 111 passed, 397 s wall (Playwright 5.2 min).
+- `(once)` runs after the last patch: `test-web-build.sh` passed; `shard lane-b` passed (58 classes, 191 s); `live sign-in` passed (217 cases, 447 s wall, under its 540 s deadline); `live demo-path` passed (93 s; 04 and 05 `11.1` parts skipped); `bash ci/checks.sh` exit 0 (its boundaries check made the three literal non-ASCII characters of `incident.spec.ts` escapes).
+- `npm --prefix web test`: 763 pass. `npm --prefix web run lint`: exit 0. `OcuTalon.Test.Core.WebChatOut` (warm): passed.
+
+**Demonstrated mutations (Rule 19).** Each was applied, observed red, reverted from a backup, and `git diff --stat` was identical after.
+- mutation: `WebChatOut.CARDKINDS` gains `incident` -> red `TestIncidentKindsRecordOnly` (AC3)
+- mutation: `chatView` skips an incident whose payload has no `traceTargets` -> red `chat-view.test` (AC2)
+- mutation: the headline keeps a final period -> red `incident-view.test` (AC4)
+- mutation: the fix sentence no longer removes a trailing "Approve?" from `fixSummary` -> red `incident-view.test` (AC4)
+- mutation: `messageTime` ignores `onlineDemo` -> red `page-time.test` (AC5)
+- mutation: `pageWhenBeside` drops the zone suffix -> red `page-time.test` (AC5)
+- mutation: the bar ignores `state` (always attention) -> red `incident-view.test` (AC6)
+- mutation: a closed card does not compact -> red `incident-view.test` (AC6)
+- mutation: `announcementOf` announces count changes too -> red `chat-announcements.test` (AC7)
+- mutation: the first look announces -> red `chat-announcements.test` (AC7)
+- mutation: "Held as..." shown without a pending request -> red `incident-view.test` (AC8)
+- mutation: `more` uses `noticeCount - count` -> red `incident-view.test` (AC9)
+- mutation: the view reads `evidence.items` without a guard -> red `incident-view.test` (AC11)
+- mutation: the card keeps the first payload it rendered (`incidentView(this.firstSeen ??= this.incident(), ...)`) -> red `live floor` I2, I3 and I7 (AC1; the review pass, one floor run)
+- mutation: `ChatPanel.onlineDemo` always false -> red `live floor` I9 (AC5, the page wiring of " ET")
+- mutation: `noteArrivals` gives an incident card the part `user` -> red `live floor` I10 (New messages focus; the same run as the AC1 mutation)
+- mutation: the card's `article` loses `tabindex="-1"` -> red `live floor` I7 and I10 (AC10: focus stays off the card; run of its own). The planned mutation (the root loses `data-part`) is not used, because every case that finds the card by `data-part` would go red with it.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Plan stage only ("Halt after planning."): the spec passed the READY-FOR-DEVELOPMENT gate on its first check and the HALT followed it. Nothing was implemented, committed or pushed.
-- Task 0 measured on slot B (`ocutalon-slot-b`, build 154, `OCUTALON`): the `Incident` payload's `%JSONImport`/`%JSONExportToString` round trip (Verification). No other runtime was touched.
-- For the runner: veto-window choices V1 and V2 (Design Notes), and two cross-lane `deferred:` items (the snapshot's incident parts; the CauseCategory/Element values). Ledger inbox: none.
+- Summary: each incident Ref is one card in the chat, updated in place from the store's `incident` payload. The card has the state chip with the page time, the headline (instance time, " ET" on the online demo), the more, cause, evidence, fix and fixing lines, an inline Show details evidence panel, and the diagnosis decision's strip as footer. The bar follows the state, a closed card compacts, and the chat announces a new incident and each state change once. `WebChatOut` names its incident kinds as `INCIDENTKINDS` (record-only), with its own test.
+- Files changed: `web/src/app/incidents/{incident-view,incident-card,evidence-panel}.ts` (new: view model and texts, card, panel); `web/src/app/chat/{chat-view,chat-panel,chat-announcements,page-time}.ts` (incident entries, rendering, announcements, `messageTime` and `pageWhenBeside`); `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls` and `Test/Core/WebChatOut.cls` (`INCIDENTKINDS`, `TestIncidentKindsRecordOnly`); `web/scripts/{incident-view (new),page-time,chat-view,chat-announcements,ux-strings,announce-focus-sources}.test.mjs`; `web/e2e/support/iris.ts` (`publishIncident`); `web/e2e/floor/incident.spec.ts` (new, I1-I10).
+- Review (36 findings): patches applied 4 (I9 and I10 added for the online demo's " ET" and the New messages focus, medium x2; the AC1 and AC10 mutations demonstrated, low; a garbled mutation line, low); deferred 0 beyond the plan's two cross-lane items; rejected 32, each with its reason in the triage log (mostly unreachable edge cases of payloads no producer makes, and plan-specified behaviour).
+- Follow-up review recommended: true. Two medium patches were applied (both new floor cases, no source change); the unverified risk is the floor's added time (111 cases, 397 s wall) and I10's reliance on six published cards to make the list scroll.
+- Verification: `npm --prefix web test` 763 pass; lint exit 0; `OcuTalon.Test.Core.WebChatOut` passed (warm, and inside `shard lane-b`, 58 classes); `live floor` 111 passed, 397 s; `live sign-in` 217 passed, 447 s; `live demo-path` passed; `test-web-build.sh` and `ci/checks.sh` passed. Mutations: 13 unit-level and 4 floor-level demonstrated red and reverted byte-identical.
+- Residual risks: the snapshot carries no groups, requests, evidence or trace targets (deferred item 1), so a reloaded card shows no request, evidence or diagnosis link until the next event; `live floor` is at about 397 s of 540 s.

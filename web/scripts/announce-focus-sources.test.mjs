@@ -83,12 +83,13 @@ describe('the page speaks only through the Announcer', () => {
     assert.match(stack, /this\.announcer\.announce\(banner\.text\)/);
   });
 
-  it('announces from one place per event: the rail, the header and the reply, card and message components do not announce', () => {
+  it('announces from one place per event: the rail, the header and the reply, card (notice and incident) and message components do not announce', () => {
     // A story that makes one of these announce moves the event's announcement from the chat or the control that owns it, so that the
     // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason. The guide announces an advance and the
     // box announces "Sent" (Story 4.4): nothing else announces either.
-    const silent = files.filter((one) => /^app\/(rail|header)\//.test(one.name) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts'].includes(one.name));
-    assert.ok(silent.length >= 6, 'the silent files are found');
+    const silent = files.filter((one) => /^app\/(rail|header)\//.test(one.name) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
+    assert.ok(silent.length >= 8, 'the silent files are found');
+    assert.ok(silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is among them');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
