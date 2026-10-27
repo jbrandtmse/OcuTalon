@@ -2,7 +2,7 @@ Include Ensemble
 
 /// The reminder logic of the frozen ReminderTimer waiter and of ReminderOps (AD-5, AD-18, AD-32). The Reminder row is the truth and the
 /// waiter mirrors it.
-///   - Accepts says which SetReminder commands ReminderOps carries out; SecondsUntil, IsLate and Notification are pure;
+///   - Resolve is the due-form rule of a SetReminder, which ReminderOps applies; SecondsUntil, IsLate and Notification are pure;
 ///   - Start is the waiter's OnRequest: it stores the waiter's start header id on the pending row (the target of the row's trace link),
 ///     sets the timer for the time until DueAt (key due) and replies to the start, so that ReminderOps returns while the waiter keeps
 ///     waiting. For a row that is missing or not pending it only replies;
@@ -25,17 +25,35 @@ Parameter LATESECONDS = 10;
 /// The item that carries Notifications to the channels.
 Parameter NOTIFYITEM = "Notify";
 
-/// 1 when ReminderOps carries out the command: a SetReminder with a non-blank Text, a DueAt that Data.Time reads and that is later than
-/// now, and neither DelaySeconds nor LocalDueAt. Anything else, another due form or a refusal included, is not carried out here.
-ClassMethod Accepts(command As %RegisteredObject, now As %String = {##class(OcuTalon.Data.Time).NowUtc()}) As %Boolean
+/// The due-form rule of a SetReminder, pure: "" with dueAt set to the UTC due time (YYYY-MM-DDThh:mm:ssZ), or one refusal code, the
+/// first of these that holds, in this order:
+///   - no_text: the Text is blank after stripping whitespace;
+///   - due_forms: not exactly one of DueAt, DelaySeconds and LocalDueAt is set;
+///   - bad_time: the one form cannot be read: a DueAt that Data.Time.Seconds cannot read, a DelaySeconds that is not an optionally
+///     signed whole number or whose AddSeconds result is "", or a LocalDueAt that Data.Time.FromLocal gives "" for;
+///   - past: the due time is not later than now, a DelaySeconds of 0 or less included.
+/// DelaySeconds counts from now, and LocalDueAt is read in the instance zone. dueAt is "" for a refusal.
+ClassMethod Resolve(command As OcuTalon.Msg.Command.SetReminder, now As %String = {##class(OcuTalon.Data.Time).NowUtc()}, Output dueAt As %String) As %String
 {
-	If '$IsObject(command) || ($ClassName(command) '= "OcuTalon.Msg.Command.SetReminder") Quit 0
-	If $ZStrip(command.Text, "<>W") = "" Quit 0
-	If (command.DelaySeconds '= "") || (command.LocalDueAt '= "") Quit 0
-	Set due = ##class(OcuTalon.Data.Time).Seconds(command.DueAt)
+	Set dueAt = ""
+	If $ZStrip(command.Text, "<>W") = "" Quit "no_text"
+	If ((command.DueAt '= "") + (command.DelaySeconds '= "") + (command.LocalDueAt '= "")) '= 1 Quit "due_forms"
+	If command.DueAt '= "" {
+		Set due = command.DueAt
+	} ElseIf command.DelaySeconds '= "" {
+		Set delay = command.DelaySeconds
+		If delay '? .1(1"+",1"-")1.N Quit "bad_time"
+		Set due = ##class(OcuTalon.Data.Time).AddSeconds(now, +delay)
+	} Else {
+		Set due = ##class(OcuTalon.Data.Time).FromLocal(command.LocalDueAt)
+	}
+	Set dueSeconds = ##class(OcuTalon.Data.Time).Seconds(due)
+	If dueSeconds = "" Quit "bad_time"
+	If (command.DelaySeconds '= "") && (+command.DelaySeconds < 1) Quit "past"
 	Set current = ##class(OcuTalon.Data.Time).Seconds(now)
-	If (due = "") || (current = "") Quit 0
-	Quit (due > current)
+	If (current = "") || (dueSeconds '> current) Quit "past"
+	Set dueAt = due
+	Quit ""
 }
 
 /// The whole seconds from now until dueAt, at least 1 (also for a time that is past or unreadable).

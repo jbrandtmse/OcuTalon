@@ -1,5 +1,5 @@
 /// A subclass of OcuTalon.Schedule.ReminderOps for the tests, which overrides its private seam StartWaiter: the waiter never starts and
-/// the seam answers an error status. Everything else, the handled set, the row and its removal and the answer, is the real one. The
+/// the seam answers an error status. Everything else, the three verbs, the row and its removal and the answer, is the real one. The
 /// product never refers to it.
 Class OcuTalon.Test.Schedule.ReminderOpsProbe Extends OcuTalon.Schedule.ReminderOps
 {

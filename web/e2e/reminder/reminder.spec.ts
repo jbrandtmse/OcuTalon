@@ -12,13 +12,19 @@ import { TRACE_PAGE, drawnMessages, openTrace, signOutTrace } from '../support/t
  *   - the reminder's row in Reminders, from the real data, with the trace link of its waiter: the link opens Visual Trace on the waiter's
  *     own session, as a trace-role user in a context of its own, and the page draws the start and the timer messages;
  *   - when the reminder is due, within the bound below, the row gone and one notice card `Reminder: <text>.`
- * The bound is generous, because CI asserts order and outcome and never seconds. The test removes the reminder and everything the product
+ * Story 8.4, a cancelled reminder leaves the rail within one live update: the rail user's session gets a reminder due in 300 seconds, the
+ * row shows, the product's own cancel path (ReminderFixture.Cancel submits a CancelReminder through Commands.Submit under a bridge context)
+ * cancels it, and the row is gone without a reload.
+ * The bound is generous, because CI asserts order and outcome and never seconds. Each test removes the reminder and everything the product
  * made for it (ReminderFixture.Remove). The browser runs in UTC with the en-GB locale, the stack's own zone.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
 /** Seconds from setting the reminder to its due time. */
 const DUE_SECONDS = 25;
+
+/** Seconds to the due time of the reminder that the second test cancels: it never fires. */
+const LONG_DUE_SECONDS = 300;
 
 /** How long the row may take to show after the page has loaded. */
 const ROW_MS = 15_000;
@@ -80,4 +86,36 @@ test('a reminder shows in the rail with its trace link and fires as a notice car
   await expect(row, 'the row leaves when the reminder is due').toHaveCount(0, { timeout: Math.max(dueAt - Date.now(), 0) + CARD_MS });
   await expect(card, 'and one notice card shows').toHaveCount(1, { timeout: CARD_MS });
   await expect(card).toContainText(`Reminder: ${text}.`);
+});
+
+test('a cancelled reminder leaves the rail within one live update', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { user, password } = fixtureUser('RAIL');
+  const text = unique('cancelled');
+
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      `Set j=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(s.Ref,${quoted(text)},${LONG_DUE_SECONDS})`,
+      'Write !,"CHK|ref|",j.ref',
+      'Write !,"CHK|ok|",j.ok',
+    ].join('\n'),
+  );
+  ref = chk(lines, 'ref') ?? '';
+  expect(chk(lines, 'ok'), `the reminder is set (${lines.join(' ')})`).toBe('1');
+
+  await signIn(page, user, password);
+  const row = rowOf(page, text);
+  await expect(row, "the reminder's row shows in Reminders").toHaveCount(1, { timeout: ROW_MS });
+
+  const cancelled = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      `Set j=##class(OcuTalon.Test.Schedule.ReminderFixture).Cancel(s.Ref,${quoted(ref)})`,
+      'Write !,"CHK|cancel|",j.ok,"|",j.outcome',
+    ].join('\n'),
+  );
+  expect(chk(cancelled, 'cancel'), `the reminder is cancelled (${cancelled.join(' ')})`).toBe('1|cancelled');
+
+  await expect(row, 'the row leaves the rail without a reload').toHaveCount(0, { timeout: ROW_MS });
 });

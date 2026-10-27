@@ -1,11 +1,58 @@
-/// The one helper of the reminder tests that sets and removes a product-made reminder (Story 8.3), for the unit tests of
-/// OcuTalon.Test.Schedule.Reminders and for the browser spec (web/e2e/reminder/reminder.spec.ts), which runs it through irisScript. It has
-/// no Test methods and the product never refers to it.
-///   - Set submits a SetReminder for a session through Commands.Submit under a bridge context of the session, as the chat's tool does, and
-///     returns what the test needs to know about the reminder and its waiter;
-///   - Remove deletes the reminder and everything the product made for it.
+/// The one helper of the reminder tests that sets, cancels and removes a product-made reminder (Stories 8.3 and 8.4), for the unit tests
+/// of OcuTalon.Test.Schedule.Reminders and for the browser spec (web/e2e/reminder/reminder.spec.ts), which runs it through irisScript. It
+/// has no Test methods and the product never refers to it.
+///   - Begin starts the bridge context of a session as a chat tool call has it (OwnerRef the session, ItemId, SuperSession its TraceRef);
+///     the caller ends it with Bridge.Context.End;
+///   - Submit sends a command through Commands.Submit under such a context and ends it;
+///   - Set submits a SetReminder for a session and returns what the test needs to know about the reminder and its waiter;
+///   - Cancel submits a CancelReminder for a session and returns the answer;
+///   - Remove cancels the reminder if it is pending, waits for its waiter to end, and deletes the reminder and everything the product
+///     made for it;
+///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting.
 Class OcuTalon.Test.Schedule.ReminderFixture Extends %RegisteredObject
 {
+
+/// Starts the bridge context of the session as a chat tool call has it: OwnerRef the session, ItemId the given one (by default a fresh
+/// zzitem<n>) and SuperSession the session's TraceRef. An error status when the session does not exist. The caller ends the context.
+ClassMethod Begin(sessionRef As %String, itemId As %String = "") As %Status
+{
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, "There is no session " _ sessionRef)
+	Set begin = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set begin.OwnerRef = sessionRef
+	Set begin.ItemId = $Select(itemId '= "": itemId, 1: "zzitem" _ $Increment(^OcuTalonTest("ReminderFixture", "item")))
+	Quit ##class(OcuTalon.Bridge.Context).Begin(begin, session.TraceRef)
+}
+
+/// Sends the command through Commands.Submit under the bridge context of the session (Begin) and ends the context before it returns.
+/// Returns the CommandResult, or "" when the session does not exist or Submit gives an error.
+ClassMethod Submit(sessionRef As %String, command As OcuTalon.Msg.Command) As OcuTalon.Msg.CommandResult
+{
+	Set result = ""
+	If $SYSTEM.Status.IsError(..Begin(sessionRef)) Quit ""
+	Try {
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .result)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+		Set result = ""
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit result
+}
+
+/// Cancels the reminder with the Ref for the session, with the key (by default a fresh zzcan<n>). Returns {ok, outcome, message, ref,
+/// dueAt}: the CommandResult's members, or ok 0 with an empty outcome when no answer came back.
+ClassMethod Cancel(sessionRef As %String, ref As %String, key As %String = "") As %DynamicObject
+{
+	Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
+	Set command.SessionRef = sessionRef
+	Set command.ReminderRef = ref
+	Set command.IdempotencyKey = $Select(key '= "": key, 1: "zzcan" _ $Increment(^OcuTalonTest("ReminderFixture", "cancel")))
+	Set result = ..Submit(sessionRef, command)
+	If '$IsObject(result) Quit {"ok": 0, "outcome": "", "message": "", "ref": "", "dueAt": ""}
+	Quit {"ok": (+result.Ok), "outcome": (result.Outcome), "message": (result.Message), "ref": (result.Ref), "dueAt": (result.DueAt)}
+}
 
 /// Sets a reminder of the session with the text, due that many seconds from now. Returns {ok, outcome, ref, dueAt, traceHeaderId,
 /// alarmHeaderId}: the CommandResult's Ok and Outcome, its Ref and DueAt, the row's TraceHeaderId, and the id of the ReminderTimer to
@@ -14,24 +61,13 @@ Class OcuTalon.Test.Schedule.ReminderFixture Extends %RegisteredObject
 ClassMethod Set(sessionRef As %String, text As %String, seconds As %Integer) As %DynamicObject
 {
 	Set found = {"ok": 0, "outcome": "", "ref": "", "dueAt": "", "traceHeaderId": "", "alarmHeaderId": ""}
-	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
-	If '$IsObject(session) Quit found
 	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
 	Set command.SessionRef = sessionRef
 	Set command.Text = text
 	Set command.IdempotencyKey = "zzrem" _ $Increment(^OcuTalonTest("ReminderFixture", "n"))
 	Set command.DueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
-	Set begin = ##class(OcuTalon.Bridge.Msg.Request).%New()
-	Set begin.OwnerRef = sessionRef
-	Do ##class(OcuTalon.Bridge.Context).Begin(begin, session.TraceRef)
-	Try {
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .result)
-	} Catch exception {
-		Set sc = exception.AsStatus()
-		Set result = ""
-	}
-	Do ##class(OcuTalon.Bridge.Context).End()
-	If $SYSTEM.Status.IsError(sc) || '$IsObject(result) Quit found
+	Set result = ..Submit(sessionRef, command)
+	If '$IsObject(result) Quit found
 	Set found.ok = +result.Ok
 	Set found.outcome = result.Outcome
 	Set found.ref = result.Ref
@@ -44,7 +80,8 @@ ClassMethod Set(sessionRef As %String, text As %String, seconds As %Integer) As 
 	Quit found
 }
 
-/// Removes the reminder with the Ref and what the product made for it, whatever its state:
+/// Removes the reminder with the Ref and what the product made for it, whatever its state. A pending reminder is first cancelled
+/// through Cancel, which ends its waiter. Then Remove waits at most 10 seconds until no ReminderTimer with the Ref is waiting, and:
 ///   - the session's web Delivery rows of kind reminder with the reminder's DueAt;
 ///   - the session's phone Delivery rows of kind reminder recorded since the reminder was created, with their SimMessages;
 ///   - the headers of the waiter's trace session (its TraceHeaderId), with their bodies and their event-log, rule-log and I/O-log rows;
@@ -53,6 +90,15 @@ ClassMethod Set(sessionRef As %String, text As %String, seconds As %Integer) As 
 /// It does nothing for a Ref that has no row.
 ClassMethod Remove(ref As %String)
 {
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	If '$IsObject(row) Quit
+	If row.State = "pending" {
+		Set owner = row.SessionRef
+		Set row = ""
+		Do ..Cancel(owner, ref)
+	}
+	Set row = ""
+	Do ..WaitEnded(ref, 10)
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
 	If '$IsObject(row) Quit
 	Set id = row.%Id(), session = row.SessionRef, dueAt = row.DueAt, createdAt = row.CreatedAt, trace = row.TraceHeaderId
@@ -81,6 +127,42 @@ ClassMethod Remove(ref As %String)
 		Do ##class(OcuTalon.Schedule.ReminderTimer).%DeleteId(at)
 	}
 	Do ##class(OcuTalon.Data.Reminder).%DeleteId(id)
+}
+
+/// The ReminderTimer instances with the Ref, as an array of their ids.
+ClassMethod Timers(ref As %String) As %DynamicArray
+{
+	Set ids = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Schedule.ReminderTimer WHERE Ref = ?", ref)
+	While result.%Next() {
+		Do ids.%Push(result.%Get("ID"))
+	}
+	Quit ids
+}
+
+/// 1 when the ReminderTimer is waiting: not completed, not terminated, and still waiting for a response.
+ClassMethod IsWaiting(id As %String) As %Boolean
+{
+	Set timer = ##class(OcuTalon.Schedule.ReminderTimer).%OpenId(id)
+	If '$IsObject(timer) Quit 0
+	Quit 'timer.%IsCompleted && 'timer.%IsTerminated && (timer.%MasterPendingResponses.Count() > 0)
+}
+
+/// Waits until no ReminderTimer with the Ref is waiting any more (a completed waiter is deleted by the framework), for at most seconds.
+/// Answers 1 when none is.
+ClassMethod WaitEnded(ref As %String, seconds As %Integer) As %Boolean
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set timers = ..Timers(ref)
+		Set waiting = 0
+		For i = 0:1:timers.%Size() - 1 {
+			If ..IsWaiting(timers.%Get(i)) Set waiting = waiting + 1
+		}
+		If 'waiting || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit 'waiting
 }
 
 /// Deletes every header of the trace session with its body and the session's event-log, rule-log and I/O-log rows.

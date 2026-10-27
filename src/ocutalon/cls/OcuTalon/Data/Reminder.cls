@@ -30,6 +30,12 @@ Property CreatedAt As %String(MAXLEN = 20);
 /// Empty until the waiter has started.
 Property TraceHeaderId As %Integer;
 
+/// The IdempotencyKey of the SetReminder that created the row, or empty (AD-1). A repeat of that command is answered from this row.
+Property IdempotencyKey As %String(MAXLEN = 128);
+
+/// The IdempotencyKey of the CancelReminder that cancelled the row, or empty (AD-1). A repeat of that command is answered from this row.
+Property CancelKey As %String(MAXLEN = 128);
+
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefIndex On SessionRef;
@@ -63,6 +69,12 @@ Storage Default
 </Value>
 <Value name="9">
 <Value>TraceHeaderId</Value>
+</Value>
+<Value name="10">
+<Value>IdempotencyKey</Value>
+</Value>
+<Value name="11">
+<Value>CancelKey</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.ReminderD</DataLocation>

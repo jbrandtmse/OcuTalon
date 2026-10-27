@@ -15,7 +15,7 @@
 #     every target keeps the job it had; then the same for every enabled stub with a pool, so that no stub kills its job on a
 #     request;
 #   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context, and
-#     CommandsIn answers both with ReminderOps' plain-English not_built result (status OK, Ok 0) after sending the command from
+#     CommandsIn answers both with ReminderOps' plain-English refusal (the command names no session) (status OK, Ok 0) after sending the command from
 #     CommandsIn to ReminderOps; an origin outside the enumeration is refused naming it;
 #   - row 18, the Running branch: the Production step run on the running production starts every item with a pool again;
 #   - row 21, an item that cannot start: with a WatchOps whose OnInit fails the step fails naming WatchOps, and with the
@@ -192,8 +192,8 @@ fi
 # --- row 17: Submit, live ---
 
 check_session "row 17: Submit reaches CommandsIn with the origin of the caller, tool inside a context, and refuses a bad origin" OCUTALON \
-  "CHK|submit-user|1|0|not_built|web_user
-CHK|submit-tool|1|0|not_built|tool
+  "CHK|submit-user|1|0|refused|web_user
+CHK|submit-tool|1|0|refused|tool
 CHK|submit-zz|1|1|web_admin
 CHK|commandsin-sent|1" \
   'Set sql="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = ?" Set rs=##class(%SQL.Statement).%ExecDirect(,sql,"CommandsIn","ReminderOps","OcuTalon.Msg.Command.ListReminders") Do rs.%Next() Set before=rs.%GetData(1)' \

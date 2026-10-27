@@ -59,6 +59,28 @@ ClassMethod ToLocal(utc As %String) As %String
 	Quit $Translate($ZDateTime(horolog, 3, 1), " ", "T")
 }
 
+/// A local time, exactly YYYY-MM-DDThh:mm:ss with no zone, read in the instance zone (the zone of the process), as the UTC time
+/// YYYY-MM-DDThh:mm:ssZ: the only local-to-UTC converter (AD-18). The conversion is $ZDateTime(<local Horolog>, -3). A local time
+/// that the zone skips (the hour a daylight-saving change leaves out) is read one hour later: 02:30 on the spring-forward day in
+/// America/New_York is 03:30 EDT, 07:30:00Z. A local time that the zone has twice (the hour a daylight-saving change repeats) is
+/// read at its first instant: 01:30 on the fall-back day in America/New_York is 05:30:00Z. Returns "" for an empty or unreadable
+/// value (an impossible date or hour included), for any other form, and for a result outside the range that Seconds counts.
+ClassMethod FromLocal(local As %String) As %String
+{
+	If $Get(local) '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N Quit ""
+	Set utc = ""
+	Try {
+		Set horolog = $ZDateTimeH($Translate(local, "T", " "), 3, 1)
+		If horolog '= "" {
+			Set utc = $Translate($ZDateTime($ZDateTime(horolog, -3), 3, 1), " ", "T") _ "Z"
+		}
+	} Catch {
+		Set utc = ""
+	}
+	If ..Seconds(utc) = "" Quit ""
+	Quit utc
+}
+
 /// A UTC time as message text, in the instance zone, relative to the local date of now (UTC, default NowUtc()):
 /// "14:12" on the same local date, "Thursday at 14:12" from 1 to 6 days before or after, "Oct 9 at 14:12" from 7 days on,
 /// and "Dec 30, 2025 at 10:00" in another year. The local date decides, not the distance in hours. The text has no zone
