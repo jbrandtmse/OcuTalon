@@ -1141,6 +1141,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SettingsOps.Carry writes the value before RunStep; Install.Step.Demo.Plan answers error for on + a foreign namespace (AD-3); Install.Registry.Run stops at the first failed step (Demo precedes Production, Ready). Reachable on an IPM install into an instance with its own OCUORDERS.
 - 2026-10-25T15:36:14Z status=decision-pending owner=burndown by=cr note=product call (matrix row Step fails keeps the value; any fix needs new terminal text, V2): refuse the on switch before audit and write when Plan says error
 - 2026-10-27T05:39:36Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=unattended note=decision_sheet(Epic_4_merge_gate)_veto_U-106:_SetDemoMode_refuses_the_on-switch_before_audit_and_write_when_Install.Step.Demo.Plan_answers_error,_one_new_terminal_line;_15.2_proves_it_on_its_IPM_install_into_an_existing_instance
+- 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
 
 ### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
