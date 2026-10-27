@@ -251,3 +251,5 @@
 2026-10-27T05:26:38Z	Epic 4	epic_status_done	stories=7
 2026-10-27T05:26:38Z	Epic 4	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=4.14(first_reviews) unresolved_high_med_avg=0.43 metric=unresolved rework_stories=3(4.1_ci_x2,4.4_ci,4.5_ci) review_loop_thrash=0 rework_lang_defects=0 review_high=1 review_med=30 result=hold applied=false policy=record_only
 2026-10-27T05:26:38Z	Epic 4	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-27T05:31:09Z	Epic 4	integrated_forward	feature=93e049a head=f26e7d9 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(theirs+SPRINT_PLAN_generate+--set_epic-4_and_4-1..4-7=done) code_tree=identical_to_8b858ae(CI_green_all_groups) checks_on_merged_tree=ci/checks.sh,web_test_691,payloads_--check,live_demo-path(e4ints:2/6_steps_ran,floor_7/7,0_failed) spine_lint=baseline(5_low) ledger_union=ok(211,no_dup_ids)
+2026-10-27T05:31:09Z	Epic 4	epic_runner_complete	stories_completed=7 ledger=open_before=4,resolved=1,terminal=1,chartered=0,overflow=1,to_decision_sheet=1,drain_ratio=0.88 decisions_for_user=DW-207
