@@ -2,7 +2,7 @@
 title: 'Story 6.2: Approve or reject a fix from the web chat'
 type: 'feature'
 created: '2026-10-27'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -217,10 +217,10 @@ deferred:
      - an error: `ServerError`.
    - Add the three message parameters (Texts).
    - Correct the class doc's clause at L19-20 about this route.
-7. `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` -- **only after the runner's ruling (Blocking condition)**:
-   - L686-690: each visible approval, called with no body, answers "400 Bad Request" with the `bad_answer` body;
-   - L642-645: the doc sentence says so.
-   - Nothing else in the file changes.
+7. `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` -- **allowed by the orchestrator's ruling Q1 (Design Notes, Orchestrator rulings)**:
+   - L686-689, the `For ref = ownApproval, instanceApproval` loop only: each visible approval, called with no body, answers "400 Bad Request" with the `bad_answer` body;
+   - L642-645: the approval half of the doc sentence says so.
+   - Nothing else in the file changes (the 404 loops, the incident-vs-approval 404, both onlineDemo checks and the visible-incident `DismissIncident` loop stay). New endpoint tests go in a new class.
 8. `src/ocutalon/cls/OcuTalon/Test/Core/ApprovalDouble.cls`, `AnswerOpsProbe.cls` and `AnswersInProbe.cls` (new). They add nothing to the product's surface.
    - `ApprovalDouble.Answer(ref, action, channel, irisUser, sessionRef, .winner)` returns the result scripted under `^OcuTalonTest("ApprovalDouble", run)` (default `done`) with Epic 0's winner shape, and records each call's arguments. It changes no row.
    - `AnswerOpsProbe Extends AnswerOps` sets `APPROVALAPI` to the double.
@@ -316,6 +316,8 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-10-27, runner (spec validation): the plan halted `blocked` on a contended-path edit (`Test/Web/Api.cls`, Epic 16). The orchestrator ruled Q1-Q4 (Design Notes, Orchestrator rulings): the visible-approval loop may be replaced; 6.4 may replace the dismiss loop later; the AD-33 item row and the REST row were written into the spine by the runner. Status reset to `ready-for-dev` (the plan was otherwise complete).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -339,6 +341,12 @@ deferred:
 - **AD-33** (L865-873): a new item goes into the ownership tables in the same change (spine update below).
 - **Conventions** (L912-943): Production item names, Messages, Identifiers, Times, REST (Veto V3), Announcements and focus, Text OcuTalon sends, Approval requests, Audit entries, Angular, Tests.
 - No AC contradicts an AD's Rule, and no NFR trips Rule 5. UX-DR20's 1280×600 is a measurable layout check (Decided 9 is the means).
+
+**Orchestrator rulings (2026-10-27, policy 36abb05, all decide; recorded by the runner at spec validation):**
+- **Q1, allowed.** In `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` `TestUnseenRefIs404`, replace ONLY the `For ref = ownApproval, instanceApproval` loop (the visible-approval 501 `not_built` assertions): a bodyless post now asserts 400 `bad_answer` plus the error body. Change only the approval half of the doc sentence ("A visible ref answers 501 not_built"). Keep exactly as they are: the unseen-incident and unseen-approval 404 loops, "an incident's ref is not an approval's" 404, both onlineDemo 404 checks, and the visible-incident `DismissIncident` loop (until 6.4). The new endpoint's own HTTP tests go in a NEW test class (preferred); if one must go in `Test/Web/Api.cls`, add one self-contained block at the END of the file (Epic 16 also appends at the end and adds one line near L21: a plain union at integrate-forward). The runner reports the file under `footprint_extensions`.
+- **Q2 (for 6.4, in advance).** 6.4 may replace only the visible-incident `DismissIncident` loop and the incident half of the doc sentence, on the same terms.
+- **Q3.** The AD-33 Production items row `AnswerOps` | `OcuTalon.Core.AnswerOps` | B is compliance with AD-33's own Rule, written by the runner as its own new row (done at spec validation). The item's `Production.cls` entry goes in Lane B's XData region; its `Test/Core/ProductionItems.cls` row is shared by entry (add this story's row only).
+- **Q4.** The Conventions REST row is extended with U-115's codes and bodies, marked `[AMENDED 2026-10-27, Story 6.2 spec validation, Epic 6 runner, veto U-115 ...]` (done at spec validation). Implement against that row.
 
 **Spine update for the runner** (Rule 20 light path; AD-33 requires it): add the row `AnswerOps` | `OcuTalon.Core.AnswerOps` | B to the Structural Seed's Production items table, and update the REST convention row as in Veto V3.
 
@@ -405,7 +413,7 @@ deferred:
   - `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts` (generated), `web/src/app/icon/icon.ts`;
   - `web/scripts/{catalog,ux-strings,announce-focus-sources,incident-sources}.test.mjs`, `web/scripts/{approval-view,approval-sources}.test.mjs` (new);
   - `web/e2e/support/iris.ts`, `web/e2e/floor/approval.spec.ts` (new).
-- **contended (blocked):** `Test/Web/Api.cls` L642-645 and L686-690 (Epic 16).
+- **contended, allowed by ruling Q1:** `Test/Web/Api.cls` (Epic 16): only the visible-approval loop (L686-689) and the approval half of the doc sentence (L642-645); new endpoint tests in a new class, or one block appended at the end.
 - No new CI unit, group or workflow: the Test/Core classes join shard `lane-b` automatically (`ci/units.sh` L18, `ci/iris.sh` L134-142), and the floor spec joins `live floor`.
 
 **Extend, don't copy (Rule 2):**
@@ -513,8 +521,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: contended-path edit. Story 6.2 has to change `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls`, which is in Epic 16's `Test/{Web,Data}/**`. There, `TestUnseenRefIs404` (L686-690, doc L642-645) asserts that answering a visible approval returns 501 not_built. Building the endpoint (AC: 200/409/404/403) turns that assertion red. Fixing it means editing an existing assertion, which is neither a new class nor an appended block. Recommended ruling: let Epic 6 replace that one 5-line loop with the new shape (each visible approval, posted with no body, answers 400 `bad_answer` with the error body) and correct that doc sentence for approvals. Nothing else in the file changes. The spec is otherwise complete; on that ruling, set `status: ready-for-dev` and dispatch the implement stage.
+Status: ready-for-dev
+Blocking condition: none (the plan's contended-path halt was resolved by the orchestrator's ruling Q1, recorded under Design Notes)
 
 - Plan: the endpoint through `AnswersIn` (session from the CSP session, who-may-answer) and a new `AnswerOps` business operation that calls `Approval.Answer` in a production job (DW-68). The approval request card with the dry run, the shared busy rule, the answered and late-press statuses from the catalog, and a 1280×600 floor check. DW-113, DW-199 and DW-98 are pinned in three new Test/Core classes.
 - For the runner: Veto-window choices V1-V5, and the spine update (the AD-33 item row and the REST row of V3).
