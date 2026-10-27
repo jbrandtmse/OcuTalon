@@ -51,6 +51,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Clean() in Test.Web.Install, Test.Web.Shell and Test.Install.Users, and CreateRoles in Test.Web.Install and Test.Install.Users, repeat one pattern with their own prefixes, 6 to 12 lines each
 - 2026-10-19T06:11:53Z status=wontfix-accepted owner=0-3-sign-in-to-an-empty-ocutalon-page by=cr note=reopen_if=a fourth test class repeats the delete-by-prefix or CreateRoles helper (then extract one OcuTalon.Test fixture class)
+- 2026-10-24T15:47:10Z occurrence=3-1-roles-and-the-service-user-grant-only-what-the-architecture
+- 2026-10-24T15:47:10Z status=wontfix-accepted owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=4th copy: Test.Install.Registry Clean deletes ZzRegistry users by prefix; extraction spans Lane B Test.Web. reopen_if=a 5th test class repeats it
 
 ### DW-9: flake: OcuTalon.Test.Install.Users:TestEnsureCreates read an empty password hash once (1 of 7 runs on slot A), then passed on 3 unchanged reruns
 - source: fresh_check 0.3 | severity: med | fix-risk: low | footprint: in-epic
@@ -63,6 +65,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Bridge.Installer, Step.Audit and Bridge.Audit.Write never read Security.System AuditEnabled; build 154 has it on by default (measured), an existing instance may not
 - 2026-10-19T08:48:58Z status=routed owner=3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=harvest note=Audit step warns plainly (log warning + a status the security overview and README point to); never changes the setting (AD-17; Contest Planner 2026-10-19)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=Audit_step_warns_when_instance_auditing_is_off_and_records_on/off/unknown_in_the_status_mark_instanceAuditing;never_changes_the_setting;Test.Install.Audit(4_tests,mutations)+live_audit_AD-17_row
 
 ### DW-11: AC5 (each Storage block equals the compiler's output) is checked once by a load-compile-export round trip, not by a recurring CI check
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: in-epic
@@ -416,6 +419,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
 - 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
+- 2026-10-26T15:16:47Z status=routed owner=18-3-choose-models-and-set-budgets-in-settings by=orchestrator note=M7: Catalog.Core is Lane B's; the criterion moved to Story 18.3 (relaunch planning, the Contest Planner under the owner's delegation)
 
 ### DW-101: Timeouts.Apply is not atomic: a failed entry merge after Decide's TimerSeconds row is written leaves the timer changed for some runners, and two concurrent Apply calls are not serialized (no lock)
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
@@ -522,6 +526,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.10 Tools/ReminderTools TRUSTEDOUTPUT<NAME>; AD-10 3a quarantine; spine row Saved conversations
 - 2026-10-23T23:00:53Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=spec_gate note=3.3 decides whether set_reminder and cancel_reminder declare TRUSTEDOUTPUT 1 (a class parameter each)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=set_reminder+cancel_reminder_declare_TRUSTEDOUTPUT_1(ReminderTools,commit_41bf263);pinned_by_Test.Bridge.Gate_TestTaintFollowsTrustedOutput+TestWatchToolsAreClassified+Test.Tools.Reminders_want(mutation_TRUSTEDOUTPUTSETREMINDER=0->reminder-set-two_second_call_denied);veto_U-60
 
 ### DW-137: A JSON true given as set_reminder's delaySeconds reaches SetReminder as 1 (AI Hub decodes arguments before the method runs), so it sets a reminder one second ahead instead of being refused
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
@@ -537,6 +542,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/ReminderTools TRUSTEDOUTPUTLISTREMINDERS; AD-10's trusted output is 'built by code from OcuTalon's own records'
 - 2026-10-24T01:30:42Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=harvest note=unverified; 3.1/3.3 decide whether a result carrying stored model-authored text is exempt from taint (with DW-136)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=list_reminders_stays_trusted_output;set_reminder_is_not_read-only_so_it_is_denied_in_every_untrusted_or_tainted_turn(rows2-3),so_no_text_from_outside_a_user's_untainted_turn_reaches_a_Reminder_row_through_a_tool;stated_in_ReminderTools_class_comment+spine_Tool_classification_row;mutation_TRUSTEDOUTPUTLISTREMINDERS=0->reminder-cancel_denied
 
 ### DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -558,6 +564,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/WatchFixture.cls gained only STEPLABEL<NAME> in Story 1.10; spine convention 'Tool classification': an undeclared tool is unclassified
 - 2026-10-24T02:57:20Z status=routed owner=3-2-one-gate-decides-every-tool-call by=cr note=3.2 declares the watch tools' classification (event-log and message text never trusted output, AD-10) or scans for it
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=WatchFixture_declares_CLASSIFICATION/READONLY/TRUSTEDOUTPUT_per_tool(safe,1,0);pinned_by_Test.Bridge.Gate:TestWatchToolsAreClassified+TestEveryBuiltInToolIsClassified+Test.Agent.Runners(mutation_recorded);commit_c88bd3b
 
 ### DW-144: Test.Tools.Reminders.Prepare is the fifth copy of the live-test readiness helper (Test.Agent.RequestSize, Agent.Decide, Agent.Conversation, Bridge.Budget), with the CommandsIn swap added, instead of one shared helper in RunnerFixture
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
@@ -721,6 +728,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-1 :105 (amended 2026-10-19 from Story 0.6's ruling: the admin-checked endpoints and 2.3's CommandsIn own those checks); CommandsIn.cls: Role checks are not made here; AD-19 puts the admin role check in Admin.SetDemoMode
 - 2026-10-22T10:56:07Z status=decision-pending owner=burndown by=cr note=veto U7: amend the AD-1 sub-bullet to origin checks, or add a role check to CommandsIn; lead routes to orchestrator
 - 2026-10-25T11:58:31Z status=decision-pending owner=burndown by=unattended note=inbox=U-70(AD-1_re-architecture_under_U7c;recommended_a:amend_the_Submit_sub-bullet_to_as_built)
+- 2026-10-25T12:10:22Z status=resolved-by:2-3-route-every-command-by-verb-with-origin-checks owner=2-3-route-every-command-by-verb-with-origin-checks by=owner note=U-70(a):AD-1's_Submit_sub-bullet_amended_to_as_built(CommandsIn_makes_the_origin_checks;the_role_check_is_in_the_admin-checked_endpoints,AD-19);Story_4.1_already_refuses_a_non-admin_caller_before_submitting;no_code_change
 
 ### DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -780,6 +788,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: BridgeSink tests and the D6/D10 sinkEvent helper call OnEvent directly; Decide is Epic 0's stub and no Lane A emitter is merged
 - 2026-10-23T02:34:42Z status=routed owner=burndown by=harvest note=when Lane A's emitter lands: a real Decide records a decision for a session and a decision event reaches that session's stream
 - 2026-10-25T06:36:24Z status=routed owner=4-3-break-the-feed-with-a-real-batch-of-50-orders by=burndown note=Lane A's emitter has merged (Epic 1); Story 4.3's real batch makes the real Decide record decisions for a session: assert that a decision.recorded (and a turn.step) the bridge emits reaches that session's stream through BridgeSink, not only OnEvent called directly
+- 2026-10-25T22:42:32Z status=routed owner=burndown by=spec_gate note=declined_by_4.3: the decision.recorded half is met by Story 2.17's RoutingProduction and ConversationProduction (4.3 re-runs their mutation as evidence); residual: a Test/Core test that drives the real gate (Story 3.2, merged into OCT-epic4 at 3d76632) and asserts that its turn.step reaches the session stream through BridgeSink, with no bridge edit
+- 2026-10-27T05:26:00Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=burndown note=overflow (remainder 2 under the cap of 8, no repeats, so no burn-down story): Story 6.2 drives the real gate's approval path; add a Test/Core test that drives the real gate (Story 3.2) and asserts its turn.step reaches the session stream through BridgeSink, with no bridge edit (the decision.recorded half is met by Story 2.17's RoutingProduction/ConversationProduction)
 
 ### DW-99: Story 2.8's real approval.result path for a replayed tool call has no story that turns it on (epics.md:1706); Story 30.3 must turn it on
 - source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -863,6 +873,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 2.13 Decided 14: a run with every links.spec tab real left V8 drawing nothing and trace.spec T1 without a session; V3-V6 and V9-V16 stub their trace tabs to stay green
 - 2026-10-24T03:06:56Z status=escalated owner=burndown by=cr note=settle by measuring licence and gateway connections on a throwaway while trace tabs are open; 4.7 and 6.1 add real trace pages
 - 2026-10-25T11:58:31Z status=routed owner=4-7-finish-the-demo-guide by=merge_gate note=Story_4.7_adds_real_trace_pages:measure_licence_and_gateway_connections_on_a_throwaway_with_trace_tabs_open;if_tabs_hold_connections,sign_trace_tabs_out_in_the_specs;veto_U-71
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Task 0 measured on e4s7p (one licence unit per user and client address per trace session, held until sign-out or timeout; ?IRISLogout=end frees it); signOutTrace after every case that opens a real trace page, V1 relative licence pin; residual (a real visitor's trace tab holds its unit) is owned by DW-285 (16.4), DW-286 (29.4), DW-287 (29.3) after U-103
 
 ### DW-147: AD-26's decision bullet still says a decision's trace target is the session holding its decision message, while the Live events convention gives a chat turn's decision its turn's header and item index (DW-129)
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -903,6 +914,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an agent cannot run a screen reader; Story 2.12 builds the joined announcement and its automated test (A4)
 - 2026-10-24T11:52:16Z status=decision-pending owner=burndown by=spec_gate note=human=screen-reader check of the announcer (VoiceOver on macOS, NVDA on Windows)
 - 2026-10-25T11:58:32Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=merge_gate note=action_item:epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi(owner:user)
+- 2026-10-25T17:43:08Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=owner note=action_item_replaced:epic-2-retro-item-5-accessibility-tree-check-of-the-announce(owner:Contest_Planner);the_VoiceOver/NVDA_listening_test_dropped_by_the_owner's_decision(option_1)
 
 ### DW-161: A2 to A5 hold the page's poll while seeding, so on a host 2.5 times slower the hold may near the 10 s after which Reconnecting shows
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
@@ -992,6 +1004,147 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: _bmad/custom/skill-rules.md Rule 21 still says 9 in lane-a, 24 in lane-b; spec Design Notes: Record the class timings in Rule 21's section
 - 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a stage sizes a lane-b batch from Rule 21's count and overruns its cap; lead may append timings (decide)
 - 2026-10-24T17:21:52Z status=resolved-by:8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=adjudication note=Rule 21 gained the measured bullet for Story 8.1's CI run 40114473053 (lane-a 41 classes 537 s, lane-b 26 classes 360 s, Heartbeat 154 s); decide tier, appended measured facts
+### DW-160: On a fresh flag-on volume's first start the Users step cannot pin the public accounts' Visual Trace page size in OCUORDERS (AD-23 runs the Demo step, which creates OCUORDERS, after Users), so UX-DR148's pin in both namespaces holds only from the second start; the Public step's last phase (after Production and Reconcile, before SetReady) should call Users.PinTrace for both public accounts
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec 3.1 Design Notes, Decided in-stage: The OCUORDERS pin
+- 2026-10-24T13:17:50Z status=routed owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=spec_gate note=routed at Story 3.1's spec gate; 3.8 owns the Public step's last phase
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=Public.Ready()_pins_both_public_accounts'_Visual_Trace_page_size(Users.PinTrace)_after_Production_and_Reconcile,before_SetReady;Test.Install.Public(mutation_recorded)
+
+### DW-164: ci/warm.sh up printed READY warm 543s while the warm stack's after-start log said RESULT FAILED and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
+- 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow(no_charter:3_story-closable_entries_under_cap_8,none_with_2+_occurrences);ci/warm.sh_tooling_fix_(READY_only_after_the_after-start_RESULT_OK)_before_Lane_A's_next_epic_relies_on_warm_mode;Epic_5's_X.0_fix-or-close_pass
+
+### DW-165: Security.Users Create and Modify accept a role that does not exist, so EnsureService's 'the role must exist' is a precondition that nothing checks
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Measured at review on the warm throwaway e3s1rw: Modify(user, Roles=ZzCrNoSuchRole) returned 1. AD-23's order runs Roles (which creates OcuTalonServiceRole from the Tools area's role-alone entry) before Users, and a missing role grants nothing.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if the Users step runs without the Roles step before it (a reordered registry, or a Roles failure that does not stop the start)
+
+### DW-166: AD-24's 'no services' for the service user is not enforced against a later RESOURCES declaration of a %Service_ resource
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The service user's login is disabled (Enabled 0, matrix rows 1 and 2), which closes every service; no tool declares RESOURCES yet, so OcuTalonServiceRole holds nothing; its resource set shows only the instance's public permissions.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a tool or fix kind declares a %Service_ resource for OcuTalonServiceRole (Story 3.2's gate, Stories 7.x)
+
+### DW-167: The Users step never removes a Workflow user or Workflow role membership that is added by hand for a public account
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: AD-24 says public accounts are never Workflow users; the step never makes one and TestEveryRole checks it on test stacks, but a start does not take one away; the online demo is a fresh volume (AD-25).
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if an operator makes a public account a Workflow user on a kept flag-on volume; Story 3.4 owns OcuTalonApprovals' exact membership
+
+### DW-168: The Roles step leaves an OcuTalon-prefixed role that no area declares as it is, so FORBIDDEN and the GrantedRoles reset never reach it
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Roles.Compose and Apply touch only declared roles; no OcuTalon release has shipped, so no installed volume holds a role that a later version stopped declaring.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a release drops a role from every Grants() while kept volumes still hold it
+
+### DW-173: A zero from CheckUserPermission for the ServiceUser reads as a missing privilege with no log, so a runner job without %Admin_Secure:USE would deny every tool that declares RESOURCES; the production runner job's user was not measured
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: CheckUserPermission returns 0 on error and needs %Admin_Secure:USE for another user (irislib/%SYSTEM/Security.cls); tests ran as irisowner
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead: settle in 3.2's QA or smoke with one gate call from a production runner job on a throwaway
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=measured_at_QA_on_a_fresh_throwaway:production_AgentRunner_job_runs_as__Ensemble;zz_gate_public(%DB_IRISLIB:R)_allowed_and_ran,zz_gate_admin(%Admin_Secure:U)_denied_NOPRIVILEGE;pinned_by_Test.Bridge.Gate:TestPrivilegeInProductionRunnerJob(2_mutations);residual:a_production_with_another_acting_user_unmeasured
+
+### DW-174: Whether AI Hub gives an MCP tool a toolref that starts mcp: is unmeasured; another form (the JSON configuration form of %AI.Tool.Resolver) would take metadata.origin_class as the source, so a shadowing MCP tool could take a built-in's classification
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
+- 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
+- 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
+
+### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: send_mail and sendmail in one class read the same CLASSIFICATIONSENDMAIL
+- 2026-10-24T18:06:19Z status=wontfix-accepted owner=3-2-one-gate-decides-every-tool-call by=harvest note=reopen_if=a tool class declares two tools whose names differ only in _, - or case
+
+### DW-176: A tool that AI Hub's metadata marks as requiring authorization but whose class declares safe is not held, because the gate never reads metadata's requirements; a governance-test check that no built-in tool is both safe and REQUIRESAUTH is the smallest guard
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Boundaries: the gate never reads metadata's requirements; implement deferred it for the lead (security posture)
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead ruling: add the governance-test check in 3.2's code review (tightens only)
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=governance_test_fails_if_any_built-in_tool_is_REQUIRESAUTH_and_safe_or_argument-classified(Gate.AuthMarks,TestEveryRiskyBuiltInIsDenied);mutation_REQUIRESAUTH=1_on_ReminderTools->red
+
+### DW-177: The classes that OcuTalon.Core.BridgeSink calls once it publishes (Lane B) are not in CodeRules.CALLBACKHELPERS, so the callback rule does not scan them, although the gate fires turn.step to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job (AD-6)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
+- 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
+- 2026-10-25T09:16:27Z occurrence=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow;needs_Lane_B's_publishing_BridgeSink_on_the_feature_branch_(Epic_2)_before_CodeRules.CALLBACKHELPERS_can_list_its_callees;occurrence_3.6_(approval.raised_from_the_callback);Epic_5's_X.0_fix-or-close_pass
+
+### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Context.Put sets any FIELDS name to any value (Context.cls Put); no tool writes Tainted 0 or Provenance today, and arriving content cannot make one do so
+- 2026-10-24T23:46:11Z status=wontfix-theoretical owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=real when a tool's code writes Tainted 0 or Provenance, or passes a context field name from its arguments to Put
+
+### DW-183: ToolCodeClean is a static scan: %Save on an opened Ens.Config object, a class name built at run time and a message-resend API pass it
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Design Notes limit the scan to the listed writes and AC 4 names no resend; AD-1's CommandsIn origin check (a refusing stub until Story 2.3) is the guard
+- 2026-10-24T23:46:11Z status=by-design owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=spec Design Notes: the scan backs AD-1 rather than replacing it; reopens only via a spec amendment
+
+### DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; an expiry handler that requires the clock to be past ExpiresAt would leave the request pending
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Approval.Hold SetTimer gets the whole seconds until ExpiresAt, at least 1 (implement report residual risk; spec Decided in-stage)
+- 2026-10-25T02:07:44Z status=routed owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=3.5's expiry path must accept a timer that fires up to 1 s early (treat the timer as the expiry, or re-arm for the remainder)
+- 2026-10-25T06:22:33Z status=resolved-by:3-5-the-first-answer-wins-and-unanswered-requests-expire by=adjudication note=Expire_never_compares_the_clock;its_callers_(the_hold's_timer,Answer's_past-expiry_step)_decide;matrix_row8_TestExpireDoesNotWaitForTheClock(mutation_recorded);spine_Approval_requests_row
+
+### DW-187: Approval.Raise inside an open transaction fails closed with the hold's 'no approval request' error, because the hold's job cannot see the uncommitted row; if AI Hub's %CanExecute callback runs at a TLevel above 0, Story 3.6's gate could never hold a call
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Review triage Blind 2 / Edge 5 (rejected for 3.4: no release-1 caller raises inside a transaction); the gate is 3.6's first caller
+- 2026-10-25T02:07:44Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=harvest note=3.6 Task 0: measure TLevel inside %CanExecute on build 154 and either commit-safe the call or refuse clearly
+- 2026-10-25T03:03:19Z occurrence=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=cr note=effect corrected: ProcessInput TCommits every open level, so Raise silently commits the caller's transaction
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=measured_TLevel_0_inside_%CanExecute_on_build_154;Raise_refuses_at_TLevel>0_leaving_the_caller's_transaction_open;TestRaiseRefusesInATransaction(levels_1,2)+Gate_row4b(mutation_recorded)
+
+### DW-188: Approval.LiveHold finds a hold by scanning ApprovalHold instances by Ref with no index
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: an index would change stored data (veto window); scan cost grows with the number of hold instances
+- 2026-10-25T02:07:44Z status=wontfix-accepted owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=reopen_if=Reconcile or Raise takes more than 1 s with more than a few thousand ApprovalHold instances
+
+### DW-189: A Raise running at the same moment as Reconcile at start is not serialized with it, so Reconcile could see a pending row before its hold has registered
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the window is milliseconds and opens only during the after-start Reconcile step
+- 2026-10-25T02:07:44Z status=wontfix-theoretical owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=real when a caller raises during the after-start (no release-1 caller does; the gate's first raise needs a running production)
+
+### DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which kills $$$JobSessionId and replaces $$$JobCurrentHeaderId; from a host job (Story 3.6's gate in the runner, Epic 5's IncidentManager) the host's later event-log rows lose their session and message
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: irislib Ens/BusinessService.cls ProcessInput ends with Kill $$$JobSessionId, SendRequestSync sets $$$JobCurrentHeaderId, and Ens/Util/Log.cls:87-88 reads both for every event-log row; Core.Commands.Submit (Lane B) starts its service the same way
+- 2026-10-25T03:03:19Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=3.6 measures the runner's session and header after Raise (spec Consumed-by) and restores them; Commands.Submit shares it
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=StartHold_puts_the_job's_session_and_current_header_ids_back_after_the_ApprovalStartIn_round_trip(also_after_an_error);TestRaiseKeepsTheCallersJobIds(mutation_recorded);exception_branch_untested(residual,DW-196_wontfix-accepted)
+
+### DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no ApprovalOutcome is sent until the next Reconcile
+- source: spec-3-5-the-first-answer-wins-and-unanswered-requests-expire.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: HoldResponse sends nothing for a task whose action does not match the row (row 14); a late Answer still expires the row, so only the expired outcome to ResultTarget is missing
+- 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
+- 2026-10-25T06:21:01Z status=escalated owner=burndown by=cr note=fix-risk high: Reconcile/Hold must deliver answered or expired rows with no hold (3.5 Never list, row 14); operator-only
+- 2026-10-25T17:27:23Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=merge_gate note=Story_30.3_reworks_the_hold's_delivery:Reconcile_or_the_hold_delivers_an_answered_or_expired_row_that_has_no_live_hold(the_expired_outcome_to_ResultTarget);veto_U-78
+
+### DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call)
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 3.6 spec Cross-epic; Epic 0's row contract (AD-33) has no Source or Runner column, and Test/Data/** is contended
+- 2026-10-25T07:09:50Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=spec_gate note=30.3 adds the two fields (a stored-data change in its own veto window) or derives them (for example from the decision's trace)
+
+### DW-195: A hold whose start times out after STARTSECONDS can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete)
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
+- 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
+- 2026-10-25T16:29:37Z owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=burndown note=overflow;the_replay_story_reworks_the_hold's_start_and_delivery_(with_DW-194);measure_ApprovalStartIn_held_past_STARTSECONDS_and_re-check_the_row_before_the_task_is_sent
+
+### DW-196: TestRaiseKeepsTheCallersJobIds' 'both ids still undefined' checks cannot fail in the unit-test process, so StartHold's re-kill of an undefined id is unpinned
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Outside a production job, closing ApprovalStartIn (OnTearDown) kills the whole %Ensemble array before the restore, so deleting both Else-Kill arms keeps every test green; row 5b has both ids defined.
+- 2026-10-25T09:16:27Z status=wontfix-accepted owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=reopen_if=a production job with no session or header id (a service before its first send) calls Raise or StartHold
+
+### DW-201: The spine's Approval requests and Audit entries rows omit Answer's sessionRef refusal and Cancel's person arguments (Story 3.7)
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Row 913 lists Answer's not_allowed causes without the malformed sessionRef; row 914 omits Cancel(ref,sinkClass,channel,irisUser,sessionRef); Stories 6.2, 12.7, 16.4 and 22.x plan from the spine
+- 2026-10-25T12:46:35Z status=routed owner=burndown by=cr note=lead Rule 20 write; else 16.4/22.x Cancel entries name the system user (AD-17 Prevents)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=spine_Conventions_row_Audit_entries_now_names_Answer's_sessionRef_refusal_and_Cancel's_channel,irisUser,sessionRef(Rule20_light_path);Ac_pins_Cancel's_five_arguments
+
+### DW-203: The password guard matches the lower-cased name exactly; with multiple domains enabled IRIS passes the name with its domain, so a public account's password change would pass the guard
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Security.System documents the routine's name carries the domain when multiple domains are enabled (implement deferred, unverified)
+- 2026-10-25T14:30:39Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=harvest note=for the 3.8 code review: match the part before the domain too (fails closed), or route with a reason
+- 2026-10-25T15:37:09Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=patched by cr: Check also matches the name before its last @; TestGuardDecidesByNameAndPassword pins it (mutation)
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=the_generated_guard_also_matches_the_name_before_its_last_@(fails_closed);TestGuardDecidesByNameAndPassword(domain_assertions,mutation_recorded)
+
+### DW-209: A flag-on start with renamed published accounts leaves the old online-demo account enabled with its published password, outside the password guard
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Users.Accounts disables MARKER accounts only with the flag off (DisablePublic); Guard and EnsurePublic cover only the current demoUser and readonlyUser
+- 2026-10-25T15:37:09Z status=wontfix-accepted owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=reopen_if=the deployment renames OCUTALON_DEMO_USER or OCUTALON_READONLY_USER between flag-on starts (Story 29.3)
 ### DW-197: No check counts the Decision rows left after the production tests, so a lost adopt (RoutingProduction's two, Fixture.AdoptTurns) or D14's finally clean-up would leak rows with every test green
 - source: spec-2-17-epic-2-s-tests-follow-the-real-decide.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Dropping RoutingProduction's eval adopt leaves 1 eval Decision row and the class green (QA, counted by SQL); a leftover count needs a shard-level check and this story adds no unit
@@ -1032,3 +1185,103 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci run 40209749982 attempt 1 (ocutalon-ci-13) red, attempt 2 (ocutalon-ci-6) lane-a passed 523s; the same IRIS code passed shards on ffd7530 (run 40206917294)
 - 2026-10-25T16:37:50Z status=routed owner=burndown by=harvest note=Lane A's test (Test/Agent/**, contended with Epic 3); burn-down re-owns it to the owning lane's story
+- 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
+- 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
+
+### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SettingsOps.Carry writes the value before RunStep; Install.Step.Demo.Plan answers error for on + a foreign namespace (AD-3); Install.Registry.Run stops at the first failed step (Demo precedes Production, Ready). Reachable on an IPM install into an instance with its own OCUORDERS.
+- 2026-10-25T15:36:14Z status=decision-pending owner=burndown by=cr note=product call (matrix row Step fails keeps the value; any fix needs new terminal text, V2): refuse the on switch before audit and write when Plan says error
+- 2026-10-27T05:39:36Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=unattended note=decision_sheet(Epic_4_merge_gate)_veto_U-106:_SetDemoMode_refuses_the_on-switch_before_audit_and_write_when_Install.Step.Demo.Plan_answers_error,_one_new_terminal_line;_15.2_proves_it_on_its_IPM_install_into_an_existing_instance
+- 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
+
+### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/Admin.cls Result, Core/SettingsOps.cls Result, Core/CommandsIn.cls:151 Result (private, contended). Unifying needs a public factory on the cross-lane Msg.CommandResult contract or a public helper on the terminal API.
+- 2026-10-25T15:36:22Z status=wontfix-accepted owner=4-1-switch-demo-mode-from-the-terminal by=cr note=reopen_if=a fourth CommandResult builder appears outside OcuTalon.Test, or CommandResult gains a field that every answer must set
+
+### DW-215: Guide.Compute could report finished true with step 4 and a rejected/fallback/no_fix variant if a resolved incident keeps that OpenVariant (unverified)
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Demo/Guide.cls:105 finishes on any resolved incident while :92/:115 read OpenVariant without its state; AD-15 sets the variant only on moves to open, but no IncidentManager exists in this tree to confirm the overlap rows clear it
+- 2026-10-25T19:46:38Z status=routed owner=4-7-finish-the-demo-guide by=cr note=unverified (maybe-false); settle with Story 5.5 IncidentManager: does a resolved incident ever carry a VARIANTS value?
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Guide.Compute reads the open variant only while the incident is open or closed (VARIANTSTATES); TestVariantFollowsState pins it, a finished guide never carries a variant
+
+### DW-216: Spine edge Guide --> Install.Step.Demo names only the demo-mode key; Compute also reads NAMESPACE and PRODUCTION
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:78 labels the edge 'its demo-mode key constant; Guide.DemoOn' while Demo/Guide.cls:45-46 reads #NAMESPACE and #PRODUCTION
+- 2026-10-25T19:46:38Z status=wontfix-accepted owner=4-2-derive-the-guide-state-and-break-the-feed-availability-on-th by=cr note=reopen_if=a plan or review relies on the spine for Guide's reads of Install.Step.Demo; lead may relabel at a Rule 20 commit
+### DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers not_allowed for any other sessionRef
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; AnswersIn is a stub on the feature (69c7f06) until Epic 6
+- 2026-10-25T12:10:22Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=owner note=U-69 condition (the Contest Planner for the owner): a test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers not_allowed
+
+### DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live Pairing row, never a ChatRef or chat id: since Story 3.7, Answer answers not_allowed for any other sessionRef
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
+- 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+
+### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
+- 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
+
+### DW-231: Story 4.4's feed/break-feed-api.ts (and Story 4.7's guide-marker calls) is a second typed API client beside ApiClient (Stack row: one typed API client), because web/src/app/api/** is Epic 10's footprint
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine Stack row Angular L926; veto U-U-84
+- 2026-10-26T02:35:44Z status=routed owner=burndown by=spec_gate note=move press() and the marker calls into ApiClient once Epic 10 merges; re-own to an Epic 10 story at the burn-down
+- 2026-10-26T02:35:59Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=spec_gate note=Rule_2_copy_forced_by_the_footprint_is_routed_to_the_story_that_unifies_it_(never_burndown_for_a_LOW): 10.3 edits web/src/app/api/** (the Telegram block of StateSnapshot); move break-feed-api.ts press() and the guide-marker calls into ApiClient there
+
+### DW-232: Story 8.4's acceptance criteria ask for a CI mock scenario keyed by 'Remind me in 1 minute to stretch.' under ci/mock/scenarios/B/, which Story 4.4 adds as guide-reminder.json; the mock loader refuses a repeated prompt (scenarios.mjs), so 8.4 must extend guide-reminder.json rather than add a second scenario
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md Story 8.4 (about L3074); ci/mock scenarios.mjs:255 duplicate-prompt refusal
+- 2026-10-26T02:35:44Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=coordination: extend Epic 4's B scenario
+
+### DW-253: flake: docker/tests/test-lib-live.sh check live_first_start 'a failed wait was not reported' failed once in the hosted checks job (first start not ready after 101 s, RC=1), green on an unchanged rerun
+- source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 40285090544 job 121446738063 failed, rerun job 121457043804 success on ca4838f; 4.4 touched no lib-live file
+- 2026-10-26T09:02:44Z status=routed owner=burndown by=flake note=a timing-sensitive hermetic check; Epics 10 and 13 own docker/tests; re-own at the burn-down
+- 2026-10-27T05:26:00Z status=wontfix-accepted by=burndown note=one red in ~10 Epic 4 CI runs (run 40285090544), green on an unchanged rerun and on every later run; outside Epic 4's footprint (docker/tests, Epic 15); reopen_if=test-lib-live.sh live_first_start 'a failed wait was not reported' is red again on any branch's CI
+
+### DW-274: The CDK live announcer's element has no visually-hidden style until a dialog's focus trap loads it, so its last text lies below a framed page and the page scrolls by a line
+- source: spec-4-5-get-notifications-on-the-simulated-phone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 4.5 cr, D2 at 1280x480: div.cdk-live-announcer-element.cdk-visually-hidden is position static at 480-501px, document 501px tall in a 480px window; CDK 22.2.3 LiveAnnouncer loads no visually-hidden style and web/src has no .cdk-visually-hidden rule
+- 2026-10-26T16:49:28Z status=routed owner=burndown by=cr note=pre-existing (Story 2.12 announcer); D2 now checks app-root overflow; fix: style .cdk-visually-hidden
+- 2026-10-26T16:52:48Z status=routed owner=4-7-finish-the-demo-guide by=adjudication note=in-epic MED routed to the story that adds the finish-state and step announcements on the framed page: style .cdk-visually-hidden so the live announcer never lies below the page (D2 at 1280x480)
+- 2026-10-26T18:04:55Z status=open owner=4-5-get-notifications-on-the-simulated-phone by=rework note=pulled into Story 4.5's CI rework 1: the root cause of D2's red on d341d29 (run 40367647349); the 4.7 bullet is removed
+- 2026-10-26T19:08:37Z status=resolved-by:4-5-get-notifications-on-the-simulated-phone by=adjudication note=5955043 base.css .cdk-visually-hidden rule from page load; D6 (@browsers) pins it after an announcement lands; mutation red in all three engines
+
+### DW-275: U-72 (owner decision): the terminal command SetDemoMode accepts a caller holding OcuTalonAdmin OR %All; every other caller is refused as now; the web endpoints stay OcuTalonAdmin only; the audit entry still names the person (U-74's ActingUser) and T5 still refuses when the audit entry cannot be written; tests: %All accepted, OcuTalonAdmin accepted, neither refused (AD-19 terminal entry amended)
+- source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Contest Planner under the owner's delegation, 2026-10-26: strict check makes the README's documented command fail on a default install (terminal holds only %All)
+- 2026-10-26T16:52:48Z status=routed owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=owner_decision note=deliver before Epic 4's contract; Story 4.1 is done strict (Core/Admin.cls, Test/Core/Admin.cls)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=7d32b66 Core.Admin.Allowed accepts %All or OcuTalonAdmin; Test.Core.Admin %All accepted, OcuTalonAdmin accepted, neither refused; test-demo-switch.sh steps 3,4,7 (irisowner switches, audit names it)
+
+### DW-280: An email's body has no length cap, so one large body or many sends can fill SimMessage and make each Decide call large
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: MailBody and SimMailboxIn.Accept cap only from and subject at 1000 characters; SimMessage.Text and Mail.Text unbounded; the textarea has no maxlength (Web/Api.cls:MailBody, Channel/SimMailbox/In.cls:Accept)
+- 2026-10-26T21:41:08Z status=open owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=harvest note=in-story MED for the code review to patch (a body cap is an implementation detail; the hourly allowance is Story 16.9)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=code review: SimMailboxIn.BODYMAX 10000 checked in MailBody (400 bad_email) and Accept, form maxlength; TestIncoming/TestFieldErrors/TestRefused pin it
+
+### DW-283: ApiClient's private accepted<T>() repeats postMessage's 202-only body (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: web/src/app/api/api-client.ts accepted<T>() (Story 4.6) and postMessage (another epic's lines, shared-by-entry file): the same 8-line 202 check; postMessage cannot be moved onto the helper here
+- 2026-10-26T23:16:44Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=copy forced by the shared-by-entry rule; reopen_if=a third 202-only POST joins ApiClient or postMessage's success rule changes
+
+### DW-284: Test.Web.MailboxApi's Csp and Post repeat Test.Web.BreakFeedApi's (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: MailboxApi.cls:191-216 and BreakFeedApi.cls:139-158: the CSP session and stand-in request helpers; BreakFeedApi is an existing file in contended Test/Web/**, so no shared helper can replace its copy
+- 2026-10-26T23:16:50Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=unification needs a contended file; reopen_if=a third route test class copies Csp/Post
+### DW-285: Closing a trace tab frees nothing: its licence unit is held until sign-out or the session timeout, so leaving the page must sign the trace session out (?IRISLogout=end), with the 120-second timeout as the backstop
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-103 owner's delegate: route to 16.4
+
+### DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=29-4-sessions-stay-isolated-under-load by=orchestrator note=U-103 owner's delegate: route to 29.4
+
+### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-103 owner's delegate: route to 29.3

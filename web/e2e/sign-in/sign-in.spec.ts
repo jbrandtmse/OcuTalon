@@ -11,6 +11,7 @@ import {
   submitSignIn,
   watchViolations,
 } from './helpers';
+import { signOutTrace } from '../support/trace';
 
 const TITLE = 'Sign in \u00b7 OcuTalon';
 const WRONG_CREDENTIALS = "That user name and password didn't work.";
@@ -73,6 +74,7 @@ test.describe('without a session', () => {
     expect(body).toContain('name="IRISUsername"');
     expect(body).toContain('name="IRISPassword"');
     expect(body).not.toContain('Message Viewer');
+    await signOutTrace(request);
   });
 });
 

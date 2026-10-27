@@ -11,6 +11,11 @@ Class OcuTalon.Test.Bridge.StepsNote Extends %AI.Tool
 /// The readable label of the step of every tool of this class (Consistency Conventions: Agent step labels).
 Parameter STEPLABEL = "Reading the test note";
 
+/// The classification of the tool for the gate (AD-10): safe and read-only, as its toolset says.
+Parameter CLASSIFICATION = "safe";
+
+Parameter READONLY = 1;
+
 /// The note. The arguments after topic are the secrets of the scenario steps-secrets.
 ClassMethod Read(topic As %String = "", apiKey As %String = "", accessToken As %String = "", password As %String = "", chatId As %String = "", displayName As %String = "") As %DynamicObject
 {

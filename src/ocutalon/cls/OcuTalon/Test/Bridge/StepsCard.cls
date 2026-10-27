@@ -10,6 +10,11 @@ Class OcuTalon.Test.Bridge.StepsCard Extends %AI.Tool
 /// The readable label of the step of this tool (Consistency Conventions: Agent step labels): the parameter of the tool's own name.
 Parameter STEPLABELZZSTEPSCARD = "Reading the test card";
 
+/// The classification of the tool for the gate (AD-10): safe and read-only, as its toolset says.
+Parameter CLASSIFICATION = "safe";
+
+Parameter READONLY = 1;
+
 /// The label of a tool that is not in the toolset (QA): its text holds a Bearer token, to show that a label passes the redactor too
 /// (Test.Bridge.Steps.TestPartsAreRedactedThenCut). No scenario calls a tool of this name.
 Parameter STEPLABELZZLEAKY = "Reading the card with Bearer zzlabel-token-4711";

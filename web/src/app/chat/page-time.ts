@@ -97,6 +97,12 @@ export const WHEN_TEXTS = {
   hoursOther: 'in {h} hours {m} {minutes}',
   minuteOne: 'minute',
   minuteOther: 'minutes',
+  elapsedSeconds: '{n} s',
+  elapsedSecondsOne: '{n} second',
+  elapsedSecondsOther: '{n} seconds',
+  elapsedMinutes: '{n} min',
+  elapsedMinutesOne: '{n} minute',
+  elapsedMinutesOther: '{n} minutes',
 } as const;
 
 const DAY_MS = 86_400_000;
@@ -156,7 +162,10 @@ export function pageWhen(iso: string, nowMs: number, locale?: string, timeZone?:
   return fill(WHEN_TEXTS.dayAt, { day: date, time });
 }
 
-/** The time left until a due time, short ("in 59 s") and spoken ("in 59 seconds"). */
+/** The text with the count in it: the singular for 1 and the plural for any other count. */
+const plural = (n: number, one: string, other: string): string => fill(n === 1 ? one : other, { n: String(n) });
+
+/** A time span of the page, short ("in 59 s", "23 s") and spoken ("in 59 seconds", "23 seconds"). */
 export interface Countdown {
   text: string;
   spoken: string;
@@ -173,7 +182,6 @@ export function countdownText(dueIso: string, nowMs: number): Countdown {
     return { text: '', spoken: '' };
   }
   const seconds = Math.max(0, Math.ceil((due - nowMs) / 1000));
-  const plural = (n: number, one: string, other: string): string => fill(n === 1 ? one : other, { n: String(n) });
   if (seconds < 60) {
     return { text: fill(WHEN_TEXTS.seconds, { n: String(seconds) }), spoken: plural(seconds, WHEN_TEXTS.secondsOne, WHEN_TEXTS.secondsOther) };
   }
@@ -191,4 +199,22 @@ export function countdownText(dueIso: string, nowMs: number): Countdown {
       minutes: minutes === 1 ? WHEN_TEXTS.minuteOne : WHEN_TEXTS.minuteOther,
     }),
   };
+}
+
+/**
+ * The time that has passed from an ISO time to nowMs, in whole seconds rounded down and never below 0: under a minute "23 s", from a
+ * minute in whole minutes rounded down "2 min". The spoken form uses full words with singular and plural agreeing. An empty or
+ * unreadable time gives empty texts.
+ */
+export function elapsedText(sinceIso: string, nowMs: number): Countdown {
+  const since = new Date(sinceIso).getTime();
+  if (sinceIso === '' || Number.isNaN(since)) {
+    return { text: '', spoken: '' };
+  }
+  const seconds = Math.max(0, Math.floor((nowMs - since) / 1000));
+  if (seconds < 60) {
+    return { text: fill(WHEN_TEXTS.elapsedSeconds, { n: String(seconds) }), spoken: plural(seconds, WHEN_TEXTS.elapsedSecondsOne, WHEN_TEXTS.elapsedSecondsOther) };
+  }
+  const minutes = Math.floor(seconds / 60);
+  return { text: fill(WHEN_TEXTS.elapsedMinutes, { n: String(minutes) }), spoken: plural(minutes, WHEN_TEXTS.elapsedMinutesOne, WHEN_TEXTS.elapsedMinutesOther) };
 }

@@ -7,7 +7,9 @@
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
 ///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
-///     cards (RecentNotices) and the delivery of an approval message (DeliveryFor).
+///     cards (RecentNotices), the messages of the simulated phone (RecentPhone), the emails of the simulated mailbox
+///     (RecentMail), the session's own decide decision of an Item (DecisionOfItem) and the delivery of an approval message
+///     (DeliveryFor).
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
 ///   - The snapshot's chat reads only the newest turns, the newest noticed incidents and the newest notice cards
@@ -22,6 +24,11 @@
 ///     statements are fixed texts, one per row kind; each has the owner check in its WHERE clause, bound to the owner's
 ///     Ref that the caller holds: SessionRef()'s value, or the session Ref of a record the product itself wrote (a row read
 ///     through this class, a Turn row, the owner of a bridge event), never request input.
+///   - Epic 4's guide reads (ReminderSetOrFired, NewestIncident, IncidentInProgress, IncidentApprovals, LatestBreakFeedRun,
+///     LastEvent) are Rows kinds like the others: the session's newest pending or fired reminder, the newest visible incident
+///     of a production (noticed since a time, or open), the visible approval requests of an incident, the newest Break the
+///     feed run and the newest live event of a type on the session's stream. ResolvedIncidents, which Break the feed's press
+///     reads, is the session's own noticed resolved incidents of a production, oldest first, and never an instance incident.
 ///   - Watchers and ApprovalIncident read across owners, so they prepare with the privilege check, report a failed read
 ///     in sc, and run only in production jobs and tests.
 Class OcuTalon.Data.Ownership
@@ -40,6 +47,11 @@ Parameter EVAL [ Final ] = "eval";
 /// local install, an instance incident of a production the owner's checks watch. Three ?: the owner, the local flag and
 /// the owner again (o, a, o).
 Parameter INCIDENTVISIBLE [ Final ] = "i.NoticedAt <> '' AND (i.OwnerRef = ? OR (? = 1 AND i.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production)))";
+
+/// The condition on an approval request row a that the approval statements share: it is the owner's or, on a local
+/// install, an instance request of a visible incident of a production the owner's checks watch. Three ?: the owner, the
+/// local flag and the owner again (o, a, o).
+Parameter APPROVALVISIBLE [ Final ] = "(a.OwnerRef = ? OR (? = 1 AND a.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.Incident i WHERE i.Ref = a.IncidentRef AND i.OwnerRef = 'instance' AND i.NoticedAt <> '' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production))))";
 
 /// The cost of one turn (AD-20), as an object: the sums of the Usage rows of the turn's two decisions (TriageDecisionRef
 /// and TurnDecisionRef) that belong to the turn's own session, {"inputTokens", "outputTokens", "cacheReadTokens",
@@ -257,6 +269,40 @@ ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output s
 	Quit ..Rows("recentNotices", sessionRef, .sc, +max)
 }
 
+/// The session's newest simulated-phone messages: the SimMessage rows of Kind phone, newest CreatedAt first and then newest ID
+/// first, at most max. sc is an error status when the read failed.
+ClassMethod RecentPhone(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentPhone", sessionRef, .sc, +max)
+}
+
+/// The session's newest simulated-mailbox emails: the SimMessage rows of Kind mailbox (incoming and sent), newest CreatedAt
+/// first and then newest ID first, at most max. sc is an error status when the read failed.
+ClassMethod RecentMail(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentMail", sessionRef, .sc, +max)
+}
+
+/// The session's own decision of Kind decide for the Item with this ItemId, or "": a decision of another owner, a decision of
+/// another kind, an unknown ItemId, an empty one, and one that differs only in case all answer like a missing one. The
+/// statement narrows the rows by the collated index; the value is then compared exactly. itemId comes from a mailbox row the
+/// product wrote; it is only ever a bound value. sc is an error status when the read failed.
+ClassMethod DecisionOfItem(itemId As %String, ownerRef As %String, Output sc As %Status) As OcuTalon.Bridge.Data.Decision
+{
+	Set sc = $SYSTEM.Status.OK()
+	If itemId = "" Quit ""
+	Set rows = ..Rows("decisionOfItem", ownerRef, .sc, itemId)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (row.ItemId = itemId) && (row.OwnerRef = ownerRef) {
+			Set found = row
+			Quit
+		}
+	}
+	Quit found
+}
+
 /// The session's newest Delivery row for the approval request and channel, or "": a row of owner eval, instance or another
 /// session, a row with another approval Ref or channel, and one whose Ref differs only in case all answer like a missing
 /// one. The statement narrows the rows by the collated index; the values are then compared exactly. The values may come
@@ -381,6 +427,63 @@ ClassMethod ApprovalIncident(ref As %String, Output sc As %Status) As %String
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit incidentRef
+}
+
+/// The session's newest reminder that is pending or fired (one it set, whether or not it has gone off), or "".
+ClassMethod ReminderSetOrFired(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Reminder
+{
+	Set rows = ..Rows("reminderSetOrFired", sessionRef, .sc)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The newest incident of the production that the session sees (as Incidents does) and that was noticed at or after
+/// since (an empty since counts all, as RunCost's does), or "".
+ClassMethod NewestIncident(sessionRef As %String, namespace As %String, production As %String, since As %String, Output sc As %Status) As OcuTalon.Data.Incident
+{
+	If $Get(since) = "" Set since = "0000-01-01T00:00:00Z"
+	Set rows = ..Rows("newestIncident", sessionRef, .sc, namespace, production, since, ..LocalFlag())
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The newest incident of the production that the session sees and that is open, awaiting approval or fixing, or "".
+ClassMethod IncidentInProgress(sessionRef As %String, namespace As %String, production As %String, Output sc As %Status) As OcuTalon.Data.Incident
+{
+	Set rows = ..Rows("incidentInProgress", sessionRef, .sc, namespace, production, ..LocalFlag())
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The approval requests of the incident that the session can see (as Approval does), in any state, by RaisedAt. incidentRef
+/// comes from a row read through this class, never from request input.
+ClassMethod IncidentApprovals(incidentRef As %String, sessionRef As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("incidentApprovals", sessionRef, .sc, incidentRef, ..LocalFlag())
+}
+
+/// The session's latest Break the feed run by StartedAt and then ID, or "".
+ClassMethod LatestBreakFeedRun(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.BreakFeedRun
+{
+	Set rows = ..Rows("latestBreakFeedRun", sessionRef, .sc)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The session's own noticed incidents of the production that are resolved, oldest first (an incident of owner instance is
+/// shared with other watchers and is never one of them); an empty, instance or eval sessionRef gives an empty list and an
+/// error status in sc.
+ClassMethod ResolvedIncidents(sessionRef As %String, namespace As %String, production As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("resolvedIncidents", sessionRef, .sc, namespace, production)
+}
+
+/// The newest live event of the type on the session's own stream, by Seq, or "".
+ClassMethod LastEvent(sessionRef As %String, type As %String, Output sc As %Status) As OcuTalon.Live.Event
+{
+	Set rows = ..Rows("lastEvent", sessionRef, .sc, type)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
 }
 
 /// 1 on a local install, where instance records are visible to the sessions that watch their production; 0 when
@@ -515,11 +618,11 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "approvals" {
 		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oao"
-		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.State = 'pending' AND (a.OwnerRef = ? OR (? = 1 AND a.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.Incident i WHERE i.Ref = a.IncidentRef AND i.OwnerRef = 'instance' AND i.NoticedAt <> '' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production)))) ORDER BY a.RaisedAt, a.ID"
+		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.State = 'pending' AND "_..#APPROVALVISIBLE_" ORDER BY a.RaisedAt, a.ID"
 	}
 	If kind = "approval" {
 		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "aoao"
-		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.Ref = ? AND (a.OwnerRef = ? OR (? = 1 AND a.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.Incident i WHERE i.Ref = a.IncidentRef AND i.OwnerRef = 'instance' AND i.NoticedAt <> '' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production))))"
+		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.Ref = ? AND "_..#APPROVALVISIBLE
 	}
 	If kind = "pairing" {
 		Set class = "OcuTalon.Data.Pairing", binds = "o"
@@ -529,9 +632,49 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
 		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder') ORDER BY RecordedAt DESC, ID DESC"
 	}
+	If kind = "recentPhone" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "recentMail" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "decisionOfItem" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ? AND OwnerRef = ? AND Kind = 'decide'"
+	}
 	If kind = "deliveryByApproval" {
 		Set class = "OcuTalon.Data.Delivery", binds = "aao"
 		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ? AND OwnerRef = ? ORDER BY ID DESC"
+	}
+	If kind = "reminderSetOrFired" {
+		Set class = "OcuTalon.Data.Reminder", binds = "o"
+		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND State IN ('pending', 'fired') ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "newestIncident" {
+		Set class = "OcuTalon.Data.Incident", binds = "aaaoao"
+		Quit "SELECT TOP 1 i.ID FROM OcuTalon_Data.Incident i WHERE i.Namespace = ? AND i.Production = ? AND i.NoticedAt >= ? AND "_..#INCIDENTVISIBLE_" ORDER BY i.NoticedAt DESC, i.ID DESC"
+	}
+	If kind = "incidentInProgress" {
+		Set class = "OcuTalon.Data.Incident", binds = "aaoao"
+		Quit "SELECT TOP 1 i.ID FROM OcuTalon_Data.Incident i WHERE i.Namespace = ? AND i.Production = ? AND i.State IN ('open', 'awaiting_approval', 'fixing') AND "_..#INCIDENTVISIBLE_" ORDER BY i.NoticedAt DESC, i.ID DESC"
+	}
+	If kind = "incidentApprovals" {
+		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "aoao"
+		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.IncidentRef = ? AND "_..#APPROVALVISIBLE_" ORDER BY a.RaisedAt, a.ID"
+	}
+	If kind = "latestBreakFeedRun" {
+		Set class = "OcuTalon.Data.BreakFeedRun", binds = "o"
+		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.BreakFeedRun WHERE SessionRef = ? ORDER BY StartedAt DESC, ID DESC"
+	}
+	If kind = "resolvedIncidents" {
+		Set class = "OcuTalon.Data.Incident", binds = "oaa"
+		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE i.OwnerRef = ? AND i.Namespace = ? AND i.Production = ? AND i.State = 'resolved' AND i.NoticedAt <> '' ORDER BY i.NoticedAt, i.ID"
+	}
+	If kind = "lastEvent" {
+		Set class = "OcuTalon.Live.Event", binds = "oa"
+		Quit "SELECT TOP 1 ID FROM OcuTalon_Live.Event WHERE Stream = ? AND Type = ? ORDER BY Seq DESC"
 	}
 	Quit ""
 }

@@ -8,7 +8,9 @@ Parameter MAXFAILURE = 2000;
 /// The reply text.
 Property Text As %String(MAXLEN = "");
 
-/// True when untrusted content reached the turn (AD-10).
+/// True when a tool result that is not trusted output reached the turn (AD-10): the gate sets the context's taint when it allows such a
+/// call, or a tool sets it, and the runner copies it here. An untrusted turn starts untainted, so this says nothing about the item's
+/// provenance. A tainted turn is never saved to the user's conversation.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
 /// True when the runner moved the conversation to a fresh AI session: the turn was fresh, and after its Chat completed untainted the

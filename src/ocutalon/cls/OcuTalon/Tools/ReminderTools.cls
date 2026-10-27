@@ -4,8 +4,11 @@
 /// (empty text, a time that is past, not exactly one due form, a due time that cannot be read, a reminder that is not the session's).
 /// The session comes from the bridge context of the call, never from an argument.
 /// Each tool declares, by one naming rule (the tool's name in upper case with _ and - removed), its step label (STEPLABEL<NAME>, AD-9) and its
-/// classification for the gate of Epic 3 (CLASSIFICATION<NAME>: safe or risky; READONLY<NAME> and TRUSTEDOUTPUT<NAME>: 1 or 0, AD-10). Nothing
-/// reads the classification until that gate lands, so the tools run in any turn.
+/// classification for the gate (CLASSIFICATION<NAME>: safe or risky; READONLY<NAME> and TRUSTEDOUTPUT<NAME>: 1 or 0, AD-10).
+/// All three are safe and trusted output: their answers are built in code from the owner's CommandResult (CommandCall.Answer and Listed),
+/// so a result never taints the turn, and two set_reminder calls in one response both run. list_reminders is read-only, so it also runs in an
+/// untrusted or tainted turn. set_reminder and cancel_reminder are not read-only, so the gate denies them there. Listing stays trusted output
+/// only because of that: every reminder's text was written in a user's untainted turn, and no text from outside one reaches a reminder.
 /// It extends OcuTalon.Tools.Result and returns only through Return. A tool method runs inside AI Hub's callback, so it makes no AI Hub call
 /// and no Python call (AD-6). The description of a tool is its method's doc comment, and an argument's DESCRIPTION is what the model reads
 /// about it: they are text for the model, never shown to the user as written.
@@ -25,7 +28,7 @@ Parameter CLASSIFICATIONSETREMINDER = "safe";
 
 Parameter READONLYSETREMINDER = 0;
 
-Parameter TRUSTEDOUTPUTSETREMINDER = 0;
+Parameter TRUSTEDOUTPUTSETREMINDER = 1;
 
 Parameter CLASSIFICATIONLISTREMINDERS = "safe";
 
@@ -37,7 +40,7 @@ Parameter CLASSIFICATIONCANCELREMINDER = "safe";
 
 Parameter READONLYCANCELREMINDER = 0;
 
-Parameter TRUSTEDOUTPUTCANCELREMINDER = 0;
+Parameter TRUSTEDOUTPUTCANCELREMINDER = 1;
 
 /// Sets a reminder for the user in this conversation, to be delivered when it is due. Give exactly one way to say when: delaySeconds for a
 /// relative time, such as in 10 minutes, or localDueAt for a day and time, such as Thursday at 10. Never give both. For localDueAt, work

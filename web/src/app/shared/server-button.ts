@@ -13,13 +13,18 @@ export const BUSY_NOTICE = "Couldn't reach OcuTalon. Try again. Nothing was chan
 let lastNotice = 0;
 
 /** A button variant of controls.css. */
-export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'inactive';
+export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'inactive' | 'chip';
 
 /**
  * A button whose press calls the server. While the call is out it is busy: a spinner, aria-busy and aria-disabled
  * (never disabled, so it keeps its place in the tab order and its focus), and a press is ignored. The call's
  * answer, early or late, ends the busy state and clears the notice. With no answer in 10 seconds the button is
  * restored and a warning notice under it says so, and the polite announcer reads the notice once.
+ *
+ * A button that the server says cannot act now (`inactive`) is held aria-disabled in the same way, and a press on it makes no call; it
+ * shows no spinner. The server's state, not the button's, decides when it acts again.
+ *
+ * The chip variant is the sample email chip of the simulated mailbox (Story 4.6): the same busy state, focus and notice, in a bordered pill.
  *
  * The button is described (aria-describedby) by the text that explains it: the ids in `describedBy`, and the notice's id while the
  * notice shows. The notice's id is the button's own, so two buttons never share one. With neither, the button has no description.
@@ -32,8 +37,9 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
     <button
       type="button"
       [class]="'button button-' + variant()"
+      [attr.aria-label]="label() || null"
       [attr.aria-busy]="busy() ? 'true' : null"
-      [attr.aria-disabled]="busy() ? 'true' : null"
+      [attr.aria-disabled]="busy() || inactive() ? 'true' : null"
       [attr.aria-describedby]="described()"
       (click)="press()"
     >
@@ -53,6 +59,18 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
     .under {
       margin-top: var(--space-2);
     }
+    /* The sample email chip (DESIGN sample-email-chip): a bordered, actionable pill. controls.css keeps no pill. */
+    .button-chip {
+      min-height: var(--space-target-min);
+      padding: 0 var(--space-3);
+      background: var(--sample-email-chip-background);
+      color: var(--sample-email-chip-foreground);
+      border: var(--sample-email-chip-border);
+      border-radius: var(--sample-email-chip-radius);
+    }
+    .button-chip:hover:not([aria-disabled='true']) {
+      background: var(--sample-email-chip-background-hover);
+    }
   `,
 })
 export class ServerButton {
@@ -60,6 +78,12 @@ export class ServerButton {
 
   /** The call that a press makes: its answer, an Observable (its first value) or a Promise, ends the busy state. */
   readonly action = input.required<() => Observable<unknown> | Promise<unknown>>();
+
+  /** True while the server says the control is unavailable: the button is aria-disabled and a press is ignored. */
+  readonly inactive = input(false);
+
+  /** The button's accessible name when it differs from its visible text (it starts with that text); empty for none. */
+  readonly label = input('');
 
   /** The ids of the text that explains the button, such as the error beside it. */
   readonly describedBy = input<readonly string[]>([]);
@@ -91,7 +115,7 @@ export class ServerButton {
   }
 
   protected press(): void {
-    if (!this.state.press()) {
+    if (this.inactive() || !this.state.press()) {
       return;
     }
     const call = this.state.call;

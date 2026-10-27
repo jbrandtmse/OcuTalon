@@ -156,7 +156,7 @@ test('W2: at 200% text the boxes hold their text, the composer fits its lines an
             .map((el) => `${css} "${(el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 30)}" ${el.scrollHeight} > ${el.clientHeight}`),
         [selector, byLine] as const,
       );
-    for (const [selector, byLine] of [['.chip', true], ['.flag', true], ['.button', false], ['[data-banner]', false], ['.header', false]] as const) {
+    for (const [selector, byLine] of [['.chip', true], ['.flag', true], ['.button', false], ['[data-banner]', false], ['.header', false], ['app-break-feed-box', false], ['app-demo-guide .prompt', false], ['app-device-panel .tab', false]] as const) {
       expect(await page.locator(selector).count(), `${selector} is on the page`).toBeGreaterThan(0);
       expect(await short(selector, byLine), `no ${selector} is shorter than its text`).toEqual([]);
     }

@@ -1,0 +1,19 @@
+{
+  "name": "gate-throw",
+  "match": {
+    "marker": "gate-throw"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_throw",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock tried the throwing gate test tool."
+    }
+  ]
+}

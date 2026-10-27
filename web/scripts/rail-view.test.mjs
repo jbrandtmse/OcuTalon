@@ -100,6 +100,7 @@ describe('the fixed strings', () => {
         headingSpoken: '{label}, {n}',
         emptyApprovals: 'None waiting.',
         emptyChecks: 'Ask OcuTalon to watch a production.',
+        emptyChecksDemo: 'Nothing yet. Step 1 of the guide sets up a watch.',
         emptyReminders: 'None pending.',
         emptyDecisions: 'No decisions yet.',
         hintChecks: 'To stop, ask: "Stop watching Orders."',
@@ -167,6 +168,18 @@ describe('the sections', () => {
       assert.equal(one.count, 0, id);
       assert.deepEqual([one.heading, one.spoken, one.empty, one.hint], [heading, spoken, empty, hint], id);
       assert.deepEqual(one.rows, [], id);
+    }
+  });
+
+  it('show the demo mode\'s text for no checks, and only that text, when the demo flag is set (Story 4.4)', () => {
+    const store = fromSnapshot(snapshot({}, TELEGRAM_OFF));
+    const demo = railView(store, format(NOW), true);
+    assert.equal(section(demo, 'checks').empty, 'Nothing yet. Step 1 of the guide sets up a watch.');
+    assert.equal(section(demo, 'checks').hint, 'To stop, ask: "Stop watching Orders."');
+    assert.equal(section(railView(store, format(NOW), false), 'checks').empty, 'Ask OcuTalon to watch a production.');
+    assert.equal(section(railView(store, format(NOW)), 'checks').empty, 'Ask OcuTalon to watch a production.', 'the default is the text outside the demo');
+    for (const id of ['approvals', 'reminders', 'decisions']) {
+      assert.equal(section(demo, id).empty, section(viewOf(), id).empty, id);
     }
   });
 

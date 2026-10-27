@@ -233,7 +233,7 @@ export class StatusRail {
       return NO_VIEW;
     }
     this.clock();
-    return railView(store, formatAt(Date.now()));
+    return railView(store, formatAt(Date.now()), this.live.snapshot()?.demoMode === true);
   });
 
   constructor() {

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, untracked } from '@angular/core';
 
 import { ChatPanel } from '../chat/chat-panel';
+import { DevicePanel } from '../devices/device-panel';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { RAIL_TEXTS } from '../rail/rail-view';
 import { StatusRail } from '../rail/status-rail';
@@ -29,15 +30,18 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
 const NOTE_RULE: FocusRule = { within: '.narrow-note' };
 
 /**
- * The main page: the status rail and the chat region, under the page's one visually hidden h1. The h1 is the routed
+ * The main page: the status rail, the chat region and, in demo mode, the Simulated devices region (Story 4.5), under the page's one visually hidden h1. The h1 is the routed
  * page's own first element, so each later page names itself. The rail is a region named Status (id status-region), 288px wide and 320px
  * from a 1440px viewport, which scrolls on its own; main follows it and takes the rest of the width. The page has four width bands
  * (Story 2.15, layout-view.ts):
  * - 1024 to 1279px: the rail is a drawer, not displayed until the Status button of the header (or Skip to status) opens it, and then
  *   the column beside main that it is above 1280px; it pushes the chat and covers nothing. Esc in the rail closes it, after any popover
  *   and any disclosure that used the Esc first (Layout.closeDrawer).
- * - Below 1024px: one column that scrolls as a page: the narrow-window note (once per session, until closed), main, then the rail, which
- *   is moved after main in the DOM so that the tab order is the visual order. A focused element of the moved rail keeps focus.
+ * - Below 1024px: one column that scrolls as a page: the narrow-window note (once per session, until closed), main, the device panel
+ *   (demo mode), then the rail, which is moved after the device panel in the DOM so that the tab order is the visual order. A focused
+ *   element of the moved rail keeps focus.
+ * The device panel (app-device-panel) is the host's third child, after main: the column on the right from 1024px, 352px wide and 384px
+ * from 1440px. It has no region and takes no width unless demo mode is on.
  *
  * While the snapshot loads, both regions are aria-busy and show static skeletons, hidden from assistive technology:
  * two rows in each of the rail's four sections and three entries in main. When the load fails (no data by 10 seconds, or an error
@@ -55,7 +59,7 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
  */
 @Component({
   selector: 'app-main-page',
-  imports: [ChatPanel, InlineNotice, ServerButton, StatusRail],
+  imports: [ChatPanel, DevicePanel, InlineNotice, ServerButton, StatusRail],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="visually-hidden">OcuTalon</h1>
@@ -119,6 +123,7 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
         <app-chat-panel />
       }
     </main>
+    <app-device-panel />
   `,
   styles: `
     :host {
@@ -303,20 +308,21 @@ export class MainPage {
   }
 
   /**
-   * Puts the rail after main while the layout is stacked and before it otherwise, so that the DOM order is the visual order. Moving the
-   * rail blurs the element in it that held focus, which gets it back without scrolling.
+   * Puts the rail after the device panel (main, devices, rail) while the layout is stacked and before main otherwise, so that the DOM
+   * order is the visual order. Moving the rail blurs the element in it that held focus, which gets it back without scrolling.
    */
   private place(stacked: boolean): void {
     const host = this.host.nativeElement;
     const rail = host.querySelector<HTMLElement>(':scope > .rail');
     const main = host.querySelector<HTMLElement>(':scope > .main');
-    if (rail === null || main === null || (stacked ? rail.previousElementSibling === main : rail.nextElementSibling === main)) {
+    const devices = host.querySelector<HTMLElement>(':scope > app-device-panel');
+    if (rail === null || main === null || devices === null || (stacked ? rail.previousElementSibling === devices : rail.nextElementSibling === main)) {
       return;
     }
     const active = document.activeElement;
     const held = active instanceof HTMLElement && rail.contains(active) ? active : undefined;
     if (stacked) {
-      main.after(rail);
+      devices.after(rail);
     } else {
       main.before(rail);
     }

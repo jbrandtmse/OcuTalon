@@ -3,11 +3,24 @@
 ///   - GET /v1/state is the snapshot and GET /v1/events the poll (AD-12); POST /v1/session/end signs out; POST /v1/messages
 ///     takes the page's message, {clientId, text, fromGuide}, hands it to WebChatIn through the production (AD-1, AD-30) and
 ///     answers 202 {clientId} (a repeat of a clientId included) or 400 bad_message for any other body. Every other
-///     route of the release answers 501 not_built until its story ships, and the pairing routes answer 404 while
-///     Telegram is not included. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
+///     route of the release that no story has shipped answers 501 not_built, and the pairing routes answer 404 while
+///     Telegram is not included. POST /v1/mailbox/incoming and /v1/mailbox/samples/:name simulate an incoming email: with demo
+///     mode off both answer 404 not_found before anything else is read. The first takes {from, subject, body} (strings; from
+///     optional, at most 1000 characters with the subject; the body at most SimMailboxIn's BODYMAX): a blank subject or body is 400 bad_email with its field error (the
+///     subject first), and any other bad body is 400 bad_email with the general text; the second takes the name of a sample
+///     (newsletter, partner-notice, suspicious-request, else 404 not_found) and does not read the body. Both hand SimMailboxIn
+///     (through the production, AD-1) a Channel.SimMailbox.Mail for the CSP session's session and answer 202 {"ref"}; a session
+///     that can't be read and any failure are 500 server_error. POST /v1/guide/markers takes {marker: trace_opened | run_again}, writes that UI-only marker of the
+///     session's GuideState, refreshes the guide and answers 200 with the guide view (404 not_found with demo mode off, 400
+///     bad_marker for any other body). POST /v1/demo/break-feed presses Break the feed: with demo mode off the answer is 404 not_found
+///     before anything else, the body is not read, and the session is the CSP session's; BreakFeedIn (Demo.BreakFeedIn, through the
+///     production) answers 200 {"state":"sent","startedAt"}, or 409 {"error":{"code","message"}} with the code not_watching or
+///     incident_in_progress and its plain-English hint when the press is not available (nothing is sent then); a session that
+///     can't be read and any other failure are 500 server_error. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
-///     and the active status conditions.
+///     and the active status conditions, and, last and only while demo mode is on, the simulated phone, the simulated mailbox
+///     and the guide that Demo.Guide.Compute derives.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -31,6 +44,12 @@ Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
 /// The most entries the snapshot's chat holds: the newest, oldest first (DW-65).
 Parameter CHATMAX = 100;
 
+/// The most simulated-phone messages the snapshot's phone holds: the newest, oldest first.
+Parameter PHONEMAX = 100;
+
+/// The most simulated-mailbox emails the snapshot's mailbox holds: the newest, oldest first.
+Parameter MAILMAX = 100;
+
 Parameter MESSAGEBADCURSOR = "The after and afterInstance values must be whole numbers of zero or more.";
 
 Parameter MESSAGENOTJSON = "OcuTalon refused this request because it wasn't sent as JSON.";
@@ -40,6 +59,18 @@ Parameter MESSAGENOHEADER = "OcuTalon refused this request because it didn't com
 Parameter MESSAGEWRONGORIGIN = "OcuTalon refused this request because it came from another site.";
 
 Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
+
+Parameter MESSAGEEMPTYSUBJECT = "Enter a subject.";
+
+Parameter MESSAGEEMPTYBODY = "Enter a body.";
+
+Parameter MESSAGEBADEMAIL = "An email needs a subject and a body. From and subject can be at most 1000 characters, and the body at most 10000.";
+
+Parameter MESSAGEBADMARKER = "A guide marker must be trace_opened or run_again.";
+
+Parameter MESSAGENOTWATCHING = "Ask OcuTalon to watch the Orders production first (step 1).";
+
+Parameter MESSAGEINCIDENTINPROGRESS = "Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.";
 
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
@@ -57,10 +88,10 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/messages" Method="POST" Call="Messages"/>
 <Route Url="/v1/approvals/:ref/answer" Method="POST" Call="AnswerApproval"/>
 <Route Url="/v1/incidents/:ref/dismiss" Method="POST" Call="DismissIncident"/>
-<Route Url="/v1/demo/break-feed" Method="POST" Call="NotBuilt"/>
-<Route Url="/v1/mailbox/incoming" Method="POST" Call="NotBuilt"/>
-<Route Url="/v1/mailbox/samples/:name" Method="POST" Call="NotBuilt"/>
-<Route Url="/v1/guide/markers" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/demo/break-feed" Method="POST" Call="BreakFeed"/>
+<Route Url="/v1/mailbox/incoming" Method="POST" Call="MailboxIncoming"/>
+<Route Url="/v1/mailbox/samples/:name" Method="POST" Call="MailboxSample"/>
+<Route Url="/v1/guide/markers" Method="POST" Call="GuideMarkers"/>
 <Route Url="/v1/session/end" Method="POST" Call="EndSession"/>
 <Route Url="/v1/pairing/code" Method="POST" Call="Pairing"/>
 <Route Url="/v1/pairing" Method="DELETE" Call="Pairing"/>
@@ -210,6 +241,145 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 	Quit service.ProcessInput(input, .output)
 }
 
+/// Hands the input (a Demo.Press) to BreakFeedIn: the service is created in this process and takes the input with ProcessInput, so
+/// that the press enters the production through its business service (AD-1). output is the service's JSON answer. An error status
+/// means the press failed.
+ClassMethod Press(input As %RegisteredObject, Output output As %String) As %Status [ Private ]
+{
+	Set output = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService("BreakFeedIn", .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit service.ProcessInput(input, .output)
+}
+
+/// POST /v1/demo/break-feed: see the class comment. The order is demo mode off (404), a session that can't be read (500), the press
+/// (BreakFeedIn), an inactive or refused press (409, code = the reason), a sent one (200) and any other failure (500).
+ClassMethod BreakFeed() As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set input = ##class(OcuTalon.Demo.Press).%New()
+	Set input.SessionRef = session.Ref
+	Set sc = ..Press(input, .output)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
+		Set outcome = answer.outcome
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If outcome = "inactive" {
+		If answer.reason = "not_watching" Quit ..Fail(409, "not_watching", ..#MESSAGENOTWATCHING)
+		If answer.reason = "incident_in_progress" Quit ..Fail(409, "incident_in_progress", ..#MESSAGEINCIDENTINPROGRESS)
+	}
+	If outcome '= "sent" Quit ..ServerError($SYSTEM.Status.Error(5001, "BreakFeedIn answered an outcome that the route doesn't know"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"state": (answer.state), "startedAt": (answer.startedAt)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Hands the input (a Channel.SimMailbox.Mail) to SimMailboxIn: the service is created in this process and takes the input with
+/// ProcessInput, so that the email enters the production through its business service (AD-1). output is the service's JSON
+/// answer. An error status means the email was not recorded and sent.
+ClassMethod Mail(input As %RegisteredObject, Output output As %String) As %Status [ Private ]
+{
+	Set output = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit service.ProcessInput(input, .output)
+}
+
+/// POST /v1/mailbox/incoming: see the class comment. The order is demo mode off (404), the body (400 bad_email), a session that
+/// can't be read (500), SimMailboxIn (through the production; an error is 500) and the answer 202 {"ref"}. A sessionRef in the
+/// body is ignored (AD-4).
+ClassMethod MailboxIncoming() As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '..MailBody(.from, .subject, .body, .message) Quit ..Fail(400, "bad_email", message)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set mail = ##class(OcuTalon.Channel.SimMailbox.Mail).%New()
+	Set mail.SessionRef = session.Ref
+	Set mail.Sender = from
+	Set mail.Subject = subject
+	Set mail.Text = body
+	Quit ..MailAccepted(mail)
+}
+
+/// POST /v1/mailbox/samples/:name: with demo mode off, or for a name that is not a sample, 404 not_found before the body or the
+/// session is read; otherwise SimMailboxIn gets the sample's name and the answer is 202 {"ref"}.
+ClassMethod MailboxSample(name As %String = "") As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '##class(OcuTalon.Channel.SimMailbox.In).IsSample(name) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set mail = ##class(OcuTalon.Channel.SimMailbox.Mail).%New()
+	Set mail.SessionRef = session.Ref
+	Set mail.Sample = name
+	Quit ..MailAccepted(mail)
+}
+
+/// Hands the mail to SimMailboxIn and answers 202 {"ref"} from the service's output; an error, or an output that is not a JSON
+/// object with a ref, is 500 server_error.
+ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ Private ]
+{
+	Set sc = ..Mail(mail, .output)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
+		Set ref = answer.ref
+		If (answer.%GetTypeOf("ref") '= "string") || (ref = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn answered no ref")
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Set %response.Status = ..#HTTP202ACCEPTED
+	Write {"ref": (ref)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The fields of the request body, and 1 when it is a valid email: a JSON object whose from, subject and body are strings (a
+/// missing one is empty), from and subject at most 1000 characters, the body at most Channel.SimMailbox.In's BODYMAX, subject and body not blank (blank is empty after stripping
+/// white space and control characters). Otherwise 0, with the fields empty and message the plain-English reason: the subject's
+/// field error first, then the body's, and the general text for any other bad body.
+ClassMethod MailBody(Output from As %String, Output subject As %String, Output body As %String, Output message As %String) As %Boolean [ Private ]
+{
+	Set (from, subject, body) = ""
+	Set message = ..#MESSAGEBADEMAIL
+	Try {
+		Set object = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set object = ""
+	}
+	If '$IsObject(object) || 'object.%IsA("%Library.DynamicObject") Quit 0
+	Set valid = 1
+	For name = "from", "subject", "body" {
+		Set type = object.%GetTypeOf(name)
+		If (type '= "string") && (type '= "unassigned") Set valid = 0
+	}
+	If 'valid Quit 0
+	Set sender = $Select(object.%GetTypeOf("from") = "string": object.from, 1: "")
+	Set title = $Select(object.%GetTypeOf("subject") = "string": object.subject, 1: "")
+	Set text = $Select(object.%GetTypeOf("body") = "string": object.body, 1: "")
+	If ($Length(sender) > 1000) || ($Length(title) > 1000) || ($Length(text) > ##class(OcuTalon.Channel.SimMailbox.In).#BODYMAX) Quit 0
+	If $ZStrip(title, "<>WC") = "" {
+		Set message = ..#MESSAGEEMPTYSUBJECT
+		Quit 0
+	}
+	If $ZStrip(text, "<>WC") = "" {
+		Set message = ..#MESSAGEEMPTYBODY
+		Quit 0
+	}
+	Set from = sender, subject = title, body = text
+	Quit 1
+}
+
 /// POST /v1/approvals/:ref/answer: 404 not_found for a request the session can't see (Ownership.Approval), and 501
 /// not_built for one it can see, until the story that answers requests ships.
 ClassMethod AnswerApproval(ref As %String) As %Status
@@ -234,6 +404,53 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 }
 
+/// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is
+/// read. The body is a JSON object whose marker is the string trace_opened or run_again; anything else is 400 bad_marker and
+/// nothing is written. A valid marker is written to the signed-in session's GuideState (trace_opened sets the flag, run_again
+/// starts the next epoch), the guide is refreshed (a guide.state event follows a change) and the answer is 200 with the guide
+/// view that /state carries, with its trace URL. A session that can't be read, a marker that can't be written and a refresh that fails are 500
+/// server_error.
+ClassMethod GuideMarkers() As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '..MarkerBody(.marker) Quit ..Fail(400, "bad_marker", ..#MESSAGEBADMARKER)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If marker = "trace_opened" {
+		Set sc = ##class(OcuTalon.Data.GuideState).TraceOpened(session.Ref)
+	} Else {
+		Set sc = ##class(OcuTalon.Data.GuideState).RunAgain(session.Ref)
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = ##class(OcuTalon.Live.Publish).RefreshGuide(session.Ref, .guide)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(guide) Quit ..ServerError($SYSTEM.Status.Error(5001, "The guide could not be computed"))
+	Set answer = ..PayloadObject(guide)
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(answer, .viewer)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write answer.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The marker of the request body, and 1 when it is a valid one: a JSON object whose marker is the string trace_opened or
+/// run_again (other members are ignored). Otherwise 0, with the marker empty.
+ClassMethod MarkerBody(Output marker As %String) As %Boolean [ Private ]
+{
+	Set marker = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If body.%GetTypeOf("marker") '= "string" Quit 0
+	Set value = body.marker
+	If (value '= "trace_opened") && (value '= "run_again") Quit 0
+	Set marker = value
+	Quit 1
+}
+
 /// Every route whose story hasn't shipped: 501 not_built. arg is the route's :ref or :name.
 ClassMethod NotBuilt(arg As %String = "") As %Status
 {
@@ -253,8 +470,11 @@ ClassMethod Pairing() As %Status
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
-/// and the session's pairing, and status: the active status conditions. instanceStream is the stream reported as
-/// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
+/// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
+/// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
+/// oldest first, each the mailbox payload plus, when the session has a decide decision of the email's Item, the member
+/// decision (its payload), and last guide: the guide that Demo.Guide.Compute derives.
+/// instanceStream is the stream reported as instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
 	Set streams = {
@@ -291,9 +511,38 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
+	If body.demoMode {
+		Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(sessionRef, ..#PHONEMAX, .sc)
+		Do ..Check(sc)
+		Set phone = []
+		For i = rows.Count():-1:1 Do phone.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Phone).FromRow(rows.GetAt(i))))
+		Set body.phone = phone
+		Set body.mailbox = ..MailboxItems(sessionRef)
+		Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
+	}
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body
+}
+
+/// The simulated mailbox: the session's newest MAILMAX emails, oldest first, each the Mailbox payload object plus decision when
+/// the session has a decide decision for the email's ItemId. A read that fails throws.
+ClassMethod MailboxItems(sessionRef As %String) As %DynamicArray [ Private ]
+{
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentMail(sessionRef, ..#MAILMAX, .sc)
+	Do ..Check(sc)
+	Set mailbox = []
+	For i = rows.Count():-1:1 {
+		Set row = rows.GetAt(i)
+		Set entry = ..PayloadObject(##class(OcuTalon.Live.Payload.Mailbox).FromRow(row))
+		If row.ItemId '= "" {
+			Set decision = ##class(OcuTalon.Data.Ownership).DecisionOfItem(row.ItemId, sessionRef, .sc)
+			Do ..Check(sc)
+			If $IsObject(decision) Set entry.decision = ..PayloadObject(##class(OcuTalon.Live.Payload.Decision).FromRow(decision))
+		}
+		Do mailbox.%Push(entry)
+	}
+	Quit mailbox
 }
 
 /// The chat: the newest CHATMAX of the session's turns, its visible noticed incidents and its web notice cards (the tell-now
@@ -471,6 +720,7 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String) As %St
 		403: ..#HTTP403FORBIDDEN,
 		404: ..#HTTP404NOTFOUND,
 		405: ..#HTTP405METHODNOTALLOWED,
+		409: ..#HTTP409CONFLICT,
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)

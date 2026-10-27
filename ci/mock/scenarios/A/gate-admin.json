@@ -1,0 +1,19 @@
+{
+  "name": "gate-admin",
+  "match": {
+    "marker": "gate-admin"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_admin",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock tried the admin gate test tool."
+    }
+  ]
+}

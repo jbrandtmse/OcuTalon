@@ -268,7 +268,7 @@ test('B3: the local cost limit shows the warning with the cap and no action, and
     expect(await stack(page), 'in the catalog order').toEqual(['noModelKey', 'costCap']);
 
     const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
-    const send = page.getByRole('button', { name: 'Send', exact: true });
+    const send = page.getByRole('main').getByRole('button', { name: 'Send', exact: true });
     await field.fill('zz text for the composer');
     await expect(field, 'the composer takes text').toHaveValue('zz text for the composer');
     await expect(field).toBeEnabled();
@@ -309,7 +309,7 @@ test('B4: the online demo cap shows the danger banner with a page time and Insta
   expect(await stack(page), 'it is the only banner').toEqual(['dailyCap']);
 
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
-  const send = page.getByRole('button', { name: 'Send', exact: true });
+  const send = page.getByRole('main').getByRole('button', { name: 'Send', exact: true });
   await field.fill('zz text for the composer');
   await expect(field, 'on the online demo the composer takes text too').toHaveValue('zz text for the composer');
   await expect(send, 'and Send is not disabled').not.toHaveAttribute('aria-disabled', 'true');
@@ -404,7 +404,7 @@ test('B6: the no-key start shows the banner from the real snapshot and replies t
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
   const request = page.waitForRequest((candidate) => candidate.method() === 'POST' && new URL(candidate.url()).pathname === '/ocutalon/api/v1/messages');
   await field.fill(text);
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Send', exact: true }).click();
   const clientId = ((await request).postDataJSON() as { clientId: string }).clientId;
   const reply = page.locator(`app-chat-panel [data-part="reply"][data-key="${clientId}"]`);
   await expect(reply.locator('.text'), 'the reply says that no model key is set').toHaveText("I couldn't answer that: no model key is set. Nothing was changed.", { timeout: 30_000 });
@@ -669,7 +669,7 @@ test('B12: six banners at 1280x720 leave the page unscrolled and the composer in
   const wide = await measure(page);
   expect(wide.width).toBe(1280);
   expect(wide.scrolls, 'six banners do not make the page scroll at 1280x720: the routed page shrinks').toBeLessThanOrEqual(1);
-  const send = page.getByRole('button', { name: 'Send', exact: true });
+  const send = page.getByRole('main').getByRole('button', { name: 'Send', exact: true });
   await expect(send, 'and the composer is still in view').toBeInViewport();
   expect(await send.evaluate((node) => {
     const box = node.getBoundingClientRect();

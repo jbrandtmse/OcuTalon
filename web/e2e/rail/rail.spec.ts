@@ -110,7 +110,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   await expect(status.getByRole('link'), 'and no README link').toHaveCount(0);
   await expect(status.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',
-    'Ask OcuTalon to watch a production.',
+    'Nothing yet. Step 1 of the guide sets up a watch.',
     'None pending.',
     'No decisions yet.',
   ]);

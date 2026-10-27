@@ -91,3 +91,4 @@
 2026-10-27T05:49:10Z	Epic 8	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
 2026-10-27T05:49:10Z	Epic 8	launch_env	depth=4 watchdog=1 bash_max_ms=default
 2026-10-27T05:49:10Z	Epic 8	runner_unattended_start	run=20261026T1518Z-1-37 policy=36abb05 doctrine=3d11cec lane=C slot=ocutalon-slot-c note=re-dispatch_after_Epic_4_merged(b195813);policy_changed_from_9e90866;bootstrap_check=ok;fd43794_ci=success(40213992599,40213992639) model=claude-opus-5-5
+2026-10-27T05:50:19Z	Epic 8	spine_reconciled	ads_merged=0 conventions_rows_union=ours(Status_marks)+feature(Tool_resources,Approval_requests,Audit_entries,Online-demo_start) updated=2026-10-26(later) lint=ok(5_low_placeholder_findings_identical_on_feature;no_ad_id/ad_fields) model=claude-opus-5-5

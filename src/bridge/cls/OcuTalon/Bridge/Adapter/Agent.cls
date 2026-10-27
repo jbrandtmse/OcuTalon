@@ -14,8 +14,9 @@ Include Ensemble
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort. The config carries timeout_ms,
 ///     which Timeouts.Derive gives for the TimerSeconds setting of Decide as it stands when the config is composed (SessionConfigFor). A
 ///     saved session is opened with the agent's model and system prompt too, because AI Hub resumes a session with the ones it was saved with.
-///   - It adds the step audit policy to every agent it builds (OnAfterAgentInit), after any policy that a setting names, and refuses
-///     the AuditPolicy setting (REFUSED), so that every tool call is a step (AD-6, AD-9).
+///   - It adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit policy to every agent it builds
+///     (OnAfterAgentInit), after any policy that a setting names, and refuses the AuthPolicy and AuditPolicy settings (REFUSED), so that
+///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner
@@ -159,11 +160,14 @@ Method BuildAgent() As %Status
 	Quit $$$OK
 }
 
-/// AI Hub's hook after the agent is initialized: adds the step audit policy (OcuTalon.Bridge.Policy.StepAudit) to the agent's tool
-/// manager (AD-6, AD-9). AI Hub chains the policies that code adds after those that settings name, and calls every audit policy.
+/// AI Hub's hook after the agent is initialized: adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit
+/// policy (OcuTalon.Bridge.Policy.StepAudit) to the agent's tool manager (AD-6, AD-9, AD-10). AI Hub chains the policies that code adds after
+/// those that settings name: every authorization policy must allow a call, and every audit policy is called. The status is the first error.
 Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
 	Set sc = ##super(.agent)
+	If $$$ISERR(sc) Quit sc
+	Set sc = agent.ToolManager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
 	If $$$ISERR(sc) Quit sc
 	Quit agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
 }
