@@ -2,7 +2,8 @@
 title: 'Story 8.5: Reminders survive restarts and upgrades, and late ones say so'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '65bba951189b2a468cd30e8b61b4f44e9c1e2d07'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -231,6 +232,32 @@ Live tests and CI:
 
 ## Review Triage Log
 
+### 2026-10-27 — Review pass
+- verdicts: the layers reported 27 findings (Blind 10, Edge 14, Verification-gap 3 gaps and the Rule 19 notes, Intent alignment 1 descriptive report); grouped by root cause below — high 0, medium 7 patched plus 1 rejected as spec-bound, low 5 patched plus 8 rejected, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: R_due 30 s ahead may pass before `dc stop` on a slow runner; Edge: same; Verification-gap: same window — R_due 60 s and R_lostdue 65 s ahead in the live script.
+  - `[medium]` `[patch]` Blind: `due_epoch` read after the seeding call makes the "stopped before due" check lenient — the host clock is read before the call for that check and after it for the wait.
+  - `[medium]` `[patch]` Edge: the "no waiter left" read of R_future is a single sample taken as soon as the card shows — the script waits for the waiter to end first.
+  - `[medium]` `[patch]` Edge: F2 sized from restart 1 can be passed by the slower upgrade restart on a runner — F2 is 6 x restart 1 + 60 s, at least 120 s.
+  - `[medium]` `[patch]` Verification-gap: the live "fired once" check is sampled at the first match — R_due and R_lostdue are checked again before `check_clean_start`.
+  - `[medium]` `[patch]` Blind, Edge, Verification-gap: `TestReconcileWithoutProductionDoesNothing` leaves the production stopped if its start fails — `OnAfterOneTest` starts it if it is not running.
+  - `[medium]` `[patch]` Verification-gap: the re-arm failure path has no test — `TestRearmWithoutSessionFails` (red when `StartFrom` returns OK for a missing session).
+  - `[low]` `[patch]` Verification-gap: `LiveWaiter`'s three-clause rule is pinned only at its extremes — `TestLiveWaiterRule` (red when `LiveWaiter` answers any instance).
+  - `[low]` `[patch]` Edge, Blind-adjacent: `Rearm`'s doc says the job's session ids are not touched, but `ProcessInput` clears `$$$JobSessionId` — the doc now says so.
+  - `[low]` `[patch]` Edge: `TestTwoWaitersFireOnce` sets 8 s, which a loaded host can use up before the second waiter is counted — 15 s.
+  - `[low]` `[patch]` Verification-gap (Rule 19): AC 2 (surviving waiter) and AC 5 (upgrade) have no live mutation line — both applied to `live:reminder-restart`, red, reverted; lines in Verification.
+  - `[low]` `[patch]` Verification-gap: matrix row "No production" had no covering test — `TestReconcileWithoutProductionDoesNothing` (added at the Matrix Test Audit), with its mutation.
+  - `[medium]` `[reject]` Edge, Blind: one failed re-arm makes the Reconcile step fail and one row can keep the instance from becoming ready, and many rows take up to 10 s each — spec-bound: the contract says the errors combine into the returned status and the declaration returns it (Design Notes 3 treats only a session-less row as a warning).
+  - `[low]` `[reject]` Blind, Edge: `LiveWaiter` and `StartHeaders` ignore SQL errors — a failed read means a second harmless waiter (AC 4); the fix adds a branch.
+  - `[low]` `[reject]` Blind, Edge: `StartFrom` takes an empty `TraceRef` and reads the row again — every Session row has a TraceRef, and the race is a deleted row between two reads, which ends as a start error naming the Ref.
+  - `[low]` `[reject]` Edge: `IsProductionRunning` may be wrong while the state changes — spec-bound: the contract mirrors `Conversation.Reconcile`; the next start reconciles.
+  - `[low]` `[reject]` Edge: a waiter with a lost alarm counts as live — spec-bound (the `Approval.IsLive` rule), and Design Notes 2 records it.
+  - `[low]` `[reject]` Edge: a `ReminderStart` left in the queue after a crash can overwrite `TraceHeaderId` — `Start`/`Wake` are frozen by the contract, and two waiters are harmless by AC 4.
+  - `[low]` `[reject]` Edge: the production-restart row 20 reminder is not removed by `Fixture.Clean` — Q1 allows only the seed line to change, and the row lives in a throwaway project.
+  - `[low]` `[reject]` Edge: restart-2 "keeps its waiter" checks pass if both reads are empty — the next check (`pending1|pending1|pending1`) fails on an empty read.
+  - `[low]` `[reject]` Blind: no log of how many reminders were re-armed; `check_rail`'s "-" mode is a tautology; no test for the two-waiter trace-link effect; CI group docs and timings not updated — not defects (the "-" mode greps the Ref and dueAt, and fails when either is missing); the group timings are the lead's bookkeeping (`_bmad/` is owner-only).
+  - `[low]` `[reject]` Intent alignment (descriptive): the unit tests call `Reminder.Reconcile` directly and the declaration and the restart outcomes are pinned by the live unit — the spec puts them there (AC 1, 2, 3, 5, 6); no divergence from the intent.
+
 ## Design Notes
 
 **Rulings in force (recorded by the lead, 2026-10-27):**
@@ -276,10 +303,11 @@ Results:
 4. **Reconcile publishes no event.** The row's state and due time do not change, so the rail does not either. Only its trace target changes, and `/state` carries that. `reminder` keeps its two publishers (AD-33's event table).
 5. **The `only` filter** keeps the unit tests hermetic: they never re-arm another test's rows. The live unit drives the real, unfiltered step.
 6. **The restart cases live in a new live unit.** A `%UnitTest` cannot restart its own IRIS. Restart 1 is plain (`dc stop`/`start`). Restart 2 is an in-place upgrade by `OCUTALON_DEV=1`, the same `zpm load` an upgrade start runs, with the recompile observed. A version-to-version upgrade is Lane A's FR-60 harness.
-   - F2 adapts to the machine: 4 x restart 1 + 60 s, at least 90 s, from the measured ratio of 41 to 13 s.
-   - Expected run time: about 4.5 min on the developer machine (inside the 540 s local deadline) and about 9 min on the runner (inference: 2.4 to 3.9 times the ARM figures), under CI's 1200 s.
+   - F2 adapts to the machine: 6 x restart 1 + 60 s, at least 120 s (implement stage; it was 4 x + 60 s, at least 90 s), because the upgrade restart runs about 3 times as long as the plain one (42 s against 13 s measured) and a slower runner stretches both.
+   - Measured at implement: 319 s on the developer machine (restart 1 13 s, restart 2 42 s; inside the 540 s local deadline), with R_due 60 s and R_lostdue 65 s after seeding. Expected about 9 to 12 min on the runner (inference: 2.4 to 3.9 times the ARM figures), under CI's 1200 s.
 7. **Group `production`.** On Story 8.4's run (40544926928) it was the shortest IRIS job, 9 min 46 s, against `image`'s 24 min 44 s. With the unit, about 19 min (inference), so REL-4's 35-minute wall clock is unchanged.
 8. **"The rail showed it with its countdown throughout"** is read from `StateBody(S).rail.reminders`, the snapshot the page loads, at each point. The countdown is the page's rendering of `dueAt`, which 8.3's `reminder.spec.ts` pins in a browser. The live sign-in stack cannot restart itself, so no browser spans a restart.
+10. **Decided in the implement stage** (review round 1; reversible inside the story, no AD touched). The live script seeds R_due 60 s and R_lostdue 65 s ahead (the plan said 30 and 35), because the pre-stop checks run as separate `iris_script` sessions and a runner 2.4 to 3.9 times slower could pass R_due's due time before `dc stop`. The "stopped before it was due" check reads the host clock before the seeding call and the wait until past due reads it after. R_due and R_lostdue are checked once more at the end, so a second firing after the later restart is seen. After R_future fires the script waits for its waiter to end before it reads the row. `TestTwoWaitersFireOnce` sets its reminder 15 s ahead (it was 8 s) so that waiter A has not fired when the second waiter's start answers on a loaded host. `Reminders.OnAfterOneTest` starts the production again if a test left it stopped. Three tests were added: `TestRearmWithoutSessionFails`, `TestLiveWaiterRule` and `TestReconcileWithoutProductionDoesNothing` (the matrix row "No production").
 9. **No live sign-in or demo-path run.** This story changes no spec. `ReminderFixture.Remove`'s change is additive, and the shard's `Reminders` and `ReminderChat` exercise it.
 
 **Ledger inbox:** none (dispatch). DW-296 (terminal, context) is respected by design: Reconcile and `Rearm` take no row lock, so no waiter's `Start` waits on one.
@@ -339,6 +367,20 @@ Results:
 - AC 5: `ReminderTimer`'s `Storage Default` block removed -> `bash docker/tests/test-storage.sh` (`FAIL storage`).
 - AC 6: `live:reminder-restart` removed from the `production` group -> `bash docker/tests/test-ci-config.sh` (a test script in no group or list).
 
+**Mutations observed (implement stage).** Each applied, red observed, restored from a backup byte-identical (`cmp`, `git status --short`).
+- mutation: `Reminder.Reconcile` skips the `LiveWaiter` check -> red `Reminders.TestReconcileRearmsOnlyLostWaiters` (`live` keeps no header id, gets a second start header).
+- mutation: `Install.Step.Schedule` without `Reconcile()` -> red `live:reminder-restart` (R_lostdue never fires, R_lost not re-armed; 7 checks).
+- mutation: `Reminder.IsLate` returns 0 -> red `Reminders.TestReconcileFiresLateWhenDueWhileDown` (`and late`).
+- mutation: `Reminder.Start` arms `SecondsUntil(dueAt) + 15` -> red `live:reminder-restart` (R_future fires late).
+- mutation: `Reminder.Wake` ignores `State` (check made `If 0`) -> red `Reminders.TestTwoWaitersFireOnce` (two `Notify` requests, two cards).
+- mutation: `ReminderTimer`'s `Storage Default` block removed -> red `bash docker/tests/test-storage.sh` (`FAIL storage`).
+- mutation: `Reminder.Reconcile`'s no-production guard (`If '..IsProductionRunning() Quit $$$OK`) made `If 0` -> red `Reminders.TestReconcileWithoutProductionDoesNothing` (`Reconcile is OK`: HeartbeatIn is not registered to run); matrix row "No production".
+- mutation: `Reminder.LiveWaiter` answers any ReminderTimer with the Ref (the three clauses dropped) -> red `Reminders.TestLiveWaiterRule` (`none of the three is a live waiter`).
+- mutation: `Reminder.StartFrom` answers OK for a missing session -> red `Reminders.TestRearmWithoutSessionFails` (`Rearm fails`, `its error names the Ref`).
+- mutation (AC 2, a surviving waiter and a re-armed one, live): `Reminder.IsLate` returns 0 -> red `live:reminder-restart` (`R_due (its waiter survived): not fired once`, `R_lostdue (no waiter): not fired once`).
+- mutation (AC 5, the upgrade, live): the script's `OCUTALON_DEV` override set to `"0"` -> red `live:reminder-restart` (`no STEP package loaded (dev)`, `ReminderTimer's compiled time did not move`).
+- mutation: `live:reminder-restart` removed from the `production` group -> red `bash docker/tests/test-ci-config.sh` (`FAIL units`, `FAIL inputs`).
+
 **Shared surfaces:**
 - the Reconcile step at every start, which now re-arms every waiterless pending reminder:
   - `test-production-restart.sh` row 20's fixture reminder (Q1);
@@ -354,5 +396,27 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Schedule area re-arms reminders at every start. `Reminder.Reconcile(only, .skipped)` starts one new waiter, through `HeartbeatIn` and `Reminder.Rearm`/`StartFrom`, for each pending row with no live `ReminderTimer`; it skips a row with a live waiter, reports a row whose session is gone, takes no lock, writes no row and publishes no event. `Install.Step.Schedule.Reconcile()` calls it and warns for each skipped Ref. A new live unit, `live:reminder-restart` (group `production`), restarts IRIS plainly and as an in-place upgrade in its own project and asserts order and outcome.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls`: `LiveWaiter`, `Rearm`, `StartFrom`, `Reconcile`, `Combine`, the `STARTITEM` parameter and the class doc.
+- `src/ocutalon/cls/OcuTalon/Schedule/HeartbeatIn.cls`: a `ReminderStart` input is sent on before the lock and the tick.
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderStart.cls`: doc only.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls`: the `Reconcile()` declaration.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls`: `StartHeaders`, `WaitingCount`, and `Remove` also removes re-armed waiters' sessions.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls`: seven new tests and an `OnAfterOneTest` that restarts a stopped production.
+- `docker/tests/test-reminder-restart.sh` (new): the restart and upgrade unit.
+- `docker/tests/test-production-restart.sh`: row 20's seed line and header phrase only (Q1).
+- `ci/units.sh`: the `production` group entry and `NO_WEB_BUNDLE_UNITS` (Q2).
+
+**Review (round 1).** Patches applied: 12 (7 medium, 5 low). Deferred: none. Rejected: 9 grouped rows (about 15 findings), each with its reason in the Review Triage Log. Follow-up review recommended: false.
+
+**Verification.**
+- Warm stack, one class per call, all passed: `Reminders` (63 s with the 7 new tests), `ReminderLogic`, `Heartbeat` (152 s), `HeartbeatLogic`, `ReminderChat`, `Install.Registry`. `test-ci-config.sh`, `test-storage.sh` (`release-diff`: no release tag yet), `test-boundaries.sh`, `test-class-rules.sh` pass.
+- Fresh stack, once after the last patch: `live reminder-restart` passed in 319 s (restart 1 13 s, restart 2 42 s, 38 checks); `live production-restart` passed, row 20 included; `shard lane-b` 65 classes 436 s; `shard lane-b --reverse` 65 classes 490 s; `shard lane-a` 47 classes 426 s; `bash ci/checks.sh` passed. Warm and fresh stacks torn down, no leftovers.
+- Mutations: eleven observed red and restored byte-identical (listed in Verification).
+
+**Residual risks.** CI is slower than the developer machine: the live unit's seeding margins (R_due 60 s, F2 at least 120 s) are sized for a runner 2.4 to 3.9 times slower (inference); its CI time (about 9 to 12 min) is unmeasured until the first CI run. A waiter that is mid-wake when Reconcile reads it can get a second, harmless waiter (Design Notes 2).

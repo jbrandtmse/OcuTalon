@@ -10,12 +10,15 @@ Include Ensemble
 ///   - While the class behind Checks carries STUB (Lane A's OcuTalon.Checks.Process until Story 5.6), it sends nothing and
 ///     records the marks as after a send, so that the stub writes no error row and the stalled warning stays real (ruling U-52).
 ///   - A call that succeeds writes no event-log row. The Tick is the output.
+/// It is also the Schedule area's way in for the re-arm of a reminder's waiter (AD-1): a ReminderStart as the input is not a tick. It is
+/// sent on to ReminderTimer (Reminder.StartFrom) before, and apart from, the lock, the tick and the status marks.
 Class OcuTalon.Schedule.HeartbeatIn Extends Ens.BusinessService
 {
 
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
 	Set pOutput = ""
+	If $IsObject(pInput) && pInput.%IsA("OcuTalon.Schedule.ReminderStart") Quit ##class(OcuTalon.Schedule.Reminder).StartFrom($this, pInput, .pOutput)
 	Set lock = ##class(OcuTalon.Schedule.Heartbeat).#LOCK
 	Lock +@lock:5
 	If '$Test Quit $$$OK

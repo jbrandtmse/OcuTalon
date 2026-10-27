@@ -11,7 +11,12 @@ Include Ensemble
 ///     woke more than LATESECONDS after DueAt) and saves it, sends one Notification of kind reminder to Notify (reminder.due, or
 ///     reminder.late when Late), releases the lock and publishes the reminder event (fired). A failed send is logged with the Ref and not
 ///     retried, so that a reminder never fires twice. The open waits for the lock up to the process's lock timeout ($$$LockTimeout);
-///     a row whose lock is still busy then is tried again a second later.
+///     a row whose lock is still busy then is tried again a second later;
+///   - Reconcile is the Schedule area's pass at every start (AD-5, AD-23): for each pending row with no live waiter it starts a new one
+///     (Rearm), armed from the row's DueAt. It writes no row, publishes no event and holds no row lock across a start. Rearm enters the
+///     production through HeartbeatIn (AD-1), which makes the start with StartFrom: a ReminderStart to ReminderTimer in a new trace
+///     session under the TraceRef of the row's session (AD-26). Two waiters of one row are harmless: the later one finds the row not
+///     pending and sends nothing (Wake). A caller that is a production job must save and restore its job session ids around Rearm.
 /// Times go only through OcuTalon.Data.Time, and no text is rendered here: the Notification carries a catalog key and its slots.
 Class OcuTalon.Schedule.Reminder
 {
@@ -24,6 +29,9 @@ Parameter LATESECONDS = 10;
 
 /// The item that carries Notifications to the channels.
 Parameter NOTIFYITEM = "Notify";
+
+/// The business service that the re-arm enters the production through (AD-1).
+Parameter STARTITEM = "HeartbeatIn";
 
 /// The due-form rule of a SetReminder, pure: "" with dueAt set to the UTC due time (YYYY-MM-DDThh:mm:ssZ), or one refusal code, the
 /// first of these that holds, in this order:
@@ -149,6 +157,98 @@ ClassMethod Wake(timer As OcuTalon.Schedule.ReminderTimer, completionKey As %Str
 		$$$LOGWARNING("OcuTalon.Schedule.Reminder: the reminder event (fired) of " _ ref _ " was not published: " _ $SYSTEM.Status.GetErrorText(published))
 	}
 	Quit $$$OK
+}
+
+/// The id of a live ReminderTimer with the Ref, or "": an instance that is not completed, not terminated and still waits for at least one
+/// response (the rule of Bridge.Approval.IsLive).
+ClassMethod LiveWaiter(ref As %String) As %String
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT %ID FROM OcuTalon_Schedule.ReminderTimer WHERE Ref = ?", ref)
+	While result.%Next() {
+		Set id = result.%GetData(1)
+		Set timer = ##class(OcuTalon.Schedule.ReminderTimer).%OpenId(id)
+		If $IsObject(timer) && 'timer.%IsCompleted && 'timer.%IsTerminated && (timer.%MasterPendingResponses.Count() > 0) Return id
+	}
+	Quit ""
+}
+
+/// Starts a new waiter for the pending row with the Ref, through HeartbeatIn (AD-1): CreateBusinessService, then ProcessInput of a
+/// ReminderStart. The service is closed before it returns. ProcessInput clears the job's session id, so a caller that is a production job
+/// saves and restores its job session ids around Rearm (Bridge.Approval.StartHold). An error status when the start fails.
+ClassMethod Rearm(ref As %String) As %Status
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#STARTITEM, .service)
+	If $$$ISERR(sc) Quit sc
+	Set start = ##class(OcuTalon.Schedule.ReminderStart).%New()
+	Set start.Ref = ref
+	Set sc = service.ProcessInput(start, .output)
+	Set service = ""
+	Quit sc
+}
+
+/// The start that HeartbeatIn makes for a ReminderStart (AD-26): the waiter's trace session begins at its start header and its SuperSession
+/// is the TraceRef of the row's Session. An error status naming the Ref when the row has no session, or when ReminderTimer gives no
+/// answer within ReminderOps.#STARTSECONDS.
+ClassMethod StartFrom(service As Ens.BusinessService, start As OcuTalon.Schedule.ReminderStart, Output output As %Persistent) As %Status [ Internal ]
+{
+	Set output = ""
+	Set ref = start.Ref
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionRef FROM OcuTalon_Data.Reminder WHERE Ref = ?", ref)
+	Set sessionRef = $Select(result.%Next(): result.%Get("SessionRef"), 1: "")
+	Set result = ""
+	Set session = $Select(sessionRef '= "": ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef), 1: "")
+	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, "OcuTalon.Schedule.Reminder: there is no session for the reminder " _ ref)
+	Set superSession = session.TraceRef
+	Set session = ""
+	Set service.%SessionId = ""
+	Set service.%SuperSession = superSession
+	Set sc = service.SendRequestSync(##class(OcuTalon.Schedule.ReminderOps).#TIMERITEM, start, .output, ##class(OcuTalon.Schedule.ReminderOps).#STARTSECONDS)
+	If $$$ISOK(sc) && '$IsObject($Get(output)) {
+		Set sc = $SYSTEM.Status.Error(5001, "OcuTalon.Schedule.Reminder: ReminderTimer did not answer the start of " _ ref _ " within " _ ##class(OcuTalon.Schedule.ReminderOps).#STARTSECONDS _ " seconds")
+	}
+	Quit sc
+}
+
+/// The pass of the class description, idempotent: with no production running it answers OK and does nothing. It reads the pending rows by
+/// one SQL statement (earliest due first) and opens none with a lock. only, a comma-separated list of Refs, limits the pass to those rows.
+/// A row with a live waiter (LiveWaiter) is skipped. A row whose SessionRef names no Session row is skipped, and its Ref is added to skipped
+/// (a list). Every other row is re-armed through Rearm. Every row is tried; the failures combine into the returned status, each naming
+/// its Ref.
+ClassMethod Reconcile(only As %String = "", Output skipped As %List) As %Status
+{
+	Set skipped = ""
+	If '##class(Ens.Director).IsProductionRunning() Quit $$$OK
+	Set sc = $$$OK
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef FROM OcuTalon_Data.Reminder WHERE State = 'pending' ORDER BY DueAt, ID")
+	If result.%SQLCODE < 0 {
+		Quit ..Combine(sc, "the pending reminders cannot be read: SQLCODE " _ result.%SQLCODE _ " " _ result.%Message)
+	}
+	Set only = $Select(only = "": "", 1: $ListFromString(only, ","))
+	Set pending = ""
+	While result.%Next() {
+		Set ref = result.%Get("Ref")
+		If (only '= "") && '$ListFind(only, ref) Continue
+		Set pending = pending _ $ListBuild($ListBuild(ref, result.%Get("SessionRef")))
+	}
+	Set result = ""
+	Set position = 0
+	While $ListNext(pending, position, entry) {
+		Set ref = $List(entry, 1)
+		If ..LiveWaiter(ref) '= "" Continue
+		If '##class(OcuTalon.Data.Session).RefIndexExists($List(entry, 2)) {
+			Set skipped = skipped _ $ListBuild(ref)
+			Continue
+		}
+		Set one = ..Rearm(ref)
+		If $$$ISERR(one) Set sc = ..Combine(sc, "the waiter of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
+	}
+	Quit sc
+}
+
+/// The status plus one more failure, with the text as its error.
+ClassMethod Combine(sc As %Status, text As %String) As %Status [ Private ]
+{
+	Quit $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "OcuTalon.Schedule.Reminder.Reconcile: " _ text))
 }
 
 }

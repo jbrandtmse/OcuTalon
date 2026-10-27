@@ -29,7 +29,7 @@ group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder" ;;
     install-upgrade) echo "live:install-upgrade live:audit" ;;
-    production) echo "live:production live:production-restart" ;;
+    production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in" ;;
     shards) echo "shard:lane-a live:floor" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b" ;;
@@ -70,7 +70,7 @@ WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
 # The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
 # web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
 # leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
-NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip"
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart"
 
 # The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is

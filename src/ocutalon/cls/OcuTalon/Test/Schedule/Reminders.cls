@@ -26,7 +26,20 @@ Include Ensemble
 ///   - TestSetRepeatOneWaiter: a SetReminder submitted twice with one key makes one row, one waiter and one created event;
 ///   - TestSeveralCancelsFromOneToolCall (U-118): three cancels of one tool call, with the keys <item>:1 to :3, each cancel their own
 ///     reminder; the call run again gets each command its first result, and with the Refs in another order a key for another Ref is
-///     reused_key.
+///     reused_key;
+///   - TestReconcileRearmsOnlyLostWaiters (Story 8.5, AC 1): Reminder.Reconcile starts one new waiter, in a trace session of its own under
+///     the session's TraceRef, for a pending row that never had one and for one whose waiter ended, leaves a row with a live waiter, a
+///     fired row and a cancelled row alone, starts nothing the second time, and the re-armed reminder then fires once, not late;
+///   - TestReconcileFiresLateWhenDueWhileDown (AC 2): a pending row past its due time with no waiter fires once after Reconcile, late,
+///     with the reminder.late text on the web and the phone;
+///   - TestTwoWaitersFireOnce (AC 4): an old and a re-armed waiter of one row both wake, and one notification per channel and one fired
+///     event result;
+///   - TestReconcileSkipsReminderWithoutSession: a pending row whose session is gone is skipped and named, and nothing is started;
+///   - TestRearmWithoutSessionFails: Rearm of a row whose session is gone answers an error that names the Ref and starts nothing;
+///   - TestLiveWaiterRule: a ReminderTimer that is completed or terminated with a response pending, or that waits for no response, is
+///     not a live waiter, and one that waits is;
+///   - TestReconcileWithoutProductionDoesNothing: with the production stopped, Reconcile is OK and starts nothing; the production is
+///     started again by the test.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("Reminders","n")) and the clean-up are those of
 /// Test.Core.InProduction; OnAfterOneTest removes the test's reminders with everything the product made for them (ReminderFixture.Remove)
 /// and puts the Telegram test switch back.
@@ -55,6 +68,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		If ref '= "" Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(ref)
 	}
 	Set ..Reminders = ""
+	If '##class(Ens.Director).IsProductionRunning() Do ##class(OcuTalon.Install.Step.Production).Start()
 	If ..TelegramWas '= "" Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(..TelegramWas)
 	Set ..TelegramWas = ""
 	Quit $$$OK
@@ -722,6 +736,288 @@ Method CancelCall(session As %String, item As %String, refs As %List, Output res
 		}
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Checks the waiter that Reconcile started for the pending row: its newest ReminderStart header is the row's TraceHeaderId, comes from
+/// HeartbeatIn, begins a trace session of its own under the TraceRef, and has set one alarm. oldId is the TraceHeaderId before ("" when
+/// there was none), which a re-armed waiter must not keep.
+Method CheckRearmed(label As %String, ref As %String, traceRef As %String, oldId As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Set headers = ##class(OcuTalon.Test.Schedule.ReminderFixture).StartHeaders(ref)
+	Do $$$AssertTrue(headers.%Size() > 0, label _ ": a start header exists")
+	If headers.%Size() = 0 Quit
+	Set last = headers.%Get(headers.%Size() - 1)
+	Do $$$AssertEquals(row.TraceHeaderId, last.id, label _ ": the row keeps the id of the newest start header")
+	Do $$$AssertEquals(last.source _ "|" _ last.target _ "|" _ last.sessionId _ "|" _ last.superSession, "HeartbeatIn|ReminderTimer|" _ last.id _ "|" _ traceRef, label _ ": from HeartbeatIn, the first header of its own session under the session's TraceRef")
+	Do $$$AssertTrue(row.TraceHeaderId '= oldId, label _ ": the id is a new one")
+	Do $$$AssertEquals(..RequestsBetween(last.id, "ReminderTimer", "Ens.Alarm"), 1, label _ ": one alarm is set in the waiter's session")
+	Do $$$AssertEquals(row.State, "pending", label _ ": still pending")
+}
+
+/// The number of ReminderStart headers of the Ref.
+ClassMethod StartCount(ref As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Schedule.ReminderFixture).StartHeaders(ref).%Size()
+}
+
+/// The number of ReminderTimer to Notify requests in the trace sessions of every start header of the Ref.
+ClassMethod NotifyCount(ref As %String) As %Integer [ Private ]
+{
+	Set headers = ##class(OcuTalon.Test.Schedule.ReminderFixture).StartHeaders(ref)
+	Set count = 0
+	For i = 0:1:headers.%Size() - 1 {
+		Set count = count + ..RequestsBetween(headers.%Get(i).sessionId, "ReminderTimer", "Notify")
+	}
+	Quit count
+}
+
+/// Reconcile on five rows of one session: lost (pending, never had a waiter), ended (pending, its first waiter ended), live (a waiter
+/// is waiting), fired and cancelled. Only lost and ended get a new waiter, with the id of its start header on the row and the due time
+/// unchanged. A second run starts nothing. The reminder events do not change. Then lost fires through its new waiter: fired, not late,
+/// one Notification, one web card.
+Method TestReconcileRearmsOnlyLostWaiters()
+{
+	If '..Guard() Quit
+	Set session = ..Session("rearm")
+	Set traceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set ended = ..SetReminder(session, "zz ended " _ ..Number, 90)
+	Set live = ..SetReminder(session, "zz live " _ ..Number, 90)
+	Do $$$AssertEquals(ended.ok _ "|" _ live.ok, "1|1", "two reminders are set through the product")
+	If (ended.ref = "") || (live.ref = "") Quit
+	Set cancel = ##class(OcuTalon.Test.Schedule.ReminderFixture).Cancel(session, ended.ref)
+	Do $$$AssertEquals(cancel.ok _ "|" _ cancel.outcome, "1|cancelled", "the first one is cancelled")
+	Do $$$AssertTrue(..WaitEnded(ended.ref, 10), "and its waiter ends")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ended.ref)
+	Set row.State = "pending"
+	Set row.CancelKey = ""
+	Set oldEnded = row.TraceHeaderId
+	Do $$$AssertStatusOK(row.%Save(), "it is put back to pending, with no waiter")
+	Set row = ""
+	Set fired = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(session, "2030-01-01T10:00:00Z", "fired", {"Text": ("zz fired " _ ..Number)}))
+	Set cancelled = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(session, "2030-01-01T10:00:00Z", "cancelled", {"Text": ("zz cancelled " _ ..Number)}))
+	Set ..Refs = ..Refs _ "," _ fired _ "," _ cancelled
+	Set lostText = "zz lost " _ ..Number
+	Set lostDue = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 15)
+	Set lost = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(session, lostDue, "pending", {"Text": (lostText)}))
+	Set ..Refs = ..Refs _ "," _ lost
+	Set liveRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(live.ref)
+	Set liveId = liveRow.TraceHeaderId
+	Set liveRow = ""
+	Set endedRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ended.ref)
+	Set endedDue = endedRow.DueAt
+	Set endedRow = ""
+	Do ##class(OcuTalon.Test.Core.Observe).Events(session, "reminder", 3, ..#WAIT)
+	Set eventsBefore = ..EventStates(session)
+	Set refs = ended.ref _ "," _ live.ref _ "," _ fired _ "," _ cancelled _ "," _ lost
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(refs, .skipped), "Reconcile is OK")
+	Do $$$AssertEquals(skipped, "", "and skips no row")
+	Set fixture = "OcuTalon.Test.Schedule.ReminderFixture"
+	Do $$$AssertEquals($ClassMethod(fixture, "WaitingCount", lost), 1, "lost has one waiter")
+	Do $$$AssertEquals($ClassMethod(fixture, "WaitingCount", ended.ref), 1, "ended has one waiter")
+	Do ..CheckRearmed("lost", lost, traceRef, "")
+	Do ..CheckRearmed("ended", ended.ref, traceRef, oldEnded)
+	Set lostRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(lost)
+	Do $$$AssertEquals(lostRow.DueAt, lostDue, "lost keeps its due time")
+	Set lostId = lostRow.TraceHeaderId
+	Set lostRow = ""
+	Set endedRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ended.ref)
+	Do $$$AssertEquals(endedRow.DueAt, endedDue, "ended keeps its due time")
+	Set endedId = endedRow.TraceHeaderId
+	Set endedRow = ""
+	Set liveRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(live.ref)
+	Do $$$AssertEquals(liveRow.TraceHeaderId, liveId, "live keeps its header id")
+	Set liveRow = ""
+	Set starts = ##class(OcuTalon.Test.Schedule.ReminderFixture).StartHeaders(live.ref)
+	Do $$$AssertEquals(starts.%Size(), 1, "live has one start header")
+	If starts.%Size() = 1 Do $$$AssertEquals(starts.%Get(0).source, "ReminderOps", "from ReminderOps")
+	Do $$$AssertEquals($ClassMethod(fixture, "WaitingCount", live.ref), 1, "and one waiter")
+	For ref = fired, cancelled {
+		Set other = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+		Do $$$AssertEquals(other.TraceHeaderId _ "|" _ other.Late, "|0", "a fired or cancelled row is not written")
+		Set other = ""
+		Do $$$AssertEquals($ClassMethod(fixture, "Timers", ref).%Size() _ "|" _ ..StartCount(ref), "0|0", "and has no waiter and no start header")
+	}
+	Do $$$AssertEquals(..EventStates(session), eventsBefore, "the reminder events are unchanged")
+	Set counts = ..StartCount(lost) _ "|" _ ..StartCount(ended.ref) _ "|" _ ..StartCount(live.ref)
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(refs, .skipped), "the second Reconcile is OK")
+	Do $$$AssertEquals(..StartCount(lost) _ "|" _ ..StartCount(ended.ref) _ "|" _ ..StartCount(live.ref), counts, "and starts nothing")
+	Do $$$AssertEquals($ClassMethod(fixture, "WaitingCount", lost) _ "|" _ $ClassMethod(fixture, "WaitingCount", ended.ref) _ "|" _ $ClassMethod(fixture, "WaitingCount", live.ref), "1|1|1", "each still has one waiter")
+
+	Do $$$AssertTrue(..WaitEnded(lost, ..#FIRESECONDS), "lost fires through its new waiter within " _ ..#FIRESECONDS _ " seconds")
+	Set lostRow = ##class(OcuTalon.Data.Reminder).RefIndexOpen(lost)
+	Do $$$AssertEquals(lostRow.State _ "|" _ lostRow.Late, "fired|0", "it is fired, not late")
+	Set lostRow = ""
+	Set waiter = ##class(OcuTalon.Test.Data.Fixture).SessionHeaders(lostId)
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(waiter, 1, "ReminderTimer", "Notify")
+	Do $$$AssertEquals(sent.%Size(), 1, "one request goes from ReminderTimer to Notify in its new session")
+	If sent.%Size() = 1 Do $$$AssertTrue(..CreatedSeconds(sent.%Get(0).id) >= ##class(OcuTalon.Data.Time).Seconds(lostDue), "created no earlier than the due time")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(traceRef, "Notify", "WebChatOut", 1, ..#WAIT), "WebChatOut has handled the Notification")
+	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
+	Do $$$AssertEquals(cards.Count(), 1, "the session has one web card")
+	If cards.Count() = 1 Do $$$AssertEquals(cards.GetAt(1).Text, "Reminder: " _ lostText _ ".", "with the due text")
+}
+
+/// A pending row with no waiter that fell due 30 seconds ago: after Reconcile its new waiter fires it once, late. One Notification
+/// with reminder.late and the slots time, text and dueAt, one web card and one phone message with the catalog's late text, and a fired
+/// event with late true.
+Method TestReconcileFiresLateWhenDueWhileDown()
+{
+	If '..Guard() Quit
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Demo).Mode(), 1, "demo mode is on")
+	Set session = ..Session("late")
+	Set traceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set text = "zz late " _ ..Number
+	Set dueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -30)
+	Set ref = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(session, dueAt, "pending", {"Text": (text)}))
+	Set ..Refs = ..Refs _ "," _ ref
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(ref, .skipped), "Reconcile is OK")
+	Do $$$AssertTrue(..WaitEnded(ref, ..#FIRESECONDS), "the waiter ends within " _ ..#FIRESECONDS _ " seconds")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State _ "|" _ row.Late, "fired|1", "the row is fired, late")
+	Set traceId = row.TraceHeaderId
+	Set row = ""
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(traceId), 1, "ReminderTimer", "Notify")
+	Do $$$AssertEquals(sent.%Size(), 1, "one request goes from ReminderTimer to Notify")
+	If sent.%Size() '= 1 Quit
+	Set notification = ##class(OcuTalon.Msg.Notification).%OpenId(sent.%Get(0).bodyId)
+	Set slots = "{""time"":""" _ dueAt _ """,""text"":""" _ text _ """,""dueAt"":""" _ dueAt _ """}"
+	Do $$$AssertEquals(notification.Kind _ "|" _ notification.CatalogKey _ "|" _ notification.SessionRef, "reminder|reminder.late|" _ session, "a reminder.late Notification for the session")
+	Do $$$AssertEquals(notification.Slots, slots, "with time, text and dueAt")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(traceRef, "Notify", "WebChatOut", 1, ..#WAIT), "WebChatOut has handled the Notification")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(traceRef, "Notify", "SimPhoneOut", 1, ..#WAIT), "SimPhoneOut has handled it")
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).SessionHeaders(traceId)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "WebChatOut").%Size() _ "|" _ ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "SimPhoneOut").%Size(), "1|1", "Notify sends one request to the web chat and one to the phone")
+	Set onlineDemo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
+	Do $$$AssertEquals(cards.Count(), 1, "the session has one web card")
+	If cards.Count() = 1 {
+		Set card = cards.GetAt(1)
+		Do $$$AssertEquals(card.Text, ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.late", slots, "web", card.RecordedAt, onlineDemo), "with the catalog's late text for the web")
+		Do $$$AssertEquals($Extract(card.Text, 1, 30), "Reminder (late; it was due at ", "which starts as the late text")
+	}
+	Set phone = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10)
+	Do $$$AssertEquals(phone.Count(), 1, "the session has one phone message")
+	If phone.Count() = 1 Do $$$AssertEquals(phone.GetAt(1).Text, ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.late", slots, "phone", phone.GetAt(1).CreatedAt, onlineDemo), "with the catalog's late text for the phone")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "reminder", 1, ..#WAIT)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "fired", "the one reminder event is fired")
+	If events.%Size() = 1 Do $$$AssertEquals(+events.%Get(0).payload.late, 1, "and late")
+}
+
+/// A reminder due in 15 seconds (waiter A) and a second, re-armed waiter B of the same row: both are waiting, both wake, and the first
+/// marks the row fired and sends; the second finds it not pending and sends nothing. One Notification across both sessions, one web
+/// card, one phone message and one fired event.
+Method TestTwoWaitersFireOnce()
+{
+	If '..Guard() Quit
+	Set session = ..Session("two")
+	Set traceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set found = ..SetReminder(session, "zz two " _ ..Number, 15)
+	Do $$$AssertEquals(found.ok _ "|" _ found.outcome, "1|set", "the reminder is set")
+	If found.ref = "" Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Rearm(found.ref), "a second waiter is started")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(found.ref), 2, "two waiters wait")
+	Do $$$AssertEquals(..StartCount(found.ref), 2, "from two start headers")
+	Set end = $ZHorolog + ..#FIRESECONDS
+	For {
+		If '##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(found.ref) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(found.ref), 0, "both waiters end within " _ ..#FIRESECONDS _ " seconds")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(found.ref)
+	Do $$$AssertEquals(row.State _ "|" _ row.Late, "fired|0", "the row is fired, not late")
+	Set row = ""
+	Do $$$AssertEquals(..NotifyCount(found.ref), 1, "exactly one request goes from ReminderTimer to Notify across both sessions")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(traceRef, "Notify", "WebChatOut", 1, ..#WAIT), "WebChatOut has handled the Notification")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(traceRef, "Notify", "SimPhoneOut", 1, ..#WAIT), "SimPhoneOut has handled it")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the session has one web card")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 10).Count(), 1, "and one phone message")
+	Do ##class(OcuTalon.Test.Core.Observe).Events(session, "reminder", 2, ..#WAIT)
+	Do $$$AssertEquals(..EventStates(session), "pending,fired", "the reminder events are pending, then fired")
+}
+
+/// A pending row whose session has no Session row: Reconcile is OK, skips it and names its Ref, and starts nothing.
+Method TestReconcileSkipsReminderWithoutSession()
+{
+	If '..Guard() Quit
+	Set gone = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(gone, "2030-01-01T10:00:00Z", "pending", {"Text": ("zz orphan " _ ..Number)}))
+	Set ..Refs = ..Refs _ "," _ ref
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(ref, .skipped), "Reconcile is OK")
+	Do $$$AssertEquals(skipped, $ListBuild(ref), "the row is skipped and named")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).Timers(ref).%Size(), 0, "no ReminderTimer is made")
+	Do $$$AssertEquals(..StartCount(ref), 0, "no start header is sent")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State _ "|" _ row.TraceHeaderId _ "|" _ row.SessionRef, "pending||" _ gone, "and the row is unchanged")
+}
+
+/// Rearm of a pending row whose session is gone: an error status that names the Ref, no ReminderTimer and no start header.
+Method TestRearmWithoutSessionFails()
+{
+	If '..Guard() Quit
+	Set gone = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(gone, "2030-01-01T10:00:00Z", "pending", {"Text": ("zz norearm " _ ..Number)}))
+	Set ..Refs = ..Refs _ "," _ ref
+	Set sc = ##class(OcuTalon.Schedule.Reminder).Rearm(ref)
+	Do $$$AssertTrue($$$ISERR(sc), "Rearm fails")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ ref, "and its error names the Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).Timers(ref).%Size() _ "|" _ ..StartCount(ref), "0|0", "no ReminderTimer and no start header")
+}
+
+/// LiveWaiter: instances of ReminderTimer with a Ref that are completed or terminated while a response is pending, or that wait for no
+/// response, are not live (none is found); a waiter that waits for its alarm is, and its id is answered. The instances the test makes are deleted by the test.
+Method TestLiveWaiterRule()
+{
+	If '..Guard() Quit
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ids = ""
+	For kind = "completed", "terminated", "idle" {
+		Set timer = ##class(OcuTalon.Schedule.ReminderTimer).%New("ReminderTimer")
+		Set timer.Ref = ref
+		If kind = "completed" Set timer.%IsCompleted = 1
+		If kind = "terminated" Set timer.%IsTerminated = 1
+		If kind '= "idle" Do timer.%MasterPendingResponses.Insert(##class(Ens.BP.MasterPendingResponse).%New("0", "zz", 0, ""))
+		Set sc = timer.%Save()
+		Do $$$AssertStatusOK(sc, "a " _ kind _ " ReminderTimer is made")
+		If $$$ISOK(sc) Set ids = ids _ $ListBuild(timer.%Id())
+		Set timer = ""
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Schedule.Reminder).LiveWaiter(ref), "", "none of the three is a live waiter")
+	Set position = 0
+	While $ListNext(ids, position, id) {
+		Do ##class(OcuTalon.Schedule.ReminderTimer).%DeleteId(id)
+	}
+	Set found = ..SetReminder(..Session("livewaiter"), "zz livewaiter " _ ..Number, 90)
+	Do $$$AssertEquals(found.ok, 1, "a reminder is set through the product")
+	If found.ref = "" Quit
+	Set timers = ##class(OcuTalon.Test.Schedule.ReminderFixture).Timers(found.ref)
+	Do $$$AssertEquals(timers.%Size(), 1, "it has one ReminderTimer")
+	If timers.%Size() = 1 Do $$$AssertEquals(##class(OcuTalon.Schedule.Reminder).LiveWaiter(found.ref), timers.%Get(0), "which is its live waiter")
+}
+
+/// A pending row with no waiter while the production is stopped: Reconcile is OK, skips nothing, starts no waiter and writes no start header
+/// or row. The test starts the production again (the Production step) and then Reconcile starts the waiter.
+Method TestReconcileWithoutProductionDoesNothing()
+{
+	If '..Guard() Quit
+	Set session = ..Session("stopped")
+	Set dueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Set ref = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(session, dueAt, "pending", {"Text": ("zz stopped " _ ..Number)}))
+	Set ..Refs = ..Refs _ "," _ ref
+	Set sc = ##class(Ens.Director).StopProduction(10, 0)
+	Do $$$AssertStatusOK(sc, "the production stops")
+	Do $$$AssertEquals(##class(Ens.Director).IsProductionRunning(), 0, "it does not run")
+	If $$$ISOK(sc) {
+		Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(ref, .skipped), "Reconcile is OK")
+		Do $$$AssertEquals(skipped, "", "and skips nothing")
+		Do $$$AssertEquals(..StartCount(ref) _ "|" _ ##class(OcuTalon.Test.Schedule.ReminderFixture).Timers(ref).%Size(), "0|0", "no start header and no ReminderTimer")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).Start(), "the Production step starts the production again")
+	If '##class(Ens.Director).IsProductionRunning() Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.Reminder).Reconcile(ref, .skipped), "with the production running, Reconcile is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(ref), 1, "and the row has one waiter")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State _ "|" _ row.DueAt, "pending|" _ dueAt, "still pending with its due time")
 }
 
 }

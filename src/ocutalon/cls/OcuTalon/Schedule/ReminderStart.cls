@@ -1,4 +1,4 @@
-/// The start of one reminder's waiter (AD-5, AD-18): ReminderOps sends it to ReminderTimer, which answers once it has stored its
+/// The start of one reminder's waiter (AD-5, AD-18): ReminderOps, or HeartbeatIn for the re-arm (Reminder.Rearm), sends it to ReminderTimer, which answers once it has stored its
 /// start header on the reminder's row and set its timer. It names the row by its Ref only. Internal to the Schedule area.
 Class OcuTalon.Schedule.ReminderStart Extends Ens.Request
 {

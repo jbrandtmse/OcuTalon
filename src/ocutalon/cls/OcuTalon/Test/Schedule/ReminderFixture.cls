@@ -11,7 +11,9 @@
 ///   - CancelPending cancels each pending reminder of a session through Cancel and answers how many were cancelled;
 ///   - RemoveAll removes every reminder of a session, whatever its state, through Remove;
 ///   - RemoveTurns removes every chat turn of a session with the Decision, AgentStep and Usage rows the product made for it;
-///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting.
+///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting, and WaitingCount how many of its waiters are;
+///   - StartHeaders lists the ReminderStart headers of a reminder, one per waiter that was started for it (ReminderOps, or HeartbeatIn
+///     for a re-arm).
 Class OcuTalon.Test.Schedule.ReminderFixture Extends %RegisteredObject
 {
 
@@ -87,7 +89,8 @@ ClassMethod Set(sessionRef As %String, text As %String, seconds As %Integer) As 
 /// through Cancel, which ends its waiter. Then Remove waits at most 10 seconds until no ReminderTimer with the Ref is waiting, and:
 ///   - the session's web Delivery rows of kind reminder with the reminder's DueAt;
 ///   - the session's phone Delivery rows of kind reminder recorded since the reminder was created, with their SimMessages;
-///   - the headers of the waiter's trace session (its TraceHeaderId), with their bodies and their event-log, rule-log and I/O-log rows;
+///   - the headers of the waiter's trace session (its TraceHeaderId), and of the trace session of every ReminderStart header of the
+///     Ref (StartHeaders: a re-armed waiter has its own), with their bodies and their event-log, rule-log and I/O-log rows;
 ///   - the ReminderTimer instances with that Ref;
 ///   - the Reminder row.
 /// It does nothing for a Ref that has no row.
@@ -118,7 +121,12 @@ ClassMethod Remove(ref As %String)
 		Do ##class(OcuTalon.Data.SimMessage).RefIndexDelete(message)
 		Do ##class(OcuTalon.Data.Delivery).%DeleteId(at)
 	}
+	Set starts = ..StartHeaders(ref)
 	If trace '= "" Do ..RemoveSession(trace)
+	For i = 0:1:starts.%Size() - 1 {
+		Set started = starts.%Get(i).sessionId
+		If (started '= "") && (started '= trace) Do ..RemoveSession(started)
+	}
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Schedule.ReminderTimer WHERE Ref = ?", ref)
 	While result.%Next() {
 		Set timers(result.%Get("ID")) = ""
@@ -203,6 +211,29 @@ ClassMethod IsWaiting(id As %String) As %Boolean
 	Set timer = ##class(OcuTalon.Schedule.ReminderTimer).%OpenId(id)
 	If '$IsObject(timer) Quit 0
 	Quit 'timer.%IsCompleted && 'timer.%IsTerminated && (timer.%MasterPendingResponses.Count() > 0)
+}
+
+/// The number of ReminderTimer instances with the Ref that are waiting (Timers and IsWaiting).
+ClassMethod WaitingCount(ref As %String) As %Integer
+{
+	Set timers = ..Timers(ref)
+	Set waiting = 0
+	For i = 0:1:timers.%Size() - 1 {
+		If ..IsWaiting(timers.%Get(i)) Set waiting = waiting + 1
+	}
+	Quit waiting
+}
+
+/// The ReminderStart headers whose body names the Ref, oldest first, as an array of {id, sessionId, superSession, source, target,
+/// status}. A waiter that ReminderOps started has a header from ReminderOps; a re-armed one from HeartbeatIn.
+ClassMethod StartHeaders(ref As %String) As %DynamicArray
+{
+	Set headers = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT h.ID AS Id, h.SessionId AS SessionId, h.SuperSession AS SuperSession, h.SourceConfigName AS Source, h.TargetConfigName AS Target, h.Status AS Status FROM Ens.MessageHeader h JOIN OcuTalon_Schedule.ReminderStart b ON b.%ID = h.MessageBodyId WHERE h.MessageBodyClassName = 'OcuTalon.Schedule.ReminderStart' AND b.Ref = ? ORDER BY h.ID", ref)
+	While result.%Next() {
+		Do headers.%Push({"id": (result.%Get("Id")), "sessionId": (result.%Get("SessionId")), "superSession": (result.%Get("SuperSession")), "source": (result.%Get("Source")), "target": (result.%Get("Target")), "status": (result.%Get("Status"))})
+	}
+	Quit headers
 }
 
 /// Waits until no ReminderTimer with the Ref is waiting any more (a completed waiter is deleted by the framework), for at most seconds.
