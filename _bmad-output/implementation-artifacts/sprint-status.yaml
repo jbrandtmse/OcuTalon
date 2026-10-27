@@ -117,7 +117,7 @@ development_status:
   5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
   5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
   5-10-epic-5-burn-down: done
-  5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: ready-for-dev
+  5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: in-progress
   epic-5-retrospective: optional
 
   epic-6: backlog
