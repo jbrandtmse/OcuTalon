@@ -1,14 +1,14 @@
 import { expect, test, type Locator, type Page, type Response, type Route } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
-import { raise, refOf, today } from '../support/approvals';
+import { DRY_RUN, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique } from '../support/floor';
 import { answerHeaders, answerQuietly, cleanFixtureRows, fixtureUser, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
 import { announcedTexts, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 6.3, answering on the simulated phone and every copy of an answer (X1 to X8; NFR-9, FR-8, FR-13), in a real browser against a
+ * Story 6.3, answering on the simulated phone and every copy of an answer (X1 to X10; NFR-9, FR-8, FR-13), in a real browser against a
  * real stack, as the answers user ANSWERS (OCUTALON_ANSWERS_USER, with the role OcuTalonUser; the stack is in demo mode and its
  * instance zone is UTC, the browser's is UTC and en-GB; the page's clock is the real one). An incident card is made as IncidentManager
  * will make it (an `incident` event) and its request is a fixture row whose `approval` event reaches the page through BridgeSink
@@ -20,7 +20,7 @@ import { announcedTexts, plain, recordAnnouncements, scrollListTo, tokenColor } 
  * X1 is the phone's notice, X2 an Approve on the phone (the 2 s bound of NFR-9 to the card), X3 an Approve on the card and the
  * phone following within 5 s, X4 the press that lost the race, X5 the phone's busy rule and failure notices, X6 the rail row's jump,
  * X7 the phone holding its feed for a pending request and X8 an answer from elsewhere, shown within 2 s of its event and announced once by
- * the card.
+ * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages).
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -141,7 +141,8 @@ test('X1: the incident notice is a phone message with the dry run inset and Appr
     const incident = refOf('X1');
     const requests: string[] = [];
     const first = await raise(page, user, rows, incident, requests);
-    const since = inMs(-120_000);
+    // Two minutes ago, but never before today's midnight (UTC), so that the notice's time is today's and renders as HH:MM.
+    const since = [inMs(-120_000), `${new Date().toISOString().slice(0, 10)}T00:00:00Z`].sort()[1]!;
     const { ref, message } = await noticeOnPhone(page, user, first, incident, since);
 
     const paragraphs = message.locator('app-phone-request p.text');
@@ -273,7 +274,9 @@ test('X2: Approve on the phone is busy, then the answer replaces the buttons, an
 
     const status = card.locator('p.status');
     await expect(status, "the card shows the answer within 2 s of the reply").toHaveText(`Approved from the simulated phone at ${hhmm(answeredAt)}`, { timeout: PAGE_MS });
-    console.log(`ANSWERS X2 the card showed the answer ${Date.now() - repliedAt} ms after the reply (bound ${PAGE_MS} ms)`);
+    const cardMs = Date.now() - repliedAt;
+    console.log(`ANSWERS X2 the card showed the answer ${cardMs} ms after the reply (bound ${PAGE_MS} ms)`);
+    expect(cardMs, 'counted from the reply, the card showed it within 2 s (NFR-9)').toBeLessThanOrEqual(PAGE_MS);
     await expect(rowOfRequest(page, request), 'the rail row leaves within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
 
     const row = await readApproval(request);
@@ -335,7 +338,9 @@ test('X3: an answer on the card reaches the phone within 5 s, editing its messag
     });
     const line = lineOf(message);
     await expect(line, 'the phone shows the answer within 5 s of the reply').toHaveText(`Approved from the web chat at ${hhmm(answeredAt)}.`, { timeout: PHONE_MS });
-    console.log(`ANSWERS X3 the phone showed the answer ${Date.now() - repliedAt} ms after the reply (bound ${PHONE_MS} ms)`);
+    const phoneMs = Date.now() - repliedAt;
+    console.log(`ANSWERS X3 the phone showed the answer ${phoneMs} ms after the reply (bound ${PHONE_MS} ms)`);
+    expect(phoneMs, 'counted from the reply, the stand-in send included, the phone showed it within 5 s (NFR-9)').toBeLessThanOrEqual(PHONE_MS);
     await expect(message.locator('.buttons'), 'the buttons are gone').toHaveCount(0);
     expect(await notifications.count(), 'no new message').toBe(countBefore);
     expect(await notifications.evaluateAll((nodes, key) => nodes.findIndex((node) => (node as HTMLElement).dataset['key'] === key), ref), 'the message stands where it stood').toBe(index);
@@ -498,7 +503,7 @@ test('X5: a held press on the phone is busy and sends one request, restores afte
 /**
  * X6: a press on a rail row. Focus goes to the request's card in the chat and the card is in view, also in the drawer band (1100 px
  * wide, the rail opened from Status), where the drawer stays open. A tool call's request has no card in the chat, so its row has no
- * button.
+ * button. A request of an incident whose card is not in the chat keeps its button, and a press takes focus to the chat's list.
  */
 test('X6: a press on a request\'s rail row focuses its card and shows it, also in the drawer band', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -538,6 +543,16 @@ test('X6: a press on a request\'s rail row focuses its card and shows it, also i
     await expect(rowOfRequest(page, tool), "a tool call's row shows").toHaveCount(1, { timeout: CARD_MS });
     await expect(rowOfRequest(page, tool).locator('button'), 'with no button').toHaveCount(0);
     await expect(rowOfRequest(page, tool)).toContainText('Run zz_tool_x6');
+
+    // A request of an incident whose card is not in the chat: its row keeps the button, and a press takes focus to the chat's list.
+    const orphan = await seedApproval(user, { incidentRef: refOf('X6d'), requiredRole: 'OcuTalonUser', dryRun: DRY_RUN });
+    rows.push(orphan);
+    await sinkEvent(user, 'approval.raised', { ref: orphan });
+    const orphanJump = rowOfRequest(page, orphan).getByRole('button', { name: 'Show in the chat: Repair and resend 50 orders', exact: true });
+    await expect(orphanJump, "a request whose card is not in the chat keeps its row's button").toHaveCount(1, { timeout: CARD_MS });
+    await expect(requestCard(page, orphan), 'and has no card there').toHaveCount(0);
+    await orphanJump.click();
+    await expect(list, 'the press takes focus to the chat list').toBeFocused();
 
     // The drawer band: the rail is behind the Status button, and a press leaves the drawer open.
     await page.setViewportSize({ width: 1100, height: 520 });
@@ -589,6 +604,7 @@ test('X7: a pending request on the phone holds the feed when a tell-now arrives'
  * X8: an answer from elsewhere. The phone answers quietly and the bridge's approval.answered event reaches the page, with focus in the
  * composer: the request card shows its status within 2 s of the event being sent (the page's poll, NFR-9; X2 counts from the reply,
  * which on a fixture row comes about 5 s after the event, so only this case pins the poll's cadence) and announces it exactly once.
+ * With focus on the card's Approve instead, the status that replaces it takes focus and is not announced.
  */
 test('X8: an answer from elsewhere is announced once by the card', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -613,7 +629,125 @@ test('X8: an answer from elsewhere is announced once by the card', async ({ page
     await page.waitForTimeout(1500);
     expect((await announcedTexts(page)).filter((one) => one.includes(text)), 'once').toHaveLength(1);
     await expect(composerOf(page), 'and focus did not move').toBeFocused();
+
+    // The same, with focus on the card's Approve: the status that replaces it takes focus, so it is not announced.
+    const second = await raise(page, user, rows, refOf('X8b'), []);
+    const secondCard = requestCard(page, second);
+    await expect(secondCard).toHaveCount(1, { timeout: CARD_MS });
+    await secondCard.getByRole('button', { name: APPROVE, exact: true }).focus();
+    expect(await answerQuietly(user, second, 'approve', 'phone'), 'the phone answers the second').toBe('done');
+    const secondText = `Approved from the simulated phone at ${hhmm((await readApproval(second)).at)}`;
+    const announcedBefore = (await announcedTexts(page)).filter((one) => one.includes(secondText)).length;
+    await sinkEvent(user, 'approval.answered', { ref: second });
+    const secondStatus = secondCard.locator('p.status');
+    await expect(secondStatus, 'the card shows the answer').toHaveText(secondText, { timeout: PAGE_MS });
+    await expect(secondStatus, 'focus moved from Approve to the status').toBeFocused();
+    await page.waitForTimeout(1500);
+    expect((await announcedTexts(page)).filter((one) => one.includes(secondText)), 'which is not announced: the answer took focus').toHaveLength(announcedBefore);
   } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * X9 (QA): Reject on the phone. The request names the channel phone and the action reject, the phone's line is "Rejected from the
+ * simulated phone at HH:MM. Nothing was changed." in the rejected tone with focus on it, the card follows within 2 s of the reply and
+ * the rail row leaves, and the row is rejected from the phone. X2 pins Approve; this is the other button of the same press.
+ */
+test('X9: Reject on the phone sends reject from the phone and nothing is changed', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  try {
+    await open(page);
+    const incident = refOf('X9');
+    const request = await raise(page, user, rows, incident, []);
+    const { message } = await noticeOnPhone(page, user, request, incident, inMs(-120_000));
+    const card = requestCard(page, request);
+    await expect(card).toHaveCount(1, { timeout: CARD_MS });
+    await expect(rowOfRequest(page, request)).toHaveCount(1);
+
+    const reply = nextReply(page);
+    await rejectOf(message).click();
+    const response = await reply;
+    const repliedAt = Date.now();
+    expect(JSON.parse(response.request().postData() ?? '{}'), 'the press names the action and the channel phone only').toEqual({ action: 'reject', channel: 'phone' });
+    expect(response.status(), 'the answer is 200').toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+
+    const line = lineOf(message);
+    await expect(line, 'the line replaces the buttons').toHaveText(`Rejected from the simulated phone at ${hhmm(answeredAt)}. Nothing was changed.`);
+    await expect(message.locator('.buttons')).toHaveCount(0);
+    await expect(line, 'focus is on the line').toBeFocused();
+    await expect(line, 'in the rejected tone').toHaveCSS('color', await tokenColor(page, '--answered-status-rejected'));
+    await expect(card.locator('p.status'), 'the card follows within 2 s of the reply').toContainText(`Rejected from the simulated phone at ${hhmm(answeredAt)}`, { timeout: PAGE_MS });
+    const cardMs = Date.now() - repliedAt;
+    console.log(`ANSWERS X9 the card showed the rejection ${cardMs} ms after the reply (bound ${PAGE_MS} ms)`);
+    expect(cardMs, 'counted from the reply, the card showed it within 2 s (NFR-9)').toBeLessThanOrEqual(PAGE_MS);
+    await expect(rowOfRequest(page, request), 'the rail row leaves').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+
+    const row = await readApproval(request);
+    expect(row.state, 'the row is rejected').toBe('rejected');
+    expect(row.action).toBe('reject');
+    expect(row.channel, 'from the simulated phone').toBe('phone');
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * X10 (QA): a reload keeps the phone's messages as the server holds them. Of two requests, one is approved on the card and the
+ * phone is told by the stand-in for IncidentManager's answered notification; after a reload the message of the first shows its stored
+ * answer line and no buttons, and the message of the pending second still asks (Approve and Reject, no line). The snapshot's
+ * `phone` rows carry `approvalRef` and `answer`, which X1 to X8 never read back. Before the reload, focus on the phone's Approve of
+ * the first request moves to the line when the server's edit replaces the buttons (the device panel's focus rule).
+ */
+test('X10: after a reload the answered message keeps its line and the pending one its buttons', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  try {
+    await open(page);
+    const incident = refOf('X10');
+    const requests: string[] = [];
+    const first = await raise(page, user, rows, incident, requests);
+    const second = await raise(page, user, rows, incident, requests, { raisedAt: today('14:14:00') });
+    const since = inMs(-120_000);
+    const a = await noticeOnPhone(page, user, first, incident, since);
+    const b = await noticeOnPhone(page, user, second, incident, since, 'approval');
+    expect(b.ref).not.toBe(a.ref);
+
+    const reply = nextReply(page);
+    await requestCard(page, first).getByRole('button', { name: APPROVE, exact: true }).click();
+    const response = await reply;
+    expect(response.status()).toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    await expect(requestCard(page, first).locator('p.status'), "the card's own press is done").toHaveCount(1);
+    await approveOf(a.message).focus();
+    await expect(approveOf(a.message), "focus is on the phone's Approve of the answered request").toBeFocused();
+    await sendNotification(user, { kind: 'answered', catalogKey: 'answered.approved', slots: { channel: 'web', time: answeredAt }, approvalRef: first, incidentRef: incident });
+    const expected = `Approved from the web chat at ${hhmm(answeredAt)}.`;
+    await expect(lineOf(a.message), 'the phone shows the edit before the reload').toHaveText(expected, { timeout: PHONE_MS });
+    await expect(lineOf(a.message), 'and focus on the Approve that the edit replaced moves to the line').toBeFocused();
+    await expect.poll(() => phoneMessage(user, first).then((one) => one?.answer), { message: 'and the server holds it' }).toBe(expected);
+
+    await page.reload();
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(phoneOf(page)).toBeVisible();
+    const answered = messageOf(page, a.ref);
+    const pending = messageOf(page, b.ref);
+    await expect(answered, 'the answered message is still on the phone').toHaveCount(1, { timeout: CARD_MS });
+    await expect(lineOf(answered), 'with the stored answer line').toHaveText(expected);
+    await expect(answered.getByRole('button'), 'and no buttons').toHaveCount(0);
+    await expect(pending, 'the pending message is still on the phone').toHaveCount(1);
+    await expect(pending.getByRole('button', { name: /^Approve/ }), 'and still asks').toHaveCount(1);
+    await expect(pending.getByRole('button', { name: /^Reject/ })).toHaveCount(1);
+    await expect(lineOf(pending), 'with no answer line').toHaveCount(0);
+    expect(await phoneMessage(user, second).then((one) => one?.answer), 'the second message holds no answer').toBe('');
+  } finally {
+    await dropPhone(user, start);
     await cleanFixtureRows(rows);
   }
 });

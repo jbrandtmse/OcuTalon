@@ -4,7 +4,7 @@
 // press (AnswerPress) with the channel phone, go busy together and are never `disabled`; the inset sits on the surface colour with the
 // example's values in mono-sm, in the danger and the success ink; the two buttons are side by side in equal halves with the phone
 // button height as their minimum; every text is bound by interpolation; the phone moves focus only through the shared rule and
-// announces nothing itself. The browser cases (answers/answers.spec.ts, X1 to X8) pin what the running page does; this reads the
+// announces nothing itself. The browser cases (answers/answers.spec.ts, X1 to X10) pin what the running page does; this reads the
 // sources, so a state no case reaches cannot lose an attribute or read the wrong token without a test turning red.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';

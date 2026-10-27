@@ -723,6 +723,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T10:56:07Z occurrence=2-3-route-every-command-by-verb-with-origin-checks
 - 2026-10-23T16:42:48Z status=routed owner=burndown by=spec_gate note=declined by Story 2.9's plan: the fix belongs in Core/Commands.cls (Commands.Submit's ProcessInput kills the job-local SessionId on exit, irislib Ens/BusinessService.cls:79, read from source), which is contended in this run; the burn-down gate re-checks the contention or overflows it to the epic that owns Commands
 - 2026-10-25T06:36:24Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=Story 5.1's start-watch tool is the first tool job that calls Commands.Submit (origin tool) inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId; if ProcessInput's kill of JobSessionId drops them (irislib Ens/BusinessService.cls:79,100), restore the id after Submit (Core/Commands.cls) with a test
+- 2026-10-27T19:02:03Z occurrence=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher
 
 ### DW-75: AD-1's Submit sub-bullet says role checks stay with the admin-checked endpoints and CommandsIn, but CommandsIn makes none (Story 2.3 Design Notes 6 reads the clause as its origin rules)
 - source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -857,6 +858,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Conversation.Ask sends the retry under RetryItemId (Conversation.cls:406); Bridge.Context.Begin copies request.ItemId (src/bridge Context.cls:52); BridgeSink.Step quits when Context.Current().ItemId '= running.ItemId (BridgeSink.cls:145); no test covers a retried turn's steps; reachable once Stories 1.3/1.5 emit steps
 - 2026-10-23T20:36:21Z status=routed owner=burndown by=cr note=in-epic MED (Core/BridgeSink.cls, Stories 2.6/2.8 done); fix: Step also accepts RetryItemId(running.ItemId), plus a test
 - 2026-10-25T06:36:24Z status=routed owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=burndown note=Story 6.3 makes BridgeSink join the turn's thread through the bridge context; with Epic 1's step emitter merged a SessionBroken retry's turn.step is now reachable: Step also accepts RetryItemId(running.ItemId) (Core/BridgeSink.cls:145), with a test of a retried turn's steps
+- 2026-10-27T19:04:21Z status=resolved-by:6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=adjudication note=BridgeSink.Step also accepts Conversation.RetryItemId(running.ItemId) (L145, the orchestrator's ruling); Test.Core.BridgeSink:TestTurnStepOfARetry pins a retried turn's turn.step; mutation (retry clause removed) went red
 
 ### DW-129: A decision's traceUrl opens page 1 of the day's thread with the first Item selected, not the decision: traceHeaderId is the decision's TraceSessionId (now the thread) and no index is known
 - source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-epic
@@ -1280,3 +1282,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md (implement deferred) | severity: low | fix-risk: low | footprint: in-story
 - evidence: X6 covers the card-present path in both viewports and the no-button row; rail-view.test covers the jump fields only (web/src/app/rail/status-rail.ts jump())
 - 2026-10-27T18:05:33Z status=open owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=harvest note=LOW two-way door for code review to patch (one live:answers case)
+- 2026-10-27T19:02:03Z status=resolved-by:6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=X6 case: orphan request's row button focuses app-chat-panel > .list; mutation CHAT_LIST broken -> X6 red
+
+### DW-310: NoticesIn.Join is a copy of CommandsIn.Join (AD-26's join rule for in-process services, about 10 lines); the shared home is contended (Core/Commands*.cls, Epic 8; Core/Trace.cls, Epic 10)
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/NoticesIn.cls Join and Core/CommandsIn.cls Join differ only in the parameter's class; a change to the join rule (DW-74's SessionId restore, an OwnerRef check) must be made twice
+- 2026-10-27T19:02:02Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify both joins in one helper once Core/Commands*.cls or Core/Trace.cls is not contended
+
+### DW-311: web/e2e/support/approvals.ts and answers/answers.spec.ts copy floor/approval.spec.ts's private fixture helpers (DAY, today, TOMORROW_AT_1413, refOf, DRY_RUN, incidentOf, raise, inOrder) instead of the floor spec importing them
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: about 50 identical lines in floor/approval.spec.ts L40-121; the spec's reason (the floor spec stays unchanged) is about its case budget, not its imports; unifying needs a live floor run
+- 2026-10-27T19:02:02Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=reopen_if=a change to DRY_RUN, incidentOf, raise or inOrder has to be made in both support/approvals.ts and floor/approval.spec.ts
+
+### DW-312: docker/tests/test-demo-path-gate.sh's header (L17-19) still says the browser group runs live:demo-path and live:sign-in and exits 0 when both pass; the group has three units
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the header is outside the orchestrator's ruled lines (stub loop, chmod, browser expectations), so this story may not change it
+- 2026-10-27T19:02:02Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=reopen_if=grep -n 'exits 0 when both pass' docker/tests/test-demo-path-gate.sh still matches when Epics 13/15 next edit the file
+
+### DW-313: SimPhoneOut's answered edit uses Delivery.FindByApproval's newest phone row, which can be a later non-request row of the same ApprovalRef (a tellnow or reminder carrying it, or an empty-key answered), so the request's message keeps its buttons
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Save records the ApprovalRef on every kind's Delivery row while only incident/approval messages keep it; no producer sends a non-request kind with a pending request's ApprovalRef
+- 2026-10-27T19:02:03Z status=wontfix-theoretical owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=real when a producer sends tellnow, reminder or result with the ApprovalRef of a still-pending request before its answered
+
+### DW-315: live floor runs 491-527 s of its 540 s local deadline (OCUTALON_LIVE_DEADLINE, counted from the throwaway lock; 1200 s in CI), because Epic 6's floor specs incident.spec.ts (I1-I11) and approval.spec.ts (A1-A10) added about 130 s; move them into the live:answers unit (where 6.3 and 6.4's cases live), keeping their @browsers cases' cross-engine coverage, so floor regains its margin
+- source: Story 6.3 smoke (lead) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 6.3 smoke on throwaway e6s3s: live floor 124 passed, 527 s call wall against the 540 s deadline (491 s at 6.2's smoke); docker/tests/test-floor.sh L30-31; the incident and approval specs are Epic 6's own files under web/e2e/floor/
+- 2026-10-27T19:44:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=smoke note=6.4 adds its result and dismiss cases to live:answers too; check the CI shards and browser group times after the move

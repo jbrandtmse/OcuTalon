@@ -110,6 +110,10 @@ test("the incident card and the phone's notice, on fixtures for Lane A's raise p
   try {
     await signInReadme(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    // The README session's pending requests before this case's, so that the count the rail gains is this case's own.
+    const pending = page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden');
+    await expect(pending).toHaveText(/^Approval requests, \d+$/);
+    const pendingBefore = Number(/(\d+)$/.exec((await pending.textContent()) ?? '')?.[1] ?? '0');
     const incident = refOf('D4');
     const request = await raise(page, user, rows, incident, []);
     await sendNotification(user, {
@@ -142,7 +146,8 @@ test("the incident card and the phone's notice, on fixtures for Lane A's raise p
     await expect(message.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }), 'with its Approve').toHaveCount(1);
     await expect(message.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'and its Reject').toHaveCount(1);
 
-    await expect(page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden'), 'the rail counts the request').toHaveText('Approval requests, 1');
+    await expect(page.locator(`app-status-rail li.row[data-row-key="approvals:${request}"]`), 'the rail lists the request').toHaveCount(1);
+    await expect(pending, 'and counts it').toHaveText(`Approval requests, ${pendingBefore + 1}`);
   } finally {
     await dropPhone(user, start);
     await cleanFixtureRows(rows);

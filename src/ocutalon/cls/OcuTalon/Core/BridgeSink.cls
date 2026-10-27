@@ -8,7 +8,7 @@ Include Ensemble
 ///   - turn.step {decisionRef, label}: a turn.step event on the owner's stream with the Ref of the session's running turn,
 ///     the decision's Ref and the trimmed label, nothing else of the step. It publishes nothing when the label is empty,
 ///     when the session has no running turn, or when the bridge context of the job is active and belongs to another item
-///     than the running turn's or of its SessionBroken retry (an untrusted Intake turn of the same session);
+///     than the running turn's or its SessionBroken retry's (an untrusted Intake turn of the same session);
 ///   - approval.raised, approval.answered, approval.expired, approval.cancelled and approval.result {ref}: an approval event,
 ///     the payload Live.Payload.Approval.FromRow makes from the request's row, to each recipient that can see the row. For
 ///     a session as the owner the recipient is the session itself. For the owner instance the request's IncidentRef comes

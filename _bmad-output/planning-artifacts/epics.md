@@ -2896,6 +2896,7 @@ So that I always know the outcome and can start a new run.
 **When** `IncidentManager` closes it after 15 quiet minutes or by the replay rule (P26)
 **Then** the card compacts to its headline and result in place, and a later same-cause failure opens a new card (FR-24, UX-DR73)
 - DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run. This story's fallbacks extend Conversation's turn tests: remove those rows in the test's teardown, the Observe.RemoveWarnings shape (Rule 19) (ledger; routed by burndown 2026-10-25)
+- DW-315: live floor runs 491-527 s of its 540 s local deadline because Epic 6's floor specs (incident.spec.ts I1-I11, approval.spec.ts A1-A10) added about 130 s; move them into the live:answers unit, keeping their @browsers cases' cross-engine coverage, so floor regains its margin (ledger; routed by smoke 2026-10-27)
 
 ## Epic 7: Approve the fix and the orders go through
 

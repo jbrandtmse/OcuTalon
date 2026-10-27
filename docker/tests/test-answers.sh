@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Live test of answering an approval request from the simulated phone and of every copy of an answer (NFR-9; Story 6.3; FR-8, FR-13, AD-31, AD-32):
 # builds the image and starts it in one throwaway compose project, creates the fixture user ZzAnswers, then drives Chromium through the
-# Playwright project answers (web/e2e/answers/answers.spec.ts, cases X1 to X8):
+# Playwright project answers (web/e2e/answers/answers.spec.ts, cases X1 to X10):
 #   - X1: an incident notice reaches the phone as a message with the catalog's text, the dry run's example in mono, and Approve and Reject
 #     side by side; a later request is a message of its own, and a notice with no request has no buttons;
 #   - X2: Approve on the phone: both buttons busy, then the answered line with focus on it; the chat's card shows the answer within 2 s of the
@@ -11,9 +11,15 @@
 #     buttons are replaced in place by "Approved from the web chat at HH:MM.", the same message, the feed not moved;
 #   - X4: a press on the phone's stale buttons gets the 409 and its notice, announced once; the row is unchanged (the first answer wins);
 #   - X5: the phone's busy rule and its failure notices (a held press, 404, 403, 500);
-#   - X6: a press on a rail row focuses the request's card in the chat and scrolls it into view, in the drawer band with the drawer open;
+#   - X6: a press on a rail row focuses the request's card in the chat and scrolls it into view, in the drawer band with the drawer open,
+#     or focuses the chat's list when the card is not in the chat;
 #   - X7: a pending request on the phone holds its feed when another notification arrives (New messages shows, Approve does not move);
-#   - X8: an answer from elsewhere is shown by the card within 2 s of its event (the page poll, NFR-9) and announced once when focus is elsewhere.
+#   - X8: an answer from elsewhere is shown by the card within 2 s of its event (the page poll, NFR-9) and announced once when focus is elsewhere,
+#     and not announced when it takes focus on the card's own status;
+#   - X9: Reject on the phone: the press names reject and the channel phone, the rejected line replaces the buttons, the card follows and
+#     the row is rejected from the phone;
+#   - X10: the server's edit moves focus from the phone's replaced Approve to its line, and after a reload the answered message keeps its
+#     stored line and the pending one its buttons.
 # The stack holds what the first start creates and one fixture user, ZzAnswers (OCUTALON_ANSWERS_USER, with the user role), whose session
 # the specs seed requests into and publish on; the stack starts with no model key. The specs reach the IRIS container with docker exec,
 # which OCUTALON_E2E_IRIS_CONTAINER names. No test stops IRIS or its web server.
@@ -82,13 +88,13 @@ e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   grep -E "^ *(INFO|ANSWERS)" "$e2e_log" | sed 's/^ *//'
-  pass "Story 6.3's X1-X8: the specs of the answers project pass in Chromium ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
+  pass "Story 6.3's X1-X10: the specs of the answers project pass in Chromium ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  a browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "Story 6.3's X1-X8: the specs of the answers project failed in Chromium (exit $e2e_status)"
+  fail "Story 6.3's X1-X10: the specs of the answers project failed in Chromium (exit $e2e_status)"
 fi
 echo "INFO the browser run took $((SECONDS - browser_started)) s"
 

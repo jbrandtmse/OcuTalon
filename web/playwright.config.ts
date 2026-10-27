@@ -11,7 +11,7 @@ import { defineConfig, devices } from '@playwright/test';
  *                  demo mode in OCUTALON_E2E_DEMO_MODE), Desktop Chrome;
  *   floor          the accessibility floor's specs of e2e/floor/ (the floor unit, docker/tests/test-floor.sh), Desktop Chrome: every case;
  *   answers        the specs of e2e/answers/ (the answers unit, docker/tests/test-answers.sh): answering a request on the simulated phone and every copy of
- *                  an answer, Story 6.3's X1 to X8, Desktop Chrome;
+ *                  an answer, Story 6.3's X1 to X10, Desktop Chrome;
  *   floor-firefox  the floor cases tagged @browsers, in Desktop Firefox;
  *   floor-webkit   the floor cases tagged @browsers, in Desktop Safari (WebKit).
  * The floor unit runs the three floor projects one after the other on its one stack (the e2e:floor script), Chromium first.

@@ -323,6 +323,47 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
   - [x] [Owner] U-122 condition: make the row button's visible text appear verbatim inside its accessible name, add the pinning tests, and write the Rule 19 `mutation:` line (mutation: the name drops or rewords the visible text -> the test goes red).
   - [x] [Runner] CI gate (orchestrator ruling (a), 2026-10-27): in `docker/tests/test-demo-path-gate.sh` change ONLY the stub-unit loop at L84 and the `chmod` at L106 (add `answers`), and the browser expectations at L351-354, L362, L370 and L379 (extend them to `live:demo-path live:sign-in live:answers`, with Chromium installed before each unit). Nothing else in that file. Then `bash ci/checks.sh` must exit 0.
 
+### Review Findings
+
+Code review 2026-10-27 (bmad-code-review, full mode, four layers on full-opus; 44 raw rows, 15 entries after grouping: high 0, med 5, low 10). Fields: severity / fix-risk / footprint / spec-status.
+
+- [x] [Review][Patch] AC4's 5 s pin counted from after the stand-in send, not from the reply: X3's `toHaveText` timeout started once `sendNotification` returned, so a phone up to the send's duration over 5 s passed (med / low: one assertion / in-story / clear) [web/e2e/answers/answers.spec.ts:X3] — X3 now asserts the elapsed ms from the reply against 5000, and X2 and X9 the same against 2000 (edge E9, gap)
+- [x] [Review][Patch] `TestAnsweredEditsInPlace` compared the edited message with itself (`before` and the edited row were one in-memory object), so a changed Text stayed green (med / low / in-story / clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:TestAnsweredEditsInPlace] — Ref and Text captured as strings and the object closed before the edit; mutation below (gap)
+- [x] [Review][Patch] 04's "Approval requests, 1" counted every pending request of the shared README session (Rule 19 hermeticity) (med / low / in-story / clear) [web/e2e/demo-path/04-incident.spec.ts] — the case reads the count first and expects its own row and the count plus one; `live demo-path` green (gap)
+- [x] [Review][Patch] The gate's failure expectations at L370 and L379, on the ruling's list, were not extended (low / low / in-story by ruling / clear) [docker/tests/test-demo-path-gate.sh:370,379] — they now expect `UNIT live:answers passed` after a red demo path and `GROUP browser failed: live:sign-in live:answers (` for red units; nothing else in the file changed (blind, auditor)
+- [x] [Review][Patch] "X1-X8" in the unit's header and PASS/FAIL lines, the Playwright config doc and the phone source test, though the project runs ten cases (low / low / in-story / clear) [docker/tests/test-answers.sh, web/playwright.config.ts:14, web/scripts/phone-request-sources.test.mjs:7] (blind, gap, auditor)
+- [x] [Review][Patch] X1's exact notice text failed in the two minutes after UTC midnight (the notice's time rendered as yesterday's) (low / low / in-story / clear) [web/e2e/answers/answers.spec.ts:X1] — `since` is never before today's midnight (edge)
+- [x] [Review][Patch] DW-308: the rail jump's fallback (card not in the chat, focus to the chat list) had no browser case (low / low / in-story / clear) [web/e2e/answers/answers.spec.ts:X6] — X6 presses the row of an incident request with no card; mutation below; DW-308 resolved-by this story (auditor, harvest)
+- [x] [Review][Patch] AC5's "focus then on the card's status: no announcement" had no runtime case (low / low / in-story / clear) [web/e2e/answers/answers.spec.ts:X8] — X8's second half focuses the card's Approve, answers elsewhere and expects the status focused and not announced; mutation below (gap)
+- [x] [Review][Patch] Task 3's empty-key guard was unobservable: the empty-key case ran in a session with no message (low / low / in-story / clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:TestAnsweredWithNoMessageRecordsOnly] — the empty-key notification now follows a delivered notice; mutation below (gap)
+- [x] [Review][Patch] The DW-128 doc clause read "than the running turn's or of its SessionBroken retry" (low / low / in-story by ruling / clear) [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:11] — "or its SessionBroken retry's", inside the ruled clause (blind)
+- [x] [Review][Defer] NoticesIn.Join copies CommandsIn.Join (Rule 2, a copy the spec forces: the shared home is contended) [src/ocutalon/cls/OcuTalon/Core/NoticesIn.cls:38] — deferred: DW-310, routed owner=burndown (med / low / out-of-footprint / spec-bound copy)
+- [x] [Review][Defer] `NoticesIn.Send`'s in-process ProcessInput clears the caller's JobSessionId, as Commands.Submit's does [src/ocutalon/cls/OcuTalon/Core/NoticesIn.cls:21] — deferred: occurrence on DW-74 (routed to 5-1); no caller until 31.2 and 16.9 (edge)
+- [x] [Review][Defer] support/approvals.ts and answers.spec.ts copy floor/approval.spec.ts's fixture helpers (Rule 2, weak reason) [web/e2e/support/approvals.ts] — deferred: DW-311, wontfix-accepted with reopen_if (low / low / in-epic; not a 15-line change, needs a live floor run)
+- [x] [Review][Defer] The gate's header (L17-19) still describes a two-unit browser group [docker/tests/test-demo-path-gate.sh:17] — deferred: DW-312, wontfix-accepted with reopen_if (low; outside the ruled lines)
+- [x] [Review][Defer] The answered edit takes FindByApproval's newest row, which a later non-request row of the same ApprovalRef can shadow [src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls:72] — deferred: DW-313, wontfix-theoretical (no producer sends one; blind, edge)
+
+Rejected:
+- `false` V1 (the device panel's focus rule has no runtime test, so a server edit would send focus to main): with `FOCUS_RULE = {}` X10's new check stayed green, focus reached the line through PHONE_ANSWER_RULE; X10 now pins the behaviour itself.
+- `false` V9 (AC1, AC2, AC3 without a mutation line): each has its recorded line (one per AC, Rule 19); AC5's clause has one now.
+- `false` V11 (Test.Core.NoticesIn has no per-test reset): every Begin is followed by a Try/Catch and End, and OnBeforeAllTests ends any context.
+- `false` E5 (the card announces a timed-out own press's answer): the press said the request is still waiting, so the announcement is the user's news; as triaged before.
+- `false` E6 (`renderMessageText` gives "on ." for an empty time): the server renderer's own output; an answered request always has its time.
+- `false` A1 (X9 and X10 uncommitted): the lead commits after review.
+- `false` A3 (gate L350 and L363 outside the ruling's numbers): they are the label lines of the ruled expectation statements.
+- `false` A4 (the phone's late-press notice is built by the page): Task 14 prescribes `latePressText` first; `answered.alreadyApproved` has no web form, so the text equals the 409's; X4 asserts it.
+- `false` Nits: X6's 1100x520 (the band is by width); 04's file-level `timezoneId` (its other tests assert no time); the `ux-strings` ruled entry (an existing catalog text).
+- `low` B4 (X2 reaches silence through the busy buttons' data-approval, not the answer line's): the line's attribute is pinned by `phone-request-sources.test`; a runtime case needs the poll held.
+- `low` B5 (the e2e notices bypass NoticesIn.Send): Decided in-stage 10, the helper stands in for IncidentManager.
+- `low` E4 (NoticesIn joins a context of another session): no caller; the same rule as CommandsIn (DW-310).
+- `low` E7 (three 1200 s deadlines exceed the 40-minute job): a cancelled job is red, the image group already has five units, and `.github/**` is out of footprint.
+- `low` V5 (`EditAnswered`'s kind check has no test): only SimPhoneOut writes phone Delivery rows, always naming its own phone message.
+- `low` V6 (`TestSendNeedsAProduction` is skipped wherever a production runs): Send has no caller until 31.2 and 16.9.
+- `low` V7 (X2's 2 s cannot pin the poll): Decided in-stage 20, X8 pins it; X2 and X9 now assert from the reply.
+- `low` V8 (X3's `scrollTop` may compare two zeros): unverified; in place is pinned by the same ref, the index and the count.
+- `low` A6 (no node test of the phone's late-press text): X4 pins it at runtime.
+- `low` Rule 2: PHONE_ANSWER_RULE has ANSWER_RULE's shape: a four-line rule the spec names, pinned per host by the focus inventory.
+
 ## Spec Change Log
 
 - 2026-10-27, runner: the orchestrator allowed the CI gate edit (ruling (a)); an unchecked `[Runner]` task records it beside U-122's `[Owner]` task (AC11). Status set to `in-progress` for one implement pass over those two tasks; the first pass's implementation stays uncommitted in the tree and is finalized by that pass.
@@ -673,6 +714,23 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: AC9 `NoticesIn.Forward` sends with `SendRequestSync` instead of `SendRequestAsync` -> red `Test.Core.NoticesInProduction` (`TestDeliveredOnEveryChannel`, the header's empty ReturnQueueName); green again after the revert, tree byte-identical.
 - mutation: AC4 `live:answers` removed from the `browser` group in `ci/units.sh` -> red `docker/tests/test-demo-path-gate.sh` (the group's "three units pass" check); tree byte-identical.
 - mutation: AC6 05's phone Approve press removed (the click replaced by a wait) -> `live demo-path` red (05's fixture test failed; the step reads failed).
+
+**QA additions (stage qa).** Files, marked (QA):
+- `web/e2e/answers/answers.spec.ts` (QA, extended): X9, Reject on the phone (the press names `{action: reject, channel: phone}`, the line "Rejected from the simulated phone at HH:MM. Nothing was changed." in the rejected tone with focus on it, the card follows within 2 s of the reply, the rail row leaves, the row is rejected from `phone`); X10, a reload keeps the phone's stored messages (one request approved on the card and edited by the stand-in `answered` notification shows its stored line with no buttons, the pending one still has Approve and Reject and no line). Gaps found: the Matrix's Reject row and the snapshot's `phone` rows (`approvalRef`, `answer`) had no browser case (Reject was pinned by `phone-view.test` only; no case reloaded). No new file; `live answers` now runs 10 cases (about 122 s of browser time, 3:30 for the call, locally).
+
+Mutations observed in QA (Rule 19; each applied to a bundle built by `ci/iris.sh build`, run on a fresh `live answers` stack, then reverted from a backup; `git status --short` and `git diff` byte-identical to before):
+- mutation: AC2 the phone's Reject button presses `approve` (`phone-request.ts` `(click)="press('reject')"` -> `press('approve')`) -> red X9 (the request body is not `{action: reject, channel: phone}`). Runs with the two mutations below; X9 is the only case that presses Reject.
+- mutation: AC1 the inset's before/after inks swapped (`phone-request.ts` `.before`/`.after` colours) -> red X1 at runtime (the CSS `color` assertions; the earlier line was red only in the source-text test). The run held the three mutations of this block (AC2 Reject, AC1 inks, AC3 `answer`): 4 cases were red and 6 green. X9 and X10 are named in the report; the other two are X1 and X3 by elimination, as the green six were X2, X4, X5, X6, X7 and X8.
+- mutation: AC3 the phone ignores the server's `answer` (`phone-view.ts` `requestView`: `const server = ''`) -> red X10 (the reload shows no stored line) and X3.
+- mutation: AC2 the phone's `AnswerPress` built with channel `web` (`phone-request.ts` `channel: 'phone'` -> `'web'`) -> red X2, X5 and X9 at runtime (the earlier line was red only in `phone-request-sources.test`); X1, X3, X4, X6, X7, X8 and X10 stay green.
+
+**Review additions (stage code-review).** X6 also presses the row of an incident request whose card is not in the chat (focus on the chat list, DW-308); X8 also answers a second request elsewhere while focus is on its card's Approve (the status takes focus and is not announced); X10 focuses the phone's Approve before the stand-in `answered` and expects focus on the line after the edit; X2, X3 and X9 assert the elapsed ms from the reply against the bound; X1's notice time is never before today's midnight; 04 counts the rail relative to the session's pending requests. `Test.Demo.SimPhoneOut`: `TestAnsweredEditsInPlace` compares with the Ref and Text read before the edit, and `TestAnsweredWithNoMessageRecordsOnly` sends the empty-key `answered` after a delivered notice.
+- Measured: `live answers` on a fresh stack 10 passed, the call 215 s, the browser run 134 s (X2 16 ms, X3 1364 ms, X8 952 ms, X9 13 ms); `live demo-path` passed, 105 s (04 and 05 partly skipped, as before); `Test.Demo.SimPhoneOut` and `Test.Core.BridgeSink` passed warm; `bash ci/checks.sh` and `bash docker/tests/test-demo-path-gate.sh` exit 0; `npm --prefix web test` 872 passed; lint, `catalog.mjs --check` and `payloads.mjs --check` exit 0.
+- mutation: AC3 `EditAnswered` also appends the answer to the message's Text -> red `TestAnsweredEditsInPlace` ("with the same Ref, Text and request"); run warm with the next mutation, each red in its own method, green after the revert, tree byte-identical.
+- mutation: AC3 (Task 3's empty key) `EditAnswered`'s `CatalogKey '= ""` guard removed -> red `TestAnsweredWithNoMessageRecordsOnly` (the empty-key notification errors once the message exists).
+- mutation: AC7 the jump's fallback selector broken (`CHAT_LIST` = `app-chat-panel > .no-list`) -> red X6 ("the press takes focus to the chat list"); one bundle and one `live answers` run with the next two mutations: X6 and X8 red, the other eight green; reverted from backups, tree byte-identical, the clean bundle rebuilt.
+- mutation: AC5 the card's own-status branch of `focusOnAnswer` removed -> red X8 ("which is not announced: the answer took focus").
+- Observed, not a mutation line: `device-panel.ts` `FOCUS_RULE = {}` in the same run left X10 green; the line took focus through the phone request's own PHONE_ANSWER_RULE, so Task 17's reason (the panel's rule runs first) did not show in this case.
 
 **Planned mutations (Rule 19).** Apply each, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged, and record it as `mutation: ... -> ...`.
 

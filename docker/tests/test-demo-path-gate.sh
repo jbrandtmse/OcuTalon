@@ -367,7 +367,7 @@ fi
 
 run_group floor-failed 1
 expect "group: a failed demo path makes the browser group exit 1 and names the unit" 1 \
-  "UNIT live:demo-path failed" "UNIT live:sign-in passed" "GROUP browser failed: live:demo-path"
+  "UNIT live:demo-path failed" "UNIT live:sign-in passed" "UNIT live:answers passed" "GROUP browser failed: live:demo-path ("
 absent "group: a red demo path draws no GROUP passed line" "GROUP browser passed"
 
 run_group floor-skipped 0
@@ -376,7 +376,7 @@ expect "group: a skipped floor test makes the browser group exit 1 although Play
 
 run_group green 0 GATE_UNIT_RC=1
 expect "group: a red unit other than the demo path makes the group exit 1 and names it" 1 \
-  "UNIT live:demo-path passed" "UNIT live:sign-in failed" "GROUP browser failed: live:sign-in"
+  "UNIT live:demo-path passed" "UNIT live:sign-in failed" "UNIT live:answers failed" "GROUP browser failed: live:sign-in live:answers ("
 
 # --- the live units: which browsers are installed before the script ---
 

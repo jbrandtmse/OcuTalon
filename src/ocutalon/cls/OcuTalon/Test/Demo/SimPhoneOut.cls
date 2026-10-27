@@ -295,9 +295,9 @@ Method TestOnlyRequestKindsCarryARequest()
 	Do $$$AssertEquals(deliveries.Count(), 4, "and four Delivery rows")
 }
 
-/// An answered notification edits the delivered message in place: its Ref and Text stay, its Answer is the phone render of the
-/// notification, there is still one message, a second phone event carries the answer, and a Delivery row (kind answered) names
-/// the message's Ref.
+/// An answered notification edits the delivered message in place: its Ref and Text stay (compared with the values read before the
+/// edit, and the row read again after it), its Answer is the phone render of the notification, there is still one message, a second
+/// phone event carries the answer, and a Delivery row (kind answered) names the message's Ref.
 Method TestAnsweredEditsInPlace()
 {
 	Set session = ..Session("edit")
@@ -308,6 +308,8 @@ Method TestAnsweredEditsInPlace()
 	Set notice.ApprovalRef = approval
 	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "the incident notice is delivered")
 	Set before = ..Newest(session)
+	Set beforeRef = before.Ref, beforeText = before.Text
+	Kill before
 	Set answeredSlots = {"channel": "web", "time": (now)}
 	Set answered = ..Notification(session, "answered", "answered.approved", answeredSlots)
 	Set answered.ApprovalRef = approval
@@ -319,7 +321,7 @@ Method TestAnsweredEditsInPlace()
 	Do $$$AssertEquals(rows.Count(), 1, "still one message")
 	If rows.Count() '= 1 Quit
 	Set message = ..Message(rows.GetAt(1).Ref)
-	Do $$$AssertEquals(message.Ref_"|"_message.Text_"|"_message.ApprovalRef, before.Ref_"|"_before.Text_"|"_approval, "with the same Ref, Text and request")
+	Do $$$AssertEquals(message.Ref_"|"_message.Text_"|"_message.ApprovalRef, beforeRef_"|"_beforeText_"|"_approval, "with the same Ref, Text and request")
 	Do $$$AssertEquals(message.Answer, expected, "and the answer line")
 	Set events = ..Phones(session)
 	Do $$$AssertEquals(events.%Size(), 2, "two events")
@@ -345,7 +347,8 @@ Method TestAnsweredEditsInPlace()
 }
 
 /// An answered notification for a request whose message was never delivered records its Delivery row only (ChannelMessageId
-/// empty): no message is made or changed and no event is published. So does one with an empty key.
+/// empty): no message is made or changed and no event is published. So does one with an empty key, also once the request's
+/// message has been delivered: that message keeps its buttons (no Answer) and gets no event.
 Method TestAnsweredWithNoMessageRecordsOnly()
 {
 	Set session = ..Session("nomessage")
@@ -353,16 +356,23 @@ Method TestAnsweredWithNoMessageRecordsOnly()
 	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web", "time": (now)})
 	Set answered.ApprovalRef = ..NewRef()
 	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the notification is delivered")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "0|0", "no message and no event")
+	Set notice = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set notice.ApprovalRef = answered.ApprovalRef
+	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "then the request's notice is delivered")
 	Set empty = ..Notification(session, "answered", "", {})
 	Set empty.ApprovalRef = answered.ApprovalRef
-	Do $$$AssertStatusOK(..Out().OnNotification(empty, .response), "so is one with no key")
+	Do $$$AssertStatusOK(..Out().OnNotification(empty, .response), "so is an answered notification with no key, although the message exists")
 	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
-	Do $$$AssertEquals(deliveries.Count(), 2, "two Delivery rows")
-	For i = 1:1:deliveries.Count() {
-		Set row = deliveries.GetAt(i)
-		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ChannelMessageId_"|"_row.ApprovalRef, "phone|answered||"_answered.ApprovalRef, "row "_i_": the kind and the request, no message id")
+	Do $$$AssertEquals(deliveries.Count(), 3, "three Delivery rows")
+	If deliveries.Count() = 3 {
+		For i = 1, 3 {
+			Set row = deliveries.GetAt(i)
+			Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ChannelMessageId_"|"_row.ApprovalRef, "phone|answered||"_answered.ApprovalRef, "row "_i_": the kind and the request, no message id")
+		}
 	}
-	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "0|0", "no message and no event")
+	Set message = ..Newest(session)
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size()_"|"_$Select($IsObject(message): message.Answer, 1: "none"), "1|1|", "only the notice's message and event, and the message has no answer")
 }
 
 /// An answered notification never edits another session's message: the other session's message for the same request keeps its
