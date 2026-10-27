@@ -10,7 +10,8 @@ export const GUIDE_MARKERS = '/ocutalon/api/v1/guide/markers';
  * the feed leaves behind for a session that is no fixture session (the FLOOR session's: Test.Data.Fixture.Clean keeps its run rows).
  * A real press also sends 50 failing orders that the real failure poller would turn into an incident of the session, so a case that
  * presses holds the Orders failures before it seeds anything (holdOrdersFailures) and releases them after its batch is complete
- * (releaseOrdersFailures); pressIncidents counts what a press made nonetheless.
+ * (releaseOrdersFailures; ordersFailuresHeld reads that it ended); awaitOrdersPolls waits for the poller's own polls before a case
+ * asserts that nothing came of the press, and pressIncidents counts what a press made nonetheless.
  */
 
 /** The namespace and the production that make a check the Orders watch (Demo.Guide). */
@@ -88,6 +89,26 @@ export async function releaseOrdersFailures(): Promise<void> {
 }
 
 /**
+ * Whether the Orders failures are held now: the mark is more than a minute ahead (Test.Demo.Production.MarkIsAhead). A case reads it after
+ * releaseOrdersFailures, so that a release that never ran is seen.
+ */
+export async function ordersFailuresHeld(): Promise<boolean> {
+  const lines = await irisScript(['Write !,"CHK|held|",##class(OcuTalon.Test.Demo.Production).MarkIsAhead(60)'].join('\n'));
+  const held = chk(lines, 'held');
+  if (held !== '0' && held !== '1') throw new Error(`the hold of the Orders failures could not be read (${lines.join(' ')})`);
+  return held === '1';
+}
+
+/**
+ * Waits until the failure poller has completed the number of polls (Test.Demo.Production.AwaitPolls: its own count of runs, 60 s at
+ * most) and throws when it did not, so that a case which asserts that nothing happened has seen the poller poll after the press.
+ */
+export async function awaitOrdersPolls(polls: number): Promise<void> {
+  const lines = await irisScript([`Write !,"CHK|polls|",##class(OcuTalon.Test.Demo.Production).AwaitPolls(${polls})`].join('\n'));
+  if (!(Number(chk(lines, 'polls')) >= polls)) throw new Error(`the failure poller did not complete ${polls} polls (${lines.join(' ')})`);
+}
+
+/**
  * What the user's session has from Orders failures since the UTC time: the incidents of that owner on the Orders production whose first
  * failure is between the time and now (a fixture's 2030 first failure never counts), and the failure groups in the same window that
  * belong to one of those incidents or to none. It selects by owner and time, where rowCount selects by Ref.
@@ -96,20 +117,25 @@ export async function pressIncidents(user: string, since: string): Promise<{ inc
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set ok=$IsObject(s)',
       `Set at=${quoted(since)}`,
       'Set to=##class(OcuTalon.Data.Time).NowUtc()',
       'Set st=##class(%SQL.Statement).%New()',
       'Set sc=st.%Prepare("SELECT Ref FROM OcuTalon_Data.Incident WHERE OwnerRef = ? AND Namespace = ? AND Production = ? AND FirstAt >= ? AND FirstAt <= ?")',
+      'Set ok=ok&&$System.Status.IsOK(sc)',
       `Set rs=st.%Execute(s.Ref,${quoted(ORDERS.namespace)},${quoted(ORDERS.production)},at,to)`,
+      'Set ok=ok&&(rs.%SQLCODE>=0)',
       'Set n=0',
-      'While rs.%Next() { Set refs(rs.%Get("Ref"))="",n=n+1 }',
+      'While ok&&rs.%Next() { Set refs(rs.%Get("Ref"))="",n=n+1 }',
       'Set sg=##class(%SQL.Statement).%New()',
       'Set sc=sg.%Prepare("SELECT IncidentRef FROM OcuTalon_Data.FailureGroup WHERE FirstAt >= ? AND FirstAt <= ?")',
+      'Set ok=ok&&$System.Status.IsOK(sc)',
       'Set rg=sg.%Execute(at,to)',
+      'Set ok=ok&&(rg.%SQLCODE>=0)',
       'Set g=0',
-      'While rg.%Next() { Set r=rg.%Get("IncidentRef") If (r="")||$Data(refs(r)) Set g=g+1 }',
-      'Write !,"CHK|incidents|",n',
-      'Write !,"CHK|groups|",g',
+      'While ok&&rg.%Next() { Set r=rg.%Get("IncidentRef") If (r="")||$Data(refs(r)) Set g=g+1 }',
+      'Write !,"CHK|incidents|",$Select(ok:n,1:"")',
+      'Write !,"CHK|groups|",$Select(ok:g,1:"")',
     ].join('\n'),
   );
   const incidents = Number(chk(lines, 'incidents'));

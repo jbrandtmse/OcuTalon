@@ -4,7 +4,7 @@ import { post, STATE } from '../support/api';
 import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
 import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
 import { publishFixtureEvent } from '../support/devices';
-import { dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
+import { awaitOrdersPolls, dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, ordersFailuresHeld, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
 import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
 
@@ -260,6 +260,7 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
   try {
     await holdOrdersFailures();
     held = true;
+    expect(await ordersFailuresHeld(), 'the Orders failures are held before the case seeds anything').toBe(true);
     const check = await seedWatch(user, refs);
     const reminder = await seedStretch(user, refs);
     await publishCheck(user, { ref: check, ...ORDERS, displayName: 'zz M Orders' });
@@ -310,13 +311,17 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
       .evaluate((node) => [...node.childNodes].filter((child) => child.nodeType === Node.TEXT_NODE).map((child) => child.textContent ?? '').join(''));
     expect(words, 'and the line, read without its elapsed time, shows no count').not.toMatch(/\b50\b/);
     expect((await announcedTexts(page)).length, 'the progress line is not announced').toBe(1);
+    await awaitOrdersPolls(2);
     expect(await pressIncidents(user, since), 'the press made no incident and no failure group').toEqual({ incidents: 0, groups: 0 });
   } finally {
     try {
       if (pressed) await settleBatch(user);
     } finally {
       try {
-        if (held) await releaseOrdersFailures();
+        if (held) {
+          await releaseOrdersFailures();
+          expect(await ordersFailuresHeld(), 'the finally released the Orders failures').toBe(false);
+        }
       } finally {
         await cleanFixtureRows(refs);
         await dropBreakFeed(user);

@@ -8,7 +8,9 @@
 /// FailurePoller keeps running, so the class holds the Orders WatchMark ahead while it runs (Test.Demo.Production.HoldFailures) and
 /// releases it after its batches are removed (ReleaseFailures): none of the class's failures is ever read, so none reaches the double or
 /// becomes an incident that a later session would see.
-///   - TestPressSendsFiftyRealFailures: rows 1, 2 and 11 (every message of the press is BreakFeedIn to PartnerTrigger; no Turn, no Decision);
+///   - TestPressSendsFiftyRealFailures: rows 1, 2 and 11 (every message of the press is BreakFeedIn to PartnerTrigger; no Turn, no Decision),
+///     and, after two whole polls of FailurePoller (Test.Demo.Production.AwaitPolls), no request from FailurePoller to IncidentManager;
+///   - TestOrdersFailuresAreHeld: while a test runs, the Orders WatchMark is held ahead (Test.Demo.Production.MarkIsAhead);
 ///   - TestOtherMeansFailTheSame: row 3;
 ///   - TestTwoQuickPressesSendOneBatch: row 6;
 ///   - TestReplayClosesTheResolvedIncident and TestRefusedCloseSendsNothing: rows 7 and 8;
@@ -148,9 +150,16 @@ Method TestPressSendsFiftyRealFailures()
 
 	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.Production).WaitCount(trace, "OrdersFromPartner", 8, 50), 50, "50 orders fail at OrdersFromPartner")
 	Do ..AssertBatch(trace, 50)
-	Hang 4
+	Do $$$AssertTrue(##class(OcuTalon.Test.Demo.Production).AwaitPolls(2) >= 2, "FailurePoller polled twice after the batch")
 	Set requests = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(requests, 1, "FailurePoller", "IncidentManager").%Size(), 0, "FailurePoller sent nothing to IncidentManager: the failures are held")
+}
+
+/// The class holds the Orders failures from OnBeforeAllTests until OnAfterAllTests (QA): while a test runs, the Orders WatchMark is far ahead.
+Method TestOrdersFailuresAreHeld()
+{
+	If '..Guard() Quit
+	Do $$$AssertTrue(##class(OcuTalon.Test.Demo.Production).MarkIsAhead(300), "the Orders WatchMark is held ahead")
 }
 
 /// Row 3: one order sent through Partner.Send directly, in MM/DD/YYYY, fails at the same item, with the same status and error text.
