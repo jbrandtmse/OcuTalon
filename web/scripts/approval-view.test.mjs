@@ -2,7 +2,8 @@
 // I/O matrix that the page decides, with the texts written out: the pending card and its parts in order, the dry run and its
 // count-of-one forms, the answered statuses (approved, rejected, expired, and the fix's later states), the label, bar and what goes
 // when a request is answered, the named answerer, the late press, the reading of each reply of the answer endpoint, and the
-// requests of an incident in the order raised. The view reads the catalog's page texts (msg/catalog.ts), the rail's title of a
+// requests of an incident in the order raised; Story 6.4: resultView, every row of the Result mapping (the first matching row wins) with
+// the catalog's texts, the count-of-one forms, the tones and icons, the audit line, and undefined with no result. The view reads the catalog's page texts (msg/catalog.ts), the rail's title of a
 // request and the page's time formats through its context, so these tests pass the real ones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -12,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { APPROVAL_TEXTS, answerOutcomeOf, approvalView, latePressText, requestsOf } = await import(app('approvals', 'approval-view.ts'));
+const { APPROVAL_TEXTS, answerOutcomeOf, approvalView, latePressText, requestsOf, resultView } = await import(app('approvals', 'approval-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { approvalTitle } = await import(app('rail', 'rail-view.ts'));
 const { pageTimeBeside, pageWhenBeside } = await import(app('chat', 'page-time.ts'));
@@ -305,6 +306,87 @@ describe('the requests of an incident', () => {
   });
 });
 
+describe('the result band (Story 6.4)', () => {
+  const noun = { one: 'order', other: 'orders' };
+  const REASON = "the order date still wasn't accepted";
+  const result = (over = {}) => ({ total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
+  const band = (over = {}, state = 'done', itemNoun = noun) => resultView({ ref: 'A', state, result: result(over) }, itemNoun, renderPageText);
+  const AUDIT = 'Recorded in the IRIS audit log.';
+
+  it('is undefined for a request with no result, whatever its state, and for a result that is not an object', () => {
+    for (const request of [{ ref: 'A', state: 'done' }, { ref: 'A', state: 'executing' }, { ref: 'A', state: 'rejected' }, { ref: 'A', result: null }, { ref: 'A', result: 'x' }, { ref: 'A', result: [] }, {}]) {
+      assert.equal(resultView(request, noun, renderPageText), undefined, JSON.stringify(request));
+    }
+  });
+
+  it('is the success band with circle-check and the audit line for all through, and "The order went through." for one', () => {
+    assert.deepEqual(band(), { key: 'result.allThrough', text: 'All 50 orders went through.', tone: 'success', icon: 'circle-check', audit: AUDIT });
+    assert.equal(band({ total: 1, resent: 1, completed: 1 }).text, 'The order went through.');
+    assert.equal(band({ total: 2, resent: 2, completed: 2 }).text, 'All 2 orders went through.');
+    assert.equal(band({ total: 50, resent: 50, completed: 50 }, 'failed').tone, 'success', 'the rows follow the fields, the state matters for executing only');
+  });
+
+  it('is a partial band with triangle-alert for failed again, skipped, both, interrupted and could not start', () => {
+    const cases = [
+      ['result.failedAgain', { completed: 48, failedAgain: 2, reason: REASON }, "48 of 50 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval."],
+      ['result.failedAgain', { completed: 49, failedAgain: 1, reason: REASON }, "49 of 50 orders went through. 1 failed again (the order date still wasn't accepted). I won't retry it without a new approval."],
+      ['result.skipped', { completed: 47, skipped: 3 }, '47 of 50 orders went through. 3 had changed since the dry run, so I skipped them; they need a new approval.'],
+      ['result.skipped', { completed: 49, skipped: 1 }, '49 of 50 orders went through. 1 had changed since the dry run, so I skipped it; it needs a new approval.'],
+      ['result.failedAndSkipped', { completed: 45, failedAgain: 2, skipped: 3, reason: REASON }, "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval."],
+      ['result.failedAndSkipped', { completed: 47, failedAgain: 2, skipped: 1, reason: REASON }, "47 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval."],
+      ['result.interrupted', { completed: 30, interrupted: 20 }, 'The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval.'],
+      ['result.interrupted', { completed: 49, interrupted: 1 }, 'The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval.'],
+      ['result.couldNotStart', { resent: 0, completed: 0, reason: "OcuTalon isn't allowed to resend messages in that production" }, "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."],
+    ];
+    for (const [key, over, text] of cases) {
+      assert.deepEqual(band(over), { key, text, tone: 'partial', icon: 'triangle-alert', audit: AUDIT }, text);
+    }
+  });
+
+  it('is the partial band with clock for a request that is still executing, with the one form for one gone through', () => {
+    assert.deepEqual(band({ completed: 30 }, 'executing'), {
+      key: 'result.stillResending',
+      text: "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.",
+      tone: 'partial',
+      icon: 'clock',
+      audit: AUDIT,
+    });
+    assert.equal(band({ completed: 1 }, 'executing').text, "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done.");
+    assert.equal(band({ completed: 0, resent: 0, reason: 'zz' }, 'executing').key, 'result.stillResending', 'executing wins over could not start');
+  });
+
+  it('takes the first matching row: executing, then interrupted, then could not start, then both, then failed again, then skipped', () => {
+    assert.equal(band({ interrupted: 5, failedAgain: 2, skipped: 1, completed: 10 }, 'executing').key, 'result.stillResending');
+    assert.equal(band({ interrupted: 5, failedAgain: 2, skipped: 1, completed: 10 }).key, 'result.interrupted');
+    assert.equal(band({ resent: 0, completed: 0, failedAgain: 0, skipped: 0, reason: 'x', interrupted: 0 }).key, 'result.couldNotStart');
+    assert.equal(band({ resent: 0, completed: 0, failedAgain: 1, reason: 'x' }).key, 'result.failedAgain', 'a failure is not "could not start"');
+    assert.equal(band({ resent: 0, completed: 0, reason: '' }).key, 'result.allThrough', 'no reason is not "could not start"');
+    assert.equal(band({ failedAgain: 1, skipped: 1, completed: 48, reason: 'x' }).key, 'result.failedAndSkipped');
+    assert.equal(band({ failedAgain: 1, completed: 49, reason: 'x' }).key, 'result.failedAgain');
+    assert.equal(band({ skipped: 1, completed: 49 }).key, 'result.skipped');
+  });
+
+  it('reads the noun from the incident\'s, else "message" and "messages", and copes with absent fields', () => {
+    assert.equal(band({ total: 1, resent: 1, completed: 1 }, 'done', null).text, 'The message went through.');
+    assert.equal(band({}, 'done', null).text, 'All 50 messages went through.');
+    assert.equal(band({}, 'done', { one: 'order' }).text, 'All 50 messages went through.', 'a missing form falls back to the default');
+    assert.equal(resultView({ ref: 'A', state: 'done', result: {} }, noun, renderPageText).text, 'All 0 orders went through.', 'an empty result reads as zero');
+    assert.equal(band({ total: 'x', completed: null }).text, 'All 0 orders went through.', 'a field that is no number is zero');
+  });
+
+  it('passes the catalog\'s renderer the key and the slots as strings, the noun as its forms', () => {
+    const seen = [];
+    resultView({ ref: 'A', state: 'done', result: result({ completed: 48, failedAgain: 2, reason: REASON }) }, noun, (key, slots) => {
+      seen.push([key, slots]);
+      return key;
+    });
+    assert.deepEqual(seen, [
+      ['result.failedAgain', { count: '50', itemNoun: noun, completed: '48', failedAgain: '2', failReason: REASON }],
+      ['audit.recorded', {}],
+    ]);
+  });
+});
+
 describe('the texts', () => {
   it('are these, written out', () => {
     assert.deepEqual({ ...APPROVAL_TEXTS }, {
@@ -329,6 +411,8 @@ describe('the texts', () => {
       notApprover: 'Only an approver for resends can answer this request.',
       gone: 'That request is no longer available.',
       busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
+      nounOne: 'message',
+      nounOther: 'messages',
     });
   });
 

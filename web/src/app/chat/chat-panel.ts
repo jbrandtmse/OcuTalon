@@ -15,10 +15,11 @@ import {
 
 import { Icon } from '../icon/icon';
 import { IncidentCard, incidentContext } from '../incidents/incident-card';
-import { announcementOf, incidentView } from '../incidents/incident-view';
+import { Dismissals } from '../incidents/dismissals';
+import { announcementOf, bandTexts, incidentView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
-import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { type FocusRule, keepFocus, type LostFocus } from '../shared/focus-rule';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
@@ -53,10 +54,27 @@ const RELEASE_EVENTS = ['wheel', 'touchmove', 'pointerdown'] as const;
 const FOCUS_RULE: FocusRule = {
   item: `[${PART}][${KEY}]`,
   keyOf: (item) => `${item.getAttribute(PART) ?? ''}:${item.getAttribute(KEY) ?? ''}`,
+  whenGone: (lost) => incidentHeadline(lost),
 };
 
-/** The texts of the chat's announcements and the reads of a reply, from the real modules; the incident card's text needs the page's times, so the panel adds it. */
-const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
+/** The prefix of the key of a Dismiss: its part, then the incident card's view key. */
+const DISMISS_PREFIX = 'dismiss:';
+
+/**
+ * The headline of the incident card whose Dismiss held focus when the update removed it (the card compacts in place when the
+ * incident is closed, and its Dismiss goes): the item `dismiss:<view key>` gives the card `[data-part="incident"][data-key="<view
+ * key>"]` and its headline (tabindex -1). Any other lost item gives null, which leaves the focus to the main region.
+ */
+function incidentHeadline(lost: LostFocus): HTMLElement | null {
+  if (!lost.key.startsWith(DISMISS_PREFIX)) {
+    return null;
+  }
+  const key = lost.key.slice(DISMISS_PREFIX.length);
+  return lost.host.querySelector<HTMLElement>(`[${PART}="incident"][${KEY}="${CSS.escape(key)}"] .headline`);
+}
+
+/** The texts of the chat's announcements and the reads of a reply, from the real modules; the incident card's text, its result bands and the dismissed set need the page's times and stores, so the panel adds them. */
+const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | 'dismissed'> = {
   announceReplied: CHAT_TEXTS.announceReplied,
   announceTellNow: CHAT_TEXTS.announceTellNow,
   replyText: (replyText) => plainText(parseReply(replyText)),
@@ -70,10 +88,14 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
  * From 1024px wide the panel fills main and the list takes the height that is left. Below it (the stacked column, Story 2.15) the list is
  * as tall as its content up to 70vh and scrolls on its own beyond that, with the composer under it.
  *
+ * An incident that this page closed with its own Dismiss (Dismissals, set by the 200 of the dismiss route) shows as closed at once, before
+ * the owner's incident event agrees; its change to closed is not announced, and the page's focus rule puts focus on the compacted
+ * card's headline when the update removes the Dismiss that held it.
+ *
  * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
  * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
  * "Tell now:" and its first sentence, a new reminder card is its text, a new incident card is "Incident: {headline}. Approval needed."
- * (or "No fix proposed.", or its state) and a known one says its state when that changes. The user's messages, Deciding and Working, the
+ * (or "No fix proposed.", or its state) and a known one says its state when that changes and then each result band text that is new or changed (once). The user's messages, Deciding and Working, the
  * seconds and a card updated in place are silent.
  *
  * The list is a tab stop (DW-89, Story 2.16): a region named by the hidden "Chat" heading of the main page, with its ring inside its own edge, so
@@ -230,6 +252,7 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
 export class ChatPanel {
   protected readonly live = inject(LiveState);
   protected readonly outbox = inject(ChatOutbox);
+  protected readonly dismissals = inject(Dismissals);
   protected readonly texts = CHAT_TEXTS;
   private readonly injector = inject(Injector);
   private readonly announcer = inject(Announcer);
@@ -291,7 +314,12 @@ export class ChatPanel {
         }
       }
     }
-    return chatView(chat, this.outbox.entries(), this.since, now, this.live.store()?.turnSteps);
+    const dismissed = this.dismissals.refs();
+    return chatView(chat, this.outbox.entries(), this.since, now, this.live.store()?.turnSteps).map((entry) =>
+      entry.entry === 'incident' && dismissed.has(entry.incident.ref ?? '') && entry.incident.state !== 'closed'
+        ? { ...entry, incident: { ...entry.incident, state: 'closed' } }
+        : entry,
+    );
   });
 
   /** True while the New messages button shows. */
@@ -352,6 +380,8 @@ export class ChatPanel {
     const format: ChatAnnounceFormat = {
       ...ANNOUNCE_FORMAT,
       incidentText: (previousState, incident) => announcementOf(previousState, incident, incidentView(incident, context).headline),
+      bandTexts: (incident) => bandTexts(incident, context),
+      dismissed: (ref) => this.dismissals.refs().has(ref),
     };
     const { texts, heard } = chatAnnouncements(this.heard, entries, format);
     this.heard = heard;

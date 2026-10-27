@@ -2,7 +2,9 @@
 // the bar by state (and the open variants), the compact closed card, the headline (count-of-one and absent nouns, an unreadable
 // time), the "more since the notice" line, the cause and fix sentences, the evidence line, the fixing line and its count, the
 // footer's decision, the Show details panel (its rows, the held note, the served links), the parts that a snapshot payload lacks, and
-// the announcement table. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
+// the announcement table; Story 6.4: the fallback and no-fix notices with their failure groups (a dated time included), the unknown
+// cause's own sentence, Dismiss for exactly the resolved and open states, the compact card's result bands and each request's band text for
+// the announcements. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
 // syntax and imports only types. The times come from the real page-time.ts with named zones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -13,7 +15,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts');
-const { INCIDENT_TEXTS, announcementOf, categoryText, incidentView, stateText } = await import(pathToFileURL(source).href);
+const { INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, incidentView, stateText } = await import(pathToFileURL(source).href);
+const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
+const { PAGE_TEXTS, REASON_KEYS, renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { messageTime, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const NOW = Date.parse('2026-10-22T14:30:00Z');
@@ -26,6 +30,9 @@ function context(over = {}, { onlineDemo = false, browser = 'Europe/Berlin' } = 
     messageTime: (iso, now) => messageTime(iso, now, 'UTC', onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, 'UTC', 'en-GB', browser),
     itemTime: (iso, now) => pageWhen(iso, now, 'en-GB', browser),
+    result: (request, itemNoun) => resultView(request, itemNoun, renderPageText),
+    // The reason's text as decision-strip.ts fallbackReasonText finds it.
+    reasonText: (reason) => PAGE_TEXTS['fallbackReason.' + (reason !== undefined && Object.hasOwn(REASON_KEYS, reason) ? REASON_KEYS[reason] : 'generic')],
     ...over,
   };
 }
@@ -511,8 +518,143 @@ describe('the fixed strings', () => {
         announceApproval: 'Incident: {headline}. Approval needed.',
         announceNoFix: 'Incident: {headline}. No fix proposed.',
         announceState: 'Incident: {headline}. {state}.',
+        fallbackNotice: "I couldn't work out the cause ({reason}), so I'm not proposing a fix. Nothing was changed.",
+        noFixNotice: "None of my fixes applies to this, so I'm not proposing one. Nothing was changed.",
+        noFixUnknown: "I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed.",
+        failures: 'Failures:',
+        groupLine: "{item}: {count}, '{summary}', first at {time}",
+        dismiss: 'Dismiss',
       },
     );
+  });
+});
+
+const GROUPS = [{ itemName: 'Order transform', count: 50, errorSummary: 'date could not be read', firstAt: '2026-10-22T14:12:00Z' }];
+
+describe('the fallback and no-fix notices (Story 6.4)', () => {
+  const fallback = (over = {}) =>
+    full({ state: 'open', openVariant: 'fallback', fallback: true, fallbackReason: 'timeout', cause: '', causeCategory: '', element: '', fixSummary: '', requests: [], groups: GROUPS, ...over });
+  const noFix = (over = {}) => full({ state: 'open', openVariant: 'no_fix', fixSummary: '', requests: [], groups: GROUPS, cause: 'The partner now requires a signed header.', causeCategory: 'other', ...over });
+
+  it('shows the fallback sentence with the reason\'s text, the failure group lines, no fix and no cause', () => {
+    const card = view(fallback());
+    assert.equal(card.notice, "I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed.");
+    assert.deepEqual(card.groups, ["Order transform: 50, 'date could not be read', first at 14:12"]);
+    assert.equal(card.fixSentence, '');
+    assert.equal(card.causeSentence, '');
+    assert.equal(card.fallback, true);
+    assert.equal(card.stateText, 'Open');
+    assert.equal(card.bar, 'attention');
+  });
+
+  it('gives the generic reason\'s text for a reason it does not know, and for none', () => {
+    assert.equal(view(fallback({ fallbackReason: 'zz' })).notice, "I couldn't work out the cause (the model's reply couldn't be used), so I'm not proposing a fix. Nothing was changed.");
+    assert.equal(view(fallback({ fallbackReason: undefined })).notice, "I couldn't work out the cause (the model's reply couldn't be used), so I'm not proposing a fix. Nothing was changed.");
+  });
+
+  it('reads a dated first time as "first on {day} at HH:MM" in the headline\'s form, and " ET" on the online demo', () => {
+    const dated = view(fallback({ groups: [{ ...GROUPS[0], firstAt: '2026-10-20T14:12:00Z' }] }));
+    assert.equal(dated.groups[0], "Order transform: 50, 'date could not be read', first on Tuesday at 14:12");
+    assert.equal(view(fallback(), {}, { onlineDemo: true }).groups[0], "Order transform: 50, 'date could not be read', first at 14:12 ET");
+    assert.equal(
+      view(fallback({ groups: [{ ...GROUPS[0], firstAt: '2026-10-20T14:12:00Z' }] }), {}, { onlineDemo: true }).groups[0],
+      "Order transform: 50, 'date could not be read', first on Tuesday at 14:12 ET",
+    );
+  });
+
+  it('lists every group in order, and a group with odd fields without throwing', () => {
+    const two = view(fallback({ groups: [GROUPS[0], { itemName: 'Warehouse', count: 1, errorSummary: 'refused', firstAt: '2026-10-22T14:20:00Z' }, null, 5, {}] }));
+    assert.equal(two.groups.length, 3);
+    assert.equal(two.groups[1], "Warehouse: 1, 'refused', first at 14:20");
+    assert.equal(two.groups[2], ": 0, '', first at ", 'an empty group reads with empty slots');
+  });
+
+  it('shows the cause, the evidence line, the no-fix sentence and the groups for a no-fix incident', () => {
+    const card = view(noFix());
+    assert.equal(card.causeSentence, 'The partner now requires a signed header.');
+    assert.equal(card.evidenceLine, 'Other \u00B7 order date \u00B7 50 failures grouped into this incident');
+    assert.equal(card.notice, "None of my fixes applies to this, so I'm not proposing one. Nothing was changed.");
+    assert.equal(card.groups.length, 1);
+    assert.equal(card.fallback, false);
+  });
+
+  it('puts the unknown-cause sentence in place of the cause and the no-fix sentence', () => {
+    const card = view(noFix({ causeCategory: 'unknown', cause: 'zz some cause' }));
+    assert.equal(card.causeSentence, '');
+    assert.equal(card.notice, "I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed.");
+    assert.equal(view(noFix({ causeCategory: 'unknown', openVariant: 'rejected' })).notice, '', 'only a no-fix variant has the sentence');
+  });
+
+  it('has no notice and no groups on any other card, and none on a compact one', () => {
+    for (const openVariant of ['rejected', 'expired', 'fix', undefined]) {
+      const card = view(full({ state: 'open', openVariant, groups: [] }));
+      assert.equal(card.notice, '', String(openVariant));
+      assert.deepEqual(card.groups, [], String(openVariant));
+    }
+    const closed = view(fallback({ state: 'closed' }));
+    assert.equal(closed.notice, '');
+    assert.deepEqual(closed.groups, []);
+    const closedNoFix = view(noFix({ state: 'closed', causeCategory: 'unknown' }));
+    assert.equal(closedNoFix.notice, '');
+    assert.equal(closedNoFix.causeSentence, '');
+  });
+
+  it('announces "No fix proposed." at first sight, as before', () => {
+    assert.equal(announcementOf(undefined, fallback(), 'H'), 'Incident: H. No fix proposed.');
+    assert.equal(announcementOf(undefined, noFix({ causeCategory: 'unknown' }), 'H'), 'Incident: H. No fix proposed.');
+  });
+});
+
+describe('Dismiss (Story 6.4)', () => {
+  it('is offered for a resolved card and an open one, whatever the open variant, and for no other state', () => {
+    for (const [state, expected] of [['resolved', true], ['open', true], ['awaiting_approval', false], ['fixing', false], ['closed', false], ['mystery', false], [undefined, false]]) {
+      assert.equal(view(full({ state })).dismissable, expected, String(state));
+    }
+    for (const openVariant of ['rejected', 'expired', 'fallback', 'no_fix', 'fix']) {
+      assert.equal(view(full({ state: 'open', openVariant })).dismissable, true, openVariant);
+    }
+  });
+
+  it('is never offered on a compact card', () => {
+    assert.equal(view(full({ state: 'closed' })).dismissable, false);
+    assert.deepEqual(view(full({ state: 'resolved' })).results, [], 'and only a compact card holds the bands');
+  });
+});
+
+describe('the result bands (Story 6.4)', () => {
+  const requests = [
+    { ref: 'A1', state: 'done', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
+    { ref: 'A2', state: 'rejected' },
+    { ref: 'A3', state: 'done', result: { total: 50, resent: 50, completed: 48, failedAgain: 2, skipped: 0, interrupted: 0, reason: "the order date still wasn't accepted" } },
+  ];
+
+  it('are on a compact card only, one for each request that has a result, in payload order, each with its text, tone, icon and audit line', () => {
+    const card = view(full({ state: 'closed', requests }));
+    assert.deepEqual(
+      card.results.map((band) => [band.key, band.text, band.tone, band.icon, band.audit]),
+      [
+        ['result.allThrough', 'All 50 orders went through.', 'success', 'circle-check', 'Recorded in the IRIS audit log.'],
+        ['result.failedAgain', "48 of 50 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval.", 'partial', 'triangle-alert', 'Recorded in the IRIS audit log.'],
+      ],
+    );
+    assert.deepEqual(view(full({ state: 'closed', requests: [{ ref: 'A2', state: 'rejected' }] })).results, [], 'a rejected request has no band');
+    assert.deepEqual(view(full({ state: 'closed', requests: undefined })).results, []);
+  });
+
+  it('say each band\'s text by the request\'s ref, for every card, and nothing for a request with no result or an odd entry', () => {
+    assert.deepEqual(bandTexts(full({ state: 'resolved', requests: [...requests, null, 5, { state: 'done', result: { total: 1 } }] }), context()), {
+      A1: 'All 50 orders went through.',
+      A3: "48 of 50 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval.",
+      '': 'The order went through.',
+    });
+    assert.deepEqual(bandTexts(full({ requests: [{ ref: 'A1', state: 'pending' }] }), context()), {});
+    assert.deepEqual(bandTexts(full({ requests: undefined }), context()), {});
+  });
+
+  it('show the still-resending text while a request is executing, and the final text once it is done', () => {
+    const executing = [{ ref: 'A1', state: 'executing', result: { total: 50, completed: 30 } }];
+    assert.equal(bandTexts(full({ state: 'fixing', requests: executing }), context()).A1, "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.");
+    assert.equal(bandTexts(full({ state: 'resolved', requests: [{ ...executing[0], state: 'done', result: { total: 50, resent: 50, completed: 50 } }] }), context()).A1, 'All 50 orders went through.');
   });
 });
 
@@ -520,6 +662,7 @@ describe('the module', () => {
   it('imports only types, keeps to erasable syntax and writes its non-ASCII characters as escapes', () => {
     const text = readFileSync(source, 'utf8');
     assert.doesNotMatch(text, /^import (?!type )/m, 'type-only imports');
+    assert.doesNotMatch(text, /^import[^\n]*from '(?!\.\.\/(?:approvals\/approval-view|live\/payloads)')/m, 'and from the two modules that hold the types');
     assert.doesNotMatch(text, /\benum\b|\bnamespace\b|constructor\(\s*(?:public|private|protected|readonly)/, 'erasable syntax');
     assert.doesNotMatch(text, /[^\x00-\x7F]/, 'ASCII');
   });

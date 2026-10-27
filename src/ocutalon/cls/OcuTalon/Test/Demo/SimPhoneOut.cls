@@ -15,6 +15,12 @@
 ///     and TestAnsweredRenderErrorChangesNothing are its edges;
 ///   - TestTextIsTheTelegramWording: for a key that words the web differently, the phone carries the telegram wording;
 ///   - TestOnlineDemoTimesNameTheZone: a late reminder's time ends with " ET" on the online demo and has no suffix otherwise;
+///   - TestResultIsAMessage (Story 6.4; AD-32): a result notification is one new SimMessage with the phone render of its key, no ApprovalRef
+///     (so no buttons), its Delivery row and one phone event; the request's earlier message keeps its Ref and its Answer; a count of one
+///     reads as the catalog's count-of-one form;
+///   - TestFallbackAndNoFixWording: incident.fallback, incident.noFix and incident.noFixUnknown, each with two groups (one dated), are one
+///     message of the phone render with no ApprovalRef;
+///   - TestResultRenderError: a result whose key can't be rendered is an error with no message, row or event;
 ///   - TestOtherKindsRecordOnly: any other kind records its phone Delivery row only, with no message and no event;
 ///   - TestNotASession: an owner that is not a session records nothing, publishes nothing and logs one warning, before any
 ///     rendering (the demo-switch stack's control Notification has an unrenderable slot set);
@@ -170,13 +176,105 @@ Method TestOnlineDemoTimesNameTheZone()
 	Do $$$AssertEquals(..Newest(session).Text, row.Text, "and the message keeps that text after the setting is off again")
 }
 
+/// A result notification (kind result, result.allThrough, ApprovalRef of the request and IncidentRef) is one new SimMessage with the
+/// phone render of the key and the slots, and an empty ApprovalRef; its phone Delivery row and one phone event. The request's earlier
+/// message is not edited: it keeps its Ref, Text, ApprovalRef and Answer. With a count of one the text is "The order went through.".
+Method TestResultIsAMessage()
+{
+	Set session = ..Session("result")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set approval = ..NewRef(), incident = ..NewRef()
+	Set request = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set request.ApprovalRef = approval
+	Set request.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(request, .response), "the request's notice is delivered")
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = approval
+	Set answered.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "and answered")
+	Set first = ..Newest(session)
+	Set firstRef = first.Ref, firstText = first.Text, firstAnswer = first.Answer
+	Do $$$AssertTrue(firstAnswer '= "", "the request's message has its answer line")
+	Set slots = {"count": 50, "itemNoun": {"one": "order", "other": "orders"}}
+	Set result = ..Notification(session, "result", "result.allThrough", slots)
+	Set result.ApprovalRef = approval
+	Set result.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(result, .response), "the result is delivered")
+	Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt("result.allThrough", slots.%ToJSON(), "phone", now, 0)
+	Do $$$AssertEquals(expected, "All 50 orders went through.", "the phone text")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 2, "two messages: the request's and the result's")
+	Set newest = ..Newest(session)
+	Do $$$AssertTrue(newest.Ref '= firstRef, "the result is a new message")
+	Do $$$AssertEquals(newest.Text, expected, "with the phone render as its text")
+	Do $$$AssertEquals(newest.ApprovalRef_"|"_newest.Answer, "|", "no ApprovalRef and no Answer, so no buttons")
+	Set earlier = ..Message(firstRef)
+	Do $$$AssertEquals(earlier.Text_"|"_earlier.ApprovalRef_"|"_earlier.Answer, firstText_"|"_approval_"|"_firstAnswer, "the request's message is not edited")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 3, "three Delivery rows")
+	If deliveries.Count() = 3 {
+		Set delivery = deliveries.GetAt(3)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.ApprovalRef_"|"_delivery.Text, "phone|"_newest.Ref_"|result|"_approval_"|", "the result's: channel, the message's Ref, kind and request, no text")
+	}
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 3, "three phone events: the notice, its answer and the result")
+	If events.%Size() = 3 {
+		Set payload = events.%Get(2).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.approvalRef_"|"_payload.answer_"|"_payload.text, newest.Ref_"|||"_expected, "the last carries the result's ref and text, with no approvalRef or answer")
+	}
+	Set one = ..Notification(session, "result", "result.allThrough", {"count": 1, "itemNoun": {"one": "order", "other": "orders"}})
+	Set one.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(one, .response), "a result of one is delivered")
+	Do $$$AssertEquals(..Newest(session).Text, ##class(OcuTalon.Msg.Catalog).RenderAt("result.allThrough", {"count": 1, "itemNoun": {"one": "order", "other": "orders"}}.%ToJSON(), "phone", now, 0), "with the count-of-one form")
+	Do $$$AssertEquals(..Newest(session).Text, "The order went through.", "which is the order went through")
+}
+
+/// The fallback and no-fix notices (kind incident, no ApprovalRef) are one message each, with the phone render and an empty ApprovalRef;
+/// the two groups, one of them dated, are in the text.
+Method TestFallbackAndNoFixWording()
+{
+	Set session = ..Session("notices")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set old = "2020-01-02T10:15:00Z"
+	Set keys = $ListBuild("incident.fallback", "incident.noFix", "incident.noFixUnknown")
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		Set slots = ..FallbackSlots(now)
+		Set slots.count = 9
+		Do slots.groups.%Push({"itemName": "OrdersToWarehouse", "count": 2, "errorSummary": "The warehouse refused the order", "firstAt": (old)})
+		If key = "incident.noFix" Set slots.cause = "Data format change"
+		If key '= "incident.fallback" Do slots.%Remove("fallbackReason")
+		If key = "incident.noFixUnknown" Do slots.%Remove("cause")
+		Set before = ..PhoneCount(session)
+		Set notification = ..Notification(session, "incident", key, slots)
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), key_" is delivered")
+		Do $$$AssertEquals(..PhoneCount(session), before + 1, key_": one message")
+		Set message = ..Newest(session)
+		Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "phone", now, 0)
+		Do $$$AssertEquals(message.Text, expected, key_": the phone render")
+		Do $$$AssertEquals(message.ApprovalRef, "", key_": no ApprovalRef, so no buttons")
+		Do $$$AssertTrue(message.Text [ "OrdersToWarehouse", key_": it lists the groups")
+	}
+	Do $$$AssertEquals(..Phones(session).%Size(), 3, "three events")
+}
+
+/// A result whose key can't be rendered is an error with no message, no Delivery row and no event.
+Method TestResultRenderError()
+{
+	Set session = ..Session("resulterror")
+	Set notification = ..Notification(session, "result", "result.zzNoSuchKey", {"count": 5})
+	Set notification.ApprovalRef = ..NewRef()
+	Do $$$AssertStatusNotOK(..Out().OnNotification(notification, .response), "an unknown key is an error")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), "0|0|0", "with no message, row or event")
+}
+
 /// Any other kind records its phone Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text and no
 /// ChannelMessageId, no SimMessage and no event; the text is not rendered (its key is unknown). An incident notice is not one
 /// of them: with a tell-now key and an ApprovalRef-less notification it is a message with no ApprovalRef.
 Method TestOtherKindsRecordOnly()
 {
 	Set session = ..Session("other")
-	Set kinds = $ListFromString("result,fallback,allowance,pairing,status,digest")
+	Set kinds = $ListFromString("fallback,allowance,pairing,status,digest")
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
 		Set notification = ..Notification(session, kind, "zz.notRendered", {"zz": "slot"})

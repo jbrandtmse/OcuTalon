@@ -20,8 +20,15 @@
  *   note while a request is pending, the two trace links); with no row there is no Show details.
  * - announcementOf says what the chat announces for an incident: at first sight "Approval needed" for awaiting approval, "No fix
  *   proposed" for a fallback or a no-fix variant, else the state; afterwards the state, once, when it changes; else nothing.
+ * - Story 6.4: a fallback or no-fix card shows its notice sentence (EXPERIENCE: Fallback incident notice, Incident notice without a
+ *   fix; the unknown cause has its own sentence in place of the cause and the no-fix sentence) and, under "Failures:", one line per
+ *   group; `dismissable` is true for a card in state resolved or open (never while awaiting approval or fixing, nor closed); a
+ *   compact card holds the result band of each request of the payload, in order (`results`), and no notice and no groups.
+ *   bandTexts says each band's text by the request's ref, for the chat's announcements (a result is announced once, when it first
+ *   appears or changes on a card already shown).
  */
-import type { DecisionPayload, IncidentPayload, ItemNoun } from '../live/payloads';
+import type { ResultView } from '../approvals/approval-view';
+import type { DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun } from '../live/payloads';
 
 /** Every fixed string of the incident card, its panel and its announcements. The ellipsis is U+2026, the middle dot U+00B7. */
 export const INCIDENT_TEXTS = {
@@ -53,6 +60,12 @@ export const INCIDENT_TEXTS = {
   announceApproval: 'Incident: {headline}. Approval needed.',
   announceNoFix: 'Incident: {headline}. No fix proposed.',
   announceState: 'Incident: {headline}. {state}.',
+  fallbackNotice: "I couldn't work out the cause ({reason}), so I'm not proposing a fix. Nothing was changed.",
+  noFixNotice: "None of my fixes applies to this, so I'm not proposing one. Nothing was changed.",
+  noFixUnknown: "I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed.",
+  failures: 'Failures:',
+  groupLine: "{item}: {count}, '{summary}', first at {time}",
+  dismiss: 'Dismiss',
 } as const;
 
 /** The state names of AD-15's table that the page draws a chip for, in the words of the chip tokens (`--incident-state-*`). */
@@ -73,6 +86,10 @@ export interface IncidentContext {
   topTime(iso: string, nowMs: number): string;
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
+  /** The band of a request's result with the incident's item noun (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined): ResultView | undefined;
+  /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
+  reasonText(reason: string | undefined): string;
 }
 
 /** The inputs of the footer's decision strip. */
@@ -132,6 +149,14 @@ export interface IncidentView {
   diagnosisUrl: string | undefined;
   /** The panel, or undefined when it has no row (then there is no Show details). */
   panel: PanelView | undefined;
+  /** The fallback or no-fix sentence; "" for any other card and for a compact one. */
+  notice: string;
+  /** The failure group lines (the time in the headline's form); empty for a compact card. */
+  groups: string[];
+  /** True while Dismiss is offered: the state is resolved or open, and the card is not compact. */
+  dismissable: boolean;
+  /** For a compact card, each request's result band in payload order; empty otherwise. */
+  results: ResultView[];
 }
 
 /** The text with its `{name}` slots filled. */
@@ -305,6 +330,73 @@ function decisionOf(payload: IncidentPayload, ctx: IncidentContext): DecisionPay
   return ref === '' ? undefined : ctx.decisions.find((decision) => decision.ref === ref);
 }
 
+/** True when the incident is a fallback: its `fallback` flag or its open variant says so. */
+function isFallback(payload: IncidentPayload): boolean {
+  return payload.fallback === true || payload.openVariant === 'fallback';
+}
+
+/** True when the incident's cause has no fix in OcuTalon's fixed set. */
+function isNoFix(payload: IncidentPayload): boolean {
+  return payload.openVariant === 'no_fix';
+}
+
+/** True when the cause could not be told from the failed messages (AD-15: no fix includes `unknown`). */
+function unknownCause(payload: IncidentPayload): boolean {
+  return isNoFix(payload) && payload.causeCategory === 'unknown';
+}
+
+/** The cause sentence: the payload's, but none for a no-fix card of an unknown cause, whose notice says it. */
+function causeOf(payload: IncidentPayload): string {
+  return unknownCause(payload) ? '' : sentenceOf(textOf(payload.cause));
+}
+
+/** The notice sentence of a fallback or no-fix card; "" for any other. */
+function noticeOf(payload: IncidentPayload, ctx: IncidentContext): string {
+  if (isFallback(payload)) {
+    return fill(INCIDENT_TEXTS.fallbackNotice, { reason: ctx.reasonText(payload.fallbackReason) });
+  }
+  if (unknownCause(payload)) {
+    return INCIDENT_TEXTS.noFixUnknown;
+  }
+  return isNoFix(payload) ? INCIDENT_TEXTS.noFixNotice : '';
+}
+
+/**
+ * The failure group lines "Order transform: 50, 'date could not be read', first at 14:12". The time is the headline's form
+ * (message time); where that is dated (not NN:NN, less a trailing " ET"), "first at" becomes "first on", as the catalog's renderer does.
+ */
+function groupLinesOf(payload: IncidentPayload, ctx: IncidentContext): string[] {
+  return listOf(payload.groups)
+    .filter((group) => group !== null && typeof group === 'object')
+    .map((group) => {
+      const time = ctx.messageTime(group.firstAt ?? '', ctx.nowMs);
+      const dated = time !== '' && !/^\d\d:\d\d$/.test(time.replace(/ ET$/, ''));
+      const template = dated ? INCIDENT_TEXTS.groupLine.replace('first at {time}', 'first on {time}') : INCIDENT_TEXTS.groupLine;
+      return fill(template, { item: textOf(group.itemName), count: String(numberOf(group.count) ?? 0), summary: textOf(group.errorSummary), time });
+    });
+}
+
+/** The result bands of the payload's requests, in order, each with the request's ref; a request with no result has none. */
+function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
+  const bands: { ref: string; band: ResultView }[] = [];
+  for (const request of listOf(payload.requests)) {
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun) : undefined;
+    if (band !== undefined) {
+      bands.push({ ref: request.ref ?? '', band });
+    }
+  }
+  return bands;
+}
+
+/** The text of each request's result band by the request's ref (for the chat's announcements). A ref with no band is not there. */
+export function bandTexts(payload: IncidentPayload, ctx: IncidentContext): Readonly<Record<string, string>> {
+  const texts: Record<string, string> = {};
+  for (const { ref, band } of bandsOf(payload, ctx)) {
+    texts[ref] = band.text;
+  }
+  return texts;
+}
+
 /** Everything the card draws for one incident payload. */
 export function incidentView(payload: IncidentPayload, ctx: IncidentContext): IncidentView {
   const state = stateOf(payload.state);
@@ -322,7 +414,7 @@ export function incidentView(payload: IncidentPayload, ctx: IncidentContext): In
     time: ctx.topTime(payload.lastAt ?? '', ctx.nowMs),
     headline: headlineOf(payload, ctx),
     more: compact ? '' : moreOf(payload),
-    causeSentence: compact ? '' : sentenceOf(textOf(payload.cause)),
+    causeSentence: compact ? '' : causeOf(payload),
     evidenceLine: compact ? '' : evidenceLineOf(payload),
     fixSentence: compact ? '' : fixSentenceOf(payload),
     fixingLine: compact ? '' : fixingLineOf(payload),
@@ -333,6 +425,10 @@ export function incidentView(payload: IncidentPayload, ctx: IncidentContext): In
         : { decision, cost: decision.costUSD, fallbackReason: fallback ? (payload.fallbackReason ?? '') : undefined },
     diagnosisUrl: compact ? undefined : textOf(payload.traceTargets?.diagnosis?.traceUrl) || undefined,
     panel: panelOf(payload, ctx),
+    notice: compact ? '' : noticeOf(payload, ctx),
+    groups: compact ? [] : groupLinesOf(payload, ctx),
+    dismissable: !compact && (state?.chip === 'resolved' || state?.chip === 'open'),
+    results: compact ? bandsOf(payload, ctx).map((one) => one.band) : [],
   };
 }
 

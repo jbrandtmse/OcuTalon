@@ -18,8 +18,11 @@
  * - A dry run that is not an object, or has no numeric `affected`, leaves out the fixed-targets line and the dry run block, and
  *   the action reads "Repair and resend.". A count of one uses the singular forms.
  * - answerOutcomeOf reads the reply of POST /approvals/:ref/answer; latePressText is the notice of a press that lost the race.
+ * - resultView (Story 6.4; AD-16) reads the `result` of one of the incident payload's `requests` into the band under the request's
+ *   answered status: the catalog's result.* key by the fields (the page maps the fields, because the payload carries no key), its text
+ *   with the count-of-one forms, the tone (success only for all-through, else partial), the icon and the audit line.
  */
-import type { ApprovalPayload, DryRun, IncidentPayload } from '../live/payloads';
+import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, ItemNoun } from '../live/payloads';
 
 /** Every fixed string of the approval request card and its notices. */
 export const APPROVAL_TEXTS = {
@@ -46,6 +49,8 @@ export const APPROVAL_TEXTS = {
   notApprover: 'Only an approver for resends can answer this request.',
   gone: 'That request is no longer available.',
   busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
+  nounOne: 'message',
+  nounOther: 'messages',
 } as const;
 
 /** The 4px bar of the card: pending while it waits, approved from the answer to the fix's end, closed for the rest. */
@@ -84,7 +89,7 @@ export interface ApprovalContext {
   /** A page time with its day, beside message text (page-time.ts pageWhenBeside). */
   whenBeside(iso: string, nowMs: number): string;
   /** The page wording of a catalog key with its slots filled (msg/catalog.ts renderPageText). */
-  render(key: string, slots: Readonly<Record<string, string>>): string;
+  render(key: string, slots: Readonly<Record<string, unknown>>): string;
   /** The title of a request: "Repair and resend 50 orders" (rail-view.ts approvalTitle). */
   title(approval: ApprovalPayload): string;
 }
@@ -315,4 +320,79 @@ export function answerOutcomeOf(status: number, body: unknown): AnswerOutcome {
 export function latePressText(approval: ApprovalPayload, ctx: ApprovalContext): string {
   const verb = approval.state === 'rejected' ? 'Rejected' : ANSWERED_APPROVED.has(approval.state ?? '') ? 'Approved' : '';
   return verb === '' ? '' : ctx.render(`answered.already${verb}${namesAnswerer(approval, ctx) ? 'By' : ''}`, answeredSlots(approval, ctx));
+}
+
+/** The band of a request's result: the catalog key, its text, the tone and icon of the band, and the audit line beneath it. */
+export interface ResultView {
+  /** The catalog key, `result.<name>`. */
+  key: string;
+  text: string;
+  tone: 'success' | 'partial';
+  icon: 'circle-check' | 'triangle-alert' | 'clock';
+  /** "Recorded in the IRIS audit log.", shown beneath the band in caption. */
+  audit: string;
+}
+
+/** The catalog's renderer (msg/catalog.ts renderPageText), which the page passes in. */
+export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>) => string;
+
+/**
+ * The result band of one request of the incident payload, or undefined when the request has no `result`. The first row that matches
+ * wins (AD-16: a run that could not start is `resent` 0 with a reason):
+ * - state `executing`: result.stillResending, partial, `clock`;
+ * - `interrupted` above 0: result.interrupted (remaining = total less completed), partial, `triangle-alert`;
+ * - `resent`, `completed`, `failedAgain` and `skipped` all 0 and a reason: result.couldNotStart, partial, `triangle-alert`;
+ * - `failedAgain` and `skipped` above 0: result.failedAndSkipped; `failedAgain` above 0: result.failedAgain; `skipped` above 0:
+ *   result.skipped; all partial, `triangle-alert`;
+ * - otherwise result.allThrough, success, `circle-check`.
+ * The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
+ * forms and the noun's form from the strings given.
+ */
+export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender): ResultView | undefined {
+  const result = request.result;
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    return undefined;
+  }
+  const total = numberOf(result.total) ?? 0;
+  const resent = numberOf(result.resent) ?? 0;
+  const completed = numberOf(result.completed) ?? 0;
+  const failedAgain = numberOf(result.failedAgain) ?? 0;
+  const skipped = numberOf(result.skipped) ?? 0;
+  const interrupted = numberOf(result.interrupted) ?? 0;
+  const reason = textOf(result.reason);
+  const counts = {
+    count: String(total),
+    itemNoun: { one: textOf(itemNoun?.one) || APPROVAL_TEXTS.nounOne, other: textOf(itemNoun?.other) || APPROVAL_TEXTS.nounOther },
+    completed: String(completed),
+  };
+  let key: string;
+  let slots: Record<string, unknown>;
+  let tone: ResultView['tone'] = 'partial';
+  let icon: ResultView['icon'] = 'triangle-alert';
+  if (request.state === 'executing') {
+    key = 'result.stillResending';
+    slots = counts;
+    icon = 'clock';
+  } else if (interrupted > 0) {
+    key = 'result.interrupted';
+    slots = { ...counts, remaining: String(total - completed) };
+  } else if (resent === 0 && completed === 0 && failedAgain === 0 && skipped === 0 && reason !== '') {
+    key = 'result.couldNotStart';
+    slots = { reason };
+  } else if (failedAgain > 0 && skipped > 0) {
+    key = 'result.failedAndSkipped';
+    slots = { ...counts, failedAgain: String(failedAgain), failReason: reason, skipped: String(skipped) };
+  } else if (failedAgain > 0) {
+    key = 'result.failedAgain';
+    slots = { ...counts, failedAgain: String(failedAgain), failReason: reason };
+  } else if (skipped > 0) {
+    key = 'result.skipped';
+    slots = { ...counts, skipped: String(skipped) };
+  } else {
+    key = 'result.allThrough';
+    slots = { count: counts.count, itemNoun: counts.itemNoun };
+    tone = 'success';
+    icon = 'circle-check';
+  }
+  return { key, text: render(key, slots), tone, icon, audit: render('audit.recorded', {}) };
 }

@@ -2,7 +2,8 @@
 title: 'Story 6.4: Close the loop with results, rejections, expiry, fallbacks and Dismiss'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c81af79ac40d2f5bc1031fd0941615c42a230a3b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -455,270 +456,51 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`.
 
 ## Review Triage Log
 
-## Design Notes
+### 2026-10-27 -- Review pass
+- verdicts: 47 findings -- high 0, medium 0, low 44, false 3, maybe-false 0
+- findings:
+  - `low` `patch` Blind: `IncidentManagerDouble.Use()` overwrites the saved class when the item is already the double -- real for a rerun after a dead run; fixed: an earlier saved value stays (Use doc updated)
+  - `low` `reject` Blind: an empty or malformed `result` renders 'All 0 orders went through.' -- the Result mapping's last row is `otherwise` and the catalog tests pin it; AD-16 gives complete results; not worth guards
+  - `low` `reject` Blind: `remaining` can be negative when completed > total -- a result with completed above total is not producible (AD-16); theoretical
+  - `low` `reject` Blind: no band when the approval payload is not in the store -- the request card is the band's host by the spec's design (Tasks 14, 16) and the snapshot gap is DW-292, a known item; Dismiss still shows in the actions row or on the last card
+  - `low` `reject` Blind: Dismiss errors show the server's message verbatim -- Decided in-stage 5 says so; the 409 for an already-closed incident is the owner's refusal text
+  - `low` `reject` Blind: Dismissals only grows -- AD-15's `closed` is terminal and the spec defines a one-signal add-only store (Task 12)
+  - `low` `reject` Blind: a blank failure group renders a junk line -- Lane A's groups always carry itemName/count/errorSummary; theoretical
+  - `low` `reject` Blind: mutation evidence is weak (C4 'red in the combined live run') -- the AC1 request-ref mutation is now red in `incident-sources.test` on its own (pin added), and the combined live run is recorded as supporting only
+  - `false` `reject` Blind: `## Auto Run Result
 
-**Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`):
-- **AD-1** (L99-110): the dismissal is a command submitted only through `Commands.Submit` with the origin from the authenticated context (`web_user`), and REST writes nothing itself.
-- **AD-4** (L155-177) and **AD-13** (L366): the session comes from the CSP session. `Ownership.Incident` gives the 404, and the route takes no `SessionRef` from the client.
-- **AD-11** (L314-328): the request states; an expired request can't be answered (6.2's 409).
-- **AD-12** (L330-343):
-  - the `incident` payload is the full view keyed by Ref, with `requests[].result`;
-  - Break the feed's availability comes only from `Guide.Compute`, recomputed when `incident` is published.
-- **AD-15** (L408-447):
-  - the transition table: `dismiss` only from `resolved`, or from `open` once noticed; refused otherwise;
-  - results per request; the chip follows `state`;
-  - REST dismissals arrive through CommandsIn.
-- **AD-16** (L450-463): the result's fields; couldn't start is `Resent` 0 with a reason; one final result per run, after an in-progress one.
-- **AD-22** (L585-608): a cross-session dismiss is a required CI check, and the tests are CI units.
-- **AD-26** (L737-755): CommandsIn's Join tags the dismissal with the session's TraceRef.
-- **AD-29** (L777-792): fixtures and a fixture IncidentManager stand in for Lane A until Epic 11.
-- **AD-32** (L853-863): `result` is its own kind, rendered only by `*Out` operations and the page, never with buttons.
-- **AD-33** (L865-874): `incident` has one publisher, the IncidentManager item. In tests that item is the double, and the e2e helper stands in as 6.1 established.
-- **AD-14** (L396-406): the Delivery rows of the phone.
-- **Conventions:** REST (a new 409 code, V1), Live events, Notice cards, Announcements and focus, Text OcuTalon sends, Times, Tests.
-- **No AC contradicts an AD's Rule.**
-
-**Rule 5:** no NFR of this story is unmeasurable or contradictory. NFR-9's bounds are 6.3's (`live:answers` X2, X3 and X8). 6.4's live updates ride on the same polling, and the busy rule's 10 s is pinned by C10.
-
-**Ruling Q2 (given in advance by the orchestrator), `Test/Web/Api.cls`.** In `TestUnseenRefIs404`, 6.4 replaces only the visible-incident `DismissIncident` loop (L683-687) and the incident half of the method's doc (L644-645), as Task 4 says. The route's own tests are in the new `Test.Web.DismissApi`. The loop is exact (501 and the body) while `Watch.IncidentManager` is a stub on this branch, and not-404 once Epic 5's real owner is merged. So it stays true across the merge, and it removes the stub's error log rows that the dismissal now causes (Rule 19).
-
-**Contended edits pending the orchestrator's ruling:** none. The DW-315 route below needs no edit of `ci/units.sh` or `docker/tests/test-demo-path-gate.sh`.
-
-**Result mapping** (page; the first matching row wins; `count` = `total`, `itemNoun` = the incident's):
-
-| Condition on `requests[i]` | Key | Slots | Tone, icon |
-| --- | --- | --- | --- |
-| `state` `executing` | `result.stillResending` | count, itemNoun, completed | partial, `clock` |
-| `interrupted` > 0 | `result.interrupted` | count, itemNoun, completed, remaining = total − completed | partial, `triangle-alert` |
-| `resent`, `completed`, `failedAgain` and `skipped` all 0, and `reason` set | `result.couldNotStart` | reason | partial, `triangle-alert` |
-| `failedAgain` > 0 and `skipped` > 0 | `result.failedAndSkipped` | count, itemNoun, completed, failedAgain, failReason = reason, skipped | partial, `triangle-alert` |
-| `failedAgain` > 0 | `result.failedAgain` | count, itemNoun, completed, failedAgain, failReason = reason | partial, `triangle-alert` |
-| `skipped` > 0 | `result.skipped` | count, itemNoun, completed, skipped | partial, `triangle-alert` |
-| otherwise | `result.allThrough` | count, itemNoun | success, `circle-check` |
-
-- **Why the page maps.** The payload carries the fields, not a key (Story 0.5's fixed contract, Lane A's). So the page maps the fields, and Lane A's producers of the phone's `result` notification (Stories 7.3, 7.5 and 30.5) must pick the same key from the same fields. That is a convention independent builders could drift on. **Spine note for the runner (Rule 20):** record it as a Conventions row "Result texts", or tell those stories in their inbox. It is not a veto item: no AD's Rule changes.
-
-**Decided in-stage:**
-1. **DW-315's route.**
-   - **What moves.** I1 and A1, the only `@browsers` cases of the two files, stay in `live floor`, which already runs them in Chromium, Firefox and WebKit. The other 19 cases move to `live:answers`. That keeps the cross-engine coverage the item asks for with no change to `ci/units.sh`, the Playwright projects or `playwright-projects.test`.
-   - **The rejected option.** Move all 21 and add `answers` to `FIREFOX_WEBKIT_UNITS`, with `answers-firefox` and `answers-webkit` projects. Why not:
-     - it turns `docker/tests/test-demo-path-gate.sh` L362 red (contended, Epics 13/15; it pins the browser group's install sequence);
-     - it changes `playwright-projects.test` L104;
-     - it adds about 30 to 40 s of Firefox and WebKit runs to the larger unit.
-
-     To reverse: move the two cases and wire those three places, after a ruling on L362.
-   - **The estimates** (inference, from 6.1 to 6.3's measured times):
-     - `live floor`: from 491-527 s to about 400-420 s;
-     - `live answers`: from 222 s to about 410-450 s of 540 (19 moved cases about 115 s, C1-C10 about 80-100 s, the double's swap about 10 s);
-     - the CI `browser` group: from about 21-22 min to about 26-30 min, inside REL-4's 35, with `shards` about 4-5 min shorter. Unit-time ratios on the CI hosts range 1.2 to 2.9 (Rule 21's runs).
-   - **The threshold.** If `live answers` measures over 480 s locally, the implement stage records it and the runner rebalances (Rule 21).
-2. **Where Dismiss sits.** DESIGN L823 and L826, and the mockups `states.html` A4 L462 and A5 L479: after Show details.
-   - The page shows it on `resolved` and `open` states only. The server's refusal (409) covers a stale page.
-   - Its accessible name is its visible text, "Dismiss", inside the incident card that its headline labels. No new name text.
-3. **The page compacts on the 200** through `Dismissals`, before the owner's `incident` event arrives. The 200 is the owner's synchronous answer (AD-15), and the event then agrees. One host, the chat panel, keeps focus with `whenGone` to the headline, so the reply-first and event-first orders both land there.
-4. **The user's own Dismiss isn't announced.** Focus moves to the headline, which reads it (UX L431's "unless it just took focus", applied to Dismiss). Any other close is announced as 6.1 does.
-5. **Dismiss failures show the server's message** (409: the owner's or `MESSAGENOTDISMISSIBLE`; 404: "OcuTalon has nothing at this address."). With no answer, they show `ServerButton`'s busy notice. No page text is added.
-6. **A `result` is a new phone message, not an edit.** EXPERIENCE L299 lists results among the phone's notifications. L797 doesn't say "edited" for a result, and L302's edit is the answered line only. The request's message keeps its answer line.
-7. **Still resending uses `result-partial` with `clock`.** DESIGN L826 names only full success and partial; in-progress is not a success. `clock` exists (expired's icon). To reverse: one row of the mapping.
-8. **The card's notices are page texts from EXPERIENCE L803-828.** The catalog's `incident.fallback` and `incident.noFix` texts hold the headline and the phone's last line, so the page can't take them whole. No `web` form is added (Lane A's class; `TestWebWording`).
-   - The unknown-cause form is chosen by `causeCategory` `unknown` (AD-15: no fix includes `unknown`).
-   - The group line's time takes the headline's time form, with "at "→"on " before a dated time, as the catalog does.
-9. **A compact card draws the bands from `incident().requests` directly** (no request card). A rejected or expired request has no band, so a dismissed rejected incident compacts to its headline (EXPERIENCE L647: "the headline and each request's result").
-10. **The double's dismiss** follows AD-15's dismiss rows and republishes the newest published payload with `state` `closed`, because Lane A's IncidentManager publishes full views. Only `dismiss` changed, so Story 4.3's `closeForReplay` tests stand.
-11. **The e2e swaps the double per spec file** (`close-loop.spec.ts`'s `beforeAll`/`afterAll`), not in `test-answers.sh`. The state it changes is set up and put back by the spec that needs it (Rule 19). Workers are 1, so no other file runs meanwhile.
-12. **No Task 0.** The route uses `Commands.Submit` in the REST process as `AnswersIn.FromPage` does (6.2, measured under the web roles by `Test.Core.AnswersInWebRoles`). The same privileges are enough (inference), and C5 and C10 prove it on every run.
-13. **Not split.** The ACs interlock: Dismiss sits on the band or the status row, and every ending needs it. Moving ACs to a new story is a veto item. `multiple-goals` and `oversized` are recorded.
-
-**Veto-window choices** (the runner files them):
-- **V1. A REST code and a text.** A refused dismissal answers 409 `not_dismissible` with the owner's `CommandResult.Message`, else the new text "OcuTalon can't dismiss this incident now. Nothing was changed.". A done one answers 200 `{"result":"done"}`.
-  - **Rejected options:**
-    - reusing `incident_in_progress`: Break the feed's code, whose text tells the user to dismiss;
-    - a generic 409 `conflict`: says nothing;
-    - 200 for a refusal: dishonest.
-  - **Reversing it:** one parameter and one branch of `DismissIncident`, plus `TestRefusedIs409`.
-  - **Against the ADs:**
-    - AD-15 is kept: refusal stays refusal.
-    - AD-1 is kept.
-    - The spine's REST convention row (L921) gains `409 not_dismissible` and the dismiss route's 200 body. That is an addition, not a change to an AD's Rule; the runner writes it under Rule 20.
-
-**Files and footprint classes** (paths under `src/ocutalon/cls/OcuTalon/` for classes):
-- **Footprint:**
-  - `Test/Core/ConversationTurns.cls`;
-  - `web/src/app/incidents/{incident-card,incident-view}.ts`, plus `dismissals.ts` and `incident-dismiss.ts` (new);
-  - `web/src/app/approvals/{approval-request-card,approval-view}.ts`, plus `result-band.ts` (new);
-  - `web/src/app/chat/{chat-panel,chat-announcements,decision-strip}.ts`;
-  - `web/e2e/demo-path/05-approval.spec.ts`.
-- **Shared by entry:** `Web/Api.cls` (its own route, handler and message); `web/src/app/api/{api-client,api-types}.ts` (`dismissIncident`, `DismissBody`).
-- **Contended, ruled by Q2:** `Test/Web/Api.cls` (L644-645 and L683-687 only).
-- **Contended, new file:** `Test/Web/DismissApi.cls`.
-- **Extension** (uncontended, Lane B):
-  - `Channel/SimPhone/Out.cls`, `Test/Demo/SimPhoneOut.cls` and `Test/Demo/IncidentManagerDouble.cls`;
-  - `web/scripts/catalog.mjs`, `msg/catalog.ts` (generated), and the `web/scripts/*.test.mjs` of Task 18;
-  - `web/e2e/support/{iris,approvals}.ts`;
-  - `web/e2e/floor/{incident,approval}.spec.ts` (trimmed; Epic 6's own files; no new floor case);
-  - `web/e2e/answers/{incident-card,approval-card,close-loop}.spec.ts` (new);
-  - `docker/tests/test-answers.sh` (Epic 6's own).
-- **Not edited:** `ci/units.sh`, `web/playwright.config.ts`, `web/package.json`, `docker/tests/test-demo-path-gate.sh`, `Test/Core/CommandsInProduction.cls`, `Core/Commands*.cls`, `Core/CommandsIn.cls`, `Demo/Guide*.cls`, and every Lane A class.
-- **The runner may append** the measured unit times to Rule 21's CI section (decide).
-
-**Extend, don't copy (Rule 2):**
-- **The route's tests** reuse `Test.Web.Api.Written` and `Test.Web.StubRequest`, and follow `Test.Web.BreakFeedApi` and `Test.Demo.BreakFeedProduction`. Nothing is copied.
-- **Dismiss** is `ServerButton` (ghost) plus a notice; `AnswerPress` isn't reused, because it is two-button, approval-specific and channel-bound.
-- **`resultView`** extends `approval-view.ts` beside `statusOf`. `result-band.ts` is one component used by the request card and the compact card.
-- **The reason text** is decision-strip's lookup, exported.
-- **The double** is Epic 4's, extended; the item swap is `RunnerFixture.UseItemClass`.
-- **`incidentOf`** in `support/approvals.ts` takes optional states and results instead of a new helper.
-- **The log cleanup** has the shape of `Test.Core.BridgeSink` L69.
-- **Kept as copies:** the moved floor specs' local helper copies (`floor/approval.spec.ts` L40-119, now in `answers/approval-card.spec.ts`). DW-311 (wontfix-accepted) stands: the move changes no assertion.
-
-**Integration ACs (Rules 1 and 2):**
-- The page's Dismiss (consumer of the route) closes a real incident row through CommandsIn and the IncidentManager item. The card compacts and the guide's Break the feed becomes active (C5).
-- `SimPhoneOut` (consumer of `result` notifications) shows the result message (AC2, C1).
-- The new `Dismissals` and `app-result-band` are consumed in this story by the chat panel and the two cards (C1, C5, C9).
-
-**Consumes:**
-- 6.1's incident card and announcements;
-- 6.2's request card, statuses, route patterns and `answered.*` catalog;
-- 6.3's phone, `live:answers` and `support/approvals.ts`;
-- 4.3's `IncidentManagerDouble` and 4.2's `Guide.Compute`;
-- 2.3's `Commands.Submit`/`CommandsIn`, 2.2's `Ownership.Incident` and 2.12's focus rule and Announcer;
-- 0.9's catalog and renderer;
-- `Test.Agent.RunnerFixture.UseItemClass`.
-
-**Consumed-by:**
-- Epic 5 / Epic 11: the real IncidentManager answers `dismiss` (Ok, or a refusal with `Message`) and publishes the closed full view, replacing the double.
-- Stories 7.3, 7.5 and 30.5: the `Result` fields are read by the Result mapping, and their `result` notifications reach the phone.
-- 12.x: Telegram's result message.
-- 31.2: tool-call `result` notifications through `NoticesIn` now render on the phone.
-- 16.9: Approve, Reject and Dismiss at the caps.
-
-**Ledger inbox:**
-- **DW-315** is addressed by Tasks 20 and 22 and AC10, with the route above (Decided in-stage 1).
-- **DW-105** is addressed by Task 7 and AC11.
-- No entry is declined.
-
-**Known items, not re-filed:**
-- DW-292: after a reload, the snapshot's incidents carry no `requests`, so the bands show only after the next event.
-- DW-294, DW-299 and DW-310.
-
-## Verification
-
-`<B>` stands for `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=6 stage=implement'`.
-- **Tags:** fresh `e6s4i`, warm `e6s4iw`. Run `<B> OCUTALON_RUN_TAG=e6s4iw ci/warm.sh up` once, and `ci/warm.sh down` at the end, also after a failure.
-- **Calls:** one command per foreground call, with `timeout: 600000`. One `iris_execute_tests` per message, with `server` `ocutalon-slot-b` and namespace `OCUTALON` on every IRIS MCP call. Slot B is for loading, compiling and exporting only.
-
-**Browser cases** (`web/e2e/answers/close-loop.spec.ts`; user ANSWERS; fixture values as in the Matrix):
-- **C1, all went through, then Dismiss:**
-  1. R is published `fixing`, then `resolved`, with A's result: the band (token colours of `result-success`, the `circle-check` icon, the text) and the audit line beneath it.
-  2. "All 50 orders went through." is announced exactly once.
-  3. The ghost Dismiss sits at the band's right end.
-  4. The `result` notification gives a new phone message with that text and no buttons; A's request message keeps its line.
-  5. A press on Dismiss compacts the card to the headline and the band, and focus is on the headline.
-- **C2, partial results:** A's result is updated in place through failed again, skipped, both, interrupted and couldn't start (the fixture reason text). Each is the exact text with the `result-partial` colours and `triangle-alert`, and there is one band throughout.
-- **C3, still resending, then final:** the band with `clock` and the fixing line, with no Dismiss. Then the final result replaces the text in the same band, and Dismiss appears. Each text is announced once.
-- **C4, two requests:** A's band and B's buttons, the chip Awaiting approval, and no Dismiss. B is then rejected on the card (the real answer) and R published `open`/`rejected`: B's status, and Dismiss at the end of B's status row; A's band is unchanged.
-- **C5, rejected, then Dismiss and Break the feed:**
-  - **Setup:** S watches Orders (`seedCheck`), and R is an Orders incident `open`/`rejected` with A rejected.
-  - **Before:** the Break the feed button is `aria-disabled`.
-  - **The press:** focus on Dismiss and Enter. Dismiss goes busy, then the card compacts: the chip Closed, the border-strong bar, no request card and no Dismiss. Focus is on the headline, and no "Closed" announcement is made.
-  - **Through the helpers:** `doubleCommands(R)` is one `dismiss` with origin `web_user`, and `incidentState(R)` is `closed`.
-  - **After:** the Break the feed button is active within `ONE_UPDATE_MS`. A reload shows R compact.
-- **C6, expired:** the status with `clock`, Dismiss at the end of the status row after Show details, and no Approve or Reject.
-- **C7, fallback:** the chip and the Fallback flag, the notice, "Failures:" and the group line, no fix, Show details then Dismiss, and the announcement "Incident: … No fix proposed.". The phone's `incident.fallback` message has the server's exact text and no buttons.
-- **C8, no fix and unknown cause:** the cause, the evidence line, the no-fix sentence and the groups. A second card with `causeCategory` `unknown` has the unknown sentence and no cause. The phone's `incident.noFix` message has no buttons.
-- **C9, closed by IncidentManager:** R is published `closed` with A's result. The card compacts in place with the band, Show details and no Dismiss. A new ref of the same cause gets a second card.
-- **C10, failures and the cross-session 404** (AC7):
-  - `post` of another session's incident (`seedOtherSession`, `seedIncident`) gives 404 with the `not_found` body; the row is unchanged and `doubleCommands` is empty.
-  - Through `page.route`:
-    - a 200 `{"result":"done"}` fulfilled by the route (so no server event follows) compacts the card and focuses its headline: the page's own path;
-    - 409 `{code: not_dismissible, message: "zz refused"}` shows the message, announced once, with the card unchanged;
-    - 500 shows its message;
-    - a held reply restores Dismiss after 10 s with the busy notice shown and announced.
-
-**Commands:**
-
-`(loop)`:
-- `npm --prefix web run catalog`, then `node web/scripts/catalog.mjs --check` and `node web/scripts/payloads.mjs --check`: expected, exit 0.
-- `npm --prefix web test`: expected, every node test passes.
-- `npm --prefix web run lint`: expected, exit 0.
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Demo.SimPhoneOut`: expected, `CLASS ... passed`.
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Web.DismissApi`: expected, passed.
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Web.Api`: expected, passed.
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Demo.BreakFeedProduction`: expected, passed (the double's other verbs are unchanged).
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Core.ConversationTurns`: expected, passed. **Manual check:** then, in the warm stack's IRIS (`docker exec <its iris container> iris session IRIS -U OCUTALON`), `SELECT COUNT(*) FROM Ens_Util.Log WHERE SourceClass = 'OcuTalon.Test.Core.ConversationProbe'` is 0.
-- `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e6s4iw ci/iris.sh class OcuTalon.Test.Core.CommandsInProduction`: expected, passed (unchanged; a regression check of the Dismiss route through CommandsIn).
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh build`: expected, the image and the bundle build. Run it before each browser run that should see changed web code.
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh live answers`: expected, PASS with X1-X10, I2-I11, A2-A10 and C1-C10. Record the call's time against 540 s.
-
-`(once)`:
-- `bash ci/checks.sh`: expected, exit 0 (storage, ci-config, ci-changes, demo-path-gate, ASCII).
-- `bash docker/tests/test-web-build.sh`: expected, passes.
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh shard lane-b`: expected, every class passed (`Test.Web.DismissApi` and `Test.Web.Api` among them).
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh shard lane-a`: expected, every class passed.
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh live floor`: expected, PASS with I1 and A1 in three engines and no case added. Record the time against 540 s.
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh live demo-path`: expected, PASS. 05's two fixture tests pass, and the rest stays skipped for 11.1.
-- `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh live sign-in`: expected, PASS with an unchanged count. The chat panel's focus rule and announcements are shared.
-- `<B> OCUTALON_RUN_TAG=e6s4iw ci/warm.sh down` and `<B> OCUTALON_RUN_TAG=e6s4i ci/iris.sh teardown`: expected, only this stage's projects are removed.
-
-**Shared surfaces:**
-- **SimPhoneOut's kinds** (`result` is a message): `Test.Demo.SimPhoneOut` `TestOtherKindsRecordOnly`. I5 (moved) sends `result.allThrough` with `{}` slots, which now logs a render error only.
-- **The dismiss route's answer for a visible incident:**
-  - `Test.Web.Api:TestUnseenRefIs404` (Q2);
-  - `web/e2e/api/api.spec.ts` BY_REF (404, unchanged);
-  - `Test.Core.CommandsInProduction` (the stub row, unchanged).
-- **IncidentManagerDouble's `dismiss`:** `Test.Demo.BreakFeedProduction` (other verbs only).
-- **The generated catalog** (`result.*`, `audit.recorded`, `one` forms, `noun`): `catalog.test.mjs`, `ux-strings.test.mjs`.
-- **`INCIDENT_TEXTS` and `IncidentView`:** `incident-view.test.mjs` (deepEqual), `ux-strings.test.mjs`.
-- **The card's and the request card's templates:** `incident-sources.test.mjs` (the actions-row regex), `approval-sources.test.mjs` (the request `@for` regex, the answer row).
-- **Focus and speech:**
-  - the chat panel's `FOCUS_RULE` (pinned in `announce-focus-sources`);
-  - the speakers list (`incident-dismiss.ts`);
-  - `chat-announcements.test.mjs` (the remembered per-incident view).
-- **The floor and answers units' case lists:**
-  - `floor` loses I2-I11 and A2-A10;
-  - `playwright-projects.test` (at least 37 floor titles; `e2e:answers` from disk);
-  - the PASS line of `test-answers.sh`.
-- **The guide:** a dismissal publishes `incident`, so `guide.state` follows (C5, `TestBreakFeedAvailableAgain`).
-- **The production's IncidentManager item** while `DismissApi` or `close-loop.spec.ts` runs: swapped and restored by each.
-- **The Ens log:** ConversationTurns' probe rows, and the stub's error rows from the Q2 loop.
-
-Standing criterion: every test added or changed passes on a fresh environment, in either order.
-
-**Planned mutations (Rule 19).** Apply each, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged, and record it as `mutation: ... -> ...`.
-
-| AC | Mutation | Expected red |
-| --- | --- | --- |
-| 1 | `resultView` checks `skipped` before `failedAgain` | `approval-view.test` (mixed row); C2 |
-| 1 | the band reads the first request's result for every card | C4 (A's band on B), `incident-sources.test` |
-| 1 | announced band texts not remembered (each update re-announces) | `chat-announcements.test`; C3 (twice) |
-| 2 | `result` left out of `CARDKINDS` | `Test.Demo.SimPhoneOut` (`TestResultIsAMessage`); C1 |
-| 3 | `dismissable` false for `open` | `incident-view.test`; C5, C6 |
-| 4 | the no-fix notice ignores `causeCategory` `unknown` | `incident-view.test`; C8 |
-| 5 | `FOCUS_RULE` without `whenGone` (focus to main) | C5 (focus on the headline) |
-| 5 | `Dismissals.add` not called on 200 (the card waits for the event) | C10 (a 200 fulfilled by `page.route`, with no event, leaves the card uncompacted) |
-| 6 | the route skips `Submit` and answers 200 | `Test.Web.DismissApi` (`TestOwnOpenIncidentCloses`: the row is still open) |
-| 6 | an owner refusal mapped to 500 | `TestRefusedIs409` |
-| 7 | the route submits before the Ownership check | `TestOtherSessionsIncidentIs404` (the double recorded a command); C10 |
-| 8 | the compact card hides the bands | C9, `incident-view.test` |
-| 9 | the double's dismiss publishes nothing | `TestOwnOpenIncidentCloses` (no closed event); C5 (Break the feed stays inactive) |
-| 10 | I3 left in `floor/incident.spec.ts` as well as moved | `playwright-projects.test` (the floor holds a moved case) |
-| 11 | the `OnAfterAllTests` delete removed | the manual count above 0 |
-| 12 | 05's resolved publish removed | `live demo-path` red |
-
-## Auto Run Result
-
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- **Planning only** (halt after planning). The spec was checked against the READY FOR DEVELOPMENT standard; no code changed.
-- **Inputs used:**
-  - the committed `epic-6-context.md`, reused and not recompiled;
-  - 6.3's spec, for continuity;
-  - the spine's AD-1, 4, 11, 12, 13, 14, 15, 16, 22, 26, 29, 31, 32 and 33, and the Conventions table;
-  - EXPERIENCE and DESIGN's incident, result and Dismiss rules.
-- **Version-control check at dispatch:** the one dirty path was the runner's own `cycle-log-epic-6.md`, a `lead_error` line written 12 s after the spawn. No bookkeeping commit was missed and the plan stage doesn't touch that file, so planning went on (Decided in-stage). The plan stage committed nothing.
-- **For the runner:**
-  - **Veto V1:** 409 `not_dismissible` and its fallback text, and the dismiss route's 200 body. Under Rule 20 the spine's REST convention row needs them.
-  - **Spine note:** the Result mapping as a Conventions row, Rule 20.
-  - **Contended edits:** none pending (ruling Q2 applied as given).
-  - **Footprint extensions:** listed under Design Notes › Files and footprint classes.
+- **Implemented:** the card's result bands, fallback and no-fix notices with their groups, and Dismiss; the dismiss route through `Commands.Submit` with 200, 409 `not_dismissible`, 501, 404 and 500; the fixture IncidentManager's `dismiss` with `Use`/`Restore`/`Recorded`; the phone's `result` message; DW-315 (19 floor cases moved into `live:answers`); DW-105 (`ConversationTurns` removes its probe's log rows); 05's new fixture test.
+- **Files changed:**
+  - Server: `Web/Api.cls` (route and `MESSAGENOTDISMISSIBLE`), `Channel/SimPhone/Out.cls` (`result` in `CARDKINDS`), `Test/Demo/IncidentManagerDouble.cls`, `Test/Demo/SimPhoneOut.cls`, `Test/Core/ConversationTurns.cls`, `Test/Web/Api.cls` (ruling Q2 only), `Test/Web/DismissApi.cls` (new).
+  - Web: `scripts/catalog.mjs` and generated `msg/catalog.ts` (result keys, `noun` slot, `one` forms), `approvals/{approval-view,approval-request-card}.ts`, `approvals/result-band.ts`, `incidents/{incident-view,incident-card,incident-dismiss,dismissals}.ts`, `chat/{chat-panel,chat-announcements,decision-strip}.ts`, `api/{api-client,api-types}.ts`.
+  - Tests and CI: the `web/scripts/*.test.mjs` of Task 18, `e2e/support/{iris,approvals}.ts`, `e2e/floor/{incident,approval}.spec.ts` (trimmed to I1 and A1), `e2e/answers/{incident-card,approval-card,close-loop}.spec.ts`, `e2e/demo-path/05-approval.spec.ts`, `docker/tests/test-answers.sh` (header and PASS line).
+- **Decided in-stage (implement):**
+  - `resultView(request, itemNoun, render)` takes the renderer as a third parameter, because the view modules import only types; `IncidentContext` gained `result` and `reasonText` for the same reason.
+  - A status-0 Dismiss shows and announces `BUSY_NOTICE` at once (the Matrix row); a held reply uses `ServerButton`'s own 10 s notice.
+  - I2's four fixture requests lost their `result` objects, because they now produce announced bands that broke its exact announcement list; its assertions are unchanged, and C1-C3 and C9 cover the bands.
+  - Show details and Dismiss stand in one `.row-end` group on the request card's answer row (without it Dismiss wrapped to the left of Show details at the chat's width).
+  - `IncidentManagerDouble.Recorded(ref)` was added because the boundaries check forbids `^OcuTalonTest` in `web/`.
+  - `DismissApi` keeps demo mode on for its whole run, because the double's long-lived job caches the setting for 60 s.
+  - C3 waits for each announcement before the next publish (a fast burst is spoken as "{n} new updates").
+  - `Use()` keeps an earlier saved class (review patch).
+- **Review (one pass, 47 findings):** high 0, medium 0, low 44, false 3. Patches applied: the `Use()` guard, two stale test headers, one test title, one missing comma, and two `mutation:` lines. Deferred: none. Every rejected finding and its reason is in the Review Triage Log. The one recurring theme, the own Dismiss being announced as Closed when the owner's closed event is applied before the 200, is a millisecond race with no worse outcome than one extra spoken line (focus still moves to the headline); it was rejected as low.
+- **Follow-up review recommended:** false (no medium or high entry was patched).
+- **Verification performed (all green, fresh tag `e6s4i` and warm `e6s4iw`, lane B):**
+  - `catalog` / `catalog --check` / `payloads --check` current; `npm --prefix web test` 921 pass; `lint` exit 0.
+  - Warm classes: `Test.Demo.SimPhoneOut`, `Test.Web.DismissApi`, `Test.Web.Api`, `Test.Demo.BreakFeedProduction`, `Test.Core.ConversationTurns` (probe log rows 0 afterwards), `Test.Core.CommandsInProduction`.
+  - `bash ci/checks.sh`, `bash docker/tests/test-web-build.sh`, `shard lane-b` (64 classes, 194 s), `shard lane-a` (47 classes, 420 s), `live demo-path` (10 passed, 8 skipped; 144 s), `live sign-in` (217 passed; 466 s).
+  - **Measured unit times (DW-315):**
+    - `live floor`: 342 s call time (105 passed; I1 and A1 in three engines) against the 540 s local deadline.
+    - `live answers`: 466 s and 482 s call time in this stage's two clean runs (39 passed: X1-X10, I2-I11, A2-A10, C1-C10; the browser run itself 382-387 s), and 471 s, 483 s and 483 s in the handoff's runs. **It is over the 480 s threshold in three of five runs (up to 483 s of 540 s), so the runner may rebalance (Rule 21).**
+  - Mutations: every AC's pinning test shown red and reverted (see the Demonstrated mutations); tree identical after each revert.
+- **Residual risks:**
+  - The own-Dismiss announcement race above.
+  - `live answers` runs close to its local deadline (up to 483 s of 540 s).
+  - AC11's pinning check is the manual count (the delete runs in teardown); no automated test can assert on its own teardown.
+  - After a reload the snapshot's incidents carry no `requests` (DW-292), so bands show only after the next event.
+  - The real IncidentManager (Epic 5) must answer `dismiss` as AD-15 says; `Test.Web.Api:TestUnseenRefIs404` and the 501 mapping hold only while it is a stub or until it is built.
+- **Spine and veto items for the runner (unchanged from planning):** V1 (409 `not_dismissible`, its text, the dismiss 200 body) and the Result mapping Conventions row were written at spec validation; no further spine change is needed.
+- **Footprint extensions:** listed under Design Notes > Files and footprint classes (`Test/Demo/{SimPhoneOut,IncidentManagerDouble}.cls`, `Test/Web/DismissApi.cls`, `web/scripts/*`, `web/e2e/{answers,support,floor}/**`, `docker/tests/test-answers.sh`). The measured times were not appended to Rule 21 (the runner may).

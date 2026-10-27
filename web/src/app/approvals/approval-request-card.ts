@@ -17,8 +17,9 @@ import { ApiClient } from '../api/api-client';
 import { pageTimeBeside, pageWhenBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
 import { EvidencePanel } from '../incidents/evidence-panel';
+import { IncidentDismiss, type DismissTarget } from '../incidents/incident-dismiss';
 import { INCIDENT_TEXTS, type PanelView } from '../incidents/incident-view';
-import type { ApprovalPayload } from '../live/payloads';
+import type { ApprovalPayload, IncidentRequest, ItemNoun } from '../live/payloads';
 import { renderPageText } from '../msg/catalog';
 import { approvalTitle } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
@@ -26,7 +27,8 @@ import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
 import { Popovers } from '../shared/popover';
 import { AnswerPress } from './answer-press';
-import { APPROVAL_TEXTS, approvalView, type ApprovalContext } from './approval-view';
+import { APPROVAL_TEXTS, approvalView, resultView, type ApprovalContext } from './approval-view';
+import { ResultBand } from './result-band';
 
 /** The last id handed to a card, for the ids of its label and its notice. */
 let lastId = 0;
@@ -71,6 +73,10 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * expiry and "Nothing has changed yet." go and the dry run stays. A 4px bar on the left follows the state. Every text is bound by
  * interpolation, never as markup.
  *
+ * Story 6.4: when the incident payload gives this request a `result`, the result band (result-band.ts) follows the answer row, and
+ * the last request card of a resolved or open incident has Dismiss at the band's right end, or, with no band (a rejected or an
+ * expired request), at the right end of the answer row after Show details (incident-dismiss.ts).
+ *
  * A press sends {action, channel: 'web'} through AnswerPress (answer-press.ts, which the simulated phone's request message uses too
  * with channel 'phone'; the server takes the session from the CSP session). Both buttons go busy together: a spinner, aria-busy and
  * aria-disabled, never `disabled`, and a repeat press sends nothing. With no answer in 10 s both are restored and the notice
@@ -90,7 +96,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  */
 @Component({
   selector: 'app-approval-request-card',
-  imports: [EvidencePanel, Icon, InlineNotice],
+  imports: [EvidencePanel, Icon, IncidentDismiss, InlineNotice, ResultBand],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section [class]="'request bar-' + view().bar" data-part="approval" [attr.data-key]="view().ref" tabindex="-1" [attr.aria-labelledby]="labelId">
@@ -166,19 +172,29 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
             <span>{{ status.text }}</span>
           </p>
         }
-        @if (details()) {
-          <button
-            type="button"
-            class="button button-ghost show-details"
-            [attr.aria-expanded]="detailsOpen()"
-            [attr.aria-controls]="detailsId()"
-            (click)="toggleDetails.emit()"
-          >
-            {{ showDetails }}
-            <app-icon [name]="detailsOpen() ? 'chevron-up' : 'chevron-down'" [size]="14" />
-          </button>
+        @if (details() || (!band() && dismiss())) {
+          <span class="row-end">
+            @if (details()) {
+              <button
+                type="button"
+                class="button button-ghost show-details"
+                [attr.aria-expanded]="detailsOpen()"
+                [attr.aria-controls]="detailsId()"
+                (click)="toggleDetails.emit()"
+              >
+                {{ showDetails }}
+                <app-icon [name]="detailsOpen() ? 'chevron-up' : 'chevron-down'" [size]="14" />
+              </button>
+            }
+            @if (!band() && dismiss(); as target) {
+              <app-incident-dismiss [target]="target" />
+            }
+          </span>
         }
       </div>
+      @if (band(); as result) {
+        <app-result-band [result]="result" [dismiss]="dismiss()" />
+      }
       @if (view().expiry) {
         <p class="expiry">{{ view().expiry }}</p>
       }
@@ -309,8 +325,16 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       display: inline-flex;
       gap: var(--space-2);
     }
-    .show-details {
+    /* Show details and Dismiss stand together at the right end of the row, and wrap together when the row is narrow. */
+    .row-end {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-2);
       margin-inline-start: auto;
+    }
+    .show-details {
       gap: var(--space-1);
       padding: 0 var(--space-2);
     }
@@ -358,6 +382,12 @@ export class ApprovalRequestCard {
   readonly detailsOpen = input(false);
   /** Emits when Show details is pressed. */
   readonly toggleDetails = output<void>();
+  /** The incident payload's request of this ref, whose `result` is drawn as the band beneath the answered status; undefined for none. */
+  readonly result = input<IncidentRequest | undefined>(undefined);
+  /** The incident's item noun, which the band's text names the items by. */
+  readonly itemNoun = input<ItemNoun | undefined>(undefined);
+  /** Dismiss, on the last request card of a resolved or open incident: at the band's right end, else at the end of the answer row; undefined for none. */
+  readonly dismiss = input<DismissTarget | undefined>(undefined);
 
   protected readonly texts = APPROVAL_TEXTS;
   protected readonly showDetails = INCIDENT_TEXTS.showDetails;
@@ -387,6 +417,13 @@ export class ApprovalRequestCard {
     return answered !== undefined && stored.state === 'pending' ? answered : stored;
   });
   protected readonly view = computed(() => approvalView(this.shown(), this.ctx()));
+
+  /** The result band under the answered status, when the incident payload gives this request a result (approval-view.ts resultView). */
+  protected readonly band = computed(() => {
+    const request = this.result();
+    const ctx = this.ctx();
+    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots));
+  });
 
   /** True while a press is out: both buttons are busy. */
   protected readonly busy = this.answer.busy;

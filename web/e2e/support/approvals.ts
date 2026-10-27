@@ -6,8 +6,9 @@ import { publishIncident, seedApproval, sinkEvent } from './iris';
 /**
  * What the answers unit (e2e/answers/, Story 6.3) and the demo path's steps 4 and 5 share to raise an incident and its approval
  * request on fixtures, as Lane A's raise path will until Epic 11 turns it on end to end: the incident as IncidentManager will publish
- * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise
- * are the floor spec's (floor/approval.spec.ts), which stays as it is; this module is the shared home of the two for the new specs.
+ * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise are
+ * the shared home of the two for the answers unit and the demo path. A request of the payload is `{ref, state?, result?}`: pending with
+ * no result unless given, so that a case can publish the same incident again with a request answered, executing or finished (Story 6.4).
  */
 
 /** The run's date (UTC), taken once, so that every time of a spec is on the same date. */
@@ -25,8 +26,15 @@ export const refOf = (label: string): string => `zz${label}${Date.now().toString
 /** The dry run of the matrix's first row: 50 orders, OrderDate 10/16/2026 to 2026-10-16. */
 export const DRY_RUN = { affected: 50, itemNoun: { one: 'order', other: 'orders' }, field: 'OrderDate', before: '10/16/2026', after: '2026-10-16' } as const;
 
-/** The incident payload of a card that is awaiting approval, with the parts of its evidence panel. */
-export function incidentOf(ref: string, requests: string[]): Record<string, unknown> {
+/** A request of an incident payload: its state (pending unless given) and its result, when it has one. */
+export interface RequestFields {
+  ref: string;
+  state?: string;
+  result?: Record<string, unknown>;
+}
+
+/** The incident payload of a card that is awaiting approval, with the parts of its evidence panel; `over` changes fields of the payload. */
+export function incidentOf(ref: string, requests: ReadonlyArray<RequestFields>, over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     ref,
     state: 'awaiting_approval',
@@ -39,13 +47,14 @@ export function incidentOf(ref: string, requests: string[]): Record<string, unkn
     fixSummary: 'repair and resend all 50',
     causeCategory: 'data_format_change',
     element: 'order date',
-    requests: requests.map((one) => ({ ref: one, state: 'pending' })),
+    requests: requests.map((one) => ({ ref: one.ref, state: one.state ?? 'pending', ...(one.result === undefined ? {} : { result: one.result }) })),
     evidence: {
       sampleHeaderId: 1047,
       sampleError: 'zz Could not parse OrderDate',
       items: [{ itemName: 'Order transform', count: 50, firstAt: today('14:12:03'), lastAt: today('14:12:31') }],
     },
     traceTargets: { diagnosis: { traceHeaderId: HEADER, traceNamespace: 'OCUTALON' } },
+    ...over,
   };
 }
 
@@ -65,7 +74,7 @@ export async function raise(page: Page, user: string, rows: string[], incident: 
   });
   rows.push(request);
   requests.push(request);
-  await applied(page, await publishIncident(user, incidentOf(incident, requests)));
+  await applied(page, await publishIncident(user, incidentOf(incident, requests.map((one) => ({ ref: one })))));
   await applied(page, await sinkEvent(user, 'approval.raised', { ref: request }));
   return request;
 }

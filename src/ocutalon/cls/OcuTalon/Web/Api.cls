@@ -21,6 +21,9 @@
 ///     POST /v1/approvals/:ref/answer takes {action: approve | reject, channel: web | phone} (any other body is 400 bad_answer; the
 ///     Telegram channel enters through AnswersIn only) and goes through AnswersIn to AnswerOps (AD-11): 200 {"result":"done","approval"},
 ///     409 already_answered or expired (the error beside the request's "approval" payload), 403 not_allowed, 404 not_found and 400 bad_answer.
+///     POST /v1/incidents/:ref/dismiss (AD-1, AD-15) never reads the body and submits a Dismiss command for the CSP session through
+///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (the owner's refusal), 501 not_built for a stub
+///     owner, 404 not_found and 500 server_error.
 ///     The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, and, last and only while demo mode is on, the simulated phone, the simulated mailbox
@@ -89,6 +92,8 @@ Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.
 Parameter MESSAGESERVERERROR = "Something went wrong inside OcuTalon. Try again.";
 
 Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet.";
+
+Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Nothing was changed.";
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -469,16 +474,40 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 	Quit ..Fail(409, code, message, approval)
 }
 
-/// POST /v1/incidents/:ref/dismiss: 404 not_found for an incident the session can't see (Ownership.Incident), and 501
-/// not_built for one it can see, until the story that dismisses incidents ships.
+/// POST /v1/incidents/:ref/dismiss (Story 6.4; AD-1, AD-4, AD-15): the dismissal of an incident, which the route submits and never
+/// decides. It never reads the body, and the session is the CSP session's. In order:
+///   - the session (Ownership.SessionRef) and the incident's visibility (Ownership.Incident): a failed read is 500 server_error, and an
+///     incident the session can't see is 404 not_found, before anything is submitted;
+///   - Commands.Submit of an OcuTalon.Msg.Command.Dismiss (the incident's Ref, the session's Ref) with origin web_user, which reaches
+///     IncidentManager through CommandsIn, synchronously; an error status is 500 server_error;
+///   - the answer: Ok is 200 {"result":"done"}; not_built is 501 not_built; not_found is 404; failed, unknown_command and not_allowed are
+///     500 server_error; any other outcome is the owner's refusal, 409 not_dismissible with the owner's Message, else MESSAGENOTDISMISSIBLE.
 ClassMethod DismissIncident(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set row = ##class(OcuTalon.Data.Ownership).Incident(ref, sessionRef, .sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Set command = ##class(OcuTalon.Msg.Command.Dismiss).%New()
+	Set command.IncidentRef = row.Ref
+	Set command.SessionRef = sessionRef
+	Kill row
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If $ListFind($ListBuild("failed", "unknown_command", "not_allowed"), outcome) {
+		Quit ..ServerError($SYSTEM.Status.Error(5001, "The dismissal was answered "_outcome))
+	}
+	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
 }
 
 /// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is

@@ -3,10 +3,14 @@
 // evidence panel opens directly below the Show details row and only while it is open; the footer hands the strip the inputs of the
 // design (reasons on, newest off, the decision's own cost, the served diagnosis URL); every text of the view is bound by interpolation;
 // the page builds no trace URL; and each chip and bar class that the view can return has a rule that reads its own state tokens. The
-// browser cases (floor/incident.spec.ts, I1 to I11) pin what the running page does for the states they reach; this reads the sources,
+// browser cases (floor/incident.spec.ts I1 and answers/incident-card.spec.ts I2 to I11) pin what the running page does for the states they reach; this reads the sources,
 // so a chip, a bar or an attribute that no case reaches cannot be wired to the wrong token or lose its attribute without a test turning red.
+// Story 6.4: the notice and the failure groups, the compact card's result bands, Dismiss in the actions row after Show details, and
+// Dismiss itself (a ghost ServerButton that posts through the client, records a 200 in Dismissals, announces an error's message once and
+// moves no focus; the chat's focus rule does).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -37,6 +41,7 @@ const rule = (css, selector) => {
   return new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
 };
 
+const sourceFilesOf = (...parts) => readFileSync(join(here, '..', 'src', 'app', ...parts), 'utf8');
 const card = file('incident-card.ts');
 const panel = file('evidence-panel.ts');
 const view = file('incident-view.ts');
@@ -47,7 +52,7 @@ const panelStyles = literal(panel, 'styles');
 
 describe('the scan', () => {
   it('reads the two components and the view model', () => {
-    assert.deepEqual(files.map((one) => one.name).sort(), ['evidence-panel.ts', 'incident-card.ts', 'incident-view.ts']);
+    assert.deepEqual(files.map((one) => one.name).sort(), ['dismissals.ts', 'evidence-panel.ts', 'incident-card.ts', 'incident-dismiss.ts', 'incident-view.ts']);
   });
 });
 
@@ -68,8 +73,8 @@ describe('the card\'s root, headline and Show details row', () => {
   });
 
   it('has the Show details button expand the panel by aria-expanded and aria-controls, only when the view has a panel and no request card renders (with one, the first request card holds the button, approval-sources.test.mjs)', () => {
-    assert.match(cardTemplate, /@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel; as panel\) \{\s*<div class="actions">/);
-    const button = /<div class="actions">\s*<button\s([\s\S]*?)>/.exec(cardTemplate)?.[1] ?? '';
+    assert.match(cardTemplate, /@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel \|\| dismissTarget\(\)\) \{\s*<div class="actions">\s*@if \(view\(\)\.panel\) \{\s*<button\s/);
+    const button = /<div class="actions">\s*@if \(view\(\)\.panel\) \{\s*<button\s([\s\S]*?)>/.exec(cardTemplate)?.[1] ?? '';
     assert.match(button, /type="button"/);
     assert.match(button, /\[attr\.aria-expanded\]="open\(\)"/);
     assert.match(button, /\[attr\.aria-controls\]="panelId"/);
@@ -80,7 +85,7 @@ describe('the card\'s root, headline and Show details row', () => {
   it('opens the panel directly below that row, in the element that aria-controls names, and only while it is open', () => {
     assert.match(
       cardTemplate,
-      /<\/button>\s*<\/div>\s*<div class="panel" \[id\]="panelId">\s*@if \(open\(\)\) \{\s*<app-evidence-panel \[panel\]="panel" \/>\s*\}\s*<\/div>/,
+      /<\/button>\s*\}\s*@if \(dismissTarget\(\); as target\) \{\s*<app-incident-dismiss \[target\]="target" \/>\s*\}\s*<\/div>\s*\}\s*@if \(view\(\)\.panel; as panel\) \{\s*<div class="panel" \[id\]="panelId">\s*@if \(open\(\)\) \{\s*<app-evidence-panel \[panel\]="panel" \/>\s*\}\s*<\/div>/,
     );
   });
 });
@@ -101,7 +106,7 @@ describe('the footer', () => {
 
 describe('the texts', () => {
   it('prints every text of the view by interpolation, in the order of the design', () => {
-    const order = ['stateText', 'view().time', 'view().headline', 'view().more', 'view().causeSentence', 'view().evidenceLine', 'view().fixSentence', 'view().fixingLine'];
+    const order = ['stateText', 'view().time', 'view().headline', 'view().more', 'view().causeSentence', 'view().evidenceLine', 'view().fixSentence', 'view().notice', 'texts.failures', 'line', 'view().fixingLine'];
     let last = -1;
     for (const name of order) {
       const at = cardTemplate.indexOf(`{{ ${name} }}`);
@@ -148,7 +153,7 @@ describe('the styles', () => {
   it('give every chip the view can return a rule that reads that state\'s own background and foreground tokens', () => {
     const chips = new Set();
     for (const state of ['open', 'awaiting_approval', 'fixing', 'resolved', 'closed']) {
-      chips.add(incidentView({ ref: 'X', state }, { decisions: [], nowMs: 0, messageTime: () => '', topTime: () => '', itemTime: () => '' }).chip);
+      chips.add(incidentView({ ref: 'X', state }, { decisions: [], nowMs: 0, messageTime: () => '', topTime: () => '', itemTime: () => '', result: () => undefined, reasonText: () => '' }).chip);
     }
     assert.deepEqual([...chips].sort(), ['awaiting-approval', 'closed', 'fixing', 'open', 'resolved']);
     assert.match(cardTemplate, /\[class\]="'chip chip-' \+ view\(\)\.chip"/);
@@ -174,5 +179,57 @@ describe('the styles', () => {
     const declarations = rule(panelStyles, '.value.mono');
     assert.ok(declarations?.includes('font-family: var(--font-mono);'));
     assert.ok(declarations?.includes('font-size: var(--evidence-panel-typography-font-size);'));
+  });
+});
+
+describe('the ending of the card (Story 6.4)', () => {
+  const dismiss = file('incident-dismiss.ts');
+  const dismissTemplate = literal(dismiss, 'template');
+  const dismissals = file('dismissals.ts');
+
+  it('prints the notice and the failure groups after the fix, in its place: "Failures:" and one line per group, bound by interpolation', () => {
+    assert.match(cardTemplate, /@if \(view\(\)\.notice\) \{\s*<p class="notice">\{\{ view\(\)\.notice \}\}<\/p>\s*\}\s*@if \(view\(\)\.groups\.length > 0\) \{\s*<p class="failures">\{\{ texts\.failures \}\}<\/p>\s*<ul class="groups">\s*@for \(line of view\(\)\.groups; track \$index\) \{\s*<li>\{\{ line \}\}<\/li>\s*\}\s*<\/ul>\s*\}/);
+  });
+
+  it('draws the result band of each request of a compact card, with no Dismiss, before the actions row', () => {
+    assert.match(cardTemplate, /@for \(result of view\(\)\.results; track \$index\) \{\s*<app-result-band \[result\]="result" \/>\s*\}/);
+    assert.ok(cardTemplate.indexOf('<app-result-band') < cardTemplate.indexOf('<div class="actions">'), 'the bands come before the actions row');
+    assert.ok(cardTemplate.indexOf('{{ view().fixingLine }}') < cardTemplate.indexOf('<app-result-band'), 'and after the fixing line');
+  });
+
+  it('gives each request card the payload\'s request of its own ref, so that one request\'s band never stands for another\'s', () => {
+    assert.match(cardTemplate, /\[result\]="resultOf\(request\.ref\)"/);
+    assert.match(card.code, /byRef\.set\(request\.ref, request\);/);
+    assert.match(card.code, /protected resultOf\(ref: string \| undefined\): IncidentRequest \| undefined \{\s*return ref === undefined \? undefined : this\.requestsByRef\(\)\.get\(ref\);\s*\}/);
+  });
+
+  it('offers Dismiss only for the view\'s dismissable card, to the last request card and, with none, in the actions row', () => {
+    assert.match(card.code, /dismissTarget = computed<DismissTarget \| undefined>\(\(\) =>\s*this\.view\(\)\.dismissable \? \{ ref: this\.view\(\)\.ref, key: this\.view\(\)\.key \} : undefined,\s*\);/);
+    assert.equal((cardTemplate.match(/<app-incident-dismiss/g) ?? []).length, 1, 'one Dismiss in the card; the request card has the others');
+    assert.doesNotMatch(card.code, /\.focus\(|\.announce\(|Announcer/, 'the card moves no focus and speaks nothing');
+  });
+
+  it('is a ghost ServerButton that carries the part and the card\'s view key, and described by the notice while it shows', () => {
+    assert.match(dismissTemplate, /<app-server-button\s+variant="ghost"\s+data-part="dismiss"\s+\[attr\.data-key\]="target\(\)\.key"\s+\[action\]="press"\s+\[describedBy\]="notice\(\) === '' \? \[\] : \[noticeId\]"\s*>\s*\{\{ texts\.dismiss \}\}\s*<\/app-server-button>/);
+    assert.match(dismissTemplate, /@if \(notice\(\); as text\) \{\s*<app-inline-notice class="notice" variant="warning" \[id\]="noticeId">\{\{ text \}\}<\/app-inline-notice>\s*\}/);
+  });
+
+  it('posts the dismissal of the target\'s ref only, records a 200 in Dismissals, and shows and announces an error reply\'s message once', () => {
+    assert.match(dismiss.code, /this\.api\.dismissIncident\(ref\)\.pipe\(\s*tap\(\(\) => this\.dismissals\.add\(ref\)\),/);
+    assert.match(dismiss.code, /const text = messageOf\(error\) \|\| BUSY_NOTICE;\s*this\.notice\.set\(text\);\s*this\.announcer\.announce\(text\);/);
+    assert.match(dismiss.code, /this\.notice\.set\(''\);\s*const ref = this\.target\(\)\.ref;/, 'a new press clears the notice');
+    assert.equal((dismiss.code.match(/\.announce\(/g) ?? []).length, 1);
+    assert.doesNotMatch(dismiss.code, /\.focus\(|autofocus|session|user/i, 'it moves no focus (the chat\'s rule does) and names no session');
+    const client = sourceFilesOf('api', 'api-client.ts');
+    const method = /dismissIncident\([\s\S]*?\n  \}/.exec(client)?.[0] ?? '';
+    assert.match(method, /\/incidents\/\$\{encodeURIComponent\(ref\)\}\/dismiss`, \{\}, \{ observe: 'response' \}/, 'the client posts {} only');
+    assert.doesNotMatch(method, /session|user/i);
+  });
+
+  it('keeps the dismissed set to one signal that only add() grows', () => {
+    assert.match(dismissals.code, /@Injectable\(\{ providedIn: 'root' \}\)/);
+    assert.equal((dismissals.code.match(/signal</g) ?? []).length, 1);
+    assert.match(dismissals.code, /readonly refs = this\.closed\.asReadonly\(\);/);
+    assert.doesNotMatch(dismissals.code, /ApiClient|HttpClient|LiveState/, 'it reads nothing of the server');
   });
 });

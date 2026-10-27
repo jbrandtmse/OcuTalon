@@ -937,10 +937,10 @@ export interface IncidentFields {
 }
 
 /**
- * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance' or the user whose own session owns it. Returns its
- * Ref; cleanFixtureRows removes it.
+ * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance', the user whose own session owns it, or `{sessionRef}`,
+ * the fixture session with this Ref (seedOtherSession), as seedApproval's ApprovalOwner is. Returns its Ref; cleanFixtureRows removes it.
  */
-export async function seedIncident(owner: string, fields: IncidentFields = {}): Promise<string> {
+export async function seedIncident(owner: string | { sessionRef: string }, fields: IncidentFields = {}): Promise<string> {
   const row = properties({
     TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
     State: fields.state,
@@ -948,7 +948,11 @@ export async function seedIncident(owner: string, fields: IncidentFields = {}): 
   });
   const lines = await irisScript(
     [
-      ...(owner === 'instance' ? ['Set o="instance"'] : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
+      ...(typeof owner === 'object'
+        ? [`Set o=${quoted(owner.sessionRef)}`]
+        : owner === 'instance'
+          ? ['Set o="instance"']
+          : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
       `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
       'Write !,"CHK|incident|",r',
     ].join('\n'),
@@ -956,6 +960,52 @@ export async function seedIncident(owner: string, fields: IncidentFields = {}): 
   const ref = chk(lines, 'incident');
   if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/**
+ * Puts Test.Demo.IncidentManagerDouble behind the IncidentManager item of the stack's production (its Use), so that a dismissal reaches a
+ * fixture owner that closes the incident and publishes its closed view (Story 6.4; AD-29). Throws with the status text when the item
+ * could not take it. A spec that calls this puts the item back with restoreIncidentManager in its afterAll.
+ */
+export async function useIncidentManagerDouble(): Promise<void> {
+  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Use()', 'Write !,"CHK|use|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
+  const use = chk(lines, 'use');
+  if (!use?.startsWith('1|')) throw new Error(`the IncidentManager item could not take the double (${lines.join(' ')})`);
+}
+
+/** Puts the IncidentManager item's class back as useIncidentManagerDouble found it (the double's Restore); throws when that fails. */
+export async function restoreIncidentManager(): Promise<void> {
+  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()', 'Write !,"CHK|restore|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
+  const restore = chk(lines, 'restore');
+  if (!restore?.startsWith('1|')) throw new Error(`the IncidentManager item could not be restored (${lines.join(' ')})`);
+}
+
+/** A command that the double recorded: its verb, the session it came for and its origin. */
+export interface DoubleCommand {
+  verb: string;
+  session: string;
+  origin: string;
+}
+
+/** The commands about the incident that the IncidentManager double recorded, oldest first (the double's Recorded). */
+export async function doubleCommands(ref: string): Promise<DoubleCommand[]> {
+  const lines = await irisScript(`Write !,"CHK|commands|",##class(OcuTalon.Test.Demo.IncidentManagerDouble).Recorded(${quoted(ref)})`);
+  const recorded = chk(lines, 'commands');
+  if (recorded === undefined) throw new Error(`the double's commands could not be read (${lines.join(' ')})`);
+  return recorded === ''
+    ? []
+    : recorded.split(';').map((command) => {
+        const [verb = '', session = '', origin = ''] = command.split('|');
+        return { verb, session, origin };
+      });
+}
+
+/** The State of the incident's row ("" when there is none). */
+export async function incidentState(ref: string): Promise<string> {
+  const lines = await irisScript([`Set r=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(ref)})`, 'Write !,"CHK|state|",$Select($IsObject(r):1_"|"_r.State,1:0)'].join('\n'));
+  const state = chk(lines, 'state');
+  if (state === undefined) throw new Error(`the incident could not be read (${lines.join(' ')})`);
+  return state.startsWith('1|') ? state.slice(2) : '';
 }
 
 /**

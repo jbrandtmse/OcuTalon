@@ -93,7 +93,7 @@ describe('the page speaks only through the Announcer', () => {
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed) and the approval request card (an answer that came from elsewhere, once)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once) and Dismiss (the message of an error reply, once, Story 6.4)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -102,6 +102,7 @@ describe('the page speaks only through the Announcer', () => {
       'app/chat/chat-panel.ts',
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',
+      'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
       'app/shared/announcer.ts',
@@ -153,16 +154,23 @@ describe('focus moves only for the user or through the focus rule', () => {
     };
     for (const [name, rule] of Object.entries(hosts)) {
       const { code: text } = file(name);
-      assert.match(text, /import \{ type FocusRule, keepFocus \} from '\.\.\/shared\/focus-rule';/, `${name} imports the shared rule`);
+      assert.match(text, /import \{ type FocusRule, keepFocus(?:, type LostFocus)? \} from '\.\.\/shared\/focus-rule';/, `${name} imports the shared rule`);
       assert.match(text, /untracked\(\(\) => keepFocus\(this\.host\.nativeElement, this\.injector, this\.popovers, [A-Z_]+\)\)/, `${name} calls it from an effect`);
       assert.match(text, rule, `${name} has its own rule`);
     }
     assert.deepEqual(filesWith(/(function|private|protected)\s+keepFocus\b/), ['app/shared/focus-rule.ts'], 'only the shared module defines keepFocus');
   });
 
-  it('gives the chat\'s rule no whenGone, so that a message that is gone leaves focus to the main region, and the load error\'s, the note\'s and the Status button\'s no item', () => {
+  it('gives the chat\'s rule one whenGone, for the Dismiss of an incident card (focus goes to the compacted headline), so that any other message that is gone leaves focus to the main region, and the load error\'s, the note\'s and the Status button\'s no item', () => {
     const chat = file('app/chat/chat-panel.ts').code;
-    assert.doesNotMatch(chat.slice(chat.indexOf('const FOCUS_RULE'), chat.indexOf('};', chat.indexOf('const FOCUS_RULE'))), /whenGone/);
+    const rule = chat.slice(chat.indexOf('const FOCUS_RULE'), chat.indexOf('};', chat.indexOf('const FOCUS_RULE')));
+    assert.match(rule, /whenGone: \(lost\) => incidentHeadline\(lost\),/);
+    assert.equal((chat.match(/whenGone/g) ?? []).length, 1, 'one whenGone in the panel');
+    const headline = chat.slice(chat.indexOf('function incidentHeadline'), chat.indexOf('\n}\n', chat.indexOf('function incidentHeadline')));
+    assert.match(chat, /const DISMISS_PREFIX = 'dismiss:';/);
+    assert.match(headline, /if \(!lost\.key\.startsWith\(DISMISS_PREFIX\)\) \{\s*return null;\s*\}/, 'any other lost item gives null');
+    assert.match(headline, /lost\.host\.querySelector<HTMLElement>\(`\[\$\{PART\}="incident"\]\[\$\{KEY\}="\$\{CSS\.escape\(key\)\}"\] \.headline`\)/, 'the headline of the card with that key');
+    assert.doesNotMatch(headline, /\.focus\(/, 'and the shared rule moves the focus');
     assert.doesNotMatch(file('app/main-page/main-page.ts').code, /(?:LOAD_ERROR|NOTE)_RULE: FocusRule = \{[^}]*item/);
     assert.doesNotMatch(file('app/header/header.ts').code, /STATUS_RULE: FocusRule = \{[^}]*item/);
   });

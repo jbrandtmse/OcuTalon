@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Live test of answering an approval request from the simulated phone and of every copy of an answer (NFR-9; Story 6.3; FR-8, FR-13, AD-31, AD-32):
-# builds the image and starts it in one throwaway compose project, creates the fixture user ZzAnswers, then drives Chromium through the
-# Playwright project answers (web/e2e/answers/answers.spec.ts, cases X1 to X10):
+# Live test of answering an approval request from the simulated phone and of every copy of an answer (NFR-9; Story 6.3; FR-8, FR-13, AD-31, AD-32),
+# and, since Story 6.4, of the incident and request cards and of every ending of an incident: builds the image and starts it in one throwaway
+# compose project, creates the fixture user ZzAnswers, then drives Chromium through the Playwright project answers (web/e2e/answers/): 6.3's
+# answers.spec.ts (X1 to X10), 6.1's incident-card.spec.ts (I2 to I11), 6.2's approval-card.spec.ts (A2 to A10) and 6.4's close-loop.spec.ts
+# (C1 to C10; the results, rejections, expiry, fallbacks, Dismiss, and the cross-session 404 of the dismiss route, with the IncidentManager
+# item behind the fixture double for the spec's run). I1 and A1, the two cases that also run in Firefox and WebKit, stay in the floor unit.
+# The cases X1 to X10 of answers.spec.ts:
 #   - X1: an incident notice reaches the phone as a message with the catalog's text, the dry run's example in mono, and Approve and Reject
 #     side by side; a later request is a message of its own, and a notice with no request has no buttons;
 #   - X2: Approve on the phone: both buttons busy, then the answered line with focus on it; the chat's card shows the answer within 2 s of the
@@ -88,13 +92,13 @@ e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   grep -E "^ *(INFO|ANSWERS)" "$e2e_log" | sed 's/^ *//'
-  pass "Story 6.3's X1-X10: the specs of the answers project pass in Chromium ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
+  pass "the answers project's cases (6.3's X1-X10, 6.1's I2-I11, 6.2's A2-A10 and 6.4's C1-C10) pass in Chromium ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  a browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "Story 6.3's X1-X10: the specs of the answers project failed in Chromium (exit $e2e_status)"
+  fail "the answers project's cases (6.3's X1-X10, 6.1's I2-I11, 6.2's A2-A10 and 6.4's C1-C10) failed in Chromium (exit $e2e_status)"
 fi
 echo "INFO the browser run took $((SECONDS - browser_started)) s"
 

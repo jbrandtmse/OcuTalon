@@ -1,14 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 import { approvalContext, ApprovalRequestCard } from '../approvals/approval-request-card';
-import { requestsOf } from '../approvals/approval-view';
-import { DecisionStrip } from '../chat/decision-strip';
+import { requestsOf, resultView } from '../approvals/approval-view';
+import { ResultBand } from '../approvals/result-band';
+import { DecisionStrip, fallbackReasonText } from '../chat/decision-strip';
 import { FallbackFlag } from '../chat/fallback-flag';
 import { messageTime, pageWhen, pageWhenBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
-import type { ApprovalPayload, DecisionPayload, IncidentPayload } from '../live/payloads';
+import type { ApprovalPayload, DecisionPayload, IncidentPayload, IncidentRequest } from '../live/payloads';
+import { renderPageText } from '../msg/catalog';
 import { TraceLink } from '../shared/trace-link';
 import { EvidencePanel } from './evidence-panel';
+import { IncidentDismiss, type DismissTarget } from './incident-dismiss';
 import { INCIDENT_TEXTS, incidentView, type IncidentContext } from './incident-view';
 
 /** The last id handed to a card, for the ids of its headline and its panel. */
@@ -17,7 +20,8 @@ let lastId = 0;
 /**
  * The context the incident view reads, with the page's real time formats: the headline's time is a message time (instance time,
  * " ET" on the online demo), the top time is the page's time with its day and the browser zone's name when its offset differs
- * from the instance's, and the panel's item times are page times with their day.
+ * from the instance's, and the panel's item times are page times with their day. A request's result band is the catalog's text
+ * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text.
  */
 export function incidentContext(decisions: readonly DecisionPayload[], nowMs: number, instanceZone: string, onlineDemo: boolean): IncidentContext {
   return {
@@ -26,6 +30,8 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     messageTime: (iso, now) => messageTime(iso, now, instanceZone, onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, instanceZone),
     itemTime: (iso, now) => pageWhen(iso, now),
+    result: (request, itemNoun) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots)),
+    reasonText: fallbackReasonText,
   };
 }
 
@@ -37,14 +43,19 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
  * details at the right end of its row and the evidence panel below it), and the footer with the diagnosis decision's strip (or the
  * diagnosis trace link alone when the store holds no such decision). With no request card, and on a compact card, the card has its
  * own actions row with Show details (aria-expanded) and the evidence panel directly below it. A 4px bar on the left follows the
- * state; a closed card keeps the chip row, the headline and Show details. A part with no data is left out. Every text is bound by
+ * state; a closed card keeps the chip row, the headline, the result band of each request of the payload (Story 6.4) and Show
+ * details. A part with no data is left out.
+ * Story 6.4: a fallback or no-fix card shows its notice sentence and, under "Failures:", one line per group, in the place of the fix. Each
+ * request card gets its request's result band from the payload's `requests`; Dismiss (incident-dismiss.ts) is offered while the state
+ * is resolved or open: on the last request card (at the right end of its band, or of its answer row), and, with no request card, in
+ * this card's actions row after Show details. A Dismiss that answers 200 makes the chat show the card as closed (Dismissals). Every text is bound by
  * interpolation, never as markup.
  * The card is an article that the chat's focus rule and the New messages button can focus (tabindex -1); it announces nothing
  * (the chat does, chat-announcements.ts) and moves no focus itself. The panel stays open while the card updates in place.
  */
 @Component({
   selector: 'app-incident-card',
-  imports: [ApprovalRequestCard, DecisionStrip, EvidencePanel, FallbackFlag, Icon, TraceLink],
+  imports: [ApprovalRequestCard, DecisionStrip, EvidencePanel, FallbackFlag, Icon, IncidentDismiss, ResultBand, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <article
@@ -78,33 +89,57 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
       @if (view().fixSentence) {
         <p class="fix">{{ view().fixSentence }}</p>
       }
+      @if (view().notice) {
+        <p class="notice">{{ view().notice }}</p>
+      }
+      @if (view().groups.length > 0) {
+        <p class="failures">{{ texts.failures }}</p>
+        <ul class="groups">
+          @for (line of view().groups; track $index) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+      }
       @if (view().fixingLine) {
         <p class="fixing">{{ view().fixingLine }}</p>
       }
-      @for (request of requests(); track request.ref; let first = $first) {
+      @for (result of view().results; track $index) {
+        <app-result-band [result]="result" />
+      }
+      @for (request of requests(); track request.ref; let first = $first; let last = $last) {
         <app-approval-request-card
           [approval]="request"
           [ctx]="approvalCtx()"
           [details]="first ? view().panel : undefined"
           [detailsId]="panelId"
           [detailsOpen]="open()"
+          [result]="resultOf(request.ref)"
+          [itemNoun]="incident().itemNoun"
+          [dismiss]="last ? dismissTarget() : undefined"
           (toggleDetails)="open.set(!open())"
         />
       }
       @if (requests().length === 0) {
-        @if (view().panel; as panel) {
+        @if (view().panel || dismissTarget()) {
           <div class="actions">
-            <button
-              type="button"
-              class="button button-ghost show-details"
-              [attr.aria-expanded]="open()"
-              [attr.aria-controls]="panelId"
-              (click)="open.set(!open())"
-            >
-              {{ texts.showDetails }}
-              <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="14" />
-            </button>
+            @if (view().panel) {
+              <button
+                type="button"
+                class="button button-ghost show-details"
+                [attr.aria-expanded]="open()"
+                [attr.aria-controls]="panelId"
+                (click)="open.set(!open())"
+              >
+                {{ texts.showDetails }}
+                <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="14" />
+              </button>
+            }
+            @if (dismissTarget(); as target) {
+              <app-incident-dismiss [target]="target" />
+            }
           </div>
+        }
+        @if (view().panel; as panel) {
           <div class="panel" [id]="panelId">
             @if (open()) {
               <app-evidence-panel [panel]="panel" />
@@ -222,6 +257,8 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     }
     .cause,
     .fix,
+    .notice,
+    .failures,
     .fixing {
       font-size: var(--type-body-chat-font-size);
       font-weight: var(--type-body-chat-font-weight);
@@ -229,6 +266,18 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     }
     .fixing {
       color: var(--info-ink);
+    }
+    .failures {
+      margin-top: var(--space-1);
+      font-weight: var(--type-body-strong-font-weight);
+    }
+    .groups {
+      margin: 0;
+      padding-inline-start: var(--space-4);
+      max-width: var(--chat-panel-text-max);
+      font-size: var(--type-body-sm-font-size);
+      line-height: var(--type-body-sm-line-height);
+      overflow-wrap: anywhere;
     }
     .evidence-line {
       color: var(--ink-muted);
@@ -238,7 +287,10 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     }
     .actions {
       display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       justify-content: flex-end;
+      gap: var(--space-2);
       margin-top: var(--space-2);
     }
     .show-details {
@@ -282,6 +334,27 @@ export class IncidentCard {
 
   /** The incident's approval requests in the order raised; a compact (closed) card shows none. */
   protected readonly requests = computed(() => (this.view().compact ? [] : requestsOf(this.incident(), this.approvals())));
+
+  /** The incident payload's request of each ref, whose result the request card draws as its band. */
+  private readonly requestsByRef = computed(() => {
+    const byRef = new Map<string, IncidentRequest>();
+    for (const request of Array.isArray(this.incident().requests) ? (this.incident().requests ?? []) : []) {
+      if (request !== null && typeof request === 'object' && typeof request.ref === 'string') {
+        byRef.set(request.ref, request);
+      }
+    }
+    return byRef;
+  });
+
+  /** What Dismiss acts on while the incident is resolved or open and the card is not compact; undefined otherwise. */
+  protected readonly dismissTarget = computed<DismissTarget | undefined>(() =>
+    this.view().dismissable ? { ref: this.view().ref, key: this.view().key } : undefined,
+  );
+
+  /** The payload's request of the ref, for the request card's band. */
+  protected resultOf(ref: string | undefined): IncidentRequest | undefined {
+    return ref === undefined ? undefined : this.requestsByRef().get(ref);
+  }
 
   /** What the request cards read: the card's own clock, zone and online-demo flag, and the signed-in user. */
   protected readonly approvalCtx = computed(() => approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user()));

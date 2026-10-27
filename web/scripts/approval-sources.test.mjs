@@ -3,7 +3,9 @@
 // card's root and answer row carry the attributes that the focus rule and the New messages button read; the two buttons share one
 // busy state and are never `disabled`; Show details sits outside the pending/answered choice; every text is bound by interpolation;
 // the dry run's Before and After and each status tone read their own tokens; the call posts only {action, channel} to the answer
-// route; and the incident card hands the first request card its panel. The browser cases (floor/approval.spec.ts, A1 to A10) pin
+// route; and the incident card hands the first request card its panel. Story 6.4: the result band (result-band.ts) follows the answer
+// row on the tokens of the result bands and holds the audit line and Dismiss; Dismiss ends the answer row of a request card with no band; and
+// the incident card hands each request card its request, the item noun and, to the last, Dismiss. The browser cases (floor/approval.spec.ts A1 and answers/approval-card.spec.ts A2 to A10) pin
 // what the running page does; this reads the sources, so a state no case reaches cannot lose an attribute or read the wrong token
 // without a test turning red.
 // Run with: node --test web/scripts/
@@ -42,12 +44,15 @@ const rule = (css, selector) => {
 const card = file(files, 'approval-request-card.ts');
 const press = file(files, 'answer-press.ts');
 const view = file(files, 'approval-view.ts');
+const band = file(files, 'result-band.ts');
 const template = literal(card, 'template');
 const styles = literal(card, 'styles');
+const bandTemplate = literal(band, 'template');
+const bandStyles = literal(band, 'styles');
 
 describe('the scan', () => {
   it('reads the card and the view model', () => {
-    assert.deepEqual(files.map((one) => one.name).sort(), ['answer-press.ts', 'approval-request-card.ts', 'approval-view.ts']);
+    assert.deepEqual(files.map((one) => one.name).sort(), ['answer-press.ts', 'approval-request-card.ts', 'approval-view.ts', 'result-band.ts']);
   });
 });
 
@@ -70,7 +75,7 @@ describe('the root and the answer row', () => {
   });
 
   it('keeps Show details outside the pending/answered choice, at the end of the row, expanding the incident\'s panel by aria-expanded and aria-controls', () => {
-    assert.match(template, /<\/p>\s*\}\s*@if \(details\(\)\) \{\s*<button\s/);
+    assert.match(template, /<\/p>\s*\}\s*@if \(details\(\) \|\| \(!band\(\) && dismiss\(\)\)\) \{\s*<span class="row-end">\s*@if \(details\(\)\) \{\s*<button\s/);
     const button = /@if \(details\(\)\) \{\s*<button\s([\s\S]*?)>/.exec(template)?.[1] ?? '';
     assert.match(button, /class="button button-ghost show-details"/);
     assert.match(button, /\[attr\.aria-expanded\]="detailsOpen\(\)"/);
@@ -228,13 +233,55 @@ describe('the incident card', () => {
   const incident = file(incidents, 'incident-card.ts');
   const incidentTemplate = literal(incident, 'template');
 
-  it('draws a request card for each request of the incident, the first with the panel, and its own Show details row only without one', () => {
+  it('draws a request card for each request of the incident, the first with the panel, each with its request, the noun and (the last) Dismiss, and its own Show details row only without one', () => {
     assert.match(
       incidentTemplate,
-      /@for \(request of requests\(\); track request\.ref; let first = \$first\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel; as panel\) \{\s*<div class="actions">/,
+      /@for \(request of requests\(\); track request\.ref; let first = \$first; let last = \$last\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\[result\]="resultOf\(request\.ref\)"\s+\[itemNoun\]="incident\(\)\.itemNoun"\s+\[dismiss\]="last \? dismissTarget\(\) : undefined"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel \|\| dismissTarget\(\)\) \{\s*<div class="actions">/,
     );
     assert.match(incident.code, /requests = computed\(\(\) => \(this\.view\(\)\.compact \? \[\] : requestsOf\(this\.incident\(\), this\.approvals\(\)\)\)\)/);
     assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
     assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
+  });
+});
+
+describe('the result band and Dismiss on the request card (Story 6.4)', () => {
+  it('draws the band between the answer row and the expiry, from the incident payload\'s request, and shows Dismiss at the row\'s end only when there is no band', () => {
+    assert.match(template, /<\/button>\s*\}\s*@if \(!band\(\) && dismiss\(\); as target\) \{\s*<app-incident-dismiss \[target\]="target" \/>\s*\}\s*<\/span>\s*\}\s*<\/div>\s*@if \(band\(\); as result\) \{\s*<app-result-band \[result\]="result" \[dismiss\]="dismiss\(\)" \/>\s*\}\s*@if \(view\(\)\.expiry\) \{/);
+    assert.match(card.code, /band = computed\(\(\) => \{\s*const request = this\.result\(\);\s*const ctx = this\.ctx\(\);\s*return request === undefined \? undefined : resultView\(request, this\.itemNoun\(\), \(key, slots\) => ctx\.render\(key, slots\)\);/);
+    assert.match(card.code, /readonly result = input<IncidentRequest \| undefined>\(undefined\);/);
+    assert.match(card.code, /readonly dismiss = input<DismissTarget \| undefined>\(undefined\);/);
+    assert.doesNotMatch(card.code, /\.focus\(|autofocus/, 'and the card moves no focus for it');
+    assert.equal((card.code.match(/this\.announcer\.announce\(/g) ?? []).length, 1, 'nor announces a band');
+  });
+
+  it('puts Show details and Dismiss together at the right end of the row, and lets them wrap together when the row is narrow', () => {
+    const end = rule(styles, '.row-end');
+    assert.ok(end?.includes('margin-inline-start: auto;'), 'at the right end');
+    assert.ok(end?.includes('display: inline-flex;') && end.includes('flex-wrap: wrap;') && end.includes('justify-content: flex-end;'), 'together, and wrapping together');
+    assert.doesNotMatch(rule(styles, '.show-details') ?? '', /margin-inline-start/, 'Show details is placed by the group');
+  });
+
+  it('is a band on the result tokens: the tone class, the icon, the text, Dismiss at the right end and the audit line beneath in caption', () => {
+    assert.match(bandTemplate, /<div \[class\]="'band tone-' \+ result\(\)\.tone" data-part="result" \[attr\.data-tone\]="result\(\)\.tone">\s*<app-icon \[name\]="result\(\)\.icon" \[size\]="16" \/>\s*<span class="text">\{\{ result\(\)\.text \}\}<\/span>\s*@if \(dismiss\(\); as target\) \{\s*<app-incident-dismiss class="dismiss" \[target\]="target" \/>\s*\}\s*<\/div>\s*<p class="audit">\{\{ result\(\)\.audit \}\}<\/p>/);
+    for (const tone of ['success', 'partial']) {
+      const declarations = rule(bandStyles, `.tone-${tone}`);
+      assert.ok(declarations?.includes(`background: var(--result-${tone}-background);`), `${tone} background`);
+      assert.ok(declarations?.includes(`color: var(--result-${tone}-foreground);`), `${tone} foreground`);
+      assert.ok(declarations?.includes(`border-radius: var(--result-${tone}-radius);`), `${tone} radius`);
+    }
+    assert.ok(rule(bandStyles, '.dismiss')?.includes('margin-inline-start: auto;'));
+    assert.ok(rule(bandStyles, '.audit')?.includes('font-size: var(--type-caption-font-size);'));
+    assert.doesNotMatch(bandStyles, /#[0-9a-fA-F]{3,8}\b/, 'no colour literal');
+  });
+
+  it('is not a live region, holds no focus call and no announcement, and binds no markup', () => {
+    assert.doesNotMatch(band.code, /\.focus\(|\.announce\(|Announcer|aria-live|innerhtml|bypassSecurity/i);
+    assert.match(bandTemplate, /^(?![\s\S]*role=)/);
+  });
+
+  it('reads the result from the view\'s mapping: success and circle-check for all through only, clock for still resending, triangle-alert for the rest', () => {
+    assert.match(view.code, /key = 'result\.stillResending';\s*slots = counts;\s*icon = 'clock';/);
+    assert.match(view.code, /key = 'result\.allThrough';[\s\S]*?tone = 'success';\s*icon = 'circle-check';/);
+    assert.match(view.code, /let tone: ResultView\['tone'\] = 'partial';\s*let icon: ResultView\['icon'\] = 'triangle-alert';/);
   });
 });

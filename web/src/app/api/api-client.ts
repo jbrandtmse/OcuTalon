@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
 import type { GuideStatePayload } from '../live/payloads';
-import type { AnswerBody, AnswerChannel, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type { AnswerBody, AnswerChannel, DismissBody, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -60,6 +60,14 @@ export class ApiClient {
    */
   answerApproval(ref: string, action: 'approve' | 'reject', channel: AnswerChannel = 'web'): Observable<HttpResponse<AnswerBody>> {
     return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel }, { observe: 'response' });
+  }
+
+  /**
+   * Dismisses an incident: a POST of {} (the incident is in the path and the session is the caller's, never in the body). The whole
+   * response is observed: 200 is {result: 'done'}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
+    return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

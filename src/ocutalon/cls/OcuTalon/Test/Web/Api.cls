@@ -640,8 +640,9 @@ Method TestEndSession()
 }
 
 /// The two routes that name a record answer 404 not_found, with the error body, for a ref the session can't see: another
-/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible incident answers
-/// 501 not_built, and a visible approval answers 400 bad_answer to a call with no body.
+/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible incident's dismissal
+/// reaches its owner: 501 not_built while IncidentManager is a stub (its STUB parameter), and the owner's answer, never 404, once it is
+/// built. A visible approval answers 400 bad_answer to a call with no body.
 /// The CSP session is bound to the second of two rows of the user name, so a handler that took the session
 /// from the user name would resolve the first row and answer 404 for the visible refs.
 Method TestUnseenRefIs404()
@@ -681,9 +682,16 @@ Method TestUnseenRefIs404()
 	Set body = ..CallSession(csp, "AnswerApproval", .response, ownIncident)
 	Do $$$AssertEquals(response.Status, "404 Not Found", "an incident's ref is not an approval's")
 	For ref = ownIncident, instanceWatched {
+		Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 		Set body = ..CallSession(csp, "DismissIncident", .response, ref)
-		Do $$$AssertEquals(response.Status, "501 Not Implemented", "dismissing the visible incident "_ref_" is 501")
-		Do $$$AssertEquals(body, notBuilt, "not_built")
+		If +$Parameter("OcuTalon.Watch.IncidentManager", "STUB") = 1 {
+			Do $$$AssertEquals(response.Status, "501 Not Implemented", "dismissing the visible incident "_ref_" is 501")
+			Do $$$AssertEquals(body, notBuilt, "not_built")
+		} Else {
+			Do $$$AssertNotEquals(response.Status, "404 Not Found", "dismissing the visible incident "_ref_" is not 404")
+			Do $$$AssertTrue(body '[ "not_found", "and its body is not the not_found body")
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", logMark, "OcuTalon.Watch.IncidentManager")
 	}
 	For ref = ownApproval, instanceApproval {
 		Set body = ..CallSession(csp, "AnswerApproval", .response, ref)

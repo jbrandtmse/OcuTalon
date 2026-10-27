@@ -2,12 +2,13 @@
 /// notification here while demo mode is on, except kind allowance. Its message map takes OcuTalon.Msg.Notification only, and it
 /// acts only when the message's SessionRef is a session (Session.Recipients gives it back); for any other owner it logs a
 /// warning and records nothing (AD-4).
-///   - A notification of a message kind (tellnow, reminder, incident, approval): it renders
+///   - A notification of a message kind (tellnow, reminder, incident, approval, result): it renders
 ///     Msg.Catalog.Render(CatalogKey, Slots, "phone"), the same text as Telegram's, and in one transaction saves the phone
 ///     message (a SimMessage of Kind phone, direction out, with the text) and its Delivery row (channel phone, the
 ///     SimMessage's Ref as ChannelMessageId, the kind and the Refs, no text). The message keeps the notification's ApprovalRef
 ///     only for the kinds incident and approval (AD-32): that Ref is what makes the page draw Approve and Reject, so no
-///     other kind ever gives a message one. After the commit it publishes one phone event on the session's stream, with
+///     other kind ever gives a message one. A result (Story 6.4) is a new message of its own, never an edit of the request's message,
+///     with no ApprovalRef and so no buttons; the answered edit below stays the only edit. After the commit it publishes one phone event on the session's stream, with
 ///     Live.Payload.Phone.FromRow of the message: it is the only publisher of that event (AD-33). A render error is
 ///     returned with no row and no event, and a failed publish is logged and leaves the rows;
 ///   - a notification of kind answered edits the delivered message in place (AD-14): Delivery.FindByApproval(ApprovalRef,
@@ -26,7 +27,7 @@ Class OcuTalon.Channel.SimPhone.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "phone";
 
 /// The notification kinds that the phone shows as messages.
-Parameter CARDKINDS = "tellnow,reminder,incident,approval";
+Parameter CARDKINDS = "tellnow,reminder,incident,approval,result";
 
 /// The notification kinds whose phone message keeps the ApprovalRef and so gets Approve and Reject (AD-32).
 Parameter REQUESTKINDS = "incident,approval";

@@ -27,6 +27,14 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'answered.alreadyRejected': 'Already answered: rejected from {channel} at {time}.',
   'answered.alreadyApprovedBy': 'Already answered: approved by {user} from {channel} at {time}.',
   'answered.alreadyRejectedBy': 'Already answered: rejected by {user} from {channel} at {time}.',
+  'result.allThrough': 'All {count} {itemNoun} went through.',
+  'result.failedAgain': "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}). I won't retry them without a new approval.",
+  'result.skipped': '{completed} of {count} {itemNoun} went through. {skipped} had changed since the dry run, so I skipped them; they need a new approval.',
+  'result.failedAndSkipped': "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and {skipped} had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.",
+  'result.stillResending': "Still resending: {completed} of {count} {itemNoun} have gone through so far. I'll tell you when it's done.",
+  'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
+  'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
+  'audit.recorded': 'Recorded in the IRIS audit log.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -73,6 +81,24 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'answered.alreadyRejected': { 'channel': 'channel', 'time': 'time' },
   'answered.alreadyApprovedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
   'answered.alreadyRejectedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'result.allThrough': { 'count': 'count', 'itemNoun': 'noun' },
+  'result.failedAgain': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'failedAgain': 'count', 'failReason': 'text' },
+  'result.skipped': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'skipped': 'count' },
+  'result.failedAndSkipped': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'failedAgain': 'count', 'failReason': 'text', 'skipped': 'count' },
+  'result.stillResending': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count' },
+  'result.interrupted': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'remaining': 'count' },
+  'result.couldNotStart': { 'reason': 'text' },
+  'audit.recorded': {},
+};
+
+/** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */
+export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; readonly text: string }>> = {
+  'result.allThrough': { slot: 'count', text: 'The {itemNoun} went through.' },
+  'result.failedAgain': { slot: 'failedAgain', text: "{completed} of {count} {itemNoun} went through. 1 failed again ({failReason}). I won't retry it without a new approval." },
+  'result.skipped': { slot: 'skipped', text: '{completed} of {count} {itemNoun} went through. 1 had changed since the dry run, so I skipped it; it needs a new approval.' },
+  'result.failedAndSkipped': { slot: 'skipped', text: "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval." },
+  'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
+  'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */
@@ -125,22 +151,37 @@ function reasonText(value: unknown): string {
   return PAGE_TEXTS['fallbackReason.' + suffix] ?? '';
 }
 
-/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, the others the cleaned string. */
+/** The form of a noun slot ({ one, other }) that the slots' count chooses: the one form for a count of "1", else the other. */
+function nounText(value: unknown, slots: PageSlots): string {
+  const forms = value !== null && typeof value === 'object' ? (value as Readonly<Record<string, unknown>>) : {};
+  return cleanSlot(cleanSlot(Object.hasOwn(slots, 'count') ? slots['count'] : undefined) === '1' ? forms['one'] : forms['other']);
+}
+
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, the others the cleaned string. */
 function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
   const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
   const type = Object.hasOwn(types, name) ? types[name] : '';
-  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
+}
+
+/** The text of a key in page form: its count-of-one form when it has one and the form's count slot is "1", else its PAGE_TEXTS text. */
+function pageTemplate(key: string, slots: PageSlots): string | undefined {
+  const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  const one = Object.hasOwn(PAGE_ONE_FORMS, key) ? PAGE_ONE_FORMS[key] : undefined;
+  if (template === undefined || one === undefined) return template;
+  return cleanSlot(Object.hasOwn(slots, one.slot) ? slots[one.slot] : undefined) === '1' ? one.text : template;
 }
 
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
  * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
- * itself. Every other slot takes the string the caller formatted (a time, a cost, a count or a text), cleaned like any string
- * slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * itself. A noun slot takes { one, other } and gives the form that the count slot ("1" or not) chooses. A key with a one form uses
+ * its text when the form's count slot is "1". Every other slot takes the string the caller formatted (a time, a cost, a count or a
+ * text), cleaned like any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
-  const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  const template = pageTemplate(key, slots);
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
@@ -153,7 +194,7 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
  * A key that is in neither throws.
  */
 export function renderMessageText(key: string, slots: PageSlots = {}): string {
-  const template = Object.hasOwn(MESSAGE_TEXTS, key) ? MESSAGE_TEXTS[key] : Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  const template = Object.hasOwn(MESSAGE_TEXTS, key) ? MESSAGE_TEXTS[key] : pageTemplate(key, slots);
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   let out = '';

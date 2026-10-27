@@ -91,6 +91,11 @@ export interface AnswerBody {
   approval: ApprovalPayload;
 }
 
+/** POST /ocutalon/api/v1/incidents/:ref/dismiss: the body of the 200 answer. The request body is {} and the session is the caller's. */
+export interface DismissBody {
+  result: 'done';
+}
+
 /** The body of an error answer to an answer: the error, and the request's payload beside it for a 409 (already answered, expired). */
 export interface AnswerError {
   error: { code: string; message: string };

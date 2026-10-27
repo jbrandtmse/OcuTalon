@@ -1,9 +1,10 @@
-// Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16, 4.1 and 6.3), listed through the npm scripts that
+// Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16, 4.1, 6.3 and 6.4), listed through the npm scripts that
 // the unit scripts call: which spec files each project runs (chromium runs every spec outside the directories that have a project of
 // their own, demo-path/, demo-switch/, floor/ and answers/; each of those projects runs exactly its own directory; and every spec on disk is
 // listed by at least one of the scripts), that every demo-path spec maps to a step of demo-path-summary.mjs, the
 // form in which the report gives the floor test's tag, and that the floor script runs every floor case in Chromium and the cases tagged
-// @browsers in Firefox and WebKit. Then one run of an API spec with none of the sign-in unit's variables.
+// @browsers in Firefox and WebKit, and which cases each of the floor and answers projects holds (Story 6.4, DW-315: the floor keeps I1 and A1,
+// the two incident and request cases tagged @browsers, and the answers project holds the 19 cases that moved with 6.3's and 6.4's own). Then one run of an API spec with none of the sign-in unit's variables.
 // No browser starts and no stack is needed, none of the sign-in unit's OCUTALON_ variables is set, and the run writes its
 // results to a scratch folder of its own, never to web/test-results.
 // Run with: node --test web/scripts/
@@ -208,6 +209,43 @@ describe('the floor script runs the floor in three engines (Story 2.16)', () => 
   it('is run by neither the chromium script nor the demo-path script', () => {
     assert.deepEqual(filesOf('e2e').filter((name) => name.startsWith('floor/')), []);
     assert.deepEqual(filesOf('e2e:demo-path').filter((name) => name.startsWith('floor/')), []);
+  });
+});
+
+describe('the case lists of the floor and answers projects (Story 6.4; DW-315)', () => {
+  const idOf = (title) => /^([A-Z]\d+):/.exec(title)?.[1];
+  const floor = specsOf(reportOf('e2e:floor')).filter((one) => one.projects.includes('floor'));
+  const answers = specsOf(reportOf('e2e:answers'));
+  const range = (letter, from, to) => Array.from({ length: to - from + 1 }, (_, i) => `${letter}${from + i}`);
+
+  it('keeps I1 and A1 in the floor, and none of the cases that moved', () => {
+    const files = (name) => floor.filter((one) => one.file === name);
+    const ids = (name) => files(name).map((one) => `${one.file}: ${idOf(one.title)}`);
+    assert.deepEqual(ids('floor/incident.spec.ts'), ['floor/incident.spec.ts: I1']);
+    assert.deepEqual(ids('floor/approval.spec.ts'), ['floor/approval.spec.ts: A1']);
+    const floorIds = floor.map((one) => idOf(one.title));
+    for (const moved of [...range('I', 2, 11), ...range('A', 2, 10)]) {
+      assert.ok(!floor.some((one) => one.file.startsWith('floor/') && /^floor\/(incident|approval)\.spec\.ts$/.test(one.file) && idOf(one.title) === moved), `${moved} is not in the floor's incident and approval specs`);
+    }
+    assert.ok(floorIds.includes('I1') && floorIds.includes('A1'));
+    assert.ok(files('floor/incident.spec.ts')[0].tags.includes('browsers') && files('floor/approval.spec.ts')[0].tags.includes('browsers'), 'I1 and A1 are the @browsers cases');
+  });
+
+  it('runs I1 and A1 in all three engines', () => {
+    for (const project of ['floor', 'floor-firefox', 'floor-webkit']) {
+      const ids = specsOf(reportOf('e2e:floor')).filter((one) => one.projects.includes(project) && /^floor\/(incident|approval)\.spec\.ts$/.test(one.file)).map((one) => idOf(one.title));
+      assert.deepEqual(ids.sort(), ['A1', 'I1'], project);
+    }
+  });
+
+  it('holds I2 to I11, A2 to A10, X1 to X10 and C1 to C10 in the answers project, each once and in its own spec', () => {
+    const where = (id) => answers.filter((one) => idOf(one.title) === id).map((one) => one.file);
+    for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['answers/incident-card.spec.ts'], id);
+    for (const id of range('A', 2, 10)) assert.deepEqual(where(id), ['answers/approval-card.spec.ts'], id);
+    for (const id of range('X', 1, 10)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
+    for (const id of range('C', 1, 10)) assert.deepEqual(where(id), ['answers/close-loop.spec.ts'], id);
+    assert.equal(answers.length, 39, 'and no other case');
+    assert.deepEqual([...new Set(answers.flatMap((one) => one.projects))], ['answers'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 });
 

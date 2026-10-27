@@ -59,7 +59,8 @@
 /// The fixture sessions come from Test.Data.Fixture, and the turns that Conversation makes are adopted after each test, so
 /// Fixture.Clean removes them with the events of the streams. The run's number is n from ^OcuTalonTest("ConversationTurns",
 /// "n") (never reset); the probe records the calls of the run under ^OcuTalonTest("ConversationProbe", n), and the double's
-/// scripts and records are removed for each fixture session.
+/// scripts and records are removed for each fixture session. The event log rows that the probe wrote during the run (SourceClass
+/// OcuTalon.Test.Core.ConversationProbe, after the log's newest row at the start) are deleted in OnAfterAllTests.
 Class OcuTalon.Test.Core.ConversationTurns Extends %UnitTest.TestCase
 {
 
@@ -78,6 +79,9 @@ Property Handled As %Integer;
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
+/// The number of the newest row of the event log when the run began.
+Property LogMark As %Integer;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
@@ -85,6 +89,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Number = $Increment(^OcuTalonTest("ConversationTurns", "n"))
 	Set ..Refs = ""
 	Set ..Sessions = ""
+	Set ..LogMark = ..LastLog()
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
@@ -117,6 +122,7 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("ConversationProbe", ..Number)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", ..LogMark, "OcuTalon.Test.Core.ConversationProbe")
 	Quit $SYSTEM.Status.OK()
 }
 
