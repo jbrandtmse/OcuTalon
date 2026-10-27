@@ -22,7 +22,7 @@ Include Ensemble
 ///     changes; a repeated cancel key gets the first result, and a key for another reminder is reused_key;
 ///   - TestSetKeyOfAnotherSession and TestCancelKeyOfAnotherSession (AD-4): a key that another session used finds nothing and reveals
 ///     nothing: a set is a fresh set (never reused_key); a cancel with the other session's Ref gets the unknown-Ref refusal, member for
-///     member, and with its own Ref cancels it normally;
+///     member, and with its own Ref cancels it normally; the session's own command again gets its first result;
 ///   - TestSetRepeatOneWaiter: a SetReminder submitted twice with one key makes one row, one waiter and one created event;
 ///   - TestSeveralCancelsFromOneToolCall (U-118): three cancels of one tool call, with the keys <item>:1 to :3, each cancel their own
 ///     reminder; the call run again gets each command its first result, and with the Refs in another order a key for another Ref is
@@ -515,8 +515,9 @@ Method SetKeyed(session As %String, key As %String, text As %String, seconds As 
 }
 
 /// A SetReminder carrying the IdempotencyKey of another session's reminder, with other fields, is a fresh set for its own session
-/// (set, a new Ref, its own due time), never reused_key; the other session's reminder, row and waiter are untouched (AD-4, AD-1: a
-/// key is looked up in the command's own session only).
+/// (set, a new Ref, its own due time), never reused_key; the other session's reminder, row and waiter are untouched; the same command
+/// again, while both sessions' rows hold the key, gets its own first result and makes no second row (AD-4, AD-1: a key is looked up
+/// in the command's own session only).
 Method TestSetKeyOfAnotherSession()
 {
 	If '..Guard() Quit
@@ -544,12 +545,20 @@ Method TestSetKeyOfAnotherSession()
 	Do $$$AssertEquals(timers.%Size(), 1, "the other session's reminder has its one waiter")
 	If timers.%Size() = 1 Do $$$AssertEquals(..IsWaiting(timers.%Get(0)), 1, "which is waiting")
 	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending|pending", "each session has its one created event")
+	Set again = ..SetKeyed(a, key, myText, 310)
+	Do $$$AssertTrue($IsObject(again), "this session's command again is answered")
+	If '$IsObject(again) Quit
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Message_"|"_again.Ref_"|"_again.DueAt, mine.Ok_"|"_mine.Outcome_"|"_mine.Message_"|"_mine.Ref_"|"_mine.DueAt, "this session's command again gets its own first result while the other session's row holds the key too")
+	Do $$$AssertEquals(..Rows(a)_"|"_..EventStates(a), "1|pending", "and makes no second row or event")
 }
 
 /// A CancelReminder carrying the CancelKey of another session's cancel finds nothing and reveals nothing (AD-4):
 ///   - with the other session's Ref it gets exactly the no_reminder refusal that an unknown Ref gets (every member of the answer
-///     equal), never the other session's first result and never reused_key, and nothing changes: no event, no trigger;
-///   - with its own pending Ref it cancels that reminder normally, never reused_key, and the other session's row keeps its state and key.
+///     equal), never the other session's first result and never reused_key; neither session gets an event, and this session's
+///     reminder stays pending with its waiter and gets no trigger. The other session's reminder is already cancelled and its waiter
+///     has ended, so for that session only its events can show a change;
+///   - with its own pending Ref it cancels that reminder normally, never reused_key, and the other session's row keeps its state and
+///     key; the same command again, while both sessions' rows hold the key, gets that first result and changes nothing.
 Method TestCancelKeyOfAnotherSession()
 {
 	If '..Guard() Quit
@@ -595,6 +604,9 @@ Method TestCancelKeyOfAnotherSession()
 	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending,cancelled|pending,cancelled", "one cancelled event for this session, none for the other")
 	Do $$$AssertTrue(..WaitEnded(mine.ref, 10), "its waiter ends")
 	Do $$$AssertEquals(..RequestsBetween(theirTrace, "ReminderOps", "Ens.Alarm")_"|"_..RequestsBetween(myTrace, "ReminderOps", "Ens.Alarm"), "1|1", "with one trigger of its own")
+	Set again = $ClassMethod(fixture, "Cancel", a, mine.ref, key)
+	Do $$$AssertEquals(again.%ToJSON(), own.%ToJSON(), "this session's cancel again gets its own first result while the other session's row holds the key too")
+	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending,cancelled|pending,cancelled", "and nothing changes")
 }
 
 /// A SetReminder submitted twice with one key makes one row, one start request to the waiter and one created event, and answers
@@ -605,15 +617,8 @@ Method TestSetRepeatOneWaiter()
 	Set session = ..Session("setrep")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 	Set key = "zzsetrep" _ ..Number
-	Set fixture = "OcuTalon.Test.Schedule.ReminderFixture"
 	For which = 1, 2, 3 {
-		Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
-		Set command.SessionRef = session
-		Set command.IdempotencyKey = key
-		Set command.Text = $Select(which = 3: "zz other", 1: "zz repeat " _ ..Number)
-		Set command.DelaySeconds = 300
-		Set result(which) = $ClassMethod(fixture, "Submit", session, command)
-		If $IsObject(result(which)) Do ..Keep(result(which).Ref)
+		Set result(which) = ..SetKeyed(session, key, $Select(which = 3: "zz other", 1: "zz repeat " _ ..Number), 300)
 	}
 	Do $$$AssertTrue($IsObject(result(1)) && $IsObject(result(2)) && $IsObject(result(3)), "all three commands are answered")
 	If '$IsObject(result(1)) || '$IsObject(result(2)) || '$IsObject(result(3)) Quit

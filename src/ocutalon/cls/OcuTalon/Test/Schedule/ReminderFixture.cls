@@ -42,7 +42,7 @@ ClassMethod Submit(sessionRef As %String, command As OcuTalon.Msg.Command) As Oc
 }
 
 /// Cancels the reminder with the Ref for the session, with the key (by default a fresh zzcan<n>). Returns {ok, outcome, message, ref,
-/// dueAt}: the CommandResult's members, or ok 0 with an empty outcome when no answer came back.
+/// dueAt, data}: every member of the CommandResult, or ok 0 with an empty outcome when no answer came back.
 ClassMethod Cancel(sessionRef As %String, ref As %String, key As %String = "") As %DynamicObject
 {
 	Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
@@ -50,8 +50,8 @@ ClassMethod Cancel(sessionRef As %String, ref As %String, key As %String = "") A
 	Set command.ReminderRef = ref
 	Set command.IdempotencyKey = $Select(key '= "": key, 1: "zzcan" _ $Increment(^OcuTalonTest("ReminderFixture", "cancel")))
 	Set result = ..Submit(sessionRef, command)
-	If '$IsObject(result) Quit {"ok": 0, "outcome": "", "message": "", "ref": "", "dueAt": ""}
-	Quit {"ok": (+result.Ok), "outcome": (result.Outcome), "message": (result.Message), "ref": (result.Ref), "dueAt": (result.DueAt)}
+	If '$IsObject(result) Quit {"ok": 0, "outcome": "", "message": "", "ref": "", "dueAt": "", "data": ""}
+	Quit {"ok": (+result.Ok), "outcome": (result.Outcome), "message": (result.Message), "ref": (result.Ref), "dueAt": (result.DueAt), "data": (result.Data)}
 }
 
 /// Sets a reminder of the session with the text, due that many seconds from now. Returns {ok, outcome, ref, dueAt, traceHeaderId,

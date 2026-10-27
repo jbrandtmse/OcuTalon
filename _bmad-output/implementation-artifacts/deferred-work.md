@@ -521,6 +521,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.10 Tools/CommandCall + Test.Tools.CommandsDouble; Story 0.4 fixes the command fields, not the result's Data
 - 2026-10-23T23:00:53Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=add as an AC bullet to Story 8.4 (veto category 8, a parallel run's orchestrator routes it); 8.4's ReminderOps must answer this shape or the list tool reports a failure
+- 2026-10-27T16:22:36Z status=resolved-by:8-4-set-list-and-cancel-reminders-in-plain-words by=adjudication note=ReminderOps answers ListReminders with Data {reminders:[{ref,text,dueAt}]} (pending, earliest due first, UTC) through Ownership.Reminders; ReminderLogic.TestListShape reads it with the real Tools.CommandCall.Listed (0eb2f3e)
 
 ### DW-136: Set and cancel reminder tools declare TRUSTEDOUTPUT 0 (the AC: only list is trusted output), so once Epic 3's taint rule lands every turn that sets or cancels a reminder is tainted, never saved, and the next turn starts fresh with a recap; their output is built by code from ReminderOps' CommandResult, which fits AD-10's definition of trusted output
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -556,6 +557,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's ReminderOps compares the verb and fields on a reused key, or refuses the reuse
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 - 2026-10-27T15:16:12Z occurrence=8-4-set-list-and-cancel-reminders-in-plain-words
+- 2026-10-27T16:22:36Z status=resolved-by:8-4-set-list-and-cancel-reminders-in-plain-words by=adjudication note=ReminderOps keeps each command's key on the row (IdempotencyKey/CancelKey, session-scoped): a repeat gets its own first result and a key reused for other fields is refused reused_key, never another command's result (TestSetRepeat, TestCancelIsolationAndRepeats, TestSeveralCancelsFromOneToolCall; U-118/U-119 cases); a relative repeat compares Text only, as the spec's Repeats rule says
 
 ### DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
