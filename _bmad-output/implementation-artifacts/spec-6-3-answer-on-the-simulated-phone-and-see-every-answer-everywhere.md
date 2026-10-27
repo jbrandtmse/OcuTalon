@@ -2,8 +2,8 @@
 title: 'Story 6.3: Answer on the simulated phone and see every answer everywhere'
 type: 'feature'
 created: '2026-10-27'
-status: 'in-progress'
-baseline_revision: '23c43c9fab54887bc28402eeaaa4d945d136db38'
+status: 'done'
+baseline_revision: 'e539b8182c5bc6ad9c7d471ab8a7fbafba6d7a12'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -270,7 +270,7 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
       - **Why:** the panel's `keepFocus` (L254-258) runs on every store change and registers its `afterNextRender` before the request's. With `{}`, a server edit that replaces a focused phone button would send focus to the main region before the request's rule runs (`shared/focus-rule.ts`: the first callback to move focus wins).
       - **The mailbox is unchanged:** its rows carry `data-key` without `data-part`.
 18. **`web/src/app/rail/rail-view.ts` and `status-rail.ts`.**
-    - `approvalRow` adds `jump` (the ref) only when the request has an `incidentRef`, and `jumpName`, which is `RAIL_TEXTS.showInChat` "Show in the chat: {action}" with the lower-cased title (Veto V2).
+    - `approvalRow` adds `jump` (the ref) only when the request has an `incidentRef`, and `jumpName`, which is `RAIL_TEXTS.showInChat` "Show in the chat: {action}" with the title as shown (Veto V2, U-122).
     - The row's title becomes `<button type="button" class="jump" [attr.aria-label]="row.jumpName">`, like decision-row's line button, beside the trace link and never wrapping it.
     - A press calls `Layout.focusRegion` with `app-chat-panel [data-part="approval"][data-key="<CSS.escape(ref)>"]` when that element exists, else `app-chat-panel > .list`.
     - Update the doc ("Rows are read-only" no longer holds for this row). Nothing between L305 and L330 changes.
@@ -319,8 +319,8 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - **AC9:** Given a fixture `Notification` sent through `NoticesIn` (an adapterless real item, not a stub), when it is received, then it joins the turn's thread through the context's `ThreadSessionId` when there is one, reaches `Notify` asynchronously, and is delivered on each of the session's channels (`Test.Core.NoticesIn`, `Test.Core.NoticesInProduction`).
 - **AC10 (DW-128, ruled yes):** Given a SessionBroken retry's bridge context (`RetryItemId` of the running turn's ItemId), when the gate reports a step, then its `turn.step` reaches the session's stream with the turn's Ref (`Test.Core.BridgeSink`).
 - **AC11 (owner condition, U-122):** Given the rail's approval-request row button (accessible name "Show in the chat: {action}", V2), when it renders, then the row's visible text appears in the button's accessible name exactly as shown (WCAG 2.5.3, label in name): the name contains the visible action text verbatim, with the same case and words. A test pins it (a unit test of `rail-view` and, where the browser computes the name, a browser assertion that `accessibleName` contains the row's visible `textContent`, trimmed).
-  - [ ] [Owner] U-122 condition: make the row button's visible text appear verbatim inside its accessible name, add the pinning tests, and write the Rule 19 `mutation:` line (mutation: the name drops or rewords the visible text -> the test goes red).
-  - [ ] [Runner] CI gate (orchestrator ruling (a), 2026-10-27): in `docker/tests/test-demo-path-gate.sh` change ONLY the stub-unit loop at L84 and the `chmod` at L106 (add `answers`), and the browser expectations at L351-354, L362, L370 and L379 (extend them to `live:demo-path live:sign-in live:answers`, with Chromium installed before each unit). Nothing else in that file. Then `bash ci/checks.sh` must exit 0.
+  - [x] [Owner] U-122 condition: make the row button's visible text appear verbatim inside its accessible name, add the pinning tests, and write the Rule 19 `mutation:` line (mutation: the name drops or rewords the visible text -> the test goes red).
+  - [x] [Runner] CI gate (orchestrator ruling (a), 2026-10-27): in `docker/tests/test-demo-path-gate.sh` change ONLY the stub-unit loop at L84 and the `chmod` at L106 (add `answers`), and the browser expectations at L351-354, L362, L370 and L379 (extend them to `live:demo-path live:sign-in live:answers`, with Chromium installed before each unit). Nothing else in that file. Then `bash ci/checks.sh` must exit 0.
 
 ## Spec Change Log
 
@@ -331,6 +331,35 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - 2026-10-27, runner (spec validation): the orchestrator allowed DW-128's contended edit in `Core/BridgeSink.cls` (option a: L145 and the doc clause at L10-11 only). Tasks 6 and 10 and AC10 stand; the fallback is dropped.
 
 ## Review Triage Log
+
+### 2026-10-27 — Review pass (re-dispatch: AC11 and the CI gate, over the whole story's diff)
+- verdicts: 25 rows from the layers' 30 findings (related findings share a row) — high 0, medium 1, low 20, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Gap 1: AC9's "forwards to Notify asynchronously" had no test that fails for a synchronous send — `TestDeliveredOnEveryChannel` now asserts the NoticesIn to Notify header's ReturnQueueName is empty; mutation recorded (`SendRequestSync` -> red).
+  - `[low]` `[patch]` Gap 2: AC4's CI-group clause had no `mutation:` line — the mutation (`live:answers` out of the group) was run, red in `test-demo-path-gate`, and the line is written.
+  - `[low]` `[patch]` Blind 6 / Gap 5: X6 declared an unused `incidents` array and labelled its `.lead` assertion "the visible title is unchanged" — the array is removed and the label says what is asserted.
+  - `[low]` `[carried]` Blind 1 / Edge 2 / Edge 3 (an `answered` that overtakes its notice; an empty-key `answered` row hides the message from `FindByApproval`) — carried: no sender does either; the fix is a query change.
+  - `[low]` `[carried]` Blind 3 / Blind 7 / Edge 1 (`renderMessageText` pins the server renderer's "on ." output; no behavioural test of the phone request) — carried: the server renderer's own output and Task 12's rule; the floor and X2-X5 pin the behaviour.
+  - `[low]` `[carried]` Blind 6 `.jump` has no visible affordance (inline, no underline) — carried: decision-row's pattern, an inline control in a row's text.
+  - `[low]` `[carried]` Edge 6 (a local view with no status leaves neither buttons nor a line) — carried (the status is undefined only for a cancelled request's 409).
+  - `[low]` `[carried]` Edge 9 (`phoneMessage` reads a backslash as a newline) — carried: no fixture text holds one.
+  - `[false]` `[carried]` Edge 10 (the seam is `Forward`, not `Send`) — carried: Decided in-stage 17.
+  - `[low]` `[reject]` Blind 2 (a request notice after the request was answered): same as the carried row above, and the answer line comes from the next `answered`.
+  - `[low]` `[reject]` Blind 4 (steps 4 and 5 read "partly skipped" and count as ran) — Task 23 and AC6 specify it; `demo-path-summary.test.mjs` pins the summary.
+  - `[low]` `[reject]` Blind 5 (fixture slots written in three specs, `incidentOf` and `raise` copy the floor's) — Task 20 and the Design Notes carry the copy's reason; the fix is more than a deletion.
+  - `[low]` `[reject]` Blind 8 (`NoticesInProbe.LastNotification` typed `%Persistent`) — a test-only property with no reader.
+  - `[low]` `[reject]` Blind 9 (the skill-rules text lists the browser group and the 540 s deadline) — `_bmad/` is owner-only; the whole call took 184 s.
+  - `[low]` `[reject]` Blind 10 (`Date.now()` read once in `viewOf`) — the card does the same; a phone message's wording does not change within a session.
+  - `[low]` `[reject]` Edge 4 (concurrent `answered` for one message) — one `answered` per answer, and the loser of a race sends none; theoretical.
+  - `[low]` `[reject]` Edge 5 (a redelivered incident notice makes a second message) — no producer redelivers; the Notify path has no retry.
+  - `[false]` `[reject]` Edge 7 (an incident or approval notice with an empty key now errors) — the matrix says "error status, no row, no event (as today)".
+  - `[low]` `[reject]` Edge 8 (a stale store payload wins over the snapshot) — the store is Epic 16's and is not in this diff.
+  - `[low]` `[reject]` Edge 9 (the card's microtask after the card is destroyed) — the announcement is of the answer, which is still true.
+  - `[low]` `[reject]` Edge 10 (an own press that timed out then announces the answer as from elsewhere) — right: the press said it could not reach OcuTalon, so the user has not been told.
+  - `[low]` `[reject]` Gap 3 (the gate test does not pin a red `live:answers` alone; its header names two units) — the group loop is unit-agnostic, and the ruling allows only the listed lines.
+  - `[low]` `[reject]` Gap 4 (X1's "no web notice card" has no wait) — 6.1's behaviour, pinned in its own tests.
+  - `[false]` `[reject]` Gap 6 (`ci/checks.sh` after the gate edit not recorded) — recorded in Measured.
+  - `[false]` `[reject]` Intent audit 1-3 — descriptive: the stand-in for the producer of `answered` and the fixtures are in the intent's wording; the late-press text is `latePressText`'s message-form string (X4).
 
 ### 2026-10-27 — Review pass
 - verdicts: 31 findings — high 0, medium 1, low 7, false 7, maybe-false 0 (16 rejected as noted below)
@@ -460,7 +489,7 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
     - appending the answer to `Text`: the page could not put it in the buttons' place.
   - **To reverse:** drop the two properties and `FromRow`'s two lines; the storage slots stay unused.
   - **Against the ADs:** AD-5, AD-14 and AD-33 hold. The table's owner is unchanged, and old rows read empty.
-- **V2, public text not in the UX: the rail row's accessible name, "Show in the chat: {action}"** ("Show in the chat: repair and resend 50 orders").
+- **V2, public text not in the UX: the rail row's accessible name, "Show in the chat: {action}"** ("Show in the chat: Repair and resend 50 orders", the visible title verbatim, U-122).
   - **Choice.** The visible title is unchanged, and the name contains it, which meets WCAG 2.5.3.
   - **Rejected options:** the bare title, which names an action the button doesn't take (honesty); no button, which the AC rules out.
   - **To reverse:** one `RAIL_TEXTS` entry and its `ruled` source.
@@ -621,6 +650,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `Test.Demo.SimPhoneOut`, `Test.Core.NoticesIn`, `Test.Core.NoticesInProduction`, `Test.Core.BridgeSink`, `Test.Data.Tables`, `Test.Live.Payloads`, `Test.Install.Production`, `Test.Contract.Ac`, `Test.Msg.Catalog`, `Test.Msg.Contracts`, `Test.Core.Routing`, `Test.Core.AnswersInProduction`, `Test.Web.Api`, `Test.Core.WebChatOut`: passed on the warm stack. `npm --prefix web test` 872 passed; lint, `catalog.mjs --check` and `payloads.mjs --check` exit 0.
 - Parent run after review (the `(once)` lines): `bash ci/checks.sh` red only in `demo-path-gate` (the blocking condition, below); `docker/tests/test-web-build.sh` passed; `shard lane-b` 63 classes passed (188 s); `shard lane-a` 47 classes passed (418 s); `live demo-path` passed (107 s; steps 4 and 5 each `partly skipped`, 2 and 1 passed); `live floor` 124 passed, 489 s of 540 s; `live sign-in` 217 passed (449 s); `live demo-switch` passed (291 s); `live production` passed (113 s); `live answers` 8 passed, 184 s, X2 14 ms, X3 1.38 s, X8 0.95 s.
 
+- Re-dispatch pass (AC11 and the CI gate): `bash docker/tests/test-demo-path-gate.sh` and `bash ci/checks.sh` exit 0; `npm --prefix web test` 872 passed; lint exit 0. `live answers` on fresh stacks: 8 passed twice with the final code (X2 14 to 16 ms, X3 1.35 to 1.37 s, X8 0.95 to 1.04 s), and red in X6 with the AC11 mutation. `Test.Core.NoticesInProduction` passed on a warm stack, and red with the AC9 mutation.
+
 **Mutations observed (Rule 19).** Each was applied, the named check was red, and the tree was reverted byte-identical (a hash of the diff and the untracked files, before and after).
 - mutation: AC1 `SimPhoneOut` stores ApprovalRef for every kind -> red `Test.Demo.SimPhoneOut` (`TestOnlyRequestKindsCarryARequest`).
 - mutation: AC1 the inset's before/after tokens swapped -> red `phone-request-sources.test` (the inset case). X1 was not run with it.
@@ -637,6 +668,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: AC10 Step's retry clause removed -> red `Test.Core.BridgeSink` (`TestTurnStepOfARetry`).
 - mutation: AC3 a second `answered` notification overwrites the Answer (the first-answer guard removed) -> red `TestAnsweredEditsInPlace` (the first answer stays).
 - mutation: AC5 the card announces its own press's answer (the `local`/`busy` clause of `noteStore` removed) -> red X3 (the card's own press announces no answer, focus moved to the composer while the press was out); X2 and X8 stay green.
+- mutation: AC11 the row button's name drops the visible title's case (`jumpName` built from the lower-cased title) -> red `rail-view.test` (the jump case) and, with the bundle rebuilt, red X6 (the button named "Show in the chat: Repair and resend 50 orders" is not found); the tree was restored byte-identical.
+- mutation: AC9 `NoticesIn.Forward` sends with `SendRequestSync` instead of `SendRequestAsync` -> red `Test.Core.NoticesInProduction` (`TestDeliveredOnEveryChannel`, the header's empty ReturnQueueName); green again after the revert, tree byte-identical.
+- mutation: AC4 `live:answers` removed from the `browser` group in `ci/units.sh` -> red `docker/tests/test-demo-path-gate.sh` (the group's "three units pass" check); tree byte-identical.
 - mutation: AC6 05's phone Approve press removed (the click replaced by a wait) -> `live demo-path` red (05's fixture test failed; the step reads failed).
 
 **Planned mutations (Rule 19).** Apply each, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged, and record it as `mutation: ... -> ...`.
@@ -660,11 +694,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: `docker/tests/test-demo-path-gate.sh` (contended, an existing `docker/tests` file) pins the `browser` group's units and fails now that `live:answers` is in it (Task 22, AC4). Recommended amendment: allow the one test-file edit listed in Decided in-stage 25, or put `live:answers` in another group.
+Status: done
+Blocking condition: none
 
-- Summary: Story 6.3 is implemented and verified except for that one check. The phone shows incident and approval notices as messages with Approve and Reject, answers through 6.2's endpoint with channel `phone`, and follows an answer in place (`answered` edits the message, the first answer stays). The card announces an answer from elsewhere, the rail row jumps to the card, `NoticesIn` is the real adapterless item (`NoticesIn.Send`), `BridgeSink.Step` accepts a SessionBroken retry (DW-128, the ruled one-line edit), the new unit `live:answers` (X1-X8) pins NFR-9's bounds, and steps 4 and 5 of the demo path run on fixtures.
-- The tree is left as implemented, uncommitted, for the re-dispatch; nothing is reverted. Files: see `git status` (class files under `src/ocutalon/cls/OcuTalon/{Channel/SimPhone,Core,Data,Live/Payload,Test}`; `web/src/app/{approvals,phone,rail,devices,msg,api,live}`; `web/e2e/{answers,support,demo-path}`; `web/scripts`; `docker/tests/test-answers.sh`; `ci/units.sh`; `web/playwright.config.ts`, `web/package.json`). Footprint extensions: `Core/BridgeSink.cls` (the ruled lines only).
-- Review: 31 findings, 4 patched (the first-answer guard, the `NoticesIn` test asserts, X3's own-press announcement, the card's focus-race microtask) plus AC6's mutation run, 1 deferred (low), the rest rejected with reasons in the triage log. Follow-up review recommended: false.
-- Verification: see Measured. All `(loop)` and `(once)` lines passed except `bash ci/checks.sh` (`demo-path-gate`). `live floor` 489 s of 540 s; `live answers` 184 s locally. The warm and fresh stacks are down. Slot B holds this tree's classes.
-- Residual risks: X8's 2 s bound measured 0.95 to 1.06 s locally, with the CI hosts about 2.5 to 3 times slower (inference); the focus-race fix was seen green in two runs, not proven.
+- Summary: Story 6.3 is complete. The phone shows incident and approval notices as messages with Approve and Reject, answers through 6.2's endpoint with channel `phone`, and follows an answer in place (the first answer stays). The card announces an answer from elsewhere, the rail row jumps to the card, `NoticesIn` is the real adapterless item, `BridgeSink.Step` accepts a SessionBroken retry (DW-128), `live:answers` (X1-X8) pins NFR-9's bounds in CI group `browser`, and demo-path steps 4 and 5 run on fixtures.
+- This pass closed the two open items. The CI gate: `docker/tests/test-demo-path-gate.sh` gained `answers` in its stub-unit loop and `chmod`, and its browser group expectations cover `live:demo-path live:sign-in live:answers`. AC11 (U-122): the rail row button's accessible name is "Show in the chat: {title}" with the title exactly as shown (before, the action was lower-cased), pinned by `rail-view.test` and by X6 (exact name and `toHaveAccessibleName` of the visible text).
+- Files: see `git show --stat` of the finalize commit. The pass edited `web/src/app/rail/{rail-view,status-rail}.ts`, `web/scripts/rail-view.test.mjs`, `web/e2e/answers/answers.spec.ts`, `docker/tests/test-demo-path-gate.sh` and `Test/Core/NoticesInProduction.cls`; the rest of the story is the first pass's. Footprint extension: `Core/BridgeSink.cls` (the ruled lines only).
+- Review: the layers' 30 findings over the whole diff, in 25 triage rows: 3 patched (AC9's asynchronous send now asserted, AC4's CI-group mutation line, X6's dead array and label; patched by verdict: medium 1, low 2), 1 deferred earlier (low, in the frontmatter), the rest carried or rejected with reasons in the triage log. Follow-up review recommended: false.
+- Verification: `bash ci/checks.sh` exit 0; `npm --prefix web test` 872 passed; lint exit 0; `live answers` green twice on fresh stacks (and red with the AC11 mutation); `Test.Core.NoticesInProduction` green on a warm stack. The first pass's `(once)` runs (`shard lane-a`, `shard lane-b`, `live demo-path`, `live floor`, `live sign-in`, `live demo-switch`, `live production`) are in Measured; this pass changed no code they exercise except the rail button's name, which only X6 asserts. All throwaway stacks of tags `e6s3j` and `e6s3jw` are down.
+- Residual risks: X8's 2 s bound measured about 1 s locally, with the CI hosts about 2.5 to 3 times slower (inference); X2's race fix has now been green in five runs.

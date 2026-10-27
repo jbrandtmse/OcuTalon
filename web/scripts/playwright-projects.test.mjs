@@ -1,6 +1,6 @@
-// Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16 and 4.1), listed through the npm scripts that
+// Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16, 4.1 and 6.3), listed through the npm scripts that
 // the unit scripts call: which spec files each project runs (chromium runs every spec outside the directories that have a project of
-// their own, demo-path/, demo-switch/ and floor/; each of those projects runs exactly its own directory; and every spec on disk is
+// their own, demo-path/, demo-switch/, floor/ and answers/; each of those projects runs exactly its own directory; and every spec on disk is
 // listed by at least one of the scripts), that every demo-path spec maps to a step of demo-path-summary.mjs, the
 // form in which the report gives the floor test's tag, and that the floor script runs every floor case in Chromium and the cases tagged
 // @browsers in Firefox and WebKit. Then one run of an API spec with none of the sign-in unit's variables.
@@ -64,7 +64,7 @@ const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).s
  * The directories of web/e2e/ that have a project of their own; chromium runs everything else. A new directory goes here together
  * with its project in the config, its script in the list of the "every spec file on disk" case and an exact-listing case of its own.
  */
-const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor'];
+const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor', 'answers'];
 const inOwnProjectDir = (name) => OWN_PROJECT_DIRS.some((dir) => name.startsWith(`${dir}/`));
 
 describe('the projects, listed with no OCUTALON_ variable set', () => {
@@ -76,9 +76,10 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.ok(onDisk.some((name) => name.startsWith('demo-path/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('demo-switch/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('floor/')), onDisk.join(' '));
+    assert.ok(onDisk.some((name) => name.startsWith('answers/')), onDisk.join(' '));
   });
 
-  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/ and floor/', () => {
+  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/, floor/ and answers/', () => {
     assert.deepEqual(
       filesOf('e2e'),
       onDisk.filter((name) => !inOwnProjectDir(name)),
@@ -92,8 +93,19 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     );
   });
 
-  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch and floor scripts', () => {
-    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor'].flatMap((script) => filesOf(script)));
+  it('answers (the e2e:answers script) lists exactly the spec files inside answers/, and the chromium script none of them', () => {
+    assert.deepEqual(
+      filesOf('e2e:answers'),
+      onDisk.filter((name) => name.startsWith('answers/')),
+    );
+    assert.ok(filesOf('e2e:answers').length > 0, 'the answers project has a spec');
+    assert.deepEqual(filesOf('e2e').filter((name) => name.startsWith('answers/')), []);
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:answers'];
+    assert.equal(script, 'playwright test --project=answers');
+  });
+
+  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch, floor and answers scripts', () => {
+    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers'].flatMap((script) => filesOf(script)));
     assert.deepEqual(onDisk.filter((name) => !listedByAny.has(name)), []);
   });
 

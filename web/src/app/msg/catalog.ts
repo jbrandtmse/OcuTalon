@@ -40,6 +40,12 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'fallbackReason.generic': "the model's reply couldn't be used",
 };
 
+/** The text form of each listed key that has a web form: the wording of a message, which the phone shows. */
+export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {
+  'answered.approved': 'Approved from {channel} at {time}.',
+  'answered.approvedBy': 'Approved by {user} from {channel} at {time}.',
+};
+
 /** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, the others take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
@@ -119,6 +125,13 @@ function reasonText(value: unknown): string {
   return PAGE_TEXTS['fallbackReason.' + suffix] ?? '';
 }
 
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, the others the cleaned string. */
+function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
+  const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
+  const type = Object.hasOwn(types, name) ? types[name] : '';
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
+}
+
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
@@ -130,9 +143,29 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
-  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => {
-    const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
-    const type = Object.hasOwn(types, name) ? types[name] : '';
-    return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
-  });
+  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
+}
+
+/**
+ * The text of a catalog key in message form, the wording of a message that the phone shows: MESSAGE_TEXTS[key] where the key has
+ * one, else PAGE_TEXTS[key], with its slots filled as renderPageText fills them. Where a time slot's value, less a trailing " ET",
+ * is not NN:NN (a dated time such as "Thursday at 14:12"), an "at " just before it becomes "on ", as the server's renderer does.
+ * A key that is in neither throws.
+ */
+export function renderMessageText(key: string, slots: PageSlots = {}): string {
+  const template = Object.hasOwn(MESSAGE_TEXTS, key) ? MESSAGE_TEXTS[key] : Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
+  const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
+  let out = '';
+  let position = 0;
+  for (const match of template.matchAll(/\{([^{}]*)\}/g)) {
+    const name = match[1] ?? '';
+    const piece = slotText(types, name, slots);
+    out += template.slice(position, match.index);
+    const dated = types[name] === 'time' && !/^\d\d:\d\d$/.test(piece.replace(/ ET$/, ''));
+    if (dated && /(^| )at $/.test(out)) out = out.slice(0, -3) + 'on ';
+    out += piece;
+    position = (match.index ?? 0) + match[0].length;
+  }
+  return out + template.slice(position);
 }

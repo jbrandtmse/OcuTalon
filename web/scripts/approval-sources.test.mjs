@@ -1,4 +1,5 @@
-// Tests the shape of the approval request card's sources that Story 6.2 relies on and that no unit of the view model can see (QA): the
+// Tests the shape of the approval request card's sources that Story 6.2 relies on (and, since Story 6.3, of answer-press.ts, the press that
+// the card shares with the simulated phone's request message: its one busy state, its post of {action, channel} and its notices) and that no unit of the view model can see (QA): the
 // card's root and answer row carry the attributes that the focus rule and the New messages button read; the two buttons share one
 // busy state and are never `disabled`; Show details sits outside the pending/answered choice; every text is bound by interpolation;
 // the dry run's Before and After and each status tone read their own tokens; the call posts only {action, channel} to the answer
@@ -39,13 +40,14 @@ const rule = (css, selector) => {
 };
 
 const card = file(files, 'approval-request-card.ts');
+const press = file(files, 'answer-press.ts');
 const view = file(files, 'approval-view.ts');
 const template = literal(card, 'template');
 const styles = literal(card, 'styles');
 
 describe('the scan', () => {
   it('reads the card and the view model', () => {
-    assert.deepEqual(files.map((one) => one.name).sort(), ['approval-request-card.ts', 'approval-view.ts']);
+    assert.deepEqual(files.map((one) => one.name).sort(), ['answer-press.ts', 'approval-request-card.ts', 'approval-view.ts']);
   });
 });
 
@@ -80,7 +82,7 @@ describe('the root and the answer row', () => {
   it('moves the focus of a replaced button through the shared rule on the answer part only', () => {
     assert.match(card.code, /item: `\[\$\{PART\}="answer"\]\[\$\{KEY\}\]`/);
     assert.match(card.code, /keepFocus\(this\.host\.nativeElement, this\.injector, this\.popovers, ANSWER_RULE\)/);
-    assert.doesNotMatch(card.code, /\.focus\(|afterNextRender|autofocus/);
+    assert.doesNotMatch(card.code, /\.focus\(|autofocus/);
   });
 });
 
@@ -112,11 +114,13 @@ describe('the buttons', () => {
     assert.match(reject, /\(click\)="press\('reject'\)"/);
   });
 
-  it('share one BusyState, whose notice is announced once and which is disposed with the card', () => {
-    assert.equal((card.code.match(/new BusyState\(/g) ?? []).length, 1);
-    assert.match(card.code, /onNotice: \(\) => this\.announcer\.announce\(APPROVAL_TEXTS\.busyNotice\)/);
-    assert.match(card.code, /onDestroy\(\(\) => this\.state\.dispose\(\)\)/);
-    assert.match(card.code, /if \(!this\.state\.press\(\)\) \{\s*return;\s*\}/, 'a press while a call is out sends nothing');
+  it('share one BusyState (in answer-press.ts, the press that the card shares with the phone), whose notice is announced once and which is disposed with its host', () => {
+    assert.equal((press.code.match(/new BusyState\(/g) ?? []).length, 1);
+    assert.doesNotMatch(card.code, /BusyState/, 'the card holds none of its own');
+    assert.match(press.code, /onNotice: \(\) => options\.announcer\.announce\(APPROVAL_TEXTS\.busyNotice\)/);
+    assert.match(press.code, /options\.destroyRef\.onDestroy\(\(\) => this\.state\.dispose\(\)\)/);
+    assert.match(press.code, /if \(!this\.state\.press\(\)\) \{\s*return;\s*\}/, 'a press while a call is out sends nothing');
+    assert.doesNotMatch(press.code, /disabled/, 'and the buttons are never disabled');
   });
 
   it('describe themselves by the notice while it shows', () => {
@@ -126,12 +130,40 @@ describe('the buttons', () => {
 });
 
 describe('the call', () => {
-  it('posts only {action, channel: web} to the answer route of the request, never a session or a user', () => {
+  it('posts only {action, channel} to the answer route of the request, never a session or a user, with the channel web for the card', () => {
     const client = file(api, 'api-client.ts').code;
     const method = /answerApproval\([\s\S]*?\n  \}/.exec(client)?.[0] ?? '';
-    assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel: 'web' \}/);
+    assert.match(method, /channel: AnswerChannel = 'web'/);
+    assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel \}/);
     assert.doesNotMatch(method, /session|user/i);
-    assert.match(card.code, /\.answerApproval\(this\.view\(\)\.ref, action\)/);
+    assert.match(card.code, /answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'web',/);
+    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action\)/);
+    assert.match(press.code, /\.answer\(ref, action, this\.options\.channel\)/, 'the press posts the channel it was given');
+    assert.doesNotMatch(press.code, /session|user/i);
+  });
+
+  it('keeps the notices of a reply in one place: a late press, a missing request, a refusal or failure and no connection', () => {
+    assert.match(press.code, /case 'already':\s*return \(approval === undefined \? '' : latePressText\(approval, this\.options\.context\(\)\)\) \|\| outcome\.message;/);
+    assert.match(press.code, /case 'gone':\s*return APPROVAL_TEXTS\.gone;/);
+    assert.match(press.code, /case 'notAllowed':\s*case 'failed':\s*return outcome\.message;/);
+    assert.match(press.code, /case 'unreachable':\s*return APPROVAL_TEXTS\.busyNotice;/);
+    assert.match(press.code, /this\.replyNotice\.set\(''\);\s*const call/, 'a new press clears the notice');
+    assert.match(press.code, /if \(text !== ''\) \{\s*this\.options\.announcer\.announce\(text\);/, 'and each notice is announced once');
+  });
+});
+
+describe('an answer from elsewhere', () => {
+  it('is announced by the card once, when the store goes from pending to answered and the card has no view of its own', () => {
+    assert.match(card.code, /const pending = this\.approval\(\)\.state === 'pending';\s*untracked\(\(\) => this\.noteStore\(pending\)\);/);
+    assert.match(card.code, /if \(wasPending !== true \|\| pending \|\| this\.answer\.local\(\) !== undefined \|\| this\.answer\.busy\(\)\) \{\s*return;\s*\}/);
+    assert.equal((card.code.match(/this\.announcer\.announce\(/g) ?? []).length, 1, 'one announcement of its own');
+    assert.match(card.code, /this\.announcer\.announce\(status\.text\);/);
+  });
+
+  it('reads focus after the render, and stays silent when it is on the card\'s answer line or on the phone\'s answer line of the same request', () => {
+    assert.match(card.code, /afterNextRender\(\s*\(\) => \{[^]*?queueMicrotask\(\(\) => \{\s*const status = this\.view\(\)\.status;\s*if \(status === undefined \|\| this\.focusOnAnswer\(this\.view\(\)\.ref\)\) \{\s*return;\s*\}/);
+    assert.match(card.code, /active\.closest\(`\[\$\{PART\}="answer"\]\[\$\{KEY\}\]`\)/);
+    assert.match(card.code, /active\.closest\(`app-simulated-phone \[\$\{PART\}="answer"\]\[data-approval\]`\)\?\.getAttribute\('data-approval'\) === ref/);
   });
 });
 

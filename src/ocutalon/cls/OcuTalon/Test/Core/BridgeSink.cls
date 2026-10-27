@@ -21,8 +21,9 @@
 ///     demo's approval step needs, and an instance request still is not;
 ///   - TestApprovalNeverWaitsMoreThanASecond: an approval event waits about a second for a busy stream, as every event does; of
 ///     two watchers of an instance request, the one whose stream is free still gets its event;
-///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem: turn.step carries the running
-///     turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the item the bridge context is for;
+///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem, TestTurnStepOfARetry (DW-128):
+///     turn.step carries the running turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the
+///     item the bridge context is for, or for the SessionBroken retry of that turn (Conversation.RetryItemId of its ItemId);
 ///   - TestNeverWaitsMoreThanASecond: a stream whose lock another job holds drops the event after about a second;
 ///   - TestNeverFailsItsCaller: OnEvent returns OK for every type, owner and payload, and for a handler that throws.
 /// Every row comes from Test.Data.Fixture, and each test removes its own rows by Ref. The events are read from the fixture
@@ -498,6 +499,27 @@ Method TestTurnStepOfAnotherItem()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do $$$AssertStatusOK(..Sink("turn.step", session, payload), "after End, OnEvent returns OK")
 	Do $$$AssertEquals(..Events(session).%Size(), 2, "and with no context the running turn alone decides")
+}
+
+/// With a bridge context active for the SessionBroken retry of the running turn (the ItemId that Conversation.RetryItemId gives),
+/// a step publishes one turn.step with the turn's Ref; a context for the retry of another item publishes nothing.
+Method TestTurnStepOfARetry()
+{
+	Set session = ..Session("retry")
+	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:01Z", "running")
+	Set ..Refs = ..Refs_","_turn
+	Set itemId = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn).ItemId
+	Set payload = {"decisionRef": "ZzSinkDecision", "label": "Reading the failed message"}
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(..Request(##class(OcuTalon.Core.Conversation).RetryItemId("ZzSinkOtherItem"_..Number))), "a context for the retry of another item begins")
+	Do $$$AssertStatusOK(..Sink("turn.step", session, payload), "OnEvent returns OK")
+	Do $$$AssertEquals(..Events(session).%Size(), 0, "a step of another item's retry publishes nothing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(..Request(##class(OcuTalon.Core.Conversation).RetryItemId(itemId))), "a context for the turn's retry begins")
+	Do $$$AssertStatusOK(..Sink("turn.step", session, payload), "OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), 1, "a step of the turn's retry publishes one event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.turnRef, turn, "with the running turn's Ref")
+	Do ##class(OcuTalon.Bridge.Context).End()
 }
 
 /// A stream whose lock another job holds does not hold OnEvent up: it returns OK after about a second, which tells the

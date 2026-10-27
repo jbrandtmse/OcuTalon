@@ -49,7 +49,7 @@ const IMPORTED = [
   ['chat/page-time.ts', ['WHEN_TEXTS']],
   ['incidents/incident-view.ts', ['INCIDENT_TEXTS']],
   ['approvals/approval-view.ts', ['APPROVAL_TEXTS']],
-  ['msg/catalog.ts', ['PAGE_TEXTS']],
+  ['msg/catalog.ts', ['PAGE_TEXTS', 'MESSAGE_TEXTS']],
   ['guide/guide-view.ts', ['GUIDE_TEXTS']],
   ['feed/break-feed-view.ts', ['FEED_TEXTS']],
   ['devices/device-view.ts', ['DEVICE_TEXTS']],
@@ -376,6 +376,7 @@ const SOURCES = {
     'That request is no longer available.',
     'Approved from {channel} at {time}',
     'Approved by {user} from {channel} at {time}',
+    'Approved from {channel} at {time}.',
     'Rejected from {channel} at {time}. Nothing was changed.',
     'Expired at {time}. Nothing was changed.',
     'Already answered: approved from {channel} at {time}.',
@@ -403,6 +404,12 @@ const SOURCES = {
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
   },
   ruled: {
+    'Story 6.3 veto item V2 (the accessible name of the rail row\'s title button, "Show in the chat: {action}": the visible title is unchanged and the name contains it, WCAG 2.5.3; the UX gives the press its effect, not a name)': [
+      'Show in the chat: {action}',
+    ],
+    'Story 6.3 (the message form of the Approved-by status, the catalog\'s answered.approvedBy text form: EXPERIENCE.md ends an answered status in message text with a period, and Formats: Who answered gives the Approved-by wording)': [
+      'Approved by {user} from {channel} at {time}.',
+    ],
     'Story 6.2 veto item V2 (the texts that the UX does not write: the fixed-targets line for one, the Will resend values from mockups/states.html A1 and EXPERIENCE.md "Forms for a count of one", and "Reject: {action}" from mockups/main-page.html)': [
       'Reject: {action}',
       'Approving runs exactly this change on this {noun}, without asking the model again. New failures need their own approval.',

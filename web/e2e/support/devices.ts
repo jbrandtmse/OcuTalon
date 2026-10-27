@@ -94,6 +94,34 @@ export function phoneRows(user: string): Promise<number> {
   return sessionCount(user, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone'", 'phone rows');
 }
 
+/** A phone message as the table holds it: its Ref, the request it asks for, the answer line that replaced its buttons, and its text. */
+export interface PhoneMessage {
+  ref: string;
+  approvalRef: string;
+  answer: string;
+  text: string;
+}
+
+/**
+ * The newest phone SimMessage of the user's session that asks for this approval request (Story 6.3), or undefined when there is none.
+ * The answer is "" while the message has its buttons.
+ */
+export async function phoneMessage(user: string, approvalRef: string): Promise<PhoneMessage | undefined> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set a=##class(%SQL.Statement).%New()',
+      'Set sc=a.%Prepare("SELECT TOP 1 Ref, ApprovalRef, Answer, Text FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = \'phone\' AND ApprovalRef = ? ORDER BY ID DESC")',
+      `Set r=a.%Execute(s.Ref,${quoted(approvalRef)})`,
+      'If r.%Next() { Write !,"CHK|ref|",r.%GetData(1) Write !,"CHK|approvalRef|",r.%GetData(2) Write !,"CHK|answer|",r.%GetData(3) Write !,"CHK|text|",$Translate(r.%GetData(4),$Char(10),"\\") } Else { Write !,"CHK|none|1" }',
+    ].join('\n'),
+  );
+  if (chk(lines, 'none') === '1') return undefined;
+  const ref = chk(lines, 'ref');
+  if (!ref) throw new Error(`the phone message could not be read (${lines.join(' ')})`);
+  return { ref, approvalRef: chk(lines, 'approvalRef') ?? '', answer: chk(lines, 'answer') ?? '', text: (chk(lines, 'text') ?? '').replace(/\\/g, '\n') };
+}
+
 /** The number of SimMessage rows of kind mailbox of the user's session. */
 export function mailRows(user: string): Promise<number> {
   return sessionCount(user, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox'", 'mailbox rows');

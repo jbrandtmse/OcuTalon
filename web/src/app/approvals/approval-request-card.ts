@@ -1,21 +1,18 @@
-import { HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   ElementRef,
   Injector,
+  afterNextRender,
   computed,
   effect,
   inject,
   input,
   output,
-  signal,
   untracked,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import type { AnswerBody } from '../api/api-types';
 import { ApiClient } from '../api/api-client';
 import { pageTimeBeside, pageWhenBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
@@ -25,11 +22,11 @@ import type { ApprovalPayload } from '../live/payloads';
 import { renderPageText } from '../msg/catalog';
 import { approvalTitle } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
-import { BusyState } from '../shared/busy-state';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
 import { Popovers } from '../shared/popover';
-import { APPROVAL_TEXTS, answerOutcomeOf, approvalView, latePressText, type ApprovalContext, type AnswerOutcome } from './approval-view';
+import { AnswerPress } from './answer-press';
+import { APPROVAL_TEXTS, approvalView, type ApprovalContext } from './approval-view';
 
 /** The last id handed to a card, for the ids of its label and its notice. */
 let lastId = 0;
@@ -74,12 +71,18 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * expiry and "Nothing has changed yet." go and the dry run stays. A 4px bar on the left follows the state. Every text is bound by
  * interpolation, never as markup.
  *
- * A press sends {action, channel: 'web'} (the server takes the session from the CSP session). Both buttons go busy together on
- * one BusyState: a spinner, aria-busy and aria-disabled, never `disabled`, and a repeat press sends nothing. With no answer in
- * 10 s both are restored and the notice "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting."
- * is shown and announced; a later answer still shows and clears it. The reply is read by answerOutcomeOf: an answered, late or
- * expired reply carries the request's payload, which the card shows (and keeps while the store's own payload is still pending), a
- * late press also shows the page's "Already answered" notice, and the other replies show their notice. A notice is announced.
+ * A press sends {action, channel: 'web'} through AnswerPress (answer-press.ts, which the simulated phone's request message uses too
+ * with channel 'phone'; the server takes the session from the CSP session). Both buttons go busy together: a spinner, aria-busy and
+ * aria-disabled, never `disabled`, and a repeat press sends nothing. With no answer in 10 s both are restored and the notice
+ * "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting." is shown and announced; a later answer
+ * still shows and clears it. An answered, late or expired reply carries the request's payload, which the card shows (and keeps
+ * while the store's own payload is still pending); a late press also shows the page's "Already answered" notice, and the other
+ * replies show their notice. A notice is announced.
+ *
+ * An answer that came from elsewhere (the phone, Telegram) reaches the card as the store's payload going from pending to answered.
+ * The card then announces its status once ("Approved from the simulated phone at 14:15"), unless the card has a view of its own
+ * (its own press, or one under way) or focus, after the render, is on the card's status or on the simulated phone's answer line
+ * of this request: where the answer took focus it is already spoken.
  *
  * The card is a section that the chat's New messages button can focus (tabindex -1). Focus: when an update replaces the focused
  * Approve or Reject, the shared focus rule (shared/focus-rule.ts) puts it on the status line (tabindex -1). The card moves no
@@ -369,93 +372,82 @@ export class ApprovalRequestCard {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** The request as an answer showed it: it wins while the store's payload is still pending. */
-  private readonly local = signal<ApprovalPayload | undefined>(undefined);
+  /** The press of Approve and Reject, channel web. */
+  private readonly answer = new AnswerPress({
+    answer: (ref, action, channel) => this.api.answerApproval(ref, action, channel),
+    channel: 'web',
+    context: () => this.ctx(),
+    announcer: this.announcer,
+    destroyRef: this.destroyRef,
+  });
   /** What the card shows: the answer's request while the store's own is still pending, else the store's. */
   private readonly shown = computed(() => {
-    const answered = this.local();
+    const answered = this.answer.local();
     const stored = this.approval();
     return answered !== undefined && stored.state === 'pending' ? answered : stored;
   });
   protected readonly view = computed(() => approvalView(this.shown(), this.ctx()));
 
   /** True while a press is out: both buttons are busy. */
-  protected readonly busy = signal(false);
-  /** True after 10 s with no answer, until an answer comes or the next press. */
-  private readonly timedOut = signal(false);
-  /** The notice of the last reply, "" for none. */
-  private readonly replyNotice = signal('');
+  protected readonly busy = this.answer.busy;
   /** The notice under the row: the last reply's, else the busy notice while it is raised. */
-  protected readonly notice = computed(() => (this.replyNotice() !== '' ? this.replyNotice() : this.timedOut() ? APPROVAL_TEXTS.busyNotice : ''));
+  protected readonly notice = this.answer.notice;
 
-  private readonly state = new BusyState({
-    setTimeout: (handler, ms) => globalThis.setTimeout(handler, ms),
-    clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
-    onChange: (view) => {
-      this.busy.set(view.busy);
-      this.timedOut.set(view.notice);
-    },
-    onNotice: () => this.announcer.announce(APPROVAL_TEXTS.busyNotice),
-  });
+  /** Whether the store's payload was pending as of the last look; undefined before the first look. */
+  private wasPending: boolean | undefined;
 
   constructor() {
     effect(() => {
       this.shown();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, ANSWER_RULE));
     });
-    this.destroyRef.onDestroy(() => this.state.dispose());
+    effect(() => {
+      const pending = this.approval().state === 'pending';
+      untracked(() => this.noteStore(pending));
+    });
   }
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    if (!this.state.press()) {
+    this.answer.press(this.view().ref, action);
+  }
+
+  /**
+   * The store's payload went from pending to answered with no view of the card's own: the answer came from elsewhere. After the
+   * render and once the hosts' focus rules have restored a lost focus, the status is announced once, unless focus is on the card's status
+   * or on the phone's answer line of this request.
+   */
+  private noteStore(pending: boolean): void {
+    const wasPending = this.wasPending;
+    this.wasPending = pending;
+    if (wasPending !== true || pending || this.answer.local() !== undefined || this.answer.busy()) {
       return;
     }
-    this.replyNotice.set('');
-    const call = this.state.call;
-    this.api
-      .answerApproval(this.view().ref, action)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response: HttpResponse<AnswerBody>) => this.replied(call, response.status, response.body),
-        error: (error: unknown) =>
-          error instanceof HttpErrorResponse ? this.replied(call, error.status, error.error) : this.replied(call, 0, undefined),
-      });
+    afterNextRender(
+      () => {
+        // The other hosts' focus rules restore a lost focus in this same render pass; the decision waits until they have.
+        queueMicrotask(() => {
+          const status = this.view().status;
+          if (status === undefined || this.focusOnAnswer(this.view().ref)) {
+            return;
+          }
+          this.announcer.announce(status.text);
+        });
+      },
+      { injector: this.injector },
+    );
   }
 
-  /** The reply to the call: it ends the busy state, early or late, and shows what the reply says. */
-  private replied(call: number, status: number, body: unknown): void {
-    this.state.answered(call);
-    const outcome = answerOutcomeOf(status, body);
-    const approval = 'approval' in outcome ? outcome.approval : undefined;
-    if (approval !== undefined) {
-      this.local.set(approval);
+  /** True when focus is on the card's answer line of the request, or on the simulated phone's answer line of it. */
+  private focusOnAnswer(ref: string): boolean {
+    const active = document.activeElement;
+    if (!(active instanceof Element)) {
+      return false;
     }
-    this.notify(this.noticeOf(outcome, approval));
-  }
-
-  /** The notice that a reply shows, "" for none. */
-  private noticeOf(outcome: AnswerOutcome, approval: ApprovalPayload | undefined): string {
-    switch (outcome.kind) {
-      case 'already':
-        return (approval === undefined ? '' : latePressText(approval, this.ctx())) || outcome.message;
-      case 'gone':
-        return APPROVAL_TEXTS.gone;
-      case 'notAllowed':
-      case 'failed':
-        return outcome.message;
-      case 'unreachable':
-        return APPROVAL_TEXTS.busyNotice;
-      default:
-        return '';
+    const own = active.closest(`[${PART}="answer"][${KEY}]`);
+    if (own !== null && this.host.nativeElement.contains(own) && own.getAttribute(KEY) === ref) {
+      return true;
     }
-  }
-
-  /** Shows the notice and announces it, once; "" clears it. */
-  private notify(text: string): void {
-    this.replyNotice.set(text);
-    if (text !== '') {
-      this.announcer.announce(text);
-    }
+    return active.closest(`app-simulated-phone [${PART}="answer"][data-approval]`)?.getAttribute('data-approval') === ref;
   }
 }

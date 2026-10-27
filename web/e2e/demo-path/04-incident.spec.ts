@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 import { STATE, post, sessionEvents } from '../support/api';
-import { chk, irisScript } from '../support/iris';
-import { README_ACCOUNT, signInOverHttp } from '../sign-in/helpers';
+import { raise, refOf } from '../support/approvals';
+import { dropPhone, phoneMessage } from '../support/devices';
+import { CARD_MS, inMs } from '../support/floor';
+import { chk, cleanFixtureRows, irisScript, sendNotification } from '../support/iris';
+import { README_ACCOUNT, signInOverHttp, signInReadme } from '../sign-in/helpers';
 import { notBuilt } from './not-built';
+
+// The times of the page's texts are the instance's (UTC on a stack) and the browser's, which the case sets to the same zone and a 24-hour clock.
+test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
 const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
 const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
@@ -89,5 +95,59 @@ test("Break the feed sends the session's 50 orders, which fail for real in the O
   expect(await left(), 'one run (sent) and one batch of 50 orders after the second press').toEqual({ runs: '1:sent', headers: '50', failed: '50' });
 });
 
-notBuilt('Break the feed leads to one incident card awaiting approval, in the chat and on the simulated phone', '11.1');
+/**
+ * The incident card and the phone's notice, on fixtures for Lane A's raise path (Story 6.3, REL-2): until Epic 11 turns the
+ * real path on, the README session gets what IncidentManager will give it, an `incident` event, a pending request with its `approval`
+ * event, and the incident notice that Notify delivers to the phone (kind incident, with the request). The chat shows the request's card
+ * with Approve and Reject, the simulated phone the notice with its own Approve and Reject, and the rail counts the request. The rows and
+ * the phone's messages are removed afterwards.
+ */
+test("the incident card and the phone's notice, on fixtures for Lane A's raise path", { tag: '@fixtures' }, async ({ page }) => {
+  test.setTimeout(120_000);
+  const user = README_ACCOUNT.user;
+  const rows: string[] = [];
+  const start = inMs(-2000);
+  try {
+    await signInReadme(page);
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    const incident = refOf('D4');
+    const request = await raise(page, user, rows, incident, []);
+    await sendNotification(user, {
+      kind: 'incident',
+      catalogKey: 'incident.withFix',
+      slots: {
+        count: 50,
+        itemNoun: { one: 'order', other: 'orders' },
+        time: inMs(-120_000),
+        cause: 'Data format change',
+        fixSummary: 'repair the order date and resend 50 orders',
+        field: 'OrderDate',
+        before: '10/16/2026',
+        after: '2026-10-16',
+        resendCount: 50,
+      },
+      approvalRef: request,
+      incidentRef: incident,
+    });
+
+    const card = page.locator(`app-chat-panel [data-part="approval"][data-key="${request}"]`);
+    await expect(card, "the chat shows the request's card").toHaveCount(1, { timeout: CARD_MS });
+    await expect(card.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }), 'with Approve').toHaveCount(1);
+    await expect(card.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'and Reject').toHaveCount(1);
+
+    let ref = '';
+    await expect.poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone has the notice', timeout: CARD_MS }).not.toBe('');
+    const message = page.locator(`app-simulated-phone .notification[data-key="${ref}"]`);
+    await expect(message, 'the simulated phone shows the notice').toHaveCount(1, { timeout: CARD_MS });
+    await expect(message.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }), 'with its Approve').toHaveCount(1);
+    await expect(message.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'and its Reject').toHaveCount(1);
+
+    await expect(page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden'), 'the rail counts the request').toHaveText('Approval requests, 1');
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+notBuilt("Break the feed's real failures become that incident (IncidentManager)", '11.1');
 notBuilt('the rail shows "Approval requests (1)", and the reminder lands in the chat and on the phone during the wait', '11.1');

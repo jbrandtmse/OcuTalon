@@ -93,8 +93,9 @@ describe('the page speaks only through the Announcer', () => {
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note and the approval request card (the notices of the user\'s own press: busy, late, refused and failed)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed) and the approval request card (an answer that came from elsewhere, once)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
+      'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
@@ -134,18 +135,19 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, and for the focus rule', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
     const hosts = {
       'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
       'app/chat/chat-panel.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{PART\}\]\[\$\{KEY\}\]`/,
-      'app/devices/device-panel.ts': /const FOCUS_RULE: FocusRule = \{\};/,
+      'app/devices/device-panel.ts': /const FOCUS_RULE: FocusRule = \{\s*item: '\[data-part\]\[data-key\]',\s*keyOf: \(item\) => `\$\{item\.getAttribute\('data-part'\) \?\? ''\}:\$\{item\.getAttribute\('data-key'\) \?\? ''\}`,\s*\};/,
       'app/approvals/approval-request-card.ts': /const ANSWER_RULE: FocusRule = \{\s*item: `\[\$\{PART\}="answer"\]\[\$\{KEY\}\]`,\s*keyOf: \(item\) => item\.getAttribute\(KEY\) \?\? '',\s*\};/,
+      'app/phone/phone-request.ts': /const PHONE_ANSWER_RULE: FocusRule = \{\s*item: `\[\$\{PART\}="answer"\]\[\$\{KEY\}\]`,\s*keyOf: \(item\) => item\.getAttribute\(KEY\) \?\? '',\s*\};/,
       'app/guide/demo-guide.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{FOCUS_KEY\}\]`[\s\S]*?whenGone:/,
       'app/main-page/main-page.ts': /const LOAD_ERROR_RULE: FocusRule = \{ within: '\.load-error' \}[\s\S]*const NOTE_RULE: FocusRule = \{ within: '\.narrow-note' \}/,
     };

@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
 import type { GuideStatePayload } from '../live/payloads';
-import type { AnswerBody, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type { AnswerBody, AnswerChannel, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -53,12 +53,13 @@ export class ApiClient {
   }
 
   /**
-   * Answers an approval request from the web chat: a POST of {action, channel: 'web'} (the session is the caller's, never in the body).
+   * Answers an approval request: a POST of {action, channel} (the session is the caller's, never in the body); the channel is 'web'
+   * for the chat's request card and 'phone' for the simulated phone's message.
    * The whole response is observed: 200 is the answered request (AnswerBody); a 4xx or 5xx fails as an HttpErrorResponse whose
    * `error` is the body, which for a 409 also holds the request's payload (AnswerError).
    */
-  answerApproval(ref: string, action: 'approve' | 'reject'): Observable<HttpResponse<AnswerBody>> {
-    return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel: 'web' }, { observe: 'response' });
+  answerApproval(ref: string, action: 'approve' | 'reject', channel: AnswerChannel = 'web'): Observable<HttpResponse<AnswerBody>> {
+    return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel }, { observe: 'response' });
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

@@ -1,7 +1,8 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
 // check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
 // catalog, the 12 banner and action keys with their slot types (Story 2.10), the nine answered keys with their channel and text
-// slots (Story 6.2), and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs,
+// slots (Story 6.2), the message form of the answered texts (Story 6.3: MESSAGE_TEXTS and renderMessageText, with the dated
+// time's "on"), and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs,
 // the time, cost, count and text slots that take the caller's string, the channel slot that gives a channel's name, and each way
 // the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
 // block or CHANNELNAMES parameter, a reason with no text) and a stale file.
@@ -151,6 +152,49 @@ describe('the answered texts', () => {
   });
 });
 
+describe('the message form', () => {
+  const clock = { time: '14:15' };
+
+  it('holds the text form of the listed keys that have a web form, and nothing else', () => {
+    assert.deepEqual({ ...real.MESSAGE_TEXTS }, {
+      'answered.approved': 'Approved from {channel} at {time}.',
+      'answered.approvedBy': 'Approved by {user} from {channel} at {time}.',
+    });
+  });
+
+  it('reads as the server renders the phone text, with the channel by its name', () => {
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'phone', ...clock }), 'Approved from the simulated phone at 14:15.');
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'web', ...clock }), 'Approved from the web chat at 14:15.');
+    assert.equal(real.renderMessageText('answered.approvedBy', { user: 'zzsam', channel: 'telegram', ...clock }), 'Approved by zzsam from Telegram at 14:15.');
+    assert.equal(real.renderMessageText('answered.rejected', { channel: 'phone', ...clock }), 'Rejected from the simulated phone at 14:15. Nothing was changed.');
+    assert.equal(real.renderMessageText('answered.rejectedBy', { user: 'zzsam', channel: 'web', ...clock }), 'Rejected by zzsam from the web chat at 14:15. Nothing was changed.');
+    assert.equal(real.renderMessageText('answered.expired', { time: '14:13' }), 'Expired at 14:13. Nothing was changed.');
+  });
+
+  it('turns the "at" before a dated time into "on", as the renderer does, and leaves a clock time and the online demo\'s ET alone', () => {
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'web', time: 'Thursday at 14:12' }), 'Approved from the web chat on Thursday at 14:12.');
+    assert.equal(real.renderMessageText('answered.rejected', { channel: 'phone', time: 'Oct 16, 2026 at 14:12' }), 'Rejected from the simulated phone on Oct 16, 2026 at 14:12. Nothing was changed.');
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'web', time: '14:12 ET' }), 'Approved from the web chat at 14:12 ET.');
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'web', time: 'Thursday at 14:12 ET' }), 'Approved from the web chat on Thursday at 14:12 ET.');
+    assert.equal(real.renderMessageText('answered.expired', { time: 'tomorrow at 14:12' }), 'Expired on tomorrow at 14:12. Nothing was changed.');
+  });
+
+  it('falls back to the page text for a key with no message form, and throws for an unknown key', () => {
+    assert.equal(real.renderMessageText('answered.alreadyApproved', { channel: 'web', ...clock }), real.renderPageText('answered.alreadyApproved', { channel: 'web', ...clock }));
+    assert.equal(real.renderMessageText('answered.alreadyApproved', { channel: 'web', ...clock }), 'Already answered: approved from the web chat at 14:15.');
+    assert.equal(real.renderMessageText('answered.alreadyApproved', { channel: 'web', time: 'Thursday at 14:12' }), 'Already answered: approved from the web chat on Thursday at 14:12.');
+    assert.equal(real.renderMessageText('checks.allPassed'), 'Everything I checked passed.');
+    assert.throws(() => real.renderMessageText('zz.unknown'), /no catalog text for 'zz.unknown'/);
+    assert.throws(() => real.renderMessageText('constructor'), /no catalog text/);
+  });
+
+  it('fills in one pass: a value is never a placeholder or a replacement pattern, and a non-time slot named like a time never makes an "on"', () => {
+    assert.equal(real.renderMessageText('answered.approvedBy', { user: '{time}', channel: 'web', time: '$&' }), 'Approved by {time} from the web chat on $&.');
+    assert.equal(real.renderMessageText('answered.approvedBy', { user: 'at', channel: 'web', ...clock }), 'Approved by at from the web chat at 14:15.');
+    assert.equal(real.renderMessageText('answered.approved', { channel: 'web' }), 'Approved from the web chat on .', 'a missing time is not a clock time');
+  });
+});
+
 describe('the check sentences', () => {
   it('read as the UX words them, from the Watch catalog', () => {
     assert.equal(real.renderPageText('checks.allPassed'), 'Everything I checked passed.');
@@ -287,6 +331,9 @@ describe('the generator on a fixture', () => {
     assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
     assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS]);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
+    assert.deepEqual({ ...module.MESSAGE_TEXTS }, { 'answered.approved': 'Yes from {channel} at {time}.' }, 'the text form of the one listed key with a web form');
+    assert.equal(module.renderMessageText('answered.approved', { channel: 'phone', time: 'Monday at 09:00' }), 'Yes from the simulated phone on Monday at 09:00.');
+    assert.equal(module.renderMessageText('answered.rejected', { channel: 'phone', time: '09:00' }), 'No from the simulated phone at 09:00.');
     assert.deepEqual({ ...module.PAGE_SLOTS['banner.costCap'] }, { cap: 'cost', time: 'time' });
     assert.deepEqual({ ...module.PAGE_SLOTS['banner.allowance'] }, { limit: 'count', time: 'time' });
     assert.deepEqual({ ...module.PAGE_SLOTS['conversation.turnFallback'] }, { fallbackReason: 'fallbackReason' });
@@ -319,6 +366,15 @@ describe('the generator on a fixture', () => {
     assert.equal(module.renderPageText('banner.costCap', { cap: '$&', time: "$'" }), "Limit $& until $'.", 'and not as a replacement pattern');
     assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: 'timeout' }), "I couldn't answer that: it timed out. Nothing was changed.");
     assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: '17:30' }), "I couldn't answer that: it failed. Nothing was changed.");
+  });
+
+  it('fails on an entry whose text form uses a placeholder it does not declare, or has a stray brace', () => {
+    for (const [name, text] of [['undeclared', 'Yes {nobody} at {time}.'], ['brace', 'Yes } at {time}.']]) {
+      const entries = { ...GOOD, 'answered.approved': { ...GOOD['answered.approved'], text } };
+      const r = run(...fixture(`message-${name}`, { entries }));
+      assert.equal(r.status, 1, name);
+      assert.match(r.stderr, /answered\.approved/, name);
+    }
   });
 
   it('writes a non-ASCII character of a text as an escape sequence', async () => {

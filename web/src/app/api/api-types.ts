@@ -82,6 +82,9 @@ export interface MailboxAccepted {
 /** POST /ocutalon/api/v1/guide/markers: the guide's two UI markers (Story 4.7). The session is the caller's; the body never names one. */
 export type GuideMarker = 'trace_opened' | 'run_again';
 
+/** The channels a page answers an approval request from: the chat's request card, and the simulated phone's message. */
+export type AnswerChannel = 'web' | 'phone';
+
 /** POST /ocutalon/api/v1/approvals/:ref/answer: the body of the 200 answer, the answered request. The session is the caller's; the body never names one. */
 export interface AnswerBody {
   result: 'done';

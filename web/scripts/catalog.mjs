@@ -15,7 +15,10 @@
 // bannerAction.* texts the page renders (installYourself, howToSetKey and setUpBot), the nine answered.* texts (approved,
 // approvedBy, rejected, rejectedBy, expired, alreadyApproved, alreadyRejected, alreadyApprovedBy and alreadyRejectedBy) and every
 // fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each
-// listed key), REASON_KEYS, CHANNEL_NAMES and renderPageText. A fallbackReason slot renders as its reason text and a channel slot
+// listed key), MESSAGE_TEXTS (the text form of each listed key that has a web form: the wording of a message, which the phone
+// shows), REASON_KEYS, CHANNEL_NAMES, renderPageText and renderMessageText. renderMessageText fills MESSAGE_TEXTS[key], else
+// PAGE_TEXTS[key], as renderPageText does, and applies the renderer's rule for a dated time: where a time slot's value (less a
+// trailing " ET") is not NN:NN, a preceding "at " becomes "on ", as in "Approved from the web chat on Thursday at 14:12.". A fallbackReason slot renders as its reason text and a channel slot
 // as the channel's name (a code that is not in CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string
 // the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned like any string slot.
 //
@@ -158,7 +161,16 @@ function pageText(key, entry, file) {
     if (!Object.hasOwn(slots, match[1])) throw new CatalogError(file, 0, `the text of '${key}' uses {${match[1]}}, which the entry does not declare as a slot`);
   }
   if (/[{}]/.test(text.replace(/\{[^{}]*\}/g, ''))) throw new CatalogError(file, 0, `the text of '${key}' has a brace that is not a {name} placeholder`);
-  return { text, slots };
+  let message;
+  if ('web' in entry) {
+    message = entry.text;
+    if (typeof message !== 'string' || message === '') throw new CatalogError(file, 0, `the entry '${key}' has no text`);
+    for (const match of message.matchAll(/\{([^{}]*)\}/g)) {
+      if (!Object.hasOwn(slots, match[1])) throw new CatalogError(file, 0, `the text of '${key}' uses {${match[1]}}, which the entry does not declare as a slot`);
+    }
+    if (/[{}]/.test(message.replace(/\{[^{}]*\}/g, ''))) throw new CatalogError(file, 0, `the text of '${key}' has a brace that is not a {name} placeholder`);
+  }
+  return { text, slots, message };
 }
 
 /** A string as a TypeScript literal in printable ASCII, single-quoted unless it holds a ' and no ": other characters are written as escape sequences. */
@@ -200,6 +212,13 @@ function reasonText(value: unknown): string {
   return PAGE_TEXTS['fallbackReason.' + suffix] ?? '';
 }
 
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, the others the cleaned string. */
+function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
+  const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
+  const type = Object.hasOwn(types, name) ? types[name] : '';
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
+}
+
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
@@ -211,11 +230,31 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
-  return template.replace(/\\{([^{}]*)\\}/g, (_placeholder: string, name: string) => {
-    const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
-    const type = Object.hasOwn(types, name) ? types[name] : '';
-    return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
-  });
+  return template.replace(/\\{([^{}]*)\\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
+}
+
+/**
+ * The text of a catalog key in message form, the wording of a message that the phone shows: MESSAGE_TEXTS[key] where the key has
+ * one, else PAGE_TEXTS[key], with its slots filled as renderPageText fills them. Where a time slot's value, less a trailing " ET",
+ * is not NN:NN (a dated time such as "Thursday at 14:12"), an "at " just before it becomes "on ", as the server's renderer does.
+ * A key that is in neither throws.
+ */
+export function renderMessageText(key: string, slots: PageSlots = {}): string {
+  const template = Object.hasOwn(MESSAGE_TEXTS, key) ? MESSAGE_TEXTS[key] : Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
+  const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
+  let out = '';
+  let position = 0;
+  for (const match of template.matchAll(/\\{([^{}]*)\\}/g)) {
+    const name = match[1] ?? '';
+    const piece = slotText(types, name, slots);
+    out += template.slice(position, match.index);
+    const dated = types[name] === 'time' && !/^\\d\\d:\\d\\d$/.test(piece.replace(/ ET$/, ''));
+    if (dated && /(^| )at $/.test(out)) out = out.slice(0, -3) + 'on ';
+    out += piece;
+    position = (match.index ?? 0) + match[0].length;
+  }
+  return out + template.slice(position);
 }
 `;
 
@@ -238,14 +277,17 @@ export function generate(opts) {
   const channels = readChannelNames(catalogText, catalogName);
 
   const texts = new Map();
+  /** The text form of each listed key that has a web form. */
+  const messages = new Map();
   /** The slot types of each listed key, in the listed order. */
   const slotTypes = new Map();
   for (const key of LISTED_KEYS) {
     if (!entries.has(key)) throw new CatalogError(`${coreName} and ${watchName}`, 0, `the key '${key}', which the page renders, is missing`);
     const { entry, file } = entries.get(key);
-    const { text, slots } = pageText(key, entry, file);
+    const { text, slots, message } = pageText(key, entry, file);
     texts.set(key, text);
     slotTypes.set(key, slots);
+    if (message !== undefined) messages.set(key, message);
   }
   for (const [key, { entry, file }] of entries) {
     if (!key.startsWith(REASON_PREFIX)) continue;
@@ -265,6 +307,7 @@ export function generate(opts) {
   if (!texts.has(`${REASON_PREFIX}generic`)) throw new CatalogError(coreName, 0, `the key '${REASON_PREFIX}generic', which stands for an unknown reason, is missing`);
 
   const textLines = [...texts].map(([key, text]) => `  ${quote(key)}: ${quote(text)},`);
+  const messageLines = [...messages].map(([key, text]) => `  ${quote(key)}: ${quote(text)},`);
   const slotLines = [...slotTypes].map(([key, slots]) => `  ${quote(key)}: { ${Object.entries(slots).map(([name, type]) => `${quote(name)}: ${quote(type)}`).join(', ')} },`.replace('{  }', '{}'));
   const reasonLines = reasons.map(([value, suffix]) => `  ${quote(value)}: ${quote(suffix)},`);
   const channelLines = channels.map(([code, name]) => `  ${quote(code)}: ${quote(name)},`);
@@ -273,6 +316,9 @@ export function generate(opts) {
     '',
     '/** The page wording of each catalog key that the page renders, with {name} placeholders for its slots. */',
     `export const PAGE_TEXTS: Readonly<Record<string, string>> = {\n${textLines.join('\n')}\n};`,
+    '',
+    '/** The text form of each listed key that has a web form: the wording of a message, which the phone shows. */',
+    `export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {\n${messageLines.join('\n')}\n};`,
     '',
     '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, the others take the formatted string the caller passes. */',
     `export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n${slotLines.join('\n')}\n};`,
