@@ -1,0 +1,12 @@
+{
+  "name": "mail-digest",
+  "match": {
+    "marker": "mail-digest"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock keeps this email for the digest.\"],\"confidence\":0.8}"
+    }
+  ]
+}

@@ -2286,7 +2286,7 @@ So that my install shows the demo features only when I want them, and the change
 **Then** `OcuTalon.Core.Admin` submits the change through `Commands.Submit` with origin `system`, and `CommandsIn` passes it to `SettingsOps`, which writes the demo-mode value in `OcuTalon.Data.Setting`, writes a `Settings` entry to the IRIS audit log through `OcuTalon.Bridge.Audit` with the time, my IRIS user and the change, runs `OcuTalon.Install.Step.Demo` to create OCUORDERS, the OCUORDERS trace application `/ocutalon/trace/ocuorders/` and the OCUORDERS grants of `OcuTalonTraceViewer` (which the Demo step also adds back on every start with demo mode on, after the role step has rebuilt the role) and start the Orders production (on), or stop it and remove those grants, that trace application and OCUORDERS (off), and returns a `CommandResult` that the terminal prints in plain English (FR-9, FR-16, AD-3, AD-17, AD-19, AD-23, AD-24)
 **And** a test reads the audit entry back from the IRIS audit log, polling with a timeout (FR-9, AD-17)
 
-**Given** I don't hold `OcuTalonAdmin`
+**Given** I hold neither `OcuTalonAdmin` nor `%All` (a terminal caller holding `%All` is accepted like an `OcuTalonAdmin` holder, and its audit entry still names the person) [AMENDED 2026-10-26, Story 4.6, U-72, decided by the Contest Planner under the owner's delegation; it read "**Given** I don't hold `OcuTalonAdmin`"; the web endpoints stay `OcuTalonAdmin` only]
 **When** I run the same command
 **Then** it refuses with a plain-English message that the OcuTalon admin role is needed, submits nothing and changes nothing (FR-16, AD-19)
 
@@ -2465,6 +2465,7 @@ So that I see the quiet outcomes, and that an email can't make OcuTalon act.
 **Given** a simulated incoming email and a message OcuTalon sends to the simulated mailbox
 **When** they are opened in Visual Trace
 **Then** each travels as a production message through `SimMailboxIn` or `SimMailboxOut` and looks exactly as a real channel's message would, with no field revealing that it is simulated beyond the channel's name (FR-13, NFR-20)
+- DW-275: U-72 (owner decision, decided by the Contest Planner under the owner's delegation): the terminal command `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)` accepts a caller holding `OcuTalonAdmin` OR `%All`; every other caller is refused as now, the web endpoints stay `OcuTalonAdmin` only, the audit entry still names the person (`ActingUser`), and a change whose audit entry cannot be written is still refused; tests: `%All` accepted, `OcuTalonAdmin` accepted, neither refused (AD-19's terminal entry, amended 2026-10-26) (ledger; routed by owner_decision 2026-10-26)
 
 ### Story 4.7: Finish the demo guide
 
@@ -2502,6 +2503,7 @@ So that I finish the demo in about two minutes and know what I saw.
 **When** this epic's page parts are on the integration branch
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
 - DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
+- DW-215: Guide.Compute could report finished true together with step 4 current and a rejected, fallback or no_fix variant if a resolved incident keeps that OpenVariant (unverified until Story 5.5's IncidentManager exists): when this story renders the finish state and the step 4 hints, make the finish condition exclude an incident whose variant is rejected, fallback or no_fix, or prove with a test that a resolved incident never keeps one (ledger; routed by cr 2026-10-25)
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 

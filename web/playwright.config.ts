@@ -4,9 +4,11 @@ import { defineConfig, devices } from '@playwright/test';
  * Browser specs against a running stack. OCUTALON_URL is its origin, for example http://127.0.0.1:52800; the specs
  * open paths below it, such as /ocutalon/. One worker: the specs share one IRIS instance and its licence.
  *
- * Five projects:
- *   chromium       every spec under e2e/ except e2e/demo-path/ and e2e/floor/ (the sign-in and API units), Desktop Chrome;
+ * Six projects:
+ *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/ and e2e/floor/ (the sign-in and API units), Desktop Chrome;
  *   demo-path      the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh), Desktop Chrome;
+ *   demo-switch    the badge, guide, phone and mailbox specs of e2e/demo-switch/ (the demo-switch unit, docker/tests/test-demo-switch.sh, which names the stack's
+ *                  demo mode in OCUTALON_E2E_DEMO_MODE), Desktop Chrome;
  *   floor          the accessibility floor's specs of e2e/floor/ (the floor unit, docker/tests/test-floor.sh), Desktop Chrome: every case;
  *   floor-firefox  the floor cases tagged @browsers, in Desktop Firefox;
  *   floor-webkit   the floor cases tagged @browsers, in Desktop Safari (WebKit).
@@ -35,10 +37,11 @@ export default defineConfig({
     {
       name: 'chromium',
       testDir: './e2e',
-      testIgnore: ['**/e2e/demo-path/**', '**/e2e/floor/**'],
+      testIgnore: ['**/e2e/demo-path/**', '**/e2e/demo-switch/**', '**/e2e/floor/**'],
       use: { ...devices['Desktop Chrome'] },
     },
     { name: 'demo-path', testDir: './e2e/demo-path', use: { ...devices['Desktop Chrome'] } },
+    { name: 'demo-switch', testDir: './e2e/demo-switch', use: { ...devices['Desktop Chrome'] } },
     { name: 'floor', testDir: './e2e/floor', use: { ...devices['Desktop Chrome'] } },
     { name: 'floor-firefox', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Firefox'] } },
     { name: 'floor-webkit', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Safari'] } },

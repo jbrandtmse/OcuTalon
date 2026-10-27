@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { STATE } from '../support/api';
 import { chk, fixtureUser, irisScript, setTraceSettings, type TraceSettings } from '../support/iris';
-import { TRACE_PAGE, ceil, drawnMessages, expectDrawn, newestTurn, openTrace, postTurn, type Cursor } from '../support/trace';
+import { TRACE_PAGE, ceil, drawnMessages, expectDrawn, newestTurn, openTrace, postTurn, signOutTrace, type Cursor } from '../support/trace';
 import { signInOverHttp } from '../sign-in/helpers';
 
 /**
@@ -122,6 +122,11 @@ test.beforeAll(async ({ playwright }) => {
 test.afterAll(async () => {
   await unseed(thread);
   await api?.dispose();
+});
+
+/** A trace-application page holds a licence connection for its user until its session ends (DW-146), so every case signs it out when it ends. */
+test.afterEach(async ({ page }) => {
+  await signOutTrace(page.request);
 });
 
 /** T1: the link to a late turn of a thread of more than 40 items opens Visual Trace on that turn, events shown. */

@@ -354,8 +354,10 @@ describe('the real specs, run without their floor test', () => {
     assert.match(printed, /^\s*-\s+\d+ \[demo-path\] \u203a /m, printed.slice(0, 500));
     assert.match(printed, /^\s*\d+ skipped$/m, printed.slice(0, 500));
     const { lines, failures } = summarizeFile(json);
-    assert.deepEqual(failures, ['step 1 page has no @floor test']);
+    // Every part of step 1 is a floor test (Story 4.7), so without the floor the step has no test in the report at all.
+    assert.deepEqual(failures, ['step 1 page has no 01-page.spec.ts in the report']);
     for (const [i, id] of STEPS.entries()) {
+      if (i === 0) continue;
       assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${id}: skipped, 0 passed, [1-9]\\d* skipped \\(Story \\d+\\.\\d+: `));
     }
   });

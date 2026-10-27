@@ -1,5 +1,7 @@
-// Tests of the five Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14 and 2.16), listed through the npm scripts that
-// the unit scripts call: which spec files each project runs, that every demo-path spec maps to a step of demo-path-summary.mjs, the
+// Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16 and 4.1), listed through the npm scripts that
+// the unit scripts call: which spec files each project runs (chromium runs every spec outside the directories that have a project of
+// their own, demo-path/, demo-switch/ and floor/; each of those projects runs exactly its own directory; and every spec on disk is
+// listed by at least one of the scripts), that every demo-path spec maps to a step of demo-path-summary.mjs, the
 // form in which the report gives the floor test's tag, and that the floor script runs every floor case in Chromium and the cases tagged
 // @browsers in Firefox and WebKit. Then one run of an API spec with none of the sign-in unit's variables.
 // No browser starts and no stack is needed, none of the sign-in unit's OCUTALON_ variables is set, and the run writes its
@@ -58,21 +60,41 @@ const reportOf = (script) => (listed[script] ??= listedReport(script));
 /** The spec files that an npm script lists, in the config's own terms (relative to e2e/). */
 const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).sort();
 
+/**
+ * The directories of web/e2e/ that have a project of their own; chromium runs everything else. A new directory goes here together
+ * with its project in the config, its script in the list of the "every spec file on disk" case and an exact-listing case of its own.
+ */
+const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor'];
+const inOwnProjectDir = (name) => OWN_PROJECT_DIRS.some((dir) => name.startsWith(`${dir}/`));
+
 describe('the projects, listed with no OCUTALON_ variable set', () => {
   const onDisk = specFilesOnDisk();
 
-  it('finds the sign-in, API, demo-path and floor specs on disk', () => {
+  it('finds the sign-in, API, demo-path, demo-switch and floor specs on disk', () => {
     assert.ok(onDisk.some((name) => name.startsWith('sign-in/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('api/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('demo-path/')), onDisk.join(' '));
+    assert.ok(onDisk.some((name) => name.startsWith('demo-switch/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('floor/')), onDisk.join(' '));
   });
 
-  it('chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/', () => {
+  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/ and floor/', () => {
     assert.deepEqual(
       filesOf('e2e'),
-      onDisk.filter((name) => !name.startsWith('demo-path/') && !name.startsWith('floor/')),
+      onDisk.filter((name) => !inOwnProjectDir(name)),
     );
+  });
+
+  it('demo-switch (the e2e:demo-switch script) lists exactly the spec files inside demo-switch/', () => {
+    assert.deepEqual(
+      filesOf('e2e:demo-switch'),
+      onDisk.filter((name) => name.startsWith('demo-switch/')),
+    );
+  });
+
+  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch and floor scripts', () => {
+    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor'].flatMap((script) => filesOf(script)));
+    assert.deepEqual(onDisk.filter((name) => !listedByAny.has(name)), []);
   });
 
   it('floor (the e2e:floor script) lists exactly the spec files inside floor/', () => {
@@ -104,6 +126,9 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
       'signs in with the README account and loads the page snapshot',
       'shows the empty chat panel and the composer',
       'shows the status rail with its sections, counts and empty states',
+      'the simulated phone and the simulated mailbox, each labelled Simulated',
+      'the demo guide lists the steps, each with its one-click prompt',
+      'Break the feed is marked as a demo control',
     ]);
   });
 });
@@ -159,9 +184,9 @@ describe('the floor script runs the floor in three engines (Story 2.16)', () => 
     assert.deepEqual(titlesOf('floor-webkit'), tagged);
   });
 
-  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U4 and E1 to E3', () => {
+  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U4, E1 to E3, M1, M2, D1 and D6', () => {
     const ids = tagged.map((title) => /^[^:]+: ([A-Z]\d)/.exec(title)?.[1]);
-    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'U4', 'E1', 'E2', 'E3']) {
+    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'U4', 'E1', 'E2', 'E3', 'M1', 'M2', 'D1', 'D6']) {
       assert.ok(ids.includes(id), `${id} is tagged @browsers: ${tagged.join(' | ')}`);
     }
     assert.equal(ids.filter((id) => id === 'K2').length, 1, 'only the first K2 case is tagged');

@@ -50,6 +50,7 @@ export const CHAT_TEXTS = {
   emptyWatches: 'It watches your productions from inside IRIS, and every decision is a production message you can trace.',
   emptyRisky: 'Anything risky waits for your approval.',
   emptyAsk: 'Ask OcuTalon to watch a production, set a reminder, or say what you need.',
+  emptyDemo: 'Start with step 1 of the demo guide above.',
   chipIgnore: 'Ignore',
   chipDigest: 'Digest',
   chipTellNow: 'Tell now',
