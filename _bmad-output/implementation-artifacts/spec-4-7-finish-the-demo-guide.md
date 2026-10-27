@@ -676,6 +676,17 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 
 Every test added or changed passes on a fresh environment, in either order.
 
+**QA stage (QA).** Tests added to existing files (no new class or spec file, so `ci/units.sh` is unchanged):
+- `src/ocutalon/cls/OcuTalon/Test/Demo/Guide.cls` `TestRunTotalModels` (QA): row 11, the models in the order of first use, once each, an unnamed id as it is, a row before `RunStartedAt` not listed.
+- `web/e2e/floor/guide.spec.ts` M12 (QA): rows 1 and 3, Show me with no pending notification focuses the phone feed; Go to Break the feed focuses an inactive box and presses nothing.
+- `web/e2e/floor/guide.spec.ts` M13 (QA): rows 5, 7, 8 and 9, a failed `trace_opened` write adds no text and is written again by the next press; a finish with no turn has no conversation link and a zero run total with no model; a failed Run again leaves the finish.
+- mutation (QA, AC5): `Models.Insert` -> `Models.InsertAt(..., 1)` in `Guide.Compute` -> red: `TestRunTotalModels`.
+- mutation (QA, AC2; `live floor`): Show me without the phone-feed fallback (`message?.focus()` only) -> red: M12.
+- mutation (QA, AC3; `live floor`): `mark` sets the view finished before the write -> red: M13 ("the failed write adds no text").
+- mutation (QA, AC1; `live floor`): `goToBreakFeed` focuses only an active button -> red: M12 ("the inactive button takes focus").
+- mutation (QA, AC6; `live floor`): a failed Run again sets `finished` false on the held view -> red: M13 ("the finish stays"; M13 holds the page's polls for this step, because a live view otherwise put the held view right within the 1.5 s wait and the first version of the case stayed green).
+- `live floor` with M12 and M13: 99 passed, 313-333 s.
+
 ## Auto Run Result
 
 Status: done
