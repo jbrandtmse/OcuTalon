@@ -2,7 +2,8 @@
 title: 'Story 8.6: Reminders through the chat on the demo path'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '99931c0368f1974776296c0889c1472cde59886f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -261,6 +262,31 @@ Web:
 
 ## Review Triage Log
 
+### 2026-10-27 - Review pass
+- verdicts: 31 findings reported by the four layers, 21 rows (findings with one root cause share a row and name their layers) - high 0, medium 5, low 10, false 6, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: the AC 4 mutation line contradicts Decided 16 (green vs red with `playwrightEnv()` reverted); Gap: the `playwrightEnv()` fix has no red-proving mutation; Intent: DW-210's evidence is not shown -- fixed: ran the isolating mutation (a hook-free `page` test that skips in its body: red with the fix, green with it removed), recorded it in `## Verification`, rewrote Decided 16 and the AC 4 line.
+  - `[medium]` `[patch]` Blind, Edge, Gap: 03's `afterAll` passes when `CancelPending` returns 0 (`/^\d+$/`), so a failed cancel lets the reminder fire in steps 4-6 -- fixed: asserts the count is at least 1.
+  - `[medium]` `[patch]` Blind, Edge: 03 restores the keys without `WaitRecords`, which the run rules require for any spec that points them -- fixed: `WaitRecords` must be 1 after `restoreKeys`, in a `finally`.
+  - `[medium]` `[patch]` Blind, Edge, Gap: `chat.spec.ts` C1 keeps its Ref only after the reply and row assertions, so an early failure leaks a 2030 reminder with a live waiter -- fixed: `afterEach` also removes every row whose Text is the Thursday text.
+  - `[medium]` `[patch]` Edge, Gap: `AssertToolSteps`' "no header outside the trace session" is vacuous when the steps have no headers -- fixed: also asserts every step has a header inside the session (`ReminderChat` passes warm and in both shards).
+  - `[low]` `[patch]` Intent, Gap: the unit test does not pin `Story 8.6` for step 3 (the matrix row and AC 4 name it) -- fixed: one assertion on the step 3 line.
+  - `[low]` `[reject]` Blind, Gap: `chat.spec.ts` ignores the `CHK|removed` and `CHK|next` lines -- both print a constant, and a script error already fails `irisScript`; a check would add code for no new failure mode.
+  - `[low]` `[reject]` Blind, Edge, Gap: `ReminderOpsFixedRef.Use()` cannot recover a swap left by a crashed run, and `Restore()` kills the stored class even when the restore fails -- needs a crash between `Use` and `Restore` on a reused stack; the spec fixes both behaviours ("it always kills both nodes"), and throwaways are fresh.
+  - `[low]` `[reject]` Blind: AD-4 is checked through the list, not by a cancel of B's Ref from A -- the AC pins the list's scope and B's untouched state, and the cancel's ownership check is 8.4's.
+  - `[low]` `[reject]` Blind, Gap: no mutation lines for `CancelPending`, `RemoveAll`, `Restore`, or for C1 and the rail, waiter and B-isolation bullets -- Rule 19 asks one mutation per AC, and each AC has one (AC 1 has two).
+  - `[low]` `[reject]` Blind: the `test-demo-path.sh` line is long and reads oddly -- the spec fixes that exact edit and forbids re-wrapping (Q4).
+  - `[low]` `[reject]` Edge: `CancelPending` when `Ownership.Reminders` returns "" -- the Output status is unreachable for a session that exists, and a raise fails the `afterAll` loudly.
+  - `[low]` `[reject]` Gap: C2 depends on nothing else consuming the stored Ref between `Next` and the send -- the failure would be loud (the row with the fixed Ref would not show), never a false green, and the file runs serially.
+  - `[low]` `[reject]` Gap: no in-process test of `Restore()` after a failed `Use()` -- the swap runs only in throwaways and is exercised end to end by `ReminderChat` and `chat.spec.ts`.
+  - `[false]` `[reject]` Edge: the `DueAt` bounds could be flaky on second resolution -- `before` is taken before the send and `after` after the turn, so both bounds hold under truncation.
+  - `[false]` `[reject]` Edge: `PLAYWRIGHT_BROWSERS_PATH` could mask an ungated spec as a skip regression -- the isolating mutation shows the failure is the late skip, which is the intended signal.
+  - `[false]` `[reject]` Gap: line 521's two history copies could both be "none" -- line 517 compares with the fixed Ref first.
+  - `[false]` `[reject]` Gap: `ReplyText_"|"_FallbackReason` compared with a literal ending in `|` -- the reviewer found it sound.
+  - `[false]` `[reject]` Intent: NFR-10 strict reading against the `DueAt` window -- the spec prescribes the window; it is arithmetic, not a wait.
+  - `[false]` `[reject]` Intent: the rail and step 2 are read through `StateBody`, and the cancel through the fixture, in `ReminderChat` -- the spec prescribes both; the page specs cover the page surface.
+  - `[low]` `[reject]` Gap: C1's countdown shape relies on `page-time.ts` having no day unit -- checked by the passing `live:sign-in` run and the fixed 2030 date; no new work.
+
 ## Design Notes
 
 **Rulings in force (dispatch, 2026-10-27):**
@@ -328,6 +354,11 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
    - The loader refuses a second prompt scenario, and the two new files are marker scenarios.
 10. **The triage fallback of a guide turn is a CI-mock artefact.** The mock serves every request that holds the prompt from one scenario. It is recorded for Story 11.1, which checks UJ-1 end to end, and is not changed here: the selection is contended and Triage is Lane A's.
 11. **03's reply assertion** uses the reply text, not the `clientId`. The guide's Send has no POST capture in 03, and the README chat holds no other reply.
+12. **A created event has the state `pending`.** The payload's `state` is the reminder's state, as `Test.Schedule.Reminders` reads it (`pending`, then `cancelled`), so `ReminderChat` asserts `pending` and `pending,cancelled` where the spec says "created".
+13. **Tool results carry the session's history.** A later turn of the same session sends the earlier set tool's answer as its first `tool_result`. In `TestCancelThroughChat`, request 2 holds two results (the set's, then the list) and request 3 three (the set's, the list, the cancel); the test reads the last of request 2 as the list and the last of request 3 as the cancel.
+14. **Thursday has an independent oracle.** `FromLocal` is both the product's conversion and the test's, so a fault in it would cancel out. `TestThursdaySetsLocalReminder` also asserts `ToLocal(DueAt)` = `2030-11-07T10:00:00`.
+15. **`chat.spec.ts` C1 reads the Reminders section only** (`li.row[data-section="reminders"]`): the rail's decision rows quote the user's message, so the text alone matches two rows. Its `afterEach` removes the kept Refs only; `Restore()` in `afterAll` clears the stored Ref (`test-boundaries.sh` allows `^OcuTalonTest` in tests, not in specs).
+16. **The 03 mutation and DW-210's evidence.** Moving 03's skip into the test body alone stays red without a stack, because its `beforeAll` (`pointKeys`) fails; that run pins 03's describe-level skip, not `playwrightEnv()`. DW-210's evidence is a separate mutation: a 03 with no hooks whose `page` test skips in its body, which is red with `playwrightEnv()`'s browsers path and green without it, where Chromium is installed.
 
 **Ledger inbox:**
 - DW-210: addressed by the `playwrightEnv()` task, 03's describe-level skip, AC 4 and the matrix row "No stack".
@@ -399,7 +430,16 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
 - AC 3:
   - `ReminderOps.Cancel` skips its publish -> `chat.spec.ts` C2 (the row stays) and `ReminderChat.TestCancelThroughChat` (events);
   - `ReminderOps.List` reads every session's pending rows instead of `Ownership.Reminders` -> `TestCancelThroughChat` (the list holds B's Ref).
-- AC 4: 03's `test.skip` moved into the test body -> `demo-path-summary.test.mjs` 'skip every unbuilt part'. With `playwrightEnv()`'s fix also reverted, the same run is green where Chromium is installed (DW-210's evidence).
+- AC 4: 03's `test.skip` moved into the test body -> `demo-path-summary.test.mjs` 'skip every unbuilt part' (red through 03's `beforeAll`). DW-210's evidence: 03 reduced to a hook-free `page` test that skips in its body is red; with `playwrightEnv()`'s fix also reverted, the same run is green where Chromium is installed (Decided 16).
+
+**Mutation results (implement stage).**
+- mutation: `ReminderOps.Set` skips its created publish -> `ReminderChat.TestGuidePromptSetsReminder` (events) and `TestCancelThroughChat` (B's events) red.
+- mutation: `Data.Time.FromLocal` adds 3600 s -> `ReminderChat.TestThursdaySetsLocalReminder` (ToLocal of `DueAt`) red. The `FromLocal` comparison alone stayed green, because the test and the product share the converter (Decided 14).
+- mutation: the same publish skip -> `03-reminder.spec.ts` red in `live:demo-path` (`STEP 3 reminder: failed`, the row never shows).
+- mutation: `ReminderOps.Cancel` skips its publish -> `chat.spec.ts` C2 red (the row stays; `reminder.spec.ts` 8.4's cancel case too) and `ReminderChat.TestCancelThroughChat` (A's events) red.
+- mutation: `ReminderOps.List` reads every session's pending rows -> `ReminderChat.TestCancelThroughChat` (the list holds B's Ref) red.
+- mutation: 03's `test.skip` moved into the test body -> `demo-path-summary.test.mjs` 'skip every unbuilt part' red.
+- mutation: 03 reduced to a `page` test that skips in its body, with no hooks -> 'skip every unbuilt part' red (the browser starts and cannot launch); with `playwrightEnv()`'s `PLAYWRIGHT_BROWSERS_PATH` also removed, the same run is green (28 passed), so the fix is what turns a late skip red (DW-210).
 
 **Shared surfaces:**
 - the mock's scenario set: names unique across A and B, and `guide-reminder.json` unchanged;
@@ -416,7 +456,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (bmad-build-auto, halted after planning).** This is the chat side, split from 8.4. The first 8.4 plan (467dfae) was checked against the code 8.4 committed.
@@ -427,3 +467,10 @@ Blocking condition: none
   - a browser spec, `web/e2e/reminder/chat.spec.ts`, shows AC 1's Thursday and AC 3's cancel on the page.
 - **Measured on a warm throwaway** (torn down): the guide prompt through the real web path makes one reminder (Triage ends in a fallback, a mock artefact noted for Story 11.1). The `ReminderOps` item swap works, at 1 s each way, and pointing or restoring the keys takes 3 s each.
 - **Ledger:** DW-210 and DW-232 are addressed. **Footprint extensions:** `web/scripts/demo-path-summary.test.mjs`, `docker/tests/test-demo-path.sh` lines 12-13 (Q4) and `web/e2e/reminder/chat.spec.ts`.
+
+**Implement and review pass (bmad-build-auto).**
+- **Implemented:** the two B marker scenarios, the private `ReminderOps.NewRef()` seam, `ReminderOpsFixedRef`, `ReminderFixture.CancelPending` and `RemoveAll`, `Test.Schedule.ReminderChat` (3 tests through `WebChatIn`), 03 turned on (describe-level skip, untagged), `web/e2e/reminder/chat.spec.ts` (C1, C2), `playwrightEnv()`'s empty browsers path (DW-210), and the Q4 header sentence in `docker/tests/test-demo-path.sh`. Footprint extensions as planned.
+- **Review:** 31 findings in 21 rows, 6 patched (5 medium, 1 low), 0 deferred, 15 rejected with reasons (see the triage log). The patches: the isolating DW-210 mutation and its record, 03's `afterAll` (cancel count at least 1, `WaitRecords` after the restore), C1's cleanup by text, the trace-session positive check in `AssertToolSteps`, and the step 3 `Story 8.6` assertion.
+- **Follow-up review:** not recommended (`followup_review_recommended: false`); every patch was re-verified by the full run below.
+- **Verification (after the last patch):** warm `ReminderChat` passed; `test-mock.sh` 94 passed; web lint exit 0; `demo-path-summary.test.mjs` 28 passed; fresh `build`; `shard lane-b` 65 classes (437 s), `shard lane-b --reverse` 65 (400 s) and `shard lane-a` 47 (425 s), all passed; `live demo-path` passed in 126 s (`STEP 3 reminder: passed, 1 passed, 0 skipped`, floor 7 of 7); `live sign-in` passed, 222 tests, whole call 515 s (limit 570 s) with `OCUTALON_LIVE_DEADLINE=900`; `npm --prefix web test` 691 passed; `ci/checks.sh` and `test-boundaries.sh` passed. The loop classes `Reminders`, `ReminderLogic`, `GuidePrompts` and `ConversationProduction` passed warm in the implement pass, and no code they cover changed after it. Both throwaways are torn down.
+- **Residual risks:** `live:sign-in` is 515 s against the 570 s line (about 500 s before this story), so the next story that adds browser cases to that unit needs the unit split. The fixed-Ref swap can stay behind the `ReminderOps` item after a crash between `Use` and `Restore` on a reused stack (rejected as low).

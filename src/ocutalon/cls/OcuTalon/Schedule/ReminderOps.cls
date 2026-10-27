@@ -106,7 +106,7 @@ Method Set(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTa
 	Set code = ##class(OcuTalon.Schedule.Reminder).Resolve(command, now, .dueAt)
 	If code '= "" Quit ..Refuse(code)
 	Set row = ##class(OcuTalon.Data.Reminder).%New()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Ref = ..NewRef()
 	Set row.SessionRef = command.SessionRef
 	Set row.Text = command.Text
 	Set row.DueAt = dueAt
@@ -259,6 +259,12 @@ Method EndWaiter(row As OcuTalon.Data.Reminder) [ Private ]
 			$$$LOGWARNING("OcuTalon.Schedule.ReminderOps: the waiter of " _ ref _ " was not interrupted, so it ends at its due time: " _ $SYSTEM.Status.GetErrorText(sc))
 		}
 	}
+}
+
+/// A new Ref for a reminder. A test subclass overrides it.
+Method NewRef() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Ids).NewRef()
 }
 
 /// Starts the row's waiter and waits for its answer (AD-26): the waiter's session begins at its start header and its SuperSession is

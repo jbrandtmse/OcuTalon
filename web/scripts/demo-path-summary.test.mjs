@@ -328,9 +328,13 @@ describe('no usable report', () => {
 
 // --- the real specs, through Playwright: no browser starts ---
 
-/** The environment of a Playwright run: no report and no stack, whatever the shell holds. */
+/**
+ * The environment of a Playwright run: no report, no stack and a browsers folder that holds no browser (the folder is never created),
+ * whatever the shell holds. A step spec that starts a browser before it skips then fails the run everywhere, not only in the hosted
+ * web job that has no browser.
+ */
 function playwrightEnv() {
-  const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000' };
+  const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000', PLAYWRIGHT_BROWSERS_PATH: join(work, 'no-browsers') };
   delete env.OCUTALON_E2E_JSON;
   delete env.OCUTALON_URL;
   return env;
@@ -360,5 +364,6 @@ describe('the real specs, run without their floor test', () => {
       if (i === 0) continue;
       assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${id}: skipped, 0 passed, [1-9]\\d* skipped \\(Story \\d+\\.\\d+: `));
     }
+    assert.match(lines[2], /^STEP 3 reminder: skipped, 0 passed, 1 skipped \(Story 8\.6: /);
   });
 });

@@ -8,6 +8,8 @@
 ///   - Cancel submits a CancelReminder for a session and returns the answer;
 ///   - Remove cancels the reminder if it is pending, waits for its waiter to end, and deletes the reminder and everything the product
 ///     made for it;
+///   - CancelPending cancels each pending reminder of a session through Cancel and answers how many were cancelled;
+///   - RemoveAll removes every reminder of a session, whatever its state, through Remove;
 ///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting.
 Class OcuTalon.Test.Schedule.ReminderFixture Extends %RegisteredObject
 {
@@ -127,6 +129,40 @@ ClassMethod Remove(ref As %String)
 		Do ##class(OcuTalon.Schedule.ReminderTimer).%DeleteId(at)
 	}
 	Do ##class(OcuTalon.Data.Reminder).%DeleteId(id)
+}
+
+/// Cancels each pending reminder of the session through Cancel, which ends its waiter, and answers how many were answered cancelled.
+/// The rows are read first and let go before the first cancel, which locks its row.
+ClassMethod CancelPending(sessionRef As %String) As %Integer
+{
+	Set pending = ##class(OcuTalon.Data.Ownership).Reminders(sessionRef)
+	Set refs = ""
+	For i = 1:1:pending.Count() {
+		Set refs = refs _ $ListBuild(pending.GetAt(i).Ref)
+	}
+	Set pending = ""
+	Set cancelled = 0
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Set answer = ..Cancel(sessionRef, ref)
+		If answer.ok_"|"_answer.outcome = "1|cancelled" Set cancelled = cancelled + 1
+	}
+	Quit cancelled
+}
+
+/// Removes every reminder of the session, whatever its state, through Remove.
+ClassMethod RemoveAll(sessionRef As %String)
+{
+	Set refs = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Reminder WHERE SessionRef = ?", sessionRef)
+	While result.%Next() {
+		Set refs = refs _ $ListBuild(result.%Get("Ref"))
+	}
+	Set result = ""
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Do ..Remove(ref)
+	}
 }
 
 /// The ReminderTimer instances with the Ref, as an array of their ids.

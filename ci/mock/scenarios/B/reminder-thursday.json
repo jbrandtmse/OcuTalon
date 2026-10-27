@@ -1,0 +1,22 @@
+{
+  "name": "reminder-thursday",
+  "match": {
+    "marker": "reminder-thursday"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "load the new certificate",
+          "localDueAt": "2030-11-07T10:00:00"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the Thursday reminder."
+    }
+  ]
+}
