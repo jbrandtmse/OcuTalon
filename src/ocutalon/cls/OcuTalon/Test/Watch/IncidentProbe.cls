@@ -5,7 +5,7 @@
 /// cannot SendRequestAsync (its primary request header is not there), so the override records each Notification in Sent, as a dynamic object of the
 /// fields the tests check, and answers OK, or an error for a SessionRef that FailFor names. It overrides SendExecute for the same reason (Story 5.5): it records each
 /// order in Executed, as {approvalRef, sessionId} (the session that the order would go in), and answers OK, or an error when FailExecute is set, and DemoMode, so that a test sets the
-/// mode without writing the setting: it gives DemoModeIs when that is set (0 or 1), else the product's own reading. Move sets the state on the object and gives an error when FailMove is set (QA). The handlers of Story 5.5 are reached through
+/// mode without writing the setting: it gives DemoModeIs when that is set (0 or 1), else the product's own reading; QuietNow gives QuietNowIs when that is set, else the clock, so that a test fixes the time that closeQuiet's quiet check reads. Move sets the state on the object and gives an error when FailMove is set (QA). The handlers of Story 5.5 are reached through
 /// OnRequest, as the framework calls them. It is not an item of any production.
 Class OcuTalon.Test.Watch.IncidentProbe Extends OcuTalon.Watch.IncidentManager
 {
@@ -24,6 +24,9 @@ Property FailExecute As %Boolean [ InitialExpression = 0, Transient ];
 
 /// 0 or 1 to fix the demo mode that DemoMode gives; empty for the product's own reading.
 Property DemoModeIs As %String [ Transient ];
+
+/// A UTC stamp to fix the time that QuietNow gives; empty for the clock's now.
+Property QuietNowIs As %String [ Transient ];
 
 /// 1 to make Move answer an error instead of saving (the failed save of QA, Story 5.5: a real %Save failure needs a row that another process locks).
 Property FailMove As %Boolean [ InitialExpression = 0, Transient ];
@@ -53,6 +56,13 @@ Method SendExecute(order As OcuTalon.Fix.Msg.Execute) As %Status [ Private ]
 Method DemoMode() As %Boolean [ Private ]
 {
 	If ..DemoModeIs '= "" Quit ''..DemoModeIs
+	Quit ##super()
+}
+
+/// The fixed time when QuietNowIs is set.
+Method QuietNow() As %String [ Private ]
+{
+	If ..QuietNowIs '= "" Quit ..QuietNowIs
 	Quit ##super()
 }
 

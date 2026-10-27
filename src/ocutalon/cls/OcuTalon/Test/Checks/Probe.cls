@@ -10,15 +10,27 @@
 ///     * for all), or OK with no answer, as a wait that ran out gives, for an incident that SilentQuiet names.
 ///   - Due and Quiet keep only the Refs that the test lists in Only and OnlyIncidents (after the product's own selection, so that its rules still run),
 ///     because a warm stack holds other rows that a Tick must never touch.
+///   - KIND is zzprobe, so that Due selects only the rows of that Kind and a real Checks (Kind production) never runs a row of these tests.
+///   - Quiet records the time it was given in SweptAt, then selects against QuietAt when that is set (a time that only the probe's tests reach), else against
+///     the time it was given.
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
 Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 {
+
+/// The Kind of the rows that Due selects.
+Parameter KIND = "zzprobe";
 
 /// The Refs of the checks that Due keeps, comma-separated.
 Property Only As %String(MAXLEN = "") [ Transient ];
 
 /// The Refs of the incidents that Quiet keeps, comma-separated.
 Property OnlyIncidents As %String(MAXLEN = "") [ Transient ];
+
+/// The time that Quiet selects against, as a UTC stamp, or "" for the time it is given.
+Property QuietAt As %String [ Transient ];
+
+/// The time that Quiet was last given, "" before the first sweep.
+Property SweptAt As %String [ Transient ];
 
 /// The commands that SendQuiet recorded, in order.
 Property Quieted As %DynamicArray [ Transient ];
@@ -73,7 +85,8 @@ Method Due(tickAt As %String) As %DynamicArray [ Private ]
 Method Quiet(now As %String) As %DynamicArray [ Private ]
 {
 	Set kept = []
-	Set iterator = ##super(now).%GetIterator()
+	Set ..SweptAt = now
+	Set iterator = $Select(..QuietAt '= "": ##super(..QuietAt), 1: ##super(now)).%GetIterator()
 	While iterator.%GetNext(, .incident) {
 		If $ListFind($ListFromString(..OnlyIncidents), incident.ref) Do kept.%Push(incident)
 	}

@@ -2,7 +2,8 @@
 title: 'Epic 5 burn-down'
 type: 'chore'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '78c4ad05cc1b57bb449367fb63d6b0d4cb9bb927'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -151,6 +152,35 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 ## Review Triage Log
 
+### 2026-10-27 — Review pass
+- verdicts: 25 findings — high 0, medium 0, low 17, false 8, maybe-false 0 (the intent-alignment layer reported readings, not findings)
+- findings:
+  - `[low]` `[reject]` Blind: `QuietRequests` scans every Checks-to-IncidentManager header with no floor — Heartbeat runs only in throwaway stacks (class doc), where the header count is small; the fix adds a mark and a parameter.
+  - `[low]` `[reject]` Blind: `TestStartAndStop`'s ran branch is reached by chance and a run event could follow the stop — the spec makes it a one-off interference run, which stayed green; Checks announces a run before it handles the next message, so a later run event is not shown.
+  - `[low]` `[reject]` Blind: `SendTick` waits the full 60 s when the request ends in Error/Discarded — the failure message names the status and the wait only happens when the test is already red.
+  - `[low]` `[reject]` Blind: 14-minute incident margin (60 s) equals the `RealTick` wait cap — the spec fixes -960/-840 and a real wait is about a second; the original test had the same margin.
+  - `[false]` `[reject]` Blind: the Tick a day ahead runs other tests' rows — the other tests drop their rows in teardown and run one at a time; the old Tick at now ran every due row too.
+  - `[false]` `[reject]` Blind: `Lifecycle`, `Tell`, `Poller` still make due-at-once rows — Design Notes list them as left because no assertion in them changes with a Tick.
+  - `[low]` `[reject]` Blind: the ran-first branches of `Ops.TestStart` and `Watch.Turns` check little — the spec's matrix gives exactly these checks; a `OnStart` that writes `LastRunAt` is not a plausible regression.
+  - `[false]` `[reject]` Blind: `RemoveLogs` removes only registered Refs — the matrix requires it; every row and incident of the test is registered by `Watch`/`Incident`, and the run left no line behind.
+  - `[false]` `[reject]` Blind: `TestStartAndStop` lost the exactly-one start event in the ran case — the spec's matrix row gives the weaker form there and keeps the strict one when no Tick ran.
+  - `[low]` `[reject]` Blind: long doc lines — the files already carried lines of this length; cosmetic.
+  - `[low]` `[reject]` Edge: `SendTick` loop and terminal non-Completed statuses — same as Blind row 3.
+  - `[low]` `[reject]` Edge: `Check(ref)` may return no object in the Heartbeat tests — the existing tests read `Check(ref)` the same way and the rows are the test's own.
+  - `[low]` `[reject]` Edge: a run event after the stop event in `WaitStopped` — same as Blind row 2.
+  - `[false]` `[reject]` Edge: a check event without a payload — every check event carries a payload object (`FromRow`).
+  - `[false]` `[reject]` Edge: the Tick at `NextDueAt` runs other rows — same as Blind row 5.
+  - `[low]` `[reject]` Edge: a concurrent scheduled Tick could produce a second `closeQuiet` — Epic 8's `HeartbeatIn` is not in this tree and the spec's AC is "exactly one across Checks' sessions"; a closed incident is no longer selected.
+  - `[low]` `[reject]` Edge: `QuietRequests` scan unbounded — same as Blind row 1.
+  - `[low]` `[reject]` Edge: the ran branch of `Ops.TestStart` does not check Result/NextDueAt — same as Blind row 7.
+  - `[low]` `[reject]` Edge: Heartbeat class doc says every own Tick is at a NextDueAt, `TestQuietClose`'s is at now — imprecise wording, no behaviour.
+  - `[low]` `[patch]` Verify: Tools and Gate `NextDueAt` rows have no control line — control runs made and recorded in `## Verification` (Tools red; Gate green by design); no code change.
+  - `[low]` `[reject]` Verify: the weak ran-branch of `Ops.TestStart`/`Watch.Turns` passes an `OnStart` that stamps `LastRunAt` — spec-bound form, not a plausible regression.
+  - `[low]` `[patch]` Verify: no run shows own-log-line isolation — mutation recorded (`LOGQUIET` count without the Ref goes red); no code change.
+  - `[low]` `[reject]` Verify: the ran branch of `TestStartAndStop` in a narrow Tick/delete window — same as Blind row 2.
+  - `[false]` `[reject]` Verify: `TestNotChecked`'s read-warning count narrowed — the assertion's text and meaning concern the failed incident read, which is the case `reads_unread` names.
+  - `[false]` `[reject]` Verify: the `QuietNow` +3600 mutation does not turn `TestQuietClose` red — a documented deviation; the 14-minute pin is the `Process.Tick` sweep mutation, recorded.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -259,7 +289,45 @@ Conventions: "Background checks", "Tests", "Times". No AC contradicts an AD.
 | WatchOps rows | `Ops.OnStop` also changes another session's `DisplayName` | `Ops.TestStop` |
 | Own log lines | `LOGQUIET`'s line leaves out the Ref | `Runs.TestQuietSweep` |
 
+**Recorded runs (implement stage).** Each mutation was applied, the class run, red observed, and the tree restored byte-identically (compared with the stage's backup; `git status` shows only the intended files).
+- mutation: `Case.Watch` leaves `NextDueAt` empty -> red: `Heartbeat.TestTickRunsTheWatch` (RT runs the row; also `TestFailingOrders`), `Checks.Turns.TestFailingOrdersInTheChat`.
+- mutation: `Process.Due` drops `Kind = ?` -> red: `Runs.TestDue` (the other-kind row runs).
+- mutation: `Process.Record` sets `NextDueAt` to the tick time plus 120 -> red: `Heartbeat.TestTickRunsTheWatch` (also `TestFailingOrders`), `Runs.TestDue`.
+- mutation: `Process.Tick` calls `Sweep(tickAt)` -> red: `Runs.TestQuietSweep` (`SweptAt`).
+- mutation: `IncidentManager.QuietNow` gives now plus 3600 -> red: `Lifecycle.TestCloseQuiet` (the clock case closes). `Heartbeat.TestQuietClose` stays green under this mutation alone: `Checks` selects by its own clock and never sends a command for the 14-minute incident, so `QuietNow` is not reached. The Heartbeat pin for the 14-minute incident is therefore this one: mutation: `Process.Tick` calls `Sweep` with now plus 3600 -> red: `Heartbeat.TestQuietClose` ("none names the 14 minute incident").
+- mutation: `Process.Quiet` drops `State <> ?` -> red: `Heartbeat.TestQuietClose` (two `closeQuiet`), `Runs.TestQuietSweep`.
+- mutation: `Sweep` leaves `%SuperSession` "" -> red: `Heartbeat.TestQuietClose` (SuperSession), `Runs.TestQuietSweep`.
+- mutation: `Ops.OnStart` sets `NextDueAt` to `CreatedAt` plus 3600 -> red: `Ops.TestStart` (strict branch), `Watch.Turns.TestStartThroughTheAgent` (after the test's time comparisons were made string comparisons: the `'<` / `'>` operators compare numerically, so the old forms could not fail).
+- mutation: `Ops.OnStop` also changes another session's `DisplayName` -> red: `Ops.TestStop`.
+- mutation: `LOGQUIET`'s line leaves out the Ref -> red: `Runs.TestQuietSweep`.
+- interference: `Runs` (real-shaped Tick after the fixtures of `TestDue`, `TestTickWithoutTime`, `TestPassed`, `TestQuietSweep`) -> green.
+- interference: `Lifecycle` (after `resolved`; inside `RealDemoMode`'s mode-0 window) -> green.
+- interference: `Tools` (before `CheckStatus` in both tests), `Gate` (before the rows-of-each-result `CheckStatus`), `Ops` (after the snapshot in `TestStop` and `TestLockTimeout`, after `OnStart` in `TestStart`) -> green.
+- interference: `Heartbeat.TestStartAndStop` (RT between start and stop) and `Watch.Turns` (after the snapshot in the two stop tests, after the turn in the start test) -> green.
+- control: `Runs.Watch` back to Kind `production`, with the Ticks injected -> red (`TestPassed`, `TestPublishes`, `TestRanLine`, `TestScope`, others).
+- control: `Lifecycle` with clock-relative `long`, with the Tick injected -> red (`TestCloseQuiet`, the 16-minute close).
+- mutation: `Runs.TestQuietSweep`'s second `Warnings("Sweep", ...)` count loses its Ref (`LOGQUIET` bare instead of `LOGQUIET_<awaiting>`) -> red: `Runs.TestQuietSweep` ("a send that IncidentManager did not answer in time ... logs one warning too": the bare count is 2, the scoped one is 1). Pins the AC "Own log lines"; restored, green again.
+- control: `Tools.TestCheckStatus` with `NextDueAt` removed from its rows and a real-shaped Tick (`RealTick`) before `CheckStatus` -> red (`check_status()` and the HostData rows). Restored, green again.
+- control: `Gate.TestCheckStatusAnswerIsCodeBuilt` with `NextDueAt` removed from `Zz.G1`-`G5` and a real-shaped Tick before `CheckStatus` -> green, as the spec's Design Notes say (the test accepts any code-built text, so a run does not break it). `NextDueAt` there keeps each result shape as made; it guards no assertion that a Tick could turn red. Restored, green again.
+- shards: lane-a parts 1/4 to 4/4 passed (331 s, 153 s, 138 s, 357 s); lane-b passed (114 s); `ci/checks.sh` all pass.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Epic 5's tests no longer depend on the moment a real Tick arrives (DW-289). Fixture rows are of the probe's Kind or due a day ahead; quiet incidents in the in-process probes are quiet only at a fixed 2030 time; tests that run a row send their own Tick at its `NextDueAt`; `RealTick` proves a real-shaped Tick changes none of four tests' rows; tests of rows that `WatchOps` makes due at once hold in the strict form and, when a Tick ran the row, in the form that is still true.
+
+**Files changed** (under `src/ocutalon/cls/OcuTalon/`):
+- `Watch/IncidentManager.cls`: private `QuietNow()` seam; `Command`'s quiet check calls it (behaviour unchanged).
+- `Test/Watch/Case.cls`: `AHEADSECONDS`, `Ahead`, `SendTick`, `RealTick`, `Rows(ref, runFields)`; `Watch` due at `Ahead()`.
+- `Test/Watch/IncidentProbe.cls`: `QuietNowIs` and the `QuietNow` override.
+- `Test/Checks/Probe.cls`: Kind `zzprobe`, `QuietAt`, `SweptAt`.
+- `Test/Checks/Runs.cls`, `Heartbeat.cls`, `Turns.cls`: Kind-isolated rows, own-Ref log counts, `RealTick` at the worst moment, `QuietRequests`, `WaitStopped`.
+- `Test/Watch/Ops.cls`, `Turns.cls`, `Tools.cls`, `Lifecycle.cls`; `Test/Bridge/Gate.cls`: the matrix rows (`Rows(..., 0)`, due-ahead rows, the `lastRunAt` branches, `QUIETNOW`).
+
+**Review.** 25 findings: high 0, medium 0, low 17, false 8. Patches applied: 2 (both spec-only: a mutation line and a control line recorded in `## Verification`; no code changed). Deferred: none new (the plan's entry for the contended `Test.Core.BridgeSink` and `Test.Web.Api` tests stays). Rejected: 23, each with its reason in the triage log. Follow-up review recommended: false (no code patch; patched counts high 0, medium 0).
+
+**Verification performed** (Lane A's variables on every call). Loop sets: `Runs`, `Lifecycle`, `Tell`, `Tools`, `Ops`, `Gate` warm and `Heartbeat`, `Checks.Turns`, `Watch.Turns` fresh passed; `Runs`, `Tools` and `Gate` passed again on the reviewed tree after the review controls. Once lines: ten pinning mutations (nine red as expected, the `QuietNow` +3600 expectation for `TestQuietClose` was wrong and is pinned by the sweep mutation), the interference runs and controls, lane-a parts 1/4-4/4 (331, 153, 138, 357 s), lane-b (114 s) and `ci/checks.sh` all passed. Warm and fresh stacks are torn down and the lane-a lock folder is empty.
+
+**Residual risks.** The `lastRunAt` branches of `Ops.TestStart`, `Watch.Turns.TestStartThroughTheAgent` and `TestStartAndStop` were not observed running (they need a Tick to run a `WatchOps` row mid-test; the strict branches ran). Slot `ocutalon-slot-a` holds copies of classes the implement stage loaded (it was stale before). The contended tests named in `deferred:` still carry the DW-289 root cause.

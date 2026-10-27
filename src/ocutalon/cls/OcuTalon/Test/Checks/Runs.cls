@@ -3,6 +3,10 @@
 /// fixture sessions, check rows and incidents of Test.Data.Fixture (on fixture names, in the fixture namespace ZZNS), and read the rows, the sessions'
 /// streams, the log and what the probe recorded (its reads and its closeQuiet commands). They run warm. The probe keeps only the rows of the test, so
 /// that the rows of a warm stack are never touched. The Tick's time is a fixed time in 2030 (TICK), so that the next due time is easy to read.
+/// Nothing here depends on the moment: the fixture rows are of the probe's Kind (zzprobe), which no real Checks runs (it runs the Kind production), so that a
+/// Tick from HeartbeatIn at any moment runs none of them; the quiet incidents are quiet only at the probe's QuietAt (TICK), which a Tick that reads the
+/// clock never reaches; and the counts and the removals of log lines go by the text that starts with the line's text and the Ref of the test's own row or
+/// incident, so that the lines of other Checks jobs are neither counted nor removed.
 ///   - TestDue (matrix "Due"): rows due 7 minutes before the Tick, with no time, 3 seconds after it and 2 minutes after it: the first three run once each and the
 ///     fourth does not; each next due time becomes the Tick's time plus 60 seconds; a second Tick with the same time runs none; a due row of another kind never runs;
 ///   - TestTickWithoutTime (Always, "Times"): a Tick whose TickAt is not a UTC stamp runs the due row at now, and the next due time is a UTC stamp after now;
@@ -18,6 +22,7 @@
 ///   - TestQuietSweep ("Quiet close"): one closeQuiet for each unclosed incident whose last failure is more than 15 minutes old, origin timer, no session, the
 ///     owner's TraceRef as SuperSession (empty for instance), in the process's session, with its own SuperSession put back; none for a recent or a closed
 ///     one; a failed send, and a send that IncidentManager did not answer in time, each log one warning that names the incident, and the others still go out;
+///     the sweep is handed the clock's now (the probe's SweptAt), and the quiet rule runs against TICK;
 ///   - TestRunThrows (Always, "A Tick"): a run that throws outside the read logs one warning (LOGRUN) that names the check, records nothing, and the next due row still runs;
 ///   - TestChanged ("Start and stop"): a CheckChanged for a start publishes FromRow of the row (nothing when the row is gone), one for a stop a payload with
 ///     stopped true and the message's name, on the message's session stream; a failed publish logs one warning;
@@ -250,9 +255,9 @@ Method TestNotChecked()
 	Do ..Case(host, a, "unknown", {"state": "unknown", "incidents": ["open"]}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
 	Do ..Case(host, a, "cut with none of the session's", {"others": 500}, "not_checked", $Parameter(..#PROBE, "REASONTOOMANY"))
 	Do ..Case(host, a, "cut with some", {"failures": 1, "others": 499}, "failed", "At least 1 new failures")
-	Do ..Case(host, a, "an incident read that fails", {"failUnclosed": 1}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
+	Set unread = ..Case(host, a, "an incident read that fails", {"failUnclosed": 1}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
 	Set host.FailUnclosed = 0
-	Do $$$AssertEquals(..Warnings("Run", reads), 0, "a failed incident read is no failed production read, so it logs no read warning")
+	Do $$$AssertEquals(..Warnings("Run", reads_unread), 0, "a failed incident read is no failed production read, so it logs no read warning")
 	Set production = "Zz.Thrown"
 	Set ref = ..Watch(a, production)
 	Do ..Feed(production, "", "", "", "ERROR #5001: Unable to reach https://zzuser:zzsecretword@orders.example/api with Authorization: Bearer zzTokenValue0123456789")
@@ -260,7 +265,7 @@ Method TestNotChecked()
 	Set row = ..Row(ref)
 	Do $$$AssertEquals(row.Result_"|"_row.Finding, "not_checked|"_$Parameter(..#PROBE, "REASONREAD"), "a read that throws is not_checked, never passed")
 	Do $$$AssertEquals(row.NextDueAt, ..#NEXT, "and the check is due again a minute later")
-	Do $$$AssertEquals(..Warnings("Run", reads, .text), 1, "one warning is logged")
+	Do $$$AssertEquals(..Warnings("Run", reads_ref, .text), 1, "one warning is logged")
 	Do $$$AssertTrue(text [ ref, "which names the check: "_text)
 	Do $$$AssertTrue((text [ "[redacted]") && '(text [ "zzsecretword") && '(text [ "zzTokenValue0123456789"), "and the error is redacted: "_text)
 	Do $$$AssertTrue('(row.Finding [ "zzuser") && '(row.Finding [ "5001"), "no error text is in the finding")
@@ -305,8 +310,8 @@ Method TestQuietSweep()
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set a = ..Owner("quiet")
-	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -960)
-	Set short = ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -840)
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -960)
+	Set short = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -840)
 	Set resolved = ..Incident(a, "resolved", "Zz.Quiet", {"LastAt": (long)})
 	Set open = ..Incident(a, "open", "Zz.Quiet", {"LastAt": (long)})
 	Set awaiting = ..Incident(a, "awaiting_approval", "Zz.Quiet", {"LastAt": (long)})
@@ -315,7 +320,11 @@ Method TestQuietSweep()
 	Set recent = ..Incident(a, "resolved", "Zz.Quiet", {"LastAt": (short)})
 	Set closed = ..Incident(a, "closed", "Zz.Quiet", {"LastAt": (long), "ClosedAt": "2030-01-01T10:00:00Z"})
 	Set host.%SuperSession = "zzown"
+	Set host.QuietAt = ..#TICK
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	Do ..Tick(host, ..#TICK)
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertTrue('(before ] host.SweptAt) && '(host.SweptAt ] after) && (host.SweptAt '= ..#TICK), "the sweep is handed the clock's now, not the Tick's time: "_host.SweptAt)
 	Set sent = host.Quieted
 	Do $$$AssertEquals(sent.%Size(), 5, "five commands are sent")
 	Set refs = ""
@@ -333,13 +342,13 @@ Method TestQuietSweep()
 	Set host.FailQuiet = open
 	Do ..Tick(host, ..#TICK)
 	Do $$$AssertEquals(host.Quieted.%Size(), 5, "with one send failing, all five are still tried")
-	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), .text), 1, "and one warning is logged")
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET")_open, .text), 1, "and one warning is logged")
 	Do $$$AssertTrue(text [ open, "which names the incident: "_text)
 	Do $$$AssertEquals(host.%SuperSession, "zzown", "the SuperSession is put back after a failed send too")
 	Set host.FailQuiet = ""
 	Set host.SilentQuiet = awaiting
 	Do ..Tick(host, ..#TICK)
-	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), .text), 2, "a send that IncidentManager did not answer in time (OK, with no answer) logs one warning too")
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET")_awaiting, .text), 1, "a send that IncidentManager did not answer in time (OK, with no answer) logs one warning too")
 	Do $$$AssertTrue(text [ awaiting, "which names its incident: "_text)
 }
 
@@ -381,7 +390,7 @@ Method TestChanged()
 	}
 	Set change.SessionRef = "not a stream"
 	Do $$$AssertStatusOK(host.OnRequest(change, .response), "a change for a session that has no stream is answered")
-	Do $$$AssertEquals(..Warnings("Announce", $Parameter(..#PROBE, "LOGPUBLISH")), 1, "and one warning is logged for the failed publish")
+	Do $$$AssertEquals(..Warnings("Announce", $Parameter(..#PROBE, "LOGPUBLISH")_ref), 1, "and one warning is logged for the failed publish")
 }
 
 Method TestPublishes()
@@ -417,7 +426,7 @@ Method TestRunThrows()
 	Set row = ..Row(bad)
 	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result_"|"_row.NextDueAt, "||", "a run that throws outside the read records nothing")
 	Do $$$AssertEquals(..Row(good).Result, "passed", "and the next due row still runs")
-	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN"), .text), 1, "one warning is logged")
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN")_bad, .text), 1, "one warning is logged")
 	Do $$$AssertTrue(text [ bad, "which names the check: "_text)
 }
 
@@ -473,10 +482,10 @@ ClassMethod TraceOf(session As %String) As %String
 	Quit ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 }
 
-/// A fixture check of the session on the production, created at a fixed time unless fields say otherwise, due at once; its Ref.
+/// A fixture check of the session on the production, of the probe's Kind, created at a fixed time unless fields say otherwise, due at once; its Ref.
 Method Watch(session As %String, production As %String, fields As %DynamicObject = "") As %String
 {
-	Set all = {"CreatedAt": "2030-05-01T10:00:00Z", "NextDueAt": ""}
+	Set all = {"Kind": ($Parameter(..#PROBE, "KIND")), "CreatedAt": "2030-05-01T10:00:00Z", "NextDueAt": ""}
 	If $IsObject(fields) {
 		Set iterator = fields.%GetIterator()
 		While iterator.%GetNext(.name, .value) {
@@ -607,7 +616,8 @@ Method Reads() As %String
 	Quit reads
 }
 
-/// The number of warnings since the test began that the method logged and that start as given; text is the newest one's.
+/// The number of warnings since the test began that the method logged and that start as given (the line's text and the Ref of the test's own row or
+/// incident); text is the newest one's.
 Method Warnings(method As %String, start As %String, Output text As %String) As %Integer
 {
 	Quit ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, method, start)
@@ -629,14 +639,23 @@ Method RanLine(ref As %String) As %String
 	Quit ""
 }
 
-/// Removes the lines that the tests made: the warnings of the runs and the info lines of the runs.
+/// Removes the lines that the tests made about their own rows and incidents: the warnings of the runs and the info lines of the runs, by the Refs of the
+/// checks, and the warnings of the sweep, by the Refs of the incidents.
 Method RemoveLogs()
 {
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGREAD"))
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGRUN"))
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter(..#PROBE, "LOGQUIET"))
-	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Announce", $Parameter(..#PROBE, "LOGPUBLISH"))
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN"))
+	For i = 1:1:$Length(..Checks, ",") {
+		Set ref = $Piece(..Checks, ",", i)
+		If ref = "" Continue
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGREAD")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGRUN")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Announce", $Parameter(..#PROBE, "LOGPUBLISH")_ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN")_ref)
+	}
+	For i = 1:1:$Length(..Incidents, ",") {
+		Set ref = $Piece(..Incidents, ",", i)
+		If ref = "" Continue
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter(..#PROBE, "LOGQUIET")_ref)
+	}
 }
 
 }

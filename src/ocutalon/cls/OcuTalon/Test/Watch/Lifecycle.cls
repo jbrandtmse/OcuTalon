@@ -2,7 +2,7 @@
 /// namespace but their own: they drive every message row through OnRequest of a shadow instance of Test.Watch.IncidentProbe in the test process, with real
 /// IncidentCommand, ApprovalOutcome and FixResult objects, over fixture sessions, incidents and approval requests of Test.Data.Fixture, and read the rows,
 /// the CommandResult, the orders that the probe recorded (Execute, with the session it would go in) and the sessions' streams. They run warm. The fixture
-/// incidents are noticed unless a test says otherwise, with LastAt in 2030 (so they are not quiet), and an owner that is a session.
+/// incidents are noticed unless a test says otherwise, with LastAt in 2030 (so that no real Tick, which reads the clock, finds them quiet), and an owner that is a session.
 ///   - TestDismiss: a noticed open incident and a resolved one are closed by their session (Ok 1, closed, the Ref, Data with the state and no variant; the row has
 ///     ClosedAt and no variant; one incident event, closed, on the stream); a session that is not a recipient gets not_found with no Data and no change; an
 ///     incident awaiting approval, fixing, closed or unnoticed gets not_allowed with Data and no change; an unknown verb is unknown_command and a missing
@@ -11,7 +11,8 @@
 ///   - TestCloseForReplay: closed from resolved only, with no session check;
 ///   - TestCloseQuiet: closed from resolved, and from a noticed open incident with demo mode off, after more than 15 minutes; not_allowed with demo mode on, while
 ///     awaiting approval or fixing; not_quiet within 15 minutes, with no change; the item's own reading of the setting demo.mode (the probe's override off) gives
-///     the same two answers;
+///     the same two answers. The probe's time is fixed (QuietNowIs, QUIETNOW in 2030) and the incidents' LastAt is 16 and 14 minutes before it; one resolved
+///     incident 14 minutes before the clock's now, with the time not fixed, is not_quiet, which shows that the item reads the clock when nothing is fixed;
 ///   - TestApprovalOutcomes: approved starts the fix (fixing, one Execute for the request in the incident's trace session, the probe's own session kept);
 ///     rejected and expired reopen the incident with that variant when nothing else is pending, and keep it awaiting approval while another request is pending
 ///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event;
@@ -39,6 +40,9 @@ Class OcuTalon.Test.Watch.Lifecycle Extends %UnitTest.TestCase
 {
 
 Parameter PROBE = "OcuTalon.Test.Watch.IncidentProbe";
+
+/// The time that the probe's quiet check reads in TestCloseQuiet.
+Parameter QUIETNOW = "2030-06-01T12:00:00Z";
 
 /// The run's number.
 Property Number As %Integer;
@@ -189,8 +193,9 @@ Method TestCloseQuiet()
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set a = ..Owner("quiet")
-	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -960)
-	Set short = ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -840)
+	Set host.QuietNowIs = ..#QUIETNOW
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#QUIETNOW, -960)
+	Set short = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#QUIETNOW, -840)
 	Set resolved = ..Incident(a, "resolved", {"LastAt": (long)})
 	Set result = ..Command(host, "closeQuiet", resolved, "")
 	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "1|closed|"_resolved_"|closed|", "16 minutes after the last failure a resolved incident is closed, with no session check")
@@ -222,6 +227,13 @@ Method TestCloseQuiet()
 		Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_quiet||"_state_"|", state_" 14 minutes after the last failure: not_quiet")
 		Do $$$AssertEquals(..Snapshot(recent), before, state_": nothing changes")
 	}
+	Set host.QuietNowIs = ""
+	Set recentByClock = ..Incident(a, "resolved", {"LastAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -840))})
+	Set before = ..Snapshot(recentByClock)
+	Set result = ..Command(host, "closeQuiet", recentByClock, "")
+	Do $$$AssertEquals(..Said(result)_"|"_..Data(result), "0|not_quiet||resolved|", "with no fixed time the item reads the clock: 14 minutes before it is not_quiet")
+	Do $$$AssertEquals(..Snapshot(recentByClock), before, "nothing changes")
+	Set host.QuietNowIs = ..#QUIETNOW
 	Do ..RealDemoMode(host, a, long)
 	Set closed = ..Incident(a, "closed", {"LastAt": (long), "ClosedAt": "2030-01-01T10:00:00Z"})
 	Set result = ..Command(host, "closeQuiet", closed, "")

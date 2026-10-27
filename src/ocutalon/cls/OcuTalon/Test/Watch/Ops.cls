@@ -4,11 +4,13 @@
 /// in its own process.
 ///   - TestStart (matrix "Start"): one row, with the session, Kind production, OCUORDERS, the Orders production, the reader's display name (not the
 ///     command's), the session's IrisUser as AskedBy, NextDueAt now (UTC, to the second), CreatedAt the same time (Story 5.2: where the watch's failures
-///     start) and no result yet; the answer is Ok, started, with the row's Ref;
+///     start) and no result yet (or, where a real Tick ran the row first, which only Checks writes, a LastRunAt that is not before CreatedAt, and the
+///     other fields as before); the answer is Ok, started, with the row's Ref;
 ///     Ownership.Checks lists it (what /state shows);
 ///   - TestRepeat ("Repeat"): the same command again, and a new key for the same production, make no second row and answer already_watching with the
 ///     same Ref; another session gets a row of its own;
-///   - TestStop ("Stop", "Stop, not watching"): the session's row goes and the other session's stays, unchanged; a second stop answers not_watching,
+///   - TestStop ("Stop", "Stop, not watching"): the session's row goes and the other session's stays, unchanged in the fields that WatchOps owns (not
+///     NextDueAt, LastRunAt and Result, which a real Tick writes); a second stop answers not_watching,
 ///     Ok 0, and removes nothing;
 ///   - TestOwnerCheck ("Owner check"): a StartWatch for a production that the reader does not list (the production of OCUTALON, an unknown namespace,
 ///     another name), from any origin, answers Ok 0 and unknown_production with no row, and only_orders on the online demo; an unknown session answers
@@ -18,7 +20,8 @@
 ///   - TestChangedSendFails (Story 5.6): a failed send logs one warning for the start and one for the stop, and each answer stays started or stopped;
 ///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row;
 ///   - TestLockTimeout (QA, DW-218): another job holds the session's lock (^OcuTalon.Watch(session)); a start and a stop wait about 5 seconds and
-///     answer failed, Ok 0, with no Ref and no change to the rows; another session is not held up; once the other job lets go the same commands work;
+///     answer failed, Ok 0, with no Ref and no change to the rows (in the fields that WatchOps owns); another session is not held up; once the other
+///     job lets go the same commands work;
 ///   - TestLockIsReleased (QA): after not_watching, started, already_watching and stopped, another job can take the session's lock, and the same probe
 ///     cannot take it while another job holds it (the control);
 ///   - TestFailedSave (QA, DW-218): a row that cannot be saved (the asking user is longer than AskedBy allows) answers failed, Ok 0, with no Ref and no row.
@@ -52,10 +55,15 @@ Method TestStart()
 	Do $$$AssertEquals(row.kind_"|"_row.namespace_"|"_row.production, "production|"_..#ORDERS_"|"_..#ORDERSPRODUCTION, "Kind production, OCUORDERS and the Orders production")
 	Do $$$AssertEquals(row.displayName, "Orders", "the display name is the reader's, not the command's")
 	Do $$$AssertEquals(row.askedBy, user, "AskedBy is the IrisUser of the session")
-	Do $$$AssertTrue((row.nextDueAt '< before) && (row.nextDueAt '> after) && (row.nextDueAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "NextDueAt is the creation time, UTC to the second: "_row.nextDueAt)
-	Do $$$AssertEquals(row.createdAt, row.nextDueAt, "CreatedAt is the same time as NextDueAt: the creation time")
-	Do $$$AssertTrue((row.createdAt '< before) && (row.createdAt '> after) && (row.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "and UTC to the second: "_row.createdAt)
-	Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "it has not run yet")
+	If row.lastRunAt = "" {
+		Do $$$AssertTrue('(before ] row.nextDueAt) && '(row.nextDueAt ] after) && (row.nextDueAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "NextDueAt is the creation time, UTC to the second: "_row.nextDueAt)
+		Do $$$AssertEquals(row.createdAt, row.nextDueAt, "CreatedAt is the same time as NextDueAt: the creation time")
+		Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "it has not run yet")
+	} Else {
+		Do $$$LogMessage("A real Tick ran the row before it was read (LastRunAt "_row.lastRunAt_"): NextDueAt and Result are Checks', so only the fields of WatchOps are checked")
+		Do $$$AssertTrue('(row.createdAt ] row.lastRunAt), "LastRunAt is not before CreatedAt: "_row.lastRunAt)
+	}
+	Do $$$AssertTrue('(before ] row.createdAt) && '(row.createdAt ] after) && (row.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "CreatedAt is the creation time, UTC to the second: "_row.createdAt)
 	Do $$$AssertEquals($Length(response.Ref), 22, "the Ref has 22 characters")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(session)
 	Do $$$AssertEquals(checks.Count(), 1, "Ownership.Checks lists one watch")
@@ -99,7 +107,7 @@ Method TestStop()
 	Set b = ..Session("stopB")
 	Do host.OnStart(..Start(a, "zzkey1"), .startedA)
 	Do host.OnStart(..Start(b, "zzkey2"), .startedB)
-	Set rowB = ..Rows(b).%ToJSON()
+	Set rowB = ..Rows(b, 0).%ToJSON()
 	Set rowA = ..Rows(a).%Get(0)
 	Do $$$AssertEquals(..RowsOfProduction(), 2 + ..Others(a, b), "both sessions watch Orders")
 	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
@@ -114,13 +122,13 @@ Method TestStop()
 	Do $$$AssertEquals(change.checkRef_"|"_change.sessionRef_"|"_change.stopped, startedA.Ref_"|"_a_"|1", "for the removed row's Ref and the session, with Stopped 1")
 	Do $$$AssertEquals(change.kind_"|"_change.namespace_"|"_change.production_"|"_change.displayName, rowA.kind_"|"_rowA.namespace_"|"_rowA.production_"|"_rowA.displayName, "and the row's kind, namespace, production and display name, read before the delete")
 	Do $$$AssertEquals(..Rows(a).%Size(), 0, "the first session's row is removed")
-	Do $$$AssertEquals(..Rows(b).%ToJSON(), rowB, "and the other session's row is unchanged")
+	Do $$$AssertEquals(..Rows(b, 0).%ToJSON(), rowB, "and the other session's row is unchanged")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(a)
 	Do $$$AssertEquals(checks.Count(), 0, "Ownership.Checks no longer lists the first session's watch")
 	Do $$$AssertStatusOK(host.OnStop(command, .again), "a second stop is answered")
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "0|not_watching", "not_watching, Ok 0")
 	Do $$$AssertEquals(host.Changes.%Size(), 3, "and sent nothing")
-	Do $$$AssertEquals(..Rows(b).%ToJSON(), rowB, "and nothing else was removed")
+	Do $$$AssertEquals(..Rows(b, 0).%ToJSON(), rowB, "and nothing else was removed")
 }
 
 Method TestOwnerCheck()
@@ -237,7 +245,7 @@ Method TestLockTimeout()
 	Do $$$AssertStatusOK(host.OnStart(..Start(held, "zzlock3"), .later), "the start is answered once the other job lets go")
 	Do $$$AssertEquals(later.Ok_"|"_later.Outcome, "1|started", "and it is started")
 	If '..Hold(held, "b") Quit
-	Set row = ..Rows(held).%ToJSON()
+	Set row = ..Rows(held, 0).%ToJSON()
 	Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set stop.SessionRef = held
 	Set stop.Namespace = ..#ORDERS
@@ -247,7 +255,7 @@ Method TestLockTimeout()
 	Set waited = $ZHorolog - began
 	Do $$$AssertEquals(stopBlocked.Ok_"|"_stopBlocked.Outcome_"|"_stopBlocked.Ref, "0|failed|", "failed, Ok 0 and no Ref")
 	Do $$$AssertTrue((waited > 4) && (waited < 30), "after waiting about 5 seconds: "_waited)
-	Do $$$AssertEquals(..Rows(held).%ToJSON(), row, "and the row is still there, unchanged")
+	Do $$$AssertEquals(..Rows(held, 0).%ToJSON(), row, "and the row is still there, unchanged")
 	Do ..Release("b")
 	Do $$$AssertStatusOK(host.OnStop(stop, .stopped), "the stop is answered once the other job lets go")
 	Do $$$AssertEquals(stopped.Ok_"|"_stopped.Outcome, "1|stopped", "and it is stopped")

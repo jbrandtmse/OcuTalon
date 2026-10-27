@@ -3,8 +3,8 @@
 /// its own rows. A message goes through WebChatIn to the real Conversation, the real Decide and the real ChatAgent, against the CI mock (PointKeys). The
 /// scenario checks-false-all-clear, with its countdown armed at 1, answers the triage request with tellnow, the Chat agent's first request with a call of
 /// check_status and its second with a reply that says that everything is fine, that everything passed and "I looked at the Orders production for you."
-///   - TestFailingOrdersInTheChat (AC 1): session S watches Orders, three failing orders tagged with S's TraceRef are sent, a real Tick records the watch as
-///     failed, and S asks. The Turn is done and no fallback; its reply is exactly "I looked at the Orders production for you." (the guard removed both
+///   - TestFailingOrdersInTheChat (AC 1): session S watches Orders (due a day ahead), three failing orders tagged with S's TraceRef are sent, a real Tick
+///     leaves the watch without a run, a Tick at its due time records it as failed, and S asks (the row is not due again during the turn). The Turn is done and no fallback; its reply is exactly "I looked at the Orders production for you." (the guard removed both
 ///     all-clears); its CheckKey is checks.notEverything and its CheckRows one failed row with the row's Finding and LastRunAt; the done chat.message
 ///     carries the same; and the decision has one tool step, "Reading the check results", ok;
 ///   - TestAllClearOnlyFromCode (AC 2): the same message for a watch whose run is passed (and not due for a day, so that no real Tick changes it): the same reply, the key checks.allPassed and one passed row;
@@ -48,10 +48,13 @@ Method TestFailingOrdersInTheChat()
 	Set ref = ..Watch(session)
 	If '..Fail(3, trace) Quit
 	Do ..WaitFailed(3)
-	If ..Tick(##class(OcuTalon.Data.Time).NowUtc()) = "" Quit
+	If ..RealTick() = "" Quit
 	Set check = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
 	Do check.%Reload()
-	Do $$$AssertEquals(check.Result, "failed", "the real Tick recorded the watch as failed")
+	Do $$$AssertEquals(check.LastRunAt_"|"_check.Result, "|", "a real Tick does not run the watch: it is not due for a day")
+	If ..Tick(check.NextDueAt) = "" Quit
+	Do check.%Reload()
+	Do $$$AssertEquals(check.Result, "failed", "the Tick at the due time recorded the watch as failed")
 	Do $$$AssertEquals($Extract(check.Finding, 1, 14), "3 new failures", "with the finding of the three failures: "_check.Finding)
 	Set row = ..Ask(session, "failing")
 	If '$IsObject(row) Quit

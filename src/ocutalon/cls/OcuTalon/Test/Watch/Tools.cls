@@ -312,7 +312,7 @@ Method TestNoSession()
 }
 
 /// check_status (matrix "check_status"): session A has a passed, a failed and a not-run production row, and a row of another Kind between them; session B
-/// has a row. The answer holds A's three production rows by ID with the time in the instance zone, HostData holds them with the UTC time, and nothing is
+/// has a row. The production rows are due a day ahead, so that no real Tick runs them. The answer holds A's three production rows by ID with the time in the instance zone, HostData holds them with the UTC time, and nothing is
 /// submitted.
 Method TestCheckStatus()
 {
@@ -322,11 +322,11 @@ Method TestCheckStatus()
 	Set b = ..Session("checks-b")
 	Set passedAt = "2030-01-01T10:00:00Z"
 	Set failedAt = "2030-01-01T10:01:00Z"
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt), "NextDueAt": (..Ahead())})
 	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Other", {"Kind": "zzother", "DisplayName": "Other", "Result": "failed", "Finding": "Other kind", "LastRunAt": (passedAt)})
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Failed", {"DisplayName": "Billing", "Result": "failed", "Finding": "3 new failures", "LastRunAt": (failedAt)})
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.NotRun", {"DisplayName": "Shipping"})
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", "Zz.B", {"DisplayName": "Belongs to B", "Result": "failed", "Finding": "B's failure", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Failed", {"DisplayName": "Billing", "Result": "failed", "Finding": "3 new failures", "LastRunAt": (failedAt), "NextDueAt": (..Ahead())})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.NotRun", {"DisplayName": "Shipping", "NextDueAt": (..Ahead())})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", "Zz.B", {"DisplayName": "Belongs to B", "Result": "failed", "Finding": "B's failure", "LastRunAt": (passedAt), "NextDueAt": (..Ahead())})
 	Do ..Begin(a, ##class(OcuTalon.Bridge.Ids).NewRef())
 	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
 	Set seen = [{"result": "passed", "entry": "Orders production", "finding": "", "checked": (##class(OcuTalon.Data.Time).ForMessage(passedAt))}, {"result": "failed", "entry": "Billing production", "finding": "3 new failures", "checked": (##class(OcuTalon.Data.Time).ForMessage(failedAt))}, {"result": "", "entry": "Shipping production", "finding": "", "checked": ""}]
@@ -368,7 +368,7 @@ Method TestCheckStatusHostData()
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""checks"":[]}", "HostData "_text_" becomes checks alone")
 	}
 	Set passedAt = "2030-01-01T10:00:00Z"
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt), "NextDueAt": (..Ahead())})
 	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""checks"":[]}")
 	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
 	Do ..AssertObject(answer, {"ok": true, "checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checked": (##class(OcuTalon.Data.Time).ForMessage(passedAt))}]}, "a second call after a watch exists answers the row")

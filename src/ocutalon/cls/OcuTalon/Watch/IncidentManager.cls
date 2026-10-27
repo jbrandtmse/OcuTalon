@@ -49,7 +49,7 @@
 ///     send logs one Type 3 warning and the row stays as saved. A refused ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
 ///     line; a repeat of an outcome is refused because the request's row does not show it any more.
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
-///     recipient of the incident), not_quiet (a closeQuiet within QUIETSECONDS of LastAt), not_allowed (the table refuses), failed (the recipients or the save could not be read or made;
+///     recipient of the incident), not_quiet (a closeQuiet within QUIETSECONDS of LastAt, by the clock that QuietNow gives), not_allowed (the table refuses), failed (the recipients or the save could not be read or made;
 ///     a Type 3 warning is logged) or Ok 1 with the outcome closed;
 ///     an answer that found the incident for its caller carries the state and open variant as stored as Data (a failed save too, read again from the row; a failed
 ///     read of the recipients has no caller to tell, like a dismiss from a session that is not a recipient). closeForReplay and closeQuiet check no session: only
@@ -597,6 +597,12 @@ Method SendExecute(order As OcuTalon.Fix.Msg.Execute) As %Status [ Private ]
 	Quit ..SendRequestAsync(..#FIXEXECUTOR, order, 0)
 }
 
+/// The time that closeQuiet's quiet check reads, as a UTC stamp: the clock's now (a seam for the tests).
+Method QuietNow() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Time).NowUtc()
+}
+
 /// An incident command (see the class description): the checks in order, then the table. The answer is the CommandResult in response.
 Method Command(command As OcuTalon.Msg.IncidentCommand, Output response As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
@@ -613,7 +619,7 @@ Method Command(command As OcuTalon.Msg.IncidentCommand, Output response As OcuTa
 		}
 		If (command.SessionRef = "") || '$ListFind(recipients, command.SessionRef) Quit ..Verdict(.response, 0, "not_found", ..#MESSAGENOTFOUND)
 	}
-	If (verb = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET) && '##class(OcuTalon.Watch.Settle).Quiet(incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), ..#QUIETSECONDS) {
+	If (verb = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET) && '##class(OcuTalon.Watch.Settle).Quiet(incident.LastAt, ..QuietNow(), ..#QUIETSECONDS) {
 		Quit ..Verdict(.response, 0, "not_quiet", ..#MESSAGENOTQUIET, "", incident)
 	}
 	Set sc = ..Apply(incident, verb, "", .accepted)

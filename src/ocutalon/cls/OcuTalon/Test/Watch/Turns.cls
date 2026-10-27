@@ -6,9 +6,10 @@
 ///   - TestStartThroughTheAgent (Integration AC): "Watch the Orders production ..." with [[mock:watch-start-orders]] makes exactly one row of the matrix row
 ///     "Start", ToolsRun is 1, the tool step is "Starting a watch" and ok, the steps and the runner's reply are in the session of the decision (DW-74), the
 ///     model's next request carries ok, outcome started, production Orders and the ref of the row, and Ownership.Checks lists it with Kind production and
-///     DisplayName Orders;
+///     DisplayName Orders; the row is due at once, so where a real Tick ran it first (LastRunAt, which only Checks writes) the test checks the creation time
+///     and the fields of WatchOps instead of NextDueAt and the empty result;
 ///   - TestStopLeavesTheOtherSession: with sessions A and B both watching Orders, "Stop watching Orders" for A (watch-stop-orders) removes A's row, which
-///     Ownership.Checks no longer lists, and leaves B's row as it was;
+///     Ownership.Checks no longer lists, and leaves B's row as it was (the rows are due a day ahead, so no real Tick changes them);
 ///   - TestUnknownName: [[mock:watch-start-unknown]] writes no row, and the model's next request carries unknown_production with the name Billing and
 ///     the list Orders; the scenario's reply is the catalog's watch.unknownProduction text with those values;
 ///   - TestInjectedStop (NFR-14): in an untrusted turn (watch-injected-stop) the stop_watch step is denied with UNTRUSTED, no command reaches WatchOps and
@@ -41,8 +42,14 @@ Method TestStartThroughTheAgent()
 		Set row = rows.%Get(0)
 		Do $$$AssertEquals(row.kind_"|"_row.namespace_"|"_row.production_"|"_row.displayName, "production|"_..#ORDERS_"|"_..#ORDERSPRODUCTION_"|Orders", "Kind production, OCUORDERS, the Orders production and the display name Orders")
 		Do $$$AssertEquals(row.askedBy, user, "AskedBy is the IrisUser of the session")
-		Do $$$AssertTrue((row.nextDueAt '< before) && (row.nextDueAt '> ##class(OcuTalon.Data.Time).NowUtc()), "NextDueAt is the creation time: "_row.nextDueAt)
-		Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "nothing has run yet")
+		If row.lastRunAt = "" {
+			Do $$$AssertTrue('(before ] row.nextDueAt) && '(row.nextDueAt ] ##class(OcuTalon.Data.Time).NowUtc()), "NextDueAt is the creation time: "_row.nextDueAt)
+			Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "nothing has run yet")
+		} Else {
+			Do $$$LogMessage("A real Tick ran the row before it was read (LastRunAt "_row.lastRunAt_"): NextDueAt and Result are Checks', so only the fields of WatchOps are checked")
+			Do $$$AssertTrue('(before ] row.createdAt) && '(row.createdAt ] ##class(OcuTalon.Data.Time).NowUtc()), "CreatedAt is the creation time: "_row.createdAt)
+			Do $$$AssertTrue('(row.createdAt ] row.lastRunAt), "LastRunAt is not before CreatedAt: "_row.lastRunAt)
+		}
 		Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 		If requests.%Size() = 2 {
 			Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))

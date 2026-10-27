@@ -26,6 +26,10 @@ Include Ensemble
 ///     untagged failures of the poller tests make are gone too.
 ///   - for the tests of the checks (Story 5.6, moved here by Story 5.7): Tick, which sends a Tick as HeartbeatIn sends it to the Checks item and waits for the
 ///     answer, with the parameters HEARTBEAT, CHECKS and TICKWAIT.
+///   - for tests that a real Tick must never change (Story 5.10): Watch makes its row due at Ahead() (AHEADSECONDS from now), so that only a Tick that a test sends at
+///     the row's NextDueAt runs it; SendTick is the one sender (synchronously, or asynchronously as HeartbeatIn sends it, waiting for the Tick's request to
+///     complete), Tick asserts on the synchronous send and RealTick on an asynchronous one at the clock's now, which a test or a one-off run uses to prove that
+///     a real Tick leaves a test's rows as they are; and Rows leaves out, on request, the fields that Checks owns.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -85,6 +89,9 @@ Parameter CHECKS = "Checks";
 
 /// The longest a Tick is waited for, in seconds.
 Parameter TICKWAIT = 60;
+
+/// How far ahead of now a row is due, in seconds (see Ahead).
+Parameter AHEADSECONDS = 86400;
 
 /// What the CommandsIn item had before the double was put behind it, as JSON text, or "" while the double is not behind it.
 Property Swap As %String(MAXLEN = "");
@@ -421,13 +428,20 @@ ClassMethod Calls() As %DynamicArray
 }
 
 /// The BackgroundCheck rows of the session, by ID, as a dynamic array of {"ref","kind","namespace","production","displayName","askedBy","nextDueAt",
-/// "lastRunAt","result","createdAt"}.
-ClassMethod Rows(sessionRef As %String) As %DynamicArray
+/// "lastRunAt","result","createdAt"}; with runFields 0 the rows leave out nextDueAt, lastRunAt and result, the fields that Checks owns.
+ClassMethod Rows(sessionRef As %String, runFields As %Boolean = 1) As %DynamicArray
 {
 	Set rows = []
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Kind, Namespace, Production, DisplayName, AskedBy, NextDueAt, LastRunAt, Result, CreatedAt FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? ORDER BY ID", sessionRef)
 	While rs.%Next() {
-		Do rows.%Push({"ref": (rs.%GetData(1)), "kind": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "askedBy": (rs.%GetData(6)), "nextDueAt": (rs.%GetData(7)), "lastRunAt": (rs.%GetData(8)), "result": (rs.%GetData(9)), "createdAt": (rs.%GetData(10))})
+		Set row = {"ref": (rs.%GetData(1)), "kind": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "askedBy": (rs.%GetData(6))}
+		If runFields {
+			Do row.%Set("nextDueAt", rs.%GetData(7))
+			Do row.%Set("lastRunAt", rs.%GetData(8))
+			Do row.%Set("result", rs.%GetData(9))
+		}
+		Do row.%Set("createdAt", rs.%GetData(10))
+		Do rows.%Push(row)
 	}
 	Quit rows
 }
@@ -440,28 +454,71 @@ ClassMethod RowCount() As %Integer
 	Quit rs.%GetData(1)
 }
 
-/// A fixture row: the session watches the production of OCUORDERS under the display name Orders, created now (CreatedAt, as WatchOps writes it). The
-/// Ref of the row is given back.
+/// A fixture row: the session watches the production of OCUORDERS under the display name Orders, created now (CreatedAt, as WatchOps writes it) and due at
+/// Ahead(), so that a Tick runs it only when its time is the row's NextDueAt. The Ref of the row is given back.
 Method Watch(sessionRef As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc())})
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc()), "NextDueAt": (..Ahead())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// The time AHEADSECONDS from now, as a UTC stamp.
+ClassMethod Ahead() As %String
+{
+	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), ..#AHEADSECONDS)
+}
+
+/// Sends a Tick of the time from the HEARTBEAT service to Checks, as HeartbeatIn sends it. Synchronously (async 0) it waits at most TICKWAIT seconds for the
+/// answer. Asynchronously it sends and then waits at most TICKWAIT seconds until the Tick's request, in the service's session, is Completed, so that a later
+/// Tick cannot overtake it. The id of the service's session, the Tick's trace session, or "" with sc set to the error.
+ClassMethod SendTick(tickAt As %String, async As %Boolean = 0, Output sc As %Status) As %Integer
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service)
+	If $$$ISERR(sc) Quit ""
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = tickAt
+	If 'async {
+		Set sc = service.SendRequestSync(..#CHECKS, tick, .response, ..#TICKWAIT)
+	} Else {
+		Set sc = service.SendRequestAsync(..#CHECKS, tick)
+	}
+	If $$$ISERR(sc) Quit ""
+	If async {
+		Set session = service.%SessionId
+		Set end = $ZHorolog + ..#TICKWAIT
+		Set status = ""
+		For {
+			Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Status FROM Ens.MessageHeader WHERE SessionId = ? AND Type = 1 AND TargetConfigName = ?", session, ..#CHECKS)
+			If rs.%Next() Set status = rs.%GetData(1)
+			If status = $$$eMessageStatusCompleted Quit
+			If $ZHorolog > end {
+				Set sc = $SYSTEM.Status.Error(5001, "The Tick to "_..#CHECKS_" in session "_session_" was not Completed in "_..#TICKWAIT_" seconds (status '"_status_"')")
+				Quit
+			}
+			Hang 0.25
+		}
+		If $$$ISERR(sc) Quit ""
+	}
+	Quit service.%SessionId
 }
 
 /// Sends a Tick of the time from HeartbeatIn to Checks and waits for the answer; the id of the service's session, the Tick's trace session, or "" with a failed
 /// assertion.
 Method Tick(tickAt As %String) As %Integer [ Private ]
 {
-	Set sc = ##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service)
-	Do $$$AssertStatusOK(sc, "the "_..#HEARTBEAT_" service is created")
-	If $$$ISERR(sc) Quit ""
-	Set tick = ##class(OcuTalon.Msg.Tick).%New()
-	Set tick.TickAt = tickAt
-	Set sc = service.SendRequestSync(..#CHECKS, tick, .response, ..#TICKWAIT)
-	Do $$$AssertStatusOK(sc, "Checks answers the Tick at "_tickAt)
-	If $$$ISERR(sc) Quit ""
-	Quit service.%SessionId
+	Set session = ..SendTick(tickAt, 0, .sc)
+	Do $$$AssertStatusOK(sc, "the "_..#HEARTBEAT_" service sends the Tick at "_tickAt_" and Checks answers it")
+	Quit session
+}
+
+/// Sends a Tick at the clock's now asynchronously, as HeartbeatIn does, and waits for it to complete; the id of the Tick's session, or "" with a failed
+/// assertion. Whatever the Tick runs, the rows of the test must not depend on it.
+Method RealTick() As %Integer [ Private ]
+{
+	Set session = ..SendTick(##class(OcuTalon.Data.Time).NowUtc(), 1, .sc)
+	Do $$$AssertStatusOK(sc, "the real-shaped Tick is handled")
+	Quit session
 }
 
 /// Deletes the BackgroundCheck rows of the sessions of the run (the rows that WatchOps made).
