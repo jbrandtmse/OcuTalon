@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
+import { approvalContext, ApprovalRequestCard } from '../approvals/approval-request-card';
+import { requestsOf } from '../approvals/approval-view';
 import { DecisionStrip } from '../chat/decision-strip';
 import { FallbackFlag } from '../chat/fallback-flag';
 import { messageTime, pageWhen, pageWhenBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
-import type { DecisionPayload, IncidentPayload } from '../live/payloads';
+import type { ApprovalPayload, DecisionPayload, IncidentPayload } from '../live/payloads';
 import { TraceLink } from '../shared/trace-link';
 import { EvidencePanel } from './evidence-panel';
 import { INCIDENT_TEXTS, incidentView, type IncidentContext } from './incident-view';
@@ -30,17 +32,19 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
 /**
  * The incident card (FR-24, UX-DR72 to UX-DR78): one card per incident Ref in the chat, from the incident payload alone
  * (incident-view.ts). Top to bottom: the chip row (the state pill, the Fallback flag, the time of the last failure), the headline
- * (an h3), the "more since the notice" line, the cause, the evidence line, the proposed fix, the fixing line, the actions row
- * with Show details (aria-expanded) and the evidence panel directly below it, and the footer with the diagnosis decision's strip
- * (or the diagnosis trace link alone when the store holds no such decision). A 4px bar on the left follows the state; a closed
- * card keeps the chip row, the headline and Show details. A part with no data is left out. Every text is bound by interpolation,
- * never as markup.
+ * (an h3), the "more since the notice" line, the cause, the evidence line, the proposed fix, the fixing line, the approval request
+ * cards (Story 6.2: one for each approval payload of the store with this incident's ref, in the order raised, the first with Show
+ * details at the right end of its row and the evidence panel below it), and the footer with the diagnosis decision's strip (or the
+ * diagnosis trace link alone when the store holds no such decision). With no request card, and on a compact card, the card has its
+ * own actions row with Show details (aria-expanded) and the evidence panel directly below it. A 4px bar on the left follows the
+ * state; a closed card keeps the chip row, the headline and Show details. A part with no data is left out. Every text is bound by
+ * interpolation, never as markup.
  * The card is an article that the chat's focus rule and the New messages button can focus (tabindex -1); it announces nothing
  * (the chat does, chat-announcements.ts) and moves no focus itself. The panel stays open while the card updates in place.
  */
 @Component({
   selector: 'app-incident-card',
-  imports: [DecisionStrip, EvidencePanel, FallbackFlag, Icon, TraceLink],
+  imports: [ApprovalRequestCard, DecisionStrip, EvidencePanel, FallbackFlag, Icon, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <article
@@ -77,24 +81,36 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
       @if (view().fixingLine) {
         <p class="fixing">{{ view().fixingLine }}</p>
       }
-      @if (view().panel; as panel) {
-        <div class="actions">
-          <button
-            type="button"
-            class="button button-ghost show-details"
-            [attr.aria-expanded]="open()"
-            [attr.aria-controls]="panelId"
-            (click)="open.set(!open())"
-          >
-            {{ texts.showDetails }}
-            <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="14" />
-          </button>
-        </div>
-        <div class="panel" [id]="panelId">
-          @if (open()) {
-            <app-evidence-panel [panel]="panel" />
-          }
-        </div>
+      @for (request of requests(); track request.ref; let first = $first) {
+        <app-approval-request-card
+          [approval]="request"
+          [ctx]="approvalCtx()"
+          [details]="first ? view().panel : undefined"
+          [detailsId]="panelId"
+          [detailsOpen]="open()"
+          (toggleDetails)="open.set(!open())"
+        />
+      }
+      @if (requests().length === 0) {
+        @if (view().panel; as panel) {
+          <div class="actions">
+            <button
+              type="button"
+              class="button button-ghost show-details"
+              [attr.aria-expanded]="open()"
+              [attr.aria-controls]="panelId"
+              (click)="open.set(!open())"
+            >
+              {{ texts.showDetails }}
+              <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="14" />
+            </button>
+          </div>
+          <div class="panel" [id]="panelId">
+            @if (open()) {
+              <app-evidence-panel [panel]="panel" />
+            }
+          </div>
+        }
       }
       @if (view().strip || view().diagnosisUrl) {
         <div class="footer">
@@ -246,8 +262,12 @@ export class IncidentCard {
   readonly decisions = input<readonly DecisionPayload[]>([]);
   /** The instance's time zone, from the snapshot. */
   readonly instanceZone = input('');
-  /** True on the online demo: the headline's time ends " ET". */
+  /** True on the online demo: the headline's time ends " ET", and no answerer is named. */
   readonly onlineDemo = input(false);
+  /** The live store's approval payloads by Ref, from which the incident's request cards are drawn. */
+  readonly approvals = input<Readonly<Record<string, ApprovalPayload>> | undefined>(undefined);
+  /** The signed-in user, from the snapshot; an answer by another user names them on a local install. */
+  readonly user = input('');
 
   protected readonly texts = INCIDENT_TEXTS;
   private readonly id = ++lastId;
@@ -259,4 +279,10 @@ export class IncidentCard {
   protected readonly view = computed(() =>
     incidentView(this.incident(), incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo())),
   );
+
+  /** The incident's approval requests in the order raised; a compact (closed) card shows none. */
+  protected readonly requests = computed(() => (this.view().compact ? [] : requestsOf(this.incident(), this.approvals())));
+
+  /** What the request cards read: the card's own clock, zone and online-demo flag, and the signed-in user. */
+  protected readonly approvalCtx = computed(() => approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user()));
 }

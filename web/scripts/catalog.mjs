@@ -9,18 +9,21 @@
 //
 // It reads the XData block Entries of Msg/Catalog/Core.cls and of Msg/Catalog/Watch.cls (one JSON object each, the catalog
 // keys with their texts and slot types; the two are merged, and a key in both is refused) and the REASONKEYS parameter of
-// Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key), and keeps an allowlist of the
-// keys the page renders: conversation.turnFallback, the check sentences checks.allPassed, checks.everythingElsePassed and
-// checks.nothingWatched, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself, howToSetKey
-// and setUpBot) and every fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS
-// (the slot types of each listed key), REASON_KEYS and renderPageText. A fallbackReason slot renders as its reason text; a time,
-// count or cost slot takes the string the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned
-// like any string slot.
+// Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key, and CHANNELNAMES, each channel code
+// with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
+// sentences checks.allPassed, checks.everythingElsePassed and checks.nothingWatched, the nine banner.* texts, the three
+// bannerAction.* texts the page renders (installYourself, howToSetKey and setUpBot), the nine answered.* texts (approved,
+// approvedBy, rejected, rejectedBy, expired, alreadyApproved, alreadyRejected, alreadyApprovedBy and alreadyRejectedBy) and every
+// fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each
+// listed key), REASON_KEYS, CHANNEL_NAMES and renderPageText. A fallbackReason slot renders as its reason text and a channel slot
+// as the channel's name (a code that is not in CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string
+// the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned like any string slot.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
-// other than fallbackReason, time, count or cost or with a placeholder that is not a declared slot, a fallbackReason.* text
-// with a slot of a type other than fallbackReason, a listed key with a one form, a reason value whose fallbackReason.* key is
-// missing, a key that both catalogs define, and an XData block or a REASONKEYS parameter it cannot read.
+// other than fallbackReason, time, count, cost, channel or text or with a placeholder that is not a declared slot, a
+// fallbackReason.* text with a slot of a type other than fallbackReason, a listed key with a one form, a reason value whose
+// fallbackReason.* key is missing, a key that both catalogs define, and an XData block, a REASONKEYS parameter or a CHANNELNAMES
+// parameter it cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
@@ -51,10 +54,19 @@ export const LISTED_KEYS = [
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
   'bannerAction.setUpBot',
+  'answered.approved',
+  'answered.approvedBy',
+  'answered.rejected',
+  'answered.rejectedBy',
+  'answered.expired',
+  'answered.alreadyApproved',
+  'answered.alreadyRejected',
+  'answered.alreadyApprovedBy',
+  'answered.alreadyRejectedBy',
 ];
 export const REASON_PREFIX = 'fallbackReason.';
-/** The slot types the page renders: a fallbackReason slot gives its reason text, the others take the caller's formatted string. */
-const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost'];
+/** The slot types the page renders: a fallbackReason slot gives its reason text, a channel slot the channel's name, the others take the caller's formatted string. */
+const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'text'];
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';
 
@@ -112,6 +124,23 @@ export function readReasonKeys(text, file) {
   throw new CatalogError(file, 0, 'there is no Parameter REASONKEYS');
 }
 
+/** The CHANNELNAMES parameter of Catalog.cls as [code, name] pairs, in order. */
+export function readChannelNames(text, file) {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = /^Parameter CHANNELNAMES = "([^"]*)";/.exec(lines[i]);
+    if (!match) continue;
+    const pairs = match[1].split(',').map((pair) => pair.split('='));
+    for (const pair of pairs) {
+      if (pair.length !== 2 || !/^[a-z]+$/.test(pair[0]) || !/^[A-Za-z][A-Za-z ]*$/.test(pair[1])) {
+        throw new CatalogError(file, i + 1, `CHANNELNAMES holds '${pair.join('=')}', which is not <code>=<name>`);
+      }
+    }
+    return pairs;
+  }
+  throw new CatalogError(file, 0, 'there is no Parameter CHANNELNAMES');
+}
+
 /** A listed entry's page text (web, else text) and slot types, checked: only the slot types the page renders, each placeholder declared, no one form. */
 function pageText(key, entry, file) {
   if (entry === null || typeof entry !== 'object') throw new CatalogError(file, 0, `the entry '${key}' is not an object`);
@@ -158,6 +187,12 @@ function cleanSlot(value: unknown): string {
     .trim();
 }
 
+/** The name of a channel code in message text ("the web chat"), or the cleaned value itself when it is none of CHANNEL_NAMES. */
+function channelName(value: unknown): string {
+  const code = cleanSlot(value);
+  return Object.hasOwn(CHANNEL_NAMES, code) ? CHANNEL_NAMES[code] : code;
+}
+
 /** The text of a fallback reason value, or the generic reason's when the value is none of REASON_KEYS. */
 function reasonText(value: unknown): string {
   const reason = cleanSlot(value);
@@ -168,8 +203,9 @@ function reasonText(value: unknown): string {
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
- * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
+ * itself. Every other slot takes the string the caller formatted (a time, a cost, a count or a text), cleaned like any string
+ * slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
@@ -177,7 +213,8 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   return template.replace(/\\{([^{}]*)\\}/g, (_placeholder: string, name: string) => {
     const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
-    return Object.hasOwn(types, name) && types[name] === 'fallbackReason' ? reasonText(value) : cleanSlot(value);
+    const type = Object.hasOwn(types, name) ? types[name] : '';
+    return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
   });
 }
 `;
@@ -196,7 +233,9 @@ export function generate(opts) {
     if (entries.has(key)) throw new CatalogError(watchName, 0, `the key '${key}' is in both ${coreName} and ${watchName}`);
     entries.set(key, { entry, file: watchName });
   }
-  const reasons = readReasonKeys(readFileSync(opts.catalog, 'utf8'), catalogName);
+  const catalogText = readFileSync(opts.catalog, 'utf8');
+  const reasons = readReasonKeys(catalogText, catalogName);
+  const channels = readChannelNames(catalogText, catalogName);
 
   const texts = new Map();
   /** The slot types of each listed key, in the listed order. */
@@ -228,17 +267,21 @@ export function generate(opts) {
   const textLines = [...texts].map(([key, text]) => `  ${quote(key)}: ${quote(text)},`);
   const slotLines = [...slotTypes].map(([key, slots]) => `  ${quote(key)}: { ${Object.entries(slots).map(([name, type]) => `${quote(name)}: ${quote(type)}`).join(', ')} },`.replace('{  }', '{}'));
   const reasonLines = reasons.map(([value, suffix]) => `  ${quote(value)}: ${quote(suffix)},`);
+  const channelLines = channels.map(([code, name]) => `  ${quote(code)}: ${quote(name)},`);
   const text = [
     '// Generated by web/scripts/catalog.mjs from the OcuTalon message catalog classes. Do not edit; run: npm --prefix web run catalog',
     '',
     '/** The page wording of each catalog key that the page renders, with {name} placeholders for its slots. */',
     `export const PAGE_TEXTS: Readonly<Record<string, string>> = {\n${textLines.join('\n')}\n};`,
     '',
-    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */',
+    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, the others take the formatted string the caller passes. */',
     `export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n${slotLines.join('\n')}\n};`,
     '',
     '/** Each fallback reason value with the suffix of its fallbackReason.* key. */',
     `export const REASON_KEYS: Readonly<Record<string, string>> = {\n${reasonLines.join('\n')}\n};`,
+    '',
+    '/** Each channel code with its name in message text. */',
+    `export const CHANNEL_NAMES: Readonly<Record<string, string>> = {\n${channelLines.join('\n')}\n};`,
     '',
     '/** The slots of a page text, by name. */',
     'export type PageSlots = Readonly<Record<string, unknown>>;',

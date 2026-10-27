@@ -640,9 +640,10 @@ Method TestEndSession()
 }
 
 /// The two routes that name a record answer 404 not_found, with the error body, for a ref the session can't see: another
-/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible ref answers
-/// 501 not_built. The CSP session is bound to the second of two rows of the user name, so a handler that took the session
-/// from the user name would resolve the first row and answer 404 for the visible refs.
+/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible
+/// incident answers 501 not_built, and a visible approval answers 400 bad_answer to a call with no body. The CSP session is
+/// bound to the second of two rows of the user name, so a handler that took the session from the user name would resolve the
+/// first row and answer 404 for the visible refs.
 Method TestUnseenRefIs404()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
@@ -662,6 +663,7 @@ Method TestUnseenRefIs404()
 	Set csp.Data("OcuTalon.SessionRef") = mine
 	Set notFound = "{""error"":{""code"":""not_found"",""message"":""OcuTalon has nothing at this address.""}}"
 	Set notBuilt = "{""error"":{""code"":""not_built"",""message"":""This part of OcuTalon isn't built yet.""}}"
+	Set badAnswer = "{""error"":{""code"":""bad_answer"",""message"":""An answer needs an action, approve or reject, and a channel, web or phone.""}}"
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 
 	Set position = 0
@@ -685,8 +687,8 @@ Method TestUnseenRefIs404()
 	}
 	For ref = ownApproval, instanceApproval {
 		Set body = ..CallSession(csp, "AnswerApproval", .response, ref)
-		Do $$$AssertEquals(response.Status, "501 Not Implemented", "answering the visible approval "_ref_" is 501")
-		Do $$$AssertEquals(body, notBuilt, "not_built")
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "answering the visible approval "_ref_" with no body is 400")
+		Do $$$AssertEquals(body, badAnswer, "bad_answer")
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set body = ..CallSession(csp, "DismissIncident", .response, instanceWatched)

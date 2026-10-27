@@ -82,6 +82,18 @@ export interface MailboxAccepted {
 /** POST /ocutalon/api/v1/guide/markers: the guide's two UI markers (Story 4.7). The session is the caller's; the body never names one. */
 export type GuideMarker = 'trace_opened' | 'run_again';
 
+/** POST /ocutalon/api/v1/approvals/:ref/answer: the body of the 200 answer, the answered request. The session is the caller's; the body never names one. */
+export interface AnswerBody {
+  result: 'done';
+  approval: ApprovalPayload;
+}
+
+/** The body of an error answer to an answer: the error, and the request's payload beside it for a 409 (already answered, expired). */
+export interface AnswerError {
+  error: { code: string; message: string };
+  approval?: ApprovalPayload;
+}
+
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };

@@ -1,9 +1,10 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
 // check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
-// catalog, the 12 banner and action keys with their slot types (Story 2.10), and fixtures for the output's shape, the web text
-// over the text, the merge of the Core and Watch catalogs, the time, cost and count slots that take the caller's string, and each
-// way the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
-// block, a reason with no text) and a stale file.
+// catalog, the 12 banner and action keys with their slot types (Story 2.10), the nine answered keys with their channel and text
+// slots (Story 6.2), and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs,
+// the time, cost, count and text slots that take the caller's string, the channel slot that gives a channel's name, and each way
+// the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
+// block or CHANNELNAMES parameter, a reason with no text) and a stale file.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -41,6 +42,19 @@ const BANNER_KEYS = [
   'bannerAction.setUpBot',
 ];
 
+/** The nine answered texts that the page renders (Story 6.2), in the generator's order. */
+const ANSWERED_KEYS = [
+  'answered.approved',
+  'answered.approvedBy',
+  'answered.rejected',
+  'answered.rejectedBy',
+  'answered.expired',
+  'answered.alreadyApproved',
+  'answered.alreadyRejected',
+  'answered.alreadyApprovedBy',
+  'answered.alreadyRejectedBy',
+];
+
 describe('the real tree', () => {
   it('has a current catalog.ts', () => {
     const r = run('--check');
@@ -54,19 +68,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences and the 12 banner and action keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences, the 12 banner and action keys and the nine answered keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     const checks = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...BANNER_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 27);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...BANNER_KEYS, ...ANSWERED_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 36);
   });
 
-  it('holds the 12 banner and action keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 12 banner and action keys and the nine answered keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 12);
-    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS]);
+    assert.equal(ANSWERED_KEYS.length, 9);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS]);
     const slots = {
       'banner.allowance': { limit: 'count', time: 'time' },
       'banner.dailyCap': { time: 'time' },
@@ -74,6 +89,15 @@ describe('the real tree', () => {
       'banner.heartbeatStalled': { time: 'time' },
       'banner.telegramPaused': { time: 'time' },
       'conversation.turnFallback': { fallbackReason: 'fallbackReason' },
+      'answered.approved': { channel: 'channel', time: 'time' },
+      'answered.approvedBy': { user: 'text', channel: 'channel', time: 'time' },
+      'answered.rejected': { channel: 'channel', time: 'time' },
+      'answered.rejectedBy': { user: 'text', channel: 'channel', time: 'time' },
+      'answered.expired': { time: 'time' },
+      'answered.alreadyApproved': { channel: 'channel', time: 'time' },
+      'answered.alreadyRejected': { channel: 'channel', time: 'time' },
+      'answered.alreadyApprovedBy': { user: 'text', channel: 'channel', time: 'time' },
+      'answered.alreadyRejectedBy': { user: 'text', channel: 'channel', time: 'time' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
     assert.ok(!Object.hasOwn(real.PAGE_TEXTS, 'bannerAction.budgets'), 'Budgets waits for the settings page');
@@ -98,6 +122,32 @@ describe('the real tree', () => {
     assert.equal(real.renderPageText('bannerAction.installYourself'), 'Install it yourself');
     assert.equal(real.renderPageText('bannerAction.howToSetKey'), 'How to set a key');
     assert.equal(real.renderPageText('bannerAction.setUpBot'), 'Set up a bot');
+  });
+});
+
+describe('the answered texts', () => {
+  const at = { time: '14:15' };
+
+  it('read as the UX words them, with the channel by its name, the web wording where the catalog has one', () => {
+    assert.deepEqual({ ...real.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone', telegram: 'Telegram' });
+    assert.equal(real.renderPageText('answered.approved', { channel: 'web', ...at }), 'Approved from the web chat at 14:15');
+    assert.equal(real.renderPageText('answered.approvedBy', { user: 'zzsam', channel: 'phone', ...at }), 'Approved by zzsam from the simulated phone at 14:15');
+    assert.equal(real.renderPageText('answered.rejected', { channel: 'web', ...at }), 'Rejected from the web chat at 14:15. Nothing was changed.');
+    assert.equal(real.renderPageText('answered.rejectedBy', { user: 'zzsam', channel: 'telegram', ...at }), 'Rejected by zzsam from Telegram at 14:15. Nothing was changed.');
+    assert.equal(real.renderPageText('answered.expired', { time: '14:13' }), 'Expired at 14:13. Nothing was changed.');
+    assert.equal(real.renderPageText('answered.alreadyApproved', { channel: 'phone', ...at }), 'Already answered: approved from the simulated phone at 14:15.');
+    assert.equal(real.renderPageText('answered.alreadyRejected', { channel: 'web', ...at }), 'Already answered: rejected from the web chat at 14:15.');
+    assert.equal(real.renderPageText('answered.alreadyApprovedBy', { user: 'zzsam', channel: 'phone', ...at }), 'Already answered: approved by zzsam from the simulated phone at 14:15.');
+    assert.equal(real.renderPageText('answered.alreadyRejectedBy', { user: 'zzsam', channel: 'telegram', ...at }), 'Already answered: rejected by zzsam from Telegram at 14:15.');
+  });
+
+  it('give an unknown channel code as it is, clean a text slot like any string, and never read a value as a placeholder', () => {
+    assert.equal(real.renderPageText('answered.approved', { channel: 'slack', ...at }), 'Approved from slack at 14:15');
+    for (const channel of ['constructor', '__proto__', 'toString', '', 5, null, undefined]) {
+      assert.equal(real.renderPageText('answered.approved', { channel, ...at }), `Approved from ${typeof channel === 'string' ? channel : ''} at 14:15`, String(channel));
+    }
+    assert.equal(real.renderPageText('answered.approvedBy', { user: ' zz\nsam\u200B ', channel: ' web ', ...at }), 'Approved by zz sam from the web chat at 14:15');
+    assert.equal(real.renderPageText('answered.approvedBy', { user: '{time}', channel: 'web', time: '$&' }), 'Approved by {time} from the web chat at $&');
   });
 });
 
@@ -167,7 +217,8 @@ describe('the fallback sentence', () => {
 /** The text of a Core.cls fixture holding these entries in an XData block like the real one. */
 const coreClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Core\n{\n\nXData Entries [ MimeType = application/json ]\n{\n${entries}\n}\n\n}\n`;
 const watchClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Watch\n{\n\nXData Entries [ MimeType = application/json ]\n{\n${entries}\n}\n\n}\n`;
-const catalogClass = (reasons) => `/// A fixture.\nClass OcuTalon.Msg.Catalog\n{\n\nParameter REASONKEYS = "${reasons}";\n\n}\n`;
+const catalogClass = (reasons, channels = 'web=the web chat,phone=the simulated phone') =>
+  `/// A fixture.\nClass OcuTalon.Msg.Catalog\n{\n\nParameter REASONKEYS = "${reasons}";\n${channels === null ? '' : `\nParameter CHANNELNAMES = "${channels}";\n`}\n}\n`;
 
 /** The banner and action entries of the fixtures: the slot types of the real ones, with texts of their own. */
 const BANNERS = {
@@ -185,9 +236,23 @@ const BANNERS = {
   'bannerAction.setUpBot': { text: 'Set up.', slots: {}, source: 'fixture' },
 };
 
+/** The answered entries of the fixtures: the slot types of the real ones, with texts of their own. */
+const ANSWERED = {
+  'answered.approved': { text: 'Yes from {channel} at {time}.', web: 'Yes from {channel} at {time}', slots: { channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.approvedBy': { text: 'Yes by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.rejected': { text: 'No from {channel} at {time}.', slots: { channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.rejectedBy': { text: 'No by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.expired': { text: 'Expired at {time}.', slots: { time: 'time' }, source: 'fixture' },
+  'answered.alreadyApproved': { text: 'Late: yes from {channel} at {time}.', slots: { channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.alreadyRejected': { text: 'Late: no from {channel} at {time}.', slots: { channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.alreadyApprovedBy': { text: 'Late: yes by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
+  'answered.alreadyRejectedBy': { text: 'Late: no by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
+};
+
 const GOOD = {
   'conversation.turnFallback': { text: "I couldn't answer that: {fallbackReason}. Nothing was changed.", slots: { fallbackReason: 'fallbackReason' }, source: 'fixture' },
   ...BANNERS,
+  ...ANSWERED,
   'fallbackReason.timeout': { text: 'it timed out', slots: {}, source: 'fixture' },
   'fallbackReason.generic': { text: 'it failed', slots: {}, source: 'fixture' },
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
@@ -202,12 +267,12 @@ const WATCH = {
 };
 
 /** Writes a fixture trio and returns the arguments that point the generator at it (the --watch pair is last). */
-function fixture(name, { entries = GOOD, reasons = 'timeout=timeout,invalid=generic', core = coreClass(JSON.stringify(entries, null, 1)), watchEntries = WATCH, watch = watchClass(JSON.stringify(watchEntries, null, 1)) } = {}) {
+function fixture(name, { entries = GOOD, reasons = 'timeout=timeout,invalid=generic', channels = undefined, core = coreClass(JSON.stringify(entries, null, 1)), watchEntries = WATCH, watch = watchClass(JSON.stringify(watchEntries, null, 1)) } = {}) {
   const dir = join(work, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'Core.cls'), core);
   writeFileSync(join(dir, 'Watch.cls'), watch);
-  writeFileSync(join(dir, 'Catalog.cls'), catalogClass(reasons));
+  writeFileSync(join(dir, 'Catalog.cls'), catalogClass(reasons, channels));
   return ['--core', join(dir, 'Core.cls'), '--catalog', join(dir, 'Catalog.cls'), '--out', join(dir, 'catalog.ts'), '--watch', join(dir, 'Watch.cls')];
 }
 
@@ -219,8 +284,9 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
-    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS]);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS]);
+    assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
     assert.deepEqual({ ...module.PAGE_SLOTS['banner.costCap'] }, { cap: 'cost', time: 'time' });
     assert.deepEqual({ ...module.PAGE_SLOTS['banner.allowance'] }, { limit: 'count', time: 'time' });
     assert.deepEqual({ ...module.PAGE_SLOTS['conversation.turnFallback'] }, { fallbackReason: 'fallbackReason' });
@@ -293,13 +359,13 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /'checks\.allPassed' is in both/);
   });
 
-  it('fails on a check sentence with a slot, which the page cannot fill', () => {
-    const watchEntries = { ...WATCH, 'checks.allPassed': { text: 'All fine: {what}.', slots: { what: 'text' } } };
+  it('fails on a check sentence with a slot of a type the page cannot fill', () => {
+    const watchEntries = { ...WATCH, 'checks.allPassed': { text: 'All fine: {what}.', slots: { what: 'noun' } } };
     const r = run(...fixture('check-slot', { watchEntries }));
     assert.equal(r.status, 1);
     assert.match(r.stderr, /Watch\.cls/);
     assert.match(r.stderr, /checks\.allPassed/);
-    assert.match(r.stderr, /slot 'what' of type 'text'/);
+    assert.match(r.stderr, /slot 'what' of type 'noun'/);
   });
 
   it('reads the Watch catalog from the file that --watch names, and refuses one that is not there', () => {
@@ -324,8 +390,8 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /boom/);
   });
 
-  it('fails on a listed key with a slot of a type that the page does not render, and accepts time, count and cost', () => {
-    for (const type of ['noun', 'text', 'sentence']) {
+  it('fails on a listed key with a slot of a type that the page does not render, and accepts time, count, cost, channel and text', () => {
+    for (const type of ['noun', 'sentence']) {
       const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
       const r = run(...fixture(`slot-${type}`, { entries }));
       assert.equal(r.status, 1, type);
@@ -333,10 +399,39 @@ describe('the generator on a fixture', () => {
       assert.match(r.stderr, /conversation\.turnFallback/, type);
       assert.ok(r.stderr.includes(`slot 'what' of type '${type}'`), `${type}: ${r.stderr}`);
     }
-    for (const type of ['time', 'count', 'cost']) {
+    for (const type of ['time', 'count', 'cost', 'channel', 'text']) {
       const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
       const r = run(...fixture(`slot-ok-${type}`, { entries }));
       assert.equal(r.status, 0, `${type}: ${r.stderr}`);
+    }
+  });
+
+  it('renders a channel slot as the channel\'s name, an unknown code as given, and a text slot as the cleaned string', async () => {
+    const args = fixture('channel');
+    assert.equal(run(...args).status, 0);
+    const module = await import(pathToFileURL(args[5]).href);
+    assert.equal(module.renderPageText('answered.approved', { channel: 'phone', time: '14:15' }), 'Yes from the simulated phone at 14:15', 'the web text, with the name of the channel');
+    assert.equal(module.renderPageText('answered.rejected', { channel: 'web', time: '14:15' }), 'No from the web chat at 14:15.');
+    assert.equal(module.renderPageText('answered.rejected', { channel: 'telegram', time: '14:15' }), 'No from telegram at 14:15.', 'a code that is not in CHANNELNAMES renders as given');
+    assert.equal(module.renderPageText('answered.rejected', { channel: 'constructor', time: '14:15' }), 'No from constructor at 14:15.');
+    assert.equal(module.renderPageText('answered.rejectedBy', { user: ' zz\n sam ', channel: 'web', time: '1' }), 'No by zz sam from the web chat at 1.', 'a text slot is cleaned');
+  });
+
+  it('fails on a missing answered key, naming it', () => {
+    for (const key of ANSWERED_KEYS) {
+      const r = run(...fixture(`no-${key}`, { entries: Object.fromEntries(Object.entries(GOOD).filter(([name]) => name !== key)) }));
+      assert.equal(r.status, 1, key);
+      assert.ok(r.stderr.includes(`'${key}'`), `${key}: ${r.stderr}`);
+      assert.match(r.stderr, /missing/, key);
+    }
+  });
+
+  it('fails when the CHANNELNAMES parameter is missing or is not code=name pairs', () => {
+    for (const [name, channels] of Object.entries({ missing: null, 'no-pair': 'web', 'no-name': 'web=', 'upper-code': 'Web=the web chat', 'bad-name': 'web=the "web" chat' })) {
+      const r = run(...fixture(`channels-${name}`, { channels }));
+      assert.equal(r.status, 1, name);
+      assert.match(r.stderr, /Catalog\.cls/, name);
+      assert.match(r.stderr, /CHANNELNAMES/, name);
     }
   });
 

@@ -648,15 +648,24 @@ function properties(values: Record<string, string | undefined>): Record<string, 
 }
 
 /**
- * The dry run of a fix request as the stored JSON (ApprovalRequest.DRYRUNKEYS): the count of items it affects and the noun that
- * names one and many. null gives a request with no dry run.
+ * The dry run of a fix request as the stored JSON (ApprovalRequest.DRYRUNKEYS): the count of items it affects, the noun that names
+ * one and many, the count to resend (the affected count unless given), and the field with its example (the field OrderDate and an
+ * empty example unless given). null gives a request with no dry run.
  */
 export interface SeedDryRun {
   affected: number;
   itemNoun?: { one: string; other: string };
+  resend?: number;
+  field?: string;
+  before?: string;
+  after?: string;
 }
 
-/** The fields of an approval request that seedApproval sets; a field left out keeps Fixture.Approval's default (a pending fix of 4 orders raised now). */
+/**
+ * The fields of an approval request that seedApproval sets; a field left out keeps Fixture.Approval's default (a pending fix of 4 orders
+ * raised now, expiring in 2030, with no required role). requiredRole is the IRIS role that Approval.Answer demands of the answerer
+ * (OcuTalonUser for a request that the floor user may answer); the answered fields describe an answer that is already recorded.
+ */
 export interface ApprovalFields {
   kind?: string;
   state?: string;
@@ -665,30 +674,122 @@ export interface ApprovalFields {
   raisedAt?: string;
   expiresAt?: string;
   dryRun?: SeedDryRun | null;
+  requiredRole?: string;
+  answeredAction?: string;
+  answeredChannel?: string;
+  answeredBy?: string;
+  answeredAt?: string;
 }
 
+/** Who owns a seeded request: the user's own session, the owner instance, or the fixture session with this Ref (seedOtherSession). */
+export type ApprovalOwner = 'session' | 'instance' | { sessionRef: string };
+
 /**
- * Writes an approval request through Test.Data.Fixture.Approval: owned by the user's own session, or with 'instance' by the owner
- * instance (for the incident that incidentRef names). Returns its Ref; cleanFixtureRows removes it.
+ * Writes an approval request through Test.Data.Fixture.Approval: owned by the user's own session, by the owner instance (for the
+ * incident that incidentRef names) or by another fixture session. Returns its Ref; cleanFixtureRows removes it.
  */
-export async function seedApproval(user: string, fields: ApprovalFields = {}, owner: 'session' | 'instance' = 'session'): Promise<string> {
+export async function seedApproval(user: string, fields: ApprovalFields = {}, owner: ApprovalOwner = 'session'): Promise<string> {
   const dryRun =
     fields.dryRun === undefined
       ? undefined
       : fields.dryRun === null
         ? ''
-        : JSON.stringify({ affected: fields.dryRun.affected, resend: fields.dryRun.affected, leftOut: 0, field: 'OrderDate', before: '', after: '', itemNoun: fields.dryRun.itemNoun });
-  const row = properties({ Kind: fields.kind, ToolName: fields.toolName, ExpiresAt: fields.expiresAt, DryRun: dryRun });
+        : JSON.stringify({
+            affected: fields.dryRun.affected,
+            resend: fields.dryRun.resend ?? fields.dryRun.affected,
+            leftOut: 0,
+            field: fields.dryRun.field ?? 'OrderDate',
+            before: fields.dryRun.before ?? '',
+            after: fields.dryRun.after ?? '',
+            itemNoun: fields.dryRun.itemNoun,
+          });
+  const row = properties({
+    Kind: fields.kind,
+    ToolName: fields.toolName,
+    ExpiresAt: fields.expiresAt,
+    DryRun: dryRun,
+    RequiredRole: fields.requiredRole,
+    AnsweredAction: fields.answeredAction,
+    AnsweredChannel: fields.answeredChannel,
+    AnsweredBy: fields.answeredBy,
+    AnsweredAt: fields.answeredAt,
+  });
+  const ownerExpression = owner === 'instance' ? '"instance"' : owner === 'session' ? 's.Ref' : quoted(owner.sessionRef);
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
-      `Set r=##class(OcuTalon.Test.Data.Fixture).Approval(${owner === 'instance' ? '"instance"' : 's.Ref'},${quoted(fields.incidentRef ?? '')},${quoted(fields.state ?? 'pending')},${fields.raisedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.raisedAt)},${fieldsObject(row)})`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Approval(${ownerExpression},${quoted(fields.incidentRef ?? '')},${quoted(fields.state ?? 'pending')},${fields.raisedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.raisedAt)},${fieldsObject(row)})`,
       'Write !,"CHK|approval|",r',
     ].join('\n'),
   );
   const ref = chk(lines, 'approval');
   if (!ref) throw new Error(`the approval request could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/**
+ * Writes a fixture session of another IRIS user (Test.Data.Fixture.Session): it belongs to no one who signs in, so what it owns is
+ * invisible to the floor user. Returns its Ref; cleanFixtureRows removes it.
+ */
+export async function seedOtherSession(user: string): Promise<string> {
+  const lines = await irisScript([`Set r=##class(OcuTalon.Test.Data.Fixture).Session(${literal(user)})`, 'Write !,"CHK|session|",r'].join('\n'));
+  const ref = chk(lines, 'session');
+  if (!ref) throw new Error(`the fixture session could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/**
+ * Answers a request as the user from the script's job, with the bridge's own API and no event: the sink is the bridge's no-op
+ * HostSink, so nothing reaches any stream and the page learns of the answer only when it presses, polls or reloads. Returns the
+ * result (done, already_answered, expired, not_found or not_allowed). A real answer on a fixture row waits about 5 s for the hold's
+ * task, which a fixture row does not have.
+ */
+export async function answerQuietly(user: string, ref: string, action: 'approve' | 'reject', channel: 'web' | 'phone'): Promise<string> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      `Set r=##class(OcuTalon.Bridge.Approval).Answer(${quoted(ref)},${quoted(action)},${quoted(channel)},${literal(user)},s.Ref,.w,"OcuTalon.Bridge.Ext.HostSink")`,
+      'Write !,"CHK|answer|",r',
+    ].join('\n'),
+  );
+  const result = chk(lines, 'answer');
+  if (!result) throw new Error(`the answer could not be given (${lines.join(' ')})`);
+  return result;
+}
+
+/** What the row of a request holds after an answer, read back: State, AnsweredAction, AnsweredChannel, AnsweredBy and AnsweredAt. */
+export async function readApproval(ref: string): Promise<{ state: string; action: string; channel: string; by: string; at: string }> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      `If '$IsObject(r) { Write !,"CHK|row|missing" Halt }`,
+      'Write !,"CHK|row|",r.State,"|",r.AnsweredAction,"|",r.AnsweredChannel,"|",r.AnsweredBy,"|",r.AnsweredAt',
+    ].join('\n'),
+  );
+  const row = chk(lines, 'row');
+  if (row === undefined || row === 'missing') throw new Error(`the approval request could not be read (${lines.join(' ')})`);
+  const [state = '', action = '', channel = '', by = '', at = ''] = row.split('|');
+  return { state, action, channel, by, at };
+}
+
+/**
+ * The number of production messages from AnswersIn to AnswerOps in the trace sessions tagged with the session's TraceRef (the user's
+ * own session), and that TraceRef: what an answer leaves in Visual Trace besides the audit entry.
+ */
+export async function answerHeaders(user: string): Promise<{ count: number; traceRef: string }> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SuperSession = ? AND SourceConfigName = \'AnswersIn\' AND TargetConfigName = \'AnswerOps\' AND Type = 1",s.TraceRef)',
+      'Do rs.%Next()',
+      'Write !,"CHK|count|",rs.%GetData(1)',
+      'Write !,"CHK|trace|",s.TraceRef',
+    ].join('\n'),
+  );
+  const count = Number(chk(lines, 'count'));
+  const traceRef = chk(lines, 'trace');
+  if (!Number.isInteger(count) || !traceRef) throw new Error(`the answer headers could not be counted (${lines.join(' ')})`);
+  return { count, traceRef };
 }
 
 /** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */

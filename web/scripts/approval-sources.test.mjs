@@ -1,0 +1,208 @@
+// Tests the shape of the approval request card's sources that Story 6.2 relies on and that no unit of the view model can see (QA): the
+// card's root and answer row carry the attributes that the focus rule and the New messages button read; the two buttons share one
+// busy state and are never `disabled`; Show details sits outside the pending/answered choice; every text is bound by interpolation;
+// the dry run's Before and After and each status tone read their own tokens; the call posts only {action, channel} to the answer
+// route; and the incident card hands the first request card its panel. The browser cases (floor/approval.spec.ts, A1 to A7) pin
+// what the running page does; this reads the sources, so a state no case reaches cannot lose an attribute or read the wrong token
+// without a test turning red.
+// Run with: node --test web/scripts/
+import assert from 'node:assert/strict';
+import { dirname, join } from 'node:path';
+import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import { sourceFiles } from './source-files.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const app = join(here, '..', 'src', 'app');
+const files = sourceFiles(join(app, 'approvals'), ['.ts']);
+const incidents = sourceFiles(join(app, 'incidents'), ['.ts']);
+const api = sourceFiles(join(app, 'api'), ['.ts']);
+
+const file = (list, name) => {
+  const found = list.find((one) => one.name === name);
+  assert.ok(found, `${name} is scanned`);
+  return found;
+};
+
+/** The text of a component's template literal, or of its styles literal. */
+const literal = (source, property) => {
+  const found = new RegExp(`${property}: \`([\\s\\S]*?)\`,\\n`).exec(source.code);
+  assert.ok(found, `${source.name} has a ${property} literal`);
+  return found[1];
+};
+
+/** The declarations of the CSS rule with exactly this selector, or undefined when there is none. */
+const rule = (css, selector) => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
+};
+
+const card = file(files, 'approval-request-card.ts');
+const view = file(files, 'approval-view.ts');
+const template = literal(card, 'template');
+const styles = literal(card, 'styles');
+
+describe('the scan', () => {
+  it('reads the card and the view model', () => {
+    assert.deepEqual(files.map((one) => one.name).sort(), ['approval-request-card.ts', 'approval-view.ts']);
+  });
+});
+
+describe('the root and the answer row', () => {
+  it('is a section that the focus rule and New messages find (data-part, data-key) and can focus (tabindex -1), named by its label', () => {
+    const root = /<section\s([\s\S]*?)>/.exec(template)?.[1] ?? '';
+    assert.match(root, /data-part="approval"/);
+    assert.match(root, /\[attr\.data-key\]="view\(\)\.ref"/);
+    assert.match(root, /tabindex="-1"/);
+    assert.match(root, /\[attr\.aria-labelledby\]="labelId"/);
+  });
+
+  it('has the two buttons in a span of the answer part while pending, and the status in a paragraph of the same part and key, focusable, otherwise', () => {
+    assert.match(template, /<div class="answer-row">\s*@if \(view\(\)\.pending\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="view\(\)\.ref">/);
+    const status = /<p \[class\]="'status tone-' \+ status\.tone"([^>]*)>/.exec(template)?.[1] ?? '';
+    assert.match(status, /data-part="answer"/);
+    assert.match(status, /\[attr\.data-key\]="view\(\)\.ref"/);
+    assert.match(status, /tabindex="-1"/);
+    assert.match(template, /@else if \(view\(\)\.status; as status\) \{/);
+  });
+
+  it('keeps Show details outside the pending/answered choice, at the end of the row, expanding the incident\'s panel by aria-expanded and aria-controls', () => {
+    assert.match(template, /<\/p>\s*\}\s*@if \(details\(\)\) \{\s*<button\s/);
+    const button = /@if \(details\(\)\) \{\s*<button\s([\s\S]*?)>/.exec(template)?.[1] ?? '';
+    assert.match(button, /class="button button-ghost show-details"/);
+    assert.match(button, /\[attr\.aria-expanded\]="detailsOpen\(\)"/);
+    assert.match(button, /\[attr\.aria-controls\]="detailsId\(\)"/);
+    assert.match(button, /\(click\)="toggleDetails\.emit\(\)"/);
+    assert.match(template, /<div class="panel" \[id\]="detailsId\(\)">\s*@if \(detailsOpen\(\)\) \{\s*<app-evidence-panel \[panel\]="panel" \/>/);
+  });
+
+  it('moves the focus of a replaced button through the shared rule on the answer part only', () => {
+    assert.match(card.code, /item: `\[\$\{PART\}="answer"\]\[\$\{KEY\}\]`/);
+    assert.match(card.code, /keepFocus\(this\.host\.nativeElement, this\.injector, this\.popovers, ANSWER_RULE\)/);
+    assert.doesNotMatch(card.code, /\.focus\(|afterNextRender|autofocus/);
+  });
+});
+
+describe('the buttons', () => {
+  const buttons = [...template.matchAll(/<button\s([\s\S]*?)>/g)].map((match) => match[1]);
+
+  it('are Approve, Reject and Show details, each a type="button"', () => {
+    assert.equal(buttons.length, 3);
+    for (const one of buttons) assert.match(one, /type="button"/);
+  });
+
+  it('go busy together: aria-busy and aria-disabled from the one busy signal, a spinner in each, and never the disabled attribute', () => {
+    const [approve, reject] = buttons;
+    for (const [name, one] of [['Approve', approve], ['Reject', reject]]) {
+      assert.match(one, /\[attr\.aria-busy\]="busy\(\) \? 'true' : null"/, name);
+      assert.match(one, /\[attr\.aria-disabled\]="busy\(\) \? 'true' : null"/, name);
+    }
+    assert.equal((template.match(/<app-icon class="spinner" name="loader-circle"/g) ?? []).length, 2);
+    assert.doesNotMatch(template, /\[disabled\]|\[attr\.disabled\]|\sdisabled[\s=>]/);
+  });
+
+  it('are named with the object, and are the primary and the secondary variant of controls.css', () => {
+    const [approve, reject] = buttons;
+    assert.match(approve, /class="button button-primary"/);
+    assert.match(approve, /\[attr\.aria-label\]="view\(\)\.approveName"/);
+    assert.match(approve, /\(click\)="press\('approve'\)"/);
+    assert.match(reject, /class="button button-secondary"/);
+    assert.match(reject, /\[attr\.aria-label\]="view\(\)\.rejectName"/);
+    assert.match(reject, /\(click\)="press\('reject'\)"/);
+  });
+
+  it('share one BusyState, whose notice is announced once and which is disposed with the card', () => {
+    assert.equal((card.code.match(/new BusyState\(/g) ?? []).length, 1);
+    assert.match(card.code, /onNotice: \(\) => this\.announcer\.announce\(APPROVAL_TEXTS\.busyNotice\)/);
+    assert.match(card.code, /onDestroy\(\(\) => this\.state\.dispose\(\)\)/);
+    assert.match(card.code, /if \(!this\.state\.press\(\)\) \{\s*return;\s*\}/, 'a press while a call is out sends nothing');
+  });
+
+  it('describe themselves by the notice while it shows', () => {
+    for (const one of buttons.slice(0, 2)) assert.match(one, /\[attr\.aria-describedby\]="notice\(\) \? noticeId : null"/);
+    assert.match(template, /<app-inline-notice class="under" variant="warning" \[id\]="noticeId">\{\{ notice\(\) \}\}<\/app-inline-notice>/);
+  });
+});
+
+describe('the call', () => {
+  it('posts only {action, channel: web} to the answer route of the request, never a session or a user', () => {
+    const client = file(api, 'api-client.ts').code;
+    const method = /answerApproval\([\s\S]*?\n  \}/.exec(client)?.[0] ?? '';
+    assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel: 'web' \}/);
+    assert.doesNotMatch(method, /session|user/i);
+    assert.match(card.code, /\.answerApproval\(this\.view\(\)\.ref, action\)/);
+  });
+});
+
+describe('the texts', () => {
+  it('prints every text by interpolation: the label, action, fixed-targets line, dry run, status, expiry and notice', () => {
+    const order = ['view().label', 'view().action', 'view().fixedTargets', 'texts.dryRun', 'dry.countLine', 'dry.before', 'dry.after', 'dry.resendLine', 'dry.nothingYet', 'texts.approve', 'texts.reject', 'status.text', 'showDetails', 'view().expiry', 'notice()'];
+    let last = -1;
+    for (const name of order) {
+      const at = template.indexOf(`{{ ${name} }}`);
+      assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
+      last = at;
+    }
+  });
+
+  it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
+    for (const one of files) assert.doesNotMatch(one.code, /innerhtml|outerhtml|bypassSecurity|DomSanitizer/i, one.name);
+  });
+
+  it('gives the status the icon and tone of its state: circle-check approved, circle-slash rejected, clock expired', () => {
+    assert.match(view.code, /tone: 'approved', icon: 'circle-check'/);
+    assert.match(view.code, /tone: 'rejected', icon: 'circle-slash'/);
+    assert.match(view.code, /tone: 'expired', icon: 'clock'/);
+  });
+});
+
+describe('the styles', () => {
+  const colours = /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color-mix|color)\(/;
+
+  it('hold no colour literal: every colour is a DESIGN.md token', () => {
+    assert.doesNotMatch(styles, colours, 'the card');
+    assert.doesNotMatch(view.code, colours, 'the view');
+  });
+
+  it('read every colour, font and size of text through a token', () => {
+    const bad = [...styles.matchAll(/^\s*(color|background|font-family|font-size|font-weight)\s*:\s*([^;]+);/gm)].filter(([, , value]) => !/var\(--/.test(value)).map(([line]) => line.trim());
+    assert.deepEqual(bad, []);
+  });
+
+  it('draw Before in the danger ink and After in the success ink, both in the mono face', () => {
+    assert.ok(rule(styles, '.before')?.includes('color: var(--dry-run-block-before);'), 'Before');
+    assert.ok(rule(styles, '.after')?.includes('color: var(--dry-run-block-after);'), 'After');
+    const mono = rule(styles, '.mono');
+    assert.ok(mono?.includes('font-family: var(--font-mono);'));
+    assert.ok(mono?.includes('font-size: var(--dry-run-block-value-typography-font-size);'));
+    assert.match(template, /<span class="mono before">\{\{ dry\.before \}\}<\/span>/);
+    assert.match(template, /<span class="mono after">\{\{ dry\.after \}\}<\/span>/);
+  });
+
+  it('give each status tone its own token, and each bar its own', () => {
+    for (const tone of ['approved', 'rejected', 'expired']) {
+      assert.ok(rule(styles, `.tone-${tone}`)?.includes(`color: var(--answered-status-${tone});`), `.tone-${tone}`);
+    }
+    assert.match(template, /\[class\]="'request bar-' \+ view\(\)\.bar"/);
+    assert.ok(rule(styles, '.request')?.includes('border-inline-start: var(--approval-request-card-accent-bar-pending);'), 'pending');
+    for (const bar of ['approved', 'closed']) {
+      assert.ok(rule(styles, `.request.bar-${bar}`)?.includes(`border-inline-start: var(--approval-request-card-accent-bar-${bar});`), `.bar-${bar}`);
+    }
+  });
+});
+
+describe('the incident card', () => {
+  const incident = file(incidents, 'incident-card.ts');
+  const incidentTemplate = literal(incident, 'template');
+
+  it('draws a request card for each request of the incident, the first with the panel, and its own Show details row only without one', () => {
+    assert.match(
+      incidentTemplate,
+      /@for \(request of requests\(\); track request\.ref; let first = \$first\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel; as panel\) \{\s*<div class="actions">/,
+    );
+    assert.match(incident.code, /requests = computed\(\(\) => \(this\.view\(\)\.compact \? \[\] : requestsOf\(this\.incident\(\), this\.approvals\(\)\)\)\)/);
+    assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
+    assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
+  });
+});

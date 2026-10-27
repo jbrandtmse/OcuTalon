@@ -49,6 +49,7 @@ XData ProductionDefinition
   <Item Name="SimMailboxOut" ClassName="OcuTalon.Channel.SimMailbox.Out" PoolSize="1" Enabled="true"/>
   <Item Name="SimPhoneOut" ClassName="OcuTalon.Channel.SimPhone.Out" PoolSize="1" Enabled="true"/>
   <Item Name="AnswersIn" ClassName="OcuTalon.Core.AnswersIn" PoolSize="0" Enabled="true"/>
+  <Item Name="AnswerOps" ClassName="OcuTalon.Core.AnswerOps" PoolSize="1" Enabled="true"/>
   <Item Name="CommandsIn" ClassName="OcuTalon.Core.CommandsIn" PoolSize="0" Enabled="true"/>
   <Item Name="NoticesIn" ClassName="OcuTalon.Core.NoticesIn" PoolSize="0" Enabled="true"/>
   <Item Name="StatusMonitor" ClassName="OcuTalon.Core.StatusMonitor" PoolSize="1" Enabled="true">

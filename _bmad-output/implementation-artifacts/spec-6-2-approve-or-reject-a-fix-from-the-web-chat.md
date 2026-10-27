@@ -2,9 +2,10 @@
 title: 'Story 6.2: Approve or reject a fix from the web chat'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a4f7234dd4dd50d16811779efeed143a3f530228'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-6-context.md'
 warnings: ['oversized', 'multiple-goals']
@@ -17,6 +18,12 @@ deferred:
     evidence: "Test/Bridge/CodeRules.cls L68 and L549 name AnswersIn; AnswerOps is new in this story."
     location: 'src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls'
     severity: 'low'
+  - summary: >-
+      AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling) holds in this build only with no status banner and the guide collapsed by Hide guide: with the guide open the chat list is 279 px (or 323 px without a banner) and the card is 466 px from its top to the bottom of Approve.
+    evidence: |-
+      A6 empties the snapshot's status and presses Hide guide (Decided in-stage 23). The guide's compact form of 56 px is not reached while its Break the feed box is 138 px tall (Epic 4's demo guide). Settles it: Epic 4 gives the guide a compact height that fits DESIGN.md's layout table, then A6 runs without Hide guide.
+    location: 'web/src/app/guide (Epic 4), web/e2e/floor/approval.spec.ts A6'
+    severity: medium
 ---
 
 <intent-contract>
@@ -323,7 +330,58 @@ deferred:
 
 - 2026-10-27, runner (spec validation): the plan halted `blocked` on a contended-path edit (`Test/Web/Api.cls`, Epic 16). The orchestrator ruled Q1-Q4 (Design Notes, Orchestrator rulings): the visible-approval loop may be replaced; 6.4 may replace the dismiss loop later; the AD-33 item row and the REST row were written into the spine by the runner. Status reset to `ready-for-dev` (the plan was otherwise complete).
 
+- 2026-10-27, implement stage: Task 0 measured (Verification), the follow-bottom cap, the dry run's one-row head and A6's conditions decided (Design Notes, Decided in-stage 19-26). AC3 holds only with no status banner and the guide collapsed (Decided 23).
+
+- 2026-10-27, implement stage (review pass 1): five medium patches (server tests of the 403 text and the named 409, the online-demo required check with a watching session B, the browser cases A8 and A9, the focus exemption of the follow-bottom cap with A6's Show details check, a split class-doc line), recorded under Review Triage Log and Decided in-stage 27-28. No intent or AC changed.
+
 ## Review Triage Log
+
+### 2026-10-27 - Review pass
+- verdicts: 42 findings - high 0, medium 10, low 29, false 3, maybe-false 0 (nine mediums and one low patched, one medium deferred; see rows)
+- findings:
+  - `[false]` `[reject]` Blind: channel "phone" accepted from any web session - the Matrix, V3 and AC4 say the route takes web or phone (6.3's phone page posts phone); Telegram is refused, as the finding itself notes.
+  - `[low]` `[reject]` Blind: a 30 s sync timeout answers 500 while AnswerOps may still commit - `Answer` takes at most about 12 s (Decided 13); a retry reads already_answered; not met in everyday use.
+  - `[medium]` `[patch]` Blind: server 409 named/rejected forms and 403 tool_call text untested - added `TestLatePressNamesAnotherUserOnALocalInstall` and the tool_call body assertion (with V3 below).
+  - `[medium]` `[patch]` Blind: the follow-bottom cap re-pins to the headline on every resize, so Show details' panel stays below the fold - patched: the cap is skipped while focus is inside the card (`chat-panel.ts` `headlineTop`); A6 now presses Show details and expects the panel in view (grouped with Edge 1).
+  - `[low]` `[reject]` Blind: A4's fixed 400 ms wait and wall-clock `DAY` - the second press is ignored synchronously, so the wait only gives a late request time to show; midnight straddle is a flake, not a defect of the product.
+  - `[low]` `[reject]` Blind: `failed` shows as "Approved ..." - Decided 6 and 14 write that the card records the answer (approved, executing, done, failed share the approved status) and the bar is closed.
+  - `[low]` `[reject]` Blind: `AnswerOps.SENDER` is the item name literal - `ProductionItems` and `Test.Install.Production` pin the item name; a rename fails those and `TestAnswerOpsRefusesOtherSenders`.
+  - `[low]` `[reject]` Blind: global state in the test fixtures (`ApprovalDouble` run pointer, user prefix sweep, log deletes) - the classes run one at a time in one process and clean up in `finally` and the next run's start; no concurrent runner exists.
+  - `[low]` `[patch]` Blind: the class doc of `Web/Api.cls` has one very long line and does not say that Telegram enters through AnswersIn only - the line is split and the sentence added.
+  - `[medium]` `[patch]` Edge: scroll snap-back (same root cause as Blind 4) - patched with it.
+  - `[low]` `[reject]` Edge: with several request cards or an open panel the headline pin can put Approve below the fold - A6 pins the single-request case the AC names; the cap yields once focus is in the card.
+  - `[low]` `[reject]` Edge: an `already_answered` with an empty winner makes `Catalog.Render` fail (500) - `Approval.Answer` fills the winner from the row's answer fields, which every state past pending has through Answer; only a hand-made row lacks them.
+  - `[low]` `[reject]` Edge: done, then the re-read finds no row - the row would have to be cancelled or hidden between two reads of one request; theoretical.
+  - `[low]` `[reject]` Edge: `Answer` gives not_found when the lock is not taken (a pending row shows "no longer available") - after a 12 s lock wait on one row; the card keeps its buttons and the next press answers; rare.
+  - `[low]` `[reject]` Edge: AnswersIn times out while the answer lands - same as Blind 2.
+  - `[low]` `[reject]` Edge: a 200 or expired reply without a readable approval object - the route always writes the payload; no client can send it.
+  - `[low]` `[reject]` Edge: an answered status with an empty answeredAt - rows past pending carry the time; same as the empty winner.
+  - `[low]` `[reject]` Edge: duplicate or undefined refs in the request list - the store keys approvals by Ref, so a duplicate cannot arise.
+  - `[low]` `[reject]` Edge: `approvalCtx` reads `Date.now()` once, so "Expires tomorrow" can go stale - the incident card's own `view()` does the same (6.1); the day word changes only across midnight.
+  - `[false]` `[reject]` Edge: phone channel from the web page - same as Blind 1.
+  - `[low]` `[reject]` Edge: `ApprovalDouble`'s single run pointer - same as Blind 8.
+  - `[false]` `[reject]` Edge (claim): the cap pins the headline, not the card's top - Decided in-stage 22 records the change and why (the card's top cannot meet AC3); the AC names the headline.
+  - `[low]` `[reject]` Edge (claim): `AnswersInWebRoles` rows persist after an aborted run - the class removes its user and rows at the start of the next run (AC16 (3) pins the user).
+  - `[medium]` `[patch]` Gap: the card's notices for 404, 403, 5xx and a network failure had only the `answerOutcomeOf` unit test - added floor case A8 (a held reply per status, buttons restored, notice shown and announced once, next press clears it); grouped with Intent 1 and 3.
+  - `[medium]` `[patch]` Gap: the compact card hiding its request cards was pinned by a source regex only - added floor case A9 (a closed incident draws no request card and gets its Show details row back).
+  - `[medium]` `[patch]` Gap: the 403 body for a tool_call request and the named 409 forms were not asserted - patched (with Blind 3).
+  - `[low]` `[reject]` Gap: the 500 branches of the route and the failure paths of AnswersIn/AnswerOps have no test - defensive branches that no user input reaches; the double cannot throw; cost is a double extension for no reachable failure.
+  - `[low]` `[reject]` Gap: AC13's no-Allowance check scans method text - the header and no-Turn assertions run; a computed class name would be a deliberate evasion.
+  - `[medium]` `[patch]` Gap (other): the online-demo required check's instance half used a session B that watched nothing, so it held with the flag off - B now has a Check on the same production, a control asserts B sees the instance request with the flag off, and the mutation `LocalFlag` always 1 turns it red.
+  - `[low]` `[reject]` Gap (other): the AC2 and AC6 mutation lines record red only for the source test - one demonstrated mutation per AC is the bar, and A1/A2/A4 assert the same in the browser.
+  - `[low]` `[reject]` Gap (other): A4's fixed wait - same as Blind 5.
+  - `[low]` `[reject]` Gap (other): immediate absence checks of events - the events are written in AnswerOps' job before the REST reply returns (the reply waits for it), so the check follows the write.
+  - `[low]` `[reject]` Gap (other): a source test asserts `bad` equals [] with no control that the regex matched - the sibling `rule()` tests in the same file fail when the regex finds nothing.
+  - `[low]` `[reject]` Gap (other): the empty-winner message edge - same as Edge 3.
+  - `[medium]` `[patch]` Intent: the "no longer available" page notice and the 403/5xx/0 forms exist at unit level only - A8 (with Gap 1).
+  - `[low]` `[reject]` Intent: the online-demo row "by the page" has no browser case - the rule is server-side and pinned by `AnswersInProduction` and the lane-b shard; A7 runs the local form; a page press is the same call.
+  - `[medium]` `[patch]` Intent: expired/403/5xx/0, count of one and the non-object dry run are covered by view-model and server tests, not by the browser - A8 covers the replies; the rest are rendered by the same view code the unit tests run (grouped with Gap 1).
+  - `[low]` `[reject]` Intent: DW-68 is verified through `AnswersIn.FromPage` in a web-roles process, not over HTTP - the REST handler adds nothing privileged to FromPage, and `AnswersInProduction` runs the handler.
+  - `[medium]` `[defer]` Intent: A6 runs with no status banner and the guide collapsed, which the intent does not state - true: AC3 does not hold in the default floor state in this build (Decided 23); the cause is the guide's height (Epic 4's); deferred with the probe that settles it.
+  - `[low]` `[reject]` Intent: `Test/Web/Api.cls` gained a `badAnswer` constant between the ruled ranges - it is the assertion's expected body in the ruled loop (Q1); no other line changed.
+  - `[low]` `[reject]` Intent: the REST handler and `AnswersIn` both check visibility - Decided 10 (404 before 400); the same `Ownership.Approval` call.
+  - `[low]` `[reject]` Intent: the Telegram channel is accepted by `AnswersIn` but not the route - by design (10.3 feeds the same rule set).
+
 
 ## Design Notes
 
@@ -383,6 +441,21 @@ deferred:
 16. **Floor budget.** The floor was about 400 s of 540 s after 6.1. A1 is `@browsers`, the rest Chromium. If `live floor` passes 510 s, fold A3's Reject into A2 and A5 into A3, and record it.
 17. `seedApproval`'s new options keep today's defaults, so the rail and floor callers are unchanged.
 18. Two Lucide icons are added to the bundled set (same ISC source as the rest, no new dependency).
+
+19. **Implement stage, hand-off wiring.**
+    - `AnswersIn.FromPage` also outputs `sessionRef`, and `Msg.AnswerResult` carries `Result` plus the winner's three fields. `OnProcessInput` answers OK with an `AnswerResult` for `not_allowed`, `not_found` and `bad_answer`, and an error status only for a failed read, a failed send or no `AnswerResult` back.
+    - `Web.Api.Fail` takes an optional fourth argument, the request's payload, written after `error` for a 409; `AnswerBody` and `AnswerResponse` are the route's new private helpers.
+    - `AnswerApproval` releases its visibility row (`Kill row`) before `FromPage`, because `AnswerResponse` re-reads the request through `Ownership.Approval` and an open object would otherwise show the state from before the answer (the cache of an open persistent object, found by `AnswersInProduction`).
+20. **View context.** `approval-view.ts` imports types only, so the catalog's `renderPageText` and the rail's `approvalTitle` come in through the context (`render`, `title`) beside `timeBeside` and `whenBeside`; `approvalContext` (in `approval-request-card.ts`) builds it from the page's real modules. The tests pass the real ones.
+21. **Dry run layout.** The "Dry run" label and the count line share one row (mockups/main-page.html), and the card's spacing uses the 4 px and 8 px tokens, so that the five parts of AC3 fit the list.
+22. **Follow-bottom cap (changes Decided 9).** The cap puts the incident card's *headline* (not the card's top) at the list's top, below its scroll padding: the chip row scrolls out above it. The card's top cannot give AC3: the card is 466 px from its top to the bottom of Approve and the list is 279 to 356 px high at 1280x600.
+23. **A6's conditions.** At 1280x600 the floor stack's list is 279 px: the header 56, the no-key banner 44, the open guide 139 (its Break the feed box is 138 tall), the dock 82. A6 therefore runs under DESIGN.md's acceptance conditions: the snapshot's `status` is emptied (no banner) and Hide guide is pressed (the bar plus the box leave 106 px), which leaves a 356 px list. Without them AC3 does not hold in this build (open question for the owner: the guide's compact form of 56 px is not reached while its box is 138 px tall, which is Epic 4's).
+24. **Fixture role.** The test process runs as irisowner (role %All), not as the README account, so `AnswersInProduction` gives its rows the first role of the process user's recursed role set (`HeldRole`) in place of "OcuTalonUser"; the browser cases use "OcuTalonUser" for the floor user, who holds it.
+25. **The throwaway-only marker (AC16).** `AnswersInWebRoles.Reason` is empty only when `Test.Contract.Mock.MissingReason` is (OCUTALON_MODEL_BASE_URL is the mock's base URL and OCUTALON_MOCK_KEY_HEADER is 1: set only by `ci/compose.ci.yml`, so the demo host, a user's instance, an IPM test run and a slot do not carry them) and OcuTalon.Production runs. No contended file changed.
+26. **Task 0 outcome.** The checked reads fail in a web-roles process, so `AnswersInWebRoles` keeps both its DW-113 and its DW-68 tests; `%CSP.Session.%New(id, 0)` works there, so no `StubSession`; DW-113 stays resolved (nothing added to `deferred:`).
+
+27. **Review patch: the cap yields to focus.** `headlineTop` returns nothing while focus is inside the newest incident card, so a press on Show details (or on Approve) is followed to the bottom as before and the opened panel shows; A6 presses Show details at 1280x600 and expects the panel in view.
+28. **Review patch: browser cases A8 and A9** (floor, Chromium): A8 fulfils the answer route with 500, 403, 404 and a network failure; A9 closes the incident. Floor time with both: 476 s of 540 s (Decided 16 not needed). `inOrder` reads the tops in one evaluation so that a scroll between reads changes nothing.
 
 **Veto-window choices** (the runner files them):
 - **V1 (security posture: where the answer runs).** Choice: `AnswersIn` (the request's process) resolves the session and applies the rules. A new business operation `AnswerOps` (pool 1) reads the session's IRIS user and calls `Approval.Answer` in its production job, with the Interoperability system user's privileges, so the fan-out and Answer's role-set read and Workflow query succeed (DW-68).
@@ -510,6 +583,38 @@ deferred:
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Task 0 measurements** (implement stage, warm throwaway `e6s2iw`, a job logged in with the one-argument `$SYSTEM.Security.Login` as a fixture user whose roles are exactly `OcuTalonUser,%DB_OCUTALON_CODE,%DB_OCUTALON_DATA,%DB_OCUTALON_PRIVATE`; `$SYSTEM.Security.Check("%Admin_Secure","USE")` is 0 there):
+- `Ownership.Watchers`, `Ownership.ApprovalIncident` and `Session.Recipients("instance", incident)` each return `""` (a list of 0 for the first and third) with the error status `ERROR #5540: SQLCODE: -99 Message: User ... is not privileged for the operation`. In the test process the same reads return the two watchers and the incident. DW-113 is measured, not inferred.
+- `Approval.Answer` called directly in that job on a fixture instance request returned `done` after 5.11 s (`HoldsRole` of the job's own user works without `%Admin_Secure:USE`; the 5 s is the wait for the hold's task, which a fixture row does not have) with winner `{}`. Of the two answers made in the job (one directly, one through `AnswersIn.FromPage`) the two watching sessions' streams each got exactly one `approval` event, so the direct answer's fan-out published nothing (DW-68) and `AnswerOps`' did. `AnswersIn.FromPage` in the job returned `done` in 5.42 s. Not measured: the completion of a real hold's task from a web-roles job (a fixture row has no hold); `HoldTask` is the same kind of checked SQL read.
+- `%CSP.Session.%New(id, 0)` works in the job (an object), so `StubSession` is not needed.
+
+**Run times** (final tree, after the review patches): `ci/iris.sh live floor` PASS in 476 s of its 540 s deadline (123 tests across Chromium, Firefox and WebKit; A1-A9 included, A1 in all three engines); `shard lane-b` 61 classes passed in 185 s; `shard lane-a` 47 classes in 446 s; `live production` 115 s; `live sign-in` 449 s (217 passed); `live demo-path` 95 s (2 of 6 steps ran, 8 skipped for Story 11.1, 0 failed); `bash ci/checks.sh` and `bash docker/tests/test-web-build.sh` pass; warm: `AnswersIn` 0.2 s, `AnswersInProduction` 15.5 s, `AnswersInWebRoles` 5.6 s, `Test.Web.Api` 1.0 s, `Test.Install.Production` 0.4 s; `npm --prefix web test` 836 tests pass; `npm --prefix web run lint` and `node web/scripts/catalog.mjs --check` exit 0; `Test.Bridge.CodeRules`, `Test.Msg.Catalog`, `Test.Web.PublicTexts`, `Test.Core.BridgeSink` and `Test.Core.CommandsRouting` passed warm in the first pass.
+
+**Recorded mutations** (Rule 19; each applied, red observed, restored from the scratchpad backup and checked byte-identical):
+- mutation: AC1 `requestsOf` drops the `raisedAt` sort -> `approval-view.test` ("are the approvals with the incident's ref, in raisedAt order"); A3 checks the order in the browser.
+- mutation: AC2 Before and After swap their tokens in the card's styles -> `approval-sources.test` ("draw Before in the danger ink and After in the success ink"); A1 reads both colours in the browser.
+- mutation: AC3 `scrollToBottom` stops using `headlineTop` (the list goes to the bottom) -> A6 red (observed in the browser run: the headline was out of view).
+- mutation: AC4 `AnswersIn` skips the `Ownership.Approval` result check -> `Test.Core.AnswersIn` ("request ... is not_found", four requests).
+- mutation: AC4 `AnswerResponse` answers 404 for `expired` -> `Test.Core.AnswersInProduction` (`TestExpiredRequestAnswersExpired`).
+- mutation: AC5 the REST pre-check and `AnswersIn` both skip the `Ownership.Approval` result -> `Test.Core.AnswersInProduction` (`TestOnlineDemoOtherSessionIsNotFound`: B's answer is not 404, the request is not pending).
+- mutation: AC6 the second button gets its own `BusyState` -> `approval-sources.test` ("share one BusyState") and A4 red in the browser (two requests).
+- mutation: AC6 `aria-disabled` replaced by `disabled` -> `approval-sources.test` ("go busy together").
+- mutation: AC7 the status `p` loses `data-part="answer"` -> `approval-sources.test` and A2 red in the browser (focus is not on the status line).
+- mutation: AC8 the late press renders the done text (`answered.approved`) -> `approval-view.test` (four tests of "the late press"); A5 reads the notice in the browser.
+- mutation: AC9 `AnswersIn` calls `Approval.Answer` itself instead of `Send` -> `Test.Core.AnswersInWebRoles` (`TestInstanceAnswerReachesBothWatchers`: neither session got the event).
+- mutation: AC10 `Session.Recipients` drops `Watchers`' status (Epic 16's file, temporary, restored, `git diff` of it empty) -> `Test.Core.AnswersInWebRoles` (`TestWatcherReadsFailInAWebRequest`).
+- mutation: AC11 `AnswerOps` passes "" as the sessionRef -> `Test.Core.AnswersIn` (`TestMalformedSessionRefNeverReaches`, `TestWatcherReachesInstanceRequest`).
+- mutation: AC12 the gate test's sink is `OcuTalon.Bridge.Ext.HostSink` -> `Test.Core.AnswersInProduction` (`TestGateStepAndHeldCallReachTheStream`: no `turn.step`).
+- mutation: AC13 `AnswersIn` leaves `%SuperSession` unset -> `Test.Core.AnswersIn` (`TestHandOffIsTracedToTheSession`); `AnswersIn` names `Allowance` -> `Test.Core.AnswersIn` (`TestNoAllowanceOrConversation`).
+- mutation: AC14 `AnswerOps` answers as another user (the running item restarted before the run) -> `Test.Core.AnswersInProduction` (`TestApproveRecordsTheAnswer`); `AnswersIn` hands over another SessionRef -> the same; `AnswerOps` takes any sender -> `Test.Core.AnswersIn` (`TestAnswerOpsRefusesOtherSenders`).
+- mutation: AC15 `AnswerResponse` has no 403 branch -> `Test.Core.AnswersInProduction` (`TestRoleRefusalsComeBeforeTheOtherChecks`: the approved, past-expiry and expired requests).
+- mutation: AC16 `Reason` allows everything -> `Test.Core.AnswersInWebRoles` (`TestGuardRefusesOutsideAThrowaway`, five cases); the end-of-test hook leaves the user -> `Test.Core.AnswersInWebRoles` (`TestFixtureUserIsRemoved`).
+- mutation: AC3/AC7 (review patch) `headlineTop` ignores focus (the exemption removed) -> A6 red in the browser (Show details' panel is not in view).
+- mutation: AC4/AC8 (review patch) `AnswerResponse` sets `named` to 0 -> `Test.Core.AnswersInProduction` (`TestLatePressNamesAnotherUserOnALocalInstall`: the approval and the rejection by another user).
+- mutation: AC5 (review patch) `Ownership.LocalFlag` always 1 (Epic 16's file, temporary, restored, `git diff` byte-identical) -> `Test.Core.AnswersInProduction` (`TestOnlineDemoOtherSessionIsNotFound`: session B, who watches the production, answers the instance request).
+- mutation: AC4 (review patch) `noticeOf` returns "" for `gone` -> A8 red in the browser (the 404 notice does not show).
+- mutation: AC1/AC7 (review patch) the compact card draws its request cards (`view().compact ? [] :` removed) -> A9 red in the browser.
+
 **Planned mutations (Rule 19).** Apply each, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged, and record it as `mutation: ... -> ...`.
 
 | AC | Mutation | Expected red |
@@ -532,8 +637,13 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the plan's contended-path halt was resolved by the orchestrator's ruling Q1, recorded under Design Notes)
+Status: done
+Blocking condition: none
 
-- Plan: the endpoint through `AnswersIn` (session from the CSP session, who-may-answer) and a new `AnswerOps` business operation that calls `Approval.Answer` in a production job (DW-68). The approval request card with the dry run, the shared busy rule, the answered and late-press statuses from the catalog, and a 1280×600 floor check. DW-113, DW-199 and DW-98 are pinned in three new Test/Core classes.
-- For the runner: Veto-window choices V1-V5, and the spine update (the AD-33 item row and the REST row of V3).
+- **Implemented.** The answer endpoint goes through `AnswersIn` (session from the CSP session, who-may-answer, bridge-context refusal) to the new `AnswerOps` operation, which calls `Approval.Answer` in a production job (DW-68, DW-199); `AnswerApproval` maps done/409/403/404/400 with the request's payload. The page draws one approval request card per request inside the incident card (dry run, shared busy rule, statuses and late press from the catalog, focus rule), with the follow-bottom cap for 1280x600. DW-113, DW-199, DW-98 and the owner's conditions U-113, U-115 and U-116 (AC14-AC16) are pinned by `Test.Core.AnswersIn`, `AnswersInProduction` and `AnswersInWebRoles`.
+- **Files changed.** Server: `Core/AnswersIn.cls` (rebuilt), `Core/AnswerOps.cls`, `Core/Msg/Answer.cls` and `AnswerResult.cls` (new), `Production.cls` (item), `Web/Api.cls` (`AnswerApproval`, helpers, three messages, `Fail` payload), `Test/Core/ProductionItems.cls` (rows), `Test/Web/Api.cls` (ruled Q1 loop and doc sentence only); tests `Test/Core/{AnswersIn,AnswersInProduction,AnswersInWebRoles,ApprovalDouble,AnswerOpsProbe,AnswersInProbe}.cls`. Web: `approvals/{approval-view,approval-request-card}.ts` (new), `incidents/incident-card.ts`, `chat/chat-panel.ts`, `api/{api-client,api-types}.ts`, `icon/icon.ts`, `msg/catalog.ts` (generated) and `scripts/catalog.mjs`; tests `scripts/{approval-view,approval-sources}.test.mjs` (new), the four updated script tests, `e2e/support/iris.ts` and `e2e/floor/approval.spec.ts` (A1-A9).
+- **Review findings.** 42 findings: 9 medium and 1 low patched (server tests for the 403 text and the named 409, the online-demo required check with a watching session B, floor cases A8 and A9, the cap's focus exemption with A6's Show details check, a split class-doc line); 1 medium deferred (AC3 holds only with the guide collapsed and no banner: Epic 4's guide height); 31 rejected (3 false, 28 low) with their reasons in the Review Triage Log.
+- **Follow-up review recommended: true.** Five medium entries were patched (two or more). The unverified risk: the cap's focus exemption in `chat-panel.ts` is pinned only by A6 in Chromium; its interplay with other focus moves (the Announcer, `keepFocus` after a status replaces the buttons) has no case.
+- **Verification.** All `(loop)` and `(once)` commands of `## Verification` passed on the final tree (run times above); every AC has a recorded mutation.
+- **Footprint extensions.** `Test/Web/Api.cls` (ruling Q1); `Data/Ownership.cls` and `Data/Session.cls` were edited only temporarily for mutations and restored byte-identical. `web/scripts/catalog.mjs` gained the `channel` and `text` slot types (Epic 5's 5.7 may touch the same lines at integrate-forward).
+- **Residual risks.** AC3 depends on the guide being collapsed (deferred); the real hold's task completion from a web-roles job was not measured (fixture rows have no hold).

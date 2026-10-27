@@ -80,7 +80,10 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
  * element that holds it inside the list: an item that is still there takes it (the message of Retry sending), else the main region.
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
- * the bottom, new content keeps it there (a ResizeObserver on the list and its content). It leaves the bottom only when it is
+ * the bottom, new content keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
+ * incident card taller than the view that is left, following stops at the card's headline, so that its headline, cause, dry-run
+ * count and Approve and Reject stay in view (Story 6.2); a later entry follows to the bottom as before, and so does the card while
+ * focus is inside it (a press on Show details shows the panel it opens). It leaves the bottom only when it is
  * scrolled up (its scrollTop falls), so content that grows between the panel's own scroll to the bottom and that scroll's
  * event does not stop it following. When it is scrolled up, content from
  * elsewhere (a new entry, a notice card or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
@@ -122,6 +125,8 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
                   [decisions]="decisions()"
                   [instanceZone]="instanceZone()"
                   [onlineDemo]="onlineDemo()"
+                  [approvals]="live.store()?.approvals"
+                  [user]="user()"
                 />
               } @else {
                 <app-notice-card [notice]="entry" [instanceZone]="instanceZone()" />
@@ -260,6 +265,9 @@ export class ChatPanel {
 
   /** True on the online demo: an incident card's headline time ends " ET". */
   protected readonly onlineDemo = computed(() => this.live.snapshot()?.onlineDemo === true);
+
+  /** The signed-in user, from the snapshot: an incident card's request cards name another user's answer on a local install. */
+  protected readonly user = computed(() => this.live.snapshot()?.user ?? '');
 
   /** The live store's decisions, among which an incident card's footer decision is looked for. */
   protected readonly decisions = computed(() => this.live.store()?.decisions ?? []);
@@ -400,9 +408,28 @@ export class ChatPanel {
     this.unseen.set(false);
   }
 
+  /**
+   * Puts the list at the bottom, except when the newest entry is an incident card taller than the view that is left: then the card's
+   * headline is put at the list's top (below its scroll padding), so that the headline, the cause, the dry-run count and the answer
+   * buttons stay in view (UX-DR20); the chip row above the headline is what scrolls out. The list still counts as at the bottom, and
+   * a later entry follows to the bottom as before, as does the card itself while focus is inside it.
+   */
   private scrollToBottom(): void {
     const list = this.list().nativeElement;
-    list.scrollTop = list.scrollHeight;
+    const bottom = list.scrollHeight - list.clientHeight;
+    list.scrollTop = Math.min(bottom, this.headlineTop(list) ?? bottom);
     this.lastTop = list.scrollTop;
+  }
+
+  /** Where the headline of the newest entry sits in the list's scroll range when that entry is an incident card, else undefined. */
+  private headlineTop(list: HTMLElement): number | undefined {
+    const newest = Array.from(list.querySelectorAll<HTMLElement>(`[${PART}][${KEY}]`)).filter((item) => item.parentElement?.closest(`[${PART}][${KEY}]`) === null);
+    const card = newest[newest.length - 1];
+    if (card === undefined || card.getAttribute(PART) !== 'incident' || card.contains(document.activeElement)) {
+      return undefined;
+    }
+    const gutter = Number.parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+    const headline = card.querySelector<HTMLElement>('.headline') ?? card;
+    return Math.max(0, headline.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - gutter);
   }
 }

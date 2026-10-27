@@ -67,9 +67,9 @@ describe('the card\'s root, headline and Show details row', () => {
     assert.match(headline, /tabindex="-1"/);
   });
 
-  it('has the Show details button expand the panel by aria-expanded and aria-controls, only when the view has a panel', () => {
-    assert.match(cardTemplate, /@if \(view\(\)\.panel; as panel\) \{\s*<div class="actions">/);
-    const button = /<button\s([\s\S]*?)>/.exec(cardTemplate)?.[1] ?? '';
+  it('has the Show details button expand the panel by aria-expanded and aria-controls, only when the view has a panel and no request card renders (with one, the first request card holds the button, approval-sources.test.mjs)', () => {
+    assert.match(cardTemplate, /@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel; as panel\) \{\s*<div class="actions">/);
+    const button = /<div class="actions">\s*<button\s([\s\S]*?)>/.exec(cardTemplate)?.[1] ?? '';
     assert.match(button, /type="button"/);
     assert.match(button, /\[attr\.aria-expanded\]="open\(\)"/);
     assert.match(button, /\[attr\.aria-controls\]="panelId"/);

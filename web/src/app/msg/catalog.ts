@@ -18,6 +18,15 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'bannerAction.installYourself': 'Install it yourself',
   'bannerAction.howToSetKey': 'How to set a key',
   'bannerAction.setUpBot': 'Set up a bot',
+  'answered.approved': 'Approved from {channel} at {time}',
+  'answered.approvedBy': 'Approved by {user} from {channel} at {time}',
+  'answered.rejected': 'Rejected from {channel} at {time}. Nothing was changed.',
+  'answered.rejectedBy': 'Rejected by {user} from {channel} at {time}. Nothing was changed.',
+  'answered.expired': 'Expired at {time}. Nothing was changed.',
+  'answered.alreadyApproved': 'Already answered: approved from {channel} at {time}.',
+  'answered.alreadyRejected': 'Already answered: rejected from {channel} at {time}.',
+  'answered.alreadyApprovedBy': 'Already answered: approved by {user} from {channel} at {time}.',
+  'answered.alreadyRejectedBy': 'Already answered: rejected by {user} from {channel} at {time}.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -31,7 +40,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'fallbackReason.generic': "the model's reply couldn't be used",
 };
 
-/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, the others take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
   'checks.allPassed': {},
@@ -49,6 +58,15 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'bannerAction.installYourself': {},
   'bannerAction.howToSetKey': {},
   'bannerAction.setUpBot': {},
+  'answered.approved': { 'channel': 'channel', 'time': 'time' },
+  'answered.approvedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.rejected': { 'channel': 'channel', 'time': 'time' },
+  'answered.rejectedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.expired': { 'time': 'time' },
+  'answered.alreadyApproved': { 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyRejected': { 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyApprovedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyRejectedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */
@@ -67,6 +85,13 @@ export const REASON_KEYS: Readonly<Record<string, string>> = {
   'unusable': 'generic',
 };
 
+/** Each channel code with its name in message text. */
+export const CHANNEL_NAMES: Readonly<Record<string, string>> = {
+  'web': 'the web chat',
+  'phone': 'the simulated phone',
+  'telegram': 'Telegram',
+};
+
 /** The slots of a page text, by name. */
 export type PageSlots = Readonly<Record<string, unknown>>;
 
@@ -81,6 +106,12 @@ function cleanSlot(value: unknown): string {
     .trim();
 }
 
+/** The name of a channel code in message text ("the web chat"), or the cleaned value itself when it is none of CHANNEL_NAMES. */
+function channelName(value: unknown): string {
+  const code = cleanSlot(value);
+  return Object.hasOwn(CHANNEL_NAMES, code) ? CHANNEL_NAMES[code] : code;
+}
+
 /** The text of a fallback reason value, or the generic reason's when the value is none of REASON_KEYS. */
 function reasonText(value: unknown): string {
   const reason = cleanSlot(value);
@@ -91,8 +122,9 @@ function reasonText(value: unknown): string {
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
- * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
+ * itself. Every other slot takes the string the caller formatted (a time, a cost, a count or a text), cleaned like any string
+ * slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
@@ -100,6 +132,7 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
   return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => {
     const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
-    return Object.hasOwn(types, name) && types[name] === 'fallbackReason' ? reasonText(value) : cleanSlot(value);
+    const type = Object.hasOwn(types, name) ? types[name] : '';
+    return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : cleanSlot(value);
   });
 }
