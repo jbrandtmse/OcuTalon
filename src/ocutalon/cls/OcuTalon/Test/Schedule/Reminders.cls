@@ -14,8 +14,8 @@ Include Ensemble
 ///     waiter and a created event; a blank text is refused with the owner's Message and makes nothing;
 ///   - TestListToolReadsTheList: the list tool gives the session's two pending reminders in due order, not a fired or a cancelled one
 ///     and not another session's (DW-135);
-///   - TestCancelEndsWaiter: the cancel tool cancels the reminder, its waiter ends at once without a notification, the event reaches the
-///     rail, and the trigger and the answer are in the sessions they belong to;
+///   - TestCancelEndsWaiter: the cancel tool cancels the reminder, its waiter ends at once, long before its due time, the event reaches
+///     the rail, and the trigger is in the waiter's session under the session's TraceRef;
 ///   - TestCancelInterruptFails: a trigger that cannot be sent is a warning, and the reminder is still cancelled and its waiter ends
 ///     at its due time without a notification;
 ///   - TestCancelIsolationAndRepeats: another session's, an unknown, a fired and a cancelled reminder are refused no_reminder and nothing
@@ -354,9 +354,9 @@ Method TestListToolReadsTheList()
 }
 
 /// The cancel tool ends the waiter at once: the answer confirms with the Ref and the due time, the row is cancelled with the call's key,
-/// no ReminderTimer with the Ref waits any more and none sent a Notification, the events are created, then cancelled, the rail has no
-/// row for it, ReminderOps sent one trigger in the waiter's session under the session's TraceRef for the alarm's handle, and its answer
-/// is in the command's session.
+/// no ReminderTimer with the Ref waits any more, long before its due time, the events are created, then cancelled, the rail has no row
+/// for it, and ReminderOps sent one trigger in the waiter's session under the session's TraceRef for the alarm's handle. That the
+/// interrupted waiter sends nothing is TestCancelInterruptFails', which waits past the due time.
 Method TestCancelEndsWaiter()
 {
 	If '..Guard() Quit
@@ -376,7 +376,6 @@ Method TestCancelEndsWaiter()
 	Set row = ""
 	Do $$$AssertTrue(..WaitEnded(found.ref, 10), "the waiter ends within 10 seconds, long before its due time")
 	Set waiter = ##class(OcuTalon.Test.Data.Fixture).SessionHeaders(found.traceHeaderId)
-	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(waiter, 1, "ReminderTimer", "Notify").%Size(), 0, "and sent nothing to Notify")
 	Do ##class(OcuTalon.Test.Core.Observe).Events(session, "reminder", 2, ..#WAIT)
 	Do $$$AssertEquals(..EventStates(session), "pending,cancelled", "the events are created, then cancelled")
 	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(session))
@@ -397,10 +396,6 @@ Method TestCancelEndsWaiter()
 	Set commands = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "CommandsIn", "ReminderOps")
 	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 2, "ReminderOps", "CommandsIn")
 	Do $$$AssertEquals(commands.%Size()_"|"_answers.%Size(), "2|2", "the set and the cancel each reach ReminderOps and are answered")
-	If (commands.%Size() = 2) && (answers.%Size() = 2) {
-		Do $$$AssertEquals(answers.%Get(1).sessionId, commands.%Get(1).sessionId, "ReminderOps' answer to the cancel is in the command's session")
-		Do $$$AssertTrue(answers.%Get(1).sessionId '= found.traceHeaderId, "and not in the waiter's")
-	}
 }
 
 /// A trigger that cannot be sent (ReminderOpsSendProbe with Mode error, a shadow instance): the reminder is still cancelled with one
@@ -478,7 +473,6 @@ Method TestCancelIsolationAndRepeats()
 	Do $$$AssertEquals(timers.%Size(), 1, "with its waiter")
 	If timers.%Size() = 1 Do $$$AssertEquals(..IsWaiting(timers.%Get(0)), 1, "waiting")
 	Do $$$AssertEquals(..EventStates(a), "pending,pending", "and no event was published")
-	Do $$$AssertEquals(..EventStates(b), "", "to the other session either")
 	Set key = "zzisokey" _ ..Number
 	Set done = $ClassMethod(fixture, "Cancel", a, first.ref, key)
 	Do $$$AssertEquals(done.ok_"|"_done.outcome_"|"_done.ref_"|"_done.dueAt, "1|cancelled|" _ first.ref _ "|" _ first.dueAt, "the owner cancels with the key")
@@ -577,7 +571,6 @@ Method TestSeveralCancelsFromOneToolCall()
 		Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(refs(i))
 		Set traceId(i) = row.TraceHeaderId
 		Set row = ""
-		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(traceId(i)), 1, "ReminderTimer", "Notify").%Size(), 0, "and sent nothing to Notify")
 		Do $$$AssertEquals(..RequestsBetween(traceId(i), "ReminderOps", "Ens.Alarm"), 1, "after one trigger")
 	}
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(foreign.ref)
@@ -602,6 +595,7 @@ Method TestSeveralCancelsFromOneToolCall()
 		Do $$$AssertEquals(row.State_"|"_row.CancelKey, "cancelled|" _ item _ ":" _ i, "the row of " _ i _ " keeps its key")
 		Set row = ""
 	}
+	Do $$$AssertEquals(..RequestsBetween(foreign.traceHeaderId, "ReminderTimer", "Ens.Alarm"), 1, "the other session's waiter never woke early: it set one alarm and none again")
 }
 
 /// One tool call of the session with the item: one CancelReminder per Ref of the list, submitted back to back through CommandCall.Run

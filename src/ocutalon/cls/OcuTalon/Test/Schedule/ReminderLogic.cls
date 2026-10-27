@@ -1,8 +1,8 @@
-/// Tests of the reminder logic that need no production (Story 8.3; AD-5, AD-18, AD-32, FR-34, NFR-10). They call the methods of
-/// OcuTalon.Schedule.Reminder (Wake on a Test.Schedule.ReminderTimerDouble, over fixture rows) and shadow instances of the ReminderOps
-/// probes (ReminderOpsProbe, ReminderOpsStartedProbe, ReminderOpsSendProbe); TestWakeBusyRowTriesAgain also starts jobs that hold and
-/// try a row's lock. The reminders that really wait and fire are Test.Schedule.Reminders'. The keys and slots are written out here, never
-/// read from the product.
+/// Tests of the reminder logic that need no production (Stories 8.3 and 8.4; AD-1, AD-4, AD-5, AD-18, AD-32, FR-34, NFR-10). They call
+/// the methods of OcuTalon.Schedule.Reminder (Wake on a Test.Schedule.ReminderTimerDouble, over fixture rows) and shadow instances of the
+/// ReminderOps probes (ReminderOpsProbe, ReminderOpsStartedProbe, ReminderOpsSendProbe); TestWakeBusyRowTriesAgain, TestCancelRacesFire and
+/// TestCancelBusyRowFails also start jobs that hold or try a row's lock. The reminders that really wait and fire are
+/// Test.Schedule.Reminders'. The keys and slots are written out here, never read from the product.
 ///   - TestResolve: the due-form rule of Schedule.Reminder.Resolve, by refusal code: every due form (DueAt, DelaySeconds, LocalDueAt),
 ///     its unreadable and past values, none and several forms, a blank Text, and the order of the checks;
 ///   - TestTimes: SecondsUntil is at least 1 for a due time that is past, now, one and five seconds ahead; IsLate is true only beyond
@@ -16,6 +16,7 @@
 ///   - TestCancelFixtureRow, TestCancelRacesFire and TestCancelBusyRowFails: a cancel marks the row cancelled with its key, publishes one
 ///     event and answers the first result to a repeat; a reminder that fires while the cancel waits for the lock is refused; a lock that
 ///     stays busy answers failed and changes nothing (jobs that hold the row's lock);
+///   - TestThrownErrorAnswersFailed: an error thrown inside a verb (a row whose save fails) is logged and answered failed, with no row;
 ///   - TestSetRepeat: a key used again by a SetReminder of the session gets the first result, or reused_key for other fields;
 ///   - TestStartFailureKeepsNothing: a waiter that does not start deletes the row, publishes no event and answers failed;
 ///   - TestCreatedEventFailureStillSets: a created event that cannot be published is a warning, and the answer is still set, with the
@@ -33,7 +34,8 @@ Class OcuTalon.Test.Schedule.ReminderLogic Extends %UnitTest.TestCase
 /// The probe under test.
 Parameter PROBE = "OcuTalon.Test.Schedule.ReminderOpsProbe";
 
-/// The most seconds the lock job of TestWakeBusyRowTriesAgain holds the row's lock when the test does not let it go.
+/// The most seconds the lock job of TestWakeBusyRowTriesAgain and TestCancelBusyRowFails holds the row's lock when the test does not
+/// let it go. Both need it to be longer than the process lock timeout (10 seconds by default).
 Parameter HOLDSECONDS = 40;
 
 /// The Refs of the fixture sessions of the run, comma-separated.
@@ -126,6 +128,8 @@ Method TestResolve()
 	Do $$$AssertEquals(..Resolved(command, now, .dueAt)_"|"_dueAt, "no_text|", "an empty Text")
 	Set command = ..Command("zzsession", "   ", later)
 	Do $$$AssertEquals(..Resolved(command, now, .dueAt)_"|"_dueAt, "no_text|", "a blank Text")
+	Set command = ..Command("zzsession", " " _ $Char(13, 10), later)
+	Do $$$AssertEquals(..Resolved(command, now, .dueAt)_"|"_dueAt, "no_text|", "a Text of only a space and a line break")
 	Set command = ..Command("zzsession", "", "")
 	Do $$$AssertEquals(..Resolved(command, now, .dueAt)_"|"_dueAt, "no_text|", "a blank Text comes before the due forms")
 	Set command = ..Command("zzsession", "Stretch", "tomorrow")
@@ -187,6 +191,10 @@ Method TestRefusalsWriteNothing()
 	Set future = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
 	Set noSession = "0|refused|This conversation has no signed-in session, so nothing was done."
 	Set list = $ListBuild("set empty session", "set unknown session", "list empty session", "list unknown session", "cancel empty session", "cancel unknown session", "no text", "blank text", "no form", "two forms", "unreadable", "past", "past delay")
+	Set strays = "SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE SessionRef IS NULL OR SessionRef = 'zznosuchsession'"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, strays)
+	Do result.%Next()
+	Set straysBefore = +result.%GetData(1)
 	Set position = 0
 	While $ListNext(list, position, which) {
 		Set command = ..Command(session, "zz stretch", future)
@@ -215,6 +223,9 @@ Method TestRefusalsWriteNothing()
 		Do $$$AssertEquals(response.Ref_"|"_response.DueAt_"|"_response.Data, "||", which_": with no Ref, no DueAt and no Data")
 	}
 	Do $$$AssertEquals(..Rows(session), 0, "no row was written")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, strays)
+	Do result.%Next()
+	Do $$$AssertEquals(+result.%GetData(1), straysBefore, "and none for an empty or an unknown session")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(session), 0, "no event was published")
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()
@@ -406,9 +417,39 @@ Method TestCancelBusyRowFails()
 	Do $$$AssertEquals(..EventStates(session), "", "no event is published")
 }
 
+/// An error thrown inside a verb is logged and answered failed (the rule of OnMessage's Try/Catch): a SetReminder whose Text is one
+/// character longer than the row's Text takes makes the row's save fail, which the verb throws. The answer is failed with the failure
+/// text, one error is logged, and no row, waiter or event is made. The Text of the command is set by hand, past its own limit.
+Method TestThrownErrorAnswersFailed()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogictf" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
+	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ session
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Schedule.ReminderOpsStartedProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(probe) Quit
+	Set text = $Translate($Justify("", 1001), " ", "x")
+	Set command = ..Command(session, text, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600))
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set response = ""
+	Set sc = probe.OnMessage(command, .response)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	If '$IsObject(response) {
+		Do $$$AssertTrue(0, "a CommandResult comes back")
+		Quit
+	}
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "a thrown error is answered failed, with the failure text")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text [ 'OcuTalon.Data.Reminder:Text'", mark)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "one error is logged that names the property")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text [ 'OcuTalon.Data.Reminder:Text'", mark)
+	Do $$$AssertEquals(..Rows(session), 0, "no row was written")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(session), 0, "and no event was published")
+}
+
 /// A SetReminder with a key that an earlier SetReminder of the session used: the same fields get the first result with no second row or
-/// event; another Text, or an absolute form naming another instant, is reused_key; a relative form compares only the Text; a repeat of a
-/// row whose time has passed still gets its first result; an empty key makes two rows.
+/// event; another Text, an absolute form naming another instant, or a second due form is reused_key; a relative form compares only the
+/// Text; the key of another session is not seen; a repeat of a row whose time has passed still gets its first result; an empty key makes
+/// two rows. The rows that the probe made in both sessions are deleted at the end.
 Method TestSetRepeat()
 {
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogicsr" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
@@ -443,6 +484,11 @@ Method TestSetRepeat()
 	Set other.LocalDueAt = ##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(due, 60))
 	Set sc = probe.OnMessage(other, .three)
 	Do $$$AssertEquals(three.Ok_"|"_three.Outcome_"|"_three.Message, reused, "and so is a local form naming another instant")
+	Set other = ..Command(session, "zz first", due)
+	Set other.IdempotencyKey = "zzsetkey"
+	Set other.DelaySeconds = 600
+	Set sc = probe.OnMessage(other, .three)
+	Do $$$AssertEquals(three.Ok_"|"_three.Outcome_"|"_three.Message, reused, "and so is the same Text and DueAt with a second due form")
 	Do $$$AssertEquals(..Rows(session), 1, "none of them makes a row")
 	Set relative = ..Command(session, "zz relative", "")
 	Set relative.IdempotencyKey = "zzrelkey"
@@ -495,7 +541,9 @@ Method TestSetRepeat()
 		Set rows = rows + 1
 	}
 	Do $$$AssertEquals(rows, 1, "the row of the first command carries its key")
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND CreatedAt >= ?", session, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -3600))
+	Set since = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -3600)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Reminder WHERE SessionRef IN (?, ?) AND CreatedAt >= ?", session, elsewhere, since)
+	Do $$$AssertEquals(..Rows(elsewhere), 0, "the reminder of the other session is removed too")
 }
 
 /// A valid SetReminder for a fixture session whose waiter does not start: the row is deleted, no event is published, and the answer
@@ -670,17 +718,8 @@ Method TestWakeBusyRowTriesAgain()
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogicbl" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
 	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ session
 	Set ref = ..DueReminder(session, 3)
-	Kill ^OcuTalonTest("ReminderLogic", "held", ref), ^OcuTalonTest("ReminderLogic", "tried", ref), ^OcuTalonTest("ReminderLogic", "release", ref)
-	Job ##class(OcuTalon.Test.Schedule.ReminderLogic).HoldLock(ref, ..#HOLDSECONDS)::10
-	Set started = $Test
-	Do $$$AssertTrue(started, "a job is started that holds the row's lock")
-	If 'started Quit
-	Set end = $ZHorolog + 10
-	While '$Data(^OcuTalonTest("ReminderLogic", "held", ref)) && (end > $ZHorolog) {
-		Hang 0.1
-	}
-	Do $$$AssertTrue($Data(^OcuTalonTest("ReminderLogic", "held", ref)) > 0, "and it holds it")
-	If '$Data(^OcuTalonTest("ReminderLogic", "held", ref)) Quit
+	Kill ^OcuTalonTest("ReminderLogic", "tried", ref)
+	If '..HoldRow(ref, ..#HOLDSECONDS) Quit
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set timer = ..Wake(ref)
 	Do $$$AssertEquals(timer.Sent.%Size(), 0, "a wake on the busy row sends nothing")
@@ -694,12 +733,7 @@ Method TestWakeBusyRowTriesAgain()
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "one warning is logged with the Ref")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
-	Set ^OcuTalonTest("ReminderLogic", "release", ref) = 1
-	Set end = $ZHorolog + 20
-	While $Data(^OcuTalonTest("ReminderLogic", "held", ref)) && (end > $ZHorolog) {
-		Hang 0.1
-	}
-	Do $$$AssertEquals($Data(^OcuTalonTest("ReminderLogic", "held", ref)), 0, "the other job lets go")
+	Do ..LetGo(ref)
 	Set timer = ..Wake(ref)
 	Do $$$AssertEquals(timer.Sent.%Size()_"|"_timer.Timers.%Size(), "1|0", "the next wake sends once and sets no timer")
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)

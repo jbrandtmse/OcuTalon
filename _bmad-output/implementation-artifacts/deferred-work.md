@@ -555,6 +555,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Tools/CommandCall key; Context.CommandCount
 - 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's ReminderOps compares the verb and fields on a reused key, or refuses the reuse
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
+- 2026-10-27T15:16:12Z occurrence=8-4-set-list-and-cancel-reminders-in-plain-words
 
 ### DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -1299,3 +1300,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-3-a-reminder-fires-on-time-on-every-channel.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: ReminderFixture.cls RemoveSession vs Fixture.cls:380-399; RemoveMessages works by SuperSession and would delete the rail user's whole trace, so it can't be reused; extending it needs Test/Data/Fixture.cls (contended)
 - 2026-10-27T10:02:38Z status=wontfix-accepted owner=8-3-a-reminder-fires-on-time-on-every-channel by=cr note=reopen_if=Fixture.RemoveMessages' per-session deletes change or a 3rd copy appears; fix needs contended Fixture.cls
+
+### DW-303: Demo-path step 3 still declares notBuilt(..., '8.4') in web/e2e/demo-path/03-reminder.spec.ts, so the step summary names Story 8.4 as the story that turns it on after 8.4 is done; the lead's split gave step 3 to Story 8.6
+- source: spec-8-4-set-list-and-cancel-reminders-in-plain-words.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: web/e2e/demo-path/03-reminder.spec.ts:4; demo-path-summary.mjs reads the skip text 'Story <id> turns this on'
+- 2026-10-27T15:16:12Z status=by-design owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=spec-bound: the split bars 8.4 from the demo-path specs; Story 8.6 replaces this notBuilt call when it turns step 3 on
+
+### DW-304: Test.Schedule.Reminders adds a private Rows(session) Reminder-count helper that repeats Test.Schedule.ReminderLogic's private Rows(session)
+- source: spec-8-4-set-list-and-cancel-reminders-in-plain-words.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Reminders.cls:278 and ReminderLogic.cls Rows: the same 3-line COUNT; the two test classes have different bases, as in the other Test areas' own Rows helpers
+- 2026-10-27T15:16:12Z status=wontfix-accepted owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=reopen_if=a third copy of the Reminder-rows count appears under Test/Schedule, or the two copies stop counting the same rows

@@ -27,7 +27,7 @@ Parameter NOTIFYITEM = "Notify";
 
 /// The due-form rule of a SetReminder, pure: "" with dueAt set to the UTC due time (YYYY-MM-DDThh:mm:ssZ), or one refusal code, the
 /// first of these that holds, in this order:
-///   - no_text: the Text is blank after stripping whitespace;
+///   - no_text: the Text is blank after stripping whitespace and control characters (a line break included) from both ends;
 ///   - due_forms: not exactly one of DueAt, DelaySeconds and LocalDueAt is set;
 ///   - bad_time: the one form cannot be read: a DueAt that Data.Time.Seconds cannot read, a DelaySeconds that is not an optionally
 ///     signed whole number or whose AddSeconds result is "", or a LocalDueAt that Data.Time.FromLocal gives "" for;
@@ -36,7 +36,7 @@ Parameter NOTIFYITEM = "Notify";
 ClassMethod Resolve(command As OcuTalon.Msg.Command.SetReminder, now As %String = {##class(OcuTalon.Data.Time).NowUtc()}, Output dueAt As %String) As %String
 {
 	Set dueAt = ""
-	If $ZStrip(command.Text, "<>W") = "" Quit "no_text"
+	If $ZStrip(command.Text, "<>WC") = "" Quit "no_text"
 	If ((command.DueAt '= "") + (command.DelaySeconds '= "") + (command.LocalDueAt '= "")) '= 1 Quit "due_forms"
 	If command.DueAt '= "" {
 		Set due = command.DueAt
@@ -49,7 +49,6 @@ ClassMethod Resolve(command As OcuTalon.Msg.Command.SetReminder, now As %String 
 	}
 	Set dueSeconds = ##class(OcuTalon.Data.Time).Seconds(due)
 	If dueSeconds = "" Quit "bad_time"
-	If (command.DelaySeconds '= "") && (+command.DelaySeconds < 1) Quit "past"
 	Set current = ##class(OcuTalon.Data.Time).Seconds(now)
 	If (current = "") || (dueSeconds '> current) Quit "past"
 	Set dueAt = due

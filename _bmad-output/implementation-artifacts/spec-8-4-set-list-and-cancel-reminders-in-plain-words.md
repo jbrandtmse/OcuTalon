@@ -2,7 +2,7 @@
 title: 'Story 8.4: Set, list and cancel reminders in plain words'
 type: 'feature'
 created: '2026-10-27'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '9702cd67bda67c1449dc522f18115d9f7a37f30a'
 baseline_commit: '9702cd67bda67c1449dc522f18115d9f7a37f30a'
 review_loop_iteration: 0
@@ -328,7 +328,40 @@ Stay green with no edit:
      - with the same Refs in the same order, each command answers its own first result and nothing changes;
      - with the Refs in another order, a key that names another Ref is refused `reused_key` and nothing changes.
 
+### Review Findings
+
+Code review, 2026-10-27 (tags `e8s4c` fresh, `e8s4cw` warm). Four layers (blind, edge-case, verification-gap, acceptance) reported 23 findings; the reviewer's own Rule 2 check added 2. After triage: 11 entries (high 0, medium 3, low 8), 8 patched, 3 deferred through the ledger, 10 rejected. No AD mismatch; AD-4 holds under the lead's ruling (veto U-119): both key lookups are bound to the command's `SessionRef`, and the list and the cancel's target check read only `Ownership.Reminders`; no isolation leak was found.
+
+- [x] [Review][Patch] (medium; blind+edge+vg+acceptance; Rule 19 hermeticity) `TestSetRepeat` left the other session's probe-made pending row behind; the closing `DELETE` now covers both sessions and asserts the other session is empty [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:545]
+- [x] [Review][Patch] (medium; vg; Rule 19 pinning) `TestRefusalsWriteNothing` counted rows of the fixture session only, so a no_session set that saved before refusing stayed green; it now compares the rows with an empty or unknown `SessionRef` before and after [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:228]
+- [x] [Review][Patch] (medium; reviewer, Rule 2) `HoldRow`/`LetGo` repeated `TestWakeBusyRowTriesAgain`'s inline hold-and-release code; that test now uses them [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:722]
+- [x] [Review][Patch] (low; blind) `Repeated`'s rule that a second due form is a different command had no test; `TestSetRepeat` now repeats the key with the same Text and `DueAt` plus a `DelaySeconds` and expects `reused_key` [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:491]
+- [x] [Review][Patch] (low; edge) a Text of only a line break passed `no_text`, because `$ZStrip`'s `W` strips only tab, space and no-break space (measured on slot C, build 154); `Resolve` strips control characters too, and `TestResolve` pins it [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls:39]
+- [x] [Review][Patch] (low; blind) `Resolve`'s separate `DelaySeconds < 1` past check could never decide anything (the next check covers it); deleted [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls:52]
+- [x] [Review][Patch] (low; blind) `ReminderLogic`'s class doc and `HOLDSECONDS` doc named only Story 8.3 and `TestWakeBusyRowTriesAgain`, while the cancel lock tests also depend on `HOLDSECONDS` exceeding the lock timeout [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:1]
+- [x] [Review][Patch] (low; vg) assertions in the production cancel tests that no change to this story's code could fail were removed: the answer-in-the-command's-session pair of `TestCancelEndsWaiter` (the framework sets that session), its and `TestSeveralCancelsFromOneToolCall`'s "sent nothing to Notify" before the due time (a waiter never sends before its due time), and `TestCancelIsolationAndRepeats`' empty event stream of a session that owns no reminder; the docs no longer cite them. "No notification" stays pinned by `TestCancelInterruptFails`, isolation by the row state and QA's alarm count [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:378]
+- [x] [Review][Defer] (low; vg) demo-path step 3 still reads `notBuilt(..., '8.4')` [web/e2e/demo-path/03-reminder.spec.ts:4] — deferred: DW-303 `by-design` (the split bars 8.4 from the demo-path specs; Story 8.6 replaces the call when it turns step 3 on)
+- [x] [Review][Defer] (low; acceptance) AC 4's "other fields" against the repeat rule: a relative-form repeat compares the Text only, so a re-run with the same Text and another `DelaySeconds` gets the first result [src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls:140] — deferred: `by-design` under Boundaries > Repeats and Decided 2, recorded as an occurrence on DW-141 (owned by this story) for its adjudication. Should the rule be tightened, the first command's delay is `Seconds(DueAt) - Seconds(CreatedAt)` of the row, with no new property.
+- [x] [Review][Defer] (low; reviewer, Rule 2) `Reminders.Rows` repeats `ReminderLogic.Rows` (a 3-line count; each Test area keeps its own private `Rows`) [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:278] — deferred: DW-304 `wontfix-accepted`, reopen_if a third copy appears or the copies diverge
+
+Rejected:
+- `low` `ReminderFixture.Submit` returns "" on a Submit error without its text: the documented helper contract; only a stopped production reaches it, and the test still fails.
+- `low` `test-production.sh:18` is long and names the no_session refusal while row 17 checks only `refused`: the orchestrator's Q2 dictates that phrase and those two lines, nothing else (spec-bound).
+- `low` the key and `SessionRef` lookups use the default SQLUPPER collation: theoretical; Refs and ItemIds are random 22-character base64url values, and `Ownership` and `RefIndex` compare the same way. Real only if keys stopped being random.
+- `low` a `DelaySeconds` of -99999999999 answers `bad_time`, not `past`: the spec orders readability before past, and the tool sends digits only from origin `tool` (spec-bound, unreachable).
+- `low` `EndWaiter` logs nothing when it finds no open alarm: the waiter then ends at its due time sending nothing, the spec's own fallback; real only if a row's `TraceHeaderId` could point at a session with no alarm while the waiter waits.
+- `low` a failed `%DeleteId` after a failed start leaves a keyed row that a repeat answers `set`: needs a start failure and a delete failure together (8.3's ignored status); theoretical.
+- `low` `TestCancelRacesFire` relies on the cancel reaching its lock wait within the 3-second hold: milliseconds against 3 s, and its mutation was observed red; a timing assertion would break NFR-10.
+- `low` `TestSeveralCancelsFromOneToolCall` throws `<INVALID OREF>` when fewer events arrive: the test still fails, loudly.
+- `low` the spec's Tasks still say 5 s and "no trigger header" for two tests: the fix edits the spec's Tasks; the Review Triage Log records both changes.
+- `false` the spec's `status: done` during review: that is build-auto's machine state; `sprint-status.yaml` carries the review state.
+- `false` (part of the vg finding) `TestSeveralCancelsFromOneToolCall`'s "the other session's reminder is pending / waiting" cannot fail: a cancel of the wrong row fails them; the interrupt itself is QA's alarm count, as recorded.
+
+- [ ] [Review] U-119 condition (the owner, through the Contest Planner, kept the AD-4 reading of Decided 3 on this condition): a test pins that a repeated command carrying ANOTHER session's key finds nothing and reveals nothing - no row, no result and no error text that tells it apart from "not found". Cases, in `Test/Schedule/Reminders.cls` (or `ReminderLogic.cls` where no production is needed): (a) session A sends a `SetReminder` with session B's `IdempotencyKey` and DIFFERENT fields: it is a fresh set for A (`1|set`, a new Ref that is not B's), never `reused_key`, and B's row is untouched; (b) session A sends a `CancelReminder` with session B's `CancelKey` and B's `ReminderRef`: the answer is exactly the `no_reminder` refusal an unknown Ref gets (same Ok, Outcome and Message, character for character), never B's first result and never `reused_key`; nothing changes and no event or trigger goes out; (c) session A sends a `CancelReminder` with session B's `CancelKey` and A's own pending `ReminderRef`: A's reminder is cancelled normally (its own first result), never `reused_key`. Each case gets an observed mutation (for example the key lookup without its `SessionRef` filter) and a `mutation:` line under `## Verification`. Test-only unless a case fails, in which case fix `ReminderOps` within Decided 3.
+
 ## Spec Change Log
+
+- 2026-10-27 (lead): rework iteration 1 opened after code review (done, no HIGH) for the owner's U-119 condition (AD-4 reading kept with a cross-session key test); one `[Review]` item under Tasks & Acceptance.
 
 - 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed Q1, Q2 and Q4 and routed DW-140/DW-142 (U-118); the lead split the story (8.4 command side, 8.6 chat side) and ruled Q3 decide. Recorded under Intent and Design Notes; Clarification Needed removed; status set to `draft` to re-plan this story as the command side.
 
@@ -567,7 +600,7 @@ No other contended path is edited.
 - mutation: `Cancel` skips the `Ownership` check (`IsPending`) -> `Reminders.TestCancelIsolationAndRepeats`. The cancel no longer re-checks the row's `SessionRef` after the lock, so the `Ownership` check is the one guard.
 - mutation: `Cancel` doesn't check `pending` again under the lock -> `ReminderLogic.TestCancelRacesFire`
 - mutation: `Cancel` doesn't call `EndWaiter` -> `Reminders.TestCancelEndsWaiter`, `TestCancelInterruptFails`, `TestCancelIsolationAndRepeats` and `TestSeveralCancelsFromOneToolCall`
-- mutation: `SendIn` doesn't put `%SessionId` back -> `Reminders.TestCancelInterruptFails` (the probe's session id). `TestCancelEndsWaiter`'s answer-header check stays green: a production job's answer header takes its session from the request header, so only the shadow instance shows the missing restore.
+- mutation: `SendIn` doesn't put `%SessionId` back -> `Reminders.TestCancelInterruptFails` (the probe's session id). A production job's answer header takes its session from the request header, so only the shadow instance shows the missing restore (code review removed `TestCancelEndsWaiter`'s answer-header pair, which could not fail).
 - mutation: `EndWaiter` sends without the waiter's session id -> `Reminders.TestCancelInterruptFails` (`SeenAsync`) and `TestCancelEndsWaiter` (the trigger header in the waiter's session)
 - mutation: a failed interrupt answers `failed` instead of `cancelled` (the send error is thrown) -> `Reminders.TestCancelInterruptFails`
 - mutation: `Cancel` doesn't publish -> `Reminders.TestCancelEndsWaiter` (the events), `TestCancelInterruptFails`, `TestCancelIsolationAndRepeats` and `TestSeveralCancelsFromOneToolCall`. With the Publish call of `Cancel` replaced by `Set published = $$$OK`, `ci/iris.sh live sign-in` ran 219 passed and 1 failed: `reminder.spec.ts` test 2 (the row stayed in the rail), 7.1 minutes of Playwright.
@@ -578,6 +611,26 @@ No other contended path is edited.
 - mutation: a reused set key with other text is accepted (the `Text` comparison removed) -> `ReminderLogic.TestSetRepeat`
 - mutation: `Cancel` ignores `CancelKey` (no repeat lookup) -> `ReminderLogic.TestCancelFixtureRow` and `Reminders.TestCancelIsolationAndRepeats`, `TestSeveralCancelsFromOneToolCall`
 - mutation: the cancel's repeat lookup drops `CancelKey = ?` and takes any cancelled row of the session -> `Reminders.TestSeveralCancelsFromOneToolCall` (the second and third cancels are refused instead of cancelled) and `TestCancelIsolationAndRepeats`
+
+**QA gap audit (qa stage, tags `e8s4q` fresh and `e8s4qw` warm; no new test file).** Every matrix row and AC clause was read against the tests and the observed mutations above. Clauses that had a test but no observed red, and one clause with no test, were closed as follows; each mutation was applied to the file, run on the warm stack (ReminderOps item restarted before `Reminders`), seen red, reverted from a backup, and the revert seen green on the same stack (the tree held only the two test edits afterwards, checked with `git status --short`).
+- (QA) `Test/Schedule/ReminderLogic.cls`, new `TestThrownErrorAnswersFailed` (the Answers rule: an error thrown inside a verb is logged and answered `failed`; no test covered it): a SetReminder whose Text is 1001 characters makes the row's save fail.
+  - mutation: `OnMessage`'s Catch leaves `pResponse` empty instead of answering `failed` -> `ReminderLogic.TestThrownErrorAnswersFailed` ("a CommandResult comes back")
+- (QA) `Test/Schedule/Reminders.cls`, `TestSeveralCancelsFromOneToolCall` gains one assertion (AC 3, the other session's waiter untouched): the other session's waiter has set exactly one alarm. Its earlier "pending and waiting" assertions stay green when the waiter is interrupted, because `Wake` re-arms a pending row's timer, so they could not show an interrupt of the wrong session.
+  - mutation: `EndWaiter`'s alarm query drops `SessionId = ?` (it interrupts every session's alarms) -> `Reminders.TestSeveralCancelsFromOneToolCall` ("the other session's waiter never woke early", and the trigger counts) and `TestCancelIsolationAndRepeats` ("and one trigger")
+- Existing tests whose mutation had never been observed red, now observed:
+  - mutation: `SessionExists` answers 1 for a non-empty Ref -> `ReminderLogic.TestRefusalsWriteNothing` (set, list and cancel "unknown session")
+  - mutation: a message that is not a verb gets error code 5003 instead of 5001 -> `ReminderLogic.TestRefusalsWriteNothing` ("that is not 5003")
+  - mutation: `Resolve` drops the `dueSeconds '> current` past check -> `ReminderLogic.TestResolve` (a past `DueAt`, a `DueAt` that is now, a past `LocalDueAt`) and `TestRefusalsWriteNothing` ("past")
+  - mutation: a cancel whose row lock times out answers `no_reminder` instead of `failed` -> `ReminderLogic.TestCancelBusyRowFails` ("the cancel answers failed")
+  - mutation: the `"IdempotencyKey"`/`"CancelKey"` contract line `CancelKey` removed from Epic 8's `Data.Reminder` entry -> `Test.Data.Tables.TestContracts` ("property CancelKey is not in the contract")
+  - mutation: the ReminderOps oracle row set back to `"stub": 1` -> `Test.Install.Production.TestStubsAnswer` ("ReminderOps: ... carries STUB")
+- Not added, with the reason: an empty `IdempotencyKey` on a cancel (the matrix has no row for it; the spec says an empty key turns repeat detection off). A test was written and the guard removed (`If 1` for `If command.IdempotencyKey '= ""` in `Cancel`): it stayed green, because a bound empty string is an SQL NULL that `CancelKey = ?` never matches, so the guard is redundant and the behaviour cannot regress through it. The test was deleted (an assertion that cannot fail). The empty-key set is pinned by `TestSetRepeat`.
+- Fresh stack: `Reminders` and `ReminderLogic` passed on `e8s4q`.
+
+**Code review (tags `e8s4c` fresh and `e8s4cw` warm).** Each mutation was applied to the file, run on the warm stack, seen red on the named assertion only, and reverted from a backup (checksums equal); `ReminderLogic` was green again on the same stack after the last revert, and `ReminderZone` and `Reminders` (ReminderOps restarted) were green with the patches.
+- mutation: `Repeated` ignores the number of due forms (`Set same = 1`) -> `ReminderLogic.TestSetRepeat` ("and so is the same Text and DueAt with a second due form")
+- mutation: `Resolve`'s blank check strips whitespace only (`"<>W"` for `"<>WC"`) -> `ReminderLogic.TestResolve` ("a Text of only a space and a line break")
+- mutation: `Set` checks the session after the row's save -> `ReminderLogic.TestRefusalsWriteNothing` ("and none for an empty or an unknown session"); before the review this mutation stayed green.
 
 **Shared surfaces:**
 - the ReminderOps oracle row (`Test.Install.Production.TestStubsAnswer`, and `test-production.sh` row 16's stub sweep);
