@@ -2,8 +2,8 @@
 title: 'Story 8.4: Set, list and cancel reminders in plain words'
 type: 'feature'
 created: '2026-10-27'
-status: 'in-progress'
-baseline_revision: '9702cd67bda67c1449dc522f18115d9f7a37f30a'
+status: 'done'
+baseline_revision: '12f13aa0209123b8d69b50ea476f9976e1b69558'
 baseline_commit: '9702cd67bda67c1449dc522f18115d9f7a37f30a'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -357,7 +357,7 @@ Rejected:
 - `false` the spec's `status: done` during review: that is build-auto's machine state; `sprint-status.yaml` carries the review state.
 - `false` (part of the vg finding) `TestSeveralCancelsFromOneToolCall`'s "the other session's reminder is pending / waiting" cannot fail: a cancel of the wrong row fails them; the interrupt itself is QA's alarm count, as recorded.
 
-- [ ] [Review] U-119 condition (the owner, through the Contest Planner, kept the AD-4 reading of Decided 3 on this condition): a test pins that a repeated command carrying ANOTHER session's key finds nothing and reveals nothing - no row, no result and no error text that tells it apart from "not found". Cases, in `Test/Schedule/Reminders.cls` (or `ReminderLogic.cls` where no production is needed): (a) session A sends a `SetReminder` with session B's `IdempotencyKey` and DIFFERENT fields: it is a fresh set for A (`1|set`, a new Ref that is not B's), never `reused_key`, and B's row is untouched; (b) session A sends a `CancelReminder` with session B's `CancelKey` and B's `ReminderRef`: the answer is exactly the `no_reminder` refusal an unknown Ref gets (same Ok, Outcome and Message, character for character), never B's first result and never `reused_key`; nothing changes and no event or trigger goes out; (c) session A sends a `CancelReminder` with session B's `CancelKey` and A's own pending `ReminderRef`: A's reminder is cancelled normally (its own first result), never `reused_key`. Each case gets an observed mutation (for example the key lookup without its `SessionRef` filter) and a `mutation:` line under `## Verification`. Test-only unless a case fails, in which case fix `ReminderOps` within Decided 3.
+- [x] [Review] U-119 condition (the owner, through the Contest Planner, kept the AD-4 reading of Decided 3 on this condition): a test pins that a repeated command carrying ANOTHER session's key finds nothing and reveals nothing - no row, no result and no error text that tells it apart from "not found". Cases, in `Test/Schedule/Reminders.cls` (or `ReminderLogic.cls` where no production is needed): (a) session A sends a `SetReminder` with session B's `IdempotencyKey` and DIFFERENT fields: it is a fresh set for A (`1|set`, a new Ref that is not B's), never `reused_key`, and B's row is untouched; (b) session A sends a `CancelReminder` with session B's `CancelKey` and B's `ReminderRef`: the answer is exactly the `no_reminder` refusal an unknown Ref gets (same Ok, Outcome and Message, character for character), never B's first result and never `reused_key`; nothing changes and no event or trigger goes out; (c) session A sends a `CancelReminder` with session B's `CancelKey` and A's own pending `ReminderRef`: A's reminder is cancelled normally (its own first result), never `reused_key`. Each case gets an observed mutation (for example the key lookup without its `SessionRef` filter) and a `mutation:` line under `## Verification`. Test-only unless a case fails, in which case fix `ReminderOps` within Decided 3.
 
 ## Spec Change Log
 
@@ -394,6 +394,26 @@ Rejected:
   - `[low]` `[reject]` VG O2: the empty-key rule is tested for set only - the cancel branch is one `If` on the same property, pinned by the several-cancels test with distinct keys
   - `[low]` `[reject]` VG O3: `TestSetByDelayAndLocal` compares with `FromLocal` itself - `ReminderZone` pins the conversion in two zones
   - `[low]` `[reject]` VG O4 / Intent 1-6 (descriptive): the chat surface is Story 8.6's by the lead's split; publish after the lock is released is the Boundaries order; arrival is `OnMessage`; relative repeats compare Text only (see Blind 1); the multi-cancel test runs at `CommandCall.Run`, the layer below Lane A's tool; the browser test covers the cancel effect on the rail only - all stated in the spec
+
+### 2026-10-27 - Review pass (rework iteration 1, U-119 condition)
+- verdicts: 17 findings from the four layers (16 rows; Blind 3 and VG 3 share one) - high 0, medium 0, low 6, false 11, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1: the set case does not test the same fields under the other session's key - `ReminderLogic.TestSetRepeat` (the key of another session is not seen) pins that, and the item's case (a) names DIFFERENT fields
+  - `[false]` `[reject]` Blind 2: case (b) runs against an already cancelled Ref - the other session's CancelKey exists only after its cancel, so its Ref is cancelled by construction; the mutation (key lookup without SessionRef) went red there, which is the discrimination
+  - `[low]` `[patch]` Blind 3 / VG 3: the b/c mutation line says case c is red "separately" - it is the same run and mutation, as its own failing assertions; the Verification line now says so
+  - `[false]` `[reject]` Blind 4: nothing pins that CancelKey has no global unique index - the case (c) test stores the same key on two rows of two sessions and would fail if one were added
+  - `[false]` `[reject]` Blind 5: review_loop_iteration, change log and the two revisions - the counter moves on a bad_spec loopback only; baseline_revision is this pass's base and baseline_commit the story's (Rule 17)
+  - `[low]` `[reject]` Edge 1: a row opened from a Ref the result reported could be empty and throw - the Ref is asserted non-empty first and a throw fails the test loudly; the sibling tests do the same
+  - `[false]` `[reject]` Edge 2: a late trigger from the refused cancel would be missed - the trigger header is created when the cancel runs, before the answer returns, and `Reminders` counts the same way elsewhere
+  - `[false]` `[reject]` Edge 3: the waiter is counted before it exists - `StartWaiter` sends synchronously, so the Timer exists when the Set answers
+  - `[false]` `[reject]` Edge 4: duplicate of Blind 2
+  - `[low]` `[reject]` Edge 5: the member-for-member compare covers the fixture's five members, not Data - refusals carry no Data and the item names Ok, Outcome and Message
+  - `[low]` `[reject]` VG 1: no mutation leaves the answer right and leaks a side effect in case (b) - Rule 19 asks one mutation per AC, and the side-effect assertions share the case's observed mutation
+  - `[low]` `[reject]` VG 2: `mine.DueAt '= theirs.DueAt` is redundant beside the Ref assertion - it fails if a lookup hands back the other session's due time with a new Ref; not worth a change
+  - `[false]` `[reject]` Intent 1: no tool-layer or e2e test - the item places the cases in Reminders.cls and the chat side is Story 8.6's
+  - `[false]` `[reject]` Intent 2: the cases come from the U-119 bullet, not the contract - the bullet is this pass's spec
+  - `[false]` `[reject]` Intent 3: case (b) discrimination - same as Blind 2
+  - `[false]` `[reject]` Intent 4: the relative form compares text only - the contract says so, and case (a) differs in text so reused_key is the mutation's red
 
 ## Design Notes
 
@@ -632,6 +652,10 @@ No other contended path is edited.
 - mutation: `Resolve`'s blank check strips whitespace only (`"<>W"` for `"<>WC"`) -> `ReminderLogic.TestResolve` ("a Text of only a space and a line break")
 - mutation: `Set` checks the session after the row's save -> `ReminderLogic.TestRefusalsWriteNothing` ("and none for an empty or an unknown session"); before the review this mutation stayed green.
 
+**U-119 condition (rework, tags `e8s4j` fresh and `e8s4jw` warm).** `Reminders.TestSetKeyOfAnotherSession` (case a) and `TestCancelKeyOfAnotherSession` (cases b and c) pin that a key another session used finds nothing and reveals nothing. Each mutation was applied to `ReminderOps.cls`, run on the warm stack (the ReminderOps item restarted first), seen red, and reverted from a backup (checksum equal, `git status --short` and `git diff --stat` as before); `Reminders` was green again on the same stack after each revert.
+- mutation: the set key lookup ignores the session (`WHERE ? <> ''` for `SessionRef = ?` in the `IdempotencyKey` statement) -> `Reminders.TestSetKeyOfAnotherSession` (case a: "the same key with other fields in this session is a fresh set, not reused_key", "with a new Ref that is not the other session's")
+- mutation: the cancel key lookup ignores the session (`WHERE ? <> ''` for `SessionRef = ?` in the `CancelKey` statement) -> `Reminders.TestCancelKeyOfAnotherSession`, case b ("the other session's key and Ref get that answer, member for member": the other session's first result comes back) and, as its own failing assertions in the same run, case c ("the other session's key with this session's own Ref cancels it, with its own result", plus its row, event, waiter and trigger assertions: `reused_key` comes back)
+
 **Shared surfaces:**
 - the ReminderOps oracle row (`Test.Install.Production.TestStubsAnswer`, and `test-production.sh` row 16's stub sweep);
 - `CommandsInProduction`'s stub-owner table (Q1) and `test-production.sh` row 17 (Q2);
@@ -650,6 +674,10 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 Status: done
 Blocking condition: none
+
+**Rework iteration 1 (U-119 condition).** Test-only: `Test/Schedule/Reminders.cls` gained `TestSetKeyOfAnotherSession` (case a) and `TestCancelKeyOfAnotherSession` (cases b and c) with a `SetKeyed` helper; `ReminderOps.cls` is unchanged because all three cases passed at once. The item is `[x]` and two `mutation:` lines (key lookups without their `SessionRef` filter) sit under `## Verification`.
+- **Review:** 17 findings, no high; 1 spec-wording patch, 16 rejected with reasons in the Review Triage Log; nothing deferred. Follow-up review recommended: false (no high patched).
+- **Verification:** fresh `class OcuTalon.Test.Schedule.Reminders` passed (30.7 s), fresh `shard lane-b` passed (64 classes), `bash ci/checks.sh` and `bash docker/tests/test-boundaries.sh` passed. Warm and fresh stacks are torn down.
 
 **Implement and review (bmad-build-auto).** `ReminderOps` now carries out SetReminder, ListReminders and CancelReminder; the plan-stage notes follow below the result.
 - **Summary:**

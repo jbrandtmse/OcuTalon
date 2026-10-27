@@ -20,6 +20,9 @@ Include Ensemble
 ///     at its due time without a notification;
 ///   - TestCancelIsolationAndRepeats: another session's, an unknown, a fired and a cancelled reminder are refused no_reminder and nothing
 ///     changes; a repeated cancel key gets the first result, and a key for another reminder is reused_key;
+///   - TestSetKeyOfAnotherSession and TestCancelKeyOfAnotherSession (AD-4): a key that another session used finds nothing and reveals
+///     nothing: a set is a fresh set (never reused_key); a cancel with the other session's Ref gets the unknown-Ref refusal, member for
+///     member, and with its own Ref cancels it normally;
 ///   - TestSetRepeatOneWaiter: a SetReminder submitted twice with one key makes one row, one waiter and one created event;
 ///   - TestSeveralCancelsFromOneToolCall (U-118): three cancels of one tool call, with the keys <item>:1 to :3, each cancel their own
 ///     reminder; the call run again gets each command its first result, and with the Refs in another order a key for another Ref is
@@ -495,6 +498,103 @@ Method TestCancelIsolationAndRepeats()
 	Do $$$AssertEquals(row.State, "pending", "which stays pending")
 	Set row = ""
 	Do $$$AssertEquals(..EventStates(a), "pending,pending,cancelled", "with no event")
+}
+
+/// Submits a SetReminder of the session with the key, the text and a delay in seconds, under the session's bridge context, keeps the
+/// Ref of a reminder that it makes for the clean-up, and returns the CommandResult ("" when no answer came back).
+Method SetKeyed(session As %String, key As %String, text As %String, seconds As %Integer) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = key
+	Set command.Text = text
+	Set command.DelaySeconds = seconds
+	Set result = ##class(OcuTalon.Test.Schedule.ReminderFixture).Submit(session, command)
+	If $IsObject(result) Do ..Keep(result.Ref)
+	Quit result
+}
+
+/// A SetReminder carrying the IdempotencyKey of another session's reminder, with other fields, is a fresh set for its own session
+/// (set, a new Ref, its own due time), never reused_key; the other session's reminder, row and waiter are untouched (AD-4, AD-1: a
+/// key is looked up in the command's own session only).
+Method TestSetKeyOfAnotherSession()
+{
+	If '..Guard() Quit
+	Set a = ..Session("fsetkeya")
+	Set b = ..Session("fsetkeyb")
+	Set key = "zzfsetkey" _ ..Number
+	Set theirText = "zz theirs " _ ..Number, myText = "zz mine " _ ..Number
+	Set theirs = ..SetKeyed(b, key, theirText, 300)
+	Set mine = ..SetKeyed(a, key, myText, 310)
+	Do $$$AssertTrue($IsObject(theirs) && $IsObject(mine), "both commands are answered")
+	If '$IsObject(theirs) || '$IsObject(mine) Quit
+	Do $$$AssertEquals(theirs.Ok_"|"_theirs.Outcome, "1|set", "the other session's reminder is set")
+	Do $$$AssertEquals(mine.Ok_"|"_mine.Outcome, "1|set", "the same key with other fields in this session is a fresh set, not reused_key")
+	Do $$$AssertTrue(mine.Ref '= "" && (mine.Ref '= theirs.Ref), "with a new Ref that is not the other session's")
+	Do $$$AssertTrue(mine.DueAt '= theirs.DueAt, "and its own due time")
+	If (mine.Ref = "") || (theirs.Ref = "") Quit
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(mine.Ref)
+	Do $$$AssertEquals(row.SessionRef_"|"_row.Text_"|"_row.State_"|"_row.IdempotencyKey, a_"|"_myText_"|pending|"_key, "its row is this session's, pending, with the key")
+	Set row = ""
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(theirs.Ref)
+	Do $$$AssertEquals(row.SessionRef_"|"_row.Text_"|"_row.DueAt_"|"_row.State_"|"_row.IdempotencyKey, b_"|"_theirText_"|"_theirs.DueAt_"|pending|"_key, "the other session's row is untouched")
+	Set row = ""
+	Do $$$AssertEquals(..Rows(a)_"|"_..Rows(b), "1|1", "each session has its one row")
+	Set timers = ..Timers(theirs.Ref)
+	Do $$$AssertEquals(timers.%Size(), 1, "the other session's reminder has its one waiter")
+	If timers.%Size() = 1 Do $$$AssertEquals(..IsWaiting(timers.%Get(0)), 1, "which is waiting")
+	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending|pending", "each session has its one created event")
+}
+
+/// A CancelReminder carrying the CancelKey of another session's cancel finds nothing and reveals nothing (AD-4):
+///   - with the other session's Ref it gets exactly the no_reminder refusal that an unknown Ref gets (every member of the answer
+///     equal), never the other session's first result and never reused_key, and nothing changes: no event, no trigger;
+///   - with its own pending Ref it cancels that reminder normally, never reused_key, and the other session's row keeps its state and key.
+Method TestCancelKeyOfAnotherSession()
+{
+	If '..Guard() Quit
+	Set a = ..Session("fcankeya")
+	Set b = ..Session("fcankeyb")
+	Set fixture = "OcuTalon.Test.Schedule.ReminderFixture"
+	Set theirs = ..SetReminder(b, "zz theirs " _ ..Number, 300)
+	Set mine = ..SetReminder(a, "zz mine " _ ..Number, 310)
+	Do $$$AssertEquals(theirs.ok_"|"_mine.ok, "1|1", "the reminders are set")
+	If (theirs.ref = "") || (mine.ref = "") Quit
+	Set key = "zzfcankey" _ ..Number
+	Set done = $ClassMethod(fixture, "Cancel", b, theirs.ref, key)
+	Do $$$AssertEquals(done.ok_"|"_done.outcome_"|"_done.ref, "1|cancelled|" _ theirs.ref, "the other session cancels its reminder with the key")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(theirs.ref)
+	Set theirTrace = row.TraceHeaderId
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(mine.ref)
+	Set myTrace = row.TraceHeaderId
+	Set row = ""
+	Do $$$AssertTrue(..WaitEnded(theirs.ref, 10), "and its waiter ends")
+
+	Set unknown = $ClassMethod(fixture, "Cancel", a, "zznosuchreminder", "zzfcanunknown" _ ..Number)
+	Set foreign = $ClassMethod(fixture, "Cancel", a, theirs.ref, key)
+	Do $$$AssertEquals(unknown.ok_"|"_unknown.outcome_"|"_unknown.message, "0|refused|" _ ..#NOREMINDER, "an unknown Ref is refused no_reminder")
+	Do $$$AssertEquals(foreign.%ToJSON(), unknown.%ToJSON(), "the other session's key and Ref get that answer, member for member: not its first result, not reused_key")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(theirs.ref)
+	Do $$$AssertEquals(row.SessionRef_"|"_row.State_"|"_row.CancelKey, b_"|cancelled|"_key, "the other session's row is as it was")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(mine.ref)
+	Do $$$AssertEquals(row.State_"|"_row.CancelKey, "pending|", "this session's reminder is pending and has no key")
+	Set row = ""
+	Set timers = ..Timers(mine.ref)
+	Do $$$AssertEquals(timers.%Size(), 1, "with its waiter")
+	If timers.%Size() = 1 Do $$$AssertEquals(..IsWaiting(timers.%Get(0)), 1, "waiting")
+	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending|pending,cancelled", "no event came from the refusals")
+	Do $$$AssertEquals(..RequestsBetween(theirTrace, "ReminderOps", "Ens.Alarm")_"|"_..RequestsBetween(myTrace, "ReminderOps", "Ens.Alarm"), "1|0", "and no trigger")
+
+	Set own = $ClassMethod(fixture, "Cancel", a, mine.ref, key)
+	Do $$$AssertEquals(own.ok_"|"_own.outcome_"|"_own.ref_"|"_own.dueAt, "1|cancelled|" _ mine.ref _ "|" _ mine.dueAt, "the other session's key with this session's own Ref cancels it, with its own result")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(mine.ref)
+	Do $$$AssertEquals(row.State_"|"_row.CancelKey, "cancelled|" _ key, "its row is cancelled")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(theirs.ref)
+	Do $$$AssertEquals(row.SessionRef_"|"_row.State_"|"_row.CancelKey, b_"|cancelled|"_key, "the other session's row is still as it was")
+	Set row = ""
+	Do $$$AssertEquals(..EventStates(a)_"|"_..EventStates(b), "pending,cancelled|pending,cancelled", "one cancelled event for this session, none for the other")
+	Do $$$AssertTrue(..WaitEnded(mine.ref, 10), "its waiter ends")
+	Do $$$AssertEquals(..RequestsBetween(theirTrace, "ReminderOps", "Ens.Alarm")_"|"_..RequestsBetween(myTrace, "ReminderOps", "Ens.Alarm"), "1|1", "with one trigger of its own")
 }
 
 /// A SetReminder submitted twice with one key makes one row, one start request to the waiter and one created event, and answers
