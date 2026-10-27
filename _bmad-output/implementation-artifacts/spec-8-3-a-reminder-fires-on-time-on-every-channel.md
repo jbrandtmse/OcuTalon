@@ -2,7 +2,7 @@
 title: 'Story 8.3: A reminder fires on time on every channel'
 type: 'feature'
 created: '2026-10-26'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -48,7 +48,7 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
 - **Tests.** Tests go in `OcuTalon.Test.Schedule` (shard `lane-b`). Tests that need a running production run on throwaways only (AD-22, Rule 21). Each test creates, and removes, everything it asserts on.
 
 **Never:**
-- No edit to `CommandsIn`, `Commands`, `Notify`, `WebChatOut`, `SimPhoneOut`, `Production.cls`, the catalog classes or `web/src/**`. No edit to any contended path beyond the one escalated line of `Test/Data/Tables.cls` (see Clarification Needed). No change to `web/e2e/demo-path/03-reminder.spec.ts`: its `notBuilt(..., '8.4')` stays.
+- No edit to `CommandsIn`, `Commands`, `Notify`, `WebChatOut`, `SimPhoneOut`, `Production.cls`, the catalog classes or `web/src/**`. No edit to any contended path beyond the one ruled line of `Test/Data/Tables.cls` (the orchestrator's ruling of 2026-10-27, under Design Notes). No change to `web/e2e/demo-path/03-reminder.spec.ts`: its `notBuilt(..., '8.4')` stays.
 - Story 8.4 owns `DelaySeconds`, `LocalDueAt`, list, cancel, refusal reasons and repeat handling by `IdempotencyKey`. Story 8.5 owns `Reconcile`, re-arming and restarts. None of it is done here.
 - No live send to `TelegramOut`, a disabled stub until Epic 12. The paired route is checked on `Notify`'s own rule.
 - Nothing new in the catalog, no new live-event type, production item or table, no second publisher of `reminder`, no hand-written `Storage` block, and no literal non-ASCII character in code (Rule 14).
@@ -106,7 +106,7 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
   - `Test/Web/Api.cls`, `Test/Demo/Guide*.cls` and `web/e2e/rail/rail.spec.ts` R6/R7: fixture rows with no waiter.
   - `Test/Tools/Reminders.cls`: a double stands behind `CommandsIn`.
 - `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls:35`: the `ReminderTimer` row (Epic 8's), `"stub": 1`.
-- `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls:431-445`: the exact contract of `OcuTalon.Data.Reminder` (`AssertContract`, "has exactly its contract"). It is contended (see Clarification Needed).
+- `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls:431-445`: the exact contract of `OcuTalon.Data.Reminder` (`AssertContract`, "has exactly its contract"). Shared by entry since the orchestrator's ruling of 2026-10-27; this entry is Epic 8's own.
 - Web support, used only through its exports:
   - `web/e2e/support/iris.ts` (`irisScript` `:71`, `chk` `:89`, `quoted` `:144`, `fixtureUser` `:47`);
   - `support/trace.ts` (`TRACE_PAGE` `:14`, `signOutTrace` `:44`, `openTrace` `:126`, `drawnMessages` `:143`);
@@ -146,7 +146,7 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
   - Keep `STUB` (Story 8.4 deletes it), and update the class doc to what is built.
 - [ ] `src/ocutalon/cls/OcuTalon/Live/Payload/Reminder.cls` `FromRow`: set `TraceHeaderId` from the row, and `TraceNamespace` = `$Namespace` only when it is set. Correct the doc (contract only).
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`: the `ReminderTimer` row gets `"stub": 0` (Epic 8's row). `ReminderOps` stays `1`.
-- [ ] **Contended, awaiting the ruling below:** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, XData `Contracts`, `OcuTalon.Data.Reminder` props: add `"TraceHeaderId": "%Integer"` after `"CreatedAt"`. No other line.
+- [ ] **Allowed by the orchestrator's ruling of 2026-10-27:** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, XData `Contracts`, `OcuTalon.Data.Reminder` props: add `"TraceHeaderId": "%Integer"` after `"CreatedAt"`. No other line.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsProbe.cls` (new): a `ReminderOps` subclass whose `StartWaiter` answers an error.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls` (new, no production):
   - `TestAccepts`: each matrix input.
@@ -200,6 +200,8 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
 4. **The 5-second test.** Given a reminder due 5 s after it is set, when the test waits for it, then exactly one notification arrives per channel: one web card, one phone message, and `TelegramOut` once in the paired route. None of them is created before `DueAt`. No seconds bound is asserted. (FR-34, NFR-10)
 
 ## Spec Change Log
+
+- 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed the one contended line in `Test/Data/Tables.cls` (Epic 8's `OcuTalon.Data.Reminder` entry; that XData is shared by entry from now on) and the lead ruled the `TraceHeaderId` property `decide`. The plan's Clarification Needed section was removed and the status set to `ready-for-dev`. The two lock-folder values in Verification were written as the dispatch's placeholder, because committed files carry no local absolute paths; the stage prompts give the real folder.
 
 ## Review Triage Log
 
@@ -256,16 +258,16 @@ Conventions: "Times", "Live events", "Notice cards", "Identifiers".
 
 **Footprint extensions to report:** `src/ocutalon/cls/OcuTalon/Live/Payload/Reminder.cls` (Lane B; contended by no running epic) and the new `web/e2e/reminder/reminder.spec.ts`.
 
-**Contended edit needed:** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, one line (see Clarification Needed).
+**Ruled (orchestrator, 2026-10-27, decide):** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` gets exactly one added line, `"TraceHeaderId": "%Integer"`, inside Epic 8's own `OcuTalon.Data.Reminder` entry of XData `Contracts`. From this ruling on, that XData counts as shared by entry (each epic edits only its own tables' entries; an integrate-forward conflict there is a plain union), like the rows of `Test/Core/ProductionItems.cls`. It is reported under the epic's footprint extensions. The lead's ruling (decide) on the stored property stands: `Data.Reminder` gains `TraceHeaderId As %Integer`, append-only (AD-5), as AC 2, AD-18 and AD-26 already require, on a table not yet released.
 
 **Ledger inbox:** none (`LEDGER slice` of this key is empty).
 
 ## Verification
 
-**Shared values.** Every `ci/iris.sh` and `ci/warm.sh` call starts with `L` = `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=<stage>'`, written out in full on each call. Each call is its own tool call, in the foreground, with `timeout: 600000`. Tags: fresh `e8s3i` and warm `e8s3iw` for implement; every other stage uses `e8s3<stage>` and `e8s3<stage>w`.
+**Shared values.** Every `ci/iris.sh` and `ci/warm.sh` call starts with `L` = `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=<stage>'`, written out in full on each call. Each call is its own tool call, in the foreground, with `timeout: 600000`. Tags: fresh `e8s3i` and warm `e8s3iw` for implement; every other stage uses `e8s3<stage>` and `e8s3<stage>w`.
 
 **Commands:**
-- `(once, first)` `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement' OCUTALON_RUN_TAG=e8s3iw ci/warm.sh up` -- expected: ready.
+- `(once, first)` `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement' OCUTALON_RUN_TAG=e8s3iw ci/warm.sh up` -- expected: ready.
 - `(loop)` `$L OCUTALON_WARM=1 OCUTALON_RUN_TAG=e8s3iw ci/iris.sh class OcuTalon.Test.Schedule.ReminderLogic` -- expected: `CLASS ... passed`.
 - `(loop)` the same command for `OcuTalon.Test.Schedule.Reminders` (about 30 to 60 s) -- expected: passed.
 - `(loop)` the same command for each of these, one per call: `OcuTalon.Test.Install.Production`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Live.Payloads`, `OcuTalon.Test.Core.CommandsInProduction`, `OcuTalon.Test.Web.Api` -- expected: each passed.
@@ -283,7 +285,7 @@ Conventions: "Times", "Live events", "Notice cards", "Identifiers".
 - The Telegram route: the Notification without `SessionRef` -> the paired route check.
 
 **Shared surfaces:**
-- the `Data.Reminder` contract (`Test.Data.Tables`, pending the ruling);
+- the `Data.Reminder` contract (`Test.Data.Tables`, the one ruled line);
 - the `ReminderTimer` oracle row (`Test.Install.Production.TestStubsAnswer`);
 - `FromRow`'s trace fields (`Test.Live.Payloads`, `Test.Web.Api`; a row with no header has no trace);
 - the rail user's reminders and cards (`rail.spec` runs first; `Remove` deletes this spec's own);
@@ -295,22 +297,7 @@ The demo-path summary is unchanged.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-## Clarification Needed
-
-**Story 8.3 needs one edit to a contended path.**
-
-- **Why.** AD-18 ("The row keeps its waiter's trace header id") and AD-26 (rows that a link targets store the header id it needs, including the reminder waiter's) require a new property, `OcuTalon.Data.Reminder.TraceHeaderId As %Integer`. Epic 0's `Data.Reminder` has no such property.
-- **The conflict.** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` is a contended existing file (`Test/{Core,Live,Web,Data}/**`). Its XData `Contracts` pins the Reminder table exactly ("has exactly its contract", `:431-445`), so `TestContracts` goes red without a line there. An appended block can't change that entry.
-- **Alternatives tried.**
-  - Deriving the header from `Ens.MessageHeader` would contradict AD-18's Rule and would be lost to the message purge.
-  - The existing properties can't hold it.
-  - Leaving it out would drop AC 2's trace link.
-- **Requested ruling.** Allow exactly one added line, `"TraceHeaderId": "%Integer"`, in the `OcuTalon.Data.Reminder` entry of that XData. That entry is the contract of Epic 8's own table.
-- **Possible veto item.** This also adds a stored property: append-only under AD-5, and already required by the spine, but the lead should classify it.
-
-Everything else in this spec is ready for development.
-
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Story 8.3 needs Data.Reminder.TraceHeaderId (AD-18, AD-26: the row keeps its waiter's trace header id), and the contended file src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls pins the Reminder contract exactly (XData Contracts, lines 431-445), so the story needs one added line there ("TraceHeaderId": "%Integer" in the OcuTalon.Data.Reminder entry), an edit beyond an appended block; requested ruling: allow that one line (Epic 8's own table's entry). Also a stored-property addition the spine already mandates (AD-5 append-only), for the lead to classify.
+Status: ready-for-dev
+Blocking condition: none
