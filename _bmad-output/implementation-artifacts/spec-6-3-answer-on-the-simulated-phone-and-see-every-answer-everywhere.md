@@ -2,7 +2,7 @@
 title: 'Story 6.3: Answer on the simulated phone and see every answer everywhere'
 type: 'feature'
 created: '2026-10-27'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '23c43c9fab54887bc28402eeaaa4d945d136db38'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -320,8 +320,11 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - **AC10 (DW-128, ruled yes):** Given a SessionBroken retry's bridge context (`RetryItemId` of the running turn's ItemId), when the gate reports a step, then its `turn.step` reaches the session's stream with the turn's Ref (`Test.Core.BridgeSink`).
 - **AC11 (owner condition, U-122):** Given the rail's approval-request row button (accessible name "Show in the chat: {action}", V2), when it renders, then the row's visible text appears in the button's accessible name exactly as shown (WCAG 2.5.3, label in name): the name contains the visible action text verbatim, with the same case and words. A test pins it (a unit test of `rail-view` and, where the browser computes the name, a browser assertion that `accessibleName` contains the row's visible `textContent`, trimmed).
   - [ ] [Owner] U-122 condition: make the row button's visible text appear verbatim inside its accessible name, add the pinning tests, and write the Rule 19 `mutation:` line (mutation: the name drops or rewords the visible text -> the test goes red).
+  - [ ] [Runner] CI gate (orchestrator ruling (a), 2026-10-27): in `docker/tests/test-demo-path-gate.sh` change ONLY the stub-unit loop at L84 and the `chmod` at L106 (add `answers`), and the browser expectations at L351-354, L362, L370 and L379 (extend them to `live:demo-path live:sign-in live:answers`, with Chromium installed before each unit). Nothing else in that file. Then `bash ci/checks.sh` must exit 0.
 
 ## Spec Change Log
+
+- 2026-10-27, runner: the orchestrator allowed the CI gate edit (ruling (a)); an unchecked `[Runner]` task records it beside U-122's `[Owner]` task (AC11). Status set to `in-progress` for one implement pass over those two tasks; the first pass's implementation stays uncommitted in the tree and is finalized by that pass.
 
 - 2026-10-27, runner (after the first implement pass halted on the CI gate test): owner decision U-122's condition added as AC11 with an `[Owner]` task; U-121 kept. The `docker/tests/test-demo-path-gate.sh` question went to the orchestrator.
 
@@ -402,6 +405,8 @@ Fixture values: session S in demo mode, incident R with its `incident` payload p
 - **Why.** `Conversation.Ask` sends a broken session's retry under `RetryItemId(turn.ItemId)` (Conversation.cls L406), and `Bridge.Context.Begin` copies that ItemId. So every `turn.step` of the retry is dropped, now that Epic 1's step emitter makes it reachable.
 - **The test is Epic 6's:** `Test.Core.BridgeSink` `TestTurnStepOfARetry` (Task 10).
 - **Fallback if the ruling is no:** skip Tasks 6 and 10 and record "Declined DW-128: the fix is a line of `Core/BridgeSink.cls`, Epic 16's contended path. The residual is re-owned to Epic 16: Step also accepts `RetryItemId(running.ItemId)`, with a test of a retried turn's steps." No other contended edit is needed.
+
+**Orchestrator ruling, CI gate (2026-10-27, decide, policy 36abb05):** option (a) allowed: `docker/tests/test-demo-path-gate.sh` (existing, Epics 13/15's folder; no open branch or live tree changes it) may change only at the stub-unit loop (L84), the `chmod` (L106) and the browser expectations (L351-354, L362, L370, L379), extended to `live:demo-path live:sign-in live:answers`. `live:answers` stays in `browser` (about 25 min on CI, inside REL-4's 35). The runner reports the file, `docker/tests/test-answers.sh` (new) and `ci/units.sh` (Lane B's entry) under footprint_extensions. Decided in-stage 25's block is resolved by this ruling.
 
 **Owner decisions (relayed by the orchestrator, 2026-10-27):**
 - **U-121** (V1, SimMessage `ApprovalRef` and `Answer`, the Phone payload's `Answer`): kept as ruled; nothing to apply.
