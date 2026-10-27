@@ -19,11 +19,13 @@ Make the incident something the user can act on. Each incident shows as one live
 - **Who may answer:**
   - **Local or IPM install:** any signed-in session that can see the request through the ownership API (its own, or an `instance` incident's for a production it watches), whose IRIS user holds the bridge's approval role (`OcuTalonUser` by default).
   - **Online-demo flag set:** only the owning session, from any of its channels.
+  - **Order of refusals:** a request the session can't see (or an unknown or cancelled ref) answers 404, whatever the body. A caller who may not answer gets 403 `not_allowed` with no payload, checked before any 409, so an answered or expired request pressed by a user without the role still gives 403.
   - **Cross-session attempts:** an answer or a dismissal aimed at another session's request or incident gets 404, the same as an unknown ref, and changes nothing. Both are required CI checks.
-- **Not turns.** Approve, Reject and Dismiss each act on one press, with no confirmation and no dialog, and keep working at the message allowance limit. They show in the trace as production messages and in the audit log.
-- **Busy and failure.** On a press both buttons go busy: a spinner, `aria-disabled` and `aria-busy` (never `disabled`), and repeat presses are ignored. If 10 s pass with no answer, they restore with the announced notice "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting." An answer that arrives later still shows.
+- **Not turns.** Approve, Reject and Dismiss each act on one press, with no confirmation and no dialog, and keep working at the message allowance limit. An answer creates no Turn, no `chat.message` and no allowance call. It leaves one production message (`AnswersIn` → `AnswerOps`, tagged with the session's `TraceRef`, so it shows in Visual Trace) and `Answer`'s Approval audit entry.
+- **Busy and failure.** On a press both buttons go busy: a spinner, `aria-disabled` and `aria-busy` (never `disabled`), and repeat presses are ignored. If 10 s pass with no answer, they restore with the announced notice "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting." An answer that arrives later still shows. The phone uses the same rule.
 - **Plain language.** Raw IRIS errors and item names appear only in the Show details evidence panel.
-- **Layout floor.** At 1280×600 the incident card's headline, cause, dry-run count, Approve and Reject are visible without scrolling the chat.
+- **Layout floor.** At 1280×600 the incident card's headline, cause, dry-run count, Approve and Reject are visible without scrolling the chat. Today this holds only with the demo guide collapsed and no status banner (DW-299). The fix is the guide's compact height, which is Epic 16's area, not Epic 6's.
+- **Test fixture users.** A test that creates an IRIS user runs only on a throwaway stack, behind a guard that refuses anywhere else. Its password is random and never logged, and teardown deletes the user even when a test fails (owner condition U-116; `Test.Core.AnswersInWebRoles` is the pattern).
 
 ## Technical Decisions
 
@@ -36,11 +38,12 @@ Make the incident something the user can act on. Each incident shows as one live
     - an `OcuTalon.Test.Core` double stands in for the Approval API and returns Epic 0's results;
     - a fixture `IncidentManager` answers `dismiss` synchronously and publishes fixture results.
 - **Footprint.** Class paths are under `src/ocutalon/cls/OcuTalon/`.
-  - **Classes:** `Core/{NoticesIn,AnswersIn,CommandsIn}*.cls`, `Channel/{SimPhone,WebChat}/Out*.cls`, `Data/Delivery.cls`, and `Web/Api.cls`, which is shared by entry.
+  - **Classes:** `Core/{NoticesIn,AnswersIn,AnswerOps,CommandsIn}*.cls`, `Core/Msg/{Answer,AnswerResult}.cls`, `Channel/{SimPhone,WebChat}/Out*.cls`, `Data/Delivery.cls`, and `Web/Api.cls`, which is shared by entry.
   - **Tests:** `Test/{Core,Live}/**`.
-  - **Web:** `web/src/app/{incidents,approvals,notices,chat,rail}/**` and `web/e2e/demo-path/0{4,5}-*.spec.ts`.
-  - **Outside it:** `Core/BridgeSink*.cls` belongs to Epic 16. A test that drives it is Epic 6's work; a change to `BridgeSink` itself is not (DW-128, DW-98).
-  - **Generated file:** `web/src/app/live/payloads.ts` comes from `node web/scripts/payloads.mjs`. Never edit it by hand.
+  - **Web:** `web/src/app/{incidents,approvals,notices,chat,rail}/**`, `web/e2e/demo-path/0{4,5}-*.spec.ts`, and the floor's browser cases in `web/e2e/floor/{incident,approval}.spec.ts`.
+  - **A new e2e unit is allowed.** `live floor` runs at about 491 s of its 540 s local deadline, so new browser cases for 6.3 and 6.4 go in a new e2e unit. That is a new `docker/tests/**` file plus Lane B's own `ci/units.sh` entry (orchestrator ruling). Report the footprint extension.
+  - **Outside it:** `Core/BridgeSink*.cls` belongs to Epic 16. A test that drives it is Epic 6's work; a change to `BridgeSink` itself is not.
+  - **Generated files:** `web/src/app/live/payloads.ts` comes from `node web/scripts/payloads.mjs`, and `web/src/app/msg/catalog.ts` from `web/scripts/catalog.mjs`. Never edit either by hand.
 - **The incident card reads only the `Incident` payload's fields.** Only `IncidentManager` publishes them.
 
   | Card part | Fields |
@@ -56,7 +59,7 @@ Make the incident something the user can act on. Each incident shows as one live
   | Footer strip | `DecisionRef` |
 
   - **How payloads apply:** each one is the full view, keyed by `Ref`, and applied idempotently, so there is one card per `Ref`, never a duplicate.
-  - **The snapshot** reads the session's incidents through the ownership API, which hides an incident until its `NoticedAt` is set.
+  - **The snapshot** reads the session's incidents through the ownership API, which hides an incident until its `NoticedAt` is set. Its incident entries carry only the row-backed fields, not `Groups`, `Requests`, `Evidence` or `TraceTargets` (DW-292).
 - **The dry run** is the request's stored `DryRun` JSON on `OcuTalon.Bridge.Data.ApprovalRequest`. Its keys are `affected`, `resend`, `leftOut`, `field`, `before`, `after` and `itemNoun`.
 - **The state chip follows AD-15's transition table, never a single request:**
   - Fixing while a fix runs;
@@ -64,23 +67,35 @@ Make the incident something the user can act on. Each incident shows as one live
   - otherwise the outcome of the request that finished last: Resolved after a finished fix, Open after a rejection or an expiry.
 
   The open variants (`fallback`, `no_fix`, `rejected`, `expired`) are stored beside the state. A dismiss is refused while the incident is awaiting approval or fixing.
-- **The answer path.**
-  - `POST /api/v1/approvals/:ref/answer` takes `{action, channel}`, with channel `web` or `phone`, and calls `AnswersIn` synchronously.
-  - `AnswersIn` resolves the session from the CSP session, never from the client, applies the who-may-answer rules, then calls `OcuTalon.Bridge.Approval.Answer(Ref, Action, Channel, IrisUser, SessionRef)`.
-  - **Responses:** `done` gives 200, `already_answered` 409 with the winning channel and time, `expired` 409, `not_found` 404 and `not_allowed` 403. Each comes with a plain-English `{"error":{"code","message"}}`.
-  - **DW-199:** pass `Answer` either an empty sessionRef or the signed-in session's 22-character Ref, because any other value answers `not_allowed`. A test pins both cases.
-  - Story 10.3 adds `AnswersIn`'s Telegram entry, which applies the same rules.
+- **The answer path as built.** Story 6.2 built it and the owner decided it (U-113). AD-11, AD-31, AD-32 and the spine's incident and tool-call flow lines were amended to this path on 2026-10-27 (owner decision U-120).
+  1. `POST /api/v1/approvals/:ref/answer` takes `{action, channel}`: action `approve` or `reject`, channel `web` or `phone`. The web chat and the simulated phone both use this path.
+  2. `AnswersIn` checks the CSP session (never a `SessionRef` from the client) and refuses a call made inside a bridge context. It applies the rules on who may answer: 404 first, then 403. It then sends the answer synchronously, waiting up to 30 s, to the business operation `AnswerOps` (`OcuTalon.Core.AnswerOps`, Lane B). `AnswersIn` is its only sender, and `AnswerOps` refuses a message from any other source.
+  3. `AnswerOps`' production job calls `OcuTalon.Bridge.Approval.Answer(Ref, Action, Channel, IrisUser, SessionRef)`.
+     - The answerer comes only from the server-side session: the IRIS user from the `Session` row, and the session's 22-character Ref. Neither comes from the request body.
+     - `Answer` still applies the row's `RequiredRole`.
+     - The HostSink's `approval.answered` and `BridgeSink`'s fan-out run in that job. The fan-out goes to the owner, or to every watcher of an `instance` request. In the signed-in user's REST process the checked cross-owner reads fail, so the call must stay in the production job.
+  4. **Responses:**
+     - 200 is `{result: "done", approval}`.
+     - 409 `already_answered` (the winner's action, channel and time) or `expired`. A 409 body carries the request's `approval` payload beside `error`, and its late-press and expired texts are rendered through `Catalog.Render`.
+     - 403 `not_allowed` and 404 `not_found`.
+     - 400 `bad_answer`: the action or the channel is missing or wrong.
+
+     Every error body is a plain-English `{"error":{"code","message"}}`.
+  5. Story 10.3 adds `AnswersIn`'s Telegram entry, which applies the same rules.
 - **The dismiss path.** `POST /api/v1/incidents/:ref/dismiss` submits through `Commands.Submit` to `CommandsIn`, then to `IncidentManager` as an `IncidentCommand` `dismiss`, synchronously. `Submit` sets the command's origin from the authenticated context.
 - **The notification contract.**
   - **Kinds:** every incident notice (with a fix, fallback or no fix) is kind `incident`, and its catalog key tells the variants apart. It carries the first request's `ApprovalRef`. Kind `approval` is only for a later request. `answered` and `result` notifications carry both `ApprovalRef` and `IncidentRef`.
   - **Rendering:** producers never render text. Each `*Out` operation renders through `OcuTalon.Msg.Catalog.Render(key, slots, channel)`, which picks the item noun's form from the `count` slot. Approve and Reject are added only for kinds `incident` and `approval` with `ApprovalRef` set, never for `answered` or `result`.
-  - **`WebChatOut`:** for kinds `incident`, `approval`, `answered` and `result`, it records its `Delivery` row only and adds no notice card, because the incident card carries the notice.
-  - **`SimPhoneOut`:** on an `answered` notification, it finds the delivered message with `Delivery.FindByApproval(approvalRef, channel, ownerRef)` and edits it in place.
+  - **`WebChatOut`:** for the kinds in `WebChatOut.INCIDENTKINDS` (`incident`, `approval`, `answered` and `result`), it records its `Delivery` row only and adds no notice card, because the incident card carries the notice.
+  - **`SimPhoneOut`:** on an `answered` notification, it finds the delivered message with `Delivery.FindByApproval(approvalRef, channel, ownerRef)` (an exact match that gives the newest row) and edits it in place.
   - **`NoticesIn`:** a real adapterless item in Core, not a stub. It receives `BridgeSink`'s notifications asynchronously, joins the turn's thread through the bridge context's `ThreadSessionId` (never `Trace.Join`), and forwards each notification to `Notify`. `BridgeSink`'s own sends through it arrive with Stories 31.2 and 16.9.
-- **Live events and the rail.** `BridgeSink` publishes each `approval` event to the owning session. For an `instance` request it publishes to each session that `Session.Recipients` returns after `Ownership.ApprovalIncident`; a failed cross-owner read is logged and publishes nothing. The rail lists pending requests by raised time, and an answered request leaves the list within one live update.
+- **Live events and the rail.**
+  - `BridgeSink` is the only `approval` publisher. It publishes each `approval` event to the owning session. For an `instance` request it publishes to each session that `Session.Recipients` returns after `Ownership.ApprovalIncident`. A failed cross-owner read is logged and publishes nothing.
+  - The rail lists pending requests by raised time, and an answered request leaves the list within one live update. `/state`'s rail holds pending requests only.
 - **Conventions.**
   - **REST:** state-changing calls need `application/json`, `X-OcuTalon-Request: 1` and a matching `Origin`. No endpoint accepts a `SessionRef` from the client.
   - **Times, trace links and speech:** times are UTC ISO 8601, rendered only through `Data.Time`. Trace URLs come only from `Web.TraceLink`. The page speaks only through `Announcer`, and focus moves through `shared/focus-rule.ts`.
+  - **Page texts:** the page's statuses and the busy rule read from the generated catalog (`web/src/app/msg/catalog.ts`).
 
 ## UX & Interaction Patterns
 
@@ -141,10 +156,13 @@ Make the incident something the user can act on. Each incident shows as one live
 
 ## Cross-Story Dependencies
 
+- **Done:**
+  - **Story 6.1:** the incident card (`web/src/app/incidents/`) and `WebChatOut.INCIDENTKINDS`.
+  - **Story 6.2:** the approval request card (`web/src/app/approvals/`); `AnswersIn` and `AnswerOps`; the shared busy rule; the statuses and late press from the generated catalog.
+  - Both stories' floor cases are in `web/e2e/floor/{incident,approval}.spec.ts`.
 - **Within the epic:**
-  - 6.1's card hosts 6.2's request cards and 6.4's result bands and Dismiss.
-  - 6.3 reuses 6.2's endpoint and `AnswersIn` with channel `phone`, and adds `NoticesIn`, the phone's in-place edit and the rail row's focus jump.
-  - 6.4 extends 6.1 and 6.2 to every ending.
+  - 6.3 reuses 6.2's endpoint, `AnswersIn` and `AnswerOps` with channel `phone`, and the busy rule. It adds `NoticesIn`, the phone's in-place edit and the rail row's focus jump.
+  - 6.4 extends 6.1's card and 6.2's request cards to every ending, with result bands and Dismiss.
 - **Lane A work stood in by fixtures:**
   - Epic 5's `IncidentManager` (`incident` events and notices);
   - Story 7.2's later request;
@@ -153,10 +171,17 @@ Make the incident something the user can act on. Each incident shows as one live
 
   The REL-2 specs for UJ-1's incident and approval steps run on fixtures until Epic 11 turns them on end to end.
 - **Ledger items:**
-  - **DW-68 and DW-113 (6.2).** The web answer path runs `Approval.Answer` in the signed-in user's REST request. There the checked cross-owner reads (`Ownership.Watchers`, `Ownership.ApprovalIncident`, and `Session.Recipients` passing on their status) fail, so other watchers' rails keep an answered `instance` request until reload. Hand the instance fan-out to a production job, or ask for an AD-13 amendment, and pin the failing branches with a test of the real failing read.
-  - **DW-98 (6.2).** A `Test/Core` test drives the real gate (Story 3.2) through the approval path and asserts that its `turn.step` reaches the session stream through `BridgeSink`, with no bridge edit.
+  - **Resolved in 6.2:**
+    - DW-68: the instance fan-out runs in `AnswerOps`' job.
+    - DW-113: the failing cross-owner reads are pinned in a web-roles process.
+    - DW-98: the real gate's `turn.step` reaches the stream.
+    - DW-199: the session's Ref is passed to `Answer`.
   - **DW-128 (6.3).** `BridgeSink.Step` drops a SessionBroken retry's `turn.step`. Epic 6 owns only the test of a retried turn's steps; the `BridgeSink` change is Epic 16's.
   - **DW-105 (6.4).** Remove `Test.Core.ConversationTurns`' ConversationProbe event-log rows in its teardown, in the `Observe.RemoveWarnings` shape (Rule 19).
+  - **Known gaps re-owned at the burn-down, not Epic 6 story work:**
+    - DW-292: after a reload, an answered request, a result or the evidence shows only after the next event.
+    - DW-294: after a page load, the card's footer can't find its diagnosis decision.
+    - DW-299: the layout floor needs the guide's compact height.
 - **Waiting on this epic:**
   - Story 10.3: `AnswersIn`'s Telegram entry, with 6.2's rules. Story 12.7 calls it.
   - Story 16.9: checks that Approve and Reject keep working at the caps.

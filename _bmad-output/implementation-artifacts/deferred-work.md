@@ -1268,6 +1268,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md L323 (AD-11: AnswersIn ... then calls Approval.Answer), L840 (AD-31: the AnswersIn job that calls Approval.Answer), L861 (AD-32: the one exception is TelegramIn); Core/AnswerOps.cls Carry calls Answer; Web/Api.cls L467 calls Catalog.Render; spec validation 0bdd2c6 wrote only the AD-33 row and the REST row
 - 2026-10-27T14:01:29Z status=escalated owner=burndown by=cr note=for the orchestrator now (U7 step 2, U14, Rule 20): record V1/U-113 in AD-11 and AD-31, and the 409 render in AD-32; no code change
+- 2026-10-27T14:44:01Z status=decision-pending owner=burndown by=orchestrator note=inbox=U-120
 
 ### DW-302: Test.Core.AnswersInWebRoles.CreateUser and Password copy Test.Bridge.WebStatus.CreateUser (Lane A, private) line for line, as the spec's Decided 15 forces; no story unifies the fixture-user helper
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: low | fix-risk: low | footprint: out-of-footprint
