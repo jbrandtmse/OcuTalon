@@ -1,9 +1,10 @@
 /// Tests of Checks, OcuTalon.Checks.Process, in the running production (Story 5.6; AD-4, AD-12, AD-15, AD-18, AD-26, AD-28, AD-33). THEY RUN IN THROWAWAY STACKS
 /// AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case, and fresh: a real Tick acts on every check row and every quiet incident of the
 /// namespace, so each test asserts only on its own rows. A Tick is sent as HeartbeatIn sends it, from an adapterless service created with
-/// Ens.Director.CreateBusinessService, to the Checks item; the service's session is the Tick's trace session. The test's own Tick is synchronous and has the
-/// time of the row's NextDueAt (the fixture watch is due a day ahead, see Case.Watch). Where a real Tick could come at any moment, the test sends one itself
-/// (RealTick: at the clock's now, asynchronously, waited for) at the worst moment, and shows that it changes none of the test's rows.
+/// Ens.Director.CreateBusinessService, to the Checks item; the service's session is the Tick's trace session. A test that runs its row sends its own Tick
+/// synchronously at the row's NextDueAt (the fixture watch is due a day ahead, see Case.Watch); TestQuietClose's own Tick is at the clock's now. The first
+/// three tests also send a real-shaped Tick themselves (RealTick: at the clock's now, asynchronously, waited for) at the worst moment: in TestTickRunsTheWatch
+/// and TestFailingOrders it changes none of the test's rows, and in TestQuietClose it, or a real Tick before it, is the Tick that closes the quiet incident.
 ///   - TestTickRunsTheWatch (AC 1, DW-66): a real Tick leaves the due-ahead watch of Orders without a run; the Tick at its NextDueAt passes it: the row holds the run
 ///     time, passed, no finding and the Tick's session, its next due time is the Tick's time plus 60 seconds, one check event equal to FromRow is on the session's
 ///     stream, and /state (Web.Api.StateBody) shows the run with the trace in OcuTalon's own namespace and a trace URL that ends in the Tick's session;

@@ -149,6 +149,42 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless noted.
 - **Own log lines.** Given `Test.Checks.Runs`, when other `Checks` jobs log lines with the same method and text start, then its counts and removals see only lines that name its own Refs.
 - **Fresh environment.** Every test added or changed passes on a fresh environment, in either order (Rule 19; the lead's fresh check).
 
+### Review Findings
+
+Code review, 2026-10-27. Four layers ran: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor. They raised 23 findings. After triage, 3 entries remain (7 findings) and 16 findings are rejected.
+
+- [x] [Review][Patch] The per-Ref warning counts in `Runs` lost their "and no other line of the test" half (medium, fix-risk low, in-story) [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:260]. The old counts covered the whole test. The new ones count only the Ref they name:
+  - `TestNotChecked` L260 now covers only the failed incident read. A `LOGREAD` warning from `unreadable`, `not_current`, `timeout`, `unknown` or a cut read passes.
+  - The same applies to `TestNotChecked` L268, `TestRunThrows` L429 (`good`), `TestQuietSweep` L345/L351 (the first Tick and the other incidents) and `TestChanged` L393 (the start whose row is gone).
+  - This breaks the Always rule "every assertion keeps its meaning".
+- [x] [Review][Patch] Doc comments misstate what `RealTick` and the test's own Tick do (low, mechanical) [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:4] (Rule 14).
+  - The Heartbeat class doc says every own Tick is at the row's NextDueAt and every RealTick leaves the test's rows unchanged. But `TestQuietClose` ticks at now, its RealTick (or a real Tick before it) is what closes the quiet incident, and `TestStartAndStop` sends no RealTick.
+  - `Case.RealTick`'s doc says the test's rows must not depend on it.
+- [x] [Review][Patch] `Case`'s class doc still says `Tick` sends "as HeartbeatIn sends it" (low, mechanical) [src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls:27]. `Tick` is synchronous, and the 5.10 bullet below it says HeartbeatIn sends asynchronously (Rule 14).
+
+**Rejected:**
+- `low` (Blind): `Lifecycle`'s only clock case shows `QuietNow` is not in the future, so a `QuietNow` that gives "" or a past time passes the warm suite.
+  - Why rejected: `Heartbeat.TestQuietClose` (lane-a shard, CI) closes through the real `QuietNow` and goes red. The fix would add a probe property to guard a 3-line private method.
+  - Separately, the Shared surfaces line that names lane-b's `Core.CommandsRouting` is wrong: its only closeQuiet is answered `unknown_command` before IncidentManager sees it. Fixing that is a spec edit.
+- `false` (Blind): `TestQuietClose` never checks that the closeQuiet is in RealTick's session. The matrix row and the AC ask for a Tick's session with the owner's TraceRef, never the test's own Tick (L111-113). Which Tick acts first is not a product property. By design.
+- `low` (Blind, Edge, Auditor): the Auto Run Result is out of date after QA and the harvest: its Residual risks, "Deferred: none new", and "changes none of four tests' rows". It records the implement pass, the QA section supersedes it, and fixing it is a spec edit.
+- `low` (Blind): several spec records disagree with the build:
+  - The planned mutation table (L286) expects `TestQuietClose` to go red under `QuietNow` +3600.
+  - The Spec Change Log is empty.
+  - Shared surfaces leaves out a `Case.Watch` caller.
+
+  The recorded `mutation:` line already names the deviation and the replacement pin. The rest are spec edits.
+- `low` (Blind): the cycle log's 5.10 `adr_verifications_complete` line has no `note=`. That is the lead's log, outside this review, and the lead recorded `result=none_required`.
+- `low` (Edge): `Ops`' `Rows(…, 0)` no longer catches an `OnStop` or lock-timeout path that rewrites another session's `NextDueAt`. Spec-bound by the matrix rows and the Design Notes ("Unchanged means the fields WatchOps owns"). By design.
+- `low` (Verify): `Gate`'s `NextDueAt` on `Zz.G1`-`G5` guards no assertion. Spec-bound ("and nothing else"; Design Notes). The AC is pinned by the `Case.Watch` mutation. By design.
+- `low` (Verify): the Tools and Ops protection against a real Tick is proved by one-off interference runs, not in the normal path. The matrix says "Once", and the Design Notes put RealTick only where it forces no branch. By design. Reopen if a Tools or Ops test flakes in lane-a CI once Epic 8's real Tick runs.
+- `low` (Verify): the `lastRunAt` half of `lastRunAt_"|"_result = "|"` cannot fail inside `If lastRunAt = ""` (Ops L61, Watch.Turns L47, Heartbeat L153). The `result` and trace halves can still fail. A WatchOps that stamps `LastRunAt` is caught by `Heartbeat.TestStartAndStop`. This is the spec-bound form.
+- `low` (Verify): the `lastRunAt` fallback branches never run in a normal run. Spec-bound, and QA observed all three running (Verification).
+- `false` (Verify): `TestStartAndStop` has no `mutation:` line for "Rows that WatchOps makes". Rule 19 asks for one per AC, and the recorded `Ops.OnStart` and `OnStop` mutations pin this AC.
+- `false` (Verify): "Fresh environment" has no `mutation:` line. It is the lead's fresh check before the push (Rule 19), not an AC pinned by a mutation.
+- `false` (Auditor): the spec's `status: done` disagrees with the sprint file's `review`. The review sets the sprint status when it ends.
+- `false` (Auditor): `TestStartAndStop` decides "ran" from any check event of the session, not only those "of the Ref". The session has one row, so the result is the same.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -311,6 +347,28 @@ Conventions: "Background checks", "Tests", "Times". No AC contradicts an AD.
 - control: `Tools.TestCheckStatus` with `NextDueAt` removed from its rows and a real-shaped Tick (`RealTick`) before `CheckStatus` -> red (`check_status()` and the HostData rows). Restored, green again.
 - control: `Gate.TestCheckStatusAnswerIsCodeBuilt` with `NextDueAt` removed from `Zz.G1`-`G5` and a real-shaped Tick before `CheckStatus` -> green, as the spec's Design Notes say (the test accepts any code-built text, so a run does not break it). `NextDueAt` there keeps each result shape as made; it guards no assertion that a Tick could turn red. Restored, green again.
 - shards: lane-a parts 1/4 to 4/4 passed (331 s, 153 s, 138 s, 357 s); lane-b passed (114 s); `ci/checks.sh` all pass.
+
+
+**QA stage (2026-10-27).** The QA stage audited every acceptance criterion and matrix row against the recorded mutations, interference runs and controls, and added no test file. Warm tag `e5s10qw`, fresh tag `e5s10q`, Lane A's variables on every call. Each one-off edit was made on a backup, the run observed, and the file restored byte-identically (`git status --short` and `git diff --stat` empty, `git diff d12bacb -- src/ocutalon/cls/OcuTalon/Test` empty).
+- (QA) observed, `Ops.TestStart` ran branch: `Case.RealTick()` after `OnStart`, plus a final failing marker assertion inside the `lastRunAt` branch -> only the marker was red ("lastRunAt 2026-10-27T12:51:39Z result passed createdAt 2026-10-27T12:51:39Z"): a real-shaped Tick ran the `WatchOps` row, the branch was entered, and its own assertions and the rest of the test passed. The marker was removed.
+- (QA) observed, `Watch.Turns.TestStartThroughTheAgent` ran branch: `RealTick()` after the turn, same marker -> only the marker was red (lastRunAt 2026-10-27T12:53:32Z, result passed, createdAt the same second); the branch's assertions passed.
+- (QA) observed, `Heartbeat.TestStartAndStop` ran branch (fresh): `RealTick()` after the row check and before the stop, same marker -> only the marker was red ("events 3", the last event the stop with `stopped` true); the start, the run and the stop assertions passed.
+- (QA) interference with proof that the Tick reached the rows: `Ops.TestStop` (`RealTick()` after the snapshot of B) and `Ops.TestLockTimeout` (after the snapshot of the held row), each with a passing assertion that `lastRunAt` of the row is set -> green: the `Rows(..., 0)` comparisons hold while a Tick runs the row.
+- (QA) control: the same two injections with `Rows(b)` and `Rows(held)` (run fields included) in place of `Rows(..., 0)` -> red (`TestStop` "and the other session's row is unchanged" and "and nothing else was removed"; `TestLockTimeout` "and the row is still there, unchanged"). This pins "the unchanged checks compare `WatchOps`' fields only".
+- (QA) mutation: `Watch.Ops` `OnStart` sets `NextDueAt` to `CreatedAt` plus 3600 -> red: `Ops.TestStart` (NextDueAt and "same time as NextDueAt"). Confirms the strict branch pin; restored, `Ops` green again.
+- (QA) limit, recorded and not fixable here: `Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt` has no falsifiable pin for its `NextDueAt` fields (the control stays green, as the Design Notes say, because a run only changes a code-built text to another code-built text); the path is outside the QA stage's paths, and the story needs no more than the fixture setting.
+
+**Code review (2026-10-27).** These runs used warm tag `e5s10cw` and fresh tag `e5s10c`, with Lane A's variables and owner `epic=5 stage=code-review`. The mutation was made on a backup and the file restored byte-identically: `git status --short` and `git diff --stat` were unchanged, and `Process.cls` had no diff.
+- mutation: `Process.Run` also logs a `LOGREAD` warning for an `unreadable` outcome -> red: `Runs.TestNotChecked` ("... (nor does any case above)" and "one warning is logged").
+  - This pins the whole-test counts that `Warnings(…, refs)` restores, under the AC "Own log lines" and the Always rule "every assertion keeps its meaning".
+  - By reading the code (not run), the implement pass's `reads_unread` count stays 0 under this mutation.
+  - Restored, and `Runs` was green again on the same stack.
+- The recorded `LOGQUIET` mutation line still holds: the Ref-scoped count it names is `TestQuietSweep`'s "one for it".
+- runs:
+  - `Runs` passed warm, before and after the mutation.
+  - `Heartbeat` passed fresh (82 s, needed because its class doc and `Case`'s changed).
+  - `ci/checks.sh`: all pass.
+  - Both stacks are torn down and the lane-a lock folder is empty.
 
 ## Auto Run Result
 

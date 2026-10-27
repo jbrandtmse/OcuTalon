@@ -24,8 +24,8 @@ Include Ensemble
 ///     so that the notice step, or its absence, is done. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
 ///     untagged failures of the poller tests make are gone too.
-///   - for the tests of the checks (Story 5.6, moved here by Story 5.7): Tick, which sends a Tick as HeartbeatIn sends it to the Checks item and waits for the
-///     answer, with the parameters HEARTBEAT, CHECKS and TICKWAIT.
+///   - for the tests of the checks (Story 5.6, moved here by Story 5.7): Tick, which sends a Tick from the HeartbeatIn service to the Checks item
+///     synchronously and waits for the answer, with the parameters HEARTBEAT, CHECKS and TICKWAIT.
 ///   - for tests that a real Tick must never change (Story 5.10): Watch makes its row due at Ahead() (AHEADSECONDS from now), so that only a Tick that a test sends at
 ///     the row's NextDueAt runs it; SendTick is the one sender (synchronously, or asynchronously as HeartbeatIn sends it, waiting for the Tick's request to
 ///     complete), Tick asserts on the synchronous send and RealTick on an asynchronous one at the clock's now, which a test or a one-off run uses to prove that
@@ -513,7 +513,7 @@ Method Tick(tickAt As %String) As %Integer [ Private ]
 }
 
 /// Sends a Tick at the clock's now asynchronously, as HeartbeatIn does, and waits for it to complete; the id of the Tick's session, or "" with a failed
-/// assertion. Whatever the Tick runs, the rows of the test must not depend on it.
+/// assertion. A test that sends it asserts only what holds whichever Tick, this one or a real one, acts first.
 Method RealTick() As %Integer [ Private ]
 {
 	Set session = ..SendTick(##class(OcuTalon.Data.Time).NowUtc(), 1, .sc)

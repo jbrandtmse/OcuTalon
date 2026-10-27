@@ -255,9 +255,9 @@ Method TestNotChecked()
 	Do ..Case(host, a, "unknown", {"state": "unknown", "incidents": ["open"]}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
 	Do ..Case(host, a, "cut with none of the session's", {"others": 500}, "not_checked", $Parameter(..#PROBE, "REASONTOOMANY"))
 	Do ..Case(host, a, "cut with some", {"failures": 1, "others": 499}, "failed", "At least 1 new failures")
-	Set unread = ..Case(host, a, "an incident read that fails", {"failUnclosed": 1}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
+	Do ..Case(host, a, "an incident read that fails", {"failUnclosed": 1}, "not_checked", $Parameter(..#PROBE, "REASONREAD"))
 	Set host.FailUnclosed = 0
-	Do $$$AssertEquals(..Warnings("Run", reads_unread), 0, "a failed incident read is no failed production read, so it logs no read warning")
+	Do $$$AssertEquals(..Warnings("Run", reads, , ..Checks), 0, "a failed incident read is no failed production read, so it logs no read warning (nor does any case above)")
 	Set production = "Zz.Thrown"
 	Set ref = ..Watch(a, production)
 	Do ..Feed(production, "", "", "", "ERROR #5001: Unable to reach https://zzuser:zzsecretword@orders.example/api with Authorization: Bearer zzTokenValue0123456789")
@@ -265,7 +265,7 @@ Method TestNotChecked()
 	Set row = ..Row(ref)
 	Do $$$AssertEquals(row.Result_"|"_row.Finding, "not_checked|"_$Parameter(..#PROBE, "REASONREAD"), "a read that throws is not_checked, never passed")
 	Do $$$AssertEquals(row.NextDueAt, ..#NEXT, "and the check is due again a minute later")
-	Do $$$AssertEquals(..Warnings("Run", reads_ref, .text), 1, "one warning is logged")
+	Do $$$AssertEquals(..Warnings("Run", reads, .text, ..Checks), 1, "one warning is logged")
 	Do $$$AssertTrue(text [ ref, "which names the check: "_text)
 	Do $$$AssertTrue((text [ "[redacted]") && '(text [ "zzsecretword") && '(text [ "zzTokenValue0123456789"), "and the error is redacted: "_text)
 	Do $$$AssertTrue('(row.Finding [ "zzuser") && '(row.Finding [ "5001"), "no error text is in the finding")
@@ -342,13 +342,14 @@ Method TestQuietSweep()
 	Set host.FailQuiet = open
 	Do ..Tick(host, ..#TICK)
 	Do $$$AssertEquals(host.Quieted.%Size(), 5, "with one send failing, all five are still tried")
-	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET")_open, .text), 1, "and one warning is logged")
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), .text, ..Incidents), 1, "and one warning is logged")
 	Do $$$AssertTrue(text [ open, "which names the incident: "_text)
 	Do $$$AssertEquals(host.%SuperSession, "zzown", "the SuperSession is put back after a failed send too")
 	Set host.FailQuiet = ""
 	Set host.SilentQuiet = awaiting
 	Do ..Tick(host, ..#TICK)
-	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET")_awaiting, .text), 1, "a send that IncidentManager did not answer in time (OK, with no answer) logs one warning too")
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), , ..Incidents), 2, "a send that IncidentManager did not answer in time (OK, with no answer) logs one warning too")
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET")_awaiting, .text), 1, "one for it")
 	Do $$$AssertTrue(text [ awaiting, "which names its incident: "_text)
 }
 
@@ -390,7 +391,7 @@ Method TestChanged()
 	}
 	Set change.SessionRef = "not a stream"
 	Do $$$AssertStatusOK(host.OnRequest(change, .response), "a change for a session that has no stream is answered")
-	Do $$$AssertEquals(..Warnings("Announce", $Parameter(..#PROBE, "LOGPUBLISH")_ref), 1, "and one warning is logged for the failed publish")
+	Do $$$AssertEquals(..Warnings("Announce", $Parameter(..#PROBE, "LOGPUBLISH"), , ref_","_gone), 1, "and one warning is logged for the failed publish")
 }
 
 Method TestPublishes()
@@ -426,7 +427,7 @@ Method TestRunThrows()
 	Set row = ..Row(bad)
 	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result_"|"_row.NextDueAt, "||", "a run that throws outside the read records nothing")
 	Do $$$AssertEquals(..Row(good).Result, "passed", "and the next due row still runs")
-	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN")_bad, .text), 1, "one warning is logged")
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN"), .text, ..Checks), 1, "one warning is logged")
 	Do $$$AssertTrue(text [ bad, "which names the check: "_text)
 }
 
@@ -617,10 +618,20 @@ Method Reads() As %String
 }
 
 /// The number of warnings since the test began that the method logged and that start as given (the line's text and the Ref of the test's own row or
-/// incident); text is the newest one's.
-Method Warnings(method As %String, start As %String, Output text As %String) As %Integer
+/// incident); text is the newest one's. With refs (comma-separated), start is the line's text alone and the count is over the lines of each of those Refs,
+/// so that the count covers all the test's own rows or incidents and no other job's; text is then the newest line of the last Ref in the list that has one.
+Method Warnings(method As %String, start As %String, Output text As %String, refs As %String = "") As %Integer
 {
-	Quit ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, method, start)
+	If refs = "" Quit ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, method, start)
+	Set text = ""
+	Set count = 0
+	For i = 1:1:$Length(refs, ",") {
+		Set ref = $Piece(refs, ",", i)
+		If ref = "" Continue
+		Set n = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .line, method, start_ref)
+		If n Set count = count + n, text = line
+	}
+	Quit count
 }
 
 /// The number of info lines (Type 4) of runs of the check since the test began.
