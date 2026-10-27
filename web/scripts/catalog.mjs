@@ -56,7 +56,7 @@ export const LISTED_KEYS = [
   'bannerAction.setUpBot',
 ];
 export const REASON_PREFIX = 'fallbackReason.';
-/** The slot types the page renders: a fallbackReason slot gives its reason text, the others take the caller's formatted string. */
+/** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text): a fallbackReason slot gives its reason text, the others take the caller's formatted string. */
 const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost'];
 /** The keys that may also declare a text slot, which the page fills from the check rows (DW-90); every other key refuses it. */
 export const TEXT_SLOT_KEYS = ['checks.notEverything', 'checks.notEverythingRestPassed'];

@@ -774,6 +774,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Msg/Catalog/Watch.cls:49-75 (whatFailed: text); Checks/Render.cls returns only a key and rows (pinned results,*rows); 2.6 renders only the three slotless checks.* keys and shows the rows
 - 2026-10-22T23:33:46Z status=routed owner=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=spec_gate note=5.7 says how the page gets whatFailed (from the failing row, or a slot path through Render) and the page renders both keys; orchestrator writes the bullet after Epic 2 merges
+- 2026-10-27T09:17:40Z status=resolved-by:5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals owner=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=adjudication note=the_page_builds_whatFailed_from_the_rows_that_did_not_pass(web/src/app/shared/check-sentence.ts;check-rows.ts_wired_under_the_orchestrator%27s_Q1);catalog.mjs_lists_both_keys;check-sentence.test.mjs+catalog.test.mjs+e2e_D7_pin_it(bc59f1b)
 
 ### DW-91: Test.Bridge.Ext's comment says BridgeSink adds nothing, which Story 2.6 makes stale (BridgeSink now publishes decision and turn.step events for session owners)
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1381,8 +1382,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Test.Checks.Runs makes check rows with NextDueAt empty (due at once) and 16-minute-old incidents, and Test.Checks.Heartbeat drives Checks with its own Ticks; a real Tick in the same minute adds check events, records runs and closes incidents those tests count, so CI flakes
 - 2026-10-27T05:15:31Z status=routed owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=8.1 gives tests a way to pause the real heartbeat (like Case's StopPoller) or keeps fixture rows not due for a real Tick
 - 2026-10-27T06:48:52Z status=routed owner=burndown by=orchestrator_ruling note=Story_8.1_is_done_on_OCT-epic8:resolve_in_Epic_5%27s_burn-down_in_Test/Checks/**(fixture_rows_a_real_Tick_does_not_find_due,e.g._NextDueAt_in_the_future;quiet-incident_times_a_real_Tick_does_not_sweep);a_remaining_Epic8_pause_hook_stays_routed_burndown_for_the_orchestrator
+- 2026-10-27T09:14:43Z occurrence=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals
 
 ### DW-290: Test.Web.Api's class doc still says a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue
 - source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
 - 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope
+
+### DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is still told OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets no status there
+- source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
+- 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)

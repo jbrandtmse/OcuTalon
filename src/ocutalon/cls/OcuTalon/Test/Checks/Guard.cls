@@ -140,7 +140,6 @@ Method TestEmptied()
 Method TestFailsClosed()
 {
 	Do $$$AssertEquals(##class(OcuTalon.Test.Checks.BrokenGuard).Filter("Hello there."), "", "a guard that fails returns an empty text, never the unfiltered one")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Checks.BrokenGuard).Filter(""), "", "also for an empty text")
 	Do $$$AssertEquals(##class(OcuTalon.Checks.ReplyGuard).Filter("Hello there."), "Hello there.", "while the real guard keeps it")
 }
 

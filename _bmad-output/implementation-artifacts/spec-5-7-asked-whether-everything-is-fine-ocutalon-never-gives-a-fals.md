@@ -339,6 +339,36 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 - **AC 8 (lead decision, the U-102 pattern).** Given every answer shape of `check_status`, when `Test.Bridge.Gate` reads it, then its keys and each entry's keys are exactly the code-built allow-list and every reason or finding comes from `Checks`' parameters, so a free-text field added later fails the test instead of reaching the model as trusted output.
 - **AC 7.** Given the product source, when `Test.Bridge.CodeRules`, `Test.Bridge.Ext`, `Test.Bridge.Api`, `Test.Contract.Ac`, `Test.Core.ConversationTurns`, `bash ci/checks.sh`, `node web/scripts/catalog.mjs --check` and `bash docker/tests/test-web-build.sh` run, then they pass. The tool returns through `Result` and has a unique step label, `Render`'s signature is unchanged, and `TestStubRenderAddsNothing` stays green.
 
+### Review Findings
+
+Code review, 2026-10-27 (four layers, full tier; 28 raw findings, 9 entries after triage: high 0, med 2, low 7; 0 decision-needed, 7 patch, 2 defer, 14 rejected).
+
+- [x] [Review][Patch] The model's description of `check_status` named the results passed, failed and empty, never `not_checked`, which `Checks.Process` writes with a reason [src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls:146] — low, fix-risk low (doc text, pinned by `TestCheckStatusDescription`), in-story; the doc names `not_checked`, and `Test.Watch.Tools.TestCheckStatusDescription` asserts it.
+- [x] [Review][Patch] `Test.Watch.Tools`' class doc listed the tests that need no production without `TestCheckStatusDescription` [src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls:3] — low, fix-risk low (doc), in-story.
+- [x] [Review][Patch] `TestCheckStatusHostData` did not assert the whole answer after its first call, and `TestCheckStatusNotRead` did not assert that nothing was submitted, as the Tasks require [src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls:374] — low, fix-risk low (assertions only; class green warm), in-story.
+- [x] [Review][Patch] `TestFailsClosed`'s `BrokenGuard.Filter("") = ""` could not fail: failing open and failing closed both give "" for an empty text; removed [src/ocutalon/cls/OcuTalon/Test/Checks/Guard.cls:143] — low, fix-risk low, in-story.
+- [x] [Review][Patch] The `SLOT_TYPES` comment, which the Tasks ask to update, still read as the full list of slot types the page renders [web/scripts/catalog.mjs:59] — low, fix-risk low (comment; `catalog.mjs --check` current), in-story.
+- [x] [Review][Patch] AC 3's refusal clause (`HostData` untouched on NOSESSION) had no observed red — low (Rule 19), closed in this pass: mutation line under `## Verification`.
+- [x] [Review][Patch] AC 8's finding check (`CodeFinding`) had no observed red; only the extra-key mutation was recorded — low (Rule 19), closed in this pass: mutation line under `## Verification`.
+- [x] [Review][Defer] Once Epic 8's minute heartbeat is merged, a real Tick between `Watch` and the test's own `Tick` (or more than 60 s after it, before `check_status` reads) can run the Orders row, so `TestFailingOrdersInTheChat`'s "3 new failures" and exact `checkedAt` assertions can flake [src/ocutalon/cls/OcuTalon/Test/Checks/Turns.cls:42] — deferred: med, fix-risk med (the race needs Epic 8's heartbeat, which this branch lacks, so a fix cannot be proved here), same root cause as DW-289 (routed burndown by orchestrator ruling, Test/Checks/**); occurrence appended. `HeartbeatIn` is a stub on this branch, so the tests are green here.
+- [x] [Review][Defer] On a channel that shows no check rows (Telegram, 0.1.1), Chat's instruction still says OcuTalon shows the results under the reply and not to repeat them, so the question gets no status there [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:59] — deferred: med, fix-risk med, out-of-footprint (this spec's Never keeps the `*Out` operations from rendering a check key; AD-28 gives that rendering to them); DW-295 routed to 12-6.
+
+Rejected:
+- low: the guard leaves a markup-only line ("**All good!**" gives "****"), which is not empty, so Decide does not fall back — spec-bound: the tidy drops only an empty line and removal is literal (Design Notes); the same class as the adjudicated "Not" fragment; no all-clear survives.
+- low: a zero-width character, soft hyphen or U+2018 inside a phrase escapes the guard — the matching rules are the spec's (either apostrophe is ' or U+2019); a model does not write them; the fix adds complexity.
+- low: a phrase split across two lines ("Everything I checked\npassed.") escapes the guard — spec-bound (filtered line by line); negligible in model output.
+- false: the `WatchTools` class doc's "copies them, as they are" — it describes `PutChecks` copying `CheckResults`' results unchanged, which is accurate.
+- low: the cycle log's `dev_complete` counts differ from the Review Triage Log — the lead's bookkeeping file, outside this stage's writes; noted for the lead.
+- low: `CheckStatus` leaving `HostData` untouched after `CheckResults` refuses has no tool-level test — already adjudicated (implement triage, QA "no seam"); the code returns before `PutChecks`; no session turn has an owner that `Ownership` refuses; real once 9.3's `eval` branch can fail inside a turn.
+- false: `Test.Checks.Render`'s `$Length(cut) = 1000` and `Test.Checks.Guard`'s six-phrase count cannot fail — both guard the test's own oracle (the count catches a removal from `BANNED` and `UXBANNED` together).
+- low: D7 no longer shows on the page that a `whatFailed` key with nothing to name has no sentence — pinned in `check-sentence.test.mjs`, and the page's empty-sentence path by "D7 bare"; adding a live case is more than a direct correction.
+- low: the matrix row "Odd values" and Always differ on the reason of a `zz` result with a time — the code follows Always ("Not run yet" only with no time, which is true); `check_status` copies only enum values; the fix edits the spec.
+- low: Design Notes still say "no separate Gate test for check_status" — the fix edits the spec (AC 8 and the code are right); noted for the lead.
+- false: the edits under `web/scripts` and `web/e2e` break AD-29's lane ownership — they are the spec gate's footprint extensions, ruled by the orchestrator.
+- low: all-clear wording outside the closed list passes — the spec's Never ("No phrase outside the two lists"); adjudicated.
+- low: `Render` skips a blank-entry element, so `[blank failed, passed A]` gives `checks.allPassed` — spec-bound (an element with no entry is no result, the HostData row); `check_status`'s entries are always "{name} production".
+- low: `Render` and the page judge a blank entry of Unicode spaces differently — `check_status`'s entries are never blank; adjudicated as maybe-false in the implement triage.
+
 ## Spec Change Log
 
 - 2026-10-27, spec gate (Epic 5 runner): the orchestrator ruled Q1 (a) with five conditions (recorded in Always, the `check-rows.ts` task and Design Notes); condition 3 read with the epics criterion (veto U-111); status set to `ready-for-dev`.
@@ -458,7 +488,7 @@ Conventions: "HostData", "Tool classification", "Tool results", "Agent step labe
 - **Decided:**
   - the guard's matching covers case, either apostrophe, any white space, and whole words only;
   - what the guard leaves is never padded: an emptied turn is Decide's existing `invalid` fallback, and an emptied `FILTERED` field is re-validated as Decide already does;
-  - no separate Gate test for `check_status`: `Watch.Tools` pins its whole answer and `HostData` exactly, so an added field fails. AD-10 already names `check_status` as trusted output, and no ruling asks for more.
+  - [SUPERSEDED at the spec gate, 2026-10-27: the lead added AC 8, a `Test.Bridge.Gate` test of `check_status`'s answer (the U-102 pattern); `Watch.Tools` still pins its whole answer and `HostData`.] Originally: no separate Gate test for `check_status`.
 
 **Decided in-stage:**
 - **`whatFailed` names every non-passed row.** So `checks.notEverythingRestPassed`, which `Render` chooses when at least one row passed, is always true: "Everything else" is exactly the rows not named.
@@ -602,6 +632,34 @@ Conventions: "HostData", "Tool classification", "Tool results", "Agent step labe
 - mutation: `checks.notEverythingRestPassed` dropped from `LISTED_KEYS` (catalog regenerated) -> `catalog.test.mjs` and `check-sentence.test.mjs`
 - mutation: `ReplyGuard.Filter`'s `Catch` returns the unfiltered text instead of "" -> `Checks.Guard.TestFailsClosed` (warm; reverted, hash equal)
 - mutation: `check-rows.ts` passes `[]` instead of `this.checks()` to `checkSentence` -> e2e D7 in `live sign-in` (the only red of 193; reverted, hash equal)
+
+**QA stage (Rule 19; run with tags e5s7qw warm and e5s7q fresh).** The implement stage's table was audited against every AC, the I/O matrix rows and the orchestrator's five conditions: each has a pinning test, and each assertion read can fail. Two gaps were closed:
+- (QA) `Test.Agent.Instructions.TestChat` gains two assertions: the instructions forbid the all-clear itself ("Never say that everything is fine, that everything passed or that the system is healthy" and "never write all good, no issues, no problems or nothing to worry about"), where before only "only OcuTalon's own sentence may say that" was pinned.
+- (QA) `Test.Watch.Tools.TestCheckStatusDescription` (new, no production): the model-facing description of `check_status` (the doc of `CheckStatus`) says when to call it, that an empty result means not run yet, that OcuTalon shows the results itself, and not to list them or say that everything passed. It had no pin.
+- Not covered, by design (no seam, as for Story 5.9's `TestIncidentsNotRead`): `CheckStatus` leaving `HostData` untouched after `CheckResults` fails. In a session's turn the owner is always a Ref, so Ownership cannot fail; `WatchAnswers.CheckResults` is pinned for the refused owners (`TestCheckStatusNotRead`) and `CheckStatus` for NOSESSION (`TestNoSession`).
+- Note for later mutations: the description of a tool is baked into `Tools.Watching` at compile, so a warm mutation of a `WatchTools` doc needs `Watching.cls` reloaded too.
+
+Mutations re-applied by QA, each observed red and reverted from a backup (`git status --short` equal to the one before):
+- mutation (QA): `checkSentence` for a key without a slot gives "" when there are no rows (condition 1) -> `check-sentence.test.mjs` "gives the catalog text of the three keys without a slot"
+- mutation (QA): `checkSentence` returns `checks.allPassed` when no row is left to name (condition 2) -> `check-sentence.test.mjs` "never derives an all-clear from the rows" and "gives no sentence when the key needs whatFailed"
+- mutation (QA): `whatFailed` names passed rows (condition 3) -> `check-sentence.test.mjs` (4 tests)
+- mutation (QA): `whatFailed` puts the not-passed, not-failed rows before the failed ones (condition 3) -> `check-sentence.test.mjs` (3 tests)
+- mutation (QA): `checkSentence` gives the catalog text for any other key (condition 4) -> `check-sentence.test.mjs` "gives no sentence for any other key" and "never derives an all-clear"
+- mutation (QA): `Render` gives `KEYRESTPASSED` always (AC 4) -> `Checks.Render.TestNonePassed`, `TestNotRunYet`
+- mutation (QA): "no problems" removed from `BANNED` (AC 5) -> `Checks.Guard.TestVariants`, `TestLines`
+- mutation (QA): the answer of `check_status` gains a `cause` key (AC 8) -> `Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt`
+- mutation (QA): `Checked` gives the UTC `checkedAt` as `checked` (AC 3) -> `Watch.Tools.TestCheckStatus`
+- mutation (QA): `CheckStatus` without `PutChecks` (AC 1, AC 2), fresh -> `Checks.Turns.TestFailingOrdersInTheChat`, `TestAllClearOnlyFromCode`, `TestNothingWatchedInTheChat`
+- mutation (QA): `check_status` left out of `Watching` (AC 6) -> `Agent.Instructions.TestToolsets`
+- mutation (QA): the "Never say that everything is fine ..." clause cut from `Chat` (AC 6) -> `Agent.Instructions.TestChat` (the two new assertions)
+- mutation (QA): "so do not list them and do not say that everything passed" cut from the `CheckStatus` doc, with `Watching` recompiled -> `Watch.Tools.TestCheckStatusDescription`
+- DW-90 and the `check-rows.ts` wiring: the implement stage's e2e D7 mutation stands (`live sign-in` not re-run by QA; no product or e2e file changed).
+
+Mutations applied by code review (Rule 19; warm, tag e5s7cw; each reverted from a backup, file hash and `git status --short` / `git diff --stat` equal to before, and the class green again on the same stack):
+- mutation (CR): `CheckStatus` calls `WatchAnswers.PutChecks([])` before the `Session` refusal (AC 3, a refusal leaves `HostData` untouched) -> `Watch.Tools.TestNoSession` (five cases: "and leaves HostData as it was")
+- mutation (CR): `WatchAnswers.Checked` appends free text to every finding (AC 8, every finding comes from `Checks`' parameters) -> `Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt` (five entries: "its finding is built from Checks' texts")
+
+Files added or changed by QA: `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (QA), `src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls` (QA). Runs: `Test.Agent.Instructions` and `Test.Watch.Tools` warm passed; `Test.Checks.Turns` fresh passed; the three web test files (59) and `catalog.mjs --check` passed.
 
 ## Auto Run Result
 

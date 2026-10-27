@@ -142,11 +142,11 @@ ClassMethod DismissIncident(production As %String(DESCRIPTION = "The name of the
 }
 
 /// Reads the latest results of the user's background checks in this conversation, one per watched production. Call it when the user asks whether everything
-/// is fine, OK or working, or how the watched productions are doing. The answer is ok with checks, a list in a fixed order. Each check has result: passed or
-/// failed, or empty when the check has not run yet; entry: the name to say, such as Orders production; finding: what the last run found, or why it could not
-/// check; and checked: when it last ran, in the instance's time, empty before its first run. An empty list means that nothing is watched. OcuTalon shows the
-/// results itself under your reply, with its own sentence that says whether everything passed, so do not list them and do not say that everything passed.
-/// Anything else: the message says why the checks could not be read.
+/// is fine, OK or working, or how the watched productions are doing. The answer is ok with checks, a list in a fixed order. Each check has result: passed,
+/// failed, not_checked when the last run could not check, or empty when the check has not run yet; entry: the name to say, such as Orders production;
+/// finding: what the last run found, or why it could not check; and checked: when it last ran, in the instance's time, empty before its first run. An empty
+/// list means that nothing is watched. OcuTalon shows the results itself under your reply, with its own sentence that says whether everything passed, so
+/// do not list them and do not say that everything passed. Anything else: the message says why the checks could not be read.
 ClassMethod CheckStatus() As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)

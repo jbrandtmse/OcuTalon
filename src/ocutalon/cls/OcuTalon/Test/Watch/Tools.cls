@@ -1,6 +1,6 @@
 /// Tests of the Chat agent's watch tools (Story 5.1; AD-1, AD-3, AD-4, AD-9, AD-10, AD-18): start_watch, stop_watch, list_productions, dismiss_incident (Story 5.9) and check_status (Story 5.7), the toolset
 /// OcuTalon.Tools.Watching, its provider OcuTalon.Tools.WatchTools and its helper OcuTalon.Tools.WatchAnswers. TestDeclarations, TestJoined, TestDecide,
-/// TestIncidentsNotRead and TestDismissedData need no production; THE OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: the tools read the real
+/// TestIncidentsNotRead, TestDismissedData and TestCheckStatusDescription need no production; THE OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: the tools read the real
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
@@ -11,6 +11,8 @@
 ///     session's own production rows by ID with the time in the instance zone, copies them to HostData with the UTC time, keeps the other members of a JSON
 ///     object HostData and replaces an earlier checks, submits nothing, and leaves HostData as it was when it is refused; each asserts the whole answer and the
 ///     whole HostData, so a field added later fails;
+///   - TestCheckStatusDescription (Story 5.7, QA; no production): the description of check_status for the model says when to call it, what a not_checked and an empty result mean, that OcuTalon
+///     shows the results itself, and not to list them or say that everything passed;
 ///   - TestStart and TestStop (matrix "Start", "Stop"): one command with origin tool, the session of the turn, the key <ItemId>:1 and the namespace, the
 ///     production and (for a start) the display name, and no other field; the answer is the owner's message, ok, ref, the outcome and the production's name;
 ///   - TestNameForms: the name is trimmed, case-insensitive, may end in " production" and may be the class name, and the namespace argument narrows it;
@@ -350,25 +352,48 @@ Method TestCheckStatusHostData()
 	Do ..AssertObject(answer, {"ok": true, "checks": []}, "check_status() with nothing watched")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""checks"":[]}", "an empty HostData becomes checks alone, also for no results")
 	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1}")
-	Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do ..AssertObject(answer, {"ok": true, "checks": []}, "check_status() with a JSON object HostData")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1,""checks"":[]}", "a JSON object keeps its other members")
 	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1,""checks"":[""old""]}")
-	Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do ..AssertObject(answer, {"ok": true, "checks": []}, "check_status() with an earlier checks")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1,""checks"":[]}", "and an earlier checks is replaced")
 	Set others = $ListBuild("not json", "[1]", "7", """text""")
 	Set position = 0
 	While $ListNext(others, position, text) {
 		Do ##class(OcuTalon.Bridge.Context).Put("HostData", text)
-		Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+		Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+		Do ..AssertObject(answer, {"ok": true, "checks": []}, "check_status() with HostData "_text)
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""checks"":[]}", "HostData "_text_" becomes checks alone")
 	}
 	Set passedAt = "2030-01-01T10:00:00Z"
 	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt)})
 	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""checks"":[]}")
 	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
-	Do $$$AssertEquals(answer.checks.%Size(), 1, "a second call after a watch exists answers the row")
+	Do ..AssertObject(answer, {"ok": true, "checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checked": (##class(OcuTalon.Data.Time).ForMessage(passedAt))}]}, "a second call after a watch exists answers the row")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, {"checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": (passedAt)}]}.%ToJSON(), "and replaces checks")
 	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
+}
+
+/// QA (Story 5.7; no production): the description that the model reads for check_status (the doc of CheckStatus) says when to call it, that not_checked
+/// means the last run could not check and an empty result that the check has not run yet, and that OcuTalon shows the results itself, so the model lists
+/// none and says no all-clear.
+Method TestCheckStatusDescription()
+{
+	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
+	Set description = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		#; The doc's line breaks are spaces to the model.
+		If tool.name = "check_status" Set description = $Replace($Replace(tool.description, $Char(13), ""), $Char(10), " ")
+	}
+	Do $$$AssertTrue(description '= "", "check_status has a description for the model")
+	Do $$$AssertTrue(description [ "when the user asks whether everything is fine, OK or working", "it says when to call it")
+	Do $$$AssertTrue(description [ "not_checked when the last run could not check", "not_checked means that the last run could not check")
+	Do $$$AssertTrue(description [ "empty when the check has not run yet", "an empty result means that the check has not run yet")
+	Do $$$AssertTrue(description [ "OcuTalon shows the results itself", "OcuTalon shows the results itself")
+	Do $$$AssertTrue(description [ "do not list them and do not say that everything passed", "so the model lists none and says no all-clear")
 }
 
 /// check_status not read (matrix "Refused"): the owners instance and eval and an empty one cannot be read, so CheckResults answers CHECKSNOTREAD with no
@@ -388,6 +413,7 @@ Method TestCheckStatusNotRead()
 	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).CheckResults(a, .results)
 	Do $$$AssertEquals(refusal, "", "a session with no watch is read")
 	Do $$$AssertEquals(results.%ToJSON(), "[]", "and has no results")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
 }
 
 Method TestSubmitFails()
