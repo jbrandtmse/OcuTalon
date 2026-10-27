@@ -262,3 +262,5 @@
 2026-10-27T15:51:26Z	Epic 5	ci_red_classified	run=40525019781 workflow=.github/workflows/ci.yml class=flake test=Test.Live.GuideRefresh+e2e/floor/guide.spec.ts(M7,M9) note=green_on_one_unchanged_rerun;filed_DW-305(routed_burndown_for_the_orchestrator)
 2026-10-27T15:51:26Z	Epic 5	ci_red_classified	run=40525019781 workflow=.github/workflows/ci.yml class=flake test=test-production.sh_row_21 note=green_on_one_unchanged_rerun_and_locally;filed_DW-306(routed_burndown_for_the_orchestrator)
 2026-10-27T15:51:26Z	Epic 5	ci_resolved	story=epic sha=2a287f3 runs=40525019781,40525019801 result=success failed=none via=none first_ci=flake(3_jobs:image,production,shards;rerun_--failed_green) resolved_at=integrate_forward
+2026-10-27T15:51:51Z	Epic 5	integrated_forward	feature=333d46b head=1b754de conflicts_resolved=none note=bookkeeping_only(cycle-log-parallel.md);no_code_change_since_the_merged-tree_suite_and_smoke
+2026-10-27T15:51:51Z	Epic 5	epic_runner_complete	stories_completed=10(5.1-5.10)
