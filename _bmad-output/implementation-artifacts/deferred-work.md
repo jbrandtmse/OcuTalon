@@ -1421,6 +1421,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
 - 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope
+- 2026-10-27T20:43:25Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=merge_gate note=Epic 5 decision sheet (orchestrator, decide): doc-only fix in Epic 16's Test/Web/Api.cls class doc; bullet under 16.4
 
 ### DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is still told OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets no status there
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint

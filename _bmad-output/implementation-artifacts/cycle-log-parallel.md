@@ -536,3 +536,15 @@
 2026-10-27T20:42:54Z	Epic 5	ruling	question=decision_sheet_DW-290(Test/Web/Api.cls_class_doc_still_says_a_check_without_a_trace_app_has_no_traceUrl;DW-66_made_it_untrue;low,doc-only) choice=decide:route_to_16-4(owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi;bullet_under_16.4;Epic_16_owns_Test/Web/**) rejected=wontfix(leaves_a_wrong_doc_line),an_Epic_6_story(mid-flight;the_clause_is_in_Epic_16_file_outside_Q1_scope) why=doc-only,no_behaviour_or_public_text(unlike_DW-207/U-106) category=decide policy=36abb05b2ba2f34d6e14569e62a14b8fcd06550f
 2026-10-27T20:42:54Z	Epic 5	runner_reported	item=U-123(veto,5.11_fix-forward_charter),U-124(veto,Epic_6_Story_6.4_dismiss_409_text) note=pointer_to_Planner_with_merge_report
 2026-10-27T20:43:02Z	Epic 5	epic_merge_started	branch=OCT-epic5 head=f6bc533 into=feature/OCT_OcuTalon_MVP conditions=all_11_done,none_parked_or_set_aside,burndown_logged,retro_skipped_policy,decision_sheet=DW-290_decide(recorded_post-merge,5b),open_vetoes=2(U-123,U-124)<20,ci_green
+2026-10-27T20:44:17Z	Epic 5	epic_merged_to_feature	merge=eff7f57 branch=OCT-epic5 head=f6bc533 stories=11(5.1-5.11) conflicts=none payloads.ts=regenerated(no_change) verified_on_origin=yes
+2026-10-27T20:44:17Z	Epic 5	decision_sheet_recorded	decided=1(DW-290_routed_16-4,by=merge_gate,decide) to_action_items=0 to_x0=0
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=7-2 entries=2(DW-270,DW-271(U-92_R2,R3)) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=7-4 entries=1(DW-272(U-92_R3)) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=14-1 entries=1(DW-213(U-79_grant_in_the_security_overview)) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=15-2 entries=1(DW-223(U-79_WithOrdersData_near-copy)) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=16-4 entries=1(DW-290(decision_sheet)) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 5	ledger_routed_planned	story=12-6 entries=1(DW-295) excess=0 by=merge_gate
+2026-10-27T20:44:17Z	Epic 1-37	deps_hash_rerecorded	reason=split,burndown_inserted,fix_forward,ledger_routed old=802339ee new=796a003c (Epic 5: 5.8/5.9 split children, 5.10 burn-down, 5.11 fix-forward; seven DW bullets under 7.2, 7.4, 12.6, 14.1, 15.2, 16.4; no boundary or dependency change)
+2026-10-27T20:44:17Z	Epic 5	carry_over_check	U-92=bullets_7.2(DW-270,DW-271)+7.4(DW-272) U-79=DW-213_bullet_14.1(+DW-223_15.2) U-91=resolved_earlier(delivered_in_5.8) DW-289=resolved_in_5.10(no_residual) residuals_burndown=DW-300,DW-306 open_vetoes=U-123,U-124 integrate-forward_watch_for_6,8,16=chat/,catalog.mjs_key_lists,Test/Live/Payloads.cls,CommandsInProduction.cls_stub_rows(plain_unions)
+2026-10-27T20:44:36Z	Epic 5	worktree_removed	worktree=.worktrees/epic-5 guard=clean_and_pushed runner_ended=yes(notification_completed) locks=lane-a_empty
+2026-10-27T20:44:36Z	Epic 5	epic_branches_deleted	branch=OCT-epic5 local(was_f6bc533)+remote

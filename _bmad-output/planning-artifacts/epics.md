@@ -3037,6 +3037,9 @@ So that I approve or reject exactly the change I can see.
 **And** a test that renders the later-request entry of `OcuTalon.Msg.Catalog.Watch` with fixture slots gets "{count} more {item noun} failed since {time}, with the same cause. I can {fix summary}. Approve?" filled in (fixture "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?"), then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page." (FR-8, P27, UX-DR156)
 **And** failures that join an Open incident (fallback, no fix, rejected or expired) only update its count (FR-8, P27)
 
+- DW-270: Moved from Story 5.8 (U-92, R2): for a usable data-format diagnosis (outcome act, its proposed fix), IncidentManager first sends the with-fix incident notice here, through Epic 5's notice delivery and with Raise: one `OcuTalon.Msg.Notification` per recipient session of kind incident, the incident notice's catalog key, Slots with the count, the start time as UTC ISO 8601, the item noun as itemNoun {one, other} from the diagnosis, the agent's cause and fix summary as plain sentences without times, plus 7.2's dry-run slots and the first request's ApprovalRef; it sets NoticedAt; and for the recorded date-format snapshot and its mock scenario the notification's slots give 50 orders and the first failure's time, with CI seeing noticed, settling, diagnosing, then the notice, in that order (ledger; routed by merge_gate 2026-10-27)
+- DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's `Incident.RequestRefs`, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13) (ledger; routed by merge_gate 2026-10-27)
+
 ### Story 7.3: Approved repairs are re-checked and resent
 
 As a user,
@@ -3097,6 +3100,8 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **Given** 500 failed orders from one cause
 **When** one approval request covers them and is approved
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
+
+- DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 
@@ -3956,6 +3961,7 @@ So that I can follow and steer it from my own phone.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
+- DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 12.7: Approve or reject from Telegram, and every copy shows who answered
 
@@ -4146,6 +4152,8 @@ So that what I approve is exactly what ships, release after release.
 **When** a release is cut
 **Then** it regenerates the generated sections and stops the release if the drift test or the privilege test fails, so the overview is updated with every release (FR-61, REL-3)
 
+- DW-213: The generated security overview lists the service role's demo-mode-only Read on `%DB_OCUORDERS_DATA` (granted by the Demo step with demo mode on, removed with it off or kept; U-79), so it never overstates least privilege (ledger; routed by merge_gate 2026-10-27)
+
 ### Story 14.2: The security overview says what OcuTalon can do and what stops it
 
 As a security reviewer,
@@ -4257,6 +4265,7 @@ So that one package gives me a working OcuTalon in my existing instance.
 - DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
 - DW-212: With the online-demo flag off, an install into an instance whose `PasswordValidationRoutine` names another routine leaves the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition). Story 3.8's `TestForeignGuardIsRefused` pins the setting; add the assertion that the foreign routine still exists after the flag-off run, and prove both cases on this story's IPM install into an existing instance (ledger; routed by owner 2026-10-25, inbox U-75)
 - DW-207: `SetDemoMode(1)` on an instance whose OCUORDERS OcuTalon did not create refuses the on-switch before the audit entry and the settings write when `Install.Step.Demo.Plan` answers error, prints one terminal line that names the foreign OCUORDERS and changes nothing, and leaves `demo.mode` 0, so later starts still reach Production and Ready (today it writes 1 first and every later start stops at STEP Demo FAILED); prove both on this story's IPM install into an existing instance. U-106's condition on the terminal line: it says that demo mode stays off and why (OCUORDERS exists and OcuTalon did not create it), in the same style as the other Install step lines, and names no customer data from that namespace (ledger; routed by orchestrator 2026-10-27, Epic 4 decision sheet, veto U-106, kept by the Contest Planner under the owner's delegation)
+- DW-223: `Install.Step.Demo.WithOrdersData` (Story 5.1, U-79) is a near-copy of `WithOrders` (about 18 of its 20 lines), differing only in the resource list it edits (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
@@ -4441,6 +4450,7 @@ So that other visitors can get in while my session waits for me.
 **And** until Lane B's Story 8.4 merges, the tests cancel reminders through a `ReminderOps` test double that records the call, and Story 8.4 turns on the real path (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before Epic 8] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before this epic starts, so the tests cancel reminders through the real `ReminderOps` and no test double is needed.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for Epic 8. Until Story 8.4 merges, the tests cancel reminders through the recording test double, and the closed-page case checks that the session's reminder rows are untouched; Story 8.4 turns on the real cancel path and a real reminder that fires after the CSP session ended.]
 - DW-285: Closing a trace tab frees nothing: its licence unit is held until sign-out or the session timeout, so leaving the page must sign the trace session out (`?IRISLogout=end`), with the 120-second timeout as the backstop (AD-13, AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
 - DW-291: The sign-out test exercises the real `ReminderOps` cancel path that Story 8.4 delivers (U-65). If Story 8.4 has merged when this story is planned, the test uses the real path from the start, with no double. Otherwise it uses the recording double, and whichever of 8.4 and this story merges second turns the real path on, with a test that asserts a real cancel. Either way, the merged sign-out test runs the real cancel (ledger; routed by orchestrator 2026-10-27, inbox U-107, kept by the Contest Planner under the owner's delegation)
+- DW-290: `Test.Web.Api`'s class doc no longer says that a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue (doc-only) (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 
