@@ -1372,3 +1372,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-102 (owner decision 2026-10-27T00:44:42Z#311) | severity: med | fix-risk: low | footprint: in-story
 - evidence: Test.Bridge.Gate pins dismiss_incident's classification flags only; nothing fails if WatchAnswers adds a Cause or SampleError key
 - 2026-10-27T00:51:30Z status=routed owner=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=spec_gate note=owner_decision U-102 at=2026-10-27T00:44:42Z#311: keep, trusted output (1), as U-80, with this pinning test
+- 2026-10-27T01:28:18Z status=resolved-by:5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=cr note=Gate.TestDismissAnswerIsCodeBuilt; mutations: entry gains cause key -> red, Dismissed message=row Cause -> red

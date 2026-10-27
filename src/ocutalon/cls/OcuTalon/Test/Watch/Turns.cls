@@ -183,8 +183,8 @@ ClassMethod Approvals(session As %String) As %Integer [ Private ]
 }
 
 /// An untrusted turn of the session (the text holds the mock's marker) in which the Chat agent calls the tool: Decide answers it, the one tool step is
-/// denied with UNTRUSTED and names the tool, no command reaches CommandsIn or the owner (an item name), and the model's second request carries the sentence of
-/// the denial.
+/// denied with UNTRUSTED and names the tool, no command reaches CommandsIn or the owner (an item name; CommandSince), and the model's second request carries the
+/// sentence of the denial.
 Method AssertDenied(session As %String, text As %String, tool As %String, owner As %String) [ Private ]
 {
 	Set untrusted = $Parameter("OcuTalon.Bridge.Policy.Gate", "UNTRUSTED")
@@ -203,7 +203,7 @@ Method AssertDenied(session As %String, text As %String, tool As %String, owner 
 		Do $$$AssertTrue(step.summary [ tool, "and it names "_tool)
 	}
 	Do $$$AssertEquals(tools, 1, "there is one tool step")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionSince(mark, owner), "", "no command reached "_owner)
+	Do $$$AssertEquals(..CommandSince(mark, owner), "", "no command reached "_owner)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionSince(mark, "CommandsIn"), "", "nor CommandsIn")
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
@@ -211,6 +211,15 @@ Method AssertDenied(session As %String, text As %String, tool As %String, owner 
 		Do $$$AssertTrue($ListLength(results) = 1, "the second request carries one tool result")
 		If $ListLength(results) = 1 Do $$$AssertTrue($List(results, 1) [ untrusted, "that holds the sentence of the denial")
 	}
+}
+
+/// The session of the first header after the mark from CommandsIn to the owner item, or "": a command reaches its owner only through CommandsIn, so the
+/// owner's own traffic (IncidentManager's settle waiters and alarms of other incidents) is not counted.
+ClassMethod CommandSince(mark As %Integer, owner As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'CommandsIn' AND TargetConfigName = ? ORDER BY ID", mark, owner)
+	If result.%Next() Quit result.%GetData(1)
+	Quit ""
 }
 
 /// Sends a turn of the owner through Decide (RunnerFixture.Run) and reads the mock's log for it: request is the Request, answer the Reply, mocked the

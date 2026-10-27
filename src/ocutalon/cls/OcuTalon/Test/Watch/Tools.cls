@@ -1,6 +1,6 @@
 /// Tests of the Chat agent's watch tools (Story 5.1; AD-1, AD-3, AD-4, AD-9, AD-10, AD-18): start_watch, stop_watch, list_productions and dismiss_incident (Story 5.9), the toolset
-/// OcuTalon.Tools.Watching, its provider OcuTalon.Tools.WatchTools and its helper OcuTalon.Tools.WatchAnswers. TestDeclarations, TestJoined and TestDecide
-/// need no production; THE OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: the tools read the real
+/// OcuTalon.Tools.Watching, its provider OcuTalon.Tools.WatchTools and its helper OcuTalon.Tools.WatchAnswers. TestDeclarations, TestJoined, TestDecide,
+/// TestIncidentsNotRead and TestDismissedData need no production; THE OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: the tools read the real
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions and dismiss_incident of
@@ -17,7 +17,10 @@
 ///   - TestDismissOne ("One", "Resolved"), TestDismissPicks ("By production", "Ambiguous", "By ref"), TestDismissUnknown ("Unknown"), TestDismissNone
 ///     ("None") and TestDismissInstance ("Instance") (Story 5.9): which incident dismiss_incident submits a Dismiss for, against the double, with the
 ///     recorded commands (origin tool, the session, the key <ItemId>:<n>, the IncidentRef and no other field) and the whole answer; an incident that is
-///     not open or resolved, not noticed or not the session's is never submitted;
+///     not open or resolved, not noticed or not the session's is never submitted, and a production of white space alone is not given;
+///   - TestIncidentsNotRead and TestDismissedData (Story 5.9, QA; pure, no production): WatchAnswers.ResolveIncident answers INCIDENTSNOTREAD and offers nothing
+///     to submit when Ownership cannot read the incidents (the owners instance and eval and an empty one are refused), and WatchAnswers.Dismissed adds state and
+///     openVariant only for a Data that is a JSON object with a string state, and never raises for any other Data;
 ///   - TestNoSession ("No session"): no context, an owner that is not a session's Ref or no ItemId answers NOSESSION and submits nothing, before anything
 ///     is looked up (also with a name that no production has);
 ///   - TestSubmitFails and TestSubmitEmpty ("Submit fails", also for dismiss_incident): a failed submit, and one answered with no CommandResult, answer NOTSENT with one redacted
@@ -405,6 +408,9 @@ Method TestDismissOne()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
 	Do ..AssertObject(answer, {"ok": true, "message": "The CI double dismissed the incident.", "ref": (open), "outcome": "closed", "production": "Zz.Production", "state": "closed", "openVariant": ""}, "dismiss_incident() with one open incident")
 	Do ..AssertDismissals(a, itemId, open)
+	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident("  ")
+	Do $$$AssertEquals(answer.ok_"|"_answer.ref, "1|"_open, "a production of white space alone is not given: the one candidate is dismissed")
+	Do ..AssertDismissals(a, itemId, open, 2)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble", "calls")
 	Set r = ..Session("dismissResolved")
@@ -510,12 +516,13 @@ Method TestDismissInstance()
 	Do ..SetOnlineDemo(0)
 	Set a = ..Session("instanceA")
 	Set c = ..Session("instanceC")
-	Do ..Watching(a, "Zz.Orders")
-	Set ref = ..Seed("instance", "open", "Zz.Orders", "2030-01-01T10:00:00Z")
+	Set production = "Zz.Instance"_..Number
+	Do ..Watching(a, production)
+	Set ref = ..Seed("instance", "open", production, "2030-01-01T10:00:00Z")
 	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Begin(a, itemId)
 	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
-	Do ..AssertObject(answer, {"ok": true, "message": "The CI double dismissed the incident.", "ref": (ref), "outcome": "closed", "production": "Zz Zz.Orders", "state": "closed", "openVariant": ""}, "a local install: the instance incident of a production that A watches")
+	Do ..AssertObject(answer, {"ok": true, "message": "The CI double dismissed the incident.", "ref": (ref), "outcome": "closed", "production": ("Zz "_production), "state": "closed", "openVariant": ""}, "a local install: the instance incident of a production that A watches")
 	Do ..AssertDismissals(a, itemId, ref)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble", "calls")
@@ -523,6 +530,57 @@ Method TestDismissInstance()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
 	Do ..AssertObject(answer, {"ok": false, "outcome": "no_incident", "others": []}, "a session that watches nothing: no_incident")
 	Do $$$AssertEquals(..Calls().%Size(), 0, "and nothing is submitted")
+}
+
+Method TestIncidentsNotRead()
+{
+	// QA (Story 5.9): the failed-read answer, reached through the helper with the owners that Ownership refuses to read for (no seam, no contended change).
+	Set expected = {"ok": false, "message": ($Parameter(..#ANSWERS, "INCIDENTSNOTREAD"))}
+	Do $$$AssertEquals(expected.message, "The incidents of this conversation could not be read, so nothing was dismissed.", "the text of the failed-read answer")
+	For owner = "instance", "eval", "" {
+		Set answer = $ClassMethod(..#ANSWERS, "ResolveIncident", "", "", owner, .match)
+		Do ..AssertObject(answer, expected, "ResolveIncident for the owner '"_owner_"' cannot read the incidents, so it refuses")
+		Do $$$AssertEquals(match, "", "and offers nothing to submit")
+	}
+}
+
+Method TestDismissedData()
+{
+	// QA (Story 5.9): the answer of a Dismiss that the owner answered, with each shape of the owner's Data (the guarded branch of Dismissed).
+	Set entry = {"ref": "zzRef", "production": "Zz.P"}
+	Set cases = $ListBuild(
+		$ListBuild("a state and a variant", "{""state"":""closed"",""openVariant"":""fix""}", "closed", "fix"),
+		$ListBuild("a state and no variant", "{""state"":""closed""}", "closed", ""),
+		$ListBuild("a state and a variant that is not a string", "{""state"":""closed"",""openVariant"":7}", "closed", ""),
+		$ListBuild("a state that is not a string", "{""state"":5,""openVariant"":""fix""}", "", ""),
+		$ListBuild("no state", "{""openVariant"":""fix""}", "", ""),
+		$ListBuild("an empty object", "{}", "", ""),
+		$ListBuild("an array of numbers", "[5]", "", ""),
+		$ListBuild("an array whose first element is a string", "[""closed""]", "", ""),
+		$ListBuild("a string", """closed""", "", ""),
+		$ListBuild("text that is not JSON", "not json", "", ""),
+		$ListBuild("no Data", "", "", ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+		Set result.Ok = 1
+		Set result.Outcome = "closed"
+		Set result.Message = "Dismissed."
+		Set result.Ref = "zzOtherRef"
+		Set result.Data = $List(case, 2)
+		Set expected = {"ok": true, "message": "Dismissed.", "ref": "zzRef", "outcome": "closed", "production": "Zz.P"}
+		If $List(case, 3) '= "" {
+			Set expected.state = $List(case, 3)
+			Set expected.openVariant = $List(case, 4)
+		}
+		Set answer = ""
+		Try {
+			Set answer = $ClassMethod(..#ANSWERS, "Dismissed", result, entry)
+		} Catch exception {
+			Do $$$AssertTrue(0, $List(case, 1)_": Dismissed raised "_exception.DisplayString())
+		}
+		If $IsObject(answer) Do ..AssertObject(answer, expected, "Data is "_$List(case, 1))
+	}
 }
 
 Method TestKeys()

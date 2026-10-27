@@ -19,8 +19,9 @@
 /// The answers carry the outcome and the values to say, never the sentence: the Chat agent's instructions hold the sentences (AD-32). The shaping
 /// of the answers is OcuTalon.Tools.WatchAnswers, because a tool provider returns only through Return.
 /// Each tool declares, by the naming rule of ReminderTools (the tool's name in upper case with _ and - removed), its step label (AD-9) and its
-/// classification for the gate (AD-10). All four are safe and trusted output: their answers are built in code from the owner's CommandResult
-/// and from IRIS's production registry, so no content from outside the instance reaches the model through them, and a result never taints the
+/// classification for the gate (AD-10). All four are safe and trusted output: their answers are built in code from the owner's CommandResult,
+/// from IRIS's production registry and, for dismiss_incident, from the session's own incident and watch rows (Test.Bridge.Gate pins its answer's
+/// keys and messages), so no content from outside the instance reaches the model through them, and a result never taints the
 /// turn (a start_watch after a list_productions in one turn still runs). start_watch, stop_watch and dismiss_incident are not read-only, so the gate denies them
 /// in an untrusted or tainted turn; list_productions is read-only, so it also runs there.
 /// It extends OcuTalon.Tools.Result and returns only through Return. A tool method runs inside AI Hub's callback, so it makes no AI Hub call

@@ -14,8 +14,7 @@
 ///         {"reminders": [{"ref": "<Ref>", "text": "<Text>", "dueAt": "<UTC time>"}, ...]};
 ///       StartWatch: Outcome started, the message "The CI double started the watch.", and WATCHREF as Ref;
 ///       StopWatch: Outcome stopped, the message "The CI double stopped the watch.", and WATCHREF as Ref;
-///       Dismiss: Outcome closed, the message "The CI double dismissed the incident.", the command's IncidentRef as Ref and the Data
-///         {"state":"closed","openVariant":""};
+///       Dismiss: Outcome closed, the message DISMISSMESSAGE, the command's IncidentRef as Ref and the Data {"state":"closed","openVariant":""};
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
@@ -34,6 +33,9 @@ Parameter WATCHREF = "zzWatchDouble000000001";
 
 /// The due time that the double gives a reminder it "sets": in 2027, so that ForMessage gives a dated form whatever today's date is.
 Parameter SETDUEAT = "2027-03-04T15:00:00Z";
+
+/// The message of the double's answer to a Dismiss (Test.Bridge.Gate reads it as one of the code's own texts).
+Parameter DISMISSMESSAGE = "The CI double dismissed the incident.";
 
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
@@ -73,7 +75,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	} ElseIf verb = "Dismiss" {
 		Set result.Ok = 1
 		Set result.Outcome = "closed"
-		Set result.Message = "The CI double dismissed the incident."
+		Set result.Message = ..#DISMISSMESSAGE
 		Set result.Ref = pInput.IncidentRef
 		Set result.Data = {"state": "closed", "openVariant": ""}.%ToJSON()
 	} ElseIf verb = "ListReminders" {

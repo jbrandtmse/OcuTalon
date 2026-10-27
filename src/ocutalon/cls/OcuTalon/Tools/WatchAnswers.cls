@@ -135,7 +135,7 @@ ClassMethod Dismissed(result As OcuTalon.Msg.CommandResult, entry As %DynamicObj
 	Set answer.ref = entry.ref
 	Try {
 		Set data = {}.%FromJSON(result.Data)
-		If $IsObject(data) && (data.%GetTypeOf("state") = "string") {
+		If $IsObject(data) && data.%IsA("%Library.DynamicObject") && (data.%GetTypeOf("state") = "string") {
 			Set answer.state = data.state
 			Set answer.openVariant = $Select(data.%GetTypeOf("openVariant") = "string": data.openVariant, 1: "")
 		}
