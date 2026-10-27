@@ -63,11 +63,17 @@ Method TestNoticeVariants()
 	}
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 4, ..#WAITINCIDENT)
 	Do $$$AssertEquals(events.%Size(), 4, "A's stream holds four incident events")
-	Do ##class(OcuTalon.Test.Core.Observe).WaitDeliveries(a, 4, ..#WAITINCIDENT)
-	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(a)
-	Set kinds = ""
-	For i = 1:1:deliveries.Count() {
-		Set kinds = kinds_$Select(kinds = "": "", 1: ",")_deliveries.GetAt(i).Kind
+	Set web = ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set kinds = ""
+		Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(a)
+		For i = 1:1:deliveries.Count() {
+			If deliveries.GetAt(i).Channel '= web Continue
+			Set kinds = kinds_$Select(kinds = "": "", 1: ",")_deliveries.GetAt(i).Kind
+		}
+		If ($Length(kinds, ",") >= 4) || ($ZHorolog > end) Quit
+		Hang 0.25
 	}
 	Do $$$AssertEquals(kinds, "incident,incident,incident,incident", "WebChatOut recorded one incident Delivery row for each")
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(a)
