@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-26'
 status: 'done'
 baseline_revision: '9b400ec4795b1d4600491de524917231344cba68'
+baseline_commit: '9b400ec4795b1d4600491de524917231344cba68'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -138,8 +139,12 @@ deferred:
 - AC9: Given `count` 52 and `noticeCount` 50, when the card renders, then the headline reads 52 with "2 more since the notice"; given a closed incident, when an event with a new ref arrives, then a second card appears (I2).
 - AC10: Given focus on the footer's Details button, when the incident closes and the card compacts, then focus moves to the card itself through the focus rule (I7).
 - AC11: Given payloads without `groups`, `requests`, `evidence`, `traceTargets`, `itemNoun` or a known `state`, when the card renders, then it leaves out the parts they feed and still renders (`incident-view.test`; I4).
+- AC12 (owner decision U-108, applied by the runner after implement): Given an evidence item with one failure, when the Show details panel renders, then its item line reads "{item}: 1 failure, at {time}" (one time, the item's failure time), never "1 failures" and never "first X, last X"; given an item with more failures, then it reads "{item}: {count} failures, first {first}, last {last}". A unit test pins both forms, and `ux-strings`' ruled entry carries the new one-failure form.
+  - [ ] [Owner] U-108 condition: change `INCIDENT_TEXTS.itemLineOne` to `{item}: 1 failure, at {time}` and fill `{time}` in `incident-view.ts` (the page time `pageWhen` already gives item times); update `incident-view.test.mjs` (the one-failure line and the texts table) and the `ruled` entry in `ux-strings.test.mjs` ('Story 6.1 veto item V1 ... kept with U-108's condition'); the many-failure test stays. Write the Rule 19 `mutation:` line for it.
 
 ## Spec Change Log
+
+- 2026-10-27, runner (after implement, before QA): owner decision U-108 (answer 2026-10-27T06:47:31Z#330): V1's texts kept, with one condition: the one-failure item line reads "{item}: 1 failure, at {time}". Added as AC12 and an `[Owner]` task; the code-review stage applies it as a patch. U-109 (V2) kept, no change.
 
 ## Review Triage Log
 
