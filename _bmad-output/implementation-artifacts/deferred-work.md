@@ -1317,3 +1317,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.6 plan Task 0 on a warm throwaway: the mock log held 2 Triage requests (no tools, selectedBy prompt, guide-reminder); the triage decision was a fallback 'invalid'; the turn ended done with the scenario reply
 - 2026-10-27T17:18:09Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=CI-mock only (a real model triages normally); the demo path's CI trace shows an invalid triage decision for guide step 2; the fix is in the mock's request routing or scenario shape (ci/mock, contended), so it belongs with the end-to-end demo-path story
+
+### DW-314: live:sign-in runs every web/e2e spec but demo-path in one unit; locally the whole call now takes about 515 s (222 tests) against the 10-minute foreground cap every stage works under (OCUTALON_LIVE_DEADLINE=900 already needed), so the next story that adds browser cases to it cannot run it in one call
+- source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 8.3: 506 s (219); 8.4: 499-500 s (220); 8.6 implement: 515 s (222); local default deadline 540 s; CI deadline 1200 s (701 s on CI)
+- 2026-10-27T19:23:58Z status=escalated owner=burndown by=harvest note=fix is a split of the sign-in unit (docker/tests/test-sign-in.sh, contended) and its group entry (ci/units.sh, Lane B region), or a spec filter for local runs; for the owner/orchestrator at the decision sheet; Epic 8 adds no further browser cases
