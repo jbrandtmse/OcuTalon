@@ -2790,6 +2790,25 @@ So that the Watch and Checks tests stay reliable once the real heartbeat ticks e
 
 - DW-289: A real `HeartbeatIn` Tick (Epic 8 makes it tick every minute) runs every due check row and sweeps every quiet incident it finds, so the tests that make check rows due at once or quiet incidents 16 minutes old (`Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` — the occurrence from Story 5.7 —, and any `Test.Watch` fixture that makes check rows) can see a real Tick's run or close mid-test. Resolve it in this epic's own tests: fixture check rows that a real Tick does not find due (for example a `NextDueAt` in the future wherever a test does not mean to run them) and quiet-incident times that a real Tick does not sweep, while every test still proves what it proves; a test that must drive a Tick itself does so without a real Tick changing its outcome. If a pause hook from Epic 8 is still needed after that, leave that residual routed to `burndown` and say so (the orchestrator routes it to an open Epic 8 story) (ledger; routed by the orchestrator 2026-10-27)
 
+### Story 5.11: The demo guide's tests hold now that incidents are real
+
+[ADDED 2026-10-27, Epic 5 integrate-forward, unattended ruling (fix-forward, veto): after the feature branch (with Epic 4's demo guide) was merged into Epic 5, the guide's tests went red in CI because Epic 5's real `FailurePoller` and `IncidentManager` now turn real failures into noticed incidents that those tests do not clean up.]
+
+As a maintainer,
+I want the demo guide's tests to hold now that real failures become real, noticed incidents,
+So that the integrated feature branch stays green and each case's guide shows the step its own rows say.
+
+**Acceptance Criteria:**
+
+**Given** the floor unit's case that presses Break the feed for real (M4, `web/e2e/floor/guide.spec.ts`)
+**When** the case ends
+**Then** no incident or failure group of the FLOOR session that its press caused remains, including one that the real `IncidentManager` records or notices after the case's batch clean-up, so the next case's guide opens at the step its own rows say (CI runs 40525019781 and 40535207067: M7 "the page opens at step 3", M9 "while step 5 is current the box is the secondary style")
+
+**Given** a test that computes a new watching session's guide (`Test.Live.GuideRefresh` in lane-b, or any floor case)
+**When** earlier tests in the same stack sent real failing Orders messages
+**Then** no incident those tests left is visible to that session, whichever test made it (CI run 40525019781: `TestHookPublishesOnChange`, `TestEventsBodyServesTheGuide`)
+- DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide (ledger; routed by integrate-forward 2026-10-27)
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
