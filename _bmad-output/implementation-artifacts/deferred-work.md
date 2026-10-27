@@ -1275,3 +1275,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Core/AnswersInWebRoles.cls L383-395 against Test/Bridge/WebStatus.cls L469-476 (same Security.Users.Create call and password shape); unifying needs Lane A's class or Epic 16's Test/Data/Fixture
 - 2026-10-27T14:01:37Z status=wontfix-accepted owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=cr note=reopen_if=a third copy of the fixture-user helper appears, or WebStatus.CreateUser becomes public (Rule 2, spec-forced copy)
+
+### DW-308: The rail jump's fallback (the request's card is not in the chat, so focus goes to the chat list) has no browser case: changing CHAT_LIST to a wrong selector leaves every case green
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md (implement deferred) | severity: low | fix-risk: low | footprint: in-story
+- evidence: X6 covers the card-present path in both viewports and the no-button row; rail-view.test covers the jump fields only (web/src/app/rail/status-rail.ts jump())
+- 2026-10-27T18:05:33Z status=open owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=harvest note=LOW two-way door for code review to patch (one live:answers case)
