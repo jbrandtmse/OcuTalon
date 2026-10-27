@@ -26,6 +26,10 @@ Property Late As %Boolean [ InitialExpression = 0 ];
 /// When the row was created, UTC to the second.
 Property CreatedAt As %String(MAXLEN = 20);
 
+/// The start header of the reminder's waiter (a ReminderTimer): the id of its trace session and the target of its trace link (AD-18, AD-26).
+/// Empty until the waiter has started.
+Property TraceHeaderId As %Integer;
+
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefIndex On SessionRef;
@@ -56,6 +60,9 @@ Storage Default
 </Value>
 <Value name="8">
 <Value>CreatedAt</Value>
+</Value>
+<Value name="9">
+<Value>TraceHeaderId</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.ReminderD</DataLocation>

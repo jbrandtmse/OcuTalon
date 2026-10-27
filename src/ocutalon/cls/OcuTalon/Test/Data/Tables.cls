@@ -437,7 +437,8 @@ XData Contracts [ MimeType = application/json ]
    "DueAt": "%String(MAXLEN=20)",
    "State": "%String(MAXLEN=32)",
    "Late": "%Boolean",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "TraceHeaderId": "%Integer"
   },
   "indexes": {
    "RefIndex": "Ref unique",

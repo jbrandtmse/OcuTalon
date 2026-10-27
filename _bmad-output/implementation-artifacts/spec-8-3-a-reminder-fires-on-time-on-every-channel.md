@@ -2,9 +2,10 @@
 title: 'Story 8.3: A reminder fires on time on every channel'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'bc1638a54234fa3087bf8ecd14644dc43ff8e97b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
 warnings: [oversized]
@@ -205,6 +206,41 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
 
 ## Review Triage Log
 
+### 2026-10-27 - Review pass
+- verdicts: 31 findings - high 0, medium 4, low 24, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: `Start` ignores a failed lock on the row (looks like a missing row) -- nothing holds the row's lock when `Start` runs (`ReminderOps` has only saved it and no other job knows the Ref), so the bad outcome is not reachable in use; the fix adds a branch
+  - `[low]` `[reject]` Blind: `Wake`'s busy-lock retry has no limit -- a lock outlives its job only if the job is stuck; the retry is the chosen behaviour, now pinned by a test
+  - `[false]` `[reject]` Blind: unknown session answered `not_built` -- the spec's Always list mandates exactly this until Story 8.4
+  - `[low]` `[reject]` Blind: no fast unit test of `FromRow`'s trace branch -- `Test/Live/Payloads.cls` is a contended file; `Reminders` and `Web.Api` pin the branch
+  - `[low]` `[reject]` Blind: `ReminderFixture.Remove` matches web deliveries by session, kind and due time and phone deliveries by time -- only a test fixture; the reachable overlap (a later reminder notice of the rail user) is not read by any later spec
+  - `[low]` `[reject]` Blind: `Remove` leaves the session's live events -- no later spec reads the rail user's reminder events; the fix is not a direct correction
+  - `[low]` `[reject]` Blind: `DUE_SECONDS` 25 may be too short on a slow runner -- the number is the spec's, and raising it costs the 540 s local deadline (505 s measured); the row is asserted right after `signIn`
+  - `[low]` `[reject]` Blind: `afterEach` leaks the reminder when the script output cannot be parsed -- only on a failed set, and the throwaway is torn down
+  - `[medium]` `[patch]` Blind: the double's `SendRequestAsync` ignores the response-required flag -- the double now has `Wake`'s real signature, records the flag, and `TestWakeFiresOnTime` asserts it is 0; mutation recorded
+  - `[low]` `[reject]` Blind: `Accepts` has no length check on `Text` -- a too-long text fails the save and gets the plain failed answer; Story 8.4 owns refusals
+  - `[low]` `[reject]` Edge: `Wake`'s `%Save` fails and the reminder never fires -- the row passed validation when it was created and nothing else writes it; no realistic failure
+  - `[low]` `[reject]` Edge: unbounded busy-lock retry (same root cause as the Blind row)
+  - `[medium]` `[patch]` Edge: busy-lock branch untested (same root cause as the Verification Gap row below)
+  - `[low]` `[reject]` Edge: `Start` on a request that is not a `ReminderStart` -- only `ReminderOps` and Story 8.5 send to this item, both with `ReminderStart`
+  - `[low]` `[reject]` Edge: `%DeleteId` after a failed start is not checked -- the row is unlocked at that point, and a waiter that starts late finds no row and ends
+  - `[low]` `[reject]` Edge: an exception after a successful start answers failed with the waiter live -- the calls after the start return statuses and do not throw in use
+  - `[low]` `[reject]` Edge: a one-second reminder could fire before the created event is published -- needs `ReminderOps` stalled for over a second; the order (start, then created) is the spec's
+  - `[low]` `[reject]` Edge: `Wake` ignores the completion key -- the item's only response is the alarm
+  - `[medium]` `[patch]` Edge: the double's third parameter hides the response-required flag (same root cause as the Blind row)
+  - `[low]` `[reject]` Edge: `DUE_SECONDS` flake (same root cause as the Blind row)
+  - `[low]` `[reject]` Edge: `Remove` of a still-pending reminder leaves an `Ens.Alarm` that wakes a deleted process -- only after a failed test, in a throwaway
+  - `[low]` `[reject]` Edge: a failed `%DeleteId` leaves a reminder that fires after a failed answer (claim of Decided 4) -- same row as above; not reachable in use
+  - `[medium]` `[patch]` Gap: the row lock is not pinned (the "locked again" assertion cannot fail in the same process) and the busy-lock branch has no test -- the vacuous assertion is removed; `TestWakeBusyRowTriesAgain` holds the lock in a second job, asserts the 1 s timer, the warning, the later fire and that a third job gets the lock; mutation recorded
+  - `[low]` `[patch]` Gap: browser-only criteria have no recorded mutation -- the browser mutation (`Start` without `TraceHeaderId`) was run through `live sign-in` and is red on `reminder.spec.ts`; the other named behaviours are not separate ACs (one mutation per AC)
+  - `[low]` `[reject]` Gap: the real `StartWaiter` failure handling is never executed -- defensive path; the reviewer itself filed it as deferrable; Set's reaction to a failed status is pinned
+  - `[low]` `[reject]` Gap: `Start`'s non-pending branch is unreached -- first caller is Story 8.5's `Reconcile`, which owns it
+  - `[low]` `[patch]` Gap other: the `ReminderLogic` header says every text is written out, but one expectation uses `Data.Time.ForMessage` -- the header now says keys and slots
+  - `[false]` `[reject]` Gap other: `TestFiresOnEveryChannel` asserts demo mode instead of setting it -- the matrix row says the stacks' default, and the spec says "demo mode asserted on"
+  - `[low]` `[reject]` Gap other: card and phone texts compared through `Catalog.RenderAt` -- the literal wording is asserted in `reminder.spec.ts`
+  - `[low]` `[reject]` Gap other: `DUE_SECONDS` flake (same root cause as the Blind row)
+  - `[false]` `[reject]` Intent Alignment: descriptive report (readings A, B and C are implemented; D, the chat path, is excluded by the Never list) -- no divergence from the intent; its note that Task 0 is not in the diff is answered by Design Notes in the spec
+
 ## Design Notes
 
 **Governing ADs:**
@@ -255,6 +291,15 @@ Conventions: "Times", "Live events", "Notice cards", "Identifiers".
 10. `ReminderStart` lives in `OcuTalon.Schedule`: it is internal to the area, not a cross-lane contract.
 11. The browser spec is a new folder, `web/e2e/reminder/`. The page uses the rail user: only `rail.spec` reads that user, and it runs earlier in path order. The trace application uses the links user only, and it is signed out after.
 12. Expected cost of the browser spec: about 35 s added to `live:sign-in`, which was about 461 s against its 540 s deadline (inference until measured).
+13. Measured (implement, local ARM): `live:sign-in` took 503 s against the 540 s local deadline (219 tests passed, `reminder.spec.ts` among them; about 42 s more than the 461 s before). CI's deadline is 1200 s.
+14. Matrix rows that a production cannot show without a wait of more than 10 s or a broken send (early wake, late wake, failed send) are tested on a hand-made stand-in for the waiter (`Test.Schedule.ReminderTimerDouble`, passed to `Reminder.Wake`, which only uses `Ref`, `SetTimer` and `SendRequestAsync`), and the created event that fails by a `ReminderOps` subclass whose seam answers OK, run inside an open transaction, where `Live.Publish` refuses (rolled back afterwards).
+15. Decided in-stage (implement): a `Text` of blanks only is not carried out (`Accepts` strips it), because a blank reminder would fire an empty card; it gets `not_built` like empty text. A row whose lock another job holds when the waiter wakes is not dropped: `Wake` logs a warning and sets the timer for 1 s again, and `TestWakeBusyRowTriesAgain` pins it with a second job that holds the lock.
+
+**Task 0 results (implement stage, warm throwaway):**
+- (a) Measured. `ReminderOps` clears `..%SessionId`, sets `..%SuperSession` to the session row's `TraceRef`, calls `SendRequestSync` to `ReminderTimer`, and restores both. The start header (id 19 in one run) is its own session's first header: `SessionId` = its id, `SuperSession` = `TraceRef`. The `ReminderTimer` to `Ens.Alarm` request, the waiter's answer to the start and the later wake all carry that session id. `ReminderOps`' answer header to `CommandsIn` stayed in the command's session (id 18, the `CommandsIn` to `ReminderOps` request's own header). `$$$JobSessionId` does not move: a probe subclass that logged it before and after the start read the command's session id both times (25, 25), and `..%SessionId`/`..%SuperSession` were back to their old values. So only `%SessionId` and `%SuperSession` are restored.
+- (b) Measured. Eight reminders set 130 ms apart with `DueAt` 4 s ahead all fired 163 to 1051 ms after `DueAt` (the `ReminderTimer` to `Notify` header's `TimeCreated` minus `DueAt`); none early, none late. The wait is counted from `NowUtc` cut to the second, so a wake is never before `DueAt`. The early-wake rule stays as a guard against `Ens.Alarm` waking sooner; no early wake was seen (inference for the general case, since eight samples cannot prove it).
+- Found while measuring: a completed `ReminderTimer` instance is deleted by the framework, so a test waits for "no live instance", not for `%IsCompleted` on a row. A product class that a production item runs (`ReminderOps`, `ReminderTimer`, `Schedule.Reminder`) is picked up by a warm stack only after the item restarts (`Ens.Director.EnableConfigItem` off and on); `ci/iris.sh` with `OCUTALON_WARM=1` reloads classes but does not restart items.
+- Found while building: after `StartWaiter`, `ReminderOps` must release its own open row before it reopens the row, because `RefIndexOpen` on a row that is still open in the process returns that stale in-memory object, without the `TraceHeaderId` that the waiter wrote.
 
 **Footprint extensions to report:** `src/ocutalon/cls/OcuTalon/Live/Payload/Reminder.cls` (Lane B; contended by no running epic) and the new `web/e2e/reminder/reminder.spec.ts`.
 
@@ -284,6 +329,25 @@ Conventions: "Times", "Live events", "Notice cards", "Identifiers".
 - AC 4: the waiter fires on its first wake and is armed for 1 s -> `TestFiresOnEveryChannel` (created before `DueAt`). A second send -> `TestFiresOnEveryChannel` (two cards).
 - The Telegram route: the Notification without `SessionRef` -> the paired route check.
 
+Observed on the warm throwaway `e8s3iw` (each reverted, `git status --short` and `git diff --stat` as before, and `Reminders` and `ReminderLogic` green again on the same stack):
+- mutation: `ReminderOps` skips the created publish -> `Reminders.TestSetAndWaiting` (the event and the rail asserts; `TestFiresOnEveryChannel` too: only one reminder event)
+- mutation: `Reminder.Start` writes no `TraceHeaderId` -> `Reminders.TestSetAndWaiting` (the row id, the event's and the rail's trace target, the waiter session's headers) and `TestFiresOnEveryChannel`; the link in `reminder.spec.ts` was not run (the sign-in unit is the parent's)
+- mutation: `ReminderOps` keeps `%SessionId` (does not clear it) -> `Reminders.TestSetAndWaiting` (the waiter's session has no headers) and `TestFiresOnEveryChannel`
+- mutation: `Wake` ignores `State` -> `Reminders.TestSetAndWaiting` (a cancelled row still sends to `Notify`, publishes a second event and is marked fired)
+- mutation: `IsLate` uses `>=` -> `ReminderLogic.TestTimes` ("10 seconds after is on time")
+- mutation: the waiter fires on its first wake, armed for 1 s -> `Reminders.TestFiresOnEveryChannel` (created and recorded before `DueAt`)
+- mutation: a second `SendRequestAsync` to `Notify` -> `Reminders.TestFiresOnEveryChannel` (two `Notify` headers, two cards, two phone messages, two events)
+- mutation: the Notification without `SessionRef` -> `Reminders.TestFiresOnEveryChannel` (no card, and the paired route check)
+- Matrix rows the production cannot show (an early wake, a late wake, a failed send, a created event that fails), run on `Test.Schedule.ReminderTimerDouble` and `ReminderOpsStartedProbe` in `ReminderLogic`:
+  - mutation: `Wake` never sets the timer again (the early-wake `If` made `If 0`) -> `ReminderLogic.TestWakeEarlySetsTimerAgain`
+  - mutation: `Wake` computes `late` as 0 -> `ReminderLogic.TestWakeFiresLate`
+  - mutation: `Wake` does not log a failed send -> `ReminderLogic.TestWakeSendFails`
+  - mutation: `ReminderOps` answers failed when the created event is not published -> `ReminderLogic.TestCreatedEventFailureStillSets`
+  - mutation: `Wake` ends the waiter instead of setting the timer again when the row's lock is busy (`Quit $$$OK` in that branch) -> `ReminderLogic.TestWakeBusyRowTriesAgain`
+  - mutation: `Wake` sends to `Notify` with the response required (the `0` dropped) -> `ReminderLogic.TestWakeFiresOnTime` ("no answer is waited for")
+  - each reverted from a backup, `git status --short` and `git diff --stat` as before, and `ReminderLogic` green again on the same stack.
+- mutation: `Reminder.Start` writes no `TraceHeaderId` (run through `ci/iris.sh live sign-in`, tag `e8s3ir`) -> `web/e2e/reminder/reminder.spec.ts` red at the header assertion (the other 218 passed); reverted from a backup, tree identical.
+
 **Shared surfaces:**
 - the `Data.Reminder` contract (`Test.Data.Tables`, the one ruled line);
 - the `ReminderTimer` oracle row (`Test.Install.Production.TestStubsAnswer`);
@@ -299,5 +363,26 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** A reminder now works end to end on a UTC `DueAt`. `ReminderOps` saves the row, starts a frozen `ReminderTimer` synchronously in a trace session of its own (under the session's `TraceRef`), publishes the created event and answers `set`. The waiter stores its start header id on the row (`Reminder.TraceHeaderId`, so the rail row and events carry a trace link), waits on `SetTimer`, and on wake takes the row lock, marks it fired (late beyond 10 s), sends one `reminder.due` or `reminder.late` Notification to `Notify`, releases the lock and publishes the fired event. Every other due form and verb still answers `not_built`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Reminder.cls`: `TraceHeaderId`, storage slot 9.
+- `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls` (new): the logic (`Accepts`, `SecondsUntil`, `IsLate`, `Notification`, `Start`, `Wake`).
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderStart.cls` (new): the start request.
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderTimer.cls`: the frozen waiter, `Ref` only.
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls`: the set path.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Reminder.cls`: `FromRow` carries the trace target.
+- `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`, `Test/Data/Tables.cls`: the `ReminderTimer` oracle row `stub: 0`; the one ruled contract line.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/`: `Reminders` (production), `ReminderLogic`, `ReminderFixture`, `ReminderOpsProbe`, `ReminderOpsStartedProbe`, `ReminderTimerDouble` (new).
+- `web/e2e/reminder/reminder.spec.ts` (new): the rail row, its trace link, Visual Trace and the notice card in a real browser.
+
+**Review.** 31 findings from four layers: 4 medium (patched), 24 low (3 patched, 21 rejected with reasons in the triage log), 3 false. Patches: a `ReminderLogic` test that holds the row lock in a second job (and the removal of an assertion that could not fail), the double's real `SendRequestAsync` signature with an assertion that the send needs no response, the browser mutation run, and one comment. Items deferred: none.
+
+**Verification.** On a warm throwaway: `ReminderLogic`, `Reminders`, `Install.Production`, `Data.Tables`, `Live.Payloads`, `Core.CommandsInProduction`, `Web.Api` passed; lint exit 0. On fresh throwaways after the last patch: `shard lane-b` forward and `--reverse` (63 classes each), `shard lane-a` (47 classes) and `live sign-in` (219 passed, 505 s against the 540 s local deadline) passed; `npm --prefix web test` (691) and `bash ci/checks.sh` passed. Fifteen mutations were observed red and reverted (see Verification).
+
+**Residual risks.** `live:sign-in` is 505 s locally against 540 s (CI allows 1200 s). `TestWakeBusyRowTriesAgain` takes about 14 s and starts jobs, so it is new ground for flakiness on a slow runner. The reminder spec's 25 s due time leaves little slack on a slow CI runner `(inference)`.
+
+**Follow-up review recommended: true.** Two medium entries were patched (the busy-lock test and the double's send signature). The unverified risk is `TestWakeBusyRowTriesAgain`: it runs in a second job and waits on wall-clock, and has been observed only on the developer machine (about 14 s, in the forward and reverse shards and warm).
