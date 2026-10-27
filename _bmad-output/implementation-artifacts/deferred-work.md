@@ -1312,3 +1312,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-4-set-list-and-cancel-reminders-in-plain-words.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Reminders.cls:278 and ReminderLogic.cls Rows: the same 3-line COUNT; the two test classes have different bases, as in the other Test areas' own Rows helpers
 - 2026-10-27T15:16:12Z status=wontfix-accepted owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=reopen_if=a third copy of the Reminder-rows count appears under Test/Schedule, or the two copies stop counting the same rows
+
+### DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes
+- source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 8.6 plan Task 0 on a warm throwaway: the mock log held 2 Triage requests (no tools, selectedBy prompt, guide-reminder); the triage decision was a fallback 'invalid'; the turn ended done with the scenario reply
+- 2026-10-27T17:18:09Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=CI-mock only (a real model triages normally); the demo path's CI trace shows an invalid triage decision for guide step 2; the fix is in the mock's request routing or scenario shape (ci/mock, contended), so it belongs with the end-to-end demo-path story
