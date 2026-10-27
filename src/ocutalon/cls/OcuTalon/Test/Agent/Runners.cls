@@ -23,7 +23,7 @@
 ///     literals: none for Triage, cancel_reminder, list_reminders and set_reminder for Chat since Story 1.10, read_event_log, read_failed_messages and
 ///     read_item_settings for Diagnosis), and Diagnosis's second
 ///     request carries the result of its tool as the JSON object {"items":[]}, not as a JSON string;
-///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent (none for Triage, the three reminder tools for Chat and the three
+///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent (none for Triage, the three reminder tools and the four watching tools for Chat and the three
 ///     read-only watch tools for Diagnosis) and no AI Hub shell, filesystem, SQL or web-search tool, and every tool is an OcuTalon tool of source iris whose
 ///     code is clean (Test.Bridge.CodeRules.ToolCodeClean) and whose provider is the class that implements it;
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
@@ -40,9 +40,9 @@
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
 /// Added by Story 1.8 (AD-6): the turn that TestRequestsUnderTheModelRules sends to ChatAgent is linked to a conversation, so it saves an AI session
 /// and a link, which OnAfterOneTest deletes (RunnerFixture.DropSince).
-/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS, its system
+/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS (seven since Story 5.9: dismiss_incident), its system
 /// prompt (which now holds the watch sentences) reaches min_tokens_for_cache, so AssertRequests expects Chat's system block marked (systemMarked 1), and
-/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch and list_productions.
+/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch, list_productions and dismiss_incident.
 /// Added by Story 5.4 (AD-6, AD-7): Diagnosis's instructions now describe the evidence pack and the reply object, so its system prompt reaches min_tokens_for_cache
 /// and AssertRequests expects Diagnosis's system block marked (systemMarked 1), as Chat's is; its tools take no argument and the final text is the
 /// DiagnosisPayload object of diagnosis.json.
@@ -69,8 +69,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the three watch tools (AD-7, AD-18).
-Parameter REMINDERTOOLS = "cancel_reminder,list_productions,list_reminders,set_reminder,start_watch,stop_watch";
+/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Story 5.9 dismiss_incident among them.
+Parameter REMINDERTOOLS = "cancel_reminder,dismiss_incident,list_productions,list_reminders,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -306,7 +306,7 @@ Method TestRequestsUnderTheModelRules()
 }
 
 /// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and the three runners hold exactly
-/// the tools of their agents: none for Triage, the three reminder tools and the three watch tools (each a method of Tools.WatchTools) for Chat, the
+/// the tools of their agents: none for Triage, the three reminder tools and the four watching tools (each a method of Tools.WatchTools) for Chat, the
 /// three read-only watch tools for Diagnosis. No AI Hub shell, filesystem,
 /// SQL or web-search tool is registered.
 Method TestToolInventory()
@@ -314,7 +314,7 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point() Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
-	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
@@ -324,6 +324,7 @@ Method TestToolInventory()
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#STARTWATCH) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#STOPWATCH) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS) = "OcuTalon.Tools.WatchTools"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT) = "OcuTalon.Tools.WatchTools"
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {

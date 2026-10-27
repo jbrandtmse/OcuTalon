@@ -6,7 +6,7 @@
 /// The rows of the I/O matrix of the spec:
 ///   - TestSafeBuiltInIsAllowedAndReported (1): a safe built-in is allowed and fires turn.step once, with the owner and the exact payload; a sink in
 ///     error or throw mode changes nothing but one warning;
-///   - TestWatchToolsAreClassified (2, DW-143): the three watch tools are safe and read-only by code, and TestEveryBuiltInToolIsClassified scans every
+///   - TestWatchToolsAreClassified (2, DW-143): the three watch tools are safe and read-only by code, the watching tools are safe and trusted output (dismiss_incident, Story 5.9, is not read-only), and TestEveryBuiltInToolIsClassified scans every
 ///     built-in tool;
 ///   - TestRiskyByCodeAndUnclassified (3, 4; Story 3.6 rows 1 and 2): risky in code and unclassified calls are held (an approval request is raised
 ///     and the call is denied with HELD) and fire no turn.step;
@@ -88,7 +88,7 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident";
 
 Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings";
 
@@ -206,8 +206,9 @@ Method TestSafeBuiltInIsAllowedAndReported()
 }
 
 /// Row 2 (DW-143): the three watch tools are safe, read-only and not trusted output, classified by code. The three reminder tools are trusted output
-/// (Story 3.3: their answers are built by code): list_reminders is read-only, set_reminder and cancel_reminder are not. So are the three watching tools of
-/// Story 5.1 (veto U-80): list_productions is read-only, start_watch and stop_watch are not.
+/// (Story 3.3: their answers are built by code): list_reminders is read-only, set_reminder and cancel_reminder are not. So are the watching tools of
+/// Story 5.1 (veto U-80): list_productions is read-only, start_watch and stop_watch are not. So is dismiss_incident of Story 5.9 (veto U-102), which is not
+/// read-only.
 Method TestWatchToolsAreClassified()
 {
 	For name = "read_failed_messages", "read_event_log", "read_item_settings" {
@@ -227,6 +228,8 @@ Method TestWatchToolsAreClassified()
 	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 0, "trustedOutput": 1, "by": "code"}.%ToJSON(), "stop_watch is safe, not read-only and trusted output")
 	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(..#WATCHING, "list_productions")
 	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 1, "by": "code"}.%ToJSON(), "list_productions is safe, read-only and trusted output")
+	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(..#WATCHING, "dismiss_incident")
+	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 0, "trustedOutput": 1, "by": "code"}.%ToJSON(), "dismiss_incident is safe, not read-only and trusted output")
 }
 
 /// DW-143's scan: every tool of every toolset of OcuTalon.Tools is classified by code (safe or risky), so that no built-in tool is held as
@@ -1561,7 +1564,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 
 /// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders and the test tool zz_gate_read are
 /// allowed, each reports one turn.step, and the taint ends as the tool says (list_reminders is trusted output, zz_gate_read is not); in a fresh context every
-/// other call (set_reminder, cancel_reminder, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
+/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
 /// with UNTRUSTED, runs no method, reports nothing, leaves the taint as it was and raises no approval request. The ClassificationClass setting is the test's.
 Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label As %String) [ Private ]
 {
@@ -1588,7 +1591,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 	Kill ^||ZzProbeSink
 	Set request = ..Begin("turn", provenance)
 	If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
-	Set cases = $ListBuild($ListBuild("set_reminder", ..#REMINDERS), $ListBuild("cancel_reminder", ..#REMINDERS), $ListBuild("start_watch", ..#WATCHING), $ListBuild("stop_watch", ..#WATCHING), $ListBuild("zz_change_endpoint", ..#TOOLS), $ListBuild("zz_gate_held", ..#TOOLS), $ListBuild("zz_gate_risky_read", ..#TOOLS), $ListBuild("zz_approve_requests", ..#TOOLS), $ListBuild("zz_mcp_safe", "mcp:zzserver"))
+	Set cases = $ListBuild($ListBuild("set_reminder", ..#REMINDERS), $ListBuild("cancel_reminder", ..#REMINDERS), $ListBuild("start_watch", ..#WATCHING), $ListBuild("stop_watch", ..#WATCHING), $ListBuild("dismiss_incident", ..#WATCHING), $ListBuild("zz_change_endpoint", ..#TOOLS), $ListBuild("zz_gate_held", ..#TOOLS), $ListBuild("zz_gate_risky_read", ..#TOOLS), $ListBuild("zz_approve_requests", ..#TOOLS), $ListBuild("zz_mcp_safe", "mcp:zzserver"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set name = $List(case, 1)
@@ -1613,6 +1616,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		$ListBuild("OcuTalon.Tools.Reminders", "cancel_reminder", "{""reminderRef"":""x""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "start_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "stop_watch", "{""name"":""Orders""}"),
+		$ListBuild("OcuTalon.Tools.Watching", "dismiss_incident", "{}"),
 		$ListBuild(injection, "zz_change_endpoint", "{""url"":""https://order-partner.example/new-orders""}"),
 		$ListBuild(sample, "zz_gate_held", "{}"),
 		$ListBuild(injection, "zz_gate_risky_read", "{}"),

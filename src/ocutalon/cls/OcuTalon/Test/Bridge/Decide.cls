@@ -1581,7 +1581,7 @@ Method TestEstimateTokens()
 	Set reminders = $Length(##class(OcuTalon.Tools.Reminders).%New().%Discover().%Get("tools").%ToJSON())
 	Do $$$AssertTrue(reminders > 500, "the JSON of the three Reminders tools is measured: "_reminders)
 	Set watching = $Length(##class(OcuTalon.Tools.Watching).%New().%Discover().%Get("tools").%ToJSON())
-	Do $$$AssertTrue(watching > 500, "the JSON of the three Watching tools is measured: "_watching)
+	Do $$$AssertTrue(watching > 500, "the JSON of the Watching tools is measured: "_watching)
 	Set reminders = reminders + watching
 	Do $$$AssertEquals(chat, prompt + reminders, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders and Watching toolsets' tools, "_reminders)
 	Do $$$AssertTrue((catalog '< reminders) && ((catalog - reminders) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)

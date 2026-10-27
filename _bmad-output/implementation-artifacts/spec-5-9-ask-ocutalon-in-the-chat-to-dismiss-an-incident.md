@@ -2,7 +2,8 @@
 title: 'Ask OcuTalon in the chat to dismiss an incident'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ff0081c2105c008103f99e7400038d8e7b38ad26'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -136,6 +137,30 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 20 findings - high 0, medium 0, low 13, false 7, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: unknown_incident instruction ignores `others` - the instruction block is the intent contract's own text and the reply "no open or resolved incident like that" is true for a busy incident; fixing it edits the intent (spec-bound, by-design).
+  - `[low]` `reject` Blind: ambiguous/unknown entries are named by production and `since` only - the same intent-contract text (spec-bound, by-design); state and count are in the entries for the model.
+  - `[low]` `reject` Blind: no cap on listed incidents - `Ownership.Incidents` is the session's noticed incidents; no user-reachable size problem shown (wontfix-theoretical).
+  - `[low]` `reject` Blind: no test for INCIDENTSNOTREAD - a failed `Ownership.Incidents` read cannot be forced without a seam in contended `Data/Ownership.cls`; reopen_if=a seam for the read exists.
+  - `[low]` `reject` Blind: no test for the guarded Data parsing in `Dismissed` - the real `IncidentManager` always writes well-formed Data; the guard is defensive (wontfix-theoretical).
+  - `[low]` `reject` Blind: instruction tests miss branches - static text; the matrix and AC 5 pin the block by the substrings the spec names.
+  - `[false]` `reject` Blind: Integration AC only partly covered - AC 1 is the one Integration AC and `Turns.TestDismissThroughTheAgent` runs it with the real `CommandsIn` and `IncidentManager`; ambiguous and production flows are matrix rows covered by `Tools`.
+  - `[low]` `reject` Blind: hard-coded DISMISSABLE/BUSY duplicate the state machine - AD-15's table is what the spec states; the states are strings of the same two code paths (wontfix-accepted).
+  - `[low]` `reject` Edge: empty Namespace/Production as a local subscript - `IncidentManager` always sets both on creation; no reachable row has them empty (wontfix-theoretical).
+  - `[low]` `reject` Edge: whitespace around the `incident` ref - the model copies the ref from the answer; fix adds a branch for an unlikely call.
+  - `[low]` `reject` Edge: busy incident of a named production gives unknown_incident - same as the first Blind row (spec-bound, by-design).
+  - `[false]` `reject` Edge: `since` empty when FirstAt is empty - `FirstAt` is set when the incident is created.
+  - `[false]` `reject` Edge: incident leaves open/resolved between resolve and dismiss - the owner answers refused, which the tool returns as a refusal with the owner's message (`TestRefusal`) and the "anything else" instruction covers.
+  - `[false]` `reject` Edge: silent Catch in `Dismissed` - same as the Data-parsing row above; omission is the specified behavior ("left out otherwise, with no warning").
+  - `[false]` `reject` Edge (claim): candidates are not only the session's own - the spec and AD-4 say so: instance incidents of watched productions on a local install, pinned by `TestDismissInstance`.
+  - `[low]` `patch` VG: AC 6 (CodeRules) has no `mutation:` line - applied `##class(OcuTalon.Data.Incident).%New()` in `ResolveIncident`, `Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` went red, reverted byte-identically, green again; the line is in `## Verification`.
+  - `[false]` `reject` VG: several AC 2 matrix rows lack their own mutation - Rule 19 asks one mutation per AC, and AC 2 has six recorded.
+  - `[low]` `reject` VG: INCIDENTSNOTREAD has no test - same as the Blind row (reopen_if=a seam exists).
+  - `[low]` `reject` VG: Dismissed Data-parsing branches partly exercised - same as the Blind row.
+  - `[false]` `reject` Intent alignment: descriptive report (readings R1 to R3; the diff implements R1 and runs R2 through the CI mock) - no divergence from the intent's surface; the end-to-end turn runs through Decide with the real `CommandsIn` and `IncidentManager`.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -192,6 +217,10 @@ Conventions: "Incident commands" (`Data` `{state, openVariant}`; `Message` is de
 - **No Task 0.** The tool relies on nothing new on the platform. An optional argument is `start_watch`'s `namespace`; an empty tool input is `chat.json`; an ownership read inside the callback is `ResolveStop`.
 - **`Test.Bridge.CodeRules` needs no new entry.** `Ownership`, `BackgroundCheck`, `Incident`, `Reader`, `Time` and `CommandCall` are already in `CALLBACKHELPERS`; it is run to confirm.
 
+- **The matching entries carry the answer entry.** `Reader.Matches` needs the class name in `production`, while the answer's `production` is the display name, so `WatchAnswers.ResolveIncident` matches on `{"namespace", "production" (class), "displayName", "entry"}` and the answer holds only the `entry` of each (the six keys of Always).
+- **A blank `production` is not given.** A `production` that is empty after trimming white space is left out, so the call keeps all candidates; an `incident` is compared exactly.
+- **The injected-turn assertions are shared.** `TestInjectedStop` and `TestInjectedDismiss` both use `Test.Watch.Turns.AssertDenied` (the steps, the untouched owner item and the denial text in the second request), so the second test extends the first instead of copying it.
+
 **Footprint extensions** (none contended): `Agent/Chat.cls`; `Test/Agent/{Instructions,Runners}.cls`; `Test/Bridge/{Gate,Decide}.cls`. The tests in `Test/Bridge` change only their tool-list assertions.
 
 ## Verification
@@ -234,9 +263,46 @@ Conventions: "Incident commands" (`Data` `{state, openVariant}`; `Message` is de
 | AC 5 | the dismiss block is left out of Chat's instructions | `Instructions.TestChat` |
 | AC 5 | `dismiss_incident` is left out of `Watching` | `Tools.TestDeclarations`, `Instructions.TestToolsets`, `Runners.TestToolInventory` |
 
+**Mutations applied (Rule 19)** -- each applied to the tree, run, observed red, reverted byte-identically (`git diff` hash and `git status --short` hash equal before and after), and the class green again on the same warm stack (Turns and Runners run on a fresh stack, which a revert leaves untouched):
+- mutation: `DISMISSABLE` "open,resolved,closed" (C also takes `closed` rows) -> `Tools.TestDismissOne` red (also `TestDismissNone`, `TestDismissUnknown`)
+- mutation: `DISMISSABLE` "open,resolved,awaiting_approval" (C also takes busy rows) -> `Tools.TestDismissNone` red (also `TestDismissUnknown`)
+- mutation: `Ownership.Incidents("instance")` instead of the session -> `Tools.TestDismissOne` red (also `TestDismissInstance`, `TestDismissNone`, `TestDismissPicks`, `TestDismissUnknown`, `TestNoSession`, `TestRefusal`, `TestSubmitEmpty`, `TestSubmitFails`)
+- mutation: the `production` branch replaced by `If 0` (production ignored) -> `Tools.TestDismissPicks` red (also `TestDismissUnknown`)
+- mutation: a ref that is no candidate is submitted (`match` made from `incident`) -> `Tools.TestDismissUnknown` red
+- mutation: a `continue` for rows whose `OwnerRef` is not the session -> `Tools.TestDismissInstance` red
+- mutation: `ResolveIncident` called, with the context's owner, before `CommandCall.Session` -> `Tools.TestNoSession` red
+- mutation: `state` not taken from `Data` (`If 0` for the Data branch) -> `Tools.TestDismissOne` red (also `TestDismissInstance`), and `Turns.TestDismissThroughTheAgent` red (fresh)
+- mutation: `DismissIncident` answers `closed` from a made-up CommandResult without `CommandCall.Run` -> `Turns.TestDismissThroughTheAgent` red (fresh)
+- mutation: `CLASSIFICATIONDISMISSINCIDENT` "risky" -> `Turns.TestDismissThroughTheAgent` red (fresh) and `Gate.TestWatchToolsAreClassified` red
+- mutation: `READONLYDISMISSINCIDENT` 1 -> `Tools.TestDeclarations` red; `Gate.TestFlagsAreListed`, `TestWatchToolsAreClassified`, `TestUntrustedTurnRunsOnlySafeReadOnly` and `TestTaintedTurnRunsOnlySafeReadOnly` red; `Turns.TestInjectedDismiss` red (fresh)
+- mutation: `TRUSTEDOUTPUTDISMISSINCIDENT` 0 -> `Gate.TestFlagsAreListed` and `Gate.TestWatchToolsAreClassified` red
+- mutation: the dismiss block cut from Chat's INSTRUCTIONS -> `Instructions.TestChat` red
+- mutation: the `dismiss_incident` Tool element removed from `Watching` -> `Tools.TestDeclarations`, `Instructions.TestToolsets` and `Runners.TestToolInventory` (fresh, also `TestRequestsUnderTheModelRules`) red
+- mutation: `Set mutant = ##class(OcuTalon.Data.Incident).%New()` added to `WatchAnswers.ResolveIncident` (AC 6: the tool's helper opens an incident for writing) -> `Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` red (warm; green again on the same stack after the byte-identical revert)
+
+**Loop results (Lane A, this tree):** `docker/tests/test-mock.sh` 94 of 94 passed; warm `Watch.Tools`, `Bridge.Gate`, `Agent.Instructions`, `Bridge.CodeRules`, `Bridge.Decide` passed; fresh `Watch.Turns`, `Agent.Runners`, `Tools.Reminders` passed.
+
+**Once results (Lane A, this tree):** `shard lane-a` part 1/3 passed (22 classes, 341 s), part 2/3 passed (22 classes, 158 s), part 3/3 passed (21 classes, 402 s); `shard lane-b` passed (42 classes, 129 s); `bash ci/checks.sh` all scripts passed; `ci/warm.sh down` (e5s9iw) and `ci/iris.sh teardown` (e5s9i) left no stack.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). One veto item for the spec gate, not blocking: V1, `dismiss_incident` as trusted output (recommended; the spec is written to it), with a spine candidate for the "Tool classification" row. Ledger inbox: none. Footprint extensions: `Agent/Chat.cls`, `Test/Agent/{Instructions,Runners}.cls`, `Test/Bridge/{Gate,Decide}.cls`.
+**Summary:** the Chat agent has `dismiss_incident` (safe, not read-only, trusted output; veto U-102). It finds the one open or resolved incident among the session's noticed incidents (the `incident` ref, the `production` name, or all), submits `Msg.Command.Dismiss` through `CommandCall.Run`, and answers with the owner's outcome, production, ref and state; ambiguous, unknown and no-incident are refusals that submit nothing. Chat's instructions say how to answer each outcome. The tool-list assertions of the shared surfaces are updated to seven tools.
+
+**Files changed:**
+- `Tools/WatchAnswers.cls`: `ResolveIncident`, `Dismissed`, helpers and parameters.
+- `Tools/WatchTools.cls`: `DismissIncident` and its four class parameters.
+- `Tools/Watching.cls`: the `dismiss_incident` tool.
+- `Agent/Chat.cls`: the dismiss instruction block.
+- `Test/Tools/CommandsDouble.cls`: the `Dismiss` answer.
+- `ci/mock/scenarios/A/incident-dismiss.json`, `incident-dismiss-injected.json`: the two scenarios.
+- `Test/Watch/Tools.cls`, `Test/Watch/Turns.cls`: new tests and the extended shared ones.
+- `Test/Bridge/Gate.cls`, `Test/Bridge/Decide.cls`, `Test/Agent/Instructions.cls`, `Test/Agent/Runners.cls`, `Test/Tools/Reminders.cls`: tool-list and instruction assertions.
+
+**Review:** 20 findings from four layers; 1 patch applied (the AC 6 mutation line, a Rule 19 LOW closed in-pass), 0 deferred, 19 rejected with the recorded reasons (spec-bound instruction wording, theoretical, false, or a descriptive audit). Follow-up review recommended: false (no HIGH or MEDIUM patched).
+
+**Verification:** `docker/tests/test-mock.sh` 94 of 94; all (loop) classes passed; `shard lane-a` parts 1/3, 2/3 and 3/3 passed; `shard lane-b` passed; `bash ci/checks.sh` passed; 15 pinning mutations observed red and reverted.
+
+**Residual risks:** the failed-read answer (INCIDENTSNOTREAD) and the malformed-Data branch of `Dismissed` have no test (no seam without a contended-file change). The implement stage put two IRIS test runs in one message once; they ran one after the other and both passed.

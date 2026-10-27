@@ -6,6 +6,13 @@
 ///   - ResolveStop is Resolve for stop_watch: the session's own watches come first (read through the ownership API, DW-222), so that a watch on a
 ///     production that the reader no longer lists can still be stopped. One own match is the one; several are ambiguous; none falls back to Resolve.
 ///   - Submitted is the answer of a command that the owner answered: CommandCall.Answer with the owner's outcome and the production's display name.
+///   - ResolveIncident is the resolution of dismiss_incident: the session's noticed open or resolved incidents (read through the ownership API) are the
+///     candidates and its awaiting_approval or fixing ones the busy ones, each as an entry {"ref", "production", "state", "openVariant", "since", "count"}
+///     built in code from the row. The incident argument picks a candidate by its ref, the production argument keeps the candidates that Reader.Matches
+///     keeps, and without either all are kept. One match is the one; several are ambiguous; none is unknown_incident; no candidate at all is no_incident.
+///     Nothing is submitted for a refusal, and no text of the incident from outside the instance (cause, element, fix summary, sample error) is read.
+///   - Dismissed is the answer of the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the entry's production and ref, and the
+///     state and openVariant that the owner's Data holds.
 ///   - Listed is the answer of list_productions.
 ///   - Joined joins names with ", " and with " and " before the last one.
 /// A tool method runs inside AI Hub's callback, so this class makes no AI Hub call and no Python call (AD-6).
@@ -17,6 +24,14 @@ Parameter KIND = "production";
 
 /// The list of the answer unknown_production when no production can be watched at all.
 Parameter NOPRODUCTIONS = "no productions";
+
+/// The answer when the session's incidents cannot be read: nothing is dismissed.
+Parameter INCIDENTSNOTREAD = "The incidents of this conversation could not be read, so nothing was dismissed.";
+
+/// The states of the incidents that dismiss_incident can close, and the states in which an incident is busy and cannot be dismissed (AD-15).
+Parameter DISMISSABLE = "open,resolved";
+
+Parameter BUSY = "awaiting_approval,fixing";
 
 /// Resolves the name through the reader: "" and the one matching entry in match, or the refusal answer for the model (see Decide) and nothing to
 /// submit. The list of the productions is read only when it is needed for the answer.
@@ -65,6 +80,91 @@ ClassMethod Decide(name As %String, matches As %DynamicArray, onlineDemo As %Boo
 	}
 	Set names = ..Names(productions)
 	Quit {"ok": false, "outcome": "unknown_production", "name": (name), "list": (..Joined(names)), "productions": (names)}
+}
+
+/// Resolves the incident of a dismiss_incident call for the session. "" and the one matching entry in match, or the refusal answer for the model and
+/// nothing to submit: {"ok": false, "message": INCIDENTSNOTREAD} when the incidents cannot be read, {"ok": false, "outcome": "no_incident", "others": [busy]}
+/// when no incident can be dismissed, {"ok": false, "outcome": "ambiguous", "incidents": [matches]} for several matches and {"ok": false, "outcome":
+/// "unknown_incident", "incidents": [candidates], "others": [busy]} for none. An entry is {"ref", "production" (the display name of the session's own
+/// watch of the production, else the row's production), "state", "openVariant", "since", "count"}.
+ClassMethod ResolveIncident(production As %String, incident As %String, sessionRef As %String, Output match As %DynamicObject) As %DynamicObject
+{
+	Set match = ""
+	Set rows = ##class(OcuTalon.Data.Ownership).Incidents($Get(sessionRef), .sc)
+	If $$$ISERR(sc) || '$IsObject(rows) Quit {"ok": false, "message": (..#INCIDENTSNOTREAD)}
+	Do ..WatchNames($Get(sessionRef), .names)
+	Set candidates = [], busy = []
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		Set state = row.State
+		Set display = $Get(names(row.Namespace, row.Production))
+		Set entry = {"ref": (row.Ref), "production": ($Select(display '= "": display, 1: row.Production)), "state": (state), "openVariant": (row.OpenVariant), "since": (##class(OcuTalon.Data.Time).ForMessage(row.FirstAt)), "count": (+row.Count)}
+		If $ListFind($ListFromString(..#DISMISSABLE), state) {
+			Do candidates.%Push({"namespace": (row.Namespace), "production": (row.Production), "displayName": (entry.production), "entry": (entry)})
+		} ElseIf $ListFind($ListFromString(..#BUSY), state) {
+			Do busy.%Push(entry)
+		}
+	}
+	If candidates.%Size() = 0 Quit {"ok": false, "outcome": "no_incident", "others": (busy)}
+	Set matched = []
+	If $Get(incident) '= "" {
+		Set iterator = candidates.%GetIterator()
+		While iterator.%GetNext(, .candidate) {
+			If candidate.entry.ref = incident Do matched.%Push(candidate)
+		}
+	} ElseIf $ZStrip($Get(production), "<>W") '= "" {
+		Set matched = ##class(OcuTalon.Watch.Reader).Matches(candidates, production)
+	} Else {
+		Set matched = candidates
+	}
+	If matched.%Size() = 1 {
+		Set match = matched.%Get(0).entry
+		Quit ""
+	}
+	If matched.%Size() > 1 Quit {"ok": false, "outcome": "ambiguous", "incidents": (..Entries(matched))}
+	Quit {"ok": false, "outcome": "unknown_incident", "incidents": (..Entries(candidates)), "others": (busy)}
+}
+
+/// The answer for the model to the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the production and the ref of the
+/// entry, and, when the owner's Data is a JSON object with a string state, that state and the open variant (an empty one when the Data has none).
+ClassMethod Dismissed(result As OcuTalon.Msg.CommandResult, entry As %DynamicObject) As %DynamicObject
+{
+	Set answer = ##class(OcuTalon.Tools.CommandCall).Answer(result)
+	Set answer.outcome = result.Outcome
+	Set answer.production = entry.production
+	Set answer.ref = entry.ref
+	Try {
+		Set data = {}.%FromJSON(result.Data)
+		If $IsObject(data) && (data.%GetTypeOf("state") = "string") {
+			Set answer.state = data.state
+			Set answer.openVariant = $Select(data.%GetTypeOf("openVariant") = "string": data.openVariant, 1: "")
+		}
+	} Catch exception {
+	}
+	Quit answer
+}
+
+/// The answer entries of the matching entries, in order.
+ClassMethod Entries(matched As %DynamicArray) As %DynamicArray [ Private ]
+{
+	Set entries = []
+	Set iterator = matched.%GetIterator()
+	While iterator.%GetNext(, .candidate) {
+		Do entries.%Push(candidate.entry)
+	}
+	Quit entries
+}
+
+/// The display names of the session's own watches of productions: names(namespace, production) is the display name. A read that fails gives none.
+ClassMethod WatchNames(sessionRef As %String, ByRef names) [ Private ]
+{
+	Kill names
+	Set checks = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
+	If $$$ISERR(sc) || '$IsObject(checks) Quit
+	For i = 1:1:checks.Count() {
+		Set check = checks.GetAt(i)
+		If (check.Kind = ..#KIND) && (check.DisplayName '= "") && '$Data(names(check.Namespace, check.Production)) Set names(check.Namespace, check.Production) = check.DisplayName
+	}
 }
 
 /// The answer for the model to a command that the owner answered: CommandCall.Answer, with the outcome of the owner's result and the

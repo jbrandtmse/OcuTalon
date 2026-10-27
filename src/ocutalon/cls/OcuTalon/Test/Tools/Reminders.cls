@@ -260,7 +260,7 @@ Method TestSetRelative()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,list_productions,list_reminders,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Story 5.1, the three watch tools")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,dismiss_incident,list_productions,list_reminders,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Stories 5.1 and 5.9, the four watching tools")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..SetAnswer(), "the model reads the answer of the owner")

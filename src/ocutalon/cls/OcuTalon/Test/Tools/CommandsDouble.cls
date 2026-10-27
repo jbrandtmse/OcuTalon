@@ -14,6 +14,8 @@
 ///         {"reminders": [{"ref": "<Ref>", "text": "<Text>", "dueAt": "<UTC time>"}, ...]};
 ///       StartWatch: Outcome started, the message "The CI double started the watch.", and WATCHREF as Ref;
 ///       StopWatch: Outcome stopped, the message "The CI double stopped the watch.", and WATCHREF as Ref;
+///       Dismiss: Outcome closed, the message "The CI double dismissed the incident.", the command's IncidentRef as Ref and the Data
+///         {"state":"closed","openVariant":""};
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
@@ -68,6 +70,12 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Outcome = "stopped"
 		Set result.Message = "The CI double stopped the watch."
 		Set result.Ref = ..#WATCHREF
+	} ElseIf verb = "Dismiss" {
+		Set result.Ok = 1
+		Set result.Outcome = "closed"
+		Set result.Message = "The CI double dismissed the incident."
+		Set result.Ref = pInput.IncidentRef
+		Set result.Data = {"state": "closed", "openVariant": ""}.%ToJSON()
 	} ElseIf verb = "ListReminders" {
 		Set result.Ok = 1
 		Set result.Outcome = "listed"

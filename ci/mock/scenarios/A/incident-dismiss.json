@@ -1,0 +1,19 @@
+{
+  "name": "incident-dismiss",
+  "match": {
+    "marker": "incident-dismiss"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "dismiss_incident",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've dismissed the incident."
+    }
+  ]
+}
