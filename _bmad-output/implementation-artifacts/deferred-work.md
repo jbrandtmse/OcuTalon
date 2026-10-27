@@ -1512,3 +1512,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CI 40525019781 iris(production) live:production row 21 wanted 'CHK|start-fails|1|1', got ''; green on one unchanged rerun and locally on the merged tree
 - 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) the session line timed out or errored while the production stopped and started with the stub WatchOps; route to the story that next edits docker/tests/test-production.sh (Epic 15 owns docker/tests): give row 21 a longer wait or a retry
+
+### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
+- source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 5.11 Task 0: a fast local batch fell between two polls and was never read; CI's slower batch was read
+- 2026-10-27T18:08:35Z status=wontfix-accepted owner=5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=harvest note=reopen_if=a test that seeds a watch with Test.Data.Fixture.Check and expects its own failures noticed flakes; Test/Data/Fixture.cls is contended (Epic 16): give Check a CreatedAt there
