@@ -87,3 +87,7 @@
 2026-10-25T16:55:23Z	Story 8.4	story_waiting	story=8-4-set-list-and-cancel-reminders-in-plain-words on=4 reason=guide_step_2_and_shared_B_scenario(Story_4.4) code=none owned_ledger=DW-135,DW-140,DW-141,DW-142,DW-210
 2026-10-25T16:55:23Z	Story 8.5	story_waiting	story=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so on=4 reason=follows_8.3_and_8.4 code=none
 2026-10-25T16:55:23Z	Epic 8	runner_ended	reason=waiting waiting_on=4 note=8.2_done_and_green(140a8ed);epics.md_changed(DW-210_bullet_under_8.4:deps_hash_re-record_reason=ledger_routed);epic-8-context.md_stale_for_8.3_plan(re-run_pre-warm) footprint_extensions=Live/Payload/Status.cls,Test/Live/Status.cls,web/e2e/heartbeat/heartbeat.spec.ts,web/e2e/demo-path/02-watch.spec.ts(append-only),Test/Core/ProductionItems.cls(HeartbeatIn_row,8.1),_bmad/custom/skill-rules.md(Rule_21_bullet,8.1)
+2026-10-27T05:49:10Z	Epic 8	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-27T05:49:10Z	Epic 8	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-27T05:49:10Z	Epic 8	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-27T05:49:10Z	Epic 8	runner_unattended_start	run=20261026T1518Z-1-37 policy=36abb05 doctrine=3d11cec lane=C slot=ocutalon-slot-c note=re-dispatch_after_Epic_4_merged(b195813);policy_changed_from_9e90866;bootstrap_check=ok;fd43794_ci=success(40213992599,40213992639) model=claude-opus-5-5
