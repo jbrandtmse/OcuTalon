@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-27-2026 05:26
+last_updated: 10-27-2026 05:27
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -201,7 +201,6 @@ development_status:
   epic-16-retrospective: optional
 
   epic-17: backlog
-  17-1-fix-the-step-2-contracts-in-the-spine: backlog
   17-2-retry-once-on-a-second-model-before-falling-back: backlog
   17-3-run-each-agent-on-a-supported-provider: backlog
   17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: backlog
@@ -211,27 +210,25 @@ development_status:
   epic-17-retrospective: optional
 
   epic-18: backlog
-  18-1-open-the-settings-page-as-an-admin: backlog
   18-2-set-the-time-zone-and-the-daily-digest-at-run-time: backlog
   18-3-choose-models-and-set-budgets-in-settings: backlog
   18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
   epic-18-retrospective: optional
 
   epic-19: backlog
-  19-1-settle-step-3-ownership-and-fix-its-contracts: backlog
   19-2-compute-embeddings-offline-in-a-worker: backlog
   19-3-remember-recall-list-and-forget-in-the-chat: backlog
   19-4-answer-from-documents-with-citations: backlog
   19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
+  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
+  19-7-answer-from-pdf-and-word-documents: backlog
   epic-19-retrospective: optional
 
   epic-20: backlog
-  20-1-add-and-remove-documents-on-a-documents-page: backlog
   20-2-see-citations-and-memories-in-answers: backlog
   epic-20-retrospective: optional
 
   epic-21: backlog
-  21-1-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
   21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp: backlog
   21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: backlog
   21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: backlog
@@ -239,7 +236,6 @@ development_status:
   epic-21-retrospective: optional
 
   epic-22: backlog
-  22-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
   22-2-classify-mcp-tools-by-server-and-name: backlog
   22-3-call-mcp-tools-only-through-the-governed-proxy: backlog
   22-4-hold-risky-and-unclassified-mcp-calls-for-approval: backlog
@@ -249,7 +245,6 @@ development_status:
   epic-22-retrospective: optional
 
   epic-23: backlog
-  23-1-record-the-setting-history-of-each-watched-production: backlog
   23-2-suspend-resume-and-reroute-with-a-dry-run: backlog
   23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
   23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
@@ -260,14 +255,12 @@ development_status:
   epic-23-retrospective: optional
 
   epic-24: backlog
-  24-1-set-the-on-call-person-and-backup-in-settings: backlog
   24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings: backlog
   24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on: backlog
   24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t: backlog
   epic-24-retrospective: optional
 
   epic-25: backlog
-  25-1-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   25-2-filter-past-decisions-and-incidents-on-the-history-page: backlog
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
   25-4-assign-approver-and-viewer-roles-in-settings: backlog
@@ -275,8 +268,7 @@ development_status:
   epic-25-retrospective: optional
 
   epic-26: backlog
-  26-1-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
-  26-2-files-become-items-and-pdf-and-word-documents: backlog
+  26-2-files-sent-from-the-chat-or-telegram-become-items: backlog
   26-3-caption-a-photo-and-keep-the-caption-as-a-memory: backlog
   26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe: backlog
   epic-26-retrospective: optional
@@ -318,6 +310,31 @@ development_status:
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   epic-32-retrospective: optional
+
+  epic-33: backlog
+  33-1-fix-the-step-2-contracts-in-the-spine: backlog
+  33-2-open-the-settings-page-as-an-admin: backlog
+  epic-33-retrospective: optional
+
+  epic-34: backlog
+  34-1-settle-step-3-ownership-and-fix-its-contracts: backlog
+  34-2-add-and-remove-documents-on-a-documents-page: backlog
+  epic-34-retrospective: optional
+
+  epic-35: backlog
+  35-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
+  35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
+  epic-35-retrospective: optional
+
+  epic-36: backlog
+  36-1-record-the-setting-history-of-each-watched-production: backlog
+  36-2-set-the-on-call-person-and-backup-in-settings: backlog
+  epic-36-retrospective: optional
+
+  epic-37: backlog
+  37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
+  37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
+  epic-37-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
     epic: 32
@@ -361,5 +378,5 @@ action_items:
       region on two banners in one update, a reply, and a burst of four announcements,
       on the Planner's own Docker install of the feature head (DW-159; replaces epic-2-retro-item-4)"
     owner: "Contest Planner"
-    status: open
+    status: done
     ref: ""
