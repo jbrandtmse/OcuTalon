@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-27-2026 02:56
+last_updated: 10-27-2026 03:13
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -112,7 +112,7 @@ development_status:
   5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
   5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: done
   5-5-an-incident-moves-through-its-states-and-closes: done
-  5-6-the-production-watch-runs-on-every-heartbeat: ready-for-dev
+  5-6-the-production-watch-runs-on-every-heartbeat: in-progress
   5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
   5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
   5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
