@@ -2,7 +2,7 @@
 title: 'Asked whether everything is fine, OcuTalon never gives a false all-clear'
 type: 'feature'
 created: '2026-10-26'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -70,13 +70,14 @@ deferred: []
     - Lines with no match, and a text with no match at all, come back unchanged byte for byte.
   - It never adds or rewrites words. If an exception occurs, it returns "" (fail closed), so Decide falls back instead of passing unfiltered text.
 - **The page (DW-90)** takes `whatFailed` from the rows, never from `Render`.
-  - `whatFailed` covers every row whose `result` is not `passed`, in row order. Each one is `{entry} ({finding}, at {time})`:
+  - `whatFailed` covers every row whose `result` is not `passed` — the `failed` rows first, then the `not_checked` rows, each group in row order, and never a `passed` row (the orchestrator's condition 3, read with the epics criterion "the failing or unchecked entry first"; veto U-111). Each one is `{entry} ({finding}, at {time})`:
     - the finding's first character is lowercased;
     - `{time}` is the page's `pageTime(checkedAt)`;
     - an empty part is left out (`{entry} ({finding})`, `{entry} (at {time})` or `{entry}` alone);
     - rows with an empty entry are skipped.
   - The parts are joined with "; ".
   - The sentence is `renderPageText(key, {whatFailed})`. It is "" when the key needs `whatFailed` and `whatFailed` is "".
+  - `checkSentence` returns the catalog text for `checks.allPassed`, `checks.everythingElsePassed` and `checks.nothingWatched` exactly as the page does today, never derives an all-clear from the rows (N1: only the key, which `Render` chose in code, can say everything passed), and gives "" for any other key; `check-sentence.test.mjs` pins all four (orchestrator ruling Q1, conditions 1-5).
   - The logic lives in the new, framework-free `web/src/app/shared/check-sentence.ts`. It has no runtime imports: the catalog and the time function are passed in. `check-rows.ts` only wires it (Q1).
 - **The Chat agent's instructions** gain one block after the dismiss block. The words of each reply stay the model's:
   - "If the user asks whether everything is fine, OK or working, or how the watched productions are doing, call check_status. OcuTalon shows the check results under your reply, with its own sentence that says whether everything passed. Then reply in one short sentence of your own that does not repeat the results, for example what the user can do next. Never say that everything is fine, that everything passed or that the system is healthy, and never write all good, no issues, no problems or nothing to worry about: only OcuTalon's own sentence may say that."
@@ -253,7 +254,7 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
   - allow a `text` slot for those two keys only, through a per-key allowance beside `SLOT_TYPES`, so every other key still refuses `text`;
   - update the header, the `SLOT_TYPES` comment, the `RENDERER` doc and the `PAGE_SLOTS` comment;
   - then run `node web/scripts/catalog.mjs` to regenerate `web/src/app/msg/catalog.ts`.
-- `web/src/app/chat/check-rows.ts` (contended; ONLY under ruling Q1) -- exactly Q1's (a) lines, and nothing else in the file.
+- `web/src/app/chat/check-rows.ts` (contended; ONLY under the orchestrator's ruling Q1) -- exactly Q1's (a) lines (the L4 import, one added import of `../shared/check-sentence`, the module constant `CATALOG`, the `sentence` computed at L114-115, the doc clause at L11-12), and nothing else in the file. The reworded doc clause keeps the line that an all-clear never comes from the rows, around the two keys whose `whatFailed` comes from the rows. Use `pageTime` exactly as the feature exports it (Epic 6 is editing `page-time.ts`; whoever integrates later adapts).
 - `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` -- receives `Tick(tickAt)` and its three parameters from `Test.Checks.Heartbeat`, unchanged apart from the move -- extend, don't copy. `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls` -- drop its copy of them.
 - `src/ocutalon/cls/OcuTalon/Test/Checks/Render.cls` -- new, warm, with no production:
   - one test per Render row of the matrix: `TestAllPassed`, `TestOneFailing`, `TestNonePassed`, `TestNothingWatched`, `TestNotRunYet`, `TestNotResults`, `TestOddValues`;
@@ -338,12 +339,13 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 ## Spec Change Log
 
+- 2026-10-27, spec gate (Epic 5 runner): the orchestrator ruled Q1 (a) with five conditions (recorded in Always, the `check-rows.ts` task and Design Notes); condition 3 read with the epics criterion (veto U-111); status set to `ready-for-dev`.
 - 2026-10-27, spec gate (Epic 5 runner): V1 ruled keep (veto U-110); the Gate pinning test for `check_status` added as a lead decision; spine rows written ("HostData" amended, "Reply guard" new, "Tool classification" names `check_status`); Q1 (contended `web/src/app/chat/check-rows.ts`) sent to the orchestrator; status stays `blocked` until Q1 is ruled.
 ## Review Triage Log
 
 ## Design Notes
 
-**Ruling needed (intent gap; status `blocked` until ruled). Q1 is with the orchestrator (`web/src/app/chat/**` is Epic 6's, and Epic 6 is running). Lead decision at the gate (decide, tightens security posture): `check_status`, declared trusted output by the epics criterion, gets the same guard the owner set for `dismiss_incident` (U-102, DW-288): a `Test.Bridge.Gate` test pins its answer's keys and each check entry's keys to the code-built allow-list, with every reason or finding one of the `Checks` parameters, so a free-text field added later fails it.**
+**Rulings (all RULED 2026-10-27).** Q1 RULED by the orchestrator: decide, option (a), shared-by-entry, exactly the lines listed in the `check-rows.ts` task; conditions: `checkSentence` returns the three no-slot keys' catalog text as today, never derives an all-clear from the rows (N1), fills `whatFailed` only from rows that did not pass (the lead reads "failed" with the epics criterion's "failing or unchecked entry", veto U-111), gives "" for any other key, and its test pins all four; `check-rows.ts` and `shared/check-sentence.ts` (new) go under `footprint_extensions:`. Originally: Q1 was with the orchestrator (`web/src/app/chat/**` is Epic 6's, and Epic 6 is running). Lead decision at the gate (decide, tightens security posture): `check_status`, declared trusted output by the epics criterion, gets the same guard the owner set for `dismiss_incident` (U-102, DW-288): a `Test.Bridge.Gate` test pins its answer's keys and each check entry's keys to the code-built allow-list, with every reason or finding one of the `Checks` parameters, so a free-text field added later fails it.**
 - **Q1. Contended `web/src/app/chat/check-rows.ts` (Epic 6's `web/src/app/chat/**`), the page half of DW-90.**
   - **Why.** The page shows a check key's sentence only through `CheckRows.sentence` (L113-116), and that returns `PAGE_TEXTS[key]` raw. If `catalog.mjs` lists the two keys, the page shows "Not everything: {whatFailed}." with the placeholder. If it does not list them, the page shows no sentence (DW-90). No file outside the contended path renders that sentence.
   - **Recommended (a): allow these lines as shared-by-entry wiring:**
@@ -539,8 +541,10 @@ Conventions: "HostData", "Tool classification", "Tool results", "Agent step labe
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap -- Q1: DW-90's page half ("the page renders both keys") cannot be done without editing the contended web/src/app/chat/check-rows.ts (Epic 6's web/src/app/chat/**): L4 import, one new import of checkSentence, one module constant, the body of `sentence` L114-115 and the doc clause L11-12; recommended (a) allow exactly these lines as shared-by-entry wiring (precedent: Story 5.6 ruling Q2), alternatives (b) route the wiring to an Epic 6 story or (c) a server slot path (not recommended) -- see Design Notes Q1. Veto item V1 (public text "Not run yet" and the whatFailed form) also awaits the spec gate.
+Status: ready-for-dev
+Blocking condition: none
+
+Spec gate, 2026-10-27: Q1 ruled (a) by the orchestrator with conditions; V1 kept (veto U-110); condition 3 read with the epics criterion (veto U-111); AC 8 added; status set to `ready-for-dev`. The plan stage's halt read: intent gap -- Q1: DW-90's page half ("the page renders both keys") cannot be done without editing the contended web/src/app/chat/check-rows.ts (Epic 6's web/src/app/chat/**): L4 import, one new import of checkSentence, one module constant, the body of `sentence` L114-115 and the doc clause L11-12; recommended (a) allow exactly these lines as shared-by-entry wiring (precedent: Story 5.6 ruling Q2), alternatives (b) route the wiring to an Epic 6 story or (c) a server slot path (not recommended) -- see Design Notes Q1. Veto item V1 (public text "Not run yet" and the whatFailed form) also awaits the spec gate.
 
 **Planned (plan stage only; nothing implemented).**
 - The spec is written in full to the recommended answers of Q1 (a) and V1 (keep). Once Q1 is ruled (a), the gate only needs to set `status: ready-for-dev`.
