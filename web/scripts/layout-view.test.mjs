@@ -11,7 +11,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { LAYOUT_QUERIES, LAYOUT_TEXTS, NOTE_CLOSED_KEY, NOTE_FLAG, NOTE_SHOWN_KEY, statusCount } = await import(app('shared', 'layout-view.ts'));
+const { HEIGHT_QUERIES, LAYOUT_QUERIES, LAYOUT_TEXTS, NOTE_CLOSED_KEY, NOTE_FLAG, NOTE_SHOWN_KEY, statusCount } = await import(app('shared', 'layout-view.ts'));
+
+describe('the height query', () => {
+  it('is the one compact query of the demo guide, under 680px tall, and no width band', () => {
+    assert.deepEqual({ ...HEIGHT_QUERIES }, { compact: '(height < 680px)' });
+    for (const query of Object.values(LAYOUT_QUERIES)) assert.ok(!/height/.test(query), query);
+    for (const query of Object.values(HEIGHT_QUERIES)) assert.ok(!/width/.test(query), query);
+  });
+});
 
 describe('the width queries', () => {
   it('are the four range queries of the bands, with no gap at a fractional width', () => {

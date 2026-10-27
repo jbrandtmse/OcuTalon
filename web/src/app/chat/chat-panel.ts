@@ -17,6 +17,7 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
@@ -29,9 +30,6 @@ import { NoticeCard } from './notice-card';
 import { OcutalonReply, replyFallbackText } from './ocutalon-reply';
 import { parseReply, plainText } from './reply-text';
 import { UserMessage } from './user-message';
-
-/** How far from the bottom (px) the list still counts as at the bottom. */
-const BOTTOM_SLACK_PX = 24;
 
 /** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, or a notice card. */
 interface Target {
@@ -106,7 +104,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
     >
       <div class="content" #content>
         @if (fresh()) {
-          <app-empty-chat />
+          <app-empty-chat [demo]="demo()" />
         } @else {
           <div class="entries">
             @for (entry of entries(); track entry.key) {
@@ -236,6 +234,9 @@ export class ChatPanel {
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
 
+  /** True in demo mode: the empty chat points at the demo guide. */
+  protected readonly demo = computed(() => this.live.snapshot()?.demoMode === true);
+
   /** True while the empty chat panel shows. */
   protected readonly fresh = computed(() => isFreshChat(this.live.store()?.chat ?? [], this.outbox.entries()));
 
@@ -325,7 +326,7 @@ export class ChatPanel {
     const top = list.scrollTop;
     const up = top < this.lastTop;
     this.lastTop = top;
-    if (list.scrollHeight - top - list.clientHeight <= BOTTOM_SLACK_PX) {
+    if (atBottom(list, BOTTOM_SLACK_PX)) {
       this.atBottom = true;
       this.seenAll();
     } else if (up) {

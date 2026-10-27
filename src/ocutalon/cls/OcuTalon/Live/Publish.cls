@@ -1,7 +1,12 @@
+Include Ensemble
+
 /// The only writer of OcuTalon.Live.Event rows (AD-12). Lane B.
 /// Publish allocates the next Seq of a stream under the stream's lock, which is held across the allocation, the
 /// insert and the commit, so a stream's rows have no gaps and commit in Seq order. The counter is
 /// ^OcuTalonP.LiveEventC(stream): the purge deletes rows and never the counter, so Seq never restarts.
+/// guide.state has one publisher, RefreshGuide (AD-12, AD-33): while demo mode is on, Publish calls it after it has committed and
+/// unlocked an event of a GUIDETRIGGERS type on a session's stream, and the StatusMonitor tick and the guide marker endpoint call
+/// it too. A refresh that fails is logged and never changes what Publish answers.
 Class OcuTalon.Live.Publish
 {
 
@@ -11,6 +16,11 @@ Parameter TYPES = "chat.message:ChatMessage,notification:Notification,phone:Phon
 
 /// The stream of the instance-wide events.
 Parameter INSTANCE = "instance";
+
+/// The event types after which Publish refreshes the session's guide.
+Parameter GUIDETRIGGERS = "chat.message,incident,approval,check,reminder,pairing,breakfeed.progress";
+
+Parameter LOGGUIDE = "Live.Publish could not refresh the guide: ";
 
 /// Seconds to wait for the stream's lock, unless the caller names a shorter or longer wait.
 Parameter LOCKWAIT = 5;
@@ -89,6 +99,52 @@ ClassMethod Publish(stream As %String, type As %String, payload As %RegisteredOb
 	}
 	If $TLevel > 0 TROLLBACK
 	If locked Lock -^OcuTalonP.LiveEventC(stream)
+	If $SYSTEM.Status.IsOK(sc) && (stream '= ..#INSTANCE) && $ListFind($ListFromString(..#GUIDETRIGGERS), type) {
+		Set refresh = ..RefreshGuide(stream, , lockWait)
+		If $SYSTEM.Status.IsError(refresh) {
+			$$$LOGWARNING(..#LOGGUIDE_$SYSTEM.Status.GetOneStatusText(refresh))
+		}
+	}
+	Quit sc
+}
+
+/// Recomputes the guide of the session (Demo.Guide.Compute) and publishes it as a guide.state event when its JSON differs from
+/// the payload of the stream's latest guide.state event; a stream with no such event is compared with Demo.Guide.Blank().
+/// It acts only while demo mode is on and only when sessionRef is exactly the Ref of a Session row; otherwise it does nothing
+/// and guide stays empty. It holds the session's guide lock (Data.GuideState.Lock) while it computes, compares and publishes,
+/// so that the last refresh publishes the newest view. guide is the computed view, published or not. lockWait is the seconds
+/// it waits for the guide lock and for the stream's lock (LOCKWAIT by default); Publish passes its caller's, so a caller
+/// that bounds its wait (BridgeSink's one second, AD-31) bounds the refresh too. An error status says that the refresh
+/// failed (a lock wasn't free, a read failed or the publish was refused); nothing is published then.
+ClassMethod RefreshGuide(sessionRef As %String, Output guide As %RegisteredObject, lockWait As %Integer = {..#LOCKWAIT}) As %Status
+{
+	Set guide = ""
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit $SYSTEM.Status.OK()
+	If '..IsStream(sessionRef) || (sessionRef = ..#INSTANCE) Quit $SYSTEM.Status.OK()
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+	If '$IsObject(session) || (session.Ref '= sessionRef) Quit $SYSTEM.Status.OK()
+	If '##class(OcuTalon.Data.GuideState).Lock(sessionRef, lockWait) Quit $SYSTEM.Status.Error(5001, "The guide of the session is busy: its lock wasn't free in "_lockWait_" seconds")
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set guide = ##class(OcuTalon.Demo.Guide).Compute(sessionRef)
+		Set sc = guide.%JSONExportToString(.json)
+		If $SYSTEM.Status.IsOK(sc) {
+			Set last = ##class(OcuTalon.Data.Ownership).LastEvent(sessionRef, "guide.state", .sc)
+		}
+		If $SYSTEM.Status.IsOK(sc) {
+			If $IsObject(last) {
+				Set base = last.Payload
+			} Else {
+				Set sc = ##class(OcuTalon.Demo.Guide).Blank().%JSONExportToString(.base)
+			}
+		}
+		If $SYSTEM.Status.IsOK(sc) && (json '= base) {
+			Set sc = ..Publish(sessionRef, "guide.state", guide, , lockWait)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do ##class(OcuTalon.Data.GuideState).Unlock(sessionRef)
 	Quit sc
 }
 

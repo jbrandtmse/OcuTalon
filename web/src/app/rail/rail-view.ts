@@ -31,6 +31,7 @@ export const RAIL_TEXTS = {
   headingSpoken: '{label}, {n}',
   emptyApprovals: 'None waiting.',
   emptyChecks: 'Ask OcuTalon to watch a production.',
+  emptyChecksDemo: 'Nothing yet. Step 1 of the guide sets up a watch.',
   emptyReminders: 'None pending.',
   emptyDecisions: 'No decisions yet.',
   hintChecks: 'To stop, ask: "Stop watching Orders."',
@@ -301,8 +302,8 @@ export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
   );
 }
 
-/** The rail for the store: the sections in order and whether Telegram is one of them. */
-export function railView(store: LiveStore, format: RailFormat): RailView {
+/** The rail for the store: the sections in order and whether Telegram is one of them. In demo mode the empty checks point at the demo guide. */
+export function railView(store: LiveStore, format: RailFormat, demo = false): RailView {
   const approvals = pendingApprovals(store);
   const checks = inStoreOrder(store.checks).filter((check) => check.stopped !== true);
   const late = Object.hasOwn(store.status, 'heartbeatStalled') && store.status['heartbeatStalled']?.active === true;
@@ -322,7 +323,7 @@ export function railView(store: LiveStore, format: RailFormat): RailView {
   }
   sections.push(
     listSection('approvals', RAIL_TEXTS.approvals, approvals.map((approval) => approvalRow(approval, format)), RAIL_TEXTS.emptyApprovals, ''),
-    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), RAIL_TEXTS.emptyChecks, RAIL_TEXTS.hintChecks),
+    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), demo ? RAIL_TEXTS.emptyChecksDemo : RAIL_TEXTS.emptyChecks, RAIL_TEXTS.hintChecks),
     listSection('reminders', RAIL_TEXTS.reminders, reminders.map((reminder) => reminderRow(reminder, format)), RAIL_TEXTS.emptyReminders, RAIL_TEXTS.hintReminders),
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );

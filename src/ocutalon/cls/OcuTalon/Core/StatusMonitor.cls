@@ -10,6 +10,9 @@
 /// read, so a page that loads sees the conditions as they are. What the service remembers is not durable (AD-5): a restart of the
 /// job starts again from a silent first run. A publish that fails is logged as a warning and is not remembered, so that the
 /// next run publishes it again. OnProcessInput always returns OK.
+/// While demo mode is on, each run also refreshes the guide of every session with a Break the feed run started less than
+/// GUIDESECONDS ago (Live.Publish.RefreshGuide), which publishes a guide.state event only when the guide changed: the clock
+/// stages of a run move without any row changing (AD-12).
 Class OcuTalon.Core.StatusMonitor Extends Ens.BusinessService
 {
 
@@ -52,7 +55,37 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	} Catch exception {
 		$$$LOGWARNING(..#LOGRUN_exception.DisplayString())
 	}
+	Do ..GuideTick()
 	Quit $$$OK
+}
+
+Parameter LOGGUIDE = "StatusMonitor could not refresh the guide: ";
+
+/// How long after a Break the feed run starts the tick keeps refreshing its session's guide: the 180 s of the longest stage
+/// and four 15 s runs of slack.
+Parameter GUIDESECONDS = 240;
+
+/// The guide refresh of one run: while demo mode is on, Live.Publish.RefreshGuide for each session with a recent Break the
+/// feed run. Every error is a warning; nothing throws.
+Method GuideTick() [ Private ]
+{
+	Try {
+		If '##class(OcuTalon.Core.Rule.Functions).DemoOn() Quit
+		Set sessions = ##class(OcuTalon.Data.BreakFeedRun).RecentSessions(..#GUIDESECONDS, , .sc)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#LOGGUIDE_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		Set position = 0
+		While $ListNext(sessions, position, sessionRef) {
+			Set sc = ##class(OcuTalon.Live.Publish).RefreshGuide(sessionRef)
+			If $SYSTEM.Status.IsError(sc) {
+				$$$LOGWARNING(..#LOGGUIDE_$SYSTEM.Status.GetOneStatusText(sc))
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGGUIDE_exception.DisplayString())
+	}
 }
 
 /// The readings of this run: OcuTalon.Live.Payload.Status.Readings. A seam for the tests.

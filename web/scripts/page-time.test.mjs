@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { WHEN_TEXTS, countdownText, pageTime, pageTimeBeside, pageWhen } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { WHEN_TEXTS, countdownText, elapsedText, pageTime, pageTimeBeside, pageWhen } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const INSTANT = '2026-10-22T14:11:00Z';
 
@@ -207,5 +207,34 @@ describe('countdownText', () => {
   it('answers empty texts for an empty or unreadable time', () => {
     assert.deepEqual(countdownText('', NOW), { text: '', spoken: '' });
     assert.deepEqual(countdownText('not a time', NOW), { text: '', spoken: '' });
+  });
+});
+
+describe('elapsedText', () => {
+  const NOW = 1_000_000_000_000;
+  const since = (ms) => elapsedText(new Date(NOW - ms).toISOString(), NOW);
+  const SECOND = 1000;
+
+  it('counts seconds under a minute: 23 s, spoken in full words with the singular for 1', () => {
+    assert.deepEqual(since(0), { text: '0 s', spoken: '0 seconds' });
+    assert.deepEqual(since(SECOND), { text: '1 s', spoken: '1 second' });
+    assert.deepEqual(since(23 * SECOND), { text: '23 s', spoken: '23 seconds' });
+    assert.deepEqual(since(59 * SECOND), { text: '59 s', spoken: '59 seconds' });
+  });
+
+  it('rounds the seconds down, and counts whole minutes from 60 s', () => {
+    assert.equal(since(59_999).text, '59 s');
+    assert.deepEqual(since(60 * SECOND), { text: '1 min', spoken: '1 minute' });
+    assert.deepEqual(since(119 * SECOND), { text: '1 min', spoken: '1 minute' });
+    assert.deepEqual(since(180 * SECOND), { text: '3 min', spoken: '3 minutes' });
+  });
+
+  it('is never below 0: a time ahead of the clock reads 0 s', () => {
+    assert.deepEqual(since(-5 * SECOND), { text: '0 s', spoken: '0 seconds' });
+  });
+
+  it('gives empty texts for an empty or unreadable time', () => {
+    assert.deepEqual(elapsedText('', NOW), { text: '', spoken: '' });
+    assert.deepEqual(elapsedText('not a time', NOW), { text: '', spoken: '' });
   });
 });

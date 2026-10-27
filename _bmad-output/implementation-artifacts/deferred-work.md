@@ -421,6 +421,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
 - 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
+- 2026-10-26T15:16:47Z status=routed owner=18-3-choose-models-and-set-budgets-in-settings by=orchestrator note=M7: Catalog.Core is Lane B's; the criterion moved to Story 18.3 (relaunch planning, the Contest Planner under the owner's delegation)
 
 ### DW-101: Timeouts.Apply is not atomic: a failed entry merge after Decide's TimerSeconds row is written leaves the timer changed for some runners, and two concurrent Apply calls are not serialized (no lock)
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
@@ -792,6 +793,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: BridgeSink tests and the D6/D10 sinkEvent helper call OnEvent directly; Decide is Epic 0's stub and no Lane A emitter is merged
 - 2026-10-23T02:34:42Z status=routed owner=burndown by=harvest note=when Lane A's emitter lands: a real Decide records a decision for a session and a decision event reaches that session's stream
 - 2026-10-25T06:36:24Z status=routed owner=4-3-break-the-feed-with-a-real-batch-of-50-orders by=burndown note=Lane A's emitter has merged (Epic 1); Story 4.3's real batch makes the real Decide record decisions for a session: assert that a decision.recorded (and a turn.step) the bridge emits reaches that session's stream through BridgeSink, not only OnEvent called directly
+- 2026-10-25T22:42:32Z status=routed owner=burndown by=spec_gate note=declined_by_4.3: the decision.recorded half is met by Story 2.17's RoutingProduction and ConversationProduction (4.3 re-runs their mutation as evidence); residual: a Test/Core test that drives the real gate (Story 3.2, merged into OCT-epic4 at 3d76632) and asserts that its turn.step reaches the session stream through BridgeSink, with no bridge edit
+- 2026-10-27T05:26:00Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=burndown note=overflow (remainder 2 under the cap of 8, no repeats, so no burn-down story): Story 6.2 drives the real gate's approval path; add a Test/Core test that drives the real gate (Story 3.2) and asserts its turn.step reaches the session stream through BridgeSink, with no bridge edit (the decision.recorded half is met by Story 2.17's RoutingProduction/ConversationProduction)
 
 ### DW-99: Story 2.8's real approval.result path for a replayed tool call has no story that turns it on (epics.md:1706); Story 30.3 must turn it on
 - source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -875,6 +878,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 2.13 Decided 14: a run with every links.spec tab real left V8 drawing nothing and trace.spec T1 without a session; V3-V6 and V9-V16 stub their trace tabs to stay green
 - 2026-10-24T03:06:56Z status=escalated owner=burndown by=cr note=settle by measuring licence and gateway connections on a throwaway while trace tabs are open; 4.7 and 6.1 add real trace pages
 - 2026-10-25T11:58:31Z status=routed owner=4-7-finish-the-demo-guide by=merge_gate note=Story_4.7_adds_real_trace_pages:measure_licence_and_gateway_connections_on_a_throwaway_with_trace_tabs_open;if_tabs_hold_connections,sign_trace_tabs_out_in_the_specs;veto_U-71
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Task 0 measured on e4s7p (one licence unit per user and client address per trace session, held until sign-out or timeout; ?IRISLogout=end frees it); signOutTrace after every case that opens a real trace page, V1 relative licence pin; residual (a real visitor's trace tab holds its unit) is owned by DW-285 (16.4), DW-286 (29.4), DW-287 (29.3) after U-103
 
 ### DW-147: AD-26's decision bullet still says a decision's trace target is the session holding its decision message, while the Live events convention gives a chat turn's decision its turn's header and item index (DW-129)
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -915,6 +919,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an agent cannot run a screen reader; Story 2.12 builds the joined announcement and its automated test (A4)
 - 2026-10-24T11:52:16Z status=decision-pending owner=burndown by=spec_gate note=human=screen-reader check of the announcer (VoiceOver on macOS, NVDA on Windows)
 - 2026-10-25T11:58:32Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=merge_gate note=action_item:epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi(owner:user)
+- 2026-10-25T17:43:08Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=owner note=action_item_replaced:epic-2-retro-item-5-accessibility-tree-check-of-the-announce(owner:Contest_Planner);the_VoiceOver/NVDA_listening_test_dropped_by_the_owner's_decision(option_1)
 
 ### DW-161: A2 to A5 hold the page's poll while seeding, so on a host 2.5 times slower the hold may near the 10 s after which Reconnecting shows
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
@@ -1137,7 +1142,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
 - 2026-10-27T02:50:15Z occurrence=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=flake note=ci_run_40437523342_iris(shards)_live:floor:floor-webkit_G1_ring_bottom_600.98_vs_600;sha_98a2d57(no_web_change);rerun_--failed
 - 2026-10-27T10:44:15Z occurrence=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=flake note=ci_run_40485293208_iris(shards)_live:floor:floor-webkit_G1_ring_bottom_600.86_vs_600(a_rail_decision_button);sha_e1fe73c;rerun_--failed
+- 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
+- 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
 
+### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SettingsOps.Carry writes the value before RunStep; Install.Step.Demo.Plan answers error for on + a foreign namespace (AD-3); Install.Registry.Run stops at the first failed step (Demo precedes Production, Ready). Reachable on an IPM install into an instance with its own OCUORDERS.
+- 2026-10-25T15:36:14Z status=decision-pending owner=burndown by=cr note=product call (matrix row Step fails keeps the value; any fix needs new terminal text, V2): refuse the on switch before audit and write when Plan says error
+- 2026-10-27T05:39:36Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=unattended note=decision_sheet(Epic_4_merge_gate)_veto_U-106:_SetDemoMode_refuses_the_on-switch_before_audit_and_write_when_Install.Step.Demo.Plan_answers_error,_one_new_terminal_line;_15.2_proves_it_on_its_IPM_install_into_an_existing_instance
+- 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
+
+### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/Admin.cls Result, Core/SettingsOps.cls Result, Core/CommandsIn.cls:151 Result (private, contended). Unifying needs a public factory on the cross-lane Msg.CommandResult contract or a public helper on the terminal API.
+- 2026-10-25T15:36:22Z status=wontfix-accepted owner=4-1-switch-demo-mode-from-the-terminal by=cr note=reopen_if=a fourth CommandResult builder appears outside OcuTalon.Test, or CommandResult gains a field that every answer must set
+
+### DW-215: Guide.Compute could report finished true with step 4 and a rejected/fallback/no_fix variant if a resolved incident keeps that OpenVariant (unverified)
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Demo/Guide.cls:105 finishes on any resolved incident while :92/:115 read OpenVariant without its state; AD-15 sets the variant only on moves to open, but no IncidentManager exists in this tree to confirm the overlap rows clear it
+- 2026-10-25T19:46:38Z status=routed owner=4-7-finish-the-demo-guide by=cr note=unverified (maybe-false); settle with Story 5.5 IncidentManager: does a resolved incident ever carry a VARIANTS value?
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Guide.Compute reads the open variant only while the incident is open or closed (VARIANTSTATES); TestVariantFollowsState pins it, a finished guide never carries a variant
+
+### DW-216: Spine edge Guide --> Install.Step.Demo names only the demo-mode key; Compute also reads NAMESPACE and PRODUCTION
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:78 labels the edge 'its demo-mode key constant; Guide.DemoOn' while Demo/Guide.cls:45-46 reads #NAMESPACE and #PRODUCTION
+- 2026-10-25T19:46:38Z status=wontfix-accepted owner=4-2-derive-the-guide-state-and-break-the-feed-availability-on-th by=cr note=reopen_if=a plan or review relies on the spine for Guide's reads of Install.Step.Demo; lead may relabel at a Rule 20 commit
 ### DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers not_allowed for any other sessionRef
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; AnswersIn is a stub on the feature (69c7f06) until Epic 6
@@ -1402,3 +1431,73 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: BridgeSink L292-294,L330,L377,L403 rows due at once and untyped event counts; Web.Api L193/L253 asserts check2 has no run
 - 2026-10-27T12:47:05Z status=routed owner=burndown by=harvest note=residual of DW-289 (orchestrator ruling): Epic 5 cannot edit Test/Core (Epic 6) or Test/Web (Epic 16); route to an open Epic 8, 6 or 16 story at merge (rows due a day ahead, or typed event counts)
+### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
+- 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
+
+### DW-231: Story 4.4's feed/break-feed-api.ts (and Story 4.7's guide-marker calls) is a second typed API client beside ApiClient (Stack row: one typed API client), because web/src/app/api/** is Epic 10's footprint
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine Stack row Angular L926; veto U-U-84
+- 2026-10-26T02:35:44Z status=routed owner=burndown by=spec_gate note=move press() and the marker calls into ApiClient once Epic 10 merges; re-own to an Epic 10 story at the burn-down
+- 2026-10-26T02:35:59Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=spec_gate note=Rule_2_copy_forced_by_the_footprint_is_routed_to_the_story_that_unifies_it_(never_burndown_for_a_LOW): 10.3 edits web/src/app/api/** (the Telegram block of StateSnapshot); move break-feed-api.ts press() and the guide-marker calls into ApiClient there
+
+### DW-232: Story 8.4's acceptance criteria ask for a CI mock scenario keyed by 'Remind me in 1 minute to stretch.' under ci/mock/scenarios/B/, which Story 4.4 adds as guide-reminder.json; the mock loader refuses a repeated prompt (scenarios.mjs), so 8.4 must extend guide-reminder.json rather than add a second scenario
+- source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md Story 8.4 (about L3074); ci/mock scenarios.mjs:255 duplicate-prompt refusal
+- 2026-10-26T02:35:44Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=coordination: extend Epic 4's B scenario
+
+### DW-253: flake: docker/tests/test-lib-live.sh check live_first_start 'a failed wait was not reported' failed once in the hosted checks job (first start not ready after 101 s, RC=1), green on an unchanged rerun
+- source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 40285090544 job 121446738063 failed, rerun job 121457043804 success on ca4838f; 4.4 touched no lib-live file
+- 2026-10-26T09:02:44Z status=routed owner=burndown by=flake note=a timing-sensitive hermetic check; Epics 10 and 13 own docker/tests; re-own at the burn-down
+- 2026-10-27T05:26:00Z status=wontfix-accepted by=burndown note=one red in ~10 Epic 4 CI runs (run 40285090544), green on an unchanged rerun and on every later run; outside Epic 4's footprint (docker/tests, Epic 15); reopen_if=test-lib-live.sh live_first_start 'a failed wait was not reported' is red again on any branch's CI
+
+### DW-274: The CDK live announcer's element has no visually-hidden style until a dialog's focus trap loads it, so its last text lies below a framed page and the page scrolls by a line
+- source: spec-4-5-get-notifications-on-the-simulated-phone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 4.5 cr, D2 at 1280x480: div.cdk-live-announcer-element.cdk-visually-hidden is position static at 480-501px, document 501px tall in a 480px window; CDK 22.2.3 LiveAnnouncer loads no visually-hidden style and web/src has no .cdk-visually-hidden rule
+- 2026-10-26T16:49:28Z status=routed owner=burndown by=cr note=pre-existing (Story 2.12 announcer); D2 now checks app-root overflow; fix: style .cdk-visually-hidden
+- 2026-10-26T16:52:48Z status=routed owner=4-7-finish-the-demo-guide by=adjudication note=in-epic MED routed to the story that adds the finish-state and step announcements on the framed page: style .cdk-visually-hidden so the live announcer never lies below the page (D2 at 1280x480)
+- 2026-10-26T18:04:55Z status=open owner=4-5-get-notifications-on-the-simulated-phone by=rework note=pulled into Story 4.5's CI rework 1: the root cause of D2's red on d341d29 (run 40367647349); the 4.7 bullet is removed
+- 2026-10-26T19:08:37Z status=resolved-by:4-5-get-notifications-on-the-simulated-phone by=adjudication note=5955043 base.css .cdk-visually-hidden rule from page load; D6 (@browsers) pins it after an announcement lands; mutation red in all three engines
+
+### DW-275: U-72 (owner decision): the terminal command SetDemoMode accepts a caller holding OcuTalonAdmin OR %All; every other caller is refused as now; the web endpoints stay OcuTalonAdmin only; the audit entry still names the person (U-74's ActingUser) and T5 still refuses when the audit entry cannot be written; tests: %All accepted, OcuTalonAdmin accepted, neither refused (AD-19 terminal entry amended)
+- source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Contest Planner under the owner's delegation, 2026-10-26: strict check makes the README's documented command fail on a default install (terminal holds only %All)
+- 2026-10-26T16:52:48Z status=routed owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=owner_decision note=deliver before Epic 4's contract; Story 4.1 is done strict (Core/Admin.cls, Test/Core/Admin.cls)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=7d32b66 Core.Admin.Allowed accepts %All or OcuTalonAdmin; Test.Core.Admin %All accepted, OcuTalonAdmin accepted, neither refused; test-demo-switch.sh steps 3,4,7 (irisowner switches, audit names it)
+
+### DW-280: An email's body has no length cap, so one large body or many sends can fill SimMessage and make each Decide call large
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: MailBody and SimMailboxIn.Accept cap only from and subject at 1000 characters; SimMessage.Text and Mail.Text unbounded; the textarea has no maxlength (Web/Api.cls:MailBody, Channel/SimMailbox/In.cls:Accept)
+- 2026-10-26T21:41:08Z status=open owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=harvest note=in-story MED for the code review to patch (a body cap is an implementation detail; the hourly allowance is Story 16.9)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=code review: SimMailboxIn.BODYMAX 10000 checked in MailBody (400 bad_email) and Accept, form maxlength; TestIncoming/TestFieldErrors/TestRefused pin it
+
+### DW-283: ApiClient's private accepted<T>() repeats postMessage's 202-only body (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: web/src/app/api/api-client.ts accepted<T>() (Story 4.6) and postMessage (another epic's lines, shared-by-entry file): the same 8-line 202 check; postMessage cannot be moved onto the helper here
+- 2026-10-26T23:16:44Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=copy forced by the shared-by-entry rule; reopen_if=a third 202-only POST joins ApiClient or postMessage's success rule changes
+
+### DW-284: Test.Web.MailboxApi's Csp and Post repeat Test.Web.BreakFeedApi's (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: MailboxApi.cls:191-216 and BreakFeedApi.cls:139-158: the CSP session and stand-in request helpers; BreakFeedApi is an existing file in contended Test/Web/**, so no shared helper can replace its copy
+- 2026-10-26T23:16:50Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=unification needs a contended file; reopen_if=a third route test class copies Csp/Post
+### DW-285: Closing a trace tab frees nothing: its licence unit is held until sign-out or the session timeout, so leaving the page must sign the trace session out (?IRISLogout=end), with the 120-second timeout as the backstop
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-103 owner's delegate: route to 16.4
+
+### DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=29-4-sessions-stay-isolated-under-load by=orchestrator note=U-103 owner's delegate: route to 29.4
+
+### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
+- source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
+- 2026-10-27T00:47:19Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-103 owner's delegate: route to 29.3
+
+### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
+- source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
+- 2026-10-27T06:44:53Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-107 condition: tracked on 16.4 before it is planned; whichever of 8.4 and 16.4 merges second turns the real path on

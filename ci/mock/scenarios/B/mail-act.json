@@ -1,0 +1,12 @@
+{
+  "name": "mail-act",
+  "match": {
+    "marker": "mail-act"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock asks for an action on this email.\"],\"confidence\":0.8}"
+    }
+  ]
+}

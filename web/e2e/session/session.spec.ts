@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import { README_ACCOUNT, envelope, noRoleAccount, signIn, signInOverHttp, stackOrigin, submitSignIn } from '../sign-in/helpers';
 import { chk, cleanFixtureRows, fixtureUser, irisScript } from '../support/iris';
+import { signOutTrace } from '../support/trace';
 
 /**
  * Story 2.2, the session (S1 to S8), in a real browser and over HTTP against a real stack. The users are the fixture users
@@ -236,6 +237,7 @@ test('S5: a group sign-in from a trace application opens the page and the API', 
   const body = (await state.json()) as { user: string };
   expect(body.user.toLowerCase(), "the snapshot is the user's own").toBe(user.toLowerCase());
   expect((await sessionRows(user)).count, "the group sign-in's session is the user's one durable session").toBe(1);
+  await signOutTrace(page.request);
 });
 
 /** S6: a user without the OcuTalon user role is shown the no-role page, and no durable session is created for them. */

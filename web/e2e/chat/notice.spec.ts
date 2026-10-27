@@ -1,12 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { notBuilt } from '../demo-path/not-built';
 import { signIn } from '../sign-in/helpers';
 import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendNotification } from '../support/iris';
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.7, the notice cards (N1 to N15; N11 is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 2.7, the notice cards (N1 to N15; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER) and sends items, item decisions and notifications to its own session through
  * the real production (SimMailboxIn and NoticesIn hosts, OutcomeRouter, Notify, WebChatOut), so that nothing here publishes on the
  * README session or the instance stream (api.spec pins their counts) or touches another spec's chat. Each case asserts only on the
@@ -464,4 +463,28 @@ test('N15: markup and an unbroken word in a card stay text inside the card', asy
   expect(fits, 'the unbroken words wrap: the card, the list and the page have no sideways scroll').toEqual({ notice: true, list: true, page: true });
 });
 
-notBuilt('a tell-now notification reaches the simulated phone within 5 seconds', '4.5');
+/**
+ * N11: the same untrusted item as N10's reaches the simulated phone within 5 seconds (P30, Story 2.7's phone half). The stack is in demo
+ * mode, so Notify routes the notification to SimPhoneOut as well as to WebChatOut, and the phone shows its text. The clock starts before
+ * the send, as N10's does, and the elapsed time is logged. The phone's text is the web card's text with its Why now line: the notice
+ * of the no-key fallback.
+ */
+test('N11: an untrusted item reaches the simulated phone as a tell-now notification within 5 seconds', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const sender = unique('N11');
+  const phone = page.getByRole('region', { name: 'Simulated devices' }).locator('app-simulated-phone');
+  await expect(phone, 'the simulated phone is on the page (demo mode)').toBeVisible();
+  const started = Date.now();
+  await sendItem(user, { sender, subject: 'Invoice', text: 'zz body [[mock:refusal]]' });
+  const message = phone.locator('.notification').filter({ hasText: sender });
+  const seen = await message.waitFor({ state: 'attached', timeout: Math.max(1, FIVE_SECONDS_MS - (Date.now() - started)) }).then(
+    () => true,
+    () => false,
+  );
+  const elapsed = Date.now() - started;
+  console.log(`N11: the untrusted item ${seen ? 'reached' : 'did not reach'} the simulated phone in ${elapsed} ms, counted from before the send`);
+  expect(seen, 'the notification is on the simulated phone within 5 s, counted from before the send').toBe(true);
+  expect(elapsed, 'in under 5000 ms').toBeLessThan(FIVE_SECONDS_MS);
+  await expect(message.locator('.text'), 'with the text of the no-key fallback, on two lines').toHaveText(`${sender}: Invoice\nWhy now: no model key is set`, { useInnerText: true });
+});

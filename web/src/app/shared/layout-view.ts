@@ -5,6 +5,7 @@
  * - LAYOUT_QUERIES holds the four width queries. Every width `@media` of the page's CSS is one of these strings, and Layout calls
  *   matchMedia with them only. They are range queries, which leave no gap at a fractional width, as zoom gives. The reference band
  *   (1280 to 1439px) is the width where `framed` matches and neither `drawer` nor `wide` does.
+ * - HEIGHT_QUERIES holds the one height query, kept apart from the width bands: the demo guide's compact row (Story 4.4).
  * - LAYOUT_TEXTS holds the fixed strings: the Status button, the spoken forms of its count, the narrow-window note and its Close name.
  * - statusCount gives the Status button's count pill and its spoken part.
  * - The note's storage keys and the value they hold when their flag is set.
@@ -20,6 +21,11 @@ export const LAYOUT_QUERIES = {
   drawer: '(1024px <= width < 1280px)',
   /** 1440px and wider: the rail is wider. */
   wide: '(width >= 1440px)',
+} as const;
+
+/** The height queries, which are not width bands: a viewport under 680px tall puts the demo guide in one compact row. */
+export const HEIGHT_QUERIES = {
+  compact: '(height < 680px)',
 } as const;
 
 /** Every fixed string of the layout, in ASCII. */

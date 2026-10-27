@@ -15,3 +15,12 @@ export function writeFlag(open: () => Storage, key: string, value: string): void
     /* The flag holds for this page only. */
   }
 }
+
+/** The text stored under the key; empty when there is none or the storage cannot be read. */
+export function readText(open: () => Storage, key: string): string {
+  try {
+    return open().getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+}

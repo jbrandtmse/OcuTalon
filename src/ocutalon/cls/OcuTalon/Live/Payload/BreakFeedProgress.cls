@@ -8,4 +8,13 @@ Property State As %String(%JSONFIELDNAME = "state", MAXLEN = 32);
 /// When the run started, UTC to the second.
 Property StartedAt As %String(%JSONFIELDNAME = "startedAt", MAXLEN = 20);
 
+/// The payload of a run: its state and start.
+ClassMethod FromRow(run As OcuTalon.Data.BreakFeedRun) As OcuTalon.Live.Payload.BreakFeedProgress
+{
+	Set payload = ..%New()
+	Set payload.State = run.State
+	Set payload.StartedAt = run.StartedAt
+	Quit payload
+}
+
 }

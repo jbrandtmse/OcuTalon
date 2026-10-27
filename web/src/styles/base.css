@@ -126,7 +126,9 @@ sup {
   }
 }
 
-.visually-hidden {
+/* The CDK live announcer's element is .cdk-visually-hidden: styled here for the whole page, the text it holds adds no height. */
+.visually-hidden,
+.cdk-visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;

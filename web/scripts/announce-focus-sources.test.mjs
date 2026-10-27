@@ -85,18 +85,22 @@ describe('the page speaks only through the Announcer', () => {
 
   it('announces from one place per event: the rail, the header and the reply, card and message components do not announce', () => {
     // A story that makes one of these announce moves the event's announcement from the chat or the control that owns it, so that the
-    // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason.
+    // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason. The guide announces an advance and the
+    // box announces "Sent" (Story 4.4): nothing else announces either.
     const silent = files.filter((one) => /^app\/(rail|header)\//.test(one.name) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts'].includes(one.name));
     assert.ok(silent.length >= 6, 'the silent files are found');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the load failure, the busy notice and the narrow-window note', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice and the narrow-window note', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
+      'app/feed/break-feed-box.ts',
+      'app/guide/demo-guide.ts',
       'app/live/live-state.ts',
+      'app/mailbox/simulated-mailbox.ts',
       'app/shared/announcer.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
@@ -109,6 +113,10 @@ describe('focus moves only for the user or through the focus rule', () => {
   const FOCUS_CALLS = {
     'app/chat/composer.ts': [1, 'the field takes focus after the user\'s own Send'],
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
+    'app/guide/demo-guide.ts': [2, 'Go to Break the feed focuses the box\'s button, and Show me focuses the phone\'s pending notification or its feed, both for the user\'s own press (Story 4.7)'],
+    'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
+    'app/mailbox/simulated-mailbox.ts': [2, 'the mailbox\'s own views move focus for the user\'s press (the form\'s From, the open email\'s heading, the row or Simulate after Back, the first field in error after Send, the sent email\'s row), through focusLater and focusSent'],
+    'app/phone/simulated-phone.ts': [1, 'the target of the phone\'s New messages button, which the user pressed'],
     'app/shared/popover.ts': [2, 'a popover returns focus to its trigger when the user closes it, and takes it into its panel when the user opens it'],
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
     'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
@@ -124,16 +132,18 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover or the drawer that the user opened, and for the focus rule', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, and for the focus rule', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel, the main page and the header the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the device panel, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
     const hosts = {
       'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
       'app/chat/chat-panel.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{PART\}\]\[\$\{KEY\}\]`/,
+      'app/devices/device-panel.ts': /const FOCUS_RULE: FocusRule = \{\};/,
+      'app/guide/demo-guide.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{FOCUS_KEY\}\]`[\s\S]*?whenGone:/,
       'app/main-page/main-page.ts': /const LOAD_ERROR_RULE: FocusRule = \{ within: '\.load-error' \}[\s\S]*const NOTE_RULE: FocusRule = \{ within: '\.narrow-note' \}/,
     };
     for (const [name, rule] of Object.entries(hosts)) {

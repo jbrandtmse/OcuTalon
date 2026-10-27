@@ -1,0 +1,12 @@
+{
+  "name": "mail-ignore",
+  "match": {
+    "marker": "mail-ignore"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock ignores this email.\"],\"confidence\":0.8}"
+    }
+  ]
+}

@@ -49,6 +49,11 @@ const IMPORTED = [
   ['chat/page-time.ts', ['WHEN_TEXTS']],
   ['msg/catalog.ts', ['PAGE_TEXTS']],
   ['shared/check-sentence.ts', ['CHECK_TEXTS']],
+  ['guide/guide-view.ts', ['GUIDE_TEXTS']],
+  ['feed/break-feed-view.ts', ['FEED_TEXTS']],
+  ['devices/device-view.ts', ['DEVICE_TEXTS']],
+  ['phone/phone-view.ts', ['PHONE_TEXTS']],
+  ['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -79,7 +84,7 @@ const QUOTED = "(?:'([^']*)'|\"([^\"]*)\")";
 const fromSource = [
   ['BUSY_NOTICE', grab('shared/server-button.ts', new RegExp(`export const BUSY_NOTICE = ${QUOTED};`, 'g'), 1)[0]],
   ['LOAD_FAILED', grab('live/live-state.ts', new RegExp(`export const LOAD_FAILED = ${QUOTED};`, 'g'), 1)[0]],
-  ...grab('header/skip-links.ts', new RegExp(`\\{ text: ${QUOTED}, target: ${QUOTED} \\}`, 'g'), 2).map((text) => ['SKIP_LINKS', text]),
+  ...grab('header/skip-links.ts', new RegExp(`\\{ text: ${QUOTED}, target: ${QUOTED}(?:, demo: true)? \\}`, 'g'), 3).map((text) => ['SKIP_LINKS', text]),
   ['ABOUT_CLOSE_NAME', grab('about/about-dialog.ts', new RegExp(`export const ABOUT_CLOSE_NAME = ${QUOTED};`, 'g'), 1)[0]],
   ['theme prefix', grab('header/header.ts', /`(Theme: )\$\{THEME_OPTIONS/g, 1)[0]],
   ['Online demo', grab('header/header.ts', new RegExp(`return ${QUOTED};\\s*\\}\\s*return snapshot\\?\\.demoMode`, 'g'), 1)[0]],
@@ -253,6 +258,7 @@ const SOURCES = {
     'Couldn\'t reach OcuTalon. Try again. Nothing was changed.',
     'Couldn\'t load your session.',
     'Skip to chat',
+    'Skip to simulated devices',
     'Skip to status',
     'System',
     'Light',
@@ -274,10 +280,77 @@ const SOURCES = {
     'Theme',
     'Chat',
     'Retry',
+    'Start with step 1 of the demo guide above.',
+    'Nothing yet. Step 1 of the guide sets up a watch.',
+    'Demo guide',
+    'Hide guide',
+    'Show guide',
+    'Watch',
+    'Reminder',
+    'Break the feed',
+    'Approve',
+    'Open the trace',
+    'Watch the Orders production and only tell me if something needs me.',
+    'Remind me in 1 minute to stretch.',
+    'Optional: scan the QR code in the Telegram card to get the notice on your own phone.',
+    'Step {n}, {label}, current',
+    'Step {n} of 5: {step}',
+    'Demo control',
+    'Next step',
+    'Ask OcuTalon to watch the Orders production first (step 1).',
+    'Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.',
+    'Do step 1',
+    'Sending 50 orders\u2026',
+    'Sent. OcuTalon usually notices within a minute.',
+    'OcuTalon noticed failures in the Orders production',
+    'Waiting for the failures to settle',
+    'Working out the cause from the failed messages',
+    'Still waiting. The notice will appear in the chat and on the Simulated phone tab.',
+    "No notice after 3 minutes, so something went wrong with this run. Open the Orders watch's trace in Background checks, or try again.",
+    'Simulated devices',
+    'Simulated phone',
+    'Simulated mailbox',
+    'Simulated',
+    '{tab}, {n} new',
+    "Notifications, reminders and approval requests appear here. The simulated phone is a real channel in the production; you'll see it in the trace.",
+    'Send one and see what OcuTalon decides.',
+    'Simulate an incoming email',
+    'No emails yet. Simulate an incoming email, or send a sample.',
+    "Email '{subject}': {outcome}",
+    ', send sample email',
+    'From',
+    'Subject',
+    'Body',
+    'Back',
+    'Results Partner IT <it@results-partner.example>',
+    'Press Break the feed. The partner will send 50 orders in a new date format.',
+    'Waiting for OcuTalon. The reminder may arrive first.',
+    'Go to Break the feed',
+    'Approve the fix in Telegram on your phone, or on the simulated phone.',
+    'Approve the fix on the simulated phone, or in the chat.',
+    'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
+    "OcuTalon couldn't diagnose this run, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+    "OcuTalon found the cause but has no fix for it, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+    'Show me',
+    "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.",
+    'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.',
+    'This run: {decisions} \u00b7 {tokens} \u00b7 {cost} on {models}.',
+    'This run: {decisions} \u00b7 {tokens} \u00b7 {cost}.',
+    '{n} decisions',
+    '{n} tokens',
+    'See the whole conversation in Visual Trace',
+    'Install OcuTalon yourself',
+    'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
+    'Run again',
+    '\u2197',
   ],
   design: [
+    'Unread',
     'Repair and resend',
     'Repair and resend {n} {noun}',
+    'step {n} of 5',
+    'About 2 minutes',
+    'Next:',
   ],
   ac: {
     'Story 2.6: Show every decision with its reasons and cost (the Details labels Tokens, Model, Agent steps, Duration, Decision message and Cost)': ['Agent steps', 'Decision message'],
@@ -286,6 +359,13 @@ const SOURCES = {
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
   },
   ruled: {
+    'Story 4.7 veto item V1 (the sign-in name of a trace link with its own label, the singular forms of the run line and the model list\'s "and")': [
+      '{label} (shows sign-in help first)',
+      '{n} decision',
+      '{n} token',
+      '{list} and {last}',
+    ],
+    'Story 4.6 veto item V2 (the field errors of the compose form)': ['Enter a subject.', 'Enter a body.'],
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [
       'Close reset notice',
       'Close reconnecting notice',
@@ -295,6 +375,10 @@ const SOURCES = {
     'Story 2.15 ruling, cycle-log-epic-2.md 2026-10-24T22:15:51Z (the Status button count and the narrow-window note\'s Close; UX-DR20, UX-DR35, UX-DR128, UX-DR130)': [
       '{n} approval requests',
       'Close narrow-window note',
+    ],
+    'Story 4.4 ruling, spec gate 2026-10-26, veto item V2 (U-85): the step names that carry the state words of DESIGN.md\'s step markers (UX-DR45)': [
+      'Step {n}, {label}, done',
+      'Step {n}, {label}, upcoming',
     ],
   },
   calendar: [
@@ -324,9 +408,15 @@ const SOURCES = {
     '{n} seconds',
     ' \u00b7 ',
     '{n} s',
+    '{n} second',
+    '{n} min',
+    '{n} minute',
+    '{n} minutes',
+    '"{text}"',
     '{m} min {s} s',
     '{label} ({n})',
     '{label}, {n}',
+    ', ',
     '{text}{separator}{countdown}',
     '{day} at {time}',
     '{month} {day}, {year}',
@@ -491,10 +581,11 @@ describe('the ellipsis and the characters', () => {
     assert.equal(modules['msg/catalog.ts'].PAGE_TEXTS['banner.reconnecting'], 'Reconnecting\u2026 New messages may be delayed.');
   });
 
-  it('holds no non-ASCII character but U+2026 and U+00B7', () => {
+  it('holds no non-ASCII character but U+2026, U+00B7 and U+2197', () => {
+    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7).
     for (const text of strings) {
-      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7');
-      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026 and U+00B7`);
+      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197');
+      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7 and U+2197`);
     }
     assert.ok(/^[\x00-\x7f]*$/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')), 'this test is written in ASCII, with escapes');
   });

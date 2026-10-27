@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type APIResponse, type Response }
 
 import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
 import { fixtureUser } from '../support/iris';
+import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
 /**
@@ -58,17 +59,9 @@ const ENVELOPE_TEXT = {
   wrong_origin: 'OcuTalon refused this request because it came from another site.',
 } as const;
 
-const NOT_BUILT = "This part of OcuTalon isn't built yet.";
+const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
-
-/** The routes that answer 501 not_built, with the method that each takes. Session/end (Story 2.2) and messages (Story 2.4) are built, and the two routes that name a record answer 404 first. */
-const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
-  ['POST', '/ocutalon/api/v1/demo/break-feed'],
-  ['POST', '/ocutalon/api/v1/mailbox/incoming'],
-  ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
-  ['POST', '/ocutalon/api/v1/guide/markers'],
-];
 
 /** The routes that name a record: a ref the session can't see answers 404 not_found, before the 501 of an unbuilt route. */
 const BY_REF: ReadonlyArray<readonly [method: 'POST', path: (ref: string) => string]> = [
@@ -114,7 +107,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
@@ -134,6 +127,15 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     pausedUntil: '',
   });
   expect(body['status'], 'the computed no-key condition of this stack: the model key is not set (Story 2.10)').toEqual([{ condition: 'noModelKey', active: true }]);
+  expect(body['guide'], "the README session has no rows: the blank guide of Story 4.2, last because demo mode is on").toEqual({
+    runEpoch: 1,
+    step: 1,
+    finished: false,
+    steps: [1, 2, 3, 4, 5].map((step) => ({ step, done: false })),
+    breakFeed: { active: false, reason: 'not_watching' },
+    step4Variant: 'unpaired',
+    telegramRow: false,
+  });
 });
 
 /**
@@ -234,8 +236,9 @@ test.describe('row 15: the browser envelope', () => {
   });
 
   test('the whole envelope is let through, with or without a charset', async () => {
-    await expectError(await call(signedIn, 'POST', BREAK_FEED), 501, 'not_built', NOT_BUILT);
-    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
+    // README watches nothing on this stack, so a press that gets through the envelope is refused with no side effect (Story 4.3).
+    await expectError(await call(signedIn, 'POST', BREAK_FEED), 409, 'not_watching', NOT_WATCHING);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 409, 'not_watching', NOT_WATCHING);
   });
 
   test('only the Content-Type is wrong: not_json', async () => {
@@ -288,14 +291,14 @@ test.describe('row 15: the browser envelope', () => {
 });
 
 /**
- * Row 16: every route that no story has built answers 501, the pairing routes answer 404, and the two routes that name a record
- * answer 404 for a ref the session can't see (a random ref, here) with the error shape (AD-4).
+ * Row 16: the mailbox routes are built (Story 4.6): an empty email is 400 bad_email and an unknown sample is 404 not_found, each in the
+ * error shape; the pairing routes answer 404, and the two routes that name a record answer 404 for a ref the session can't see (a
+ * random ref, here) with the error shape (AD-4).
  */
-test('row 16: unbuilt routes answer 501 not_built, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
+test('row 16: the mailbox routes answer 400 for an empty email and 404 for an unknown sample, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
-  for (const [, path] of UNBUILT) {
-    await expectError(await call(request, 'POST', path), 501, 'not_built', NOT_BUILT);
-  }
+  await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/incoming'), 400, 'bad_email', 'Enter a subject.');
+  await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/samples/zz'), 404, 'not_found', NOT_FOUND);
   for (const [, path] of BY_REF) {
     await expectError(await call(request, 'POST', path('ZzNoSuchRef0123456789')), 404, 'not_found', NOT_FOUND);
     await expectError(await call(request, 'POST', path('zz')), 404, 'not_found', NOT_FOUND);
@@ -349,6 +352,7 @@ test('row 18: a trace-only user gets 403 no_role from the API, first, and stays 
   await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   const trace = await request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
   expect(await trace.text(), 'the session is not ended: the trace window still opens').toContain('Message Viewer');
+  await signOutTrace(request);
 });
 
 test('row 18: the README account gets 200', async ({ request }) => {
