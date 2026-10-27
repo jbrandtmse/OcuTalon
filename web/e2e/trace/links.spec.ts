@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { STATE, changeSnapshot } from '../support/api';
 import {
@@ -16,7 +16,7 @@ import {
   sendItemDecision,
   sinkEvent,
 } from '../support/iris';
-import { TRACE_PAGE, drawnMessages, expectDrawn, postTurn, signInToTrace, signOutTrace, traceSessions, type Cursor, type Turn } from '../support/trace';
+import { TRACE_PAGE, drawnMessages, expectDrawn, helpSeen, postTurn, signInToTrace, signOutTrace, stubTraces, traceSessions, type Cursor, type Turn } from '../support/trace';
 import { signIn, signInOverHttp } from '../sign-in/helpers';
 
 /**
@@ -40,9 +40,9 @@ import { signIn, signInOverHttp } from '../sign-in/helpers';
  *   and records nothing (V14); an approval request that arrives by event carries its incident's link (V15); a second press on a link
  *   while its help is open opens the link and closes the help (V16).
  * V1, V2 and V8 open the real Visual Trace pages and read what they draw. The other cases only check which address a link opens, so
- * their tabs get a stand-in page (stubTraces), because a run that opened every tab for real starved later cases of the stack; that
- * each tab signed in to a trace application holds one of the stack's licence connections until its session times out is an
- * inference, not a measurement.
+ * their tabs get a stand-in page (stubTraces), because a run that opened every tab for real starved later cases of the stack: a
+ * trace-application page holds one of the stack's licence connections for its user and client address until its session is signed
+ * out or times out (measured, DW-146), so every case also signs its trace session out when it ends.
  * The texts and the storage keys are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 90_000 });
@@ -115,17 +115,6 @@ async function someTurn(): Promise<Turn> {
   return done.length > 0 ? (done[done.length - 1]!.payload as Turn) : postTurn(api, cursor, 0, 'links');
 }
 
-/** Marks the sign-in help as seen in the page's tab session before any script of the page runs. */
-async function helpSeen(page: Page): Promise<void> {
-  await page.addInitScript((key) => {
-    try {
-      window.sessionStorage.setItem(key, '1');
-    } catch {
-      /* The page copes with a storage that fails. */
-    }
-  }, SEEN_KEY);
-}
-
 /** Signs the links user in and waits for the loaded page. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
@@ -146,11 +135,6 @@ async function opensTab(page: Page, action: () => Promise<unknown>): Promise<Pag
   await popup.waitForLoadState('domcontentloaded');
   await signInToTrace(popup, KIND);
   return popup;
-}
-
-/** Gives every trace application page of the context a stand-in answer: the tabs it opens keep the address they were opened at. */
-async function stubTraces(context: BrowserContext): Promise<void> {
-  await context.route('**/ocutalon/trace/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Visual Trace</title>' }));
 }
 
 /** The path and query of the address the page is at. */

@@ -392,6 +392,42 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 - **AC9.** (DW-146) Given the sign-in unit's trace specs, when each case that opened a trace-application page ends, then row 14 holds. Its trace session is signed out, and V1 shows the licence-holding CSP session released.
 - **AC10.** Given the floor stack, when `live floor` runs, then M3 (edited) and M7-M10 pass with the existing floor cases. `live sign-in` passes with the same case count.
 
+### Review Findings
+
+Code review 2026-10-26 (full, four layers on the full-opus tier). 37 rows. After grouping, 14 entries survived: high 0, med 3, low 11. Every entry is in-story and spec-clear, so each is patched in this pass. The rejected rows (25, plus the first half of the auditor's eighth) are grouped into the appendix below.
+- [x] [Review][Patch] (med; fix-risk low, one test block) A held marker answer is never shown giving way to a later, different live view. Without the effect that clears it, the guide freezes after any marker press, and M9 to M13 all stay green (row 9, Decided 8). Fix: extend M10 so that, after Run again, a run seeded in flight shows the waiting line [web/e2e/floor/guide.spec.ts:561]
+- [x] [Review][Patch] (med, Rule 19 hermeticity; fix-risk low) M7's "no notice brings the prompt back" passes for the wrong reason when the FLOOR user's epoch started less than 200 s earlier, which happens when M9 to M13 run first: the 200 s-old run falls outside the epoch, the stage is empty, and the prompt shows anyway. Fix: M7 starts the epoch before its runs, puts the start back after, and asserts that /state's stage is `no_notice` [web/e2e/floor/guide.spec.ts:326]
+- [x] [Review][Patch] (med, Rule 2; fix-risk low) The floor cases copy links.spec's `stubTraces` once and its `helpSeen` twice, inline. Fix: move both into `support/trace.ts` and import them in both specs [web/e2e/floor/guide.spec.ts:312, web/e2e/trace/links.spec.ts:119]
+- [x] [Review][Patch] (low) M9 reads the run line's font size but never asserts it, and never reads its colour (AC4: body-sm, ink-muted) [web/e2e/floor/guide.spec.ts:496]
+- [x] [Review][Patch] (low) Nothing checks that a press of Open the trace that only shows the sign-in help writes no `trace_opened` (row 5) [web/e2e/floor/guide.spec.ts:477]
+- [x] [Review][Patch] (low) M10's title says Run again changes only the markers, but the case counts no conversation rows (AC6) [web/e2e/floor/guide.spec.ts:578]
+- [x] [Review][Patch] (low, Rule 2) M10 and M13 repeat the held-poll gate [web/e2e/floor/guide.spec.ts:585]
+- [x] [Review][Patch] (low) The guide's `model` reads `store().chat` directly, so it is rebuilt and re-runs `keepFocus` on every store change [web/src/app/guide/demo-guide.ts:503]
+- [x] [Review][Patch] (low, Rule 14) The `trace-view.ts` doc says `TRACE_TEXTS` is ASCII, but it now holds the arrow [web/src/app/shared/trace-view.ts:5]
+- [x] [Review][Patch] (low, Rule 14) The `Guide.cls` doc says `run` counts from the run's start, which the same doc defines as the latest Break the feed run. The code counts from the epoch's start (`RunStartedAt`, row 11) [src/ocutalon/cls/OcuTalon/Demo/Guide.cls:14]
+- [x] [Review][Patch] (low, Rule 14) links.spec's header still calls the licence hold "an inference, not a measurement", although Task 0 measured it [web/e2e/trace/links.spec.ts:44]
+- [x] [Review][Patch] (low) `rowCount` reads an empty CHK count as 0 [web/e2e/support/guide.ts:103]
+- [x] [Review][Patch] (low, Rule 19) `phone-view.test.mjs` compares `pendingApproval` with its own definition, so that assertion cannot fail [web/scripts/phone-view.test.mjs:84]
+- [x] [Review][Patch] (low, Rule 19) AC5's pinning test, M9, has never been seen to go red because of a server change. Name the mutation, apply it, see it red and record it under Verification [web/e2e/floor/guide.spec.ts:493]
+
+Rejected (one line each):
+- `false` An instance-owned incident leaves the agent's work out of the run total. Refuted: the guide's incident comes from the session's own Break the feed batch, which is tagged with its TraceRef and so has session scope (AD-4). EXPERIENCE says the figures "cover this session's decisions and turns" (blind, edge).
+- `low` by-design: `trace_opened` and the run total span every Break the feed run of the epoch, so after a fallback, rejection or no-fix retry, step 5 is already done and the total covers both runs. Story 4.2's derivation says only Run again resets the marker, row 11 counts from `RunStartedAt`, and EXPERIENCE invites opening the fallback's trace. The finish still needs an approved fix and a resolved incident, so this is no false all-clear (blind, edge x2, auditor).
+- `low` by-design: epoch 1 with no `RunStartedAt` counts the whole session. Row 11 says "" counts the whole session, as EXPERIENCE's "this session's decisions" does (edge).
+- `low` The finish has no compact form under 680px tall. The framed shell is 100dvh and main has min-height 0, so the chat shrinks and nothing leaves the viewport (the edge layer's "below the fold" is false). A compact finish would need a UX text and layout (blind, edge).
+- `low` A middle-click or "Open in new tab" on Open the trace writes no marker. Users click the primary button, the context menu cannot be detected, and a fix would add an auxclick branch with its own help semantics (blind, edge).
+- `low` A held answer can outlive a newer live view, or a stale event can briefly bring back the previous finish. The window is the POST response's transit time. Every view is a server-computed 200 body for a run that met the finish rule. A guard would trade this race for the stale-event race that Decided 8 handles, and ordering needs sequence numbers that the answers lack (edge x2, auditor x2).
+- `low` Step 5 with no trace URL leaves the guide stuck. AD-26 gives every incident chain its own trace session on the row, and Decided 5 chooses no action before one exists (edge).
+- `low` If the host clock runs behind IRIS, seeded times fall before `RunStartedAt`. The stack shares the host's clock in CI and locally, and `inMs` is the floor suite's existing pattern (edge).
+- `low` A throwing `dropUsage` skips the later cleanups. It throws only when irisScript is already refused, and then the whole stack is failing (edge).
+- `false` M8's published phone event leaks into later cases. Refuted: every later page starts behind it (the snapshot's cursor), and /state builds the phone from SimMessage rows. Events are append-only, as with every publishCheck and publishReminder in the suite. M12 sees nothing of it (edge, auditor; QA's point judged).
+- `low` `ux-strings` allows U+2197 in any string. The spec's task says so, and every string still needs a recorded source in `SOURCES` (edge).
+- `low` M13's "only the install link" assumes the FLOOR chat has no traced turn. It fails safe, and every case that seeds FLOOR turns removes them (verification).
+- `low` by-design (DW-215): a resolved incident with a stale variant that is later closed shows step 4's variant again. Row 12 keeps the variant for `closed`, and AD-15 never moves an incident open with a variant to resolved. This is a false negative, never a false all-clear (auditor).
+- `low` by-design: a failed fix reaches the finish. AD-15 moves `fixing` to `resolved` on any final FixResult, and 4.2's `APPROVEDFIX` includes `failed`. The finish rule is unchanged (P24), and its text claims no success (auditor).
+- `low` M8 does not republish the incident and request events. Row 4's text and its missing button come from the guide view alone, so republishing changes nothing the case asserts (auditor).
+- `low` The DW-146 sign-outs at the end of the api, shell, sign-in and session sites are not in `finally`. As adjudicated before, a leak needs a case that is already red, and the spec's wording is "end with" (auditor).
+
 ## Spec Change Log
 
 - 2026-10-26, plan halt answered (runner): orchestrator q3 allowed (regenerated `payloads.ts`, Epic 4's lines), q4 parked (U-103, no AD-13 edit); status reset to `ready-for-dev`, no re-plan; veto V1 recorded (U-104).
@@ -650,7 +686,7 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 - mutation: `boxView` keeps `secondary` when finished (`&& view.finished !== true` dropped) -> red: `break-feed-view.test.mjs` "takes the attention style again once the guide is finished".
 - mutation: `runTotalText` without the singular (`n === 1 ? one : many` -> `many`) -> red: `guide-view.test.mjs` "uses the singular at exactly 1".
 - mutation: `Guide.Compute` sets `run` while not finished (`If finished` -> `If 1`) -> red: `TestRunTotal` "not finished: no run" (and `TestBlank`, `TestBlankEqualsCompute`).
-- mutation: `run.tokens` = `inputTokens` only -> red: `TestRunTotal` "input plus output tokens" (the exact line in M9 is the end-to-end pin, not run for this mutation).
+- mutation: `run.tokens` = `inputTokens` only -> red: `TestRunTotal` "input plus output tokens"; in `live floor` (code review) also M9 "the run total" ("9,000 tokens"), AC5's end-to-end pin from the server.
 - mutation: `GuideMarkers` without `TraceLink.Add` -> red: `TestMarkerAnswerTrace` "with the TraceLink URL".
 - mutation: `trace` from an incident before the run window (the lookup with an empty window) -> red: `TestTrace` "an incident noticed before the run: no trace".
 - mutation: the variant read for every state again (`VARIANTSTATES` test dropped) -> red: `TestVariantFollowsState` (the stale rejected variant in resolved, awaiting_approval and fixing).
@@ -672,7 +708,7 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 - the source-scan lists (`IMPORTED`, `SOURCES`, the character rule, `FOCUS_CALLS`, `afterNextRender`);
 - the demo-path summary's step lines and floor count;
 - the trace sessions of the sign-in unit's fixture users, which are now signed out after each trace case;
-- the floor user's `GuideState` (M9 and M10 post `run_again`; later floor cases read the guide only through the current epoch's rows).
+- the floor user's `GuideState` (M9 and M10 post `run_again`; M7 sets `RunStartedAt` 5 minutes back and puts it back; later floor cases read the guide only through the current epoch's rows).
 
 Every test added or changed passes on a fresh environment, in either order.
 
@@ -686,6 +722,10 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation (QA, AC1; `live floor`): `goToBreakFeed` focuses only an active button -> red: M12 ("the inactive button takes focus").
 - mutation (QA, AC6; `live floor`): a failed Run again sets `finished` false on the held view -> red: M13 ("the finish stays"; M13 holds the page's polls for this step, because a live view otherwise put the held view right within the 1.5 s wait and the first version of the case stayed green).
 - `live floor` with M12 and M13: 99 passed, 313-333 s.
+
+**Code review (2026-10-26).**
+- mutation (code review, AC6; `live floor`, applied with the `run.tokens` one above, each red in its own case): the effect that clears the held marker answer when a live view arrives removed -> red: M10 "the next live view replaces the held answer" (the step 3 prompt stayed). Reverted from a backup; `git diff | md5` identical before and after.
+- After the review's patches: `live floor` 315 s (99 passed), `live demo-path` 92 s (STEP 1 passed 6 of 6, floor 7 of 7), `live sign-in` 449 s (217 passed), `npm --prefix web test` (691), lint, `payloads.mjs --check` and `ci/checks.sh` green.
 
 ## Auto Run Result
 

@@ -12,8 +12,8 @@
 ///   - The open variant counts only while the incident is open or closed (VARIANTSTATES): it is stored beside the state and means
 ///     nothing in another state.
 ///   - trace is the trace session of the run's noticed incident, when it has one (AD-26); run is the Ownership.RunCost total
-///     since the run's start (the whole session when the epoch has no start), present only once the guide is finished. Both are
-///     absent otherwise, and the web layer adds the trace URL.
+///     since the epoch's start, GuideState.RunStartedAt (the whole session when the epoch has no start), present only once the
+///     guide is finished. Both are absent otherwise, and the web layer adds the trace URL.
 ///   - Telegram counts as on only when the release includes it and TelegramState() says "on"; that stays "off", as /state's
 ///     telegram block does, until Story 10.3 records the real state.
 /// Times are UTC strings YYYY-MM-DDThh:mm:ssZ; ages are whole seconds. Compute throws when a read fails.

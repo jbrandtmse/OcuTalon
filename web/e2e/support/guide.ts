@@ -90,8 +90,8 @@ export async function seedBreakFeedRun(user: string, state: 'sending' | 'sent', 
   if (chk(lines, 'run') !== '1') throw new Error(`the Break the feed run could not be seeded (${lines.join(' ')})`);
 }
 
-/** How many rows of each kind (BackgroundCheck, Reminder, Incident) have one of the refs. */
-export async function rowCount(table: 'BackgroundCheck' | 'Reminder' | 'Incident', refs: string[]): Promise<number> {
+/** How many rows of each kind (BackgroundCheck, Reminder, Incident, Turn) have one of the refs. */
+export async function rowCount(table: 'BackgroundCheck' | 'Reminder' | 'Incident' | 'Turn', refs: string[]): Promise<number> {
   if (refs.length === 0 || refs.some((ref) => !/^[A-Za-z0-9_-]+$/.test(ref))) throw new Error('rowCount takes plain refs');
   const lines = await irisScript(
     [
@@ -100,9 +100,32 @@ export async function rowCount(table: 'BackgroundCheck' | 'Reminder' | 'Incident
       'Write !,"CHK|count|",rs.%GetData(1)',
     ].join('\n'),
   );
-  const count = Number(chk(lines, 'count'));
+  const raw = chk(lines, 'count');
+  const count = raw === undefined || raw === '' ? Number.NaN : Number(raw);
   if (!Number.isInteger(count)) throw new Error(`the ${table} rows could not be counted (${lines.join(' ')})`);
   return count;
+}
+
+/**
+ * Sets when the user's current run epoch started (GuideState.RunStartedAt) to the UTC time, and returns the time it had, so that a case
+ * can put it back with the same call. A session with no GuideState row is in its first epoch, which counts every run, so nothing is
+ * written and the answer is undefined.
+ */
+export async function startEpochAt(user: string, at: string): Promise<string | undefined> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set r=##class(OcuTalon.Data.GuideState).ForSession(s.Ref)',
+      'If \'$IsObject(r) { Write !,"CHK|epoch|none" Halt }',
+      'Write !,"CHK|was|",r.RunStartedAt',
+      `Set r.RunStartedAt=${quoted(at)}`,
+      'Write !,"CHK|epoch|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  const result = chk(lines, 'epoch');
+  if (result === 'none') return undefined;
+  if (result !== '1') throw new Error(`the run epoch's start could not be set (${lines.join(' ')})`);
+  return chk(lines, 'was') ?? '';
 }
 
 /** Sets the state and open variant of an incident row, as the incident manager would (Lane A's table, written here for a fixture row). */

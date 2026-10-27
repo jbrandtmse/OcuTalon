@@ -2,7 +2,7 @@
  * The Visual Trace links' strings and rules (Story 2.13, UX-DR38, UX-DR42, UX-DR128, UX-DR139, UX-DR140). A framework-free
  * module: it imports only types and uses only erasable TypeScript syntax, so Node runs it as it is.
  *
- * - TRACE_TEXTS holds every fixed string of the trace links, the sign-in help and the Visual Trace menu, in ASCII.
+ * - TRACE_TEXTS holds every fixed string of the trace links, the sign-in help and the Visual Trace menu, in ASCII except the arrow (U+2197).
  * - needsSignInHelp says whether the sign-in help is still to be shown: never on the online demo, never before the
  *   snapshot has said which it is, and not once it has been seen in this tab's session or switched off for the browser.
  * - signInFor is the sign-in name of a trace link with its own text (Story 4.7): the visible label first (WCAG 2.5.3), then the words of

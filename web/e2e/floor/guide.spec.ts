@@ -1,12 +1,12 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import { post, STATE } from '../support/api';
 import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
 import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
 import { publishFixtureEvent } from '../support/devices';
-import { dropBreakFeed, dropUsage, GUIDE_MARKERS, ORDERS, publishWatchProgress, refreshGuide, rowCount, seedBreakFeedRun, setIncident, settleBatch } from '../support/guide';
+import { dropBreakFeed, dropUsage, GUIDE_MARKERS, ORDERS, publishWatchProgress, refreshGuide, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
-import { TRACE_PAGE } from '../support/trace';
+import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
 
 /**
  * Story 4.4, the demo guide and the Break the feed box on the floor stack, as the FLOOR user (M1 to M6; the floor stack is in demo mode).
@@ -17,7 +17,7 @@ import { TRACE_PAGE } from '../support/trace';
  * A case removes the check and the reminder it seeds with cleanFixtureRows, and M4 the run and the batch of 50 orders as well (the FLOOR
  * session is no fixture session, so Fixture.Clean keeps its run rows, and a run under 180 s old would show in the next case's guide).
  * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 Go to Break the feed and the waiting line, M8 Show me
- * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen. Their trace tabs
+ * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 and M13 (QA) the cells of those rows that need an odd state: Show me with no phone message, Go to Break the feed on an inactive box, a failed marker write and a finish with no turn. Their trace tabs
  * are stand-ins (stubTraces), so they hold no licence connection, and M9 and M10 start from a run_again, so that the run window is clean.
  */
 test.describe.configure({ timeout: 120_000 });
@@ -308,11 +308,6 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
   }
 });
 
-/** Gives every trace application page of the context a stand-in answer, so that a tab the case opens holds no licence connection. */
-async function stubTraces(context: BrowserContext): Promise<void> {
-  await context.route('**/ocutalon/trace/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Visual Trace</title>' }));
-}
-
 /** The guide's step 4 and step 5 rows: an Orders incident with the trace session HEADER, and the watch and the reminder that come before it. */
 async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string }> {
   await seedWatch(user, refs);
@@ -332,7 +327,10 @@ test('M7: Go to Break the feed focuses the box without pressing it, and a run in
   page.on('request', (request) => {
     if (request.method() === 'POST') posts.push(new URL(request.url()).pathname);
   });
+  let epochStart: string | undefined;
   try {
+    // The run window starts 5 minutes back, so that both runs below are the epoch's whatever case ran before.
+    epochStart = await startEpochAt(user, inMs(-300_000));
     const check = await seedWatch(user, refs);
     const reminder = await seedStretch(user, refs);
     await publishCheck(user, { ref: check, ...ORDERS, displayName: 'zz M Orders' });
@@ -364,11 +362,14 @@ test('M7: Go to Break the feed focuses the box without pressing it, and a run in
     await dropBreakFeed(user);
     await seedBreakFeedRun(user, 'sent', inMs(-200_000));
     await refreshGuide(user);
+    const stage = ((await (await page.request.get(STATE)).json()) as { guide: { breakFeed: { stage?: string } } }).guide.breakFeed.stage;
+    expect(stage, "the run is the epoch's, with no notice after 3 minutes").toBe('no_notice');
     await expect(promptText(page), 'no notice brings the prompt back').toHaveText(`"${P3}"`, { timeout: CARD_MS });
     await expect(goOf(page)).toBeVisible();
   } finally {
     await dropBreakFeed(user);
     await cleanFixtureRows(refs);
+    if (epochStart !== undefined) await startEpochAt(user, epochStart);
   }
 });
 
@@ -443,8 +444,23 @@ async function seedFinishingRun(page: Page, user: string, refs: string[], usage:
   await expect(stepOf(page, 5, 'current'), 'the guide is at step 5').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
 }
 
-/** The sessionStorage key under which the sign-in help counts as seen in a tab. */
-const TRACE_HELP_SEEN_KEY = 'ocutalon.traceHelp.seen';
+/**
+ * Holds the page's polls of /events until the returned release is called, and returns once a poll is waiting, so that no live view
+ * reaches the page in between.
+ */
+async function holdPolls(page: Page): Promise<() => void> {
+  let release!: () => void;
+  let held!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const polled = new Promise<void>((resolve) => (held = resolve));
+  await page.route('**/ocutalon/api/v1/events?*', async (route) => {
+    held();
+    await gate;
+    await route.continue();
+  });
+  await polled;
+  return release;
+}
 
 /** Ends the run the case finished, so that the FLOOR user's next case starts from a clean guide. */
 async function endRun(page: Page): Promise<void> {
@@ -473,6 +489,10 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await expect(link).toHaveClass(/button-primary/);
     await expect(breakOf(page), 'while step 5 is current the box is the secondary style').toHaveClass(/button-secondary/);
 
+    const markers: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/guide/markers')) markers.push(request.postData() ?? '');
+    });
     const written = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/guide/markers') && (response.request().postData() ?? '').includes('trace_opened'));
     const tab = page.context().waitForEvent('page');
     await expect(link, 'on a local install it is named for the help it shows first').toHaveAccessibleName('Open the trace (shows sign-in help first)');
@@ -480,6 +500,8 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await link.click();
     const dialog = page.getByRole('dialog', { name: 'Sign in to Visual Trace', exact: true });
     await expect(dialog, 'the help shows first').toBeVisible();
+    await settled(page);
+    expect(markers, 'the press that only shows the help writes no marker').toEqual([]);
     await dialog.getByRole('link', { name: 'Open Visual Trace (opens in a new tab)', exact: true }).click();
     const opened = await tab;
     await opened.waitForLoadState('domcontentloaded');
@@ -495,9 +517,11 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await expect(finish.locator('.run-total'), 'the run total').toHaveText('This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.');
     const totalStyle = await finish.locator('.run-total').evaluate((node) => {
       const style = getComputedStyle(node);
-      return { numbers: style.fontVariantNumeric, size: style.fontSize };
+      return { numbers: style.fontVariantNumeric, size: style.fontSize, color: style.color, bodySm: getComputedStyle(document.documentElement).getPropertyValue('--type-body-sm-font-size').trim() };
     });
     expect(totalStyle.numbers, 'in tabular figures').toContain('tabular-nums');
+    expect(totalStyle.size, 'in body-sm').toBe(totalStyle.bodySm);
+    expect(totalStyle.color, 'in ink-muted').toBe(await tokenColor(page, '--ink-muted'));
     await expect(finish.locator('.more')).toHaveText(MORE);
 
     const conversation = finish.locator(`a[href="${TRACE_PAGE}${HEADER + 1}"]`);
@@ -531,13 +555,7 @@ test('M11: with the sign-in help seen, Open the trace opens the tab and writes t
   const usage: string[] = [];
   try {
     await stubTraces(page.context());
-    await page.addInitScript((key) => {
-      try {
-        window.sessionStorage.setItem(key, '1');
-      } catch {
-        /* The page copes with a storage that fails. */
-      }
-    }, TRACE_HELP_SEEN_KEY);
+    await helpSeen(page);
     await seedFinishingRun(page, user, refs, usage);
     const link = openTraceOf(page);
     await expect(link, 'named as a plain link').toHaveAccessibleName('Open the trace (opens in a new tab)');
@@ -575,22 +593,18 @@ test('M10: Run again returns the prompt bar at step 3 with focus on its action, 
     expect(marked.status(), await marked.text()).toBe(200);
     const finish = guideOf(page).locator('.finish');
     await expect(finish, 'the finish shows').toBeVisible({ timeout: CARD_MS });
-    const counts = async (): Promise<number[]> => [await rowCount('BackgroundCheck', checks), await rowCount('Reminder', checks), await rowCount('Incident', checks)];
+    const counts = async (): Promise<number[]> => [
+      await rowCount('BackgroundCheck', checks),
+      await rowCount('Reminder', checks),
+      await rowCount('Incident', checks),
+      await rowCount('Turn', checks),
+    ];
     const rows = await counts();
-    expect(rows.every((count) => count > 0), 'the check, the reminder and the incident exist').toBe(true);
+    expect(rows.every((count) => count > 0), 'the check, the reminder, the incident and the turn exist').toBe(true);
     const before = (await announcedTexts(page)).length;
 
     // The page's polls are held while Run again is pressed, so that only the 200 answer can bring the prompt bar back: it is the guide view at once.
-    let release!: () => void;
-    let held!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    const polled = new Promise<void>((resolve) => (held = resolve));
-    await page.route('**/ocutalon/api/v1/events?*', async (route) => {
-      held();
-      await gate;
-      await route.continue();
-    });
-    await polled;
+    const release = await holdPolls(page);
     await finish.getByRole('button', { name: 'Run again', exact: true }).click();
     try {
       await expect(promptText(page), "the 200 answer's view brings the prompt bar back at step 3, before any poll").toHaveText(`"${P3}"`, { timeout: 5000 });
@@ -601,11 +615,147 @@ test('M10: Run again returns the prompt bar at step 3 with focus on its action, 
     await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
     await expect(goOf(page), 'with focus on its action').toBeFocused();
     expect(await epochOf(), 'the run epoch rose').toBe(epoch + 1);
-    expect(await counts(), 'the session\'s checks, reminders and incidents are as they were').toEqual(rows);
+    expect(await counts(), 'the session\'s checks, reminders, incidents and conversation are as they were').toEqual(rows);
     await page.waitForTimeout(1500);
     expect((await announcedTexts(page)).slice(before), 'Run again is silent').toEqual([]);
+
+    // The held answer stands only until the next live view: a run in flight, seeded after Run again, shows its waiting line.
+    await seedBreakFeedRun(user, 'sent', inMs(0));
+    await refreshGuide(user);
+    await expect(promptText(page), 'the next live view replaces the held answer').toHaveText(WAITING, { timeout: CARD_MS });
   } finally {
     await dropUsage(usage);
+    await cleanFixtureRows(refs);
+    await dropBreakFeed(user);
+    await endRun(page);
+  }
+});
+
+/** The guide's marker endpoint as the page calls it, to route it. */
+const MARKERS_ROUTE = '**/ocutalon/api/v1/guide/markers';
+
+/** An error answer of the marker endpoint, as the server gives one. */
+const failMarker = (route: Route): Promise<void> => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"server_error","message":"zz"}}' });
+
+/**
+ * M12 (QA, rows 1 and 3): with no phone message that names the request, Show me selects the phone tab and focuses the phone's feed
+ * region (never a button); and Go to Break the feed on a selected step 3 moves focus to the box's button even while it is inactive
+ * (aria-disabled), pressing nothing.
+ */
+test('M12: Show me with no pending notification focuses the phone feed, and Go to Break the feed focuses an inactive box without pressing it', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const posts: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST') posts.push(new URL(request.url()).pathname);
+  });
+  try {
+    await seedIncidentPath(user, refs, { state: 'open', openVariant: 'fix' }, 'pending');
+    await openFloor(page);
+    await expect(stepOf(page, 4, 'current'), 'the page opens at step 4').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+    const phoneTab = page.getByRole('tab', { name: /^Simulated phone/ });
+    const mailboxTab = page.getByRole('tab', { name: /^Simulated mailbox/ });
+    await mailboxTab.click();
+    await expect(mailboxTab).toHaveAttribute('aria-selected', 'true');
+
+    await guideOf(page).getByRole('button', { name: 'Show me', exact: true }).click();
+    await expect(phoneTab, 'Show me selects the phone tab').toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('app-simulated-phone .feed'), 'no message names the request, so focus goes to the phone feed region').toBeFocused();
+    await expect(page.locator('app-simulated-phone .notification:focus'), 'and not to a notification').toHaveCount(0);
+    await expect(page.locator('button:focus, a:focus'), 'never a button').toHaveCount(0);
+
+    // Step 3 selected while an incident is open: the box is inactive, and Go to Break the feed still hands it focus.
+    await stepOf(page, 3, 'done').click();
+    await expect(promptText(page), "step 3's prompt").toHaveText(`"${P3}"`);
+    await expect(breakOf(page), 'the box is inactive while an incident is open').toHaveAttribute('aria-disabled', 'true');
+    posts.length = 0;
+    await goOf(page).click();
+    await expect(breakOf(page), 'the inactive button takes focus').toBeFocused();
+    await expect(breakOf(page), 'and stays inactive').toHaveAttribute('aria-disabled', 'true');
+    await settled(page);
+    expect(
+      posts.filter((path) => path.includes('/demo/break-feed') || path.includes('/guide/markers') || path.includes('/messages')),
+      'nothing was pressed or written',
+    ).toEqual([]);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/**
+ * M13 (QA, rows 5, 7, 8 and 9, error cells): a failed trace_opened write adds no text and leaves step 5 undone, and a later press
+ * writes it again; a finish with no turn has no whole-conversation link and a run total of zeros with no model; a failed Run again
+ * leaves the finish as it is, and the next press brings the prompt bar back.
+ */
+test('M13: a failed marker write changes nothing and is written again by the next press; a finish with no turn has no conversation link', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  try {
+    await stubTraces(page.context());
+    await helpSeen(page);
+    await openFloor(page);
+    const marked = await post(page.request, GUIDE_MARKERS, { marker: 'run_again' });
+    expect(marked.status(), await marked.text()).toBe(200);
+    await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
+    await refreshGuide(user);
+    await expect(stepOf(page, 5, 'current'), 'the guide is at step 5').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+    const finishedOf = async (): Promise<boolean> => ((await (await page.request.get(STATE)).json()) as { guide: { finished: boolean } }).guide.finished === true;
+    const link = openTraceOf(page);
+
+    // A failed trace_opened write: no text, step 5 undone.
+    let writes = 0;
+    const failing = async (route: Route): Promise<void> => {
+      writes += 1;
+      await failMarker(route);
+    };
+    await page.route(MARKERS_ROUTE, failing);
+    const bar = await guideOf(page).textContent();
+    const tab = page.context().waitForEvent('page');
+    await link.click();
+    await (await tab).waitForLoadState('domcontentloaded');
+    await expect.poll(() => writes, { message: 'the page wrote trace_opened', timeout: CARD_MS }).toBe(1);
+    await page.waitForTimeout(1500);
+    expect(await guideOf(page).textContent(), 'the failed write adds no text').toBe(bar);
+    await expect(guideOf(page).locator('.finish'), 'and no finish').toHaveCount(0);
+    await expect(promptText(page)).toHaveText(`"${P5}"`);
+    expect(await finishedOf(), 'step 5 is not done on the server').toBe(false);
+
+    // The next press writes it again.
+    await page.unroute(MARKERS_ROUTE, failing);
+    const written = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/guide/markers') && (response.request().postData() ?? '').includes('trace_opened'));
+    await link.click();
+    expect((await written).status(), 'a later press writes trace_opened again').toBe(200);
+    const finish = guideOf(page).locator('.finish');
+    await expect(finish, 'and the finish replaces the prompt bar').toBeVisible({ timeout: CARD_MS });
+
+    // No turn with a trace: no conversation link, and a run total with no usage reads zeros and names no model.
+    await expect(finish.getByRole('link'), 'only the install link').toHaveCount(1);
+    await expect(finish.getByRole('link', { name: /^See the whole conversation/ })).toHaveCount(0);
+    await expect(finish.locator('.run-total')).toHaveText('This run: 0 decisions \u00B7 0 tokens \u00B7 <$0.0001.');
+
+    // A failed Run again: the finish stays as it is. The page's polls are held, so that no live view arrives to put right what the failure did.
+    writes = 0;
+    await page.route(MARKERS_ROUTE, failing);
+    const release = await holdPolls(page);
+    const shown = await finish.textContent();
+    try {
+      await finish.getByRole('button', { name: 'Run again', exact: true }).click();
+      await expect.poll(() => writes, { message: 'the page wrote run_again', timeout: CARD_MS }).toBe(1);
+      await page.waitForTimeout(1500);
+      await expect(finish, 'the finish stays').toBeVisible();
+      expect(await finish.textContent(), 'with no text added').toBe(shown);
+      expect(await finishedOf(), 'and the server still has the finish').toBe(true);
+    } finally {
+      release();
+    }
+
+    // The next press brings the prompt bar back.
+    await page.unroute(MARKERS_ROUTE, failing);
+    await finish.getByRole('button', { name: 'Run again', exact: true }).click();
+    await expect(promptText(page), 'the next press brings the prompt bar back at step 3').toHaveText(`"${P3}"`, { timeout: CARD_MS });
+    await expect(finish).toHaveCount(0);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await cleanFixtureRows(refs);
     await endRun(page);
   }

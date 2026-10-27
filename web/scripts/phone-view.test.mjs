@@ -81,9 +81,10 @@ describe('pendingRef (Story 4.7)', () => {
     assert.equal(pendingRef([message('a', 'x', { approvalRef: 'p1' })], undefined), undefined);
   });
 
-  it('leaves pendingApproval as it was: true exactly when pendingRef finds a message', () => {
-    for (const list of [[message('a', 'x', { approvalRef: 'p1' })], [message('a', 'x', { approvalRef: 'ok' })], []]) {
-      assert.equal(pendingApproval(list, approvals), pendingRef(list, approvals) !== undefined);
-    }
+  it('leaves pendingApproval as it was: true exactly when a message names a pending request', () => {
+    assert.equal(pendingApproval([message('a', 'x', { approvalRef: 'p1' })], approvals), true);
+    assert.equal(pendingApproval([message('a', 'x', { approvalRef: 'ok' })], approvals), false);
+    assert.equal(pendingApproval([message('a', 'x', { approvalRef: 'gone' }), message('b')], approvals), false);
+    assert.equal(pendingApproval([], approvals), false);
   });
 });

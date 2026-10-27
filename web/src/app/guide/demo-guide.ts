@@ -494,13 +494,16 @@ export class DemoGuide {
   /** True while the guide is collapsed to its bar; the stored choice of this browser, until the user changes it. */
   protected readonly hidden = signal(readFlag(() => localStorage, GUIDE_HIDDEN_KEY, GUIDE_HIDDEN_FLAG));
 
+  /** The finish's whole-conversation link: a string, so the guide's model changes only when the link does, not on every store change. */
+  private readonly conversation = computed(() => conversationUrl(this.live.store()?.chat));
+
   protected readonly model = computed(() => {
     const view = this.view();
     const selected = this.selected();
     if (view === undefined || selected === undefined) {
       return undefined;
     }
-    return { ...guideView(view, selected, RUN_FORMAT), view, conversation: conversationUrl(this.live.store()?.chat) };
+    return { ...guideView(view, selected, RUN_FORMAT), view, conversation: this.conversation() };
   });
 
   private last: GuideStatePayload | undefined;

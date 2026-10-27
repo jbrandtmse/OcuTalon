@@ -499,6 +499,25 @@ Method TestRunTotal()
 	Do $$$AssertEquals(view.run.tokens, 10350, "and every usage row")
 }
 
+/// Story 4.7 row 11 (QA): run.models lists the display names of the run's models in the order of their first use, once each, and
+/// an id with no display name as it is; a row before RunStartedAt names no model.
+Method TestRunTotalModels()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = ..RunSession(..At(-300))
+	Set sonnet = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-40))
+	Do $ClassMethod(fixture, "Usage", sonnet, ref, {"InputTokens": 10, "OutputTokens": 5, "CostUSD": 0.0001, "Model": "claude-sonnet-5-5", "RecordedAt": (..At(-40))})
+	Set again = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-30))
+	Do $ClassMethod(fixture, "Usage", again, ref, {"InputTokens": 10, "OutputTokens": 5, "CostUSD": 0.0001, "Model": "claude-haiku-5-5", "RecordedAt": (..At(-30))})
+	Set other = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-20))
+	Do $ClassMethod(fixture, "Usage", other, ref, {"InputTokens": 10, "OutputTokens": 5, "CostUSD": 0.0001, "Model": "zz-model-9", "RecordedAt": (..At(-20))})
+	Set earlier = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-2000))
+	Do $ClassMethod(fixture, "Usage", earlier, ref, {"InputTokens": 1, "OutputTokens": 1, "CostUSD": 0.0001, "Model": "zz-before", "RecordedAt": (..At(-2000))})
+	Set view = ..View(ref)
+	Do $$$AssertEquals(view.finished, 1, "finished")
+	Do $$$AssertEquals(view.run.models.%ToJSON(), "[""Claude Haiku 5.5"",""Claude Sonnet 5.5"",""zz-model-9""]", "in the order of first use, each once, an unnamed id as it is, the earlier row's model not listed")
+}
+
 /// Story 4.7 row 12 (DW-215): the open variant counts only while the incident is open or closed. In another state step 4 shows
 /// paired or unpaired, and finished never comes with a variant of VARIANTS or with step 4.
 Method TestVariantFollowsState()

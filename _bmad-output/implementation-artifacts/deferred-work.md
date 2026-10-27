@@ -871,6 +871,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 2.13 Decided 14: a run with every links.spec tab real left V8 drawing nothing and trace.spec T1 without a session; V3-V6 and V9-V16 stub their trace tabs to stay green
 - 2026-10-24T03:06:56Z status=escalated owner=burndown by=cr note=settle by measuring licence and gateway connections on a throwaway while trace tabs are open; 4.7 and 6.1 add real trace pages
 - 2026-10-25T11:58:31Z status=routed owner=4-7-finish-the-demo-guide by=merge_gate note=Story_4.7_adds_real_trace_pages:measure_licence_and_gateway_connections_on_a_throwaway_with_trace_tabs_open;if_tabs_hold_connections,sign_trace_tabs_out_in_the_specs;veto_U-71
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Task 0 measured on e4s7p (one licence unit per user and client address per trace session, held until sign-out or timeout; ?IRISLogout=end frees it); signOutTrace after every case that opens a real trace page, V1 relative licence pin; residual (a real visitor's trace tab holds its unit) is owned by DW-285 (16.4), DW-286 (29.4), DW-287 (29.3) after U-103
 
 ### DW-147: AD-26's decision bullet still says a decision's trace target is the session holding its decision message, while the Live events convention gives a chat turn's decision its turn's header and item index (DW-129)
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1146,6 +1147,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Demo/Guide.cls:105 finishes on any resolved incident while :92/:115 read OpenVariant without its state; AD-15 sets the variant only on moves to open, but no IncidentManager exists in this tree to confirm the overlap rows clear it
 - 2026-10-25T19:46:38Z status=routed owner=4-7-finish-the-demo-guide by=cr note=unverified (maybe-false); settle with Story 5.5 IncidentManager: does a resolved incident ever carry a VARIANTS value?
+- 2026-10-27T04:42:48Z status=resolved-by:4-7-finish-the-demo-guide by=adjudication note=Guide.Compute reads the open variant only while the incident is open or closed (VARIANTSTATES); TestVariantFollowsState pins it, a finished guide never carries a variant
 
 ### DW-216: Spine edge Guide --> Install.Step.Demo names only the demo-mode key; Compute also reads NAMESPACE and PRODUCTION
 - source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: low | fix-risk: low | footprint: out-of-footprint
