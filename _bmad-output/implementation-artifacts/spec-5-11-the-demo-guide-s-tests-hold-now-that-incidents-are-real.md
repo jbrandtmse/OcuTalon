@@ -2,7 +2,8 @@
 title: "The demo guide's tests hold now that incidents are real"
 type: 'bugfix'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b2f834088c671f7084d635c38bbfaa1b798f7b66'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -149,6 +150,34 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`.
 
 ## Review Triage Log
 
+### 2026-10-27 - Review pass
+- verdicts: 22 findings - high 0, medium 0, low 19, false 3, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the `BreakFeedProduction` assertion cannot see a leak, because an instance-scoped batch carries no trace - `Press` takes a fixture session whose TraceRef is the SuperSession, so `FailurePoller.Scope` gives that session and the batch carries the trace; Mutation H turned the assertion red
+  - `[false]` `[reject]` Blind: `TestReleaseHidesLeftovers` un-holds the poller before it sends, so it may read the sender's failures - no Orders watch exists until after the release, so `FailurePoller.Watched` lists nothing and no poll reads; the no-op release mutation turned the test red
+  - `[low]` `[patch]` Blind: M4's `finally` skips the release and clean-up when `settleBatch` throws - nested `try`/`finally` in `guide.spec.ts`, so the release, `cleanFixtureRows` and `dropBreakFeed` each run
+  - `[low]` `[reject]` Blind: no safety net or in-flight-poll race for a stale hold - the poll saves the mark only when it took failures, microseconds after it sends them, and the hold expires after 600 s; the class doc names the window; theoretical
+  - `[low]` `[reject]` Blind: fixed sleeps (11 s, 4 s, 7 s) - sized by the spec from the 3 s `CallInterval` and the 10 s settle quiet time; Mutation H shows each goes red on a real stack; a one-line comment for the 11 s was added
+  - `[low]` `[reject]` Blind: `pressIncidents` mixes clocks, has no namespace filter on groups and a dense one-line condition - the `since` from `inMs(0)` and the group selector are the spec's own (Task `guide.ts`); both containers share the host clock; no named harm
+  - `[low]` `[reject]` Edge: an in-flight poll can overwrite the hold - same as the Blind row, theoretical
+  - `[low]` `[reject]` Edge: `BreakFeedProduction` holds once, for 600 s - the class runs 20 s warm; spec-bound ("holds once for the class")
+  - `[low]` `[patch]` Edge: `finally` skips the release or the clean-up when a helper throws - same root cause as the Blind `finally` row, fixed by the same nesting
+  - `[low]` `[reject]` Edge: `settleBatch` gives up while the batch still arrives and the release follows - the 50 failures arrive within 1 s (Task 0); theoretical
+  - `[low]` `[reject]` Edge: `since` from the Node clock against IRIS stamps - M4 seeds and loads a page for seconds after taking `since`, so a skew would have to exceed that; the spec fixes `since = inMs(0)`
+  - `[low]` `[reject]` Edge: `TestReleaseHidesLeftovers` reads leftovers if another Orders watch exists - fixtures are cleaned after every test and class; the spec's design
+  - `[low]` `[reject]` Edge: `IncidentsSince` counts every owner's incidents in the window - the matrix row says "no Orders incident row whose FirstAt is between the test's start and now"; by design
+  - `[low]` `[reject]` Edge: `OnAfterOneTest` calls `Fixture.Clean()` with no refs - the spec says `Fixture.Clean()`; by design
+  - `[low]` `[reject]` Edge: `Compute` could return an unusable value and the test dereferences it - `Compute` returns an object for a session that exists; the tests would fail loudly with a reason
+  - `[false]` `[reject]` Edge: `TestReleaseKeepsLaterFailures` never waits for its failures to fail - an incident of the watcher only appears after the poller read them as failed, so they had failed
+  - `[low]` `[reject]` Gap: the release call sites are not pinned by a test - the method is pinned by two mutations; a missing release only keeps the mark ahead up to 600 s, which hides failures and makes no incident; no lane-b or floor test reads the row afterwards
+  - `[low]` `[reject]` Gap: absence assertions rest on fixed sleeps - same as the Blind sleep row
+  - `[low]` `[patch]` Gap: no `mutation:` line for the pinning tests - the three mutations and two interference runs were run and are recorded under `## Verification`
+  - `[low]` `[patch]` Gap (other): the release can fail and skip the clean-up - same root cause as the `finally` rows
+  - `[low]` `[reject]` Gap (other): `TestReleaseHidesLeftovers` relies on no other Orders watcher - same as the Edge row
+  - `[low]` `[reject]` Gap (other): `pressIncidents` takes `since` from the Node clock - same as the Edge row
+- Intent alignment: no finding. It reports Reading A (gate the poller at the mark) with the closed list of three holders as the implemented reading; the floor and `GuideRefresh` outcomes are asserted by the M4 assertion, M7, M9 and the unchanged `GuideRefresh`, which all ran green.
+
+
 ## Design Notes
 
 **Governing ADs:**
@@ -266,6 +295,14 @@ env OCUTALON_LOCK_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/
 - **(once) Checks:** `bash ci/checks.sh`. Expected: all pass.
 - **(once) Teardown:** `<lane> OCUTALON_RUN_TAG=e5s11iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e5s11i ci/iris.sh teardown`, also after a failure. Confirm that the lane-a lock folder is empty.
 
+**Recorded runs (implement, 2026-10-27; each mutation applied, observed red, reverted byte-identically with `git status --short` and `git diff --stat` unchanged):**
+- mutation: `HoldFailures` writes `MarkAt` = now (Mutation H) -> floor unit red: M4 at the new `pressIncidents` assertion (`incidents: 1, groups: 1`), M7 ("no notice brings the prompt back"; the page opened at step 4) and M9 ("while step 5 is current the box is the secondary style"); `Test.Demo.Production` red: `TestHoldHidesFailures` ("no Orders incident was made since the test began"); `Test.Demo.BreakFeedProduction` red: `TestPressSendsFiftyRealFailures` ("FailurePoller sent nothing to IncidentManager: the failures are held")
+- mutation: `ReleaseFailures` as a no-op (`Quit $$$OK`) -> `TestReleaseHidesLeftovers` red (4 assertions: the incident since the start, the watcher's newest incident, the incident in progress, Break the feed active) and `TestReleaseKeepsLaterFailures` red (the mark stays held)
+- mutation: `ReleaseFailures` writes `MarkAt` = now + `HOLDSECONDS` -> `TestReleaseKeepsLaterFailures` red ("an incident of the watcher appears within 15 s"); the other tests stay green
+- interference: `dropBreakFeed` without its `RemoveMessages` call -> floor unit green (99 passed, M7 and M9 included)
+- interference: `BreakFeedProduction.OnAfterAllTests` without its OCUORDERS `RemoveMessages`, then `BreakFeedProduction`, then `GuideRefresh` warm, one per call -> green
+- Loop and once results: warm `Test.Demo.Production` passed (29 s), `Test.Demo.BreakFeedProduction` passed (20 s), `Test.Live.GuideRefresh` passed (6 s); `npm --prefix web run lint` exit 0; floor unit passed (99 passed in 3.8 min, 344 s from the call, `test-floor: all checks passed`); `ci/iris.sh shard lane-b` passed (58 classes, 196 s); `bash ci/checks.sh` all scripts passed. The stack needed `ci/iris.sh build` once, because the gitignored web bundle in the worktree predated the merge.
+
 **Shared surfaces:**
 - **The Orders `WatchMark` row in the lane-b and floor stacks.** After a holder ends, the mark sits at its release time. Watches of Orders that come later read from there, so new failures are read as before. No lane-b or floor test reads that row. `Test.Watch.*` runs in lane-a's own stack and clears the mark itself.
 - **`Test.Demo.Production`:**
@@ -279,10 +316,18 @@ env OCUTALON_LOCK_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-27).** The run was planned only and halted after planning, as asked. Nothing was implemented or committed.
 - **Task 0** used the warm throwaway `e5s11pw` on lane A. It confirmed the hypothesis, with the timing corrected (the notice comes about 10 s after the batch on a no-key stack), and measured the hold and the release (Design Notes). The stack is torn down and the lane-a lock folder is empty.
 - **Footprint.** No contended file and no product file is planned. The four footprint extensions are listed under Design Notes. The `GuideRefresh` half is fixed at its two senders in `Test/Demo/**`, with the reason this is sufficient. The consumer-side fallback is recorded for the orchestrator.
 - **Ledger.** DW-305 is addressed in full.
+
+**Implement stage (2026-10-27).**
+- **Change.** The Orders `WatchMark` is held 600 s ahead while a test sends real failing Orders messages and put at the release time when its batches are complete. `Test.Demo.Production` gains `HoldFailures`, `ReleaseFailures`, `PutMark`, three tests (`TestHoldHidesFailures`, `TestReleaseHidesLeftovers`, `TestReleaseKeepsLaterFailures`) and the hooks; `BreakFeedProduction` holds and releases for the class and asserts that `FailurePoller` sent nothing to `IncidentManager`; `support/guide.ts` gains `holdOrdersFailures`, `releaseOrdersFailures` and `pressIncidents`; M4 holds first, releases in a nested `finally` and asserts `{incidents: 0, groups: 0}`.
+- **Files.** `src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls` (hold, release, tests, hooks), `src/ocutalon/cls/OcuTalon/Test/Demo/BreakFeedProduction.cls` (hold, release, assertion, class doc), `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` (`DropIncidentRows` public), `web/e2e/support/guide.ts` (three helpers), `web/e2e/floor/guide.spec.ts` (M4).
+- **Review.** 22 findings from three layers (the intent layer reported none): 0 high, 0 medium, 19 low, 3 false. Patches: M4's `finally` nests its three steps (one root cause, four reports), a comment on the 11 s wait, and the `mutation:` lines. Nothing deferred by this pass (the plan's `deferred:` entry is kept). Every other finding is rejected with its reason in the triage log.
+- **Verification.** Recorded under `## Verification` (loop, mutations, interference, lane-b shard, checks). Floor unit 99 passed (344 s). Follow-up review recommended: false (no high, no two mediums patched).
+- **Residual risks.** The absence assertions use fixed waits (7 s, 4 s); a very slow stack could pass them without proof, which the mutation runs show does not happen on the lane-A stack. The release call sites are pinned only through their effects on the next cases.
+- **Footprint.** Only the four extensions and `Test/Watch/Case.cls`. No contended file and no product code. `Test.Live.GuideRefresh` is unchanged. Warm and fresh stacks are torn down and the lane-a lock folder is empty.

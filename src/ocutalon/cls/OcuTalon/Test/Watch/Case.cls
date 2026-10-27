@@ -1182,7 +1182,9 @@ Method DropIncidents(floor As %Integer) [ Private ]
 	If floor '= "" Do ..DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = 'instance' AND ID > ?", floor)
 }
 
-ClassMethod DropIncidentRows(select As %String, value As %String) [ Private ]
+/// Deletes the Incident rows that the select (one bound value, an ID column) gives, with their failure groups, diagnose decisions, usage and steps.
+/// Public: the Demo tests that cause real incidents (Test.Demo.Production) call it too.
+ClassMethod DropIncidentRows(select As %String, value As %String)
 {
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, select, value)
 	While rs.%Next() {

@@ -4,8 +4,10 @@
 /// stack can never give a green shard.
 /// The press is the real one: BreakFeedIn is created in the test's process (Ens.Director.CreateBusinessService) and takes a Demo.Press,
 /// as Web.Api sends it, and the real PartnerTrigger makes the real partner send its batch. Only the IncidentManager item is swapped, for
-/// Test.Demo.IncidentManagerDouble (Test.Agent.RunnerFixture.UseItemClass), until OnAfterAllTests puts the class back; the item's pool of
-/// the real stack is a stub until Epic 5.
+/// Test.Demo.IncidentManagerDouble (Test.Agent.RunnerFixture.UseItemClass), until OnAfterAllTests puts the class back; the real
+/// FailurePoller keeps running, so the class holds the Orders WatchMark ahead while it runs (Test.Demo.Production.HoldFailures) and
+/// releases it after its batches are removed (ReleaseFailures): none of the class's failures is ever read, so none reaches the double or
+/// becomes an incident that a later session would see.
 ///   - TestPressSendsFiftyRealFailures: rows 1, 2 and 11 (every message of the press is BreakFeedIn to PartnerTrigger; no Turn, no Decision);
 ///   - TestOtherMeansFailTheSame: row 3;
 ///   - TestTwoQuickPressesSendOneBatch: row 6;
@@ -47,6 +49,9 @@ Property Saved As %DynamicObject;
 /// The state of the audit event before the run, "" when it does not exist.
 Property EventWas As %String;
 
+/// 1 when OnBeforeAllTests held the Orders failures, so that OnAfterAllTests releases them.
+Property Held As %Boolean;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -55,6 +60,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Missing = ""
 	Set ..Saved = ""
 	Set ..EventWas = ""
+	Set ..Held = 0
 	If '##class(%SYS.Namespace).Exists(..#NS) {
 		Set ..Missing = "OCUORDERS does not exist: this class runs in throwaways and CI only (Rule 21)"
 	} ElseIf '##class(OcuTalon.Test.Demo.Production).Running() {
@@ -63,6 +69,12 @@ Method OnBeforeAllTests() As %Status
 		Set ..Missing = "OcuTalon.Production does not run in OCUTALON"
 	}
 	If ..Missing '= "" Quit $SYSTEM.Status.OK()
+	Set sc = ##class(OcuTalon.Test.Demo.Production).HoldFailures()
+	If $SYSTEM.Status.IsError(sc) {
+		Set ..Missing = "The Orders failures could not be held: "_$SYSTEM.Status.GetErrorText(sc)
+		Quit $SYSTEM.Status.OK()
+	}
+	Set ..Held = 1
 	Set ..EventWas = ##class(OcuTalon.Test.Bridge.AuditLog).EventState(..#EVENT)
 	If ..EventWas = 0 Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#EVENT, 1)
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemClass("IncidentManager", "OcuTalon.Test.Demo.IncidentManagerDouble", .saved)
@@ -89,6 +101,7 @@ Method OnAfterAllTests() As %Status
 		Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, ..#NS)
 		Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, "OCUTALON")
 	}
+	If ..Held Do ##class(OcuTalon.Test.Demo.Production).ReleaseFailures()
 	Kill ^OcuTalonTest("IncidentManagerDouble")
 	Kill ^OcuTalonTest("BreakFeedProduction")
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -135,6 +148,9 @@ Method TestPressSendsFiftyRealFailures()
 
 	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.Production).WaitCount(trace, "OrdersFromPartner", 8, 50), 50, "50 orders fail at OrdersFromPartner")
 	Do ..AssertBatch(trace, 50)
+	Hang 4
+	Set requests = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(requests, 1, "FailurePoller", "IncidentManager").%Size(), 0, "FailurePoller sent nothing to IncidentManager: the failures are held")
 }
 
 /// Row 3: one order sent through Partner.Send directly, in MM/DD/YYYY, fails at the same item, with the same status and error text.
