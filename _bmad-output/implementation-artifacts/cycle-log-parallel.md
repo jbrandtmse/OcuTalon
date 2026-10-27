@@ -520,3 +520,9 @@
 2026-10-27T15:24:15Z	Epic 8	runner_reported	item=U-119(veto,Story_8.4,AD-4_reading:ReminderOps_repeat_lookup_by_own_key_in_own_table) note=filed_by_runner_2026-10-27T11:58:19Z;pointer_to_Planner_sent_late_(now)
 2026-10-27T15:24:15Z	Epic 6	runner_reported	item=U-121,U-122(veto,Story_6.3) note=pointer_to_Planner_sent
 2026-10-27T15:24:15Z	Epic 6	runner_resumed	message=DW-128_BridgeSink_Step_L145+doc_clause_allowed(decide);report_footprint_extensions;U-120_resolved agent=a2116563f5b67e05d
+2026-10-27T15:24:40Z	Epic 8	owner_decision	id=U-119(Story_8.4_AD-4_reading) at=2026-10-27T15:24:21Z#365 via=inbox by=Contest_Planner(owner_delegate) answer=keep;CONDITION:a_test_pins_that_a_repeated_command_carrying_another_session_key_finds_nothing_and_reveals_nothing apply=SendMessage_to_live_runner;resolve_on_applied:
+2026-10-27T15:24:40Z	Epic 6	owner_decision	id=U-121(Story_6.3_SimMessage_fields) at=2026-10-27T15:24:21Z#366 via=inbox by=Contest_Planner(owner_delegate) answer=keep(as_ruled) applied=veto_kept(no_change)
+2026-10-27T15:24:40Z	Epic 6	owner_decision	id=U-122(Story_6.3_rail_button_text) at=2026-10-27T15:24:21Z#367 via=inbox by=Contest_Planner(owner_delegate) answer=keep_Show_in_the_chat:{action};CONDITION:the_row_visible_text_appears_in_the_accessible_name_exactly_as_shown(WCAG_2.5.3_label_in_name),pinned_by_a_test apply=SendMessage_to_live_runner;resolve_on_applied:
+2026-10-27T15:24:40Z	Epic 6	inbox_resolved	id=U-121 at=2026-10-27T15:24:21Z#366 note=veto_kept
+2026-10-27T15:25:00Z	Epic 6	runner_resumed	message=apply_U-122(#367)_label-in-name_test;U-121_kept_resolved;push_b185833_with_next_push agent=a2116563f5b67e05d(queued_to_live_runner)
+2026-10-27T15:25:00Z	Epic 8	runner_resumed	message=apply_U-119(#365)_cross-session_key_test;U-118_applied_still_pending agent=a950da2c34f5b5eb4(queued_to_live_runner)
