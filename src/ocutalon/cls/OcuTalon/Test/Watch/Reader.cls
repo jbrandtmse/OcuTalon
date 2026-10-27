@@ -32,6 +32,8 @@
 ///   - TestFailuresState (Story 5.6): Failures also gives the production's running state: running while Orders runs, stopped while it is cleanly stopped, timeout while
 ///     another job holds ^Ens.Runtime("ConfigItem") in OCUORDERS (the runtime lock, which Ens.Director.GetProductionStatus waits for one second), and "" with the
 ///     outcomes unreadable and not_current;
+///   - TestFailuresStateCodes (Story 5.6, QA; AC 6): the states suspended, troubled and network_stopped, which the test makes by writing the runtime globals of OCUORDERS
+///     (^Ens.Suspended, ^Ens.Runtime) while Orders is cleanly stopped, and kills them again, then starts Orders and reads running;
 ///   - TestMatches (pure): the matcher of Find over any list of entries.
 /// Every change to the instance is put back by Test.Watch.Case, also after a failure.
 Class OcuTalon.Test.Watch.Reader Extends OcuTalon.Test.Watch.Case
@@ -329,6 +331,59 @@ Method TestFailuresState()
 	Do ..RevokeRole(..#ORDERSDATA)
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "unreadable", "with no Read on the Orders data the outcome is unreadable")
 	Do $$$AssertEquals(state, "", "with no state")
+}
+
+/// AC 6 (QA): the suspended, troubled and network_stopped states of Failures. Ens.Director.GetProductionStatus derives them from the runtime globals of the
+/// namespace (^Ens.Suspended, ^Ens.Runtime), so the test stops Orders cleanly, writes the nodes that make each state, reads, and kills the nodes again (also
+/// after a failure), with no seam in the product. It starts only when Orders is cleanly stopped and both globals are empty.
+Method TestFailuresStateCodes()
+{
+	If '..Ready() Quit
+	If '..StopOrders() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "control: stopped Orders is read")
+	Do $$$AssertEquals(state, "stopped", "and its state is stopped")
+	Set clean = ..RuntimeClean(..#ORDERS)
+	Do $$$AssertTrue(clean, "control: the runtime nodes of "_..#ORDERS_" are empty")
+	If clean {
+		Try {
+			For kind = "suspended", "troubled", "network_stopped" {
+				Do ..RuntimeAs(..#ORDERS, kind, ..#ORDERSPRODUCTION)
+				Set outcome = $ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state)
+				Do $$$AssertEquals(outcome_"|"_state, "read|"_kind, "the state of "_..#ORDERS_" is "_kind)
+			}
+		} Catch exception {
+			Do $$$AssertTrue(0, "the states are read without an error: "_exception.DisplayString())
+		}
+		Do ..RuntimeAs(..#ORDERS, "", "")
+	}
+	Do $$$AssertTrue(..RuntimeClean(..#ORDERS), "the runtime nodes are killed again")
+	If '..StartOrders() Quit
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "Orders is read again")
+	Do $$$AssertEquals(state, "running", "and it is running")
+}
+
+/// 1 when the namespace holds no ^Ens.Runtime and no ^Ens.Suspended node (a cleanly stopped production).
+ClassMethod RuntimeClean(namespace As %String) As %Boolean [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Quit '$Data(^Ens.Runtime) && '$Data(^Ens.Suspended)
+}
+
+/// Makes the namespace's runtime globals show the state for the production: suspended (^Ens.Suspended holds the name), troubled (the name is in
+/// ^Ens.Runtime and nothing else) or network_stopped (as troubled, with another system's node under "System"). An empty kind kills both globals.
+ClassMethod RuntimeAs(namespace As %String, kind As %String, production As %String) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Kill ^Ens.Runtime, ^Ens.Suspended
+	If kind = "suspended" Set ^Ens.Suspended = production
+	If kind = "troubled" Set ^Ens.Runtime("Name") = production
+	If kind = "network_stopped" {
+		Set ^Ens.Runtime("Name") = production
+		Set ^Ens.Runtime("System", "ZZOtherSystem") = 1
+	}
 }
 
 /// The job body of the runtime lock holder: takes ^Ens.Runtime("ConfigItem") in OCUORDERS, says so, keeps it until released (60 seconds at most), lets go and

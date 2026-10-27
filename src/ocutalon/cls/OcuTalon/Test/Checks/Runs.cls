@@ -17,7 +17,8 @@
 ///   - TestStoppedMeanwhile ("Stopped meanwhile"): the row is deleted by the read: nothing is recorded, published or logged and the row stays deleted;
 ///   - TestQuietSweep ("Quiet close"): one closeQuiet for each unclosed incident whose last failure is more than 15 minutes old, origin timer, no session, the
 ///     owner's TraceRef as SuperSession (empty for instance), in the process's session, with its own SuperSession put back; none for a recent or a closed
-///     one; a failed send logs one warning that names the incident and the others still go out;
+///     one; a failed send, and a send that IncidentManager did not answer in time, each log one warning that names the incident, and the others still go out;
+///   - TestRunThrows (Always, "A Tick"): a run that throws outside the read logs one warning (LOGRUN) that names the check, records nothing, and the next due row still runs;
 ///   - TestChanged ("Start and stop"): a CheckChanged for a start publishes FromRow of the row (nothing when the row is gone), one for a stop a payload with
 ///     stopped true and the message's name, on the message's session stream; a failed publish logs one warning;
 ///   - TestPublishes: exactly one check event per run, equal to FromRow of the row after the run;
@@ -154,7 +155,7 @@ Method TestPassed()
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row = ..Row(ref)
 	Do $$$AssertEquals(row.Result_"|"_row.Finding, "passed|", "passed, with an empty finding")
-	Do $$$AssertTrue((row.LastRunAt '< before) && (row.LastRunAt '> after), "LastRunAt is the run time: "_row.LastRunAt)
+	Do $$$AssertTrue('(before ] row.LastRunAt) && '(row.LastRunAt ] after), "LastRunAt is the run time: "_row.LastRunAt)
 	Do $$$AssertEquals(row.LastRunHeaderId, ..#SESSIONID, "LastRunHeaderId is the process's session")
 	Do $$$AssertEquals(row.NextDueAt, ..#NEXT, "NextDueAt is the Tick's time plus 60 seconds")
 	Set events = ..Events(a)
@@ -335,6 +336,11 @@ Method TestQuietSweep()
 	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), .text), 1, "and one warning is logged")
 	Do $$$AssertTrue(text [ open, "which names the incident: "_text)
 	Do $$$AssertEquals(host.%SuperSession, "zzown", "the SuperSession is put back after a failed send too")
+	Set host.FailQuiet = ""
+	Set host.SilentQuiet = awaiting
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Warnings("Sweep", $Parameter(..#PROBE, "LOGQUIET"), .text), 2, "a send that IncidentManager did not answer in time (OK, with no answer) logs one warning too")
+	Do $$$AssertTrue(text [ awaiting, "which names its incident: "_text)
 }
 
 Method TestChanged()
@@ -390,12 +396,29 @@ Method TestPublishes()
 	Do ..Feed("Zz.Publish2", "read", "stopped")
 	Do ..Tick(host, ..#TICK)
 	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size(), "1|1", "one check event per run, on the stream of the row's session")
-	Do $$$AssertEquals(..Events(a).%Get(0).payload.%ToJSON(), ..ViewOf(one), "A's is FromRow of the row after the run")
-	Do $$$AssertEquals(..Events(b).%Get(0).payload.%ToJSON(), ..ViewOf(two), "and so is B's")
+	If ..Events(a).%Size() = 1 Do $$$AssertEquals(..Events(a).%Get(0).payload.%ToJSON(), ..ViewOf(one), "A's is FromRow of the row after the run")
+	If ..Events(b).%Size() = 1 Do $$$AssertEquals(..Events(b).%Get(0).payload.%ToJSON(), ..ViewOf(two), "and so is B's")
 	Do ..Tick(host, ..#NEXT)
 	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size(), "2|2", "and one more each minute")
 	Do ..Tick(host, ..#NEXT)
 	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size(), "2|2", "none for a Tick that runs nothing")
+}
+
+Method TestRunThrows()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("throws")
+	Set bad = ..Watch(a, "Zz.Throws1")
+	Set good = ..Watch(a, "Zz.Throws2")
+	Do $ClassMethod(..#PROBE, "Feed", "Zz.Throws1", {"outcome": "read", "state": "running", "rows": "not rows"})
+	Do ..Feed("Zz.Throws2", "read", "running")
+	Do ..Tick(host, ..#TICK)
+	Set row = ..Row(bad)
+	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result_"|"_row.NextDueAt, "||", "a run that throws outside the read records nothing")
+	Do $$$AssertEquals(..Row(good).Result, "passed", "and the next due row still runs")
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN"), .text), 1, "one warning is logged")
+	Do $$$AssertTrue(text [ bad, "which names the check: "_text)
 }
 
 Method TestRanLine()
@@ -610,6 +633,7 @@ Method RanLine(ref As %String) As %String
 Method RemoveLogs()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGREAD"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGRUN"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter(..#PROBE, "LOGQUIET"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Announce", $Parameter(..#PROBE, "LOGPUBLISH"))
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN"))

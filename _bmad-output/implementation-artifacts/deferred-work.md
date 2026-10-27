@@ -680,6 +680,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rule 2 copy forced by the lanes (spec Design Notes, Extend don't copy); Web/Api.cls CheckView builds Live.Payload.Check for StateBody's rail.checks
 - 2026-10-22T06:27:39Z status=routed owner=5-6-the-production-watch-runs-on-every-heartbeat by=harvest note=the check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it; orchestrator writes the acceptance bullet after Epic 2 merges
+- 2026-10-27T05:19:56Z status=resolved-by:5-6-the-production-watch-runs-on-every-heartbeat owner=5-6-the-production-watch-runs-on-every-heartbeat by=adjudication note=Live.Payload.Check.FromRow_added(traceNamespace=$Namespace,the_Tick%27s_run_session,AD-26/UX-DR139);Web.Api_rail_pushes_FromRow,CheckView_removed(orchestrator_ruling_Q1);Test.Live.Payloads+Test.Web.Api(3_lines)_pin_it(40d6a43)
 
 ### DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
@@ -1374,3 +1375,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Test.Bridge.Gate pins dismiss_incident's classification flags only; nothing fails if WatchAnswers adds a Cause or SampleError key
 - 2026-10-27T00:51:30Z status=routed owner=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=spec_gate note=owner_decision U-102 at=2026-10-27T00:44:42Z#311: keep, trusted output (1), as U-80, with this pinning test
 - 2026-10-27T01:28:18Z status=resolved-by:5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=cr note=Gate.TestDismissAnswerIsCodeBuilt; mutations: entry gains cause key -> red, Dismissed message=row Cause -> red
+
+### DW-289: A real HeartbeatIn Tick will run the test fixtures' due check rows and sweep their quiet incidents mid-test once Story 8.1 makes the heartbeat tick
+- source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Test.Checks.Runs makes check rows with NextDueAt empty (due at once) and 16-minute-old incidents, and Test.Checks.Heartbeat drives Checks with its own Ticks; a real Tick in the same minute adds check events, records runs and closes incidents those tests count, so CI flakes
+- 2026-10-27T05:15:31Z status=routed owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=8.1 gives tests a way to pause the real heartbeat (like Case's StopPoller) or keeps fixture rows not due for a real Tick
+
+### DW-290: Test.Web.Api's class doc still says a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue
+- source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
+- 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope

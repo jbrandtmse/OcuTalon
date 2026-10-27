@@ -126,7 +126,7 @@ Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*
 Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
 
 /// A line that publishes the check event: Publish with the type check as a literal or as Checks' CHECKEVENT parameter (AD-33).
-Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.\.#checkevent\b)";
+Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.#checkevent\b)";
 
 /// The one class that may publish the check event.
 Parameter CHECKPUBLISHERS = "OcuTalon.Checks.Process";
@@ -314,6 +314,7 @@ Method TestOnlyChecksPublishesCheck()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload, .seq)", pattern), "with an output")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, 'check', payload)", pattern), "with single quotes")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ..#CHECKEVENT, payload)", pattern), "and through the CHECKEVENT parameter")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ##class(OcuTalon.Checks.Process).#CHECKEVENT, payload)", pattern), "also from another class")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ##CLASS(OCUTALON.LIVE.PUBLISH).PUBLISH(STREAM, ""CHECK"", PAYLOAD)", pattern), "in any case")
 	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set payload = ##class(OcuTalon.Live.Payload.Check).%New()"_$Char(10)_tab_"Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""incident"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""checkpoint"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)"_$Char(10)_tab_"Set check = ""check"""_$Char(10)_tab_"Set events = ##class(OcuTalon.Live.Event).Since(stream, 0, 10, ""check"")"_$Char(10)_tab_"// Publish(stream, ""check"", payload)"_$Char(10)_tab_"; Publish(stream, ""check"", payload)", pattern), "and passes the payload class, a read, another event type, a variable type, a look-alike word and comment lines")
 

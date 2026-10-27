@@ -31,13 +31,14 @@ Method TestTickRunsTheWatch()
 	If '..Ready() Quit
 	Set session = ..Session("tick")
 	Set ref = ..Watch(session)
+	Hang 1.1
 	Set tickAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set before = tickAt
 	Set id = ..Tick(tickAt)
 	If id = "" Quit
 	Set row = ..Check(ref)
 	Do $$$AssertEquals(row.Result_"|"_row.Finding, "passed|", "the watch passed with an empty finding")
-	Do $$$AssertTrue(row.LastRunAt '< before, "LastRunAt is the run time: "_row.LastRunAt)
+	Do $$$AssertTrue('(before ] row.LastRunAt) && '(row.LastRunAt ] ##class(OcuTalon.Data.Time).NowUtc()), "LastRunAt is the run time: "_row.LastRunAt)
 	Do $$$AssertEquals(row.LastRunHeaderId, id, "LastRunHeaderId is the Tick's session")
 	Do $$$AssertEquals(row.NextDueAt, ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, 60)), "NextDueAt is the Tick's time plus 60 seconds")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "check", 1, 10)
@@ -126,7 +127,8 @@ Method TestStartAndStop()
 	Do $$$AssertTrue($IsObject(row), "the row exists")
 	If $IsObject(row) && (events.%Size() = 1) {
 		Do ##class(OcuTalon.Live.Payload.Check).FromRow(row).%JSONExportToString(.expected)
-		Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), expected, "it is FromRow of the new row, with no run")
+		Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), expected, "it is FromRow of the new row")
+		Do $$$AssertEquals(events.%Get(0).payload.lastRunAt_"|"_events.%Get(0).payload.%IsDefined("traceHeaderId"), "|0", "with no run and no trace")
 	}
 	Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set stop.SessionRef = session

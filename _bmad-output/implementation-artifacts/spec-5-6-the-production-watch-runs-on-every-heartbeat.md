@@ -237,6 +237,30 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 - **AC 6.** Given the Orders production running, stopped, and stopped with its runtime lock held by another job, when `Watch.Reader.Failures` reads it, then the state is `running`, `stopped` and `timeout`. An unreadable namespace and a production that is not current give `""`.
 - **DW-66** (ledger; routed by harvest 2026-10-22: `Web.Api.CheckView` copies what a `Live.Payload.Check.FromRow` would do; the publisher adds `FromRow`, confirms or replaces `traceNamespace`, and `StateBody` switches to it). Given a check row with a run and one without, when `/state` (`Web.Api.StateBody`) and `Checks`' `check` event build their payloads, then both are `Live.Payload.Check.FromRow`'s and `Web.Api` holds no copy of its own. `traceNamespace` is replaced by `$Namespace` (Q1), and the check with no run carries no trace fields. It is pinned by `Payloads.TestCheckFromRow`, `Web.Api` (Q1), AC 1 and the `/state` matrix row.
 
+### Review Findings
+
+Code review 2026-10-26 (four layers, full-opus; 21 rows, 9 entries after grouping: high 0, med 3, low 6; 8 rejected). Contended paths checked: within rulings Q1 and Q2.
+
+- [x] [Review][Patch] (med) A `closeQuiet` that `IncidentManager` does not answer within `QUIETWAIT` logged no warning: `SendRequestSync` returns OK with no response on a timeout, against Always ("an error status or a timeout logs one Type 3 warning") [src/ocutalon/cls/OcuTalon/Checks/Process.cls:146] — `SendQuiet` gives the answer back and `Sweep` turns OK-with-no-answer into an error; the probe's `SilentQuiet` and `Runs.TestQuietSweep` pin it. fix-risk low.
+- [x] [Review][Patch] (med) Always's "an exception in one row's run logs one Type 3 warning (`LOGRUN`), and the next row still runs" had no pinning test (Rule 19) [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:407] — new `Runs.TestRunThrows`; `RemoveLogs` also removes `LOGRUN` lines. fix-risk low.
+- [x] [Review][Patch] (low) "LastRunAt is the run time" compared stamps with `'<`/`'>`, which compare numbers (only the year) [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:41, src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:158] — string order with `]`; Heartbeat waits 1.1 s after creating the row so a `CreatedAt` written as the run time is caught.
+- [x] [Review][Patch] (low) `CHECKPUBLISHES` matched only `..#CHECKEVENT`, not another class's `##class(OcuTalon.Checks.Process).#CHECKEVENT` [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:129] — `\.#checkevent`, with that form among the flagged samples.
+- [x] [Review][Patch] (low) `Checks` re-declared `CLOSEQUIET`, `OPEN`, `AWAITING`, `FIXING` (and the `'closed'` literal) that `Watch.Transitions` owns (Rule 2; `IncidentManager` references Transitions) [src/ocutalon/cls/OcuTalon/Checks/Process.cls] — Transitions' parameters are used.
+- [x] [Review][Patch] (low) AC 4's "with no run" was not asserted on the start event in `Heartbeat.TestStartAndStop` [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:131] — `lastRunAt` empty and no `traceHeaderId` asserted.
+- [x] [Review][Patch] (low) `Runs.TestPublishes` stopped on `<INVALID OREF>` instead of a named assertion when no event was published [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:387] — guarded by the size, as `TestPassed` is.
+- [x] [Review][Defer] (med) A real `HeartbeatIn` Tick will run the test fixtures' due rows and sweep their quiet incidents mid-test once Story 8.1 makes the heartbeat tick [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls] — deferred: DW-289, routed owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a (out-of-footprint; not reachable while `HeartbeatIn` is a stub).
+- [x] [Review][Defer] (low) `Test.Web.Api`'s class doc still says a check in a namespace with no trace application carries no `traceUrl` [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:15] — deferred: DW-290, escalated owner=burndown (contended file beyond ruling Q1's three lines).
+
+Rejected:
+- low: a failed incident read logs no warning of its own (it is not_checked "Couldn't be read"; the spec asks a warning for the production read only, and a failing Incident query needs a database fault).
+- low: `LOGDUE` and `LOGSWEEP` are never exercised (the outer catches of a failing SQL read; theoretical).
+- low: no code rule enforces who writes `BackgroundCheck` (not in the spec; the Conventions row and the class docs state it; a new scan rule is more than a correction).
+- low: `Heartbeat.Tick` passes "Checks answers the Tick" on a 60 s timeout (Checks gives no response object either; a late run still fails the next assertions, so there is no false green).
+- low: `Reader.TestFailuresStateCodes` leaves a fake runtime node if its process dies mid-loop, and its last assertion follows its own kill (every in-process path restores the globals, which it touched only after reading them empty; a killed process is theoretical in a one-class call).
+- low: `Reader.TestFailuresStateCodes` does not first check that Orders was running (every Case test expects Orders running and `PutBack` starts it; a guard branch for an unseen state).
+- low: `Heartbeat` expects a clean Orders (no `instance` incident, no untagged failure since its row's creation) (spec-bound: the class runs fresh and asserts only on its own rows; the lead's Rule 19 fresh check, forward and reverse, is the gate; the earlier pass rejected the same).
+- low: AC 2's first clause has only probe-level reds (Rule 19 asks one mutation per AC, and AC 2 has one).
+
 ## Spec Change Log
 
 - 2026-10-27, spec gate (Epic 5 runner): Q2 ruled (a) (decide; not contended), Q3 ruled keep (veto U-105); Q1 (contended `Test/Web/Api.cls`) sent to the orchestrator; status stays `blocked` until Q1 is ruled.
@@ -468,6 +492,24 @@ Mutations applied (Rule 19), each observed red and reverted byte-identically (co
 - mutation (review): the `Kind = ?` filter dropped from `Due` -> `Runs.TestDue` red (a due row of another kind is run)
 - mutation (review): `TickAt` used as is, with no fall-back to now -> `Runs.TestTickWithoutTime` red
 - mutation (review): `Live.Payload.Check.Stopped` typed `%String` -> `Heartbeat.TestStartAndStop` red (`stopped` is not a JSON boolean)
+
+QA stage (Rule 19; each mutation observed red on the warm stack `e5s6qw`, reverted from a backup, and `git diff --stat` identical before and after):
+- `(QA)` test added: `src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls` `TestFailuresStateCodes` (AC 6): with Orders cleanly stopped it writes the runtime globals of OCUORDERS (`^Ens.Suspended`, or `^Ens.Runtime("Name")` with and without a node under `"System"`) and reads `suspended`, `troubled` and `network_stopped` through `Watch.Reader.Failures`, kills the nodes (also after a failure) and starts Orders again. No product seam and no contended path. It closes the implement stage's named gap for the Reader's state map; `Runs.TestFailed` already pinned the finding text of all three states through the probe's `Read`.
+- mutation (QA): `Current` maps `$$$eProductionStateNetworkStopped` to `"unknown"` -> `Reader.TestFailuresStateCodes` red
+- mutation (QA): the unknown-request error code 5001 changed to 5003 -> `Runs.TestUnknownRequest` red
+- mutation (QA): `REASONTOOMANY` branch disabled (`ElseIf 0`) -> `Runs.TestNotChecked` red
+- mutation (QA): the sweep quits at the first failed send -> `Runs.TestQuietSweep` red
+- mutation (QA): the `LOGRAN` line removed -> `Runs.TestRanLine` red
+- mutation (QA): the owner filter of `Unclosed` dropped (every session's incidents count) -> `Runs.TestPassed` and `Runs.TestScope` red
+- mutation (QA): the `Announce` call removed from `Record` -> `Runs.TestPassed` and `Runs.TestPublishes` red
+- mutation (QA): `WatchOps` sends `CheckChanged` for already_watching -> `Ops.TestRepeat` red
+- mutation (QA): `ci/units.sh` lane-a without `Checks` -> `docker/tests/test-ci-config.sh` red (2 rules)
+- QA audit: every AC and matrix row has a pinning test and a recorded red; the QA lines above fill the rows that had none (Unknown request, Not checked/too many, Quiet close continue-on-failure, the event, the log line, incident scope, nothing-sent answers, units.sh). AC 2's first half (3 failures) is pinned by `Heartbeat.TestFailingOrders` and, at probe level, by `Runs.TestFailed`/`TestScope`; no separate mutation was run on a fresh stack for it.
+
+Code review stage (Rule 19; each reverted from a backup, the file byte-identical by `cmp`, and the class green again on the same stack):
+- mutation (code review): `Sweep`'s timeout check dropped (OK with no answer taken as sent) -> `Runs.TestQuietSweep` red (warm `e5s6cw`)
+- mutation (code review): the per-row Try/Catch of `Tick` removed -> `Runs.TestRunThrows` red (warm `e5s6cw`)
+- mutation (code review): `Record` writes the row's `CreatedAt` as `LastRunAt` -> `Heartbeat.TestTickRunsTheWatch` red (fresh `e5s6c`), and `Runs.TestPassed` and `Runs.TestWindow` red (warm)
 
 ## Auto Run Result
 

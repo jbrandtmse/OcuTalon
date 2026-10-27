@@ -6,7 +6,8 @@
 ///     answers not_current. Each call is kept in ^||ChecksProbe("calls", n) as a $ListBuild of namespace, production, from and limit (Calls reads them).
 ///     A shadow instance has no reachable production, and the reader needs one.
 ///   - SendQuiet (the closeQuiet seam) cannot reach IncidentManager from a shadow instance, so it records {incidentRef, verb, origin, sessionRef,
-///     superSession, sessionId} in Quieted and answers OK, or an error for an incident that FailQuiet names (comma-separated Refs, or * for all).
+///     superSession, sessionId} in Quieted and answers OK with a CommandResult, an error for an incident that FailQuiet names (comma-separated Refs, or
+///     * for all), or OK with no answer, as a wait that ran out gives, for an incident that SilentQuiet names.
 ///   - Due and Quiet keep only the Refs that the test lists in Only and OnlyIncidents (after the product's own selection, so that its rules still run),
 ///     because a warm stack holds other rows that a Tick must never touch.
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
@@ -24,6 +25,9 @@ Property Quieted As %DynamicArray [ Transient ];
 
 /// The Refs of the incidents whose SendQuiet answers an error, comma-separated, or * for every one.
 Property FailQuiet As %String(MAXLEN = "") [ Transient ];
+
+/// The Refs of the incidents whose SendQuiet answers OK with no answer (IncidentManager did not answer in time), comma-separated.
+Property SilentQuiet As %String(MAXLEN = "") [ Transient ];
 
 /// 1 to make the read of the incidents throw.
 Property FailUnclosed As %Boolean [ InitialExpression = 0, Transient ];
@@ -45,11 +49,14 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 	Quit spec.outcome
 }
 
-Method SendQuiet(command As OcuTalon.Msg.IncidentCommand) As %Status [ Private ]
+Method SendQuiet(command As OcuTalon.Msg.IncidentCommand, Output answer As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
+	Set answer = ""
 	If '$IsObject(..Quieted) Set ..Quieted = []
 	Do ..Quieted.%Push({"incidentRef": (command.IncidentRef), "verb": (command.Verb), "origin": (command.Origin), "sessionRef": (command.SessionRef), "superSession": (..%SuperSession), "sessionId": (..%SessionId)})
 	If (..FailQuiet = "*") || $ListFind($ListFromString(..FailQuiet), command.IncidentRef) Quit $SYSTEM.Status.Error(5001, "The send of closeQuiet is refused")
+	If $ListFind($ListFromString(..SilentQuiet), command.IncidentRef) Quit $$$OK
+	Set answer = ##class(OcuTalon.Msg.CommandResult).%New()
 	Quit $$$OK
 }
 

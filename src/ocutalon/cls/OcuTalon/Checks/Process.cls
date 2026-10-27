@@ -46,9 +46,7 @@ Parameter QUIETWAIT = 30;
 /// The configuration item that settles incidents (AD-15).
 Parameter MANAGER = "IncidentManager";
 
-/// The verb that closes a quiet incident, and the origin of a command from the heartbeat.
-Parameter CLOSEQUIET = "closeQuiet";
-
+/// The origin of a command from the heartbeat.
 Parameter TIMER = "timer";
 
 /// The only kind of check that runs.
@@ -61,13 +59,6 @@ Parameter CHECKEVENT = "check";
 Parameter INSTANCE = "instance";
 
 Parameter EVAL = "eval";
-
-/// The states of the incidents that fail a check.
-Parameter OPEN = "open";
-
-Parameter AWAITING = "awaiting_approval";
-
-Parameter FIXING = "fixing";
 
 /// The parts of a finding (public text; the first letter is made upper case, {count} is the number).
 Parameter FINDINGSTOPPED = "production stopped";
@@ -160,11 +151,13 @@ Method Sweep(now As %String) [ Private ]
 		Set saved = ..%SuperSession
 		Try {
 			Set command = ##class(OcuTalon.Msg.IncidentCommand).%New()
-			Set command.Verb = ..#CLOSEQUIET
+			Set command.Verb = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET
 			Set command.IncidentRef = incident.ref
 			Set command.Origin = ..#TIMER
 			Set ..%SuperSession = ..TraceOf(incident.ownerRef)
-			Set sc = ..SendQuiet(command)
+			Set answer = ""
+			Set sc = ..SendQuiet(command, .answer)
+			If $$$ISOK(sc) && '$IsObject(answer) Set sc = $SYSTEM.Status.Error(5001, "IncidentManager did not answer in "_..#QUIETWAIT_" seconds")
 		} Catch exception {
 			Set sc = exception.AsStatus()
 		}
@@ -180,7 +173,7 @@ Method Sweep(now As %String) [ Private ]
 Method Quiet(now As %String) As %DynamicArray [ Private ]
 {
 	Set quiet = []
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, OwnerRef, LastAt FROM OcuTalon_Data.Incident WHERE State <> 'closed' ORDER BY ID")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, OwnerRef, LastAt FROM OcuTalon_Data.Incident WHERE State <> ? ORDER BY ID", ##class(OcuTalon.Watch.Transitions).#CLOSED)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The incidents could not be read: "_rs.%Message))
 	While rs.%Next() {
 		If ##class(OcuTalon.Watch.Settle).Quiet(rs.%GetData(3), now, ##class(OcuTalon.Watch.IncidentManager).#QUIETSECONDS) {
@@ -199,8 +192,9 @@ Method TraceOf(ownerRef As %String) As %String [ Private ]
 }
 
 /// Sends IncidentManager the command, synchronously, waiting at most QUIETWAIT seconds, in this process's session and with its SuperSession (a seam
-/// for the tests). The answer is not used.
-Method SendQuiet(command As OcuTalon.Msg.IncidentCommand) As %Status [ Private ]
+/// for the tests). answer is IncidentManager's CommandResult, which it gives on every OK status, and no object when the wait ran out (the status is
+/// still OK then); the sweep only tells the two apart.
+Method SendQuiet(command As OcuTalon.Msg.IncidentCommand, Output answer As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(..#MANAGER, command, .answer, ..#QUIETWAIT)
 }
@@ -295,15 +289,18 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 Method Unclosed(row As %DynamicObject, onlineDemo As %Boolean) As %String [ Private ]
 {
 	Set urgent = ""
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT OwnerRef, State FROM OcuTalon_Data.Incident WHERE Namespace = ? AND Production = ? AND State IN (?, ?, ?)", row.namespace, row.production, ..#OPEN, ..#AWAITING, ..#FIXING)
+	Set open = ##class(OcuTalon.Watch.Transitions).#OPEN
+	Set awaiting = ##class(OcuTalon.Watch.Transitions).#AWAITING
+	Set fixing = ##class(OcuTalon.Watch.Transitions).#FIXING
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT OwnerRef, State FROM OcuTalon_Data.Incident WHERE Namespace = ? AND Production = ? AND State IN (?, ?, ?)", row.namespace, row.production, open, awaiting, fixing)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The incidents could not be read: "_rs.%Message))
 	While rs.%Next() {
 		Set owner = rs.%GetData(1)
 		If (owner '= row.sessionRef) && ((owner '= ..#INSTANCE) || onlineDemo) Continue
 		Set state = rs.%GetData(2)
-		If state = ..#AWAITING Set urgent = state
-		If (state = ..#FIXING) && (urgent '= ..#AWAITING) Set urgent = state
-		If (state = ..#OPEN) && (urgent = "") Set urgent = state
+		If state = awaiting Set urgent = state
+		If (state = fixing) && (urgent '= awaiting) Set urgent = state
+		If (state = open) && (urgent = "") Set urgent = state
 	}
 	Quit urgent
 }
@@ -318,7 +315,7 @@ ClassMethod Finding(state As %String, failures As %Integer, cut As %Boolean, inc
 		Set text = $Select(cut: ..#FINDINGATLEAST, failures = 1: ..#FINDINGFAILURE, 1: ..#FINDINGFAILURES)
 		Set parts = parts_$ListBuild($Replace(text, "{count}", failures))
 	}
-	Set incidentText = $Case(incident, ..#AWAITING: ..#FINDINGAWAITING, ..#FIXING: ..#FINDINGFIXING, ..#OPEN: ..#FINDINGOPEN, : "")
+	Set incidentText = $Case(incident, ##class(OcuTalon.Watch.Transitions).#AWAITING: ..#FINDINGAWAITING, ##class(OcuTalon.Watch.Transitions).#FIXING: ..#FINDINGFIXING, ##class(OcuTalon.Watch.Transitions).#OPEN: ..#FINDINGOPEN, : "")
 	If incidentText '= "" Set parts = parts_$ListBuild(incidentText)
 	Set finding = $ListToString(parts, ", ")
 	Quit $ZConvert($Extract(finding), "U")_$Extract(finding, 2, *)
