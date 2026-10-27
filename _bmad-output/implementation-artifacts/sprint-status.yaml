@@ -119,8 +119,7 @@ development_status:
   epic-6: in-progress
   6-1-show-each-incident-as-one-card-in-the-chat: done
   6-2-approve-or-reject-a-fix-from-the-web-chat: done
-  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: 
-    ready-for-dev
+  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: in-progress
   6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: backlog
   epic-6-retrospective: optional
 
