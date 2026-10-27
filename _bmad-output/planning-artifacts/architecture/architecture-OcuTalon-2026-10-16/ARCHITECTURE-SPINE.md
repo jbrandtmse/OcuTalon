@@ -368,6 +368,12 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
   - **Session lifetime, locally:** at least 8 hours of idle time. While any application of the sign-in group is alive, a timed-out one signs back in silently, so the trace applications never shorten it (S7).
   - **Session lifetime, online demo (S13; PRD FR-14 as amended on October 17).** The OcuTalon session lasts until the reset (AD-4); each CSP session, which holds a licence connection, is short:
     - Why: the Community licence caps the instance at 8 concurrent connections, and every signed-in CSP session holds one until it signs out or times out. Each trace application a visitor opens holds one more.
+    - Measured locally on build 154 (Story 4.7, DW-146), licence units:
+      - Signing in to `/ocutalon` takes no licence unit.
+      - The first Visual Trace page of each distinct user and client address takes one. More trace tabs of the same user take none.
+      - Closing the trace tabs, or the whole browser, frees nothing. The unit is held until sign-out (`?IRISLogout=end` frees it at once) or the session timeout (8 hours locally).
+      - At 8 units, trace pages answer 503 and `iris session` terminals are refused.
+    - On the online demo, with the 120-second timeout below, a visitor who leaves a trace page therefore holds its unit for about 120 seconds after its last request, unless the page signs the trace session out first (Story 16.4); the trace unit, not the sign-in, is what visitors use up (inference, until Story 29.4 measures units per visitor on the demo configuration). [AMENDED 2026-10-27, Story 4.7's measurement, inbox U-103, the Contest Planner under the owner's delegation, orchestrator: the measured facts and their online-demo consequences added; the S13 sentences above stay until Story 29.4's measurement]
     - So `/ocutalon`, `/ocutalon/api` and the trace applications use a 120-second CSP timeout. The page's polling keeps the main session alive while the page is open, and a reload keeps it. A closed page frees its connection 5 to 15 seconds after the timeout.
     - The page doesn't sign out on `pagehide`, because that event also fires on a reload.
     - The idle cap, a product setting defaulting to 600 seconds: after that long without a key press, a click or a sent message (polling doesn't count), the page stops polling and ends its CSP session, freeing the connection. The splash then says the place was freed for other visitors and that signing in again picks the session up.
@@ -712,6 +718,12 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
     - Its outcomes are `busy` (503, or a busy status: alert only), `capped` (a `daily_cap` fallback: healthy), `auth_failed` (the sign-in form comes back) and `no_decision` (no decision within 120 seconds).
     - Only `auth_failed` and `no_decision` count toward the unscheduled reset, so a changed password still leads to a reset (FR-59), and a full demo never does.
   - **Capacity (S13).** The Community licence caps the instance at 8 concurrent connections. With one kept for the probe and one for an operator, about 6 visitors can be signed in at once. Each trace window holds one more connection for about two minutes after its last use, so about 3 visitors can have Visual Trace open together.
+    - Measured locally on build 154 (Story 4.7, DW-146; AD-13): sign-in takes no licence unit. The first trace page of each distinct user and client address takes one, and more tabs of the same user take none. Closing the page frees nothing: the unit is held until sign-out (`?IRISLogout=end`) or the session timeout (120 seconds on the online demo). At 8 units, trace pages answer 503 and `iris session` terminals are refused.
+    - On the online demo, then (inference, until Story 29.4 measures the units each visitor uses on the demo configuration):
+      - Trace units, not sign-ins, are what visitors use up.
+      - Leaving a trace page must sign its trace session out, with the 120-second timeout as the backstop (Story 16.4).
+      - The host's own admin and reset path must not need a licence unit at the cap, or the host keeps one free (Story 29.3).
+    - The numbers above (about 6 signed in, about 3 with Visual Trace) are S13's, and they stand, with P12 and NFR-23, until that measurement. [AMENDED 2026-10-27, Story 4.7's measurement, inbox U-103, the Contest Planner under the owner's delegation, orchestrator: the measured facts and their consequences added]
     - Nothing else on the demo host holds an IRIS connection: no MCP server, no superserver or SQL client, no lingering terminal. The runbook's way in at the cap is to stop the proxy first.
     - One client address can open up to 5 sessions an hour (FR-15) and keep them while its pages poll; the idle cap ends idle ones, and the runbook can end a session.
     - PRD NFR-23, as amended on October 17 (P12), takes this as the online demo's capacity. No scale-out is planned for the contest; a licence with more connections, or more instances, stays an option after launch.
