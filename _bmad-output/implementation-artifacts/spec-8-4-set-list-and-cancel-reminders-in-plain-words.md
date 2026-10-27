@@ -2,12 +2,12 @@
 title: 'Story 8.4: Set, list and cancel reminders in plain words'
 type: 'feature'
 created: '2026-10-27'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
-warnings: [oversized, multiple-goals]
+warnings: [oversized]
 deferred: []
 ---
 
@@ -89,168 +89,242 @@ deferred: []
 
 ## Code Map
 
-- `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls` (8.3):
-  - `STUB` `:20`; `OnMessage` `:31-45`, whose `Accepts`/`SessionExists` gate goes;
-  - `Set` `:48-79`: `NewRef` is at `:51`, and the save, `StartWaiter`, created publish and answer stay;
-  - `StartWaiter` `:84-102`: its session save and restore is the pattern for `EndWaiter`;
+Product, Epic 8's footprint (paths under `src/ocutalon/cls/OcuTalon/` unless written in full):
+- `Schedule/ReminderOps.cls` (8.3):
+  - `STUB` `:20` goes. `OnMessage` `:31-45`: its `Accepts`/`SessionExists` gate becomes the verb dispatch.
+  - `Set` `:48-79` keeps the row save, `StartWaiter`, the release of its own row before the reopen (`:62`; 8.3 found that a row still open in the process reopens stale), the created publish and the answer.
+  - `StartWaiter` `:84-102`: its save and restore of `..%SessionId`/`..%SuperSession` becomes the shared helper.
   - `SessionExists` `:105`, `Result` `:112`, `MESSAGESET` `:29`.
-- `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls`:
-  - `Accepts` `:30-39` is replaced by `Resolve`;
-  - `Wake` `:98-135` already ends without sending when the row isn't pending. It is checked before the early-wake rule, so an interrupted wake on a cancelled row ends. No change.
-- `src/ocutalon/cls/OcuTalon/Data/Time.cls`: `Seconds` `:27`, `AddSeconds` `:42`, `ToLocal` `:54`, `Zone` `:84`. It has no local-to-UTC method. `src/bridge/cls/OcuTalon/Bridge/Time.cls:40-53` `DayStartUtc` uses `$ZDateTime(days_",0", -3)` (read only).
-- `src/ocutalon/cls/OcuTalon/Data/Reminder.cls`: 8 properties, storage slots 1-9, `RefIndex` unique, `SessionRefIndex`.
-- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `:219` `Reminders(sessionRef, .sc)` (pending, `ORDER BY DueAt, ID`, `:579`). Contended: call only.
-- `src/ocutalon/cls/OcuTalon/Msg/Command/SetReminder.cls`: `Text`(1000), `DueAt`(20), `DelaySeconds` `%Integer`, `LocalDueAt`(19). `CancelReminder.ReminderRef`(22). `Msg/Command.cls` `IdempotencyKey`(128). `Msg/CommandResult.cls`: `Ok`, `Message`(1000), `Outcome`(32), `Ref`, `DueAt`, `Data` (a JSON string, MAXLEN "").
-- Lane A consumers (read only):
-  - `Tools/ReminderTools.cls:49-80`: set sends only `Text`/`DelaySeconds`/`LocalDueAt` and refuses a non-digit delay itself; list; cancel by `reminderRef`.
-  - `Tools/CommandCall.cls`:
-    - `:38-41` the key `<ItemId>:<position>`;
-    - `:63` `Answer` gives the model `ok`, `message`, and `ref`, `due` and `dueLocal` when set (no `Outcome`);
-    - `:82` `Listed` needs the `reminders` array, each `ref`/`text`/`dueAt` readable, or answers `NOTREAD`.
-  - `Test/Tools/CommandsDouble.cls:41-95`: the double's outcomes (`created`, `cancelled`, `listed`, `refused`).
-  - `Agent/Chat.cls:18` `MaxIterations` 4; `:36` INSTRUCTIONS.
-  - `Core/Conversation.cls:406`: a retry gets a new `ItemId`.
-  - `Bridge/Context.cls:73`: `CommandCount` restarts at 0 on `Begin`.
-- `irislib/Ens/BusinessProcess.cls:189` `SetTimer` (its `pAlarmHandle` is the `Ens.AlarmRequest` id). `irislib/Ens/Alarm.cls:21-52,358-380`: an `Ens.AlarmTriggerRequest(handle)` interrupts; an unknown handle is a no-op. `irislib/Ens/AlarmTriggerRequest.cls`. Reference only.
-- Tests to change, Epic 8's (`src/ocutalon/cls/OcuTalon/Test/Schedule/`):
-  - `ReminderLogic.cls`: `TestAccepts` `:54-95` and `TestNotHandledWritesNothing` `:137-167` pin the old not-implemented answers; the header bullets are at `:6-7,11-12`.
-  - `ReminderFixture.cls`: `Set` `:14` (bridge context, origin tool, key `zzrem<n>`) and `Remove` `:54`.
-  - `Reminders.cls`: the production base, with clean-up in `OnAfterOneTest`.
-  - The probes `ReminderOpsProbe`, `ReminderOpsStartedProbe`, `ReminderOpsSendProbe` and `ReminderTimerDouble` stay valid.
-- Shared by entry (Epic 8's entries):
-  - `Test/Core/ProductionItems.cls:34`, the ReminderOps row `"stub": 1`;
-  - `Test/Data/Tables.cls:431-447`, the `OcuTalon.Data.Reminder` contract. `AssertContract` checks the exact property and index sets.
-- Must stay green with no edit:
-  - `Test/Install/Production.cls:139-185` `TestStubsAnswer` (Lane B stubs remain);
-  - `Test/Core/CommandsRouting.cls` (probes);
-  - `Test/Tools/Reminders.cls` (the double);
-  - `Test/Demo/GuidePrompts.cls:96-108` (a session-less owner, so no row);
-  - `Test/Demo/Guide.cls:111-124` (a cancelled reminder doesn't mark step 2 done);
-  - `Test/Web/Api.cls`, `Test/Live/Payloads.cls`;
-  - `Test/Contract/Ac.cls:289-299`, which checks only the listed signatures.
-- **Contended and red once ReminderOps is built** (see Clarification Needed):
-  - `Test/Core/CommandsInProduction.cls:35,50-56` (`SetReminder|ReminderOps|web_user` expects `0|not_built` and an error header);
-  - `docker/tests/test-production.sh:17-19,194-197` (row 17 expects `not_built` for a `ListReminders` with no `SessionRef`).
-- Test helpers (call only):
-  - `Test/Agent/RunnerFixture.cls`: `NewRequest` `:276` (ownerRef), `Run` `:378`, `StepsOf` `:335`, `DecisionOf` `:315`, `PointKeys`/`RestoreKeys` `:456-463`, `UseItemClass`/`RestoreItemClass` `:645`, `DeleteSteps` `:349`, `FindRequests`.
-  - `Test/Contract/Mock.cls:365,378` (`LogMark`, `LogSince`).
-  - `Test/Demo/GuidePrompts.cls:127-160` (`Turn`, `ToolInputOf`: the private pattern to copy).
-  - `Test/Tools/Reminders.cls:926-960` `AssertSteps` (private): the agent-step check to copy.
-  - `Test/Bridge/ZoneCase` (the zone base: `$SYSTEM.Process.TimeZone`, restored per test).
-  - `Test/Core/InProduction.cls`, `Test/Core/Observe.cls`.
-  - `Test/Data/Fixture.cls:50` `Reminder(sessionRef, dueAt, state, fields)`.
-- Mock:
-  - `ci/mock/mock.mjs`: selection `:11-17`; a marker beats a prompt; the reply index is `min(k, last)` (`:262,291`); `input` is copied verbatim (`:307`), so there is no reference to a tool result.
-  - `ci/mock/scenarios.mjs`: refuses a repeated prompt (`:259`), a prompt contained in another (`:272`), and a duplicate name across A and B (`:244`).
-  - `B/guide-reminder.json`: `set_reminder {"text":"stretch","delaySeconds":60}`, then "The CI mock set the reminder."
-  - The A marker names in use: `reminder-cancel`, `reminder-list`, `reminder-set-local`, `reminder-set-relative`, `reminder-set-two`.
-- Web:
-  - `web/e2e/demo-path/03-reminder.spec.ts`: one `notBuilt(..., '8.4')`.
-  - `02-watch.spec.ts:10-25`: the describe-level skip pattern for a stack-only test.
-  - `web/e2e/support/devices.ts:148-161` `pointKeys`/`restoreKeys`, and `demo-switch/mailbox.spec.ts:33-44` (`beforeAll`/`afterAll`, 240 s).
-  - `guide/guide.spec.ts:44-50` (`stepName`, `promptOf`) and `:277` (step 2 Send).
-  - `support/floor.ts` `rowOf`; `support/iris.ts` `irisScript`/`chk`; `sign-in/helpers` `signInReadme`/`signIn`.
-  - `web/e2e/reminder/reminder.spec.ts` (8.3, rail user).
-  - `web/src/app/rail/rail-view.ts:311` keeps only `state === 'pending'`, and its row title is the text exactly (`:235-242`).
-  - `web/scripts/demo-path-summary.test.mjs:332-363`: `playwrightEnv()` and 'skip every unbuilt part', which needs at least one skipped, Story-labelled, non-`@floor` test per step 2 to 6.
-- `src/ocutalon/cls/OcuTalon/Production.cls:68`: ReminderOps `PoolSize="1"`, so commands are serialized. `Demo/Guide.cls:76,97` with `Ownership.cls:653`: step 2 is done for a pending or fired reminder.
+- `Schedule/Reminder.cls`:
+  - `Accepts` `:28-39` is replaced by `Resolve`. Only `ReminderOps:35` and `ReminderLogic` call it.
+  - `Wake` `:98-135` already ends without sending for a non-pending row (`:109`, before the early-wake rule), so an interrupted wake of a cancelled row ends the waiter. Its open is the lock pattern for `Cancel`: `RefIndexOpen(ref, 4, .sc)` and the `$$$LockFailedToAcquireExclusive` check at `:103`. `Start`/`Wake` don't change. Class doc `:3-15`.
+- `Data/Time.cls`: `Seconds` `:27`, `AddSeconds` `:42` (`""` beyond 9999-12-31), `ToLocal` `:54`, `Zone` `:84`. It has no local-to-UTC method. Its twin `src/bridge/cls/OcuTalon/Bridge/Time.cls:40` `DayStartUtc` uses `$ZDateTime(days_",0", -3)` (read only).
+- `Data/Reminder.cls`: 8 properties, storage slots 1-9, `RefIndex` unique, `SessionRefIndex`.
+
+Read only (call, never edit):
+- `Data/Ownership.cls:219` `Reminders(sessionRef, .sc)`: the session's pending rows, opened, `ORDER BY DueAt, ID` (`:581`). Contended.
+  - Drop that list before `RefIndexOpen(ref, 4)`. An object still open in the process comes back as it is, without the lock (8.3).
+- Messages:
+  - `Msg/Command/SetReminder.cls`: `Text`(1000), `DueAt`(20), `DelaySeconds` `%Integer`, `LocalDueAt`(19).
+  - `CancelReminder.ReminderRef`(22); `Msg/Command.cls` `IdempotencyKey`(128).
+  - `Msg/CommandResult.cls`: `Ok`, `Message`, `Outcome`, `Ref`, `DueAt`, and `Data`, a JSON string.
+- `Core/CommandsIn.cls`:
+  - routes the three verbs to ReminderOps from every origin (`:166-168`);
+  - code 5003 is `not_built`, and any other error is `failed` (`MESSAGEFAILED` `:50`).
+- `Production.cls:68`: ReminderOps `PoolSize="1"`, so its commands are handled one at a time.
+- Lane A consumers:
+  - `Tools/CommandCall.cls` `Run` `:32-59` sets `SessionRef` = the context's `OwnerRef` and `IdempotencyKey` = `<ItemId>:<CommandCount+1>`, and writes the count back. So several commands of one tool call get distinct keys. A call that runs again repeats them, because `Bridge.Context.Begin` resets the count (`src/bridge/cls/OcuTalon/Bridge/Context.cls:59-73`).
+  - `CommandCall.Answer` `:63` gives the model `ok`, the message unchanged, `ref`, `due` and `dueLocal`.
+  - `CommandCall.Listed` `:82-115` needs a `reminders` array whose items have string `ref`, `text` and `dueAt` (UTC to the second); otherwise it answers `NOTREAD`.
+  - `Tools/ReminderTools.cls:49-90`:
+    - set sends only `Text`/`DelaySeconds`/`LocalDueAt`, and refuses a non-digit delay itself;
+    - list and cancel (by `reminderRef`) need nothing more;
+    - each returns its dynamic object through `Tools.Result.Return`.
+  - `Agent/Chat.cls` (DW-140, DW-142) is never edited.
+- Platform (reference only):
+  - `irislib/Ens/BusinessProcess.cls:189` `SetTimer`: the alarm handle is the `Ens.AlarmRequest` body id.
+  - `irislib/Ens/Alarm.cls:21-52`: an `Ens.AlarmTriggerRequest` header is handled by `InterruptAlarm` (`:358-380`), which marks a known handle interrupted and ignores an unknown one. The trigger header ends Completed.
+  - `irislib/Ens/AlarmTriggerRequest.cls` (`AlarmHandle`).
+  - `irislib/Ens/BusinessOperation.cls:726`: a business operation's `SendRequestAsync(target, request, description)` has no response flag, because an operation never gets an answer. Never pass `0` as its third argument: that would be the description. The method reads `..%RequestHeader.Resent`, so a shadow instance with no request header can't make the real send. The tests stand in for it (`ReminderOpsSendProbe`).
+
+Tests, Epic 8's (`Test/Schedule/`):
+- `ReminderLogic.cls`:
+  - header `:1-23`; `Command` `:43`; `EventStates` `:216`; `Rows` `:483`;
+  - `TestAccepts` `:54-95` and `TestNotHandledWritesNothing` `:137-167` pin the old answers;
+  - the lock jobs `HoldLock` `:387` and `TryLock` `:401`.
+- `ReminderFixture.cls`: `Set` `:14-45` (bridge context, origin tool, key `zzrem<n>`) and `Remove` `:54-84`.
+- `Reminders.cls` (base `Test.Core.InProduction`): `OnAfterOneTest` `:34`, `SetReminder` `:47`, `Timers` `:55`, `IsWaiting` `:66`, `WaitEnded` `:75`.
+- `ReminderOpsProbe.cls` and `ReminderOpsStartedProbe.cls` name "the handled set" in their docs. `ReminderTimerDouble` stays valid.
+- `ReminderOpsSendProbe.cls`: overrides `SendRequestSync` by `Mode` (ok, noanswer, error, throw) and records what it saw in `Seen`. `ReminderLogic.TestStartWaiterSeam` `:448-481` uses it.
+- Helpers:
+  - `Test/Data/Fixture.cls`: `Session`, `Reminder` `:50`, `SessionHeaders`/`Between`, `Clean`. Contended, call only.
+  - `Test/Core/Observe.cls` (`Events`, `LastLog`).
+  - `Test/Bridge/ZoneCase.cls`: saves the zone and puts it back per test. Lane A's, extend only.
+- `web/e2e/reminder/reminder.spec.ts` (8.3; the rail user; `afterEach` runs `Remove`):
+  - from `support/iris`: `irisScript`, `chk`, `quoted`, `fixtureUser`;
+  - from `support/floor`: `rowOf`, `unique`;
+  - from `sign-in/helpers`: `signIn`.
+
+Shared by entry, and the allowed extensions:
+- `Test/Core/ProductionItems.cls:34`: the ReminderOps row, `"stub": 1`. It is read by:
+  - `Test/Install/Production.cls:136-171` `TestStubsAnswer`;
+  - `test-production.sh` row 16's sweep (`:162-171`).
+- `Test/Data/Tables.cls:431-447`: Epic 8's `OcuTalon.Data.Reminder` entry. `AssertContract` checks the exact property and index sets.
+- `Test/Core/CommandsInProduction.cls` (Q1): class doc `:4-5`, method doc `:27-29`, table `:35`.
+  - `TestTraceAndThread` `:106-155` sends `ListReminders` to ReminderOps but asserts only headers and sessions, so it stays green unedited.
+- `docker/tests/test-production.sh` (Q2): the header at `:17-19`, and the expected lines at `:195-196` for a `ListReminders` with no `SessionRef`.
+
+Stay green with no edit:
+- `Test/Core/CommandsRouting.cls` (probes);
+- `Test/Core/Commands.cls` and `CommandsContext.cls` (they assert the origin only);
+- `Test/Tools/Reminders.cls` (the double);
+- `Test/Demo/GuidePrompts.cls` (a session-less owner, so nothing is submitted);
+- `Test/Demo/Guide.cls:111-124`, `Test/Web/Api.cls` and `Test/Live/Payloads.cls`;
+- `Test/Contract/Ac.cls` (listed signatures only).
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0** (implement stage, warm throwaway; record each result under Design Notes as measured or (inference)):
-  - (a) For a waiting reminder, `ReminderOps` sends `Ens.AlarmTriggerRequest(<the Ens.AlarmRequest body id>)` to `Ens.Alarm` with no response required, in the waiter's session. The waiter's `OnResponse` runs at once and the instance completes. Record the trigger header (session, `SuperSession`, status). A trigger whose alarm already fired adds no event-log error.
-  - (b) The status values of a waiting reminder's `Ens.AlarmRequest` header, used for the "not completed" filter.
-  - (c) The guide's step 2 Send on a `live:demo-path` stack with `pointKeys` reaches the mock through `WebChatIn`.
-  - If (a) fails, drop the interrupt (`EndWaiter`). The cancelled waiter then ends at its due time (8.3), and the tests wait for that due time using short dues. Record it.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Time.cls`: add `FromLocal(local As %String) As %String` per the Always list. The doc states the measured gap and overlap behaviour.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Reminder.cls`: append these and commit the compiler's storage block (slots 10 and 11). No index. Correct `State`'s doc only where needed.
-  - `IdempotencyKey As %String(MAXLEN = 128)`: the key of the `SetReminder` that created the row.
-  - `CancelKey As %String(MAXLEN = 128)`: the key of the `CancelReminder` that cancelled it.
-- [ ] `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls`: replace `Accepts` with `Resolve(command, now, Output dueAt) As %String` (the Always rule; codes `no_text`, `due_forms`, `bad_time`, `past`). Correct the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls`:
-  - Delete `STUB`. Add one `MESSAGE*` parameter per code (Design Notes) plus `MESSAGELISTED` and `MESSAGECANCELLED`.
-  - `OnMessage`: take `now`; dispatch `SetReminder` to `Set`, `ListReminders` to `List` and `CancelReminder` to `Cancel`, each in Try/Catch (a throw is `failed`). Any other message gets an error status.
-  - Each verb: the session check, then (set and cancel) the repeat check, then its rule.
-  - `Set` also stores `IdempotencyKey`, and takes its Ref from a new private `NewRef()`, a seam a test subclass overrides.
-  - New private `List`, `Cancel`, `Refuse(code)` and `EndWaiter(row)`. `EndWaiter` and `StartWaiter` share one private session save-and-restore helper.
-  - The class doc states what is built.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`: the ReminderOps row gets `"stub": 0` (Epic 8's row).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, Epic 8's `OcuTalon.Data.Reminder` entry: add `"IdempotencyKey": "%String(MAXLEN=128)"` and `"CancelKey": "%String(MAXLEN=128)"`.
-- [ ] **Only as the orchestrator rules (Clarification Needed Q1, Q2):**
-  - `Test/Core/CommandsInProduction.cls`: remove the `SetReminder|ReminderOps|web_user` entry, and ReminderOps from the class doc's stub-owner sentences.
-  - `docker/tests/test-production.sh` row 17: `not_built` becomes `refused` in its two expected lines and in its header bullet.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls`:
-  - add `Submit(sessionRef, command)`, the bridge-context submit that `Set` now uses;
-  - add `Cancel(sessionRef, ref)` returning `{ok, outcome, message}`;
-  - add `CancelPending(sessionRef)`, which cancels every pending reminder of the session through `Cancel` and returns the count;
-  - `Remove(ref)` first cancels a pending row and waits, at most 10 s, until no `ReminderTimer` instance has that Ref.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsFixedRef.cls` (new): a `ReminderOps` subclass whose `NewRef()` returns, and kills, `^OcuTalonTest("ReminderOpsFixedRef")` when it is set, and otherwise calls the parent.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls` (no production):
-  - Replace `TestAccepts` with `TestResolve`: each due-form, refusal and order row of the matrix, by code.
-  - Replace `TestNotHandledWritesNothing` with `TestRefusalsWriteNothing`, on a shadow instance: each refusal gives status OK, `0|refused` and the exact Message, with no row and no event. A non-verb message gives an error that is not 5003.
-  - Add `TestListShape`, on fixture rows (matrix row List): `Data` is exactly right. **Integration AC (DW-135):** `Tools.CommandCall.Listed` of that answer gives `ok` true and the two refs in due order, not `NOTREAD`, and `{"reminders":[]}` for an empty session.
-  - Add `TestCancelFixtureRow`: a row with no waiter is cancelled, with `CancelKey`, one cancelled event and no trigger header. The same key again gives the first result and no second event. A new key gives `no_reminder`.
-  - Add `TestSetRepeat`, on `ReminderOpsStartedProbe`: the same key twice gives one row and identical answers. The same key with other text gives `reused_key` and no second row. An empty key twice gives two rows.
-  - Update the header.
+- [ ] **Task 0** (implement stage, warm throwaway). Record each result under Design Notes as measured or (inference):
+  - (a) For a waiting reminder, ReminderOps sends `Ens.AlarmTriggerRequest(<the Ens.AlarmRequest body id>)` to `Ens.Alarm` through its own `SendRequestAsync`, which never waits for a response. It sends with `..%SessionId` = the row's `TraceHeaderId` and `..%SuperSession` = the session's `TraceRef`.
+    - The waiter's `OnResponse` runs at once and the instance completes.
+    - Record the trigger header (session, `SuperSession`, status).
+    - A trigger whose alarm has already fired adds no event-log error.
+  - (b) The status values of a waiting reminder's `Ens.AlarmRequest` header, for the "not completed" filter (8.3 saw 2 or 3).
+  - If (a) fails, drop the interrupt:
+    - the cancelled waiter ends at its due time, sending nothing (8.3);
+    - the production tests use dues of at most 15 s and wait for them;
+    - record it, and report it in the Auto Run Result for the lead, because the intent's "at once" is then not met.
+- [ ] `src/ocutalon/cls/OcuTalon/Data/Time.cls` -- add `FromLocal(local As %String) As %String` per the Always list -- the only local-to-UTC converter (AD-18).
+  - It takes exactly `YYYY-MM-DDThh:mm:ss` and converts with `$ZDateTime(<local $H>, -3)` in the process zone.
+  - It returns `""` for an unreadable value (a thrown `<ILLEGAL VALUE>` included) and for a result outside `Seconds`' range.
+  - Its doc states the measured gap behaviour (read one hour later) and overlap behaviour (the first instant).
+- [ ] `src/ocutalon/cls/OcuTalon/Data/Reminder.cls` -- AD-1's repeat rule on the row (Q3):
+  - append `IdempotencyKey As %String(MAXLEN = 128)` (the key of the `SetReminder` that created the row) and `CancelKey As %String(MAXLEN = 128)` (the key of the `CancelReminder` that cancelled it);
+  - no index;
+  - commit the compiler's storage block (slots 10 and 11 appended).
+- [ ] `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls` -- replace `Accepts` with `Resolve(command, now, Output dueAt) As %String`, and correct the class doc -- one pure due-form rule.
+  - It is the Always rule: `""` with `dueAt` set, or one of `no_text`, `due_forms`, `bad_time` and `past`, checked in that order.
+  - A `DelaySeconds` must match an optionally signed whole number.
+- [ ] `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls` -- the built owner of the three verbs:
+  - Delete `STUB`. Add one `MESSAGE*` parameter per refusal code (the Design Notes table, word for word), plus `MESSAGELISTED` and `MESSAGECANCELLED`.
+  - `OnMessage`:
+    - takes `now` = `NowUtc()` once;
+    - sends, by exact class name, `SetReminder` to `Set`, `ListReminders` to `List` and `CancelReminder` to `Cancel`, inside the one Try/Catch (a throw is logged and answered `failed`);
+    - for any other message, logs one error naming its class and returns an error status that is not 5003, with no answer.
+  - Each verb checks the session first (`no_session`). Set and cancel with a non-empty key then apply the repeat rule. Each verb then applies its own rule (Always).
+  - `Set` resolves before it writes anything, and stores `IdempotencyKey` on the row. The rest is 8.3's.
+  - `List` reads `Ownership.Reminders`.
+    - It builds each item with `%Set(<key>, <value>, "string")` for `ref`, `text` and `dueAt`, so a text of digits stays a JSON string.
+    - An Ownership error is answered `failed`.
+  - `Cancel` follows the Always steps 1-5. A lock it can't take within the process lock timeout logs a warning and answers `failed`, and changes nothing (Decided 7).
+  - The repeat lookups use one fixed statement per key, `WHERE SessionRef = ? AND IdempotencyKey = ?` (or `CancelKey = ?`), bound to the command's `SessionRef` (Decided 3).
+  - Add private `Refuse(code)` and `EndWaiter(row)`, and one private helper that sets `..%SessionId`/`..%SuperSession` for a send and puts both back on every path. `StartWaiter` and `EndWaiter` both use it.
+  - `EndWaiter` sends each trigger with `..SendRequestAsync("Ens.Alarm", trigger)`, which takes no response flag (Code Map).
+  - The class doc says what is built, with no history.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls` -- set the ReminderOps row to `"stub": 0` (Epic 8's row) -- the oracle follows the deleted `STUB`.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- in Epic 8's `OcuTalon.Data.Reminder` entry only, add `"IdempotencyKey": "%String(MAXLEN=128)"` and `"CancelKey": "%String(MAXLEN=128)"` after `"TraceHeaderId"`.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` (Q1, allowed) -- nothing else; `TestTraceAndThread` stays unedited:
+  - remove only `"SetReminder|ReminderOps|web_user", ` from the table (`:35`);
+  - in the class doc (`:4-5`), drop `ReminderOps, ` and the count word: "to the four stub owners (ReminderOps, WatchOps, SessionOps and IncidentManager)" becomes "to the stub owners (WatchOps, SessionOps and IncidentManager)". Removal only, so Epic 5's edit of the same line stays a plain union;
+  - in the method doc (`:27-29`), drop "ReminderOps (SetReminder), ".
+- [ ] `docker/tests/test-production.sh` (Q2, allowed) -- nothing else:
+  - `:195-196` become `CHK|submit-user|1|0|refused|web_user` and `CHK|submit-tool|1|0|refused|tool`;
+  - in the header (`:18`), "ReminderOps' plain-English not_built result" becomes "ReminderOps' plain-English refusal (the command names no session)".
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls` -- update the class doc, and add:
+  - `Begin(sessionRef, itemId = "") As %Status`: the bridge context of the session as a chat tool call has it: `OwnerRef`, `ItemId` (by default a fresh `zzitem<n>`) and `SuperSession` = `TraceRef`. It is extracted from `Set`.
+  - `Submit(sessionRef, command) As OcuTalon.Msg.CommandResult`: `Begin`, `Commands.Submit`, then End. `Set` uses it.
+  - `Cancel(sessionRef, ref, key = "") As %DynamicObject`: a `CancelReminder` through `Submit` (the key defaults to `zzcan<n>`). It returns `{ok, outcome, message, ref, dueAt}`.
+  - In `Remove(ref)`: a pending row is first cancelled through `Cancel`, and `Remove` waits at most 10 s until no `ReminderTimer` with that Ref is waiting. Then it deletes as before.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsProbe.cls` and `ReminderOpsStartedProbe.cls` -- correct "the handled set" in their docs (contract only).
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsSendProbe.cls` -- extend it, and update its doc:
+  - add a stand-in `SendRequestAsync(pTargetDispatchName, pRequest, pDescription = "")`, with the signature of `Ens.BusinessOperation`'s;
+  - it pushes `{target, handle, sessionId, superSession}` onto a new `SeenAsync` array (`handle` is the request's `AlarmHandle`);
+  - it then does what `Mode` says: ok and noanswer answer OK, error answers an error status, throw throws. Nothing is sent.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls` (no production; shadow instances of `OcuTalon.Schedule.ReminderOps` or its probes) -- also update the header:
+  - `TestResolve` replaces `TestAccepts`. It checks every due-form, refusal and order case by code:
+    - `DelaySeconds` 60, "+60", 0, -5, "1.5", "abc", and one beyond 9999;
+    - `LocalDueAt` unreadable and past; `DueAt` unreadable, now and past;
+    - 0, 2 and 3 forms;
+    - the order: blank text first, then the forms, then readability, then past.
+  - `TestRefusalsWriteNothing` replaces `TestNotHandledWritesNothing`.
+    - Each refusal of each verb gives status OK, `0|refused` and the exact Message, with no row and no event. That covers `no_session` for an empty and an unknown session on all three verbs, and the set refusals.
+    - A message that isn't a verb gives an error status that is not 5003, no answer, and one logged error (removed after the check).
+  - `TestListShape` (AC 2) uses fixture rows of the session: pending due later, pending due earlier with the text `100`, fired and cancelled. Another session has a pending row.
+    - The answer is `1|listed` with `MESSAGELISTED`.
+    - `Data` is exactly `{"reminders":[<earlier>,<later>]}`, with only `ref`, `text` and `dueAt`, all strings.
+    - **Integration AC (DW-135):** `Tools.CommandCall.Listed` of that answer is `ok` true with the two refs in due order, not `NOTREAD`.
+    - An empty session gives `{"reminders":[]}`, and `Listed` gives an empty list.
+  - `TestCancelFixtureRow` (AC 3): a pending fixture row with no waiter is cancelled with `CancelKey`, one cancelled event and no trigger header. The same key again gives the first result and no second event. A new key gives `no_reminder`.
+  - `TestCancelRacesFire` (AC 3): a `HoldLock` job holds the row's lock and marks the row fired before it lets go. The cancel waits, then answers `no_reminder`. The row is fired, with no `CancelKey` and no cancelled event.
+  - `TestCancelBusyRowFails`: a `HoldLock` job holds the lock past the process lock timeout. The cancel answers `0|failed`, the row stays pending, there is no event and one warning. Then the job is let go.
+  - `TestSetRepeat` (AC 4, on `ReminderOpsStartedProbe`):
+    - the same key twice gives one row and identical answers;
+    - the same key with other text, or with an absolute form naming another instant, gives `reused_key` and no second row;
+    - a row whose `DueAt` has passed, repeated with its key, text and `DueAt`, gives its first result, not `past` (Decided 5);
+    - an empty key twice gives two rows.
+  - `HoldLock(ref, seconds, state = "")` extends 8.3's job: when `state` is given, the job saves the row with that state before it lets go.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderZone.cls` (new; extends `OcuTalon.Test.Bridge.ZoneCase`; no production):
-  - `TestFromLocal`, in America/New_York: the two Thursdays, the gap `2026-03-08T02:30:00` gives `07:30:00Z`, the overlap `2026-11-01T01:30:00` gives `05:30:00Z`, `ToLocal(FromLocal(x))` = x for both Thursdays, and unreadable inputs give `""`. Also Asia/Kolkata and no zone. And `FromLocal(day_"T00:00:00")` = `Bridge.Time.DayStartUtc(day)` for 2030-11-01 to 2030-11-09 (AD-18's comparison).
-  - `TestResolveThursdayAt10`: `Resolve` in New York gives the two Thursdays' UTC times.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls` (production, throwaways): add these, through `ReminderFixture.Submit`/`Cancel`.
-  - `TestSetByDelayAndLocal` (AC 1): delay 30 gives a `DueAt` within `[AddSeconds(before,30), AddSeconds(after,30)]`, a waiter waiting and a created event. `LocalDueAt` `2030-11-07T10:00:00` gives a `DueAt` of `FromLocal` of it.
-  - `TestCancelEndsWaiter` (AC 3): due in 120 s; cancel gives `1|cancelled`. The row is cancelled. No live instance remains within 10 s, and there is no `ReminderTimer`-to-`Notify` header. Events are created, then cancelled. `StateBody` shows no rail row. The waiter's session holds the trigger header.
-  - `TestCancelIsolationAndRepeats` (AC 3b): sessions A and B. B cancelling A's Ref gives `no_reminder`, and A is still pending with no event. A cancels twice with one key: the second answer is the first result, with one cancelled event and one trigger. A cancels with a new key: `no_reminder`. A fixture row that has fired gives `no_reminder`.
-  - `TestSetRepeatOneWaiter` (AC 3b): the same key twice gives one row, one `ReminderOps`-to-`ReminderTimer` start header and one created event.
-  - `TestListToolReadsTheList` (Integration AC, DW-135): `Tools.ReminderTools.ListReminders()`, under a bridge context of the session, lists its two real reminders in due order.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls` (new; production, throwaways and CI):
-  - Setup: `PointKeys` and `UseItemClass("ReminderOps", "OcuTalon.Test.Schedule.ReminderOpsFixedRef")` in `OnBeforeAllTests`; restore both in `OnAfterAllTests` on every path. Turns go through `RunnerFixture.NewRequest("turn", "user", text, .ref, <session Ref>)` and `Run` (with `SuperSession` = `TraceRef`), and the mock's log is read.
-  - `TestGuidePromptSetsReminder` (AC 2):
-    - The answer is "The CI mock set the reminder.", not a fallback. Two requests are selected by prompt `guide-reminder`, and the second carries a `tool_result` with `ok` true and the row's Ref.
-    - One pending row: text `stretch`, its `DueAt` within the `+60` bracket, a live waiter. It shows in the rail (`StateBody`).
-    - The steps are model, tool, model. The tool step's summary names `set_reminder`, its status is ok, and every step is in the decision's session.
-  - `TestThursdayMarkerSetsLocalReminder` (AC 2): "Remind me Thursday at 10 to load the new certificate. [[mock:reminder-thursday]]".
-    - The answer is the scenario's.
-    - The row has text "load the new certificate", and its `DueAt` = `FromLocal("2030-11-07T10:00:00")` in the stack's zone.
-    - The rail and the agent step are as above.
-  - `TestCancelThroughChat` (AC 3):
-    - Sessions A and B each send the guide prompt. A's reminder takes `zzReminderChatCancel01` through the fixed-Ref seam; any leftover row with that Ref is removed first.
-    - A sends "Cancel my reminder to stretch. [[mock:reminder-cancel-chat]]". The answer is "The CI mock cancelled the reminder." with three requests.
-    - The list `tool_result` holds exactly one reminder, A's Ref (B's Ref is absent). The cancel `tool_result` has `ok` true.
-    - A's row is cancelled with `CancelKey` = `<ItemId>:2`. A's waiter ends with no `Notify` header. A's events are created, then cancelled. A's rail is empty.
-    - B's row is pending and B's waiter is live.
-  - Clean-up: `ReminderFixture.Remove`, plus the turns' steps (`DeleteSteps`).
-- [ ] `ci/mock/scenarios/B/reminder-thursday.json` (new): marker `reminder-thursday`; `set_reminder {"text":"load the new certificate","localDueAt":"2030-11-07T10:00:00"}`, then the text "The CI mock set the Thursday reminder."
-- [ ] `ci/mock/scenarios/B/reminder-cancel-chat.json` (new): marker `reminder-cancel-chat`; `list_reminders {}`, then `cancel_reminder {"reminderRef":"zzReminderChatCancel01"}`, then the text "The CI mock cancelled the reminder."
-- [ ] `ci/mock/scenarios/B/guide-reminder.json`: unchanged. It is AC 2's guide scenario (DW-232).
-- [ ] `web/e2e/demo-path/03-reminder.spec.ts`: replace the `notBuilt` call with a describe whose describe-level skip is `!process.env['OCUTALON_URL']`, with the text `Story 8.4 needs the first-start stack (OCUTALON_URL), which a run without one lacks`. Its hooks are inside the describe, so nothing starts without a stack.
-  - `beforeAll` (240 s): `pointKeys`.
-  - One untagged test, as the README account:
-    1. Step 2 reads upcoming. Select it and press Send.
-    2. The user message is the exact prompt with "From the demo guide". The reply "The CI mock set the reminder." shows.
-    3. Under Reminders, a row whose text matches `/^stretch\b/i` shows a countdown: a middle dot, then `in <n> s`. The test's regular expression writes the dot as the escape `·` (Rule 14).
-    4. The guide's "Step 2, Reminder, done" shows.
-  - `afterAll`: `ReminderFixture.CancelPending(<README session>)` through `irisScript`, then `restoreKeys`.
-- [ ] `web/e2e/reminder/reminder.spec.ts` (8.3's): add test 2, "a cancelled reminder leaves the rail within one live update" (AC 3, NFR-9):
-  - `ReminderFixture.Set` due in 300 s; sign in as the rail user; the row shows.
-  - `ReminderFixture.Cancel` through `irisScript` answers `1|cancelled`. Within 10 s the row is gone, and no notice card with its text exists.
-  - `afterEach` runs `Remove`.
-- [ ] `web/scripts/demo-path-summary.test.mjs` (DW-210): `playwrightEnv()` sets `PLAYWRIGHT_BROWSERS_PATH` to a path that holds no browsers (for example `/nonexistent-ocutalon-browsers`), so a demo-path test that starts a browser before it skips goes red everywhere. Update its header if needed. This is a footprint extension.
+  - `TestFromLocal`:
+    - in America/New_York, the "Measured in planning" rows: the two Thursdays, the gap `2026-03-08T02:30:00` gives `07:30:00Z`, and the overlap `2026-11-01T01:30:00` gives `05:30:00Z`;
+    - `ToLocal(FromLocal(x))` = x for both Thursdays;
+    - `""` for `2026-02-30T10:00:00`, `next Thursday`, a value with a space, a value without seconds, a value with a `Z`, and `9999-12-31T23:00:00`;
+    - in Asia/Kolkata, `2030-11-07T10:00:00` gives `04:30:00Z`;
+    - with no zone, `ToLocal(FromLocal(x))` = x;
+    - in New York, `FromLocal(day_"T00:00:00")` = `Bridge.Time.DayStartUtc(day)` for 2030-11-01 to 2030-11-09 (AD-18's comparison).
+  - `TestResolveThursdayAt10`: `Resolve` with a `LocalDueAt` in New York gives `2030-11-07T15:00:00Z`, and a week earlier `2030-10-31T14:00:00Z`.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls` (production, throwaways). Each test registers every Ref it makes for `OnAfterOneTest`; also update the header. Add:
+  - `TestSetByDelayAndLocal` (AC 1), under `ReminderFixture.Begin`:
+    - `Tools.ReminderTools.SetReminder(text, 30)` answers `ok` true with a ref, and the row's `DueAt` lies in `[AddSeconds(before, 30), AddSeconds(after, 30)]`;
+    - `SetReminder(text2, "", ToLocal(AddSeconds(before, 40)))` gives the `DueAt` = `FromLocal` of that local time;
+    - each row is pending, with one waiting waiter and one created event;
+    - `SetReminder("", 30)` answers `ok` false with `no_text`'s Message unchanged, and makes no row.
+  - `TestListToolReadsTheList` (AC 2, Integration AC, DW-135):
+    - session A has two reminders (set due in 300 s, then in 200 s), a fired fixture row and a cancelled one; session B has one reminder;
+    - `Tools.ReminderTools.ListReminders()` under A's context answers `ok` true with exactly A's two refs, the 200-s one first.
+  - `TestCancelEndsWaiter` (AC 3), with a reminder due in 120 s:
+    - `Tools.ReminderTools.CancelReminder(ref)` under the context answers `ok` true with `MESSAGECANCELLED`, the ref and the due time;
+    - the row is cancelled with the call's key;
+    - within 10 s no `ReminderTimer` with that Ref is waiting, and there is no `ReminderTimer`-to-`Notify` header;
+    - the `reminder` events are created, then cancelled, and `StateBody`'s rail has no row for it;
+    - the waiter's session holds one `Ens.AlarmTriggerRequest` header from ReminderOps to `Ens.Alarm`, with `SuperSession` = `TraceRef` and the alarm request's body id as its handle;
+    - ReminderOps' answer header to `CommandsIn` is in the command's session.
+  - `TestCancelInterruptFails` (matrix row Cancel, its error case), with a reminder due in 5 s. A shadow instance of `ReminderOpsSendProbe` with `Mode` error gets that session's `CancelReminder` through `OnMessage`:
+    - the answer is `1|cancelled`, and the row is cancelled with one cancelled event;
+    - one warning is logged that names the Ref;
+    - `SeenAsync` holds one send to `Ens.Alarm`, whose handle is the alarm request's body id, sent with session id = the row's `TraceHeaderId` and `SuperSession` = `TraceRef`;
+    - the probe's own session id and `SuperSession` are as they were before;
+    - the waiter ends after its due time (within `FIRESECONDS`) with no `Notify` header.
+  - `TestCancelIsolationAndRepeats` (AC 3, AC 4), with sessions A and B:
+    - B cancelling A's Ref through the tool answers `ok` false with `no_reminder`'s Message. A's row is pending, its waiter is waiting, and there is no new event. An unknown Ref gets the same answer.
+    - A cancels with key K: cancelled.
+    - K again gives the first result, with still one cancelled event and one trigger header.
+    - A new key gives `no_reminder`, and so does a fired fixture row.
+    - K naming A's second pending reminder gives `reused_key`, and that reminder stays pending.
+  - `TestSetRepeatOneWaiter` (AC 4):
+    - a `SetReminder` (`DelaySeconds` 300) with key K, submitted twice, gives identical answers, one row, one ReminderOps-to-ReminderTimer start header and one created event;
+    - K with other text gives `reused_key`, and there is still one row.
+  - `TestSeveralCancelsFromOneToolCall` (AC 4, U-118). Session A has three reminders (due in 300, 310 and 320 s), and B has one.
+    - Under one `ReminderFixture.Begin(A, item)`, three `Tools.CommandCall.Run` calls submit one `CancelReminder` each, back to back.
+    - Each answers `1|cancelled` with its own Ref and DueAt. The rows carry `CancelKey` `<item>:1`, `:2` and `:3`.
+    - There are three cancelled events, one per Ref. Each waiter ends within 10 s with no `Notify` header. B's row is pending and its waiter waiting.
+    - The same call run again (`Begin` with the same item, the same Refs in the same order) answers each command its own first result, with no new event or trigger header.
+    - Run again with the first two Refs swapped, the first command answers `reused_key` and nothing changes.
+- [ ] `web/e2e/reminder/reminder.spec.ts` -- add test 2, "a cancelled reminder leaves the rail within one live update" (AC 3, NFR-9; Rule 3's real-runtime test), and update the header:
+  1. `ReminderFixture.Set` sets a reminder due in 300 s for the rail user's session.
+  2. After `signIn`, the row shows within `ROW_MS`.
+  3. `ReminderFixture.Cancel` through `irisScript` answers `1|cancelled`.
+  4. The row is gone within `ROW_MS` without a reload, and no notice card holds its text.
+  5. `afterEach` removes the reminder.
 
 **Acceptance Criteria:**
 1. **Due forms and refusals.**
-   - Given the running production and a session, when `SetReminder` commands go through `Commands.Submit` under a bridge context, then:
-     - a `DelaySeconds` counts from the command's arrival;
-     - a `LocalDueAt` is converted through `Data.Time` in the instance's zone, so "Thursday at 10" is 10:00 local in a daylight-saving week (`2030-11-07T10:00:00` in New York is `15:00:00Z`, the week before is `14:00:00Z`);
+   - Given the running production and a session, when the set tool (`Tools.ReminderTools.SetReminder`) sends `DelaySeconds` 30 or a `LocalDueAt` under a bridge context of the session, then:
+     - each answer is `ok` true with the reminder's ref;
+     - the row's `DueAt` is the command's arrival plus 30 s, or `Data.Time.FromLocal` of the local time in the instance zone (in New York, `2030-11-07T10:00:00` is `15:00:00Z` and the week before `14:00:00Z`);
      - each gives one pending row and one waiting waiter.
-   - An empty Text, a past due time, or anything other than exactly one due form gets `Ok` 0 with the plain-English Message, which `CommandCall.Answer` passes back unchanged, and creates no row, waiter or event. (FR-34, NFR-24, AD-18)
-2. **Through the chat.** Given the CI mock and pointed keys, when the guide prompt "Remind me in 1 minute to stretch." (`B/guide-reminder.json`) or "Remind me Thursday at 10 to load the new certificate." (`B/reminder-thursday.json`, marker) is sent as a chat turn, then:
-   - Chat calls `set_reminder`, `ReminderOps` creates the reminder, the reply confirms it, the rail's `/state` lists it, and the tool call is an agent step in the decision's trace session.
-   - On a `live:demo-path` stack, pressing Send on guide step 2 shows the reply and a "stretch" row with its countdown under Reminders, and the guide marks step 2 done. REL-2's step 3 spec runs and passes there. (FR-34, REL-2, AD-9, AD-22, AD-29, UX-DR44)
-3. **List and cancel.** Given a pending reminder set through the chat in each of two sessions, when one session sends "Cancel my reminder to stretch." (`B/reminder-cancel-chat.json`: it lists, then cancels by Ref), then:
-   - `ListReminders` answers only that session's pending reminder.
-   - `CancelReminder` marks its row cancelled. Its waiter ends without any notification. One `reminder` event (cancelled) removes the row from the rail within one live update (the browser test). The reply confirms. The other session's reminder is untouched.
-   - A cancel naming another session's reminder, or one already fired or cancelled, is refused and changes nothing. A command repeated with the same `IdempotencyKey` returns the first result with no second row, waiter or event. A key reused for different fields is refused. (FR-34, NFR-9, AD-1, AD-4, AD-8, UX-DR54)
-4. **REL-2's skip rule (DW-210).** Given `npm --prefix web test`, when 'skip every unbuilt part' runs without `OCUTALON_URL` and with no browser available, then step 3 reports `skipped, 0 passed, 1 skipped (Story 8.4: ...)` and no browser starts.
+   - Given the same production and session, when a set command has a blank Text, a due time that is past or can't be read, or not exactly one due form, then:
+     - the answer is `ok` false with the code's Message word for word, which `CommandCall.Answer` passes on unchanged;
+     - no row, waiter or event is created. (FR-34, NFR-24, AD-1, AD-18)
+2. **List (DW-135).** Given a session with two pending reminders due at different times, one fired and one cancelled, and another session with a pending reminder, when the list tool sends `ListReminders`, then:
+   - ReminderOps answers `Ok` 1, `listed`, with `Data` = `{"reminders":[{"ref","text","dueAt"}]}` holding only the session's two pending reminders, earliest first, with `dueAt` in UTC;
+   - the tool gives the model both refs in that order, never `NOTREAD`;
+   - a session with none gets `{"reminders":[]}`. (FR-34, AD-4)
+3. **Cancel.**
+   - Given a pending reminder with a live waiter in each of two sessions, when the cancel tool sends a `CancelReminder` with one session's `ReminderRef`, then:
+     - the row is cancelled with the command's key, and its waiter ends at once without any notification;
+     - one `reminder` event (cancelled) removes the row from the rail user's page within one live update;
+     - the answer confirms, with the Ref and the due time;
+     - the other session's reminder and waiter are untouched.
+   - Given a session, when a `CancelReminder` names another session's reminder, an unknown Ref, or the session's reminder that has already fired or been cancelled (also one that fires while the cancel waits for its lock), then it is refused `no_reminder` with one plain-English Message and nothing changes. (FR-34, NFR-9, AD-1, AD-4, AD-5, AD-26, UX-DR54)
+4. **Repeats, and several cancels from one tool call (AD-1, AD-8, DW-141, U-118).**
+   - Given a session's earlier `SetReminder` or `CancelReminder` with an `IdempotencyKey`, when a command of the same verb arrives with that key:
+     - with the same fields, then it answers the first result, with no second row, waiter, event or trigger;
+     - with other fields, then it is refused `reused_key` and nothing changes.
+   - Given three pending reminders of one session, when one tool call submits three `CancelReminder`s back to back through `CommandCall.Run` (keys `<ItemId>:1` to `:3`), then all three are cancelled, each with its own key and its own answer.
+   - Given those three cancels, when the same call runs again (the same `ItemId`), then:
+     - with the same Refs in the same order, each command answers its own first result and nothing changes;
+     - with the Refs in another order, a key that names another Ref is refused `reused_key` and nothing changes.
 
 ## Spec Change Log
 
@@ -259,6 +333,8 @@ deferred: []
 ## Review Triage Log
 
 ## Design Notes
+
+**Lead ruling at the spec gate (2026-10-27, veto U-119):** Decided 3 stands. The two repeat lookups (`IdempotencyKey`, `CancelKey`) are ReminderOps' own session-scoped reads of its own table, bound to the command's server-side `SessionRef`; every read of a target the caller names (the list, the cancel's target check) goes through `Ownership.Reminders` (AD-4). The reviewer checks AD-4 against this ruling. Reversal, if the owner reverses U-119: a key-lookup kind in `Ownership.Rows` in a follow-up story, with the two lookups routed through it.
 
 **Rulings in force (recorded by the lead, 2026-10-27):**
 - **Split (lead, decide, U5):** 8.4 is the command side; 8.6 takes the chat side (see Intent). The whole earlier plan is kept in git at 467dfae for reference.
@@ -272,22 +348,20 @@ deferred: []
 - **No local absolute paths** in this spec or any committed file (CI's `test-boundaries.sh`). Write the lane-C lock folder as `"$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c"` (it resolves from the worktree) or as the dispatch placeholder.
 
 **Governing ADs:**
-- AD-1: the command path; origin `tool` under a context; the owner ignores a repeat.
-- AD-4: session-scoped reads through `Ownership`; another session's reminder is never revealed.
-- AD-5: the row is the truth; the frozen waiter stays unchanged; append-only storage.
+- AD-1: the command path; origin `tool` under a context; the owner ignores a repeat; the key is the turn's `ItemId` plus the call's position.
+- AD-4: the list and the cancel's target check go only through `Ownership`; another session's reminder is never revealed. The repeat lookups are covered by Decided 3.
+- AD-5: the row is the truth; the frozen waiter is unchanged; storage is append-only.
 - AD-8: a re-sent turn never acts twice.
-- AD-9: agent steps.
-- AD-12 and AD-33: events after the commit; `ReminderOps` publishes created and cancelled, the waiter publishes fired.
-- AD-18: `Data.Time` is the only converter; the instance zone is the container's `TZ`.
-- AD-20: Chat's 4 iterations (DW-140, declined below).
-- AD-22: B scenarios (marker or prompt); `lane-b`; throwaways.
-- AD-26: the trigger goes in the waiter's own session under `TraceRef`.
-- AD-29: Lane B's files; the REL-2 step spec turned on.
-- AD-32: no rendering in Schedule.
+- AD-12 and AD-33: events go out after the commit. ReminderOps publishes created and cancelled; the waiter publishes fired. ReminderOps is the `Reminder` table's one owner.
+- AD-18: `Data.Time` is the only converter; the instance zone is the container's `TZ`; a test compares `Data.Time` with `Bridge.Time` across a daylight-saving change.
+- AD-22: `lane-b`; throwaways only.
+- AD-26: the trigger goes in the waiter's own session under `TraceRef`, and ReminderOps' own session is put back.
+- AD-29: Lane B's files; Lane A's tools and Chat are read only.
+- AD-32: nothing in Schedule renders text.
 
-Conventions: "Times", "Identifiers", "Tests" (demo-path `notBuilt` and `@floor`), "SessionBroken retry".
+Conventions: "Times", "Identifiers".
 
-**Refusal codes and messages.** All are `Outcome` `refused`. The messages are for the model and are never shown as written (8.3, Decided 5).
+**Refusal codes and messages.** Every refusal has `Outcome` `refused`. The messages are for the model and are never shown as written (8.3, Decided 5).
 
 | Code | `Message` |
 | --- | --- |
@@ -301,7 +375,7 @@ Conventions: "Times", "Identifiers", "Tests" (demo-path `notBuilt` and `@floor`)
 
 The success messages are `MESSAGESET` "The reminder is set." (8.3), `MESSAGELISTED` "These are the session's pending reminders, earliest first." and `MESSAGECANCELLED` "The reminder is cancelled."
 
-**Measured in planning** (slot C, build 154, `$SYSTEM.Process.TimeZone("America/New_York")`, `$ZDT($ZDT($ZDTH(x,3,1),-3),3,1)`; the process zone was put back):
+**Measured in planning** (first plan; slot C, build 154, `$SYSTEM.Process.TimeZone("America/New_York")`, `$ZDT($ZDT($ZDTH(x,3,1),-3),3,1)`; the process zone was put back):
 
 | Local time | UTC | Note |
 | --- | --- | --- |
@@ -317,118 +391,157 @@ The success messages are `MESSAGESET` "The reminder is set." (8.3), `MESSAGELIST
 | 2030-11-07 10:00 | 15:00 | |
 | 2026-02-30 | `<ILLEGAL VALUE>` | thrown, so `FromLocal` catches it |
 
-`date` confirms that 2030-11-07 is a Thursday in EST and that US daylight saving ends Sunday 2030-11-03.
+`date` confirms that 2030-11-07 is a Thursday in EST and that US daylight saving ends on Sunday 2030-11-03.
 
 **Decided in-stage:**
-1. **The Thursday date.** The mock's `localDueAt` is the fixed Thursday `2030-11-07T10:00:00`, the Thursday of a daylight-saving week. The mock can't compute "next Thursday", and a near date (the A scenario uses 2026-10-29) would turn the scenario into a `past` refusal once that date has gone. Throwaways run in UTC, so the daylight-saving property is pinned in-process by `ReminderZone` with the zone set.
-2. **Cancel through the chat uses a fixed Ref.** The mock copies tool inputs verbatim and can't take a Ref from an earlier `tool_result` (`mock.mjs:307`). New mock behaviour would need the contended `ci/mock/mock.mjs` and `scenarios.mjs`. So the B cancel scenario names `zzReminderChatCancel01`, as Lane A's `A/reminder-cancel.json` does. The test gives session A's chat-set reminder that Ref through a test subclass behind the ReminderOps item (`NewRef` seam, `UseItemClass`). The list's `tool_result` is asserted to hold exactly that Ref. The scenario is a marker scenario, because it only means something in that test.
-3. **The cancel ends the waiter at once** by interrupting its alarm, which is the platform's own mechanism (`SetTimer`'s alarm handle). Nothing is stored and the waiter is unchanged (AD-5). Visual Trace then shows no waiting process for a cancelled reminder, Story 16.4's sign-out ends waiters at once, and tests need no wait for the due time. 8.3's "a non-pending row sends nothing" remains the guarantee if the interrupt fails. Task 0 measures it, with a fallback.
-4. **The repeat rule.**
-   - Each verb keeps its own keys (`IdempotencyKey` for set, `CancelKey` for cancel).
-   - A key reused across verbs is a new command. Its first use acted, and the re-run asked for something else.
-   - A key reused within a verb is compared. A relative `DelaySeconds` names no fixed instant, so a set compares `Text` (and the resolved instant for an absolute form).
-   - `ListReminders` is read-only and answers the current list, because AD-1's repeat rule exists so that a re-sent turn can't act twice.
-   - Both stores are properties of the row. No index is needed: the lookup is per session through `SessionRefIndex`, and `ItemId`s never repeat across sessions.
-5. **One `no_reminder` message for every cancel refusal.** The ownership check goes through `Ownership.Reminders` (AD-4), whose `Statement` is contended. One message covers an unknown, foreign, fired or cancelled Ref and never reveals another session's reminder. AC 3 asks only for "a plain-English reason".
-6. **Validation order.** Session, then repeat, then text, forms, readability, past. A repeat is answered before the due time is checked, so a repeated `LocalDueAt` gets its first result even after that time has passed.
-7. **Answers.** A refusal's `Outcome` is `refused`, as the Lane A double uses. Set stays `set` (8.3; the double says `created`, and `Answer` drops `Outcome`). Cancel answers `DueAt` too, so the model can name the time.
-8. **03 is not `@floor`.** 'skip every unbuilt part' needs a skipped, non-`@floor` test for step 3, and in `live:demo-path` the test always runs. Story 11.1 tags the end-to-end floor.
-9. **03 cancels its reminder in `afterAll`.** Steps 4 to 6 then see the README session as they did before this story: no reminder fires during 04's assertions, and step 2 is not done. Story 11.1's notBuilt part in 04, "the reminder lands … during the wait", will drop that cancel.
-10. **03 matches "stretch" case-insensitively.** The mock sends `stretch` (pinned by `GuidePrompts`), the rail shows text exactly, and capitalising would mean editing the contended `web/src/app/rail/**`.
-11. **The chat ACs at IRIS level** go through `Decide` (`RunnerFixture.Run`), as Stories 1.10 and 4.4 do. The full web path is proven by 03 for the guide prompt.
-12. **Expected cost** (inference until measured): `live:sign-in` +10 to 15 s (506 s locally against 540 s; run it with `OCUTALON_LIVE_DEADLINE=900`; CI allows 1200 s); `live:demo-path` +30 to 60 s (two runner restarts); `ReminderChat` about 30 to 60 s.
+1. **The cancel ends the waiter at once** by interrupting its alarm. That is the platform's own mechanism: `SetTimer`'s alarm handle and `Ens.Alarm.InterruptAlarm`. Nothing is stored and the waiter is unchanged (AD-5). So:
+   - Visual Trace shows no waiting process for a cancelled reminder;
+   - Story 16.4's sign-out ends waiters at once;
+   - tests need not wait for the due time.
+
+   8.3's "a non-pending row sends nothing" stays the guarantee if the interrupt fails. Task 0 measures it, with a fallback.
+2. **The repeat rule.**
+   - Each verb keeps its own key: `IdempotencyKey` for set, `CancelKey` for cancel. A key reused across verbs is a new command: its first use acted, and the re-run asked for something else.
+   - A key reused within a verb is compared. A relative `DelaySeconds` names no fixed instant, so a set compares `Text`, plus the resolved instant for an absolute form.
+   - `ListReminders` is read-only and answers the current list. AD-1's repeat rule exists so that a re-sent turn can't act twice.
+   - **U-118.** The keys of one tool call's commands are distinct (`CommandCall.Run` numbers them). Each cancel looks up only its own key and writes it only on the row it cancels, so the keys of one call never collide.
+     - A second command in the same call that names a Ref already cancelled is refused `no_reminder`. Its repeat gets the same refusal.
+     - A re-run that names the Refs in another order meets a key that belongs to another Ref, and is refused `reused_key` (DW-141).
+   - The check, then the write, is safe because ReminderOps handles one command at a time (`PoolSize` 1). With a larger pool it would need a lock (inference).
+3. **The repeat lookups are ReminderOps' own reads of its own table** (AD-33), one fixed statement each, with the owner check in the statement, bound to the command's `SessionRef`. That is the same shape as `Ownership.Rows` and AD-4's "applies the caller's SessionRef".
+   - They return only the command's own earlier result, never a target the caller names. The list and the cancel's target check go through `Ownership.Reminders` (AD-4).
+   - A key-lookup kind in `Ownership.cls` would be a contended edit. The intent itself says the set "finds the session's row whose IdempotencyKey is that key".
+   - If the lead reads AD-4 as requiring these lookups inside `Ownership.cls`, that is a contended edit for the orchestrator.
+4. **One `no_reminder` message for every cancel refusal.** The target check goes through `Ownership.Reminders` (AD-4). One message covers an unknown, foreign, fired or cancelled Ref, and never reveals another session's reminder.
+5. **Validation order:** session, then repeat, then text, forms, readability and past. A repeat is answered before the due time is checked, so a repeated absolute set gets its first result even after its time has passed.
+6. **Answers.** A refusal's `Outcome` is `refused`, as the Lane A double uses. Set stays `set` (8.3); `Answer` drops `Outcome`. Cancel also answers `DueAt`, so the model can name the time.
+7. **A busy row lock.** A cancel that can't take the row's lock within the process lock timeout answers `failed` (`CommandsIn.#MESSAGEFAILED`, "may not have finished"), logs a warning and changes nothing.
+   - Only a firing waiter (milliseconds) holds that lock, or a caller that DW-296 already forbids.
+   - Refusing `no_reminder` would wrongly say that the reminder isn't pending.
+8. **List items are typed strings**, so that a text of digits doesn't make `Listed` answer `NOTREAD`.
+9. **The production `LocalDueAt` case uses a local time 40 s ahead** (`ToLocal(AddSeconds(now, 40))`), so its waiter ends quickly, even under Task 0's fallback. Throwaways run in UTC, so `ReminderZone` pins the daylight-saving property in-process with the zone set.
+10. **Left to Story 8.6.** The `NewRef()` seam and `ReminderOpsFixedRef`, `ReminderFixture.CancelPending`, the B mock scenarios, `ReminderChat`, spec 03, DW-210 and DW-232. 8.6 adds what it needs to Epic 8's own files.
+11. **`TestTraceAndThread` is unedited.** It asserts headers and sessions only, and a built ReminderOps still answers with one response header in the same session.
+12. **Expected cost** (inference until measured):
+    - `ReminderLogic` about +15 s (the busy-lock test waits out the lock timeout);
+    - `Reminders` about +50 to 70 s (`TestCancelInterruptFails` waits for a 5-s due);
+    - `live:sign-in` about +10 to 15 s. It was 506 s locally against the 540 s deadline, so run it with `OCUTALON_LIVE_DEADLINE=900`; CI allows 1200 s.
 
 **Ledger inbox:**
-- DW-135: addressed by the List rule, `TestListShape`, `TestListToolReadsTheList` and AC 3.
-- Declined DW-140: settling it needs a live Haiku 5.5 run, which uses the release-candidate key (owner-only: keys and money). The fix would amend AD-20's `MaxIterations`, Lane A's `Agent/Chat.cls:18` (AD-29; veto). This story's cancel scenario uses 3 model requests, within 4. Recommend routing it to Lane A's release-candidate live check.
-- DW-141: addressed by the repeat rule (Decided 4), `TestSetRepeat`, `TestCancelIsolationAndRepeats` and the `reused_key` matrix row.
-- Declined DW-142: the fix is in Lane A's `Agent/Chat.cls:36` INSTRUCTIONS (AD-29; Epic 8 keeps Lane B's files), and its check needs a live Haiku 5.5 run. Flagged for the orchestrator as a risk to UJ-1's live step 2, to route to a Lane A story before the online demo.
-- DW-210: addressed by the `playwrightEnv()` task, 03's describe-level skip and AC 4.
-- DW-232: addressed by reusing `guide-reminder.json` unchanged. The new B files are marker scenarios with names that aren't used anywhere else.
+- DW-135: addressed by AC 2, the List rule, `TestListShape` and `TestListToolReadsTheList`.
+- DW-141: addressed by AC 4 and the repeat rule (Decided 2): a reused key is compared, never answered blindly. Tests: `TestSetRepeat`, `TestCancelIsolationAndRepeats` and `TestSeveralCancelsFromOneToolCall`.
+- Declined DW-140: the fix is Lane A's multi-id `cancel_reminder` in `OcuTalon.Tools` and Chat's turn in `Agent/Chat.cls` (AD-29, AD-33; no AD-20 change), which Epic 8 never edits. The lead re-owns it to Story 11.1 at the spec gate. 8.4's share is AC 4's several-cancels clause and `TestSeveralCancelsFromOneToolCall`.
+- Declined DW-142: the fix is Lane A's `Agent/Chat.cls` INSTRUCTIONS (AD-29), with a live Haiku 5.5 check. The lead re-owns it to Story 11.1 at the spec gate.
 
-**U-107 and DW-291 (Story 16.4).** This story delivers the real cancel path with its own tests and touches nothing of Epic 16. The sign-out can cancel through it as it stands: `SessionOps.End` reads `Ownership.Reminders(SessionRef)` and sends one `CancelReminder` per Ref, each with a key of its own. Each ends its waiter at once. No cancel-by-session entry point is needed, so DW-291 covers it.
+**Story 16.4 (U-107, DW-291).** This story delivers the real cancel path with its own tests and touches nothing of Epic 16.
+- The sign-out can cancel through it as it stands: `SessionOps.End` reads `Ownership.Reminders(SessionRef)` and sends one `CancelReminder` per Ref, each with a key of its own. Each one ends its waiter at once. No cancel-by-session entry point is needed.
+- A reminder that fires between that read and its cancel answers `no_reminder`, which the sign-out can treat as done.
+- 16.4 is in the backlog (it waits on Epic 10), so 8.4 merges first, and 16.4 turns the real path on, as DW-291's condition says. The design matches DW-291; nothing to report.
 
 **Integration ACs:**
-- Story 1.10's list tool (`CommandCall.Listed`) reads `ReminderOps`' `Data` and gives the model the reminders in due order (`TestListShape`, `TestListToolReadsTheList`).
-- The set and cancel tools pass `Message` and `Ref`/`DueAt` through `Answer`.
-- The page's rail removes a cancelled row (`reminder.spec.ts`).
-- The guide marks step 2 done (03).
-- Chat confirms (`ReminderChat`).
+- Story 1.10's list tool (`ReminderTools.ListReminders`, `CommandCall.Listed`) reads ReminderOps' `Data` and gives the model the session's reminders in due order (AC 2: `TestListShape`, `TestListToolReadsTheList`).
+- The set and cancel tools pass ReminderOps' Message, Ref and due time to the model through `CommandCall.Answer` (AC 1, AC 3: `TestSetByDelayAndLocal`, `TestCancelEndsWaiter`, `TestCancelIsolationAndRepeats`).
+- `CommandCall.Run`, which Lane A's multi-id cancel will use, gets one distinct, repeatable answer per command of one call (AC 4: `TestSeveralCancelsFromOneToolCall`).
+- The page's rail removes a cancelled row (AC 3: `reminder.spec.ts` test 2).
 
 **Consumes:**
-- `Commands.Submit`/`CommandsIn` (2.3); `Ownership.Reminders` (2.x); `Live.Publish`/`Payload.Reminder` (0.5, 8.3); `Data.Time` (0.4); `Schedule.Reminder`, `ReminderTimer`, `ReminderStart` (8.3); `Bridge.Ids`.
-- Tests: the tools and `CommandCall` (1.10), Chat and the mock (1.x, 0.11), `B/guide-reminder.json` and guide step 2 (4.4), `RunnerFixture`, `Test.Contract.Mock`, `ZoneCase`, and the e2e support helpers.
+- `Commands.Submit`/`CommandsIn` (2.3); `Ownership.Reminders`; `Live.Publish`/`Payload.Reminder` (0.5, 8.3); `Data.Time` (0.4); `Schedule.Reminder`, `ReminderTimer` and `ReminderStart` (8.3); `Bridge.Ids`; `Ens.Alarm` (the platform).
+- Tests only: the reminder tools and `CommandCall` (1.10), `Bridge.Context`, `Bridge.Time`, `Test.Core.InProduction`/`Observe`, `Test.Data.Fixture`, `ZoneCase`, and the e2e support helpers.
 
 **Consumed-by:**
+- Story 8.6: reminders set, listed and cancelled through the chat on the demo path, through Story 1.10's tools.
 - Story 8.5: `Reconcile` re-arms pending rows only, and leaves a cancelled row and the key properties alone.
 - Story 16.4: the sign-out cancels, as described above.
-- Story 11.1: UJ-1 end to end (03's clean-up cancel, Decided 9).
+- Story 11.1: Lane A's multi-id `cancel_reminder` (DW-140) relies on AC 4.
 
 **Extend, don't copy:**
-- `Resolve` extends 8.3's `Accepts`. List reuses `Ownership.Reminders`. Cancel uses `Wake`'s lock pattern.
+- `Resolve` replaces and extends 8.3's `Accepts`. List reuses `Ownership.Reminders`. Cancel uses `Wake`'s lock pattern.
 - `EndWaiter` and `StartWaiter` share one session helper.
-- `ReminderFixture.Submit` is extracted from `Set`.
-- `FromLocal` mirrors `Bridge.Time.DayStartUtc`'s `-3` conversion. AD-18 keeps a separate converter on each side of the bridge, and the test compares them.
-- `ReminderChat` copies `GuidePrompts.Turn` (about 15 lines) and the step part of `Test.Tools.Reminders.AssertSteps` (about 20 lines). Both are private methods of other epics' contended test classes.
+- `ReminderFixture.Begin`/`Submit` are extracted from `Set`, and `HoldLock` gains an optional state rather than a second lock job.
+- `FromLocal` mirrors `Bridge.Time.DayStartUtc`'s `-3` conversion. AD-18 keeps a separate converter on each side of the bridge, and `ReminderZone` compares them.
+- The new `Reminders` tests reuse `Timers`, `IsWaiting` and `WaitEnded`.
+- `ReminderOpsSendProbe` gains the stand-in async send beside its sync one, instead of a second send probe.
 
-**Footprint extensions to report:** `web/scripts/demo-path-summary.test.mjs` (no running epic claims it). Approved extensions: `web/e2e/reminder/reminder.spec.ts`. New Epic 8 files are under `ci/mock/scenarios/B/` and `Test/Schedule/`.
+**Footprint extensions to report:**
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` (Q1) and `docker/tests/test-production.sh` (Q2);
+- `Test/Data/Tables.cls` and `Test/Core/ProductionItems.cls` (shared by entry, Epic 8's entries);
+- `web/e2e/reminder/reminder.spec.ts` (Epic 8's file since 8.3).
 
-**Proposed split** (multiple-goals; for the lead):
-- **8.4: the command side.** All IRIS tasks except `ReminderChat`, plus `reminder.spec.ts`'s cancel test. Covers AC 1 and AC 3's command clauses.
-- **A sibling, 8.6, "Reminders through the chat on the demo path".** The two B scenarios, `ReminderChat`, 03 turned on, DW-210 and DW-232. Covers AC 2, AC 3's chat clause and AC 4.
-
-The plan above stays whole if the lead keeps one story.
+No other contended path is edited.
 
 ## Verification
 
-**Shared values.** Every `ci/iris.sh` and `ci/warm.sh` call starts with `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=<stage>'`, written out in full on each call. Each call is its own tool call, in the foreground, with `timeout: 600000`. Tags: fresh `e8s4i` and warm `e8s4iw` for implement; any other stage uses `e8s4<stage>` and `e8s4<stage>w`. Items that `ReminderOps`, `ReminderTimer` or `Schedule.Reminder` run are picked up on a warm stack only after the item restarts (8.3, Task 0).
+**Shared values.**
+- `<L>` stands for `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=<stage>'`, written out in full on each call.
+- Each call is its own tool call, in the foreground, with `timeout: 600000`.
+- Tags: fresh `e8s4i` and warm `e8s4iw` for implement. Any other stage uses `e8s4<stage>` and `e8s4<stage>w`.
+- A class that a production item runs (`ReminderOps`, `Schedule.Reminder`) is picked up on the warm stack only after the item restarts (8.3).
+- On the warm stack, a red that a leftover could explain counts only when the class is green again on the same stack after the revert (Rule 21).
 
 **Commands:**
-- `(once, first)` `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement' OCUTALON_RUN_TAG=e8s4iw ci/warm.sh up`. Expected: ready.
-- `(loop)` `OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement' OCUTALON_WARM=1 OCUTALON_RUN_TAG=e8s4iw ci/iris.sh class OcuTalon.Test.Schedule.ReminderLogic`. Expected: `CLASS ... passed`.
-- `(loop)` the same command, one per call, for `OcuTalon.Test.Schedule.ReminderZone`, `OcuTalon.Test.Schedule.Reminders`, `OcuTalon.Test.Schedule.ReminderChat`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Install.Production`, `OcuTalon.Test.Demo.GuidePrompts`, `OcuTalon.Test.Core.CommandsInProduction` (after the Q1 ruling) and `OcuTalon.Test.Tools.Reminders`. Expected: each passed.
-- `(loop)` `bash docker/tests/test-mock.sh`. Expected: pass, with the scenario loader accepting the two new B files.
+- `(once, first)` `<L> OCUTALON_RUN_TAG=e8s4iw ci/warm.sh up`. Expected: ready.
+- `(loop)` `<L> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e8s4iw ci/iris.sh class OcuTalon.Test.Schedule.ReminderLogic`. Its `WARM reloaded` line loads the changed classes. Expected: `CLASS ... passed`.
+- `(loop)` After a warm call has reloaded a change to `ReminderOps` or `Schedule.Reminder`, restart the item on the warm stack. Expected: no error printed.
+  ```
+  P=$(OCUTALON_RUN_TAG=e8s4iw ci/warm.sh status | sed -n 's/.*project=\([^ ]*\).*/\1/p') && printf '%s\n' 'Do ##class(Ens.Director).EnableConfigItem("ReminderOps",0,1)' 'Do ##class(Ens.Director).EnableConfigItem("ReminderOps",1,1)' 'Halt' | docker exec -i "$(docker ps -q --filter label=com.docker.compose.project=$P --filter label=com.docker.compose.service=iris)" iris session IRIS -U OCUTALON
+  ```
+- `(loop)` The warm class command above, one per call, for each of these. Expected: each passed.
+  - `OcuTalon.Test.Schedule.ReminderZone`;
+  - `OcuTalon.Test.Schedule.Reminders` and `OcuTalon.Test.Core.CommandsInProduction`, after the restart;
+  - `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Install.Production` and `OcuTalon.Test.Tools.Reminders`;
+  - `OcuTalon.Test.Demo.Guide` and `OcuTalon.Test.Demo.GuidePrompts`.
 - `(loop)` `npm --prefix web run lint`. Expected: exit 0.
-- `(once)` the lock prefix with `OCUTALON_LOCK_OWNER='epic=8 stage=implement' OCUTALON_RUN_TAG=e8s4i`, one call each: `ci/iris.sh build`, `ci/iris.sh shard lane-b`, `ci/iris.sh shard lane-b --reverse`, `ci/iris.sh shard lane-a`. Expected: every `CLASS` line passed.
-- `(once)` the same prefix, one call each: `ci/iris.sh live demo-path` (record the time); `OCUTALON_LIVE_DEADLINE=900 ci/iris.sh live sign-in` (record the time); `ci/iris.sh live production` (after the Q2 ruling). Expected: each passed, with 03 and both `reminder.spec.ts` tests passing.
-- `(once)` `npm --prefix web test`, then `bash ci/checks.sh` (storage blocks included). Expected: pass.
-- `(once, last, also after a failure)` the lock prefix with `OCUTALON_RUN_TAG=e8s4iw ci/warm.sh down`, then with `OCUTALON_RUN_TAG=e8s4i ci/iris.sh teardown`.
+- `(once)` One per call: `<L> OCUTALON_RUN_TAG=e8s4i ci/iris.sh build`, then `shard lane-b`, `shard lane-b --reverse` and `shard lane-a`. Expected: every `CLASS` line passed.
+- `(once)` `<L> OCUTALON_RUN_TAG=e8s4i ci/iris.sh live production`. Expected: passed, with row 17's `refused` lines.
+- `(once)` `<L> OCUTALON_LIVE_DEADLINE=900 OCUTALON_RUN_TAG=e8s4i ci/iris.sh live sign-in` (record the time). Expected: passed, with both `reminder.spec.ts` tests.
+- `(once)` `npm --prefix web test`, then `bash ci/checks.sh` (the storage-block checks included). Expected: pass.
+- `(once, last, also after a failure)` `<L> OCUTALON_RUN_TAG=e8s4iw ci/warm.sh down`, then `<L> OCUTALON_RUN_TAG=e8s4i ci/iris.sh teardown`.
 
-**Mutations (Rule 19).** Record each as `mutation: <change> -> <red test>`.
+**Mutations (Rule 19).** Record each one as `mutation: <change> -> <red test>`.
 - **AC 1:**
-  - `Resolve` adds 0 instead of `DelaySeconds` -> `ReminderLogic.TestResolve` and `Reminders.TestSetByDelayAndLocal`.
-  - `FromLocal` uses a fixed offset -> `ReminderZone.TestFromLocal`.
-  - `Resolve` accepts two forms -> `TestResolve` and `TestRefusalsWriteNothing`.
+  - `Resolve` adds 0 instead of `DelaySeconds` -> `ReminderLogic.TestResolve` and `Reminders.TestSetByDelayAndLocal`;
+  - `FromLocal` uses a fixed offset of -5 hours -> `ReminderZone.TestFromLocal`;
+  - `Resolve` accepts two forms -> `TestResolve` and `TestRefusalsWriteNothing`;
   - `Set` saves before it resolves -> `TestRefusalsWriteNothing`.
 - **AC 2:**
-  - `ReminderOps` answers not-implemented for `DelaySeconds` -> `ReminderChat.TestGuidePromptSetsReminder`, and 03 in `live:demo-path` (the rail row).
-  - The created event is dropped -> 03 (no row).
+  - `List` reads the session's rows of every state -> `ReminderLogic.TestListShape`;
+  - `List` sets the items without the `string` type -> `TestListShape` (the text `100`, `NOTREAD`);
+  - `List` orders by `CreatedAt` -> `TestListShape` and `Reminders.TestListToolReadsTheList`.
 - **AC 3:**
-  - `Cancel` skips the ownership check -> `Reminders.TestCancelIsolationAndRepeats`.
-  - `Cancel` doesn't interrupt the alarm -> `TestCancelEndsWaiter`.
+  - `Cancel` skips the `Ownership` check -> `Reminders.TestCancelIsolationAndRepeats`;
+  - `Cancel` doesn't check `pending` again under the lock -> `ReminderLogic.TestCancelRacesFire`;
+  - `Cancel` doesn't call `EndWaiter` -> `Reminders.TestCancelEndsWaiter`;
+  - `EndWaiter` doesn't put `%SessionId` back -> `Reminders.TestCancelInterruptFails` (the probe's session id) and `TestCancelEndsWaiter` (the answer header);
+  - `EndWaiter` sends without the waiter's session id -> `TestCancelInterruptFails` (`SeenAsync`) and `TestCancelEndsWaiter` (the trigger header in the waiter's session);
+  - a failed interrupt answers `failed` instead of `cancelled` -> `TestCancelInterruptFails`;
   - `Cancel` doesn't publish -> `TestCancelEndsWaiter` and `reminder.spec.ts` test 2.
-  - `List` includes non-pending rows -> `TestListShape` and `ReminderChat.TestCancelThroughChat`.
-  - `Set` ignores the key -> `TestSetRepeatOneWaiter`.
-  - `Cancel` ignores `CancelKey` -> `TestCancelIsolationAndRepeats`.
-  - A reused key with other text is accepted -> `ReminderLogic.TestSetRepeat`.
-- **AC 4:** 03's skip moved into the test body -> 'skip every unbuilt part' in `demo-path-summary.test.mjs`. Undo the `playwrightEnv()` fix and run the same mutation again: it must then be green where Chromium is installed (DW-210's evidence).
+- **AC 4:**
+  - `Set` ignores the key -> `ReminderLogic.TestSetRepeat` and `Reminders.TestSetRepeatOneWaiter`;
+  - a reused set key with other text is accepted -> `TestSetRepeat`;
+  - `Cancel` ignores `CancelKey` -> `TestCancelIsolationAndRepeats`;
+  - the cancel's repeat lookup drops `CancelKey = ?` and takes any cancelled row of the session -> `TestSeveralCancelsFromOneToolCall` (the second and third cancels get the first's result).
 
 **Shared surfaces:**
-- the ReminderOps oracle row (`Test.Install.Production.TestStubsAnswer`; `test-production.sh` rows 16 and 17);
-- `CommandsInProduction`'s stub-owner table;
-- the `Data.Reminder` contract (`Test.Data.Tables`);
-- the mock's scenario set (no count test; names unique across A and B; `guide-reminder.json` pinned by `GuidePrompts` and `guide-view.test.mjs`);
-- the demo-path step summary (step 3 now runs on a stack and skips without one);
-- the README session's reminders in `live:demo-path` (01 runs first and asserts none; 03 cancels its own);
-- the rail user's reminders and cards in `live:sign-in` (each test removes its own);
-- the runners' keys (`pointKeys`/`restoreKeys` in 03 and `ReminderChat`);
-- the ReminderOps item's class (`ReminderChat` swaps it and puts it back);
-- the throwaways' `ReminderTimer` instances and alarms (each ended by a cancel);
-- the run times of `live:sign-in` and `live:demo-path`.
+- the ReminderOps oracle row (`Test.Install.Production.TestStubsAnswer`, and `test-production.sh` row 16's stub sweep);
+- `CommandsInProduction`'s stub-owner table (Q1) and `test-production.sh` row 17 (Q2);
+- the `Data.Reminder` contract (`Test.Data.Tables`) and its committed storage block (the CI storage checks);
+- `Schedule.Reminder`'s methods (`Accepts` goes; only `ReminderLogic` called it);
+- the rail user's reminders and cards in `live:sign-in` (each `reminder.spec.ts` test removes its own);
+- the throwaways' `ReminderTimer` instances, `Ens.Alarm` requests and trigger headers (each test cancels and removes its own);
+- the counters and flags under `^OcuTalonTest("ReminderFixture")` and `^OcuTalonTest("ReminderLogic")`;
+- `live:sign-in`'s run time.
+
+The demo-path step summary and the mock's scenarios are unchanged (they are 8.6's).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: draft
-Blocking condition: none (re-plan as the command side after the rulings)
+Status: ready-for-dev
+Blocking condition: none
+
+**Plan stage (bmad-build-auto, re-plan in place, cycle 2; halted after planning).** The command side is re-derived around the preserved intent block. These left the spec for Story 8.6: the B mock scenarios, `ReminderChat`, spec 03, DW-210, DW-232, the `NewRef` seam, `ReminderOpsFixedRef` and `CancelPending`.
+- **Kept from the first plan (467dfae):** the `FromLocal` measurements and Task 0's alarm interrupt.
+- **Added:** AC 4's several-cancels clause and its test (U-118); the lock race and busy-lock cases; string-typed list items; the item restart on the warm stack.
+- **Ledger:** DW-135 and DW-141 addressed; DW-140 and DW-142 declined (Lane A's, for Story 11.1).
+- **For the lead to check:** Decided 3 reads AD-4 as allowing ReminderOps' own session-scoped key lookups. If the lead reads it otherwise, that is a contended `Ownership.cls` edit for the orchestrator.
