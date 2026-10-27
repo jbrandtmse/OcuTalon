@@ -403,6 +403,39 @@ Method TestShownDecisionRef()
 	Do $$$AssertEquals(turn.ShownDecisionRef(), "", "a fallback with none shows none")
 }
 
+/// Check.FromRow (Story 5.6, DW-66) builds the payload of an unsaved check row: every row-backed field is the row's own (the values differ, so a field copied
+/// from the wrong property is caught), stopped is false, and the trace target is the row's LastRunHeaderId in the running namespace, OcuTalon's own, never the
+/// watched production's. A row with no run has neither trace field, in the object or in the JSON.
+Method TestCheckFromRow()
+{
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
+	Set row.Ref = "ZzCheckRef"_..Number
+	Set row.SessionRef = "ZzCheckOwner"
+	Set row.Kind = "production"
+	Set row.Namespace = "ZzWatchedNs"
+	Set row.Production = "Zz.Watched.Production"
+	Set row.DisplayName = "Zz watched"
+	Set row.NextDueAt = "2030-02-03T04:06:06Z"
+	Set row.Result = "failed"
+	Set payload = ##class(OcuTalon.Live.Payload.Check).FromRow(row)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.Namespace_"|"_payload.Production_"|"_payload.DisplayName, "ZzCheckRef"_..Number_"|production|ZzWatchedNs|Zz.Watched.Production|Zz watched", "a check: ref, kind, namespace, production, displayName")
+	Do $$$AssertEquals(payload.NextDueAt_"|"_payload.Result_"|"_payload.Stopped, "2030-02-03T04:06:06Z|failed|0", "nextDueAt, result and stopped false")
+	Do $$$AssertEquals(payload.LastRunAt_"|"_payload.Finding_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "|||", "a row with no run has no run time, finding or trace")
+	Do payload.%JSONExportToString(.bareJson)
+	Set bare = ##class(%DynamicObject).%FromJSON(bareJson)
+	Do $$$AssertEquals(bare.%IsDefined("traceHeaderId")_bare.%IsDefined("traceNamespace"), "00", "and the JSON has neither trace field")
+	Set row.LastRunAt = "2030-02-03T04:05:06Z"
+	Set row.Finding = "ZzFinding"
+	Set row.LastRunHeaderId = 31337
+	Set payload = ##class(OcuTalon.Live.Payload.Check).FromRow(row)
+	Do $$$AssertEquals(payload.LastRunAt_"|"_payload.Finding_"|"_payload.Stopped, "2030-02-03T04:05:06Z|ZzFinding|0", "a check with a run: lastRunAt and finding")
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "the trace target is the row's LastRunHeaderId in the running namespace, not the watched production's")
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.Namespace_"|"_payload.Production_"|"_payload.DisplayName_"|"_payload.NextDueAt_"|"_payload.Result, "ZzCheckRef"_..Number_"|production|ZzWatchedNs|Zz.Watched.Production|Zz watched|2030-02-03T04:06:06Z|failed", "and the other fields are as before")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceNamespace_"|"_exported.stopped, "31337|"_$Namespace_"|0", "with the trace under traceHeaderId and traceNamespace, and stopped false")
+}
+
 /// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
 /// from the others, so a field copied from the wrong property is caught. The rows are not saved. A turn's payload has every
 /// field from the row, and the trace target only when the row has a TraceHeaderId. An approval's dry run is parsed; an empty one, a broken one and one without an item noun give a

@@ -1,4 +1,5 @@
-/// The one table for every background check, a production watch included (AD-18). Lane A.
+/// The one table for every background check, a production watch included (AD-18). Lane A. WatchOps creates and removes a row, and Checks records each
+/// run on it: LastRunAt, Result, Finding, LastRunHeaderId and NextDueAt.
 Class OcuTalon.Data.BackgroundCheck Extends %Persistent
 {
 

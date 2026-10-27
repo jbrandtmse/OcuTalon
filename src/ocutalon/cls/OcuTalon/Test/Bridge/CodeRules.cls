@@ -12,6 +12,8 @@
 ///   - TestOnlyTheAuditWriterAudits (Story 3.7; AD-17): no OcuTalon class outside the Test package, except OcuTalon.Bridge.Audit, calls
 ///     $SYSTEM.Security.Audit, ##class(%SYSTEM.Security).Audit or Audit's raw writer Write, so that product code writes only through Record and every
 ///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
+///   - TestOnlyChecksPublishesCheck (Story 5.6; AD-33): no OcuTalon class outside the Test package, except OcuTalon.Checks.Process, calls Publish with the event type check
+///     (the literal, or Checks' CHECKEVENT parameter). The scanner is first shown to flag those forms and to pass the payload class, reads, other event types and comment lines;
 ///   - TestOnlyIncidentManagerWritesIncidents (Story 5.3; AD-15, AD-33): no OcuTalon class outside the Test package, except OcuTalon.Watch.IncidentManager,
 ///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New, %Delete or %DeleteId, also through $ClassMethod), runs SQL
 ///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
@@ -122,6 +124,12 @@ Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*
 
 /// The one class that may write the incident tables and publish those events.
 Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
+
+/// A line that publishes the check event: Publish with the type check as a literal or as Checks' CHECKEVENT parameter (AD-33).
+Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.\.#checkevent\b)";
+
+/// The one class that may publish the check event.
+Parameter CHECKPUBLISHERS = "OcuTalon.Checks.Process";
 
 /// The classes that may call the chat family: the runner and its adapter.
 Parameter CHATTERS = "OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent";
@@ -294,6 +302,27 @@ Method TestOnlyIncidentManagerWritesIncidents()
 	Do $$$AssertEquals(offending, "", "no class but IncidentManager creates or deletes an incident or failure group row, or publishes incident or watch.progress")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#INCIDENTWRITERS, .text), ..#INCIDENTWRITERS_" has source")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does write them, IncidentManager")
+}
+
+/// No class outside the Test package except Checks publishes the check event (Story 5.6; AD-33): the scanner flags the literal type and the parameter, passes
+/// look-alikes, and the scan finds exactly one class that matches.
+Method TestOnlyChecksPublishesCheck()
+{
+	Set pattern = ..#CHECKPUBLISHES
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload)", pattern), "the scanner flags Publish of the check event")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload, .seq)", pattern), "with an output")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, 'check', payload)", pattern), "with single quotes")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ..#CHECKEVENT, payload)", pattern), "and through the CHECKEVENT parameter")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ##CLASS(OCUTALON.LIVE.PUBLISH).PUBLISH(STREAM, ""CHECK"", PAYLOAD)", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set payload = ##class(OcuTalon.Live.Payload.Check).%New()"_$Char(10)_tab_"Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""incident"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""checkpoint"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)"_$Char(10)_tab_"Set check = ""check"""_$Char(10)_tab_"Set events = ##class(OcuTalon.Live.Event).Since(stream, 0, 10, ""check"")"_$Char(10)_tab_"// Publish(stream, ""check"", payload)"_$Char(10)_tab_"; Publish(stream, ""check"", payload)", pattern), "and passes the payload class, a read, another event type, a variable type, a look-alike word and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#CHECKPUBLISHERS, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class but Checks publishes the check event")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#CHECKPUBLISHERS, .text), ..#CHECKPUBLISHERS_" has source")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does publish it, Checks")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.

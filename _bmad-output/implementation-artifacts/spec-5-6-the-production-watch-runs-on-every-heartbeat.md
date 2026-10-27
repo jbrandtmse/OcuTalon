@@ -2,7 +2,8 @@
 title: 'The production watch runs on every heartbeat'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4ef18d4dc9d1fc3770d97842dda852994fb7998c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -242,6 +243,42 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 32 rows (a row groups the same finding reported by several layers) - high 0, medium 0, low 32, false 0, maybe-false 0; 5 patched, 27 rejected as by-design, theoretical or not worth the complexity
+- findings:
+  - `[low]` `[patch]` Blind: `SendChanged` passed `0` as the third argument of `Ens.BusinessOperation.SendRequestAsync`, which takes `pDescription` there - patched: the argument dropped (also Edge: same)
+  - `[low]` `[patch]` Blind: `Test.Checks.Runs.Case` re-creates the second session when `Other` is a non-numeric Ref - patched: `If (..Other = "")`
+  - `[low]` `[patch]` Blind: `Runs.Watch` and `Runs.Incident` build `Refs` with an unconditional comma - patched: the same `$Select` as `Owner`
+  - `[low]` `[patch]` Verification-gap: nothing pins `stopped` as a JSON boolean, which the page filter tests with `=== true` - patched: `%GetTypeOf` assertion in `Heartbeat.TestStartAndStop`; mutation line written
+  - `[low]` `[patch]` Verification-gap: the `Kind = production` filter of `Due` and the TickAt fall-back to now are unpinned - patched: `Runs.TestDue` gains a due row of another kind, new `Runs.TestTickWithoutTime`; two mutation lines written
+  - `[low]` `[reject]` Blind, Edge, Verification-gap, Intent: overlap double-counts a failure in the 2-second overlap (no Seen set) - the spec fixes the window as Mark.Start; a failure fails two consecutive runs at worst; the dedupe is Story 30.4's "never report twice"
+  - `[low]` `[reject]` Blind, Edge: the quiet sweep sends one synchronous command per incident, up to 30 s each, with no budget - spec-bound (sync, QUIETWAIT 30), IncidentManager answers at once; a slow manager is theoretical
+  - `[low]` `[reject]` Blind, Edge: every unclosed incident older than 15 minutes gets closeQuiet every minute - spec-bound by "only the table decides" (Decided in-stage); the trace goes in the Tick's session by design
+  - `[low]` `[reject]` Blind: a check event is published on every run - spec-bound (AC 1, TestPublishes); retention is Epic 30's purge
+  - `[low]` `[reject]` Blind: "At least 1 new failures" is ungrammatical for a cut read with one failure - the texts are Q3's, ruled as worded (veto U-105); a cut read with exactly one session failure is rare
+  - `[low]` `[reject]` Blind: Scope opens a session per failure - up to 500 index opens per row per minute, the same as the poller; no reachable harm
+  - `[low]` `[reject]` Blind: stopped payloads stay in the web store - Q2's ruling is the rail filter only; the store entry is small and replaced by the next snapshot
+  - `[low]` `[reject]` Blind, Edge: CHECKPUBLISHES misses a split line, `$ClassMethod` or a variable type - a source scan has limits; the sibling rule's `$ClassMethod` form guards a different call shape; Process publishes through a parameter
+  - `[low]` `[reject]` Blind: a delayed CheckChanged start publishes a post-run row - the row is the full current view (AD-12), which is the intent
+  - `[low]` `[reject]` Blind: a lost start event is not retried - spec-bound (one warning, answer unchanged); the first run's event shows the check
+  - `[low]` `[reject]` Edge: a not_checked run advances LastRunAt, so failures in an outage window are not counted - spec-bound (step 5); the poller opens an incident for them, and an open incident fails the check
+  - `[low]` `[reject]` Edge: `%Next()` returning 0 on a mid-iteration SQL error is treated as end of data - theoretical on these small tables
+  - `[low]` `[reject]` Edge: a cut read with none of the session's rows and a stopped state is not_checked, not failed - spec-bound ("not_checked wins whenever any part cannot be read")
+  - `[low]` `[reject]` Edge: a far-future or invalid TickAt silences the checks - the Tick is OcuTalon's own heartbeat; theoretical
+  - `[low]` `[reject]` Edge: an exception from Announce or FromRow after the UPDATE skips the LOGRAN line - Publish catches its own exceptions; the Tick's LOGRUN warning would name the row
+  - `[low]` `[reject]` Edge: `OnlineDemo()` outside the Try - a setting read; theoretical
+  - `[low]` `[reject]` Edge: stale queued Ticks each re-run a row - spec-bound ("PreviousTickAt and CatchUp need no branch"); duplicates are harmless runs
+  - `[low]` `[reject]` Edge (claims): "failures counted are the new ones" vs the window - same root cause as the overlap and not_checked rows above
+  - `[low]` `[reject]` Verification-gap: the sweep-before-checks order is unpinned - not an AC; the effect is one minute of staleness
+  - `[low]` `[reject]` Verification-gap: Reader's suspended, troubled and network_stopped codes are unpinned - not inducible on a throwaway; the map is three lines from named macros
+  - `[low]` `[reject]` Verification-gap: mutation lines missing for event publishing, LOGRAN, Changed, unknown request, LOGQUIET, the first half of AC 2, AC 6's empty states, incident scope, reasons, no-run trace fields and units.sh - Rule 19 asks one mutation per AC and each AC has one; these are assertions inside pinned tests
+  - `[low]` `[reject]` Verification-gap: Heartbeat.TestTickRunsTheWatch depends on a clean Orders - the class runs fresh by the spec
+  - `[low]` `[reject]` Verification-gap: trace URL assertions hard-code the OCUTALON namespace - the spec makes them fresh-only; AC 1 names that URL
+  - `[low]` `[reject]` Verification-gap: TestCheckFromRow's `stopped` 0 equals the initial value - FromRow setting it explicitly is not observable and harmless
+  - `[low]` `[reject]` Verification-gap: TestScope's instance incident is hidden behind a fixing one - Scope4 pins the instance-only case
+  - `[low]` `[reject]` Verification-gap: the Ops shadow tests do not run the real SendRequestAsync - Heartbeat.TestStartAndStop does, and caught the signature through the real item
+  - `[low]` `[reject]` Intent alignment (descriptive): most tests are probe-level, the real wiring is in Heartbeat - the spec's design; no divergence from the intent found
+
 ## Design Notes
 
 **Rulings (all RULED 2026-10-27).** Q1 RULED by the orchestrator: decide, option (a), shared-by-entry — exactly the one `rail.checks` push line of `Web/Api.cls` (switched to `Check.FromRow`) and the removal of its private `CheckView` method and doc, plus the three assertion lines of `Test/Web/Api.cls` (L248 message, L250, L251); both files are contended (Epics 4, 6, 10 and 16) and are reported under `footprint_extensions:`; a conflict at integrate-forward is a plain union. The switch's reason (AD-26, UX-DR139): a check's latest run is the Tick's session in OCUTALON, so its trace target lies in OcuTalon's namespace. Q2 RULED by the orchestrator (correcting the lead's premise: `web/src/app/rail/` IS contended — it is in Epic 6's footprint, and Epic 4's branch edits `rail-view.ts`): allowed as ONE filter line placed away from Epic 4's lines (L32-35, L305-306, L326), with no doc change; reported under `footprint_extensions:`. Q3 RULED by the epic lead: keep as worded, veto U-105.
@@ -407,13 +444,75 @@ Conventions:
 | AC 5 | `Web.Api` publishes a `check` event | `CodeRules.TestOnlyChecksPublishesCheck` |
 | AC 6 | `Current` keeps swallowing the lock error | `Reader.TestFailuresState` |
 
+Mutations applied (Rule 19), each observed red and reverted byte-identically (confirmed with `git diff` before and after):
+- mutation: `LastRunHeaderId` written empty instead of the Tick's session -> `Heartbeat.TestTickRunsTheWatch` red
+- mutation: `FromRow`'s `TraceNamespace` = `row.Namespace` -> `Payloads.TestCheckFromRow`, `Heartbeat.TestTickRunsTheWatch` and `Web.Api` (`TestStateSections`) red
+- mutation: `NextDueAt` = the old `NextDueAt` + 60 s -> `Runs.TestDue` red
+- mutation: `DUESLACKSECONDS` 0 -> `Runs.TestDue` red
+- mutation: the incident part dropped from the finding -> `Runs.TestFailed` red
+- mutation: the scope filter dropped (every failure counted) -> `Runs.TestScope` red
+- mutation: `instance` counted on the online demo -> `Runs.TestScope` red
+- mutation: a thrown read recorded as `passed` -> `Runs.TestNotChecked` red
+- mutation: the state `timeout` mapped to `unknown` -> `Reader.TestFailuresState` red, and `Runs.TestNotChecked` red (the `timeout` reason branch disabled in `Checks`)
+- mutation: `from` = `CreatedAt` on every run -> `Runs.TestWindow` red
+- mutation: the record made with `%OpenId` and `%Save` -> `Runs.TestStoppedMeanwhile` red
+- mutation: the state ignored (every state taken as running) -> `Heartbeat.TestFailingOrders` red
+- mutation: the sweep filtered to `open` only -> `Heartbeat.TestQuietClose` and `Runs.TestQuietSweep` red
+- mutation: `SuperSession` not set on the closeQuiet -> `Heartbeat.TestQuietClose` and `Runs.TestQuietSweep` red
+- mutation: `WatchOps` sends no message on stop -> `Heartbeat.TestStartAndStop` and `Ops.TestStop` (also `Ops.TestChangedSendFails`) red
+- mutation: the `stopped` filter removed from `railView` -> `rail-view.test.mjs` red (two new tests)
+- mutation: `STUB` kept -> `Install.Production.TestStubsAnswer` red
+- mutation: a class publishes a `check` event -> `CodeRules.TestOnlyChecksPublishesCheck` red (applied to `Watch/Ops.cls`, a `Publish(..., "check", ...)` line, because `Web/Api.cls` is contended beyond its one line)
+- mutation: `Current` keeps swallowing the lock error (the error ignored, the state read from the code only) -> `Reader.TestFailuresState` red
+- mutation (review): the `Kind = ?` filter dropped from `Due` -> `Runs.TestDue` red (a due row of another kind is run)
+- mutation (review): `TickAt` used as is, with no fall-back to now -> `Runs.TestTickWithoutTime` red
+- mutation (review): `Live.Payload.Check.Stopped` typed `%String` -> `Heartbeat.TestStartAndStop` red (`stopped` is not a JSON boolean)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Spec gate, 2026-10-27: Q1 and Q2 ruled by the orchestrator, Q3 by the lead (veto U-105); the spine rows "Background checks" and the cross-area class row for `CheckChanged` are written; status set to `ready-for-dev`. The plan stage's halt read: intent gap: Q1 contended path src/ocutalon/cls/OcuTalon/Test/Web/Api.cls (DW-66 makes a check's traceNamespace $Namespace, which breaks the L250 assertion "31|ZZNS" and the L251 assertion of no traceUrl); Q2 contended path web/src/app/rail/rail-view.ts (for "a stopped one leaves", the rail must drop a check whose stop event carries stopped true); Q3 veto window item 5: the finding and reason texts are public-facing and not in the UX or PRD. The recommended answers are in Design Notes (Q1 (a), Q2 (a), Q3 as worded); the spec is written to them and needs only status ready-for-dev once they are ruled.
+**Implemented.** `Checks.Process` is built: each Tick runs the quiet sweep (`closeQuiet` to `IncidentManager`, in the Tick's session with the owner's TraceRef as `SuperSession`), then every due production check once. A run reads through `Watch.Reader` with the production's state, applies the AD-4 scope, decides `passed`, `failed` or `not_checked` with a code-built finding, records it with one SQL `UPDATE` keyed by `Ref`, publishes `Check.FromRow` as a `check` event and logs one Type 4 line. `WatchOps` sends `CheckChanged` after a start or stop, and `Checks` publishes it (a stop as `stopped` true). `/state` uses `FromRow` (DW-66: `traceNamespace` is `$Namespace`), and the rail drops a stopped check.
 
-- Plan stage, 2026-10-26: the spec is fully planned (Code Map, tasks, six ACs, matrix, mutations, verification). The READY standard fails only on "Sufficient": three items need the orchestrator or owner (Rule 11 (c); unattended policy, veto window item 5).
-- Read for planning: the epic context (cached, valid), the Story 5.6 block of `epics.md`, AD-1, AD-4, AD-12, AD-15, AD-18, AD-24, AD-26, AD-28 and AD-33, and the Conventions rows. No IRIS call was made and no runtime was started, so there is nothing to tear down.
-- The epic context's "(inference)" line (a finding is code-built) is confirmed from the spine's "Tool classification" row (Design Notes).
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: the item, `STUB` removed.
+- `src/ocutalon/cls/OcuTalon/Checks/Msg/CheckChanged.cls`: new message.
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`: `Failures` and `Current` gain `Output state`.
+- `src/ocutalon/cls/OcuTalon/Watch/FailurePoller.cls`: `Scope(superSession)` extracted.
+- `src/ocutalon/cls/OcuTalon/Watch/Ops.cls`: `Changed` and `SendChanged`, `CHECKS` and `LOGCHANGED`.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Check.cls`: `FromRow`, docs of `Stopped` and the trace fields.
+- `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls`: class doc.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls` (contended, Q1): the one rail push line and `CheckView` removed.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` (contended, Q1): the three assertion lines.
+- `web/src/app/rail/rail-view.ts` (contended, Q2): one filter on the `checks` line.
+- `web/scripts/rail-view.test.mjs`, `ci/units.sh`, `Test/Install/Production.cls`, `Test/Bridge/CodeRules.cls`, `Test/Live/Payloads.cls`, `Test/Watch/Ops.cls`, `Test/Watch/Reader.cls`: tests and registration.
+- `Test/Checks/Probe.cls`, `Test/Checks/Runs.cls`, `Test/Checks/Heartbeat.cls`, `Test/Watch/OpsProbe.cls`: new tests.
+
+**Footprint extensions to report:** contended, within the rulings: `Web/Api.cls`, `Test/Web/Api.cls` (Q1), `web/src/app/rail/rail-view.ts` (Q2); not contended: `Live/Payload/Check.cls`, `Test/Live/Payloads.cls`, `Test/Install/Production.cls`, `Test/Bridge/CodeRules.cls`, `web/scripts/rail-view.test.mjs`, Lane A's `ci/units.sh` entry.
+
+**Decided in-stage (implement).**
+- `CHECKEVENT` is the publishing parameter, so `CHECKPUBLISHES` matches both `"check"` and `..#CHECKEVENT`.
+- `Checks` reloads the row after the `UPDATE` before it publishes.
+- The probe also overrides `Unclosed` (a `FailUnclosed` flag) to make the incident read fail.
+- Two log parameters were added beyond the spec's list: `LOGDUE` and `LOGSWEEP` (the due rows or the quiet incidents could not be read).
+- Two mutations were applied through a substitute: `LastRunHeaderId` written empty (the due-row object holds no old value), and a `Publish(..., "check", ...)` line inside `If 0 {}` in `Watch/Ops.cls` (to leave `Web/Api.cls` alone).
+
+**Review (one pass, four layers).** 32 triage rows, all low. Patched (5): `SendChanged` passed `0` where `Ens.BusinessOperation.SendRequestAsync` takes a description; `Runs.Case` re-created its second session; `Runs.Watch` and `Runs.Incident` built `Refs` with a leading comma; `stopped` as a JSON boolean was unpinned (assertion in `Heartbeat.TestStartAndStop`); the `Kind` filter of `Due` and the TickAt fall-back were unpinned (a row of another kind in `Runs.TestDue`, new `Runs.TestTickWithoutTime`). Each new pinning test has a mutation line. Deferred: none. Rejected (27), with reasons in the triage log: the 2-second overlap double count, the sync sweep with no budget, the re-sent `closeQuiet`, an event on every run, "At least 1 new failures", the not_checked window, and others that are spec-bound, theoretical or not worth the complexity.
+
+**Follow-up review recommended:** false (no high and no medium patched).
+
+**Verification.**
+- `node --test web/scripts/rail-view.test.mjs`: 48 passed.
+- Warm stack, after the last patch: `Checks.Runs`, `Watch.Ops` (33 s), `Watch.Reader`, `Watch.Poller` (64 s), `Live.Payloads`, `Install.Production` and `Bridge.CodeRules` passed.
+- Fresh stack: `Checks.Heartbeat` and `Web.Api` passed.
+- `shard lane-a`: part 1/4 329 s, 2/4 152 s, 3/4 178 s, 4/4 320 s, 67 classes passed.
+- `shard lane-b`: 42 classes passed, 115 s.
+- `bash ci/checks.sh` and `bash docker/tests/test-web-build.sh` passed.
+- The warm stack `e5s6iw` is down, `ci/iris.sh teardown` for `e5s6i` found nothing left, and the lane-a lock folder is empty.
+- Each of the 22 mutation lines was observed red and reverted byte-identically.
+
+**Residual risks.**
+- `Heartbeat.TestTickRunsTheWatch` expects `passed` on a clean Orders; it relies on the fresh stack the spec requires.
+- `Reader`'s suspended, troubled and network_stopped codes are mapped from macros but are not induced by any test.
+- `Test.Watch.Tools`, `Turns` and `Core.CommandsInProduction` passed in the shard, so the new `check` events on a real start or stop do not disturb them.

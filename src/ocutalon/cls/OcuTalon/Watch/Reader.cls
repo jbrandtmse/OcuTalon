@@ -1,3 +1,5 @@
+Include (EnsConstants, EnsErrors)
+
 /// The reader of the productions that OcuTalon can watch (AD-3, AD-4, AD-6): the only class that switches namespace to look at a production, and
 /// the only place that checks the service user's read access to a namespace. The watch tools and WatchOps both use it, so a tool and the
 /// owner of the watch agree on what can be watched.
@@ -18,7 +20,7 @@
 ///     (the length of the DisplayName of the command and of the watch's row), so that a long or multi-line description never fails a start.
 ///   - Admits says whether one namespace and production are an entry, and gives its display name.
 ///   - OnlineDemo says whether the list is limited to Orders.
-///   - Failures reads a watched production's new failures (Story 5.2; AD-15) from the namespace, inside the same one switching method: the
+///   - Failures reads a watched production's new failures (Story 5.2; AD-15) and its running state (Story 5.6) from the namespace, inside the same one switching method: the
 ///     production must be the namespace's own (outcome not_current otherwise), and the service user must be able to read the namespace, which is
 ///     checked before any switch (outcome unreadable, nothing entered). A failure is a message header in Status 8 (Error) from the given time on,
 ///     whatever its IsError, with the raw text of its error, or an event-log row of Type 2 (Error) or 6 (Alert) with no session; a log row with a
@@ -165,15 +167,18 @@ ClassMethod Readable(user As %String, namespace As %String) As %Boolean [ Privat
 /// The new failures of the production in the namespace, from the time from (an IRIS UTC stamp) on, at most limit (see the class description), as a
 /// dynamic array in rows. The outcome: read (rows holds what was found, possibly nothing), unreadable (the service user cannot read the namespace:
 /// nothing was entered and rows is empty) or not_current (the production is not the namespace's own, or a name is empty: nothing was read). A namespace that cannot
-/// be read for another reason is an error.
-ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray) As %String
+/// be read for another reason is an error. state is the production's running state, read in the same switch: running, stopped, suspended, troubled or
+/// network_stopped; timeout when Ens.Director.GetProductionStatus could not take the runtime lock in LOCKSECONDS; unknown for any other error or
+/// state; and "" with the outcomes unreadable and not_current.
+ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String) As %String
 {
 	Set rows = []
+	Set state = ""
 	If (namespace = "") || (production = "") Quit "not_current"
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	If '..Readable(user, namespace) Quit "unreadable"
-	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault)
+	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault, , , , .state)
 	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failures of "_production_" in "_namespace_" could not be read: "_fault))
 	Quit outcome
 }
@@ -232,20 +237,24 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// When item is not empty (Evidence) it reads, instead of the failures from a time on, the evidence of the failures with the keys (comma-separated
 /// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject) As %String [ Private ]
+/// state is the production's running state from the same GetProductionStatus call (see Failures): "" when the production is not the namespace's own or the
+/// read threw.
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String) As %String [ Private ]
 {
 	Set description = ""
 	Set name = ""
 	Set rows = []
 	Set outcome = ""
 	Set fault = ""
+	Set state = ""
 	Set evidence = (item '= "")
 	Set lock = ..#LOCKSECONDS
 	New $NAMESPACE
 	Try {
 		Set $NAMESPACE = namespace
-		Set sc = ##class(Ens.Director).GetProductionStatus(.name, .state, lock, 1)
+		Set sc = ##class(Ens.Director).GetProductionStatus(.name, .code, lock, 1)
 		If $$$ISERR(sc) Set name = ""
+		Set state = $Select($$$ISERR(sc): $Select($SYSTEM.Status.Equals(sc, $$$EnsErrCanNotAcquireRuntimeLock): "timeout", 1: "unknown"), 1: $Case(+$Get(code), $$$eProductionStateRunning: "running", $$$eProductionStateStopped: "stopped", $$$eProductionStateSuspended: "suspended", $$$eProductionStateTroubled: "troubled", $$$eProductionStateNetworkStopped: "network_stopped", : "unknown"))
 		If name = "" Set name = ##class(Ens.Director).GetActiveProductionName()
 		If name '= "" {
 			Set definition = ##class(Ens.Config.Production).%OpenId(name)
@@ -254,6 +263,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		If production '= "" {
 			If (name = "") || (name '= production) {
 				Set outcome = "not_current"
+				Set state = ""
 			} Else {
 				Set outcome = "read"
 				Set headerIds = ""
@@ -437,6 +447,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		Set description = ""
 		Set rows = []
 		Set outcome = ""
+		Set state = ""
 		Set fault = exception.DisplayString()
 	}
 	Quit name

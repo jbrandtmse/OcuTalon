@@ -29,6 +29,9 @@
 ///     Orders production asked for in OCUTALON, which is readable;
 ///   - TestStoppedProduction (DW-222): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
 ///     made, and a StartWatch reaches WatchOps' shadow instance and is admitted; the production is started again and the test asserts it runs;
+///   - TestFailuresState (Story 5.6): Failures also gives the production's running state: running while Orders runs, stopped while it is cleanly stopped, timeout while
+///     another job holds ^Ens.Runtime("ConfigItem") in OCUORDERS (the runtime lock, which Ens.Director.GetProductionStatus waits for one second), and "" with the
+///     outcomes unreadable and not_current;
 ///   - TestMatches (pure): the matcher of Find over any list of entries.
 /// Every change to the instance is put back by Test.Watch.Case, also after a failure.
 Class OcuTalon.Test.Watch.Reader Extends OcuTalon.Test.Watch.Case
@@ -278,7 +281,7 @@ Method TestStoppedProduction()
 	Do $$$AssertEquals($ClassMethod(..#READER, "Admits", ..#ORDERS, ..#ORDERSPRODUCTION, .name), 1, "and Admits admits it")
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows), "read", "its failures are still read")
 	Do $$$AssertEquals(rows.%Size(), 1, "the one that it made is given")
-	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Watch.Ops", .sc)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Watch.OpsProbe", .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of WatchOps is made")
 	If $IsObject(host) {
 		Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()
@@ -291,6 +294,72 @@ Method TestStoppedProduction()
 		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|started", "and admits it")
 	}
 	Do ..StartOrders()
+}
+
+Method TestFailuresState()
+{
+	If '..Ready() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "Orders is read")
+	Do $$$AssertEquals(state, "running", "and its state is running")
+	If '..StopOrders() Quit
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "while Orders is stopped it is still read")
+	Do $$$AssertEquals(state, "stopped", "and its state is stopped")
+	Set key = ..Number_"_runtime"
+	Kill ^OcuTalonTest("ReaderRuntime", key)
+	Job ##class(OcuTalon.Test.Watch.Reader).Holder(key)
+	Do ..WaitFor($Name(^OcuTalonTest("ReaderRuntime", key, "ready")), 60)
+	Set held = ''$Get(^OcuTalonTest("ReaderRuntime", key, "ready"))
+	Do $$$AssertTrue(held, "another job holds the runtime lock of "_..#ORDERS)
+	If held {
+		Set began = $ZHorolog
+		Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "while another job holds the lock Orders is still read")
+		Do $$$AssertEquals(state, "timeout", "and its state is timeout")
+		Do $$$AssertTrue(($ZHorolog - began) < 30, "after a short wait: "_($ZHorolog - began))
+	}
+	Set ^OcuTalonTest("ReaderRuntime", key, "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("ReaderRuntime", key, "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("ReaderRuntime", key, "done")), 1, "the other job lets go")
+	Kill ^OcuTalonTest("ReaderRuntime", key)
+	If '..StartOrders() Quit
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "read", "Orders is read again")
+	Do $$$AssertEquals(state, "running", "and it is running")
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, "OcuTalon.Production", from, 10, .rows, .state), "not_current", "another production in OCUORDERS is not_current")
+	Do $$$AssertEquals(state, "", "with no state")
+	Do ..RevokeRole(..#ORDERSDATA)
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state), "unreadable", "with no Read on the Orders data the outcome is unreadable")
+	Do $$$AssertEquals(state, "", "with no state")
+}
+
+/// The job body of the runtime lock holder: takes ^Ens.Runtime("ConfigItem") in OCUORDERS, says so, keeps it until released (60 seconds at most), lets go and
+/// says so. The test's own nodes are in the namespace that the job started in.
+ClassMethod Holder(key As %String)
+{
+	Set home = $Namespace
+	Set $NAMESPACE = ..#ORDERS
+	Lock +^Ens.Runtime("ConfigItem"):5
+	Set held = $Test
+	Set $NAMESPACE = home
+	If held {
+		Set ^OcuTalonTest("ReaderRuntime", key, "ready") = 1
+		Set deadline = $ZHorolog + 60
+		While '$Get(^OcuTalonTest("ReaderRuntime", key, "release")) && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Set $NAMESPACE = ..#ORDERS
+		Lock -^Ens.Runtime("ConfigItem")
+		Set $NAMESPACE = home
+	}
+	Set ^OcuTalonTest("ReaderRuntime", key, "done") = 1
+}
+
+/// Waits up to seconds for the global node named by ref to hold a value.
+ClassMethod WaitFor(ref As %String, seconds As %Integer) [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	While ('$Data(@ref)) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
 }
 
 Method TestMatches()

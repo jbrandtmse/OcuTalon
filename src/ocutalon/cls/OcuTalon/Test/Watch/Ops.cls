@@ -13,6 +13,9 @@
 ///   - TestOwnerCheck ("Owner check"): a StartWatch for a production that the reader does not list (the production of OCUTALON, an unknown namespace,
 ///     another name), from any origin, answers Ok 0 and unknown_production with no row, and only_orders on the online demo; an unknown session answers
 ///     no_session for a start and for a stop, with no row;
+///   - Story 5.6: the shadow is a Test.Watch.OpsProbe, which records the CheckChanged that WatchOps sends to Checks. A start sends one (the Ref, the session,
+///     Stopped 0), a stop one (Stopped 1, with the row's kind, namespace, production and display name), and no other answer sends any;
+///   - TestChangedSendFails (Story 5.6): a failed send logs one warning for the start and one for the stop, and each answer stays started or stopped;
 ///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row;
 ///   - TestLockTimeout (QA, DW-218): another job holds the session's lock (^OcuTalon.Watch(session)); a start and a stop wait about 5 seconds and
 ///     answer failed, Ok 0, with no Ref and no change to the rows; another session is not held up; once the other job lets go the same commands work;
@@ -23,6 +26,9 @@ Class OcuTalon.Test.Watch.Ops Extends OcuTalon.Test.Watch.Case
 {
 
 Parameter CLASS = "OcuTalon.Watch.Ops";
+
+/// The WatchOps whose send to Checks is recorded (Story 5.6).
+Parameter PROBE = "OcuTalon.Test.Watch.OpsProbe";
 
 Method TestStart()
 {
@@ -54,6 +60,10 @@ Method TestStart()
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(session)
 	Do $$$AssertEquals(checks.Count(), 1, "Ownership.Checks lists one watch")
 	If checks.Count() = 1 Do $$$AssertEquals(checks.GetAt(1).Kind_"|"_checks.GetAt(1).DisplayName, "production|Orders", "of Kind production and display name Orders")
+	Do $$$AssertEquals(host.Changes.%Size(), 1, "one CheckChanged was sent")
+	Set change = host.Changes.%Get(0)
+	Do $$$AssertEquals(change.checkRef_"|"_change.sessionRef_"|"_change.stopped, response.Ref_"|"_session_"|0", "for the new row's Ref and the session, with Stopped 0")
+	Do $$$AssertEquals(change.kind_"|"_change.namespace_"|"_change.production_"|"_change.displayName, "production|"_..#ORDERS_"|"_..#ORDERSPRODUCTION_"|Orders", "and the row's kind, namespace, production and display name")
 }
 
 Method TestRepeat()
@@ -66,14 +76,18 @@ Method TestRepeat()
 	Do $$$AssertStatusOK(host.OnStart(..Start(a, "zzkey1"), .first), "the first start is answered")
 	Do $$$AssertStatusOK(host.OnStart(..Start(a, "zzkey1"), .same), "the same command again is answered")
 	Do $$$AssertEquals(same.Ok_"|"_same.Outcome_"|"_same.Ref, "1|already_watching|"_first.Ref, "already_watching, Ok, with the existing Ref")
+	Do $$$AssertEquals(host.Changes.%Size(), 1, "already_watching sent nothing: only the first start did")
 	Do $$$AssertStatusOK(host.OnStart(..Start(a, "zzkey2"), .other), "a new key for the same production is answered")
 	Do $$$AssertEquals(other.Ok_"|"_other.Outcome_"|"_other.Ref, "1|already_watching|"_first.Ref, "also already_watching with the same Ref")
 	Do $$$AssertEquals(..Rows(a).%Size(), 1, "the session has one row")
+	Do $$$AssertEquals(host.Changes.%Size(), 1, "and the repeats sent nothing")
 	Do $$$AssertStatusOK(host.OnStart(..Start(b, "zzkey3"), .second), "another session's start is answered")
 	Do $$$AssertEquals(second.Outcome, "started", "it is a new watch")
 	Do $$$AssertTrue(second.Ref '= first.Ref, "with a Ref of its own")
 	Do $$$AssertEquals(..Rows(b).%Size(), 1, "the other session has one row")
 	Do $$$AssertEquals(..Rows(a).%Size(), 1, "and the first still has one")
+	Do $$$AssertEquals(host.Changes.%Size(), 2, "and the other session's start sent its own message")
+	Do $$$AssertEquals(host.Changes.%Get(1).checkRef_"|"_host.Changes.%Get(1).sessionRef, second.Ref_"|"_b, "for its Ref")
 }
 
 Method TestStop()
@@ -86,6 +100,7 @@ Method TestStop()
 	Do host.OnStart(..Start(a, "zzkey1"), .startedA)
 	Do host.OnStart(..Start(b, "zzkey2"), .startedB)
 	Set rowB = ..Rows(b).%ToJSON()
+	Set rowA = ..Rows(a).%Get(0)
 	Do $$$AssertEquals(..RowsOfProduction(), 2 + ..Others(a, b), "both sessions watch Orders")
 	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set command.SessionRef = a
@@ -94,12 +109,17 @@ Method TestStop()
 	Set command.Production = ..#ORDERSPRODUCTION
 	Do $$$AssertStatusOK(host.OnStop(command, .response), "the stop is answered")
 	Do ..AssertResult(response, 1, "stopped", "stop")
+	Do $$$AssertEquals(host.Changes.%Size(), 3, "the stop sent one more CheckChanged")
+	Set change = host.Changes.%Get(2)
+	Do $$$AssertEquals(change.checkRef_"|"_change.sessionRef_"|"_change.stopped, startedA.Ref_"|"_a_"|1", "for the removed row's Ref and the session, with Stopped 1")
+	Do $$$AssertEquals(change.kind_"|"_change.namespace_"|"_change.production_"|"_change.displayName, rowA.kind_"|"_rowA.namespace_"|"_rowA.production_"|"_rowA.displayName, "and the row's kind, namespace, production and display name, read before the delete")
 	Do $$$AssertEquals(..Rows(a).%Size(), 0, "the first session's row is removed")
 	Do $$$AssertEquals(..Rows(b).%ToJSON(), rowB, "and the other session's row is unchanged")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(a)
 	Do $$$AssertEquals(checks.Count(), 0, "Ownership.Checks no longer lists the first session's watch")
 	Do $$$AssertStatusOK(host.OnStop(command, .again), "a second stop is answered")
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "0|not_watching", "not_watching, Ok 0")
+	Do $$$AssertEquals(host.Changes.%Size(), 3, "and sent nothing")
 	Do $$$AssertEquals(..Rows(b).%ToJSON(), rowB, "and nothing else was removed")
 }
 
@@ -135,6 +155,7 @@ Method TestOwnerCheck()
 	Do host.OnStart(empty, .response)
 	Do $$$AssertEquals(response.Outcome, "no_session", "an empty SessionRef is no session")
 	Do $$$AssertEquals(..RowCount(), rows, "still no row")
+	Do $$$AssertEquals(..Sent(host), 0, "unknown_production, no_session and an empty SessionRef sent nothing")
 	Do ..SetOnlineDemo(1)
 	Set other = ..Start(session, "zzkeyd1")
 	Set other.Namespace = "OCUTALON"
@@ -142,8 +163,34 @@ Method TestOwnerCheck()
 	Do host.OnStart(other, .response)
 	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|only_orders", "on the online demo, another production is only_orders")
 	Do $$$AssertEquals(..RowCount(), rows, "and writes no row")
+	Do $$$AssertEquals(..Sent(host), 0, "and sends nothing")
 	Do $$$AssertStatusOK(host.OnStart(..Start(session, "zzkeyd2"), .response), "Orders is still answered on the online demo")
 	Do $$$AssertEquals(response.Outcome, "started", "and started")
+}
+
+/// A failed send to Checks (Story 5.6) logs one warning and changes no answer: the start is still started and the stop still stopped.
+Method TestChangedSendFails()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set session = ..Session("sendfails")
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set host.FailChanged = 1
+	Do $$$AssertStatusOK(host.OnStart(..Start(session, "zzkeyf1"), .started), "the start is answered")
+	Do ..AssertResult(started, 1, "started", "start")
+	Do $$$AssertEquals(..Rows(session).%Size(), 1, "and the row is written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Changed", $Parameter(..#PROBE, "LOGCHANGED")), 1, "one warning is logged")
+	Do $$$AssertTrue(text [ started.Ref, "which names the check: "_text)
+	Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+	Set stop.SessionRef = session
+	Set stop.Namespace = ..#ORDERS
+	Set stop.Production = ..#ORDERSPRODUCTION
+	Do $$$AssertStatusOK(host.OnStop(stop, .stopped), "the stop is answered")
+	Do ..AssertResult(stopped, 1, "stopped", "stop")
+	Do $$$AssertEquals(..Rows(session).%Size(), 0, "and the row is gone")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Changed", $Parameter(..#PROBE, "LOGCHANGED")), 2, "a second warning is logged for the stop")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Changed", $Parameter(..#PROBE, "LOGCHANGED"))
 }
 
 Method TestThroughTheProduction()
@@ -257,10 +304,16 @@ Method TestFailedSave()
 /// --- helpers ---
 
 
+/// The number of CheckChanged messages that the probe recorded.
+ClassMethod Sent(host As OcuTalon.Test.Watch.OpsProbe) As %Integer [ Private ]
+{
+	Quit $Select($IsObject(host.Changes): host.Changes.%Size(), 1: 0)
+}
+
 /// A shadow instance of the operation, or "" with a failed assertion.
 Method Host() As OcuTalon.Watch.Ops [ Private ]
 {
-	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#CLASS, .sc)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of WatchOps is made")
 	Quit $Select($IsObject(host): host, 1: "")
 }

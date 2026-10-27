@@ -304,7 +304,7 @@ export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
 /** The rail for the store: the sections in order and whether Telegram is one of them. */
 export function railView(store: LiveStore, format: RailFormat): RailView {
   const approvals = pendingApprovals(store);
-  const checks = inStoreOrder(store.checks);
+  const checks = inStoreOrder(store.checks).filter((check) => check.stopped !== true);
   const late = Object.hasOwn(store.status, 'heartbeatStalled') && store.status['heartbeatStalled']?.active === true;
   const reminders = sortedBy(
     inStoreOrder(store.reminders).filter((reminder) => reminder.state === 'pending'),

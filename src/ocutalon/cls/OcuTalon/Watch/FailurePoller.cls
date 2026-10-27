@@ -4,7 +4,7 @@
 ///   - starts the reading where OcuTalon.Watch.Mark.Start says (the mark's MarkAt less the overlap, and no earlier than the earliest watch's
 ///     CreatedAt), reads through the one private seam Read (OcuTalon.Watch.Reader.Failures, the only class that enters the production's
 ///     namespace), and drops the failures that the mark's Seen set already holds and those beyond MAXFAILURES;
-///   - scopes each new failure to the session whose TraceRef is its SuperSession (on any install, whether or not that session watches the
+///   - scopes each new failure (Scope) to the session whose TraceRef is its SuperSession (on any install, whether or not that session watches the
 ///     production), else to instance (AD-4), and sends IncidentManager one FailureBatch per scope, each its own trace session whose SuperSession
 ///     is the scope session's TraceRef (empty for instance; AD-26). A failure's ErrorText is the error's own sentence (OcuTalon.Watch.ErrorText) of
 ///     its text after the redactor (OcuTalon.Bridge.Redact; Consistency Conventions: Redaction), so a secret in a watched production's error never
@@ -88,11 +88,7 @@ Method Poll(namespace As %String, production As %String, created As %String) [ P
 	Set iterator = fresh.%GetIterator()
 	While iterator.%GetNext(, .failure) {
 		Set super = failure.superSession
-		Set scope = ..#INSTANCE
-		If super '= "" {
-			Set session = ##class(OcuTalon.Data.Session).TraceRefIndexOpen(super)
-			If $IsObject(session) Set scope = session.Ref
-		}
+		Set scope = ..Scope(super)
 		If '$Data(batch(scope)) {
 			Set batch(scope) = ##class(OcuTalon.Watch.Msg.FailureBatch).%New()
 			Set batch(scope).Namespace = namespace
@@ -129,6 +125,17 @@ Method Poll(namespace As %String, production As %String, created As %String) [ P
 	Set mark.MarkAt = nextAt
 	Set mark.Seen = nextSeen
 	$$$ThrowOnError(mark.%Save())
+}
+
+/// The scope of a failure whose SuperSession is superSession: the Ref of the session whose TraceRef it is, else instance (AD-4), whether or
+/// not that session watches the production. OcuTalon.Checks.Process scopes the failures it counts with it too.
+ClassMethod Scope(superSession As %String) As %String
+{
+	If $Get(superSession) '= "" {
+		Set session = ##class(OcuTalon.Data.Session).TraceRefIndexOpen(superSession)
+		If $IsObject(session) Quit session.Ref
+	}
+	Quit ..#INSTANCE
 }
 
 /// The failures of the production from the stamp on, at most limit: OcuTalon.Watch.Reader.Failures, its outcome (read, unreadable or not_current)
