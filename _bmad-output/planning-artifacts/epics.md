@@ -2705,6 +2705,18 @@ So that I can close what I've dealt with without hunting for a button.
 **And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
 - DW-288: The owner's answer U-102: `dismiss_incident` stays trusted output on a condition: a `Test.Bridge.Gate` test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted (ledger; routed by spec_gate 2026-10-27)
 
+### Story 5.10: Epic 5 burn-down
+
+[ADDED 2026-10-27, Epic 5 burn-down gate (Rule 17): the ledger entry this epic owns that is still open, chartered under the orchestrator's ruling (DW-289 re-owned from Story 8.1, which is done, to this epic's burn-down).]
+
+As a maintainer,
+I want Epic 5's open ledger entry resolved before the epic closes,
+So that the Watch and Checks tests stay reliable once the real heartbeat ticks every minute.
+
+**Acceptance Criteria:**
+
+- DW-289: A real `HeartbeatIn` Tick (Epic 8 makes it tick every minute) runs every due check row and sweeps every quiet incident it finds, so the tests that make check rows due at once or quiet incidents 16 minutes old (`Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` — the occurrence from Story 5.7 —, and any `Test.Watch` fixture that makes check rows) can see a real Tick's run or close mid-test. Resolve it in this epic's own tests: fixture check rows that a real Tick does not find due (for example a `NextDueAt` in the future wherever a test does not mean to run them) and quiet-incident times that a real Tick does not sweep, while every test still proves what it proves; a test that must drive a Tick itself does so without a real Tick changing its outcome. If a pause hook from Epic 8 is still needed after that, leave that residual routed to `burndown` and say so (the orchestrator routes it to an open Epic 8 story) (ledger; routed by the orchestrator 2026-10-27)
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
