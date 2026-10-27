@@ -1186,6 +1186,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/scripts/demo-path-summary.test.mjs:332-337 deletes OCUTALON_URL and OCUTALON_E2E_JSON but sets no PLAYWRIGHT_BROWSERS_PATH, though its header says no browser starts; ffd7530 passed npm --prefix web test locally (565) and failed hosted run 40206917294; the 8.2 rework mutation (skip back in the test body) goes red only under PLAYWRIGHT_BROWSERS_PATH=/nonexistent-e8
 - 2026-10-25T16:00:04Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=Rule 19 hermeticity; 8.4 adds the next stack-only demo-path test (03-reminder); fix: missing browsers path in playwrightEnv
 - 2026-10-27T11:25:05Z status=routed owner=8-6-reminders-through-the-chat-on-the-demo-path by=spec_gate note=split_from_8.4(chat_side:mock_scenarios,REL-2_reminder_step,demo-path_spec_03)
+- 2026-10-27T20:13:03Z status=resolved-by:8-6-reminders-through-the-chat-on-the-demo-path by=adjudication note=playwrightEnv() points PLAYWRIGHT_BROWSERS_PATH at a folder that never exists and drops OCUTALON_E2E_IRIS_CONTAINER, so 'skip every unbuilt part' goes red for a demo-path test that launches a browser before it skips, wherever Chromium is installed (isolating mutation observed in implement; web/scripts/demo-path-summary.test.mjs, 0b8d978 + review patch)
 
 ### DW-211: flake: OcuTalon.Test.Agent.Runners TestStartRefused ('and the Production step's check names it as not running') failed once in shard lane-a on the Linux CI host and passed on an unchanged rerun
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1242,6 +1243,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: epics.md Story 8.4 (about L3074); ci/mock scenarios.mjs:255 duplicate-prompt refusal
 - 2026-10-26T02:35:44Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=coordination: extend Epic 4's B scenario
 - 2026-10-27T11:25:05Z status=routed owner=8-6-reminders-through-the-chat-on-the-demo-path by=spec_gate note=split_from_8.4(chat_side:mock_scenarios,REL-2_reminder_step,demo-path_spec_03)
+- 2026-10-27T20:13:03Z status=resolved-by:8-6-reminders-through-the-chat-on-the-demo-path by=adjudication note=guide-reminder.json (Story 4.4) is unchanged and serves the guide prompt; no second scenario for 'Remind me in 1 minute to stretch.'; the two new B scenarios are marker-selected (reminder-thursday, reminder-cancel-chat); mock tests (94) and live demo-path step 3 pass
 
 ### DW-253: flake: docker/tests/test-lib-live.sh check live_first_start 'a failed wait was not reported' failed once in the hosted checks job (first start not ready after 101 s, RC=1), green on an unchanged rerun
 - source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1322,3 +1324,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.3: 506 s (219); 8.4: 499-500 s (220); 8.6 implement: 515 s (222); local default deadline 540 s; CI deadline 1200 s (701 s on CI)
 - 2026-10-27T19:23:58Z status=escalated owner=burndown by=harvest note=fix is a split of the sign-in unit (docker/tests/test-sign-in.sh, contended) and its group entry (ci/units.sh, Lane B region), or a spec filter for local runs; for the owner/orchestrator at the decision sheet; Epic 8 adds no further browser cases
+
+### DW-316: Test.Schedule.ReminderChat.AssertToolSteps is a near-copy of Lane A's private Test.Tools.Reminders.AssertSteps (the step kinds, tool labels, summaries, status and outside-session count), forced by AD-29; the two AgentStep checkers drift when the step shape changes
+- source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls AssertToolSteps vs src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:928 AssertSteps (about 25 of 35 lines alike); the spec records the reason (Lane A's private method, AD-29); Story 11.1 changes cancel_reminder and that test class
+- 2026-10-27T20:11:28Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=cr note=Rule 2 forced copy: make Lane A's step check a public helper (e.g. in RunnerFixture) and have ReminderChat call it
+
+### DW-317: web/e2e/demo-path/03-reminder.spec.ts and web/e2e/reminder/chat.spec.ts each repeat restoreKeys() followed by an irisScript of RunnerFixture.WaitRecords() in their afterAll; the natural home, support/devices.ts restoreKeys, is contended
+- source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 03-reminder.spec.ts afterAll and chat.spec.ts afterAll: the same 4-line restore-and-wait tail; demo-switch/mailbox.spec.ts restores without the wait
+- 2026-10-27T20:11:28Z status=wontfix-accepted owner=8-6-reminders-through-the-chat-on-the-demo-path by=cr note=reopen_if=a third spec repeats restoreKeys plus WaitRecords, or a later sign-in spec fails on keys restored but not yet recorded

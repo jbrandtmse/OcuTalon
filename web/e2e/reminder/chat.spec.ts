@@ -14,17 +14,19 @@ import { composerOf, railOf, replyOf } from '../support/floor';
  *   - C2: the guide prompt sets a reminder that gets the fixed Ref of Test.Schedule.ReminderOpsFixedRef, which the item runs for these
  *     two cases only; "Cancel my reminder to stretch." with the marker reminder-cancel-chat gets the scenario's reply, the row leaves
  *     the rail within one live update without a reload, and the stored reminder is cancelled.
- * beforeAll points the runners' keys at the CI mock and puts the fixed-Ref class behind the ReminderOps item; afterAll puts both back and
- * waits until the runners have recorded their restored keys, because trace/links.spec.ts runs later and expects the no-key reply. Each
- * case removes its reminder and everything the product made for it (ReminderFixture.Remove). The browser runs in UTC with the en-GB
- * locale, the stack's own zone.
+ * beforeAll points the runners' keys at the CI mock and puts the fixed-Ref class behind the ReminderOps item; afterAll puts both back,
+ * drops the AI sessions the turns saved, and waits until the runners have recorded their restored keys, because trace/links.spec.ts runs
+ * later and expects the no-key reply. After each case the rail user's session holds no reminder and no turn again: its reminders go
+ * with everything the product made for them (ReminderFixture.RemoveAll) and its turns with their decisions, steps and Usage rows
+ * (ReminderFixture.RemoveTurns), because rail/rail.spec.ts holds that session empty. The browser runs in UTC with the en-GB locale, the
+ * stack's own zone.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
 const MESSAGES = '/ocutalon/api/v1/messages';
 const GUIDE_PROMPT = 'Remind me in 1 minute to stretch.';
 
-/** The text that scenario reminder-thursday sets, whichever case set it and however far that case got. */
+/** The text that scenario reminder-thursday sets. */
 const THURSDAY_TEXT = 'load the new certificate';
 
 /** The Ref that scenario reminder-cancel-chat cancels. */
@@ -36,33 +38,38 @@ const REPLY_MS = 30_000;
 /** How long the row of a cancelled reminder may take to leave the rail after the reply. */
 const GONE_MS = 15_000;
 
-/** The Refs of the reminders that the running case kept, for the clean-up. */
-let kept: string[] = [];
+/** The mark of the saved AI sessions before the first case (RunnerFixture.SessionMark), for the clean-up. */
+let mark = '';
 
 test.beforeAll(async () => {
   test.setTimeout(240_000);
   await pointKeys();
   const lines = await irisScript(
     [
+      'Write !,"CHK|mark|",##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()',
       'Set sc=##class(OcuTalon.Test.Schedule.ReminderOpsFixedRef).Use()',
       'Write !,"CHK|use|",$System.Status.IsOK(sc)',
       'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")',
     ].join('\n'),
   );
+  mark = chk(lines, 'mark') ?? '';
   expect(chk(lines, 'use'), `the fixed-Ref class is behind the ReminderOps item (${lines.join(' ')})`).toBe('1');
 });
 
 test.afterAll(async () => {
   test.setTimeout(240_000);
   try {
+    const drop = /^\d+$/.test(mark) ? [`Write !,"CHK|dropped|",$System.Status.IsOK(##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(${mark}))`] : [];
     const lines = await irisScript(
       [
         'Set sc=##class(OcuTalon.Test.Schedule.ReminderOpsFixedRef).Restore()',
         'Write !,"CHK|restore|",$System.Status.IsOK(sc)',
         'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")',
+        ...drop,
       ].join('\n'),
     );
     expect(chk(lines, 'restore'), `the ReminderOps item has its class again (${lines.join(' ')})`).toBe('1');
+    if (drop.length > 0) expect(chk(lines, 'dropped'), `the AI sessions of the turns are dropped (${lines.join(' ')})`).toBe('1');
   } finally {
     try {
       await restoreKeys();
@@ -74,18 +81,17 @@ test.afterAll(async () => {
 });
 
 test.afterEach(async () => {
-  const refs = kept;
-  kept = [];
-  const removes = refs.map((ref) => `Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(${quoted(ref)})`);
-  await irisScript(
+  const { user } = fixtureUser('RAIL');
+  const lines = await irisScript(
     [
-      ...removes,
-      `Set rows=##class(%SQL.Statement).%ExecDirect(,"SELECT Ref FROM OcuTalon_Data.Reminder WHERE Text = ?",${quoted(THURSDAY_TEXT)})`,
-      'Set left="" While rows.%Next() { Set left=left_$ListBuild(rows.%Get("Ref")) }',
-      'Set at=0 While $ListNext(left,at,ref) { Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(ref) }',
-      'Write !,"CHK|removed|1"',
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveAll(s.Ref)',
+      'Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTurns(s.Ref)',
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE SessionRef = ?",s.Ref) Do rs.%Next()',
+      'Write !,"CHK|left|",rs.%GetData(1),"|",##class(OcuTalon.Data.Ownership).Turns(s.Ref,.sc).Count()',
     ].join('\n'),
   );
+  expect(chk(lines, 'left'), `the rail user's session holds no reminder and no turn after the case (${lines.join(' ')})`).toBe('0|0');
 });
 
 /** Types the text into the composer, presses the main Send button and returns the clientId of the POST /messages that it made. */
@@ -112,16 +118,13 @@ test('C1: a Thursday reminder set through the chat shows in the rail with its co
 
   const row = railOf(page).locator('li.row[data-section="reminders"]').filter({ hasText: THURSDAY_TEXT });
   await expect(row, 'the reminder shows under Reminders').toHaveCount(1);
-  const key = (await row.getAttribute('data-row-key')) ?? '';
-  expect(key, "the row's key names the reminder").toMatch(/^reminders:\S+$/);
-  kept.push(key.slice('reminders:'.length));
+  expect((await row.getAttribute('data-row-key')) ?? '', "the row's key names the reminder").toMatch(/^reminders:\S+$/);
   await expect(row.locator('.lead')).toHaveText(THURSDAY_TEXT);
   await expect(row.locator('.countdown'), 'with its countdown in hours and minutes').toHaveText(/^in \d+ h \d+ min$/);
 });
 
 test('C2: a reminder cancelled through the chat leaves the rail within one live update', async ({ page }) => {
   test.setTimeout(120_000);
-  kept.push(FIXED_REF);
   await irisScript(
     [
       `Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(${quoted(FIXED_REF)})`,

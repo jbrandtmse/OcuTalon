@@ -337,6 +337,7 @@ function playwrightEnv() {
   const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000', PLAYWRIGHT_BROWSERS_PATH: join(work, 'no-browsers') };
   delete env.OCUTALON_E2E_JSON;
   delete env.OCUTALON_URL;
+  delete env.OCUTALON_E2E_IRIS_CONTAINER;
   return env;
 }
 

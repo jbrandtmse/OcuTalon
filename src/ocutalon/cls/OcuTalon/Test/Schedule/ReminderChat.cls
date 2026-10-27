@@ -15,9 +15,9 @@
 /// A reminder's created event has the state pending, as Test.Schedule.Reminders reads it. The model's history carries the answer to the
 /// earlier set tool call of the session, so the tool_results of a later request start with it.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("ReminderChat","n")), Send, WaitDone and the clean-up are those of
-/// Test.Core.InProduction; the turns of the run's sessions are adopted for its Clean. OnAfterOneTest removes the reminders of the run's
-/// sessions with everything the product made for them (ReminderFixture.RemoveAll), the fixed Ref, the steps and Usage rows of the turns
-/// and the AI sessions the turns saved.
+/// Test.Core.InProduction; any turn of the run's sessions still there at the end is adopted for its Clean. OnAfterOneTest removes the
+/// reminders of the run's sessions with everything the product made for them (ReminderFixture.RemoveAll), the fixed Ref, the turns with
+/// their Decision, AgentStep and Usage rows (ReminderFixture.RemoveTurns) and the AI sessions the turns saved.
 Class OcuTalon.Test.Schedule.ReminderChat Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -65,7 +65,6 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
-	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	Set sc = $$$OK
 	If ..Swapped {
 		Set ..Swapped = 0
@@ -82,13 +81,14 @@ Method OnAfterAllTests() As %Status
 			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The runners did not record the restored keys"))
 		}
 	}
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
-	Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
+	If ..Missing = "" Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
 	Quit $$$OK
 }
 
@@ -102,19 +102,10 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(..#FIXEDREF)
 	Kill ^OcuTalonTest("ReminderOpsFixedRef", "next")
 	If ..Missing = "" {
-		Set items = ""
 		For i = 1:1:$Length(..Sessions, ",") {
 			Set session = $Piece(..Sessions, ",", i)
 			If session = "" Continue
-			Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemId FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ItemId IS NOT NULL", session)
-			While result.%Next() {
-				Set items = items _ $ListBuild(result.%Get("ItemId"))
-			}
-		}
-		Set position = 0
-		While $ListNext(items, position, itemId) {
-			Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
-			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+			Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTurns(session)
 		}
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	}
@@ -122,8 +113,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 }
 
 /// Sends the text as a typed chat message of the session through WebChatIn (the guide's own Send, with FromGuide, is the page spec's) and
-/// waits for its turn. row is the done Turn; chat is the requests of the mock's log since the send that Chat made (a POST to /v1/messages
-/// that offers the three reminder tools; Triage offers none), in order. 1 when the message was accepted and the turn exists.
+/// waits for its turn. row is the Turn, or "" when none was made; chat is the requests of the mock's log since the send that Chat made (a
+/// POST to /v1/messages that offers the three reminder tools; Triage offers none), in order. 1 when the turn is done.
 Method Turn(session As %String, clientId As %String, text As %String, Output row As OcuTalon.Data.Turn, Output chat As %DynamicArray) As %Boolean [ Private ]
 {
 	Set chat = []
@@ -161,7 +152,7 @@ Method AssertChat(chat As %DynamicArray, count As %Integer, selectedBy As %Strin
 }
 
 /// The Refs of the Reminder rows of the session, whatever their state, as a list in creation order.
-ClassMethod Refs(session As %String) As %List [ Private ]
+ClassMethod ReminderRefs(session As %String) As %List [ Private ]
 {
 	Set refs = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Reminder WHERE SessionRef = ? ORDER BY ID", session)
@@ -283,10 +274,10 @@ Method AssertToolSteps(row As OcuTalon.Data.Turn, tools As %List, labels As %Lis
 		Set outside = outside + rows.%GetData(1)
 		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId = ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, header.SessionId)
 		Do rows.%Next()
-		Set inside = inside + rows.%GetData(1)
+		If rows.%GetData(1) > 0 Set inside = inside + 1
 	}
 	Do $$$AssertEquals(outside, 0, "no step has a header outside the turn's trace session")
-	Do $$$AssertTrue(inside >= steps.%Size(), "every step has a header in the turn's trace session: "_inside_" for "_steps.%Size()_" steps")
+	Do $$$AssertEquals(inside, steps.%Size(), "every step has a header in the turn's trace session: "_inside_" of "_steps.%Size()_" steps")
 }
 
 /// "Remind me in 1 minute to stretch." (DW-232): the guide's prompt is answered by B/guide-reminder.json, selected by the prompt. Chat calls
@@ -302,7 +293,7 @@ Method TestGuidePromptSetsReminder()
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertEquals(row.ReplyText_"|"_row.FallbackReason, "The CI mock set the reminder.|", "the reply is the scenario's and the turn is no fallback")
 	Do ..AssertChat(chat, 2, "prompt", "guide-reminder")
-	Set refs = ..Refs(session)
+	Set refs = ..ReminderRefs(session)
 	Do $$$AssertEquals($ListLength(refs), 1, "the session has one reminder")
 	If $ListLength(refs) '= 1 Quit
 	Set reminder = ##class(OcuTalon.Data.Reminder).RefIndexOpen($List(refs, 1))
@@ -329,7 +320,7 @@ Method TestThursdaySetsLocalReminder()
 	If '..Turn(session, "zzc"_..Number_"thursday", "Remind me Thursday at 10 to load the new certificate. [[mock:reminder-thursday]]", .row, .chat) Quit
 	Do $$$AssertEquals(row.ReplyText_"|"_row.FallbackReason, "The CI mock set the Thursday reminder.|", "the reply is the scenario's and the turn is no fallback")
 	Do ..AssertChat(chat, 2, "marker")
-	Set refs = ..Refs(session)
+	Set refs = ..ReminderRefs(session)
 	Do $$$AssertEquals($ListLength(refs), 1, "the session has one reminder")
 	If $ListLength(refs) '= 1 Quit
 	Set reminder = ##class(OcuTalon.Data.Reminder).RefIndexOpen($List(refs, 1))
@@ -356,10 +347,10 @@ Method TestCancelThroughChat()
 	Set b = ..Session("cancelb")
 	Do ##class(OcuTalon.Test.Schedule.ReminderOpsFixedRef).Next(fixed)
 	If '..Turn(a, "zzc"_..Number_"seta", ..#GUIDEPROMPT, .setA, .chatA) Quit
-	Set refsA = ..Refs(a)
+	Set refsA = ..ReminderRefs(a)
 	Do $$$AssertEquals($ListLength(refsA)_"|"_$ListGet(refsA, 1), "1|"_fixed, "control: A's reminder has the fixed Ref")
 	If '..Turn(b, "zzc"_..Number_"setb", ..#GUIDEPROMPT, .setB, .chatB) Quit
-	Set refsB = ..Refs(b)
+	Set refsB = ..ReminderRefs(b)
 	Do $$$AssertEquals($ListLength(refsB), 1, "control: B has one reminder")
 	If $ListLength(refsB) '= 1 Quit
 	Set refB = $List(refsB, 1)

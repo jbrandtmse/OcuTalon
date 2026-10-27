@@ -36,6 +36,7 @@ test.describe('Story 8.6: step 2 of the guide sets a reminder through the chat',
 
     const message = page.locator('main app-user-message').filter({ hasText: prompt });
     await expect(message, 'the prompt shows as a message').toHaveCount(1);
+    await expect(message.locator('.bubble'), 'which is the exact prompt').toHaveText(prompt);
     await expect(message.locator('.when'), 'with the guide caption').toHaveText(/^From the demo guide/);
     await expect(page.locator('main app-chat-panel').getByText('The CI mock set the reminder.'), 'the reply shows').toHaveCount(1, { timeout: 30_000 });
 

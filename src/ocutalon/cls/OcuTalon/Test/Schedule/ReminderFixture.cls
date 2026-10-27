@@ -1,6 +1,6 @@
-/// The one helper of the reminder tests that sets, cancels and removes a product-made reminder (Stories 8.3 and 8.4), for the unit tests
-/// of OcuTalon.Test.Schedule.Reminders and for the browser spec (web/e2e/reminder/reminder.spec.ts), which runs it through irisScript. It
-/// has no Test methods and the product never refers to it.
+/// The one helper of the reminder tests that sets, cancels and removes a product-made reminder, for the unit tests of
+/// OcuTalon.Test.Schedule (Reminders, ReminderChat) and for the browser specs that run it through irisScript (web/e2e/reminder/*.spec.ts
+/// and web/e2e/demo-path/03-reminder.spec.ts). It has no Test methods and the product never refers to it.
 ///   - Begin starts the bridge context of a session as a chat tool call has it (OwnerRef the session, ItemId, SuperSession its TraceRef);
 ///     the caller ends it with Bridge.Context.End;
 ///   - Submit sends a command through Commands.Submit under such a context and ends it;
@@ -10,6 +10,7 @@
 ///     made for it;
 ///   - CancelPending cancels each pending reminder of a session through Cancel and answers how many were cancelled;
 ///   - RemoveAll removes every reminder of a session, whatever its state, through Remove;
+///   - RemoveTurns removes every chat turn of a session with the Decision, AgentStep and Usage rows the product made for it;
 ///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting.
 Class OcuTalon.Test.Schedule.ReminderFixture Extends %RegisteredObject
 {
@@ -163,6 +164,26 @@ ClassMethod RemoveAll(sessionRef As %String)
 	While $ListNext(refs, position, ref) {
 		Do ..Remove(ref)
 	}
+}
+
+/// Removes every Turn row of the session with what the product made for it: the AgentStep rows of its requests
+/// (RunnerFixture.DeleteSteps), the Usage rows of its Item, and its triage and turn Decision rows (Fixture.AdoptTurns, then
+/// Fixture.Clean of those Refs only). The AI sessions that the turns saved are the caller's (RunnerFixture.DropSince).
+ClassMethod RemoveTurns(sessionRef As %String)
+{
+	Set items = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemId FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ItemId IS NOT NULL", sessionRef)
+	While result.%Next() {
+		Set items = items _ $ListBuild(result.%Get("ItemId"))
+	}
+	Set result = ""
+	Set position = 0
+	While $ListNext(items, position, itemId) {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+	}
+	Set refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(sessionRef, "")
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 }
 
 /// The ReminderTimer instances with the Ref, as an array of their ids.

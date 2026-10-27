@@ -259,6 +259,51 @@ Web:
    - step 3 reads `skipped, 0 passed, 1 skipped (Story 8.6: ...)`;
    - a step spec that starts a browser before its skip fails the test.
 
+### Review Findings
+
+Code review, 2026-10-27 (Epic 8 code-review stage; four layers, no model override; diff `99931c0..HEAD` plus the working tree). 31 findings from the layers, plus 2 from the reviewer's own Rule 2 check. They make 12 rows (med 2, low 10, high 0): 10 patched, 2 ledgered. 15 were rejected.
+
+- [x] [Review][Patch] (med; Blind, Edge, Auditor) `chat.spec.ts` left the rail user's real turns, with their triage and turn decisions, AgentSteps, Usage rows and AI sessions. `rail/rail.spec.ts` R1 holds that session empty ("Recent decisions (0)"), so it stayed green only because `rail/` runs before `reminder/` (Rule 19). A C2 whose swap failed also leaked a random-Ref `stretch` reminder, and the Thursday sweep was not limited to a session. Fixed:
+  - `afterEach` now runs `ReminderFixture.RemoveAll` and the new `ReminderFixture.RemoveTurns` on the rail user's session, and asserts that no reminder and no turn are left (`0|0`);
+  - `afterAll` drops the AI sessions saved since the `beforeAll` mark (`RunnerFixture.DropSince`).
+
+  `ReminderChat.OnAfterOneTest` now calls `RemoveTurns` instead of its own copy of the loop. [web/e2e/reminder/chat.spec.ts:83]
+- [x] [Review][Patch] (low; Blind) `ReminderChat.OnBeforeOneTest` killed today's `^OcuTalonBP.UsageCapped` mark even when `Missing` was set. It is now guarded, as `GuidePrompts.Ready` does. [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:88]
+- [x] [Review][Patch] (low; Blind) `AssertToolSteps` compared the total of in-session headers with the step count, so one step with two headers could hide a step with none. It now counts the steps that have a header in the turn's trace session. [ReminderChat.cls:277]
+- [x] [Review][Patch] (low; Blind) The private class method `Refs(session)` shared its name with the inherited property `Refs`. It is renamed `ReminderRefs`. [ReminderChat.cls:155]
+- [x] [Review][Patch] (low; Blind) The `Turn` doc said "1 when the message was accepted and the turn exists", but the method answers whether the turn is done. The doc is corrected. [ReminderChat.cls:118]
+- [x] [Review][Patch] (low; Blind) The class doc of `ReminderFixture` named only `Reminders` and `reminder.spec.ts` as its users. It now names its users and `RemoveTurns`. [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls:1]
+- [x] [Review][Patch] (low; Gap, Auditor) `ReminderOpsFixedRef.Restore()` answered OK with no class stored, even while the item still ran the test class (a swap left by a crashed run on a reused stack, which `Use()` then does not store). It now returns an error while `$$$ConfigClassName("ReminderOps")` is still this class. [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsFixedRef.cls:42]
+- [x] [Review][Patch] (low; Gap) `playwrightEnv()` kept `OCUTALON_E2E_IRIS_CONTAINER`. A spec whose hooks ran before its skip could then reach a named live container. The variable is now deleted, so the doc's "no stack, whatever the shell holds" is true. [web/scripts/demo-path-summary.test.mjs:340]
+- [x] [Review][Patch] (low; Auditor) `ReminderChat.OnAfterAllTests` ran `Fixture.AdoptTurns` before the restores. If it threw, the item swap and the pointed keys stayed for the rest of `lane-b`. It now runs after them. [ReminderChat.cls:66]
+- [x] [Review][Patch] (low; Auditor) AC 2 says "the exact prompt", but 03 matched the user message by substring. It now also asserts the message's `.bubble` text exactly. [web/e2e/demo-path/03-reminder.spec.ts:39]
+- [x] [Review][Defer] (med; reviewer, Rule 2) `AssertToolSteps` is a near-copy of Lane A's private `Test.Tools.Reminders.AssertSteps`. The copy is forced by AD-29, as the spec records. DW-316: routed to Story 11.1, which changes `cancel_reminder` and that test class. [ReminderChat.cls:240] -- deferred: out-of-footprint (Lane A's `Test/Tools/**`).
+- [x] [Review][Defer] (low; reviewer, Rule 2) 03 and `chat.spec.ts` repeat the same tail: `restoreKeys()`, then `WaitRecords`. Its natural home, `support/devices.ts`, is contended. DW-317: `wontfix-accepted` with a `reopen_if`. [web/e2e/demo-path/03-reminder.spec.ts:62] -- deferred: out-of-footprint.
+
+**Evidence (review pass, lane C).**
+- Warm `e8s6cw`: `ReminderChat` passed (11.0 s) and `Reminders` passed (29.7 s).
+- `RemoveTurns` was run directly on a WebChatIn turn of a new fixture session: 1 turn and 2 decisions before, `0|0` after.
+- `Restore()` after a swap whose stored node was killed answered `ERROR #5001: The ReminderOps item still runs OcuTalon.Test.Schedule.ReminderOpsFixedRef after the restore`. A normal `Use`/`Restore` answered OK, with the item back on `OcuTalon.Schedule.ReminderOps`.
+- Fresh `e8s6c`:
+  - `live demo-path` passed in 100 s (`STEP 3 reminder: passed, 1 passed, 0 skipped`, floor 7 of 7);
+  - `live sign-in` passed in 512 s (`OCUTALON_LIVE_DEADLINE=900`, 222 passed).
+- `node --test web/scripts/demo-path-summary.test.mjs` passed 28, web lint exited 0, and `test-boundaries.sh` passed.
+- Both tags are torn down.
+
+**Rejected:**
+- `false` (Blind): the marker tests do not pin their scenario names. The cancel answer's `ref` and the `CancelKey` are `zzReminderChatCancel01`, which `A/reminder-cancel.json` (it cancels `zzReminderStretch00001`) cannot produce. The Thursday reply and text are unique to `reminder-thursday`.
+- `low` (Blind, Edge): there is no early exit after A's control check in `TestCancelThroughChat`. A failed control already turns the test red, and the `<INVALID OREF>` that follows is a loud failure. The fix would add a guard.
+- `low` (Blind): 03's `afterAll` adds a second failure (cancelled 0) when the test failed before the Send. It follows a real failure only, and the fix needs extra state.
+- `low` (Edge, three findings): a 60-second reminder could fire before its cancel in `TestCancelThroughChat`, C2 or 03's `afterAll`. A turn takes about 1 s (measured), and a fire would fail loudly, never green.
+- `low` (Edge): C2's setup script prints a constant (`CHK|next|1`). A failed `Remove` or `Next` fails C2 loudly at the fixed-Ref row, and `test-boundaries.sh` keeps `^OcuTalonTest` out of specs.
+- spec text (Edge; the fix edits the spec): the triage log above says "a script error already fails `irisScript`". That premise is wrong. `irisScript` resolves `[]` after three tries with no `CHK` line, and an ObjectScript error on one line does not stop the later lines. The rejection it supported (the constant `CHK` lines) still stands, on the reason in the previous bullet.
+- spec text (Blind, Edge, Auditor; the fix edits the spec): Decided 15 says `afterEach` removes "the kept Refs only". The first patch above replaces that clean-up with the rail user's session clean-up.
+- spec text (Auditor): the `TestCancelThroughChat` task bullets say "request 2's one `tool_result`" and "request 3's second". The code follows Decided 12 and 13, which are the in-stage record.
+- spec text (Blind): Residual risks names a 570 s line without defining it and without citing DW-314. 570 s is the stage's stop line for a local `live:sign-in` run, and DW-314 already holds the risk.
+- `false` (Gap): C1 has no `mutation:` line. Rule 19 asks one observed mutation per AC. AC 1 has two (`ReminderChat`), and the same created-publish skip turned 03's rail row red through the same rail path.
+- `false` (Auditor): the spec's `status: done` disagrees with sprint-status `review`. The frontmatter is `bmad-build-auto`'s contract, and this review syncs the sprint status.
+- not this diff (Auditor): a live model on guide step 2 is unproven, and the CI mock's triage ends `invalid`. Both are ledgered for Story 11.1: DW-142 and DW-307 (this story is DW-307's source).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -441,6 +486,9 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
 - mutation: `ReminderOps.List` reads every session's pending rows -> `ReminderChat.TestCancelThroughChat` (the list holds B's Ref) red.
 - mutation: 03's `test.skip` moved into the test body -> `demo-path-summary.test.mjs` 'skip every unbuilt part' red.
 - mutation: 03 reduced to a `page` test that skips in its body, with no hooks -> 'skip every unbuilt part' red (the browser starts and cannot launch); with `playwrightEnv()`'s `PLAYWRIGHT_BROWSERS_PATH` also removed, the same run is green (28 passed), so the fix is what turns a late skip red (DW-210).
+
+**QA gap audit (QA).** Every AC and matrix row is pinned by an assertion that can fail, and each AC had an observed mutation from the implement stage. No test file was added. One more bullet of AC 3 had no observed mutation (the waiter ends at once); it was demonstrated on warm `e8s6qw`:
+- mutation (QA): `ReminderOps.Cancel` skips `..EndWaiter(row)` -> `ReminderChat.TestCancelThroughChat` red on "and its waiter has ended, long before its due time" only; reverted from a backup, tree clean (`git status --short` empty), warm `ReminderChat` green again (9.5 s).
 
 **Shared surfaces:**
 - the mock's scenario set: names unique across A and B, and `guide-reminder.json` unchanged;

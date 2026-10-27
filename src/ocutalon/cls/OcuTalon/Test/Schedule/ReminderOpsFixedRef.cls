@@ -1,9 +1,12 @@
+Include Ensemble
+
 /// A subclass of OcuTalon.Schedule.ReminderOps for the tests, which overrides its private seam NewRef: the next reminder it sets gets the
 /// Ref that Next stored, once; every other reminder gets a new Ref as the product gives it. Everything else, the three verbs, the row, the
 /// waiter and the events, is the real one. The product never refers to it.
 ///   - Next(ref) stores the Ref for the next set;
 ///   - Use() puts this class behind the ReminderOps item and stores the class the item had;
-///   - Restore() puts the stored class back and removes both stored values, whatever happened.
+///   - Restore() puts the stored class back and removes both stored values, whatever happened, and is an error while the item still runs
+///     this class.
 /// The values are the nodes of ^OcuTalonTest("ReminderOpsFixedRef"): "next" and "className".
 Class OcuTalon.Test.Schedule.ReminderOpsFixedRef Extends OcuTalon.Schedule.ReminderOps
 {
@@ -35,13 +38,15 @@ ClassMethod Use() As %Status
 }
 
 /// Puts the class that Use stored back behind the ReminderOps item (RunnerFixture.RestoreItemClass) and removes both stored values.
-/// With no class stored it changes nothing and answers OK.
+/// With no class stored it changes nothing. Either way the answer is an error while the item still runs this class.
 ClassMethod Restore() As %Status
 {
 	Set sc = $$$OK
 	Set className = $Get(^OcuTalonTest("ReminderOpsFixedRef", "className"))
 	If className '= "" Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemClass("ReminderOps", {"className": (className)})
 	Kill ^OcuTalonTest("ReminderOpsFixedRef")
+	Set running = $Get($$$ConfigClassName("ReminderOps"))
+	If running = $ClassName() Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The ReminderOps item still runs "_running_" after the restore"))
 	Quit sc
 }
 
