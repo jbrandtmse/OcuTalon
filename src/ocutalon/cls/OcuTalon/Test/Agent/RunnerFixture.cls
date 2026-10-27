@@ -80,7 +80,7 @@ Parameter MOCKKEYVARIABLE = "OCUTALON_MOCK_KEY_HEADER";
 Parameter TRIAGETEXT = "{""outcome"":""digest"",""reasons"":[""The CI mock keeps this item for the digest.""],""confidence"":0.5}";
 
 /// The final reply of Diagnosis's default script, from ci/mock/scenarios/A/diagnosis.json.
-Parameter DIAGNOSISTEXT = "{""causeCategory"":""data_format_change"",""elementAtFault"":""OrderDate"",""fixKind"":""repair_resend"",""reasons"":[""The CI mock read the failed messages.""],""confidence"":0.8}";
+Parameter DIAGNOSISTEXT = "{""outcome"":""act"",""causeCategory"":""data_format_change"",""elementAtFault"":""OrderDate"",""evidence"":[""failed_messages"",""OrderDate""],""fixKind"":""repair_resend"",""fixParameters"":{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""},""cause"":""The partner now sends the order date as month, day and year with slashes, and the production expects year, month and day with dashes."",""fixSummary"":""rewrite the order date of the failed orders in the format the production expects and send them again"",""itemNoun"":{""one"":""order"",""other"":""orders""},""reasons"":[""The failed orders all hold an order date in the new format."",""The CI mock read the failed messages.""],""confidence"":0.9}";
 
 /// "" when the production runs. Otherwise the reason, which a test reports as a failure.
 ClassMethod RunningReason() As %String

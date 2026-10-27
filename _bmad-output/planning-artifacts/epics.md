@@ -2575,6 +2575,7 @@ So that the incident notice can reach me in about half a minute.
 **Then** the batch reaches `IncidentManager` scoped to that session; pickup within 15 seconds (typically under 3) is measured in the clean-machine rehearsal, not asserted in CI (FR-23, NFR-7, AD-15, UX-DR102, UX-DR150)
 
 - DW-35: The poller and the evidence read a failed Orders message by its header `Status` 8 (Error) and its event-log row, because on build 154 an asynchronous send leaves `IsError` 0 and `ErrorStatus` empty; the failure sentence is parsed out of the "Terminating BP" wrapper (measured in Story 0.10; 5.4 and 6.1's fallback line read it the same way) (ledger; routed by harvest 2026-10-20)
+- DW-222: `Watch.Reader` lists only a namespace's running, suspended or troubled production (`GetProductionStatus` gives an empty name after a clean stop), so a stopped production cannot be watched and a watch on it cannot be stopped from chat. The reader also lists a readable namespace's last production when none runs (measured in a Task 0; never every `Ens.Config.Production` row, so DW-38 holds), and `stop_watch` also resolves from the session's own watch rows (ledger; routed by spec_gate 2026-10-25)
 
 ### Story 5.3: Same-cause failures become one incident by the settle rule
 
@@ -2602,8 +2603,9 @@ So that I get one message, not fifty.
 
 **Given** several local sessions watching the same production, and failures with scope `instance`
 **When** the incident is noticed
-**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with one notice per watcher session and its events on each watcher's stream (FR-23, AD-4, UX-DR74)
+**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with its events on each watcher's stream (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: "one notice per watcher session" moved to Story 5.4's notice criterion, because the notice needs 5.4's diagnosis; 5.3 ends at the settle rule]
 **And** failures tagged with two different sessions' `TraceRef`s form two incidents, each seen only by its own session (AD-4, UX-DR104)
+- DW-227: The fresh `lane-a` shard took 539 s with 54 classes, about a minute under the 10-minute foreground cap every stage runs inside. Give `ci/iris.sh shard` a local split (for example `--part k/n` over the sorted class list, `--reverse` taking the parts of the reversed list), with the CI groups unchanged (ledger; routed by harvest 2026-10-25)
 
 ### Story 5.4: The diagnosis explains the cause from the failed messages
 
@@ -2621,28 +2623,17 @@ So that I know what broke without reading every error.
 **When** it answers
 **Then** Diagnosis, with its instructions and its read-only watch tools, which this story builds as the toolset `OcuTalon.Tools.Watch` (failed message bodies, the event log and item settings, through `Watch.Reader`; Stories 1.1 and 1.9 used a fixture of that name), replies with one JSON object checked against `OcuTalon.Watch.Msg.DiagnosisPayload`: a cause category (such as data format change, connection failure, setting change, partner outage, validation error or unknown), the element at fault, evidence references, the fix kind with its parameters, the plain sentences for the cause and the fix summary, the item noun `ItemNoun` in its singular and plural forms ("order", "orders"), and plain-English reasons with a confidence between 0 and 1, which the incident card's decision strip and Visual Trace show; a reply that fails the check is `invalid` (FR-24, AD-7, AD-8, AD-16)
 
-**Given** a usable diagnosis, with outcome `act` and its proposed fix (a data-format cause; Story 7.2 adds the dry run and the approval request)
-**When** `IncidentManager` consumes it, never routing it to `OutcomeRouter`
-**Then** it sends one `OcuTalon.Msg.Notification` per recipient session with kind `incident`, the incident notice's catalog key from `OcuTalon.Msg.Catalog.Watch`, and `Slots` holding the count, the start time as UTC ISO 8601, the item noun as `itemNoun: {"one", "other"}` (from the diagnosis's `ItemNoun`; the `*Out` operation picks the form by the `count` slot) and the agent's cause and fix summary as plain sentences without times, sets `NoticedAt`, and publishes the `incident` event in state `open` (FR-24, AD-15, AD-30, AD-32, UX-DR113)
-
-**Given** a usable diagnosis whose cause has no fix in the fixed set (any cause other than a data-format change, `unknown` included)
-**When** `IncidentManager` consumes it
-**Then** it sends one `Notification` of kind `incident` per recipient session with the no-fix notice's catalog key (its unknown-cause variant for `unknown`), the count, the time, the item noun, the agent's cause sentence and one line per group, and no `ApprovalRef`; sets `NoticedAt`; and publishes the incident as Open with the no-fix variant, which in demo mode only Dismiss closes (FR-24, P25, AD-15, AD-32)
-**And** a render test of that key from `OcuTalon.Msg.Catalog.Watch` with fixture slots gives the source's text exactly: "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.", then "Failures:" with one line per group and "Details and trace: on your OcuTalon page."; for `unknown` the first line is "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed." (FR-24, P25, AD-32, UX-DR155)
-
-**Given** a refusal, a timeout or any other fallback, forced through the mock
-**When** the diagnosis falls back
-**Then** the incident stays grouped by the fixed rules (production item and error pattern), claims no cause and proposes no fix, its decision is flagged as a fallback, and the notification, of kind `incident`, carries the fallback incident notice's catalog key with the count, the time, the item noun, the fallback reason and one line per group (readable item name, count, plain error summary, first time), all written by code, where `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `NoticedAt` is set and the incident is Open with the fallback variant (FR-4, FR-24, AD-8, AD-32, UX-DR104, UX-DR115)
-**And** for the fallback notice, and whenever no usable diagnosis gives an item noun, code takes it in both forms from `OcuTalon.Watch.ItemNoun`, a fixed map from the failed messages' class to its noun: the Orders demo's message class gives "order" and "orders", and any other class "message" and "messages"; a unit test covers both (FR-24, AD-15, AD-32)
-
-**Given** a noticed incident
-**When** its `incident` payload is read
-**Then** `IncidentManager` has filled the fields Story 0.5 fixes on `OcuTalon.Live.Payload.Incident`, including what Show details needs: `CauseCategory` and `Element`, `Evidence` (a sample failed message's header id and its error, and failures per item with first and last times), and `TraceTargets` (`diagnosis`, the diagnosis session holding the decision message, its agent steps and its cost; `sample`, the sample message; `firstFailure`, the first failure), plus `Groups` for the fallback and no-fix notices (FR-24, AD-12, AD-26, UX-DR78, UX-DR103, UX-DR139)
-**And** its `Requests` list each of the incident's approval requests with its `Ref`, `State` and `Result`, so the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74)
+**Given** a diagnosis that gives no usable item noun, or a fallback
+**When** code needs the item noun
+**Then** code takes it in both forms from `OcuTalon.Watch.ItemNoun`, a fixed map from the failed messages' class to its noun: the Orders demo's message class gives "order" and "orders", and any other class "message" and "messages"; a unit test covers both (FR-24, AD-15, AD-32)
 
 **Given** a recorded snapshot of the demo's date-format failures and its mock scenario under `ci/mock/scenarios/A/`
 **When** the incident is diagnosed
-**Then** the cause category is a data format change, the element at fault is the order date, the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order; diagnosis within 20 seconds is measured in the rehearsal (FR-24, NFR-7, AD-15, AD-22)
+**Then** the cause category is a data format change, the element at fault is the order date, and CI sees `noticed`, `settling`, then `diagnosing`, in that order; the diagnosis (or the bridge's fallback) is stored on the incident row for the notice; diagnosis within 20 seconds is measured in the rehearsal (FR-24, NFR-7, AD-15, AD-22)
+
+[AMENDED 2026-10-26, Story 5.4 spec gate, unattended ruling (decide: split into siblings planned next, within limits.split_children): the notice criteria (the with-fix notice, the no-fix and fallback notices with their render test, one notice per watcher session from veto U-86, the incident payload's Show details fields and `Requests`, and the notification's slots of the UJ-1 fixture) moved to Story 5.8, planned next and run before 5.5; the item-noun map's paragraph is restated as its own criterion; AC 7's diagnosis part stays here]
+
+[AMENDED 2026-10-26, Story 5.8, moved to Stories 7.2 and 7.4, DW-270, DW-271 and DW-272, U-92: of the criteria moved to 5.8, the with-fix notice and the UJ-1 notification slots move on to Story 7.2, and the `Requests` writer and `Result` counts to Stories 7.2 and 7.4]
 
 ### Story 5.5: An incident moves through its states and closes
 
@@ -2664,10 +2655,7 @@ So that I'm never asked twice about the same failures and a new problem opens a 
 **Then** it closes synchronously, while a dismiss from any other session is refused (FR-24, AD-4, AD-15, UX-DR74)
 **And** `closeForReplay` closes a resolved incident synchronously, and is refused with its reason while the incident is open, awaiting approval or fixing (FR-24, FR-16, AD-12, AD-15, UX-DR50)
 
-**Given** a user asks in the chat to dismiss an incident
-**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
-**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
-**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+[AMENDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split into siblings planned next, within limits.split_children): the chat dismiss tool's criteria ("Given a user asks in the chat to dismiss an incident" and its And) moved verbatim to Story 5.9, which runs right after 5.5 and before 5.6]
 
 **Given** a `closeQuiet` command
 **When** the incident's last same-cause failure is more than 15 minutes old
@@ -2737,6 +2725,89 @@ So that an all-clear means every check passed.
 **Then** the reply contains no all-clear, and `Render` names the failing check first (FR-37)
 **And** with a mock scenario under `ci/mock/scenarios/A/` in which the model claims everything is fine while a check fails, the reply still contains no all-clear (FR-37)
 - DW-90: `checks.notEverything` and `notEverythingRestPassed` take a whatFailed slot that the pinned `Checks.Render(results, *rows)` has no way to return, so the page (Story 2.6) shows no sentence for those keys. This story says how the page gets whatFailed (from the failing row, or a slot path through Render), and the page renders both keys (ledger; routed by spec_gate 2026-10-22)
+
+### Story 5.8: Each noticed incident says what broke, with its evidence behind Show details
+
+[ADDED 2026-10-26, Story 5.4 spec gate, unattended ruling (decide: split of Story 5.4 into siblings planned next); its criteria are Story 5.4's notice criteria, moved verbatim. It runs after 5.4 and before 5.5.]
+
+As a user,
+I want each incident's notice to say what broke, how many items and since when, with its evidence behind Show details,
+So that I know what broke without reading every error.
+
+**Acceptance Criteria:**
+
+**Given** a usable diagnosis, with outcome `act` and its proposed fix (a data-format cause; Story 7.2 adds the dry run and the approval request)
+**When** `IncidentManager` consumes it, never routing it to `OutcomeRouter`
+**Then** it sends one `OcuTalon.Msg.Notification` per recipient session with kind `incident`, the incident notice's catalog key from `OcuTalon.Msg.Catalog.Watch`, and `Slots` holding the count, the start time as UTC ISO 8601, the item noun as `itemNoun: {"one", "other"}` (from the diagnosis's `ItemNoun`; the `*Out` operation picks the form by the `count` slot) and the agent's cause and fix summary as plain sentences without times, sets `NoticedAt`, and publishes the `incident` event in state `open` (FR-24, AD-15, AD-30, AD-32, UX-DR113) [AMENDED 2026-10-26, Story 5.8, moved to Story 7.2, DW-270, U-92: the with-fix notice is first sent by 7.2 with the dry run and `Raise` through this story's delivery; Epic 5 stores a usable data-format diagnosis and leaves the incident unnoticed, and 5.8 builds the delivery and a unit-tested with-fix slot builder]
+**And** for an `instance` incident with several local watcher sessions, the notice is one `Notification` per session of `Session.Recipients(ownerRef, incidentRef)`, with the `incident` event on each watcher's stream, whichever notice variant it is (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: moved from Story 5.3]
+
+**Given** a usable diagnosis whose cause has no fix in the fixed set (any cause other than a data-format change, `unknown` included)
+**When** `IncidentManager` consumes it
+**Then** it sends one `Notification` of kind `incident` per recipient session with the no-fix notice's catalog key (its unknown-cause variant for `unknown`), the count, the time, the item noun, the agent's cause sentence and one line per group, and no `ApprovalRef`; sets `NoticedAt`; and publishes the incident as Open with the no-fix variant, which in demo mode only Dismiss closes (FR-24, P25, AD-15, AD-32)
+**And** a render test of that key from `OcuTalon.Msg.Catalog.Watch` with fixture slots gives the source's text exactly: "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.", then "Failures:" with one line per group and "Details and trace: on your OcuTalon page."; for `unknown` the first line is "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed." (FR-24, P25, AD-32, UX-DR155)
+
+**Given** a refusal, a timeout or any other fallback, forced through the mock
+**When** the diagnosis falls back
+**Then** the incident stays grouped by the fixed rules (production item and error pattern), claims no cause and proposes no fix, its decision is flagged as a fallback, and the notification, of kind `incident`, carries the fallback incident notice's catalog key with the count, the time, the item noun, the fallback reason and one line per group (readable item name, count, plain error summary, first time), all written by code, where `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `NoticedAt` is set and the incident is Open with the fallback variant (FR-4, FR-24, AD-8, AD-32, UX-DR104, UX-DR115)
+
+**Given** a noticed incident
+**When** its `incident` payload is read
+**Then** `IncidentManager` has filled the fields Story 0.5 fixes on `OcuTalon.Live.Payload.Incident`, including what Show details needs: `CauseCategory` and `Element`, `Evidence` (a sample failed message's header id and its error, and failures per item with first and last times), and `TraceTargets` (`diagnosis`, the diagnosis session holding the decision message, its agent steps and its cost; `sample`, the sample message; `firstFailure`, the first failure), plus `Groups` for the fallback and no-fix notices (FR-24, AD-12, AD-26, UX-DR78, UX-DR103, UX-DR139)
+**And** its `Requests` list each of the incident's approval requests with its `Ref`, `State` and `Result`, so the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) [AMENDED 2026-10-26, Story 5.8, moved to Stories 7.2 and 7.4, DW-271 and DW-272, U-92: 5.8 lists each request's `Ref` and `State` through `Incident.RequestRefs`, which 7.2's `Raise` appends to; 7.4 stores the counts that fill `Result`]
+
+**Given** a recorded snapshot of the demo's date-format failures and its mock scenario under `ci/mock/scenarios/A/`
+**When** the incident is noticed
+**Then** the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order (FR-24, NFR-7, AD-15, AD-22) [AMENDED 2026-10-26, Story 5.8, moved to Story 7.2, DW-270, U-92: the date-format snapshot is a data-format cause, whose notice 7.2 sends]
+- DW-264: The evidence pack and the `read_event_log` tool send `Ens_Util.Log` row ids (`logId`) to the model, while the spine's Identifiers row lets only Ens header and session ids leave the server: use a pack-local log reference (an ordinal) instead (ledger; routed by spec_gate 2026-10-26)
+- DW-261: `EvidencePack.Sentence` repeats `FailurePoller`'s `ErrorText.Sentence(Redact.Text(raw))`; the fallback notice's error summary needs the same composition, so make it one `ErrorText` helper that all three use (ledger; routed by spec_gate 2026-10-26)
+- DW-273: The owner's answer U-91: the evidence pack's credential-name rule (`Watch.Reader` `CREDENTIALPARTS`, matched case-insensitively as a substring of the setting's name) also leaves out settings whose name holds `bearer` or `cookie`, so the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie; a false positive only hides a value, a miss sends one to the model (ledger; routed by spec_gate 2026-10-26)
+
+### Story 5.9: Ask OcuTalon in the chat to dismiss an incident
+
+[ADDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split of Story 5.5 into siblings planned next); its criteria are Story 5.5's chat dismiss criteria, moved verbatim. It runs right after 5.5 and before 5.6, because UJ-1's rejected path says to dismiss the incident in the chat.]
+
+As a user,
+I want to dismiss an incident by asking OcuTalon in the chat,
+So that I can close what I've dealt with without hunting for a button.
+
+**Acceptance Criteria:**
+
+**Given** a user asks in the chat to dismiss an incident
+**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
+**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
+**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+- DW-288: The owner's answer U-102: `dismiss_incident` stays trusted output on a condition: a `Test.Bridge.Gate` test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted (ledger; routed by spec_gate 2026-10-27)
+
+### Story 5.10: Epic 5 burn-down
+
+[ADDED 2026-10-27, Epic 5 burn-down gate (Rule 17): the ledger entry this epic owns that is still open, chartered under the orchestrator's ruling (DW-289 re-owned from Story 8.1, which is done, to this epic's burn-down).]
+
+As a maintainer,
+I want Epic 5's open ledger entry resolved before the epic closes,
+So that the Watch and Checks tests stay reliable once the real heartbeat ticks every minute.
+
+**Acceptance Criteria:**
+
+- DW-289: A real `HeartbeatIn` Tick (Epic 8 makes it tick every minute) runs every due check row and sweeps every quiet incident it finds, so the tests that make check rows due at once or quiet incidents 16 minutes old (`Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` — the occurrence from Story 5.7 —, and any `Test.Watch` fixture that makes check rows) can see a real Tick's run or close mid-test. Resolve it in this epic's own tests: fixture check rows that a real Tick does not find due (for example a `NextDueAt` in the future wherever a test does not mean to run them) and quiet-incident times that a real Tick does not sweep, while every test still proves what it proves; a test that must drive a Tick itself does so without a real Tick changing its outcome. If a pause hook from Epic 8 is still needed after that, leave that residual routed to `burndown` and say so (the orchestrator routes it to an open Epic 8 story) (ledger; routed by the orchestrator 2026-10-27)
+
+### Story 5.11: The demo guide's tests hold now that incidents are real
+
+[ADDED 2026-10-27, Epic 5 integrate-forward, unattended ruling (fix-forward, veto): after the feature branch (with Epic 4's demo guide) was merged into Epic 5, the guide's tests went red in CI because Epic 5's real `FailurePoller` and `IncidentManager` now turn real failures into noticed incidents that those tests do not clean up.]
+
+As a maintainer,
+I want the demo guide's tests to hold now that real failures become real, noticed incidents,
+So that the integrated feature branch stays green and each case's guide shows the step its own rows say.
+
+**Acceptance Criteria:**
+
+**Given** the floor unit's case that presses Break the feed for real (M4, `web/e2e/floor/guide.spec.ts`)
+**When** the case ends
+**Then** no incident or failure group of the FLOOR session that its press caused remains, including one that the real `IncidentManager` records or notices after the case's batch clean-up, so the next case's guide opens at the step its own rows say (CI runs 40525019781 and 40535207067: M7 "the page opens at step 3", M9 "while step 5 is current the box is the secondary style")
+
+**Given** a test that computes a new watching session's guide (`Test.Live.GuideRefresh` in lane-b, or any floor case)
+**When** earlier tests in the same stack sent real failing Orders messages
+**Then** no incident those tests left is visible to that session, whichever test made it (CI run 40525019781: `TestHookPublishesOnChange`, `TestEventsBodyServesTheGuide`)
+- DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide (ledger; routed by integrate-forward 2026-10-27)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 

@@ -68,6 +68,18 @@ Property TraceHeaderId As %Integer;
 /// When the incident was closed, UTC to the second.
 Property ClosedAt As %String(MAXLEN = 20);
 
+/// The header id of the earliest failure, in the watched namespace; empty when that failure is an event-log row. Moves with FirstAt.
+Property FirstHeaderId As %Integer;
+
+/// The header id of the diagnosis pack's sample failed message, in the watched namespace; empty when the sample is a log row or was not read.
+Property SampleHeaderId As %Integer;
+
+/// The sample's error as the pack gives it (OcuTalon.Watch.ErrorText.Text).
+Property SampleError As %String(MAXLEN = 1000);
+
+/// The Refs of the incident's approval requests, comma-separated, in the order they were raised.
+Property RequestRefs As %String(MAXLEN = "");
+
 Index RefIndex On Ref [ Unique ];
 
 Index OwnerRefIndex On OwnerRef;
@@ -140,6 +152,18 @@ Storage Default
 </Value>
 <Value name="22">
 <Value>ClosedAt</Value>
+</Value>
+<Value name="23">
+<Value>FirstHeaderId</Value>
+</Value>
+<Value name="24">
+<Value>SampleHeaderId</Value>
+</Value>
+<Value name="25">
+<Value>SampleError</Value>
+</Value>
+<Value name="26">
+<Value>RequestRefs</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.IncidentD</DataLocation>

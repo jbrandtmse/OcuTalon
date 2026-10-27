@@ -12,6 +12,9 @@
 ///       ListReminders: Outcome listed, an empty message, and the list contract as Data, read with SQL from the rows of OcuTalon_Data.Reminder
 ///         whose SessionRef is the command's and whose State is pending, by DueAt and then Ref:
 ///         {"reminders": [{"ref": "<Ref>", "text": "<Text>", "dueAt": "<UTC time>"}, ...]};
+///       StartWatch: Outcome started, the message "The CI double started the watch.", and WATCHREF as Ref;
+///       StopWatch: Outcome stopped, the message "The CI double stopped the watch.", and WATCHREF as Ref;
+///       Dismiss: Outcome closed, the message DISMISSMESSAGE, the command's IncidentRef as Ref and the Data {"state":"closed","openVariant":""};
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
@@ -25,8 +28,14 @@ Class OcuTalon.Test.Tools.CommandsDouble Extends Ens.BusinessService
 /// The Ref that the double gives a reminder it "sets": 22 characters.
 Parameter SETREF = "zzReminderDouble000001";
 
+/// The Ref that the double gives a watch it "starts" or "stops": 22 characters.
+Parameter WATCHREF = "zzWatchDouble000000001";
+
 /// The due time that the double gives a reminder it "sets": in 2027, so that ForMessage gives a dated form whatever today's date is.
 Parameter SETDUEAT = "2027-03-04T15:00:00Z";
+
+/// The message of the double's answer to a Dismiss (Test.Bridge.Gate reads it as one of the code's own texts).
+Parameter DISMISSMESSAGE = "The CI double dismissed the incident.";
 
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
@@ -53,6 +62,22 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Outcome = "cancelled"
 		Set result.Message = "The CI double cancelled the reminder."
 		Set result.Ref = pInput.ReminderRef
+	} ElseIf verb = "StartWatch" {
+		Set result.Ok = 1
+		Set result.Outcome = "started"
+		Set result.Message = "The CI double started the watch."
+		Set result.Ref = ..#WATCHREF
+	} ElseIf verb = "StopWatch" {
+		Set result.Ok = 1
+		Set result.Outcome = "stopped"
+		Set result.Message = "The CI double stopped the watch."
+		Set result.Ref = ..#WATCHREF
+	} ElseIf verb = "Dismiss" {
+		Set result.Ok = 1
+		Set result.Outcome = "closed"
+		Set result.Message = ..#DISMISSMESSAGE
+		Set result.Ref = pInput.IncidentRef
+		Set result.Data = {"state": "closed", "openVariant": ""}.%ToJSON()
 	} ElseIf verb = "ListReminders" {
 		Set result.Ok = 1
 		Set result.Outcome = "listed"

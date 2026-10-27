@@ -6,6 +6,8 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'checks.allPassed': 'Everything I checked passed.',
   'checks.everythingElsePassed': 'Everything else I checked passed.',
   'checks.nothingWatched': "I'm not watching any productions yet, so I can't say. Ask me to watch one.",
+  'checks.notEverything': 'Not everything: {whatFailed}.',
+  'checks.notEverythingRestPassed': 'Not everything: {whatFailed}. Everything else I checked passed.',
   'banner.allowance': "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.",
   'banner.dailyCap': "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   'banner.unreachable': "Can't reach OcuTalon. Retrying every 10 seconds.",
@@ -31,12 +33,14 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'fallbackReason.generic': "the model's reply couldn't be used",
 };
 
-/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others (time, count, cost and text) take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
   'checks.allPassed': {},
   'checks.everythingElsePassed': {},
   'checks.nothingWatched': {},
+  'checks.notEverything': { 'whatFailed': 'text' },
+  'checks.notEverythingRestPassed': { 'whatFailed': 'text' },
   'banner.allowance': { 'limit': 'count', 'time': 'time' },
   'banner.dailyCap': { 'time': 'time' },
   'banner.unreachable': {},
@@ -91,8 +95,8 @@ function reasonText(value: unknown): string {
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
- * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost, a count or, for a text
+ * slot, the whatFailed sentence part that the page built from the check rows), cleaned like any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;

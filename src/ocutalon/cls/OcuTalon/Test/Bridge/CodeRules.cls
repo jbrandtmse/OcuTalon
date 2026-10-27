@@ -3,7 +3,7 @@
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
 ///     %AI.Shell.StreamRenderer, or an extension base whose subclass the gate calls: the host sink and the classification extension), and a class whose
-///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls, Approval.Raise's included), names %AI on no code
+///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls, Approval.Raise's included, and, since Story 5.1, Watch.Reader and the classes it calls, and the classes that BridgeSink calls when it publishes: DW-177), names %AI on no code
 ///     line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
@@ -12,6 +12,16 @@
 ///   - TestOnlyTheAuditWriterAudits (Story 3.7; AD-17): no OcuTalon class outside the Test package, except OcuTalon.Bridge.Audit, calls
 ///     $SYSTEM.Security.Audit, ##class(%SYSTEM.Security).Audit or Audit's raw writer Write, so that product code writes only through Record and every
 ///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
+///   - TestOnlyChecksPublishesCheck (Story 5.6; AD-33): no OcuTalon class outside the Test package, except OcuTalon.Checks.Process, calls Publish with the event type check
+///     (the literal, or Checks' CHECKEVENT parameter). The scanner is first shown to flag those forms and to pass the payload class, reads, other event types and comment lines;
+///   - TestOnlyIncidentManagerWritesIncidents (Story 5.3; AD-15, AD-33): no OcuTalon class outside the Test package, except OcuTalon.Watch.IncidentManager,
+///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New, %Delete or %DeleteId, also through $ClassMethod), runs SQL
+///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
+///     to flag those forms and to pass the payload classes, reads, other event types and comment lines. A static scan cannot see a %Save of a row that was
+///     opened elsewhere, nor an event type that a variable or a helper's argument holds, nor a call that spans lines;
+///   - TestWatchReadsCallOnlyListed (Story 5.4; AD-6): the read tools of the Diagnosis agent and the classes whose methods they run (WATCHREADS) name in their
+///     code (##class or $ClassMethod of a literal name) no OcuTalon class that is neither in CALLBACKHELPERS nor a callback class, so that every class the
+///     tools reach is scanned by the callback rule. The scanner is first shown to flag a call to an unlisted class and to pass a listed one and a comment line;
 ///   - TestRunnerStartsNoJob: the runner and its adapter start no job and use no work manager, because the pool size is the
 ///     concurrency cap (AD-6);
 ///   - TestToolCodeScan: ToolCodeClean flags a tool class that runs an operating system command, executes code, loads or compiles
@@ -31,7 +41,7 @@
 ///   - TestToolsHaveStepLabels (Story 1.10, DW-85; AD-9, Consistency Conventions: Agent step labels): every tool that a class of OcuTalon.Tools offers,
 ///     a toolset's or a provider's (Result left out), has a step label of its own: StepBuffer.LabelFor of its provider and name, which reads the class
 ///     parameter STEPLABEL<NAME> or STEPLABEL, is not the generic label. The scanner is first shown to flag the probe tool, which declares none, and to
-///     pass the labelled sample of the step tests; no two tools of the package share one label, and the watch fixture's three labels are the ones that the
+///     pass the labelled sample of the step tests; no two tools of the package share one label, and the watch tools' three labels are the ones that the
 ///     veto window kept (QA);
 ///   - TestToolsLeaveRemindersToTheirOwner (Story 1.10; AD-1, AD-33): no class of OcuTalon.Tools names the Reminder class, its table or its globals, the
 ///     schedule package or ReminderOps: a tool changes a reminder only by submitting a command. The scanner is first shown to flag samples that break
@@ -59,7 +69,18 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
 /// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator, the clock, the request row
 /// that it validates and saves, and the start message that the service sends.
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart";
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
+
+/// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
+Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
+
+/// The read tools of the Diagnosis agent and the classes whose methods they run inside the callback (Story 5.4): the provider, the evidence pack, the
+/// reader and the two pure helpers of the error sentence and the pattern. The row classes they open are listed in CALLBACKHELPERS and not scanned here.
+Parameter WATCHREADS = "OcuTalon.Tools.WatchReads,OcuTalon.Watch.EvidencePack,OcuTalon.Watch.Reader,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
+
+/// The classes that BridgeSink calls once it publishes, from the gate's callback (DW-177): the publisher and its event, the owner of the rows it reads, the session and
+/// the turn and incident rows behind them, and the payload builders of the events.
+Parameter SINKCLASSES = "OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
 
 /// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
 Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
@@ -95,6 +116,20 @@ Parameter AUDITCALLS = "\$system\.security\.audit|\#\#class\(\s*%system\.securit
 
 /// The one class that may write an audit entry.
 Parameter AUDITWRITERS = "OcuTalon.Bridge.Audit";
+
+/// A line that creates or deletes a row of the incident tables (%New, %Delete or %DeleteId of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup, as a
+/// class reference or through $ClassMethod), runs SQL that inserts, updates or deletes in them (INTO and FROM optional, % keyword options allowed), or
+/// publishes the event type incident or watch.progress by its literal name (AD-15, AD-33).
+Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*%(new|delete|deleteid|deleteextent|killextent)\s*\(|ocutalon\.data\.(incident|failuregroup)[""']\s*,\s*[""']%(new|delete|deleteid|deleteextent|killextent)[""']|(insert(\s+or\s+update)?(\s+%\w+)*(\s+into)?|update(\s+%\w+)*|delete(\s+%\w+)*(\s+from)?|truncate\s+table)\s+ocutalon_data\.(incident|failuregroup)\b|publish\(.*[""'](incident|watch\.progress)[""']";
+
+/// The one class that may write the incident tables and publish those events.
+Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
+
+/// A line that publishes the check event: Publish with the type check as a literal or as Checks' CHECKEVENT parameter (AD-33).
+Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.#checkevent\b)";
+
+/// The one class that may publish the check event.
+Parameter CHECKPUBLISHERS = "OcuTalon.Checks.Process";
 
 /// The classes that may call the chat family: the runner and its adapter.
 Parameter CHATTERS = "OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent";
@@ -170,8 +205,49 @@ Method TestCallbackRule()
 	For raiseClass = "OcuTalon.Bridge.Approval", "OcuTalon.Bridge.Service.ApprovalStart", "OcuTalon.Bridge.Ids", "OcuTalon.Bridge.Time", "OcuTalon.Bridge.Data.ApprovalRequest", "OcuTalon.Bridge.Msg.ApprovalStart" {
 		Do $$$AssertTrue($ListFind(listed, raiseClass) > 0 && ..IsCallbackClass(raiseClass), "Approval.Raise runs " _ raiseClass _ " inside the callback, so it is in CALLBACKHELPERS and scanned")
 	}
+	For readerClass = 1:1:$Length(..#READERCLASSES, ",") {
+		Set name = $Piece(..#READERCLASSES, ",", readerClass)
+		Do $$$AssertTrue($ListFind(listed, name) > 0 && ..IsCallbackClass(name), "the watch tools run " _ name _ " inside the callback, so it is in CALLBACKHELPERS and scanned")
+	}
+	For sinkClass = 1:1:$Length(..#SINKCLASSES, ",") {
+		Set name = $Piece(..#SINKCLASSES, ",", sinkClass)
+		Do $$$AssertTrue($ListFind(listed, name) > 0 && ..IsCallbackClass(name), "BridgeSink calls " _ name _ " when the gate fires its event inside the callback (DW-177), so it is in CALLBACKHELPERS and scanned")
+	}
 	Do $$$AssertTrue(..IsCallbackClass("OcuTalon.Bridge.Ext.Classification") && ..IsCallbackClass("OcuTalon.Test.Bridge.ProbeSink"), "an extension base and a subclass of one are scanned")
 	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class, nor a class that they call, refers to %AI beyond its Class line, or uses Python")
+}
+
+/// The read tools of the Diagnosis agent, and the classes whose methods they run (WATCHREADS), call only OcuTalon classes that are in CALLBACKHELPERS or
+/// are callback classes (Story 5.4, AC 6). The scanner is first shown to flag a call to an unlisted class, also through $ClassMethod, and to pass a listed
+/// class and a comment line.
+Method TestWatchReadsCallOnlyListed()
+{
+	Set tab = $Char(9)
+	Do $$$AssertEquals(..UnlistedCalls(tab_"Set d = ##class(OcuTalon.Data.Delivery).%OpenId(1)"_$Char(10)_tab_"Set c = $ClassMethod(""OcuTalon.Zz.Unlisted"", ""Run"")"), "OcuTalon.Data.Delivery,OcuTalon.Zz.Unlisted", "the scanner flags a call to an unlisted class, also through $ClassMethod")
+	Do $$$AssertEquals(..UnlistedCalls(tab_"Set i = ##class(OcuTalon.Data.Incident).RefIndexOpen(r)"_$Char(10)_tab_"// ##class(OcuTalon.Data.Delivery).%OpenId(1)"_$Char(10)_tab_"Quit ..Return({})"), "", "and passes a listed class and a comment line")
+	For i = 1:1:$Length(..#WATCHREADS, ",") {
+		Set class = $Piece(..#WATCHREADS, ",", i)
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
+		Do $$$AssertEquals(..UnlistedCalls(text), "", class_" runs inside the callback and calls only listed callback classes")
+	}
+}
+
+/// The OcuTalon classes that the code lines of the text call by a literal name (##class(...) or $ClassMethod("...") and that are neither in
+/// CALLBACKHELPERS nor callback classes, comma-separated in the order found; "" when there is none.
+ClassMethod UnlistedCalls(text As %String) As %String [ Private ]
+{
+	Set found = ""
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set matcher = ##class(%Regex.Matcher).%New("(?i)(?:##class\(\s*|\$ClassMethod\(\s*"")(OcuTalon\.[A-Za-z0-9.]+)", line)
+		While matcher.Locate() {
+			Set name = matcher.Group(1)
+			If ..IsCallbackClass(name) || $ListFind($ListFromString(found), name) Continue
+			Set found = found _ $Select(found = "": "", 1: ",") _ name
+		}
+	}
+	Quit found
 }
 
 /// No class outside the Test package writes an audit entry except the audit class: the scanner flags each form of the call and passes Record,
@@ -193,6 +269,61 @@ Method TestOnlyTheAuditWriterAudits()
 	Do $$$AssertEquals(offending, "", "no class but the audit class writes an audit entry")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#AUDITWRITERS, .text), ..#AUDITWRITERS_" has source")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does write an entry, the audit class")
+}
+
+/// No class outside the Test package except IncidentManager creates or deletes an incident or failure group row, changes those tables with SQL, or publishes
+/// the incident and watch.progress events by name: the scanner flags each form, passes look-alikes, and the scan finds exactly one class that matches.
+Method TestOnlyIncidentManagerWritesIncidents()
+{
+	Set pattern = ..#INCIDENTWRITES
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set row = ##class(OcuTalon.Data.Incident).%New()", pattern), "the scanner flags %New of an incident")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set row = ##class( OcuTalon.Data.FailureGroup ).%New()", pattern), "and of a failure group")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(OcuTalon.Data.Incident).%DeleteId(id)", pattern), "and %DeleteId")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do $ClassMethod(""OcuTalon.Data.FailureGroup"", ""%DeleteId"", id)", pattern), "also through $ClassMethod")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""DELETE FROM OcuTalon_Data.Incident WHERE Ref = ?"", ref)", pattern), "and SQL DELETE")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""UPDATE OcuTalon_Data.FailureGroup SET Seen = ''"")", pattern), "and SQL UPDATE")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""insert  into OcuTalon_Data.Incident (Ref) values (?)"", ref)", pattern), "and SQL INSERT")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""DELETE OcuTalon_Data.FailureGroup WHERE IncidentRef = ?"", ref)", pattern), "and SQL DELETE without FROM")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""INSERT OR UPDATE INTO OcuTalon_Data.Incident (Ref) VALUES (?)"", ref)", pattern), "and INSERT OR UPDATE")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(OcuTalon.Data.Incident).%DeleteExtent()", pattern), "and %DeleteExtent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(OcuTalon.Data.FailureGroup).%Delete(oid)", pattern), "and %Delete")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""DELETE %NOLOCK FROM OcuTalon_Data.Incident WHERE Ref = ?"", ref)", pattern), "and SQL with a % keyword option")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""UPDATE %NOCHECK OcuTalon_Data.FailureGroup SET Seen = ''"")", pattern), "in an UPDATE too")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""INSERT OcuTalon_Data.Incident SET Ref = ?"", ref)", pattern), "and an INSERT without INTO")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""incident"", payload)", pattern), "and Publish of the incident event")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""watch.progress"", payload, .seq)", pattern), "and of watch.progress")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ##CLASS(OCUTALON.DATA.INCIDENT).%NEW()", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set payload = ##class(OcuTalon.Live.Payload.Incident).%New()"_$Char(10)_tab_"Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)"_$Char(10)_tab_"Set row = ##class(OcuTalon.Data.Incident).%OpenId(id)"_$Char(10)_tab_"Set rs = ##class(%SQL.Statement).%ExecDirect(, ""SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ?"", owner)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload)"_$Char(10)_tab_"Set message = ##class(OcuTalon.Msg.IncidentCommand).%New()"_$Char(10)_tab_"// ##class(OcuTalon.Data.Incident).%New()"_$Char(10)_tab_"; Publish(stream, ""incident"", payload)", pattern), "and passes the payload class, a read, another event type, another class and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#INCIDENTWRITERS, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class but IncidentManager creates or deletes an incident or failure group row, or publishes incident or watch.progress")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#INCIDENTWRITERS, .text), ..#INCIDENTWRITERS_" has source")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does write them, IncidentManager")
+}
+
+/// No class outside the Test package except Checks publishes the check event (Story 5.6; AD-33): the scanner flags the literal type and the parameter, passes
+/// look-alikes, and the scan finds exactly one class that matches.
+Method TestOnlyChecksPublishesCheck()
+{
+	Set pattern = ..#CHECKPUBLISHES
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload)", pattern), "the scanner flags Publish of the check event")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""check"", payload, .seq)", pattern), "with an output")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, 'check', payload)", pattern), "with single quotes")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ..#CHECKEVENT, payload)", pattern), "and through the CHECKEVENT parameter")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ##class(OcuTalon.Checks.Process).#CHECKEVENT, payload)", pattern), "also from another class")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ##CLASS(OCUTALON.LIVE.PUBLISH).PUBLISH(STREAM, ""CHECK"", PAYLOAD)", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set payload = ##class(OcuTalon.Live.Payload.Check).%New()"_$Char(10)_tab_"Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""incident"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""checkpoint"", payload)"_$Char(10)_tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)"_$Char(10)_tab_"Set check = ""check"""_$Char(10)_tab_"Set events = ##class(OcuTalon.Live.Event).Since(stream, 0, 10, ""check"")"_$Char(10)_tab_"// Publish(stream, ""check"", payload)"_$Char(10)_tab_"; Publish(stream, ""check"", payload)", pattern), "and passes the payload class, a read, another event type, a variable type, a look-alike word and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#CHECKPUBLISHERS, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class but Checks publishes the check event")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#CHECKPUBLISHERS, .text), ..#CHECKPUBLISHERS_" has source")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does publish it, Checks")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.
@@ -370,7 +501,7 @@ Method TestToolsReturnThroughResult()
 		If problem '= "" Set offending = offending _ " " _ class _ " (" _ problem _ ")"
 	}
 	Do $$$AssertTrue(providers '< 1, "the scan found the tool providers of OcuTalon.Tools: "_$ListToString(found, ","))
-	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchFixture"), "the Watch fixture is one of them")
+	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchReads"), "the Watch tools provider is one of them")
 	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.ReminderTools"), "and so is the class of the reminder tools")
 	Do $$$AssertEquals(offending, "", "every one extends OcuTalon.Tools.Result and returns only through ..Return(")
 }
@@ -378,7 +509,7 @@ Method TestToolsReturnThroughResult()
 /// Every tool that a class of OcuTalon.Tools offers has a step label of its own (Story 1.10, DW-85; AD-9). For each class of the package that extends
 /// %AI.Tool, Result left out, toolsets and providers alike, the tools that its discovery lists (each with its provider and its name) get a label from
 /// StepBuffer.LabelFor that is not the generic one. The scanner is first shown to flag the probe tool, whose tool declares no label, and to pass the labelled
-/// sample of the step tests, whose class declares STEPLABEL; the watch fixture's three tools are scanned like the others.
+/// sample of the step tests, whose class declares STEPLABEL; the watch tools' three tools are scanned like the others.
 Method TestToolsHaveStepLabels()
 {
 	Set probe = ..UnlabelledTools("OcuTalon.Test.Bridge.ProbeTool")
@@ -387,7 +518,7 @@ Method TestToolsHaveStepLabels()
 	Do $$$AssertEquals($ListLength(..UnlabelledTools("OcuTalon.Test.Bridge.StepsTools")), 0, "also through a toolset")
 
 	Set classes = ..ToolClasses(1)
-	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchFixture") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
+	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchReads") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
 	Set tools = 0
 	Set offending = ""
 	Set shared = ""
@@ -409,9 +540,9 @@ Method TestToolsHaveStepLabels()
 	Do $$$AssertEquals(offending, "", "every one has a step label of its own")
 	Do $$$AssertEquals(shared, "", "and no two tools share a label, so that each label is its tool's own: "_shared)
 	Set names = "OcuTalon.Tools.Names"
-	Set watch = "OcuTalon.Tools.WatchFixture"
+	Set watch = "OcuTalon.Tools.WatchReads"
 	Set step = "OcuTalon.Bridge.Adapter.StepBuffer"
-	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READFAILEDMESSAGES")), "Reading the failed messages", "the watch fixture's labels are the ones that the veto window kept: read_failed_messages")
+	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READFAILEDMESSAGES")), "Reading the failed messages", "the watch tools' labels are the ones that the veto window kept: read_failed_messages")
 	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READEVENTLOG")), "Reading the event log", "read_event_log")
 	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READITEMSETTINGS")), "Reading the item settings", "and read_item_settings")
 }
@@ -620,8 +751,8 @@ Method TestToolCodeScan()
 	Set clean = ..ToolCodeClean("", .problems, governed)
 	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string and has the governance names in comments: "_problems)
 	Do $$$AssertEquals(problems, "", "and has nothing to say")
-	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchFixture", .problems)
-	Do $$$AssertEquals(clean, 1, "the Watch fixture is clean: "_problems)
+	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchReads", .problems)
+	Do $$$AssertEquals(clean, 1, "the Watch tools provider is clean: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Test.Bridge.ProbeTool", .problems)
 	Do $$$AssertEquals(clean, 1, "and so is the probe tool: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Tools.ReminderTools", .problems)

@@ -224,6 +224,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: measured in 0.10 Task 0.3b on build 154: IsError and ErrorStatus are set only on error response headers; the partner sends asynchronously
 - 2026-10-20T10:54:10Z status=routed owner=5-2-new-failures-are-picked-up-within-seconds by=harvest note=Lane A's poller and evidence (5.2, 5.4, 6.1's fallback line) key on Status 8 and the event log and parse the sentence out of the wrapper
+- 2026-10-26T02:31:02Z status=resolved-by:5-2-new-failures-are-picked-up-within-seconds by=adjudication note=failure = header Status 8 whatever IsError, or a sessionless Type 2/6 log row; Reader.Failures takes the error text from the log row whose MessageId is the header (else the session's row at the target, else ErrorStatus); ErrorText.Sentence strips the Terminating BP wrapper; Test.Watch.Reader TestFailureDefinition/TestFailures and Test.Watch.Mark TestSentence pin it
 
 ### DW-36: The Demo step's non-Health image path (ENSTEMP and SECONDARY databases, the SECONDARY resource and role the off path removes) has no run in the repository or in CI
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: high | footprint: in-epic
@@ -242,6 +243,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 0.10 Spec Change Log ruling 3 measured it; on slot A (no OCUORDERS) Ens.Config.Production.%ExistsId(OcuTalon.Demo.Orders.Production) in OCUTALON is 1; 5.1 matches by display name across every readable namespace (FR-23)
 - 2026-10-20T13:15:44Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=cr note=5.1's Watch.Reader match keys on each namespace's own production (GetProductionStatus), or OCUORDERS only for Orders
+- 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=Watch.Reader matches each readable namespace's own current production only (GetProductionStatus), never every Ens.Config.Production row; Test.Watch.Reader TestReadableNamespaceOffersItsOwnProduction pins it (mutation: list every row -> double match)
 
 ### DW-39: The CI mock picks an agent's default script by its MOCKKEY, which reaches the mock only as the x-ocutalon-mockkey request header that the Provider step must add whenever OCUTALON_MODEL_BASE_URL is set
 - source: spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: med | fix-risk: low | footprint: in-epic
@@ -679,6 +681,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rule 2 copy forced by the lanes (spec Design Notes, Extend don't copy); Web/Api.cls CheckView builds Live.Payload.Check for StateBody's rail.checks
 - 2026-10-22T06:27:39Z status=routed owner=5-6-the-production-watch-runs-on-every-heartbeat by=harvest note=the check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it; orchestrator writes the acceptance bullet after Epic 2 merges
+- 2026-10-27T05:19:56Z status=resolved-by:5-6-the-production-watch-runs-on-every-heartbeat owner=5-6-the-production-watch-runs-on-every-heartbeat by=adjudication note=Live.Payload.Check.FromRow_added(traceNamespace=$Namespace,the_Tick%27s_run_session,AD-26/UX-DR139);Web.Api_rail_pushes_FromRow,CheckView_removed(orchestrator_ruling_Q1);Test.Live.Payloads+Test.Web.Api(3_lines)_pin_it(40d6a43)
 
 ### DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
@@ -722,6 +725,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T10:56:07Z occurrence=2-3-route-every-command-by-verb-with-origin-checks
 - 2026-10-23T16:42:48Z status=routed owner=burndown by=spec_gate note=declined by Story 2.9's plan: the fix belongs in Core/Commands.cls (Commands.Submit's ProcessInput kills the job-local SessionId on exit, irislib Ens/BusinessService.cls:79, read from source), which is contended in this run; the burn-down gate re-checks the contention or overflows it to the epic that owns Commands
 - 2026-10-25T06:36:24Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=Story 5.1's start-watch tool is the first tool job that calls Commands.Submit (origin tool) inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId; if ProcessInput's kill of JobSessionId drops them (irislib Ens/BusinessService.cls:79,100), restore the id after Submit (Core/Commands.cls) with a test
+- 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=no Core/Commands.cls change: Tools.CommandCall.Run saves and restores $$$JobSessionId around Submit; Test.Watch.Tools and Test.Watch.Turns prove the id unchanged and a later warning in the session for start/stop, a failed submit included (mutation: drop the restore -> red)
 
 ### DW-75: AD-1's Submit sub-bullet says role checks stay with the admin-checked endpoints and CommandsIn, but CommandsIn makes none (Story 2.3 Design Notes 6 reads the clause as its origin rules)
 - source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -771,6 +775,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Msg/Catalog/Watch.cls:49-75 (whatFailed: text); Checks/Render.cls returns only a key and rows (pinned results,*rows); 2.6 renders only the three slotless checks.* keys and shows the rows
 - 2026-10-22T23:33:46Z status=routed owner=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=spec_gate note=5.7 says how the page gets whatFailed (from the failing row, or a slot path through Render) and the page renders both keys; orchestrator writes the bullet after Epic 2 merges
+- 2026-10-27T09:17:40Z status=resolved-by:5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals owner=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=adjudication note=the_page_builds_whatFailed_from_the_rows_that_did_not_pass(web/src/app/shared/check-sentence.ts;check-rows.ts_wired_under_the_orchestrator%27s_Q1);catalog.mjs_lists_both_keys;check-sentence.test.mjs+catalog.test.mjs+e2e_D7_pin_it(bc59f1b)
 
 ### DW-91: Test.Bridge.Ext's comment says BridgeSink adds nothing, which Story 2.6 makes stale (BridgeSink now publishes decision and turn.step events for session owners)
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -994,6 +999,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
 - 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
 - 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow(no_charter:3_story-closable_entries_under_cap_8,none_with_2+_occurrences);ci/warm.sh_tooling_fix_(READY_only_after_the_after-start_RESULT_OK)_before_Lane_A's_next_epic_relies_on_warm_mode;Epic_5's_X.0_fix-or-close_pass
+- 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=ci/warm.sh up prints READY only when the after-start log's last RESULT line is RESULT OK, else FAIL, exit 1 and teardown; an unreadable log fails too (cr patch); docker/tests/test-ci-warm.sh appended block d1-d5 pins it
 
 ### DW-165: Security.Users Create and Modify accept a role that does not exist, so EnsureService's 'the role must exist' is a precondition that nothing checks
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
@@ -1044,6 +1050,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
 - 2026-10-25T09:16:27Z occurrence=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing
 - 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow;needs_Lane_B's_publishing_BridgeSink_on_the_feature_branch_(Epic_2)_before_CodeRules.CALLBACKHELPERS_can_list_its_callees;occurrence_3.6_(approval.raised_from_the_callback);Epic_5's_X.0_fix-or-close_pass
+- 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=CodeRules.CALLBACKHELPERS lists BridgeSink's callees (SINKCLASSES) and the watch tools' callback classes (READERCLASSES); TestCallbackRule compiles, scans and asserts each clean
 
 ### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
 - source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
@@ -1133,6 +1140,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
+- 2026-10-27T02:50:15Z occurrence=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=flake note=ci_run_40437523342_iris(shards)_live:floor:floor-webkit_G1_ring_bottom_600.98_vs_600;sha_98a2d57(no_web_change);rerun_--failed
+- 2026-10-27T10:44:15Z occurrence=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=flake note=ci_run_40485293208_iris(shards)_live:floor:floor-webkit_G1_ring_bottom_600.86_vs_600(a_rail_decision_button);sha_e1fe73c;rerun_--failed
 - 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
 - 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
 
@@ -1168,6 +1177,260 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
 
+### DW-213: The security overview must list the service role's demo-mode-only Read on %DB_OCUORDERS_DATA (granted by the Demo step with demo mode on, removed with it off or kept), so it never overstates least privilege
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Orchestrator ruling 2026-10-25 on Story 5.1 (veto U-79): Install/Step/Demo.cls grants OcuTalonServiceRole %DB_OCUORDERS_DATA:R only with demo mode on (AD-3 readable-namespace rule; AD-24 Prevents: a role that grants more than the security overview says)
+- 2026-10-25T18:12:36Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=spec_gate note=orchestrator_ruling:the_generated_overview_marks_this_grant_demo-mode-only;its_DW_bullet_is_the_orchestrator's_after_Epic_5's_merge
+
+### DW-218: WatchOps' failure answers (session lock timeout, a failed save or delete) and the per-session lock's serialisation of one session's commands have no test
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch/Ops.cls OnStart/OnStop answer failed (Ok 0) when Lock +^OcuTalon.Watch(session):5 times out or %Save/%DeleteId fails; Test.Watch.Ops covers the other outcomes only; deleting the lock line leaves every test green (needs a second job holding the lock >5 s)
+- 2026-10-25T20:35:03Z status=open owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=harvest note=implement_deferred(build-auto_review);code_review_may_patch_it
+- 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=QA's Test.Watch.Ops TestLockTimeout (second job holds the session lock: start and stop answer failed, rows unchanged), TestLockIsReleased and TestFailedSave (cr: dynamic SQL); the failed-%DeleteId branch shares the failed answer code with the tested save branch and cannot be failed fast and reliably
+
+### DW-222: Watch.Reader lists only a namespace's running, suspended or troubled production (GetProductionStatus gives an empty name after a clean stop), so a stopped production cannot be watched and a watch on it cannot be stopped from chat
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: irislib/Ens/Director.cls GetProductionStatus empties the name when no job, runtime or suspended node exists (a clean stop), not only when nothing ever ran (spec Task 0); start_watch and stop_watch both resolve through Reader.Find, so both answer unknown_production
+- 2026-10-25T21:52:35Z status=decision-pending owner=burndown by=cr note=product call: list a stopped namespace's last production and/or resolve stop_watch from the session's own rows
+- 2026-10-25T22:25:43Z status=routed owner=5-2-new-failures-are-picked-up-within-seconds by=spec_gate note=decided(U5_decision_dependency;FR-23:every_readable_namespace's_production):Watch.Reader also lists a readable namespace's last production when none runs (the platform's record of it measured in a Task 0 on a throwaway, never every Ens.Config.Production row, DW-38 kept), so a stopped production can be watched (its check reports the state, Story 5.6); stop_watch also resolves from the session's own BackgroundCheck rows, so a watch can always be stopped
+- 2026-10-26T02:31:02Z status=resolved-by:5-2-new-failures-are-picked-up-within-seconds by=adjudication note=Reader.Current falls back to Ens.Director.GetActiveProductionName() when nothing runs (a stopped production is listed and admitted); stop_watch resolves from the session's own watches through Ownership.Checks first; Test.Watch.Reader stopped-production test and Test.Watch.Tools own-row and real-path tests pin it
+
+### DW-223: Install.Step.Demo.WithOrdersData (Story 5.1, U-79) is a near-copy of WithOrders (about 18 of its 20 lines), differing only in the resource list it edits
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls WithOrders and WithOrdersData; the U-79 ruling forbade reshaping WithOrders in Epic 4's file, so the copy was forced; a parsing fix to one would miss the other
+- 2026-10-25T21:52:41Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify by giving WithOrders the resource list as an argument once Epic 4's Demo.cls work has merged
+- 2026-10-27T10:02:57Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow:Install/Step/Demo.cls_is_contended(Epic_15_owns_Install/**,waiting_with_work),so_Epic_5_cannot_unify_it;Epic_4_has_merged,so_the_U-79_reason_for_the_copy_is_gone:give_WithOrders_the_resource_list_as_an_argument_when_15.2_(or_Epic_15%27s_burn-down)_touches_Demo.cls
+
+### DW-224: Test.Watch.Turns and Test.Watch.Case copy Test.Tools.Reminders' turn helpers (Turn, AssertTurn, AssertSteps, Begin, Calls, SortedKeys) instead of sharing them
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test/Watch/Turns.cls and Test/Watch/Case.cls repeat Test/Tools/Reminders.cls 874-1085 nearly line for line; the spec named them templates; sharing needs one helper across ZoneCase and InProduction
+- 2026-10-25T21:52:41Z status=wontfix-accepted owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=cr note=reopen_if=a third test class copies these helpers, or a fix to one copy (such as the mock-log read) is missed in another
+
+### DW-227: The fresh lane-a shard (54 classes) took 539 s on the developer machine, about a minute under the 10-minute foreground cap that every stage and the lead's fresh check run inside; one more class pushes a fresh run past the cap. Give ci/iris.sh shard a local split (for example --part k/n over the sorted class list, with --reverse taking the parts of the reversed list), CI unchanged
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 5.2 implement: shard lane-a passed 54 classes in 539 s (5.1: 52 classes 422-475 s; Epic 3: ~400 s); runner brief: split long runs into calls that finish well inside the cap; ci/iris.sh is not contended (Epic 5 footprint extension), test-ci-config.sh takes an appended block
+- 2026-10-26T00:59:33Z status=routed owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=lead_routed:tooling_before_5.3's_own_tests_grow_the_shard;CI_groups_unchanged(no_REL-4_impact)
+- 2026-10-26T02:18:48Z occurrence=5-2-new-failures-are-picked-up-within-seconds
+- 2026-10-26T07:01:49Z status=resolved-by:5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=adjudication note=ci/iris.sh shard <name> --part k/n runs the k-th contiguous part of the (reversed) name-ordered class list, larger parts first, bad values exit 2; the appended test-ci-config.sh block prints PASS shard part; lane-a measured 377 s (part 1/2, 29 classes) and 295 s (part 2/2, 28 classes); ci/units.sh and the workflows unchanged
+
+### DW-228: FailurePoller keeps a not_current production's mark, so when another production ran in the namespace meanwhile and the watched one is current again, the other's failures since the mark are batched as the watched one's
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Reader.Current reads every Status 8 header and sessionless Type 2/6 log row of the namespace from the mark with no production filter; Poll quits without saving on not_current (spec Design Notes; spine row Watch failures: a production the reader does not read keeps its mark)
+- 2026-10-26T02:18:48Z status=by-design owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=spec-bound; reopen via amendment: a not_current production's mark moves to the poll time (unreadable keeps it)
+
+### DW-229: A fault inside Reader.Current reaches FailurePoller as a poll warning only through Failures' fault check, which no test drives (TestReadErrorWarns throws at the poller's seam), so removing the check would make real read faults silent
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reader.Failures line 'If fault ... ThrowStatus'; deleting it returns an empty outcome, Poll quits silently and every test stays green (verification-gap layer); no cheap trigger makes Current fault without a new seam
+- 2026-10-26T02:18:48Z status=wontfix-accepted owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=reopen_if=a readable watched production whose read faults in Reader.Current leaves no Type 3 FailurePoller warning
+
+### DW-230: No test shows that one watched production's failing poll still lets the other watched productions be polled in the same FailurePoller run (the per-production Try in OnProcessInput)
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: every Poller test watches one production; the probe's throw mode throws for every production; a second probe mode would be needed
+- 2026-10-26T02:18:48Z status=wontfix-accepted owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=reopen_if=after a FailurePoller warning for one production, another watched production's mark stops moving while its failures arrive
+
+### DW-241: The error branches of IncidentManager.Tell (a failed Session.Recipients read; a failed publish while other recipients still get the event) have no test
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Tests assert only that no warning is logged on the success and nobody-watches paths; forcing Recipients or Publish to fail needs a seam the story does not add; the code logs one Type 3 warning per event and leaves the rows standing
+- 2026-10-26T05:39:47Z status=open owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=implement_deferred(build-auto_review)
+- 2026-10-26T06:56:42Z occurrence=5-3-same-cause-failures-become-one-incident-by-the-settle-rule
+- 2026-10-26T07:01:49Z status=wontfix-accepted by=adjudication note=the failed-publish branch is covered by Test.Watch.Tell (QA, cr-patched); the failed Session.Recipients read needs a production seam to force (about 28 lines with probe and test) and only a privilege-check failure reaches it; reopen_if=a Recipients read error in IncidentManager leaves no Type 3 warning, or DW-113 (6-2) makes the branch reachable through the real Session.Recipients
+
+### DW-242: IncidentManager's rolled-back batch (Record) and failed Settle send (Start) branches have no test
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Neither branch can be forced without a seam in IncidentManager; the build review deferred them to the frontmatter, which lists only Tell's branches
+- 2026-10-26T06:56:31Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=a FailureBatch in error leaves Incident rows, or an incident lacks TraceHeaderId 60 s after its FirstAt
+
+### DW-243: The settle waiter's guards for a closed or already-settled incident are unpinned, and a resent Settle request would start a second waiter
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Waiting's closed/NoticeCount checks and Begin's overwrite of TraceHeaderId are reached by no test; AD-15's table never closes or settles an unnoticed incident outside its waiter
+- 2026-10-26T06:56:31Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if an unnoticed incident can close or settle outside its waiter, or an operator resends a Settle request
+
+### DW-244: No test shows that the settle waiter reads watch.settleQuietSeconds and watch.settleMaxSeconds; only Settle.Values is tested in the test process
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Replacing Check's Settle.Values call with constants leaves every test green; a test needs a setting row the job reads past Data.Setting's 60 s cache, and the spec seeds none
+- 2026-10-26T06:56:31Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=once watch.settle* can be set, changing watch.settleQuietSeconds does not move when NoticeCount is set
+
+### DW-245: The settle maximum runs from the first failure's FailedAt, so failures picked up late (a poller backlog) settle at once with the first batch's count
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Check compares now with FirstAt + max, and FirstAt is the failure's own FailedAt, not the time the incident was made
+- 2026-10-26T06:56:42Z status=by-design owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=spec Decided in-stage: times are the failures' own FailedAt; AD-15: 30 s after the first failure
+
+### DW-246: The error pattern masks only digit runs, so error texts that carry hex ids or GUIDs can split one cause into several incidents
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Settle.Pattern replaces each run of digits with # and collapses white space; letters a-f of a hex id stay
+- 2026-10-26T06:56:42Z status=by-design owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=spec Always rule defines the error pattern; it changes only by spec amendment
+
+### DW-247: Tell's Publish waits up to Live.Publish's LOCKWAIT (5 s) per held session stream inside IncidentManager's single job, stalling batches and wakes
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Publish(stream, type, payload) takes the stream lock with LOCKWAIT 5; IncidentManager has PoolSize 1; Live/Publish.cls is a contended path
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if a session stream lock is held for seconds in normal operation; Publish holds it for one append
+
+### DW-248: ci/iris.sh shard --part with a value that contains a newline exits 1 instead of 2, because the k/n check greps line by line
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: printf | grep -Eq accepts a value whose first line is k/n; the arithmetic expansion then fails
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if a caller passes a multi-line --part value; every caller passes k/n literally
+
+### DW-249: IncidentManager assumes a batch's OwnerRef, Namespace, Production and PolledAt are set: empty ones open a new incident per batch or blank FirstAt
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Find's SQL equality never matches an empty bound value; an empty FailedAt with an empty PolledAt sets FirstAt to empty, so Settle.Wait ends the rule at once
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if FailurePoller sent a batch without those fields; it always sets them (polledAt = NowUtc())
+
+### DW-250: The shard part block of test-ci-config.sh prints only FAIL shard part, not which of its checks failed
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: About 20 checks feed one part_ok flag; neighbouring blocks name the failed rule
+- 2026-10-26T06:56:42Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=a FAIL shard part takes more than one rerun to find the failing check
+
+### DW-255: The evidence pack's credential-name rule (credentials, password, token, key) misses names such as Secret, Passphrase, Passwd and Auth
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Reader.cls CredentialName equals the recorded snapshot rule; a setting named ClientSecret reaches the pack and the settings tool, with only the redactor's patterns as a backstop
+- 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=ruled_veto_U-91:widen_to_secret,passphrase,passwd,auth;code_review_patches_it
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=widened_per_U-91:CREDENTIALPARTS_adds_credential,passwd,passphrase,secret,auth;TestCredentialsLeftOut_mutation_red
+
+### DW-256: Only Cause and FixSummary are in DiagnosisPayload's FILTERED list, so the stored Element and the model's noun forms bypass the reply filter (AD-31: every stored model text is filtered)
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: DiagnosisPayload FILTERED; IncidentManager Answered stores Element (128) and itemNoun one/other, which Story 5.8's notice may render
+- 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_patches_it_or_routes_to_5-7(ReplyGuard)
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=AD-31:FILTERED_names_every_model_text(dotted,list);Decide_loop;TestFilterDiagnosis_mutation_red
+
+### DW-257: Message body properties reach the evidence pack in logical form, so a %Date or Boolean property reaches the model as its internal value
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current reads each stored datatype property with $Property; the demo's OrderDate is a string; a date-format diagnosis on a %Date field would see a day number; needs a measured LogicalToDisplay while switched
+- 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=regraded_low:a_stored_%Date_is_valid,format_faults_sit_in_strings;reopen_if=a_diagnosis_misreads_a_%Date_value
+
+### DW-258: The credential removal inside Reader.Evidence is never run against a credential-named setting (EvidencePack.Settings removes the same names again)
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Deleting the loop in Reader.Evidence leaves every test green; a test needs a production item with a Credentials or Password setting in OCUORDERS
+- 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=QA_TestReaderDropsCredentialSettings;mutation(loop_disabled)_red;lane-a_shards_fresh_green_in_review
+
+### DW-259: Test.Bridge.CodeRules does not check that a watch tool calls only the classes of CALLBACKHELPERS and READERCLASSES; it scans the listed classes only
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: A call to an unlisted class (OcuTalon.Data.Delivery) added to a WatchReads method leaves CodeRules green (demonstrated warm); mechanism from Story 5.1
+- 2026-10-26T10:28:11Z status=open owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=harvest note=code_review_decides
+- 2026-10-26T12:03:06Z status=resolved-by:5-4-the-diagnosis-explains-the-cause-from-the-failed-messages owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=TestWatchReadsCallOnlyListed(WATCHREADS_scan);mutation(unlisted_call_in_WatchReads)_red
+
+### DW-261: EvidencePack.Sentence repeats FailurePoller's ErrorText.Sentence(Redact.Text(raw)) composition instead of one ErrorText helper that both use
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Rule 2 copy with no stated reason: the spec's Extend-don't-copy note says a second call site moves into one ErrorText helper; Watch/EvidencePack.cls Sentence and Watch/FailurePoller.cls:112
+- 2026-10-26T12:03:18Z status=routed owner=burndown by=cr note=in-epic:ErrorText,FailurePoller_are_Story_5.2's(done);add_one_ErrorText_helper_and_use_it_in_both
+- 2026-10-26T12:41:18Z owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=5.8's_fallback_notice_needs_the_same_redacted_first_sentence:unify_FailurePoller's_and_EvidencePack's_Sentence(Redact.Text(raw))_into_one_ErrorText_helper_there
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=ErrorText.Text(raw)_is_the_one_composition;FailurePoller_and_EvidencePack_use_it(EvidencePack.Sentence_gone);ErrorText.Summary_builds_on_it;NoticeText.TestErrorText+mutation_Text_skips_Redact(8d354fe)
+
+### DW-262: Test.Watch.Diagnose Row and Test.Watch.Evidence Fixture build incident rows that Test.Data.Fixture.Incident already builds
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2, weak reason: Fixture.Incident registers rows for Fixture.Clean while Case cleans by floor, so reusing it mixes two clean-up regimes
+- 2026-10-26T12:03:18Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=reopen_if=a_third_Test.Watch_incident_row_builder_appears_or_Case_adopts_Fixture.Clean
+
+### DW-263: Reader's VALUEMAX cut of a message body value is never exercised by a test
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestEventLogCapped pins LOGMAX and MAXLOG; no fixture body holds a stored value over 1000 characters (the PartnerOrder fields are short)
+- 2026-10-26T12:03:18Z status=wontfix-accepted owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=reopen_if=a_pack_or_tool_result_holds_a_body_value_over_1000_characters
+
+### DW-264: The pack and read_event_log send Ens_Util.Log row ids (logId) to the model, while the Identifiers row lets only Ens header and session ids leave the server
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The spec's pack shape defines logId (EvidencePack LogMessage, EventLog); whether the model provider counts as leaving the server is an interpretation of the row
+- 2026-10-26T12:03:18Z status=decision-pending owner=burndown by=cr note=Identifiers_row:does_the_model_provider_count_as_leaving_the_server?if_yes,a_pack-local_log_reference
+- 2026-10-26T12:41:18Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=decided(U5_decision_dependency;spine_Identifiers_row:database_row_ids_never_leave_the_server,and_the_model_provider_is_outside_it):the_pack_and_read_event_log_carry_a_pack-local_log_reference(an_ordinal),never_an_Ens_Util.Log_row_id;Ens_header_and_session_ids_may_stay
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=pack,read_failed_messages,read_event_log_give_logRef_1..n_and_no_logId;Evidence.TestLogKeys(+cr_logRef_1..n_both_tools)+mutation_LogMessage_gives_logId(8d354fe)
+
+### DW-265: The watch read tools open the failed message's body object, so a watched body class's %OnOpen or property getters run inside AI Hub's callback
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current calls $ClassMethod(bodyClass,%OpenId) and $Property, reached from Tools.WatchReads through EvidencePack.Read; AD-6 forbids Python and %AI calls inside a callback
+- 2026-10-26T12:03:18Z status=wontfix-theoretical owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=real_when_a_watched_body_class's_%OnOpen_or_a_getter_calls_Python_or_%AI;then_read_stored_values_by_SQL
+
+### DW-266: The pack's body holds only stored datatype properties, so a virtual document (HL7, X12) or a stream body gives the model no field values
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Reader.Current skips collections, object and stream properties by the spec's rule (stored datatype properties through the class dictionary); only the flat Orders body is exercised
+- 2026-10-26T12:03:18Z status=by-design owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=spec-bound(Always:_body_is_the_stored_datatype_properties);reopens_by_spec_amendment_for_virtual_docs
+
+### DW-267: An incident keeps no diagnosis outcome when its queued diagnose request is aborted or purged, or when Answered's row save fails
+- source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: IncidentManager.Diagnose sets no wait of its own; Decide's TimerSeconds starts only once Decide takes the request; a send to a disabled Decide queues until it is enabled again
+- 2026-10-26T12:03:18Z status=wontfix-theoretical owner=5-4-the-diagnosis-explains-the-cause-from-the-failed-messages by=cr note=real_when_an_operator_aborts_or_purges_a_queued_diagnose_request_or_the_row_save_fails;then_a_waiter_timer
+
+### DW-270: Moved from Story 5.8 (U-92, R2): for a usable data-format diagnosis (outcome act, its proposed fix), IncidentManager first sends the with-fix incident notice here, through Epic 5's notice delivery and with Raise: one OcuTalon.Msg.Notification per recipient session of kind incident, the incident notice's catalog key, Slots with the count, the start time as UTC ISO 8601, the item noun as itemNoun {one, other} from the diagnosis, the agent's cause and fix summary as plain sentences without times, plus 7.2's dry-run slots and the first request's ApprovalRef; it sets NoticedAt; and for the recorded date-format snapshot and its mock scenario the notification's slots give 50 orders and the first failure's time, with CI seeing noticed, settling, diagnosing, then the notice, in that order
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Orchestrator ruling U-92 (R2 a): AD-15 needs a valid dry run and Raise for the with-fix variant, AD-32 the ApprovalRef on every incident notice, and incident.withFix's dry-run slots refuse to render before 7.2; Epic 5 stores the data-format diagnosis and leaves the incident unnoticed; 5.8 builds the delivery and a unit-tested with-fix slot builder
+- 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+
+### DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's Incident.RequestRefs, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13)
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Orchestrator ruling U-92 (R3): no fix request exists before Epic 7; Story 5.8 adds Incident.RequestRefs and reads it; the writer is the Raise of 7.2
+- 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+
+### DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74)
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Orchestrator ruling U-92 (R3): FixRun holds only ApprovalRef, IncidentRef and StartedAt; no table stores a fix run's counts before Epic 7
+- 2026-10-26T13:11:27Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.4_at_Epic_5's_merge
+
+### DW-273: Owner answer U-91: the evidence pack's credential-name rule (Watch.Reader CREDENTIALPARTS, case-insensitive substring) also leaves out settings whose name holds bearer or cookie; the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie
+- source: inbox U-91 (owner decision 2026-10-26T13:11:36Z#273) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Reader.cls CREDENTIALPARTS = credential,password,passwd,passphrase,secret,token,key,auth (5.4, 61e074e); a setting named SessionCookie or BearerValue reaches the pack and the settings tool
+- 2026-10-26T15:31:39Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=owner_decision U-91 at=2026-10-26T13:11:36Z#273: keep and widen; a false positive only hides a value, a miss sends one to the model
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=Reader.CREDENTIALPARTS_adds_bearer,cookie(case-insensitive_substring);Evidence.TestCredentialsLeftOut;mutations_lose_cookie(implement)_and_lose_bearer(QA)_red(8d354fe);owner_answer_U-91_applied
+
+### DW-276: The spine's Conventions row 'Incident notice' builds each group line from FailureGroup Count; the spec and Watch.Notice use the group's NoticeCount, settled groups only
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine row: '(FailureGroup.Seq, Count, FirstAt, ErrorSummary...)'; spec Always (the slots) and matrix row 'Count moved', and Watch/Notice.cls Groups, use NoticeCount
+- 2026-10-26T18:49:28Z status=escalated owner=burndown by=cr note=recommend: the lead amends the row to NoticeCount, groups settled with the notice (Rule 20 light path); code stays
+- 2026-10-26T18:52:17Z status=resolved-by:5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=adjudication note=the_lead_corrected_its_own_spine_row(Incident_notice:NoticeCount,groups_settled_with_the_notice)_to_the_spec-gate_decision;the_reviewer's_recommended_fix;no_product_call;code_unchanged
+
+### DW-277: An orphan event-log error with an empty ConfigName gives a FailureGroup with an empty ItemName; Watch.Notice passes it to the groups slot, which the catalog refuses, and the row is noticed
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Reader orphan rows take ConfigName as the item, FailurePoller copies it, Catalog groups types itemName as a non-empty text; Watch.Notice.Groups has no check
+- 2026-10-26T18:49:28Z status=wontfix-accepted owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=reopen_if=a FailureGroup row with ItemName '' is stored, or an *Out render fails: the slot 'itemName' is empty
+
+### DW-278: Live.Payload.Incident evidence.items has one entry per failure group, while AD-12 says failures per item
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Details adds one IncidentEvidenceItem per OfIncident group; Record makes one group per incident, so groups and items coincide before Story 7.2
+- 2026-10-26T18:49:28Z status=wontfix-theoretical owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=real when an incident holds two groups of one item (Story 7.2's later groups): merge the items per item then (AD-12)
+
+### DW-279: Four test classes build FailureGroup fixture rows by hand (Tell.Group, Payloads.Group, Diagnose.Row, NoticeText.Group), each with other fields
+- source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2: no shared group fixture; the natural home Test/Data/Fixture.cls is contended while another epic is live
+- 2026-10-26T18:49:28Z status=wontfix-accepted owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=reopen_if=a FailureGroup schema change has to edit more than two hand-built fixture groups under Test/
+
+### DW-281: The real Execute order (target FixExecutor, the incident's trace SessionId and the kept SuperSession) is observed only at the test seam (IncidentProbe overrides SendExecute), not on a real message header
+- source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: IncidentManager.Execute/SendExecute; Lifecycle.TestExecuteTarget pins the item name only; FixExecutor is a stub until Story 7.3
+- 2026-10-26T21:49:47Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=harvest note=reopen_if=Story 7.3's FixExecutor tests pass without observing a real Execute header (target FixExecutor, SessionId = the incident's TraceHeaderId); 7.3 consumes this send
+- 2026-10-26T22:32:40Z status=resolved-by:5-5-an-incident-moves-through-its-states-and-closes owner=5-5-an-incident-moves-through-its-states-and-closes by=cr note=Closing.TestApproveSendsExecuteToFixExecutor reads the real header (FixExecutor, TraceHeaderId session, SuperSession)
+
+### DW-282: Test.Watch.Lifecycle's Host, Group and DropGroups repeat Test.Watch.Tell's (a FailureGroup fixture builder now sits in six Watch and Live test classes), a Rule 2 copy with a weak reason
+- source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Lifecycle.cls Host/Group/DropGroups vs Tell.cls Host L305, Group L255, DropGroups L271; also Diagnose, Evidence, NoticeText, Live.Payloads; the shared home Test.Data.Fixture is contended
+- 2026-10-26T22:32:40Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=cr note=reopen_if=another test class adds its own FailureGroup or probe-host builder; then add Fixture.Group and Host
+
+### DW-288: Owner answer U-102: dismiss_incident stays trusted output on a condition: a Gate test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted
+- source: inbox U-102 (owner decision 2026-10-27T00:44:42Z#311) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test.Bridge.Gate pins dismiss_incident's classification flags only; nothing fails if WatchAnswers adds a Cause or SampleError key
+- 2026-10-27T00:51:30Z status=routed owner=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=spec_gate note=owner_decision U-102 at=2026-10-27T00:44:42Z#311: keep, trusted output (1), as U-80, with this pinning test
+- 2026-10-27T01:28:18Z status=resolved-by:5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=cr note=Gate.TestDismissAnswerIsCodeBuilt; mutations: entry gains cause key -> red, Dismissed message=row Cause -> red
+
+### DW-289: A real HeartbeatIn Tick will run the test fixtures' due check rows and sweep their quiet incidents mid-test once Story 8.1 makes the heartbeat tick
+- source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Test.Checks.Runs makes check rows with NextDueAt empty (due at once) and 16-minute-old incidents, and Test.Checks.Heartbeat drives Checks with its own Ticks; a real Tick in the same minute adds check events, records runs and closes incidents those tests count, so CI flakes
+- 2026-10-27T05:15:31Z status=routed owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=8.1 gives tests a way to pause the real heartbeat (like Case's StopPoller) or keeps fixture rows not due for a real Tick
+- 2026-10-27T06:48:52Z status=routed owner=burndown by=orchestrator_ruling note=Story_8.1_is_done_on_OCT-epic8:resolve_in_Epic_5%27s_burn-down_in_Test/Checks/**(fixture_rows_a_real_Tick_does_not_find_due,e.g._NextDueAt_in_the_future;quiet-incident_times_a_real_Tick_does_not_sweep);a_remaining_Epic8_pause_hook_stays_routed_burndown_for_the_orchestrator
+- 2026-10-27T09:14:43Z occurrence=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals
+- 2026-10-27T10:03:08Z owner=5-10-epic-5-burn-down by=burndown note=chartered_into_the_burn-down_story_5.10(orchestrator_ruling:resolve_in_Test/Checks/**)
+- 2026-10-27T13:29:50Z status=resolved-by:5-10-epic-5-burn-down owner=5-10-epic-5-burn-down by=adjudication note=Epic_5%27s_tests_hold_under_a_real_Tick:probe-kind_rows,rows_due_a_day_ahead,2030_quiet_times,own_Ticks_at_NextDueAt,RealTick_interference_runs+controls(d12bacb);residual_in_contended_Test.Core.BridgeSink/Test.Web.Api_filed_as_DW-300(routed_burndown_for_the_orchestrator)
+
+### DW-290: Test.Web.Api's class doc still says a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue
+- source: spec-5-6-the-production-watch-runs-on-every-heartbeat.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
+- 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope
+
+### DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is still told OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets no status there
+- source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
+- 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)
+
+### DW-300: Contended tests (Test.Core.BridgeSink: four methods; Test.Web.Api.TestStateSections) make check rows due at once or count stream events, so a real HeartbeatIn Tick (once Epic 8's heartbeat ticks) can run their rows or add check events mid-test: the DW-289 root cause outside Epic 5's footprint
+- source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: BridgeSink L292-294,L330,L377,L403 rows due at once and untyped event counts; Web.Api L193/L253 asserts check2 has no run
+- 2026-10-27T12:47:05Z status=routed owner=burndown by=harvest note=residual of DW-289 (orchestrator ruling): Epic 5 cannot edit Test/Core (Epic 6) or Test/Web (Epic 16); route to an open Epic 8, 6 or 16 story at merge (rows due a day ahead, or typed event counts)
 ### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
@@ -1238,3 +1501,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
 - 2026-10-27T06:44:53Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-107 condition: tracked on 16.4 before it is planned; whichever of 8.4 and 16.4 merges second turns the real path on
+
+### DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh (TestHookPublishesOnChange, TestEventsBodyServesTheGuide) and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide: a new session watching Orders sees a step past the expected one
+- source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI 40525019781 iris(image) lane-b GuideRefresh 'step 2, step 1 done' and 'step 3 current' failed; iris(shards) live:floor M7 'the page opens at step 3', M9 'step 5 box style'; both green on one unchanged rerun and lane-b green locally
+- 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) with Epic 5's real FailurePoller and IncidentManager, untagged Orders failures that other tests send become an instance incident that Ownership.NewestIncident shows to any session watching Orders on a local install, so Guide.Compute marks the incident step done; route to the story that next edits Test/Live/GuideRefresh.cls or the floor guide spec (Epic 6 owns Test/Live): clean or isolate instance incidents in those tests
+- 2026-10-27T16:20:51Z owner=5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=integrate_forward note=fix-forward_Story_5.11(the_same_floor_cases_red_twice:not_a_flake)
+- 2026-10-27T19:23:30Z status=resolved-by:5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=adjudication note=tests that send real failing Orders messages hold the Orders WatchMark 600 s ahead and release it at clean-up (implement 725d9c5 plus QA and review patches); floor unit 99 passed, lane-b shard green both orders
+
+### DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge
+- source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI 40525019781 iris(production) live:production row 21 wanted 'CHK|start-fails|1|1', got ''; green on one unchanged rerun and locally on the merged tree
+- 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) the session line timed out or errored while the production stopped and started with the stub WatchOps; route to the story that next edits docker/tests/test-production.sh (Epic 15 owns docker/tests): give row 21 a longer wait or a retry
+
+### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
+- source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 5.11 Task 0: a fast local batch fell between two polls and was never read; CI's slower batch was read
+- 2026-10-27T18:08:35Z status=wontfix-accepted owner=5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=harvest note=reopen_if=a test that seeds a watch with Test.Data.Fixture.Check and expects its own failures noticed flakes; Test/Data/Fixture.cls is contended (Epic 16): give Check a CreatedAt there

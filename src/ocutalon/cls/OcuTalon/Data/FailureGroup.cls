@@ -1,4 +1,5 @@
-/// A group of same-cause failures within an incident (AD-15). Lane A.
+/// A group of same-cause failures within an incident (AD-15). Lane A. IncidentManager is its only writer. The groups of an incident are numbered
+/// from 1 by Seq in the order they were made, and OfIncident reads them by that number, with no SQL (AD-13).
 Class OcuTalon.Data.FailureGroup Extends %Persistent
 {
 
@@ -14,7 +15,48 @@ Property ItemName As %String(MAXLEN = 128);
 /// The normalised error text that groups the failures.
 Property ErrorPattern As %String(MAXLEN = 1000);
 
+/// The keys (h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the group's newest failures, comma-separated, newest last, at
+/// most OcuTalon.Watch.Settle SEENMAX of them. IncidentManager holds a failure once by this set.
+Property Seen As %String(MAXLEN = "");
+
+/// The group's number within its incident: 1 for the first group.
+Property Seq As %Integer;
+
+/// The failures held in the group (kept by IncidentManager as the incident's Count is).
+Property Count As %Integer [ SqlFieldName = FailureCount ];
+
+/// When the group's first failure arrived, UTC to the second.
+Property FirstAt As %String(MAXLEN = 20);
+
+/// When the group's last failure arrived, UTC to the second.
+Property LastAt As %String(MAXLEN = 20);
+
+/// The group's failures at the incident's notice: the incident's NoticeCount for the group, set when the settle rule ends.
+Property NoticeCount As %Integer;
+
+/// The error of the group's first failure in one plain sentence of at most 80 characters (OcuTalon.Watch.ErrorText.Summary).
+Property ErrorSummary As %String(MAXLEN = 1000);
+
 Index IncidentRefIndex On IncidentRef;
+
+Index SeqIndex On (IncidentRef, Seq) [ Unique ];
+
+/// The most groups that OfIncident reads for one incident.
+Parameter MAXGROUPS = 100;
+
+/// The groups of the incident, in Seq order, as a list of objects: SeqIndexOpen(ref, 1), then 2, and so on up to the first Seq that has no row, at most
+/// MAXGROUPS. Reads rows by object access only, so that a REST request may call it (AD-13).
+ClassMethod OfIncident(ref As %String) As %ListOfObjects
+{
+	Set list = ##class(%ListOfObjects).%New()
+	If $Get(ref) = "" Quit list
+	For seq = 1:1:..#MAXGROUPS {
+		Set group = ..SeqIndexOpen(ref, seq)
+		If '$IsObject(group) Quit
+		Do list.Insert(group)
+	}
+	Quit list
+}
 
 Storage Default
 {
@@ -30,6 +72,27 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>ErrorPattern</Value>
+</Value>
+<Value name="5">
+<Value>Seen</Value>
+</Value>
+<Value name="6">
+<Value>Seq</Value>
+</Value>
+<Value name="7">
+<Value>Count</Value>
+</Value>
+<Value name="8">
+<Value>FirstAt</Value>
+</Value>
+<Value name="9">
+<Value>LastAt</Value>
+</Value>
+<Value name="10">
+<Value>NoticeCount</Value>
+</Value>
+<Value name="11">
+<Value>ErrorSummary</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FailGroupD</DataLocation>

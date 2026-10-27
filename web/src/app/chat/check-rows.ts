@@ -1,15 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { Icon } from '../icon/icon';
-import { PAGE_TEXTS } from '../msg/catalog';
+import { PAGE_SLOTS, PAGE_TEXTS, renderPageText } from '../msg/catalog';
 import type { CheckRow } from '../live/payloads';
+import { checkSentence, type CheckCatalog } from '../shared/check-sentence';
 import { checkRowView, CHECK_KEY_PREFIX, DECISION_TEXTS } from './decision-view';
 import { pageTime } from './page-time';
 
+const CATALOG: CheckCatalog = { texts: PAGE_TEXTS, slots: PAGE_SLOTS, render: renderPageText };
+
 /**
  * The check results under a reply (UX-DR65, FR-37, AD-28), code-computed and never model-written. The sentence above the rows is
- * the catalog text of the check key, when the page renders that key (checks.allPassed, checks.everythingElsePassed and
- * checks.nothingWatched); any other key shows no sentence, so an all-clear never comes from the rows. Each row has the result's icon
+ * the catalog text of the check key, when the page renders that key (checks.allPassed, checks.everythingElsePassed,
+ * checks.nothingWatched, and checks.notEverything and checks.notEverythingRestPassed, whose {whatFailed} comes from the rows that did
+ * not pass); any other key shows no sentence, so an all-clear never comes from the rows, only from its own key. Each row has the result's icon
  * and word in the result's colour, the entry, and in muted text the finding or reason and the time in the browser's zone. A result
  * that is not "passed" or "failed" is shown as Not checked, never as Passed. Every value is bound by interpolation.
  */
@@ -112,7 +116,7 @@ export class CheckRows {
   /** The key's sentence when the page renders the key as a check sentence, else "". */
   protected readonly sentence = computed(() => {
     const key = this.checkKey() ?? '';
-    return key.startsWith(CHECK_KEY_PREFIX) && Object.hasOwn(PAGE_TEXTS, key) ? (PAGE_TEXTS[key] ?? '') : '';
+    return key.startsWith(CHECK_KEY_PREFIX) ? checkSentence(key, this.checks() ?? [], CATALOG, pageTime) : '';
   });
 
   /** One entry per check result, with the view of its result and its time in the browser's zone. */

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-27-2026 05:27
+last_updated: 10-27-2026 19:22
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -106,14 +106,18 @@ development_status:
   4-7-finish-the-demo-guide: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: backlog
-  5-2-new-failures-are-picked-up-within-seconds: backlog
-  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: backlog
-  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: backlog
-  5-5-an-incident-moves-through-its-states-and-closes: backlog
-  5-6-the-production-watch-runs-on-every-heartbeat: backlog
-  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
+  epic-5: done
+  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
+  5-2-new-failures-are-picked-up-within-seconds: done
+  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
+  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: done
+  5-5-an-incident-moves-through-its-states-and-closes: done
+  5-6-the-production-watch-runs-on-every-heartbeat: done
+  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: done
+  5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
+  5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
+  5-10-epic-5-burn-down: done
+  5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
   epic-5-retrospective: optional
 
   epic-6: backlog
