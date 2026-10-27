@@ -10,7 +10,8 @@ Include Ensemble
 ///     nothing. A wake before DueAt sets the timer again for the rest. Otherwise, holding the lock, it marks the row fired (Late when it
 ///     woke more than LATESECONDS after DueAt) and saves it, sends one Notification of kind reminder to Notify (reminder.due, or
 ///     reminder.late when Late), releases the lock and publishes the reminder event (fired). A failed send is logged with the Ref and not
-///     retried, so that a reminder never fires twice. A lock that is busy is tried again a second later.
+///     retried, so that a reminder never fires twice. The open waits for the lock up to the process's lock timeout ($$$LockTimeout);
+///     a row whose lock is still busy then is tried again a second later.
 /// Times go only through OcuTalon.Data.Time, and no text is rendered here: the Notification carries a catalog key and its slots.
 Class OcuTalon.Schedule.Reminder
 {

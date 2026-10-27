@@ -10,7 +10,8 @@ Property Ref As %String(MAXLEN = 22);
 /// The timers set, one "seconds|completionKey" string per call.
 Property Timers As %DynamicArray;
 
-/// The requests sent, one {target, kind, key, slots, session, responseRequired} object per call.
+/// The requests sent, one {target, kind, key, slots, session, responseRequired, storedState} object per call; storedState is the
+/// State of the Ref's row as it is saved at the moment of the send ("" when there is no row).
 Property Sent As %DynamicArray;
 
 /// The status that SendRequestAsync answers.
@@ -32,7 +33,9 @@ Method SetTimer(seconds As %Integer, key As %String) As %Status
 
 Method SendRequestAsync(target As %String, request As %RegisteredObject, responseRequired As %Boolean = 1, completionKey As %String = "", description As %String = "") As %Status
 {
-	Do ..Sent.%Push({"target": (target), "kind": (request.Kind), "key": (request.CatalogKey), "slots": (request.Slots), "session": (request.SessionRef), "responseRequired": (+responseRequired)})
+	Set stored = ""
+	If ##class(OcuTalon.Data.Reminder).RefIndexExists(..Ref, .id) Set stored = ##class(OcuTalon.Data.Reminder).StateGetStored(id)
+	Do ..Sent.%Push({"target": (target), "kind": (request.Kind), "key": (request.CatalogKey), "slots": (request.Slots), "session": (request.SessionRef), "responseRequired": (+responseRequired), "storedState": (stored)})
 	Quit ..SendStatus
 }
 

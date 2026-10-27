@@ -1,6 +1,8 @@
-/// Tests of the reminder logic that need no production (Story 8.3; AD-5, AD-18, AD-32, FR-34, NFR-10). They call the pure methods of
-/// OcuTalon.Schedule.Reminder and a shadow instance of OcuTalon.Test.Schedule.ReminderOpsProbe, whose waiter never starts. The
-/// reminders that really wait and fire are Test.Schedule.Reminders'. The keys and slots are written out here, never read from the product.
+/// Tests of the reminder logic that need no production (Story 8.3; AD-5, AD-18, AD-32, FR-34, NFR-10). They call the methods of
+/// OcuTalon.Schedule.Reminder (Wake on a Test.Schedule.ReminderTimerDouble, over fixture rows) and shadow instances of the ReminderOps
+/// probes (ReminderOpsProbe, ReminderOpsStartedProbe, ReminderOpsSendProbe); TestWakeBusyRowTriesAgain also starts jobs that hold and
+/// try a row's lock. The reminders that really wait and fire are Test.Schedule.Reminders'. The keys and slots are written out here, never
+/// read from the product.
 ///   - TestAccepts: each row of the handled set: a SetReminder with a Text, a future UTC DueAt and no other due form is carried out; the
 ///     other due forms, both forms, no form, a blank Text, an unreadable or past DueAt and any other command are not;
 ///   - TestTimes: SecondsUntil is at least 1 for a due time that is past, now, one and five seconds ahead; IsLate is true only beyond
@@ -9,7 +11,11 @@
 ///   - TestNotHandledWritesNothing: ReminderOps answers the not-implemented status for what it does not carry out, and writes no row
 ///     and no event;
 ///   - TestStartFailureKeepsNothing: a waiter that does not start deletes the row, publishes no event and answers failed;
-///   - TestCreatedEventFailureStillSets: a created event that cannot be published is a warning, and the answer is still set;
+///   - TestCreatedEventFailureStillSets: a created event that cannot be published is a warning, and the answer is still set, with the
+///     model-facing message;
+///   - TestStartWaiterSeam: the real StartWaiter seam, on a Test.Schedule.ReminderOpsSendProbe whose send is a stand-in: the start goes to
+///     ReminderTimer with the Ref, in a session of its own under the session's TraceRef, the operation's own session id and SuperSession
+///     are put back after an answer, no answer, an error and a throw, and the last three are errors;
 ///   - TestWakeEarlySetsTimerAgain, TestWakeFiresOnTime, TestWakeFiresLate, TestWakeSendFails, TestWakeNotPendingSendsNothing and
 ///     TestWakeBusyRowTriesAgain: the firing rule of Reminder.Wake, run on a Test.Schedule.ReminderTimerDouble, for each row of the
 ///     matrix that the waiter in a production cannot be made to show in a test (an early wake, a late wake, a failed send), and for a row
@@ -20,13 +26,16 @@ Class OcuTalon.Test.Schedule.ReminderLogic Extends %UnitTest.TestCase
 /// The probe under test.
 Parameter PROBE = "OcuTalon.Test.Schedule.ReminderOpsProbe";
 
+/// The most seconds the lock job of TestWakeBusyRowTriesAgain holds the row's lock when the test does not let it go.
+Parameter HOLDSECONDS = 40;
+
 /// The Refs of the fixture sessions of the run, comma-separated.
 Property Refs As %String(MAXLEN = "");
 
 Method OnAfterAllTests() As %Status
 {
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
-	Kill ^OcuTalonTest("ReminderLogic", "held"), ^OcuTalonTest("ReminderLogic", "tried")
+	Kill ^OcuTalonTest("ReminderLogic", "held"), ^OcuTalonTest("ReminderLogic", "tried"), ^OcuTalonTest("ReminderLogic", "release")
 	Quit $$$OK
 }
 
@@ -229,8 +238,8 @@ Method TestWakeEarlySetsTimerAgain()
 	Do $$$AssertEquals(..EventStates(session), "", "no event is published")
 }
 
-/// A wake within 10 seconds after the due time marks the row fired and not late, sends one reminder.due Notification and publishes the
-/// fired event.
+/// A wake within 10 seconds after the due time marks the row fired and not late and saves it before it sends one reminder.due
+/// Notification, and publishes the fired event.
 Method TestWakeFiresOnTime()
 {
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogicft" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
@@ -247,6 +256,7 @@ Method TestWakeFiresOnTime()
 		Do $$$AssertEquals(sent.target_"|"_sent.kind_"|"_sent.key_"|"_sent.session, "Notify|reminder|reminder.due|"_session, "to Notify, a reminder.due Notification for the session")
 		Do $$$AssertEquals(sent.responseRequired, 0, "and no answer is waited for")
 		Do $$$AssertEquals(sent.slots, "{""text"":"""_text_""",""dueAt"":"""_dueAt_"""}", "with the text and the due time")
+		Do $$$AssertEquals(sent.storedState, "fired", "the row is saved fired before the send")
 	}
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.Late, "fired|0", "the row is fired and not late")
@@ -319,14 +329,16 @@ Method TestWakeNotPendingSendsNothing()
 }
 
 /// A row whose lock another job holds is not fired and not dropped: the wake sets the timer again for a second and sends nothing. Once
-/// the other job lets go, the next wake fires the reminder once, and the lock is free again for another job.
+/// the other job lets go, the next wake fires the reminder once, and the lock is free again for another job. The other job holds the
+/// lock until the test lets it go after the first wake, so the outcome does not depend on the lock timeout; it needs a process lock
+/// timeout under HOLDSECONDS (the default is 10 seconds).
 Method TestWakeBusyRowTriesAgain()
 {
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogicbl" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
 	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ session
 	Set ref = ..DueReminder(session, 3)
-	Kill ^OcuTalonTest("ReminderLogic", "held", ref), ^OcuTalonTest("ReminderLogic", "tried", ref)
-	Job ##class(OcuTalon.Test.Schedule.ReminderLogic).HoldLock(ref, 14)::10
+	Kill ^OcuTalonTest("ReminderLogic", "held", ref), ^OcuTalonTest("ReminderLogic", "tried", ref), ^OcuTalonTest("ReminderLogic", "release", ref)
+	Job ##class(OcuTalon.Test.Schedule.ReminderLogic).HoldLock(ref, ..#HOLDSECONDS)::10
 	Set started = $Test
 	Do $$$AssertTrue(started, "a job is started that holds the row's lock")
 	If 'started Quit
@@ -349,6 +361,7 @@ Method TestWakeBusyRowTriesAgain()
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "one warning is logged with the Ref")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
+	Set ^OcuTalonTest("ReminderLogic", "release", ref) = 1
 	Set end = $ZHorolog + 20
 	While $Data(^OcuTalonTest("ReminderLogic", "held", ref)) && (end > $ZHorolog) {
 		Hang 0.1
@@ -369,13 +382,17 @@ Method TestWakeBusyRowTriesAgain()
 	Do $$$AssertEquals($Get(^OcuTalonTest("ReminderLogic", "tried", ref)), 1, "and the lock is free after the wake")
 }
 
-/// The job of TestWakeBusyRowTriesAgain that holds the row's exclusive lock for the seconds; the flag under held tells that it does.
+/// The job of TestWakeBusyRowTriesAgain that holds the row's exclusive lock until the test sets the flag under release, for at most the
+/// seconds; the flag under held tells that it does.
 ClassMethod HoldLock(ref As %String, seconds As %Integer)
 {
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref, 4)
 	If '$IsObject(row) Quit
 	Set ^OcuTalonTest("ReminderLogic", "held", ref) = 1
-	Hang seconds
+	Set end = $ZHorolog + seconds
+	While '$Data(^OcuTalonTest("ReminderLogic", "release", ref)) && (end > $ZHorolog) {
+		Hang 0.1
+	}
 	Set row = ""
 	Kill ^OcuTalonTest("ReminderLogic", "held", ref)
 }
@@ -416,11 +433,50 @@ Method TestCreatedEventFailureStillSets()
 		Quit
 	}
 	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|set", "the answer is still set")
+	Do $$$AssertEquals(response.Message, "The reminder is set.", "with the message for the model")
 	Do $$$AssertTrue(response.Ref '= "", "with the Ref")
 	Do $$$AssertEquals(response.DueAt, command.DueAt, "and the due time")
 	Do $$$AssertEquals(rows, 1, "the row stays")
 	Do $$$AssertEquals(warnings, 1, "one warning is logged")
 	Do $$$AssertEquals(..Rows(session), 0, "nothing is left after the rollback")
+}
+
+/// The real StartWaiter seam against a stand-in send: the start request goes to ReminderTimer, names the Ref and waits at most 10
+/// seconds; while it is sent, the operation has no session id and its SuperSession is the session row's TraceRef (the waiter's own
+/// trace session, AD-26); afterwards both are as they were, whatever the send did. A send that gets no answer, fails or throws is an
+/// error status (the caller deletes the row and answers failed).
+Method TestStartWaiterSeam()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzlogicsw" _ $Increment(^OcuTalonTest("ReminderLogic", "n")))
+	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ session
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Do $$$AssertTrue(trace '= "", "the session has a TraceRef")
+	Set row = ##class(OcuTalon.Data.Reminder).%New()
+	Set row.Ref = "zzseamref"
+	Set row.SessionRef = session
+	Set modes = $ListBuild("ok", "noanswer", "error", "throw")
+	Set position = 0
+	While $ListNext(modes, position, mode) {
+		Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Schedule.ReminderOpsSendProbe", .sc)
+		Do $$$AssertStatusOK(sc, mode_": a shadow instance of the probe is made")
+		If '$IsObject(probe) Continue
+		Set probe.Mode = mode
+		Set probe.%SessionId = 4711
+		Set probe.%SuperSession = "zzbefore"
+		Set sc = probe.Start(row)
+		If mode = "ok" {
+			Do $$$AssertStatusOK(sc, mode_": a waiter that answers is started")
+		} Else {
+			Do $$$AssertTrue($$$ISERR(sc), mode_": the start is an error")
+		}
+		If $IsObject(probe.Seen) {
+			Do $$$AssertEquals(probe.Seen.target_"|"_probe.Seen.ref_"|"_probe.Seen.timeout, "ReminderTimer|zzseamref|10", mode_": the start goes to ReminderTimer, names the Ref, waits 10 seconds")
+			Do $$$AssertEquals(probe.Seen.sessionId_"|"_probe.Seen.superSession, "|"_trace, mode_": it is sent with no session id, under the TraceRef")
+		} Else {
+			Do $$$AssertTrue(0, mode_": the send was made")
+		}
+		Do $$$AssertEquals(probe.%SessionId_"|"_probe.%SuperSession, "4711|zzbefore", mode_": the operation's session id and SuperSession are put back")
+	}
 }
 
 /// The number of Reminder rows of the session.

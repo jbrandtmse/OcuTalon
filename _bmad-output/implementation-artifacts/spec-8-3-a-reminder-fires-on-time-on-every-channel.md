@@ -201,6 +201,33 @@ The waiter is frozen: it stores only `Ref`, and its logic lives in `OcuTalon.Sch
    - A waiter whose row is no longer pending sends nothing. (FR-34, AD-14, AD-18, AD-32, UX-DR18)
 4. **The 5-second test.** Given a reminder due 5 s after it is set, when the test waits for it, then exactly one notification arrives per channel: one web card, one phone message, and `TelegramOut` once in the paired route. None of them is created before `DueAt`. No seconds bound is asserted. (FR-34, NFR-10)
 
+### Review Findings
+
+Code review 2026-10-27 (bmad-code-review, full mode; four layers; 24 rows grouped into 8 entries: 0 high, 1 medium, 7 low; 14 rows rejected). Every patch was applied in the review pass; the mutations are under `## Verification`.
+
+- [x] [Review][Patch] (medium, Rule 19 hermeticity) `TestWakeBusyRowTriesAgain`'s first wake only failed because the process lock timeout (10 s by default) ran out before the other job's fixed 14 s hold ended, a margin of about 4 s that the test neither set nor read. The lock job now holds the lock until the test lets it go after the first wake (at most `HOLDSECONDS`, 40 s), so the outcome no longer depends on the lock timeout; the class runs in about 10 s instead of 15 s [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:341]
+- [x] [Review][Patch] (low) The order "save the fired row, then send" (Design Notes, Decided 8) was not pinned: moving `%Save` below the send left `ReminderLogic` green. `ReminderTimerDouble` now records the row's stored `State` at the send, and `TestWakeFiresOnTime` asserts it is `fired` [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderTimerDouble.cls:38]
+- [x] [Review][Patch] (low) The `Reminder` class doc said a busy lock "is tried again a second later". The open first waits the process lock timeout; the doc now says so (the blocking consequence is closed `wontfix-theoretical` as DW-296) [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls:13]
+- [x] [Review][Patch] (low) `TestSetAndWaiting` asserted the `Ens.Alarm` request "is pending" as status not 9, which also passes for an error, an abort or a discard. It now asserts queued or delivered (2 or 3) [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:157]
+- [x] [Review][Patch] (low) The first sentence of `ReminderLogic`'s class doc named only the pure methods and one probe. It now names `Wake` on the double, the three probes and the lock jobs [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderLogic.cls:1]
+- [x] [Review][Patch] (low, Rule 19) The page clauses of AC 2 and AC 3 had never been seen red: the recorded browser mutation fails at the fixture's header check, before the page opens. Two browser mutations were run through `live sign-in` and went red at `reminder.spec.ts:65` (the trace link) and `:81` (the notice card); the lines are under Verification [web/e2e/reminder/reminder.spec.ts:65]
+- [x] [Review][Patch] (low, Rule 19) AD-26's "SuperSession = the session's `TraceRef`" for the waiter's start had no recorded mutation, and `TestSetAndWaiting` cannot catch its loss, because the fixture's command already carries that `SuperSession` and Ens builds the answer header from the request header. The mutation went red on `TestStartWaiterSeam`; the line is under Verification [src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls:91]
+- [x] [Review][Defer] (low, Rule 2) `ReminderFixture.RemoveSession` repeats the per-session header, body and log deletion of `Test.Data.Fixture.RemoveMessages` (Fixture.cls:380-399), which works by `SuperSession` and cannot be reused for the rail user. Extending it needs the contended `Test/Data/Fixture.cls`, so this is closed `wontfix-accepted` as DW-297 with a `reopen_if` [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls:87]
+
+**Rejected (14 rows):**
+- `low` `Wake` ends quietly when the row's open fails for a reason other than the lock (Blind, Edge): no realistic open error besides "not found" and the lock is shown; the fix adds a branch.
+- `low` (spec-edit) the Auto Run Result's review tally (24 low: 2 patched and 22 rejected, not 3 and 21) and its file list and mutation count predate QA (Blind, two rows): the fix edits the spec's own run record.
+- `false` QA's additions have no fresh run and the probe is untracked (Blind): the fresh-environment check and the commit are the lead's gates; this review's fresh `shard lane-b` passed with QA's and the review's changes.
+- `false` `reminder.spec.ts` never checks that `dueAt` is a number (Blind): `ok` = 1 is asserted first, and `Set` always answers the row's `DueAt`, so `NaN` cannot reach the timeout.
+- `low` `TestSetAndWaiting` cancels through its first in-memory row, which would overwrite a fired row if more than about 11 s passed before the cancel (Edge): it fails red, not green, and needs a stall of over 10 s; the fix adds a guard.
+- `low` `ReminderFixture.Remove` leaves the command session's headers in the rail user's trace (Edge): no later spec reads them, the stack is a throwaway, and the fix needs a search for the command session.
+- `low` the release-then-publish order is not pinned, and the third job's lock check cannot fail for an object lock held in a local (Verification Gap): `Publish` runs in the same job milliseconds after the release, so no consumer can observe the order; pinning it needs a `Publish` seam.
+- `false` `TestFiresOnEveryChannel` asserts demo mode instead of setting it (Verification Gap): the matrix row is "the stacks' default" and the task says "demo mode asserted on".
+- `false` `TestNotHandledWritesNothing`'s row and event checks cannot see a wrongly handled command (Verification Gap): its not-implemented status and empty-answer assertions catch any handled command, as the recorded session-check mutation showed.
+- `low` `OnMessage`'s `Catch` answers failed without deleting a saved row (Acceptance): nothing after the save throws in use (statuses, not exceptions); the fix adds branches.
+- `false` the card gets its own 20 s after the row leaves, looser than "by `DueAt` + 20 s" (Acceptance): CI asserts order and outcome only (NFR-10), and the waits are not measured properties.
+- `false` AD-1's repeat rule is absent on the set path (Acceptance): the Never list and Decided 2 give repeats to Story 8.4, and no tool sends `DueAt` (`Tools/ReminderTools.cls:49-55` sends only `DelaySeconds` or `LocalDueAt`), so no re-sent turn reaches this path.
+
 ## Spec Change Log
 
 - 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed the one contended line in `Test/Data/Tables.cls` (Epic 8's `OcuTalon.Data.Reminder` entry; that XData is shared by entry from now on) and the lead ruled the `TraceHeaderId` property `decide`. The plan's Clarification Needed section was removed and the status set to `ready-for-dev`. The two lock-folder values in Verification were written as the dispatch's placeholder, because committed files carry no local absolute paths; the stage prompts give the real folder.
@@ -347,7 +374,26 @@ Observed on the warm throwaway `e8s3iw` (each reverted, `git status --short` and
   - mutation: `Wake` ends the waiter instead of setting the timer again when the row's lock is busy (`Quit $$$OK` in that branch) -> `ReminderLogic.TestWakeBusyRowTriesAgain`
   - mutation: `Wake` sends to `Notify` with the response required (the `0` dropped) -> `ReminderLogic.TestWakeFiresOnTime` ("no answer is waited for")
   - each reverted from a backup, `git status --short` and `git diff --stat` as before, and `ReminderLogic` green again on the same stack.
-- mutation: `Reminder.Start` writes no `TraceHeaderId` (run through `ci/iris.sh live sign-in`, tag `e8s3ir`) -> `web/e2e/reminder/reminder.spec.ts` red at the header assertion (the other 218 passed); reverted from a backup, tree identical.
+- mutation: `Reminder.Start` writes no `TraceHeaderId` (run through `ci/iris.sh live sign-in`, tag `e8s3ir`) -> `web/e2e/reminder/reminder.spec.ts` red at the fixture's header check (`:59`, before the page opens; the other 218 passed); reverted from a backup, tree identical. The page's own assertions are pinned by the code review's two browser mutations below.
+
+**QA gap audit (QA stage, warm throwaway `e8s3qw`).** Every AC and matrix row had a test. Rows that had no observed mutation, and one row whose real code no test ran, were closed. Added (QA): `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsSendProbe.cls` (new; `ReminderOps` with the real `StartWaiter` seam and a stand-in `SendRequestSync`), `ReminderLogic.TestStartWaiterSeam` (new method: the start goes to `ReminderTimer` with the Ref and a 10 s timeout, with no session id and `SuperSession` = `TraceRef`; the operation's own session id and `SuperSession` are put back after an answer, no answer, an error and a throw; the last three are errors) and one assertion in `ReminderLogic.TestCreatedEventFailureStillSets` (Message "The reminder is set."). Each mutation below was applied to one product file, run on `ReminderLogic`, reverted from a backup, and the tree compared (`git status --short`, `git diff --stat` and the file itself) as identical; `ReminderLogic` is green again on the same stack:
+- mutation: `StartWaiter` does not put `%SessionId`/`%SuperSession` back (matrix: waiter won't start; AD-26) -> `ReminderLogic.TestStartWaiterSeam`
+- mutation: `StartWaiter` does not treat a missing answer as an error (`If 0`) -> `ReminderLogic.TestStartWaiterSeam`
+- mutation: `MESSAGESET` changed to "Done." (matrix: Set, Message) -> `ReminderLogic.TestCreatedEventFailureStillSets` ("with the message for the model")
+- Rows that were pinned but had no recorded mutation:
+  - mutation: `Accepts` ignores `LocalDueAt` (matrix: not handled yet) -> `ReminderLogic.TestAccepts`
+  - mutation: `ReminderOps.OnMessage` drops the session-exists check (unknown session) -> `ReminderLogic.TestNotHandledWritesNothing`
+  - mutation: `Notification` drops the `time` slot of a late reminder -> `ReminderLogic.TestNotification` and `TestWakeFiresLate`
+  - mutation: `SecondsUntil` loses its floor of 1 -> `ReminderLogic.TestTimes`
+  - mutation: `ReminderOps.Set` keeps the row after a failed start (matrix: waiter won't start) -> `ReminderLogic.TestStartFailureKeepsNothing` ("the row is deleted")
+
+**Code review (warm throwaway `e8s3cw`, fresh `e8s3c`).** Each mutation below was applied to one product file, reverted from a backup, and the tree compared (`git status --short`, `git diff --stat` and the file itself) as identical; `ReminderLogic` is green again on the warm stack after the reverts:
+- mutation: `Wake` saves the fired row after the send instead of before (the `%Save` moved below `SendRequestAsync`; AC 3, Decided 8) -> `ReminderLogic.TestWakeFiresOnTime` ("the row is saved fired before the send"); the same mutation was green before the review's double recorded the stored `State`
+- mutation: `StartWaiter` does not set `%SuperSession` to the session's `TraceRef` (AC 2, AD-26) -> `ReminderLogic.TestStartWaiterSeam` ("it is sent with no session id, under the TraceRef", in all four modes)
+- mutation, observed again after the review changed the test (the lock job now holds until the test lets it go): `Wake` ends the waiter when the row's lock is busy (`Quit $$$OK` in that branch) -> `ReminderLogic.TestWakeBusyRowTriesAgain` ("and sets the timer again")
+- mutation: `Live.Payload.Reminder.FromRow` drops the trace fields (AC 2, the page's trace link; `ci/iris.sh live sign-in`, 481 s) -> `web/e2e/reminder/reminder.spec.ts:65` ("its trace link opens its waiter's session"), after the row showed from the real data at `:64`; the other 218 passed
+- mutation: `Reminder.Notification` sends no `SessionRef` (AC 3, the page's notice card; `live sign-in`, 522 s against the 540 s local deadline) -> `reminder.spec.ts:81` ("and one notice card shows"), after the row left the rail at `:80`; the other 218 passed
+- With the review's patches: `ReminderLogic` (10.4 s) and `Reminders` (17.6 s) passed warm; a fresh `shard lane-b` passed (63 classes, 426 s, `Heartbeat` 206 s of it); `bash ci/checks.sh` passed.
 
 **Shared surfaces:**
 - the `Data.Reminder` contract (`Test.Data.Tables`, the one ruled line);

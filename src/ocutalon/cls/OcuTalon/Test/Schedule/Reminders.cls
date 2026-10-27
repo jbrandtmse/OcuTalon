@@ -154,7 +154,7 @@ Method TestSetAndWaiting()
 	Do $$$AssertEquals(alarms.%Size(), 1, "one request goes from ReminderTimer to Ens.Alarm in that session")
 	If alarms.%Size() = 1 {
 		Do $$$AssertEquals(alarms.%Get(0).id, found.alarmHeaderId, "the fixture read the same header")
-		Do $$$AssertTrue(alarms.%Get(0).status '= 9, "and it is pending")
+		Do $$$AssertTrue((alarms.%Get(0).status = 2) || (alarms.%Get(0).status = 3), "and it is pending: queued or delivered (status " _ alarms.%Get(0).status _ ")")
 	}
 	Set timers = ..Timers(found.ref)
 	Do $$$AssertEquals(timers.%Size(), 1, "one ReminderTimer has the Ref")

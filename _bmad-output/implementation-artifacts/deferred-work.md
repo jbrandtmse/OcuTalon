@@ -1285,3 +1285,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-103 owner's delegate: route to 29.3
+
+### DW-296: Reminder.Wake and Start open the row with RefIndexOpen(ref, 4), which waits the process lock timeout ($$$LockTimeout, 10 s) on a busy row inside the single ReminderTimer job
+- source: spec-8-3-a-reminder-fires-on-time-on-every-channel.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Persistent %LockId's default timeout is $$$LockTimeout (irislib/%Storage/Persistent.cls:327); a 10 s wait blocks other wakes and starts (pool 1); no product path holds a Reminder row lock in 8.3
+- 2026-10-27T10:02:31Z status=wontfix-theoretical owner=8-3-a-reminder-fires-on-time-on-every-channel by=cr note=real if a caller holds a Reminder row lock >=LockTimeout or across a start (8.5 Reconcile): Start ends unarmed
+
+### DW-297: Test.Schedule.ReminderFixture.RemoveSession repeats the per-session header, body and log deletion of Test.Data.Fixture.RemoveMessages (Rule 2 copy, weak reason)
+- source: spec-8-3-a-reminder-fires-on-time-on-every-channel.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ReminderFixture.cls RemoveSession vs Fixture.cls:380-399; RemoveMessages works by SuperSession and would delete the rail user's whole trace, so it can't be reused; extending it needs Test/Data/Fixture.cls (contended)
+- 2026-10-27T10:02:38Z status=wontfix-accepted owner=8-3-a-reminder-fires-on-time-on-every-channel by=cr note=reopen_if=Fixture.RemoveMessages' per-session deletes change or a 3rd copy appears; fix needs contended Fixture.cls
