@@ -2,7 +2,8 @@
 title: 'Asked whether everything is fine, OcuTalon never gives a false all-clear'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4f96b6e6acc985db9307b28cd7ee64df9e34880d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -343,6 +344,40 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 - 2026-10-27, spec gate (Epic 5 runner): V1 ruled keep (veto U-110); the Gate pinning test for `check_status` added as a lead decision; spine rows written ("HostData" amended, "Reply guard" new, "Tool classification" names `check_status`); Q1 (contended `web/src/app/chat/check-rows.ts`) sent to the orchestrator; status stays `blocked` until Q1 is ruled.
 ## Review Triage Log
 
+### 2026-10-27 -- Review pass
+- verdicts: 26 findings -- high 0, medium 1, low 22, false 0, maybe-false 3
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` guard lists are narrow (other all-clear wordings pass) -- the closed list is the UX's; the spec's Never says "No phrase outside the two lists"; the fix edits the intent
+    - `[low]` `[reject]` a deleted phrase can leave a fragment ("Not everything is fine" -> "Not") -- spec-bound: removal is literal and never rewrites (Design Notes "Phrase-level removal is literal"); the model is told never to write the phrases
+    - `[medium]` `[reject]` a reply the guard empties loses the check results (Decide's `invalid` fallback never reaches `Checked`) -- spec-bound (matrix "Guard lines": an emptied turn is Decide's existing fallback) and the fix is in the contended `Conversation`; the Chat instruction asks for a reply of the model's own
+    - `[low]` `[reject]` `CheckStatus` ignores the status of `PutChecks`, no cap on `HostData` -- `Put` fails only with no context, which `Session` has already ruled out; `HostData` is `MAXLEN=""`; a guard for a state not demonstrated
+    - `[low]` `[reject]` `whatFailed` lowercases the first character of every finding -- spec-bound (Always); the findings are 5.6's code-built texts, none starts with an acronym
+    - `[low]` `[reject]` sentence time has no day -- spec-bound: `{time}` is the page's `pageTime` (Q1), and the time zone and day logic belong to Epic 6's `page-time.ts`
+    - `[low]` `[reject]` key lists are hard-coded in several places -- real but small; a shared list across `catalog.mjs`, the page and Render needs a cross-language source; the catalog tests fail when a listed key is missing
+    - `[low]` `[reject]` the guard also rewrites reasons and digest lines -- spec-bound (AD-31: the filter runs once on every model text, and the closed list is the UX's)
+    - `[low]` `[reject]` `Gate.CodeFinding` treats the allowed texts as regular expressions -- a developer-only looseness that errors loudly on a bad pattern and passes today; no named harm
+    - `[low]` `[patch]` `TestEmptied` accepts a whitespace-only result -- tightened to `AssertEquals(..., "")` for the six single-text cases; the blank-line case keeps the blank check (fixed in `Test/Checks/Guard.cls`)
+  - Edge Case Hunter
+    - `[low]` `[reject]` negation next to a phrase leaves a fragment -- same as the second Blind Hunter finding
+    - `[low]` `[reject]` a hyphen or underscore after a phrase counts as a boundary -- the spec says the neighbours must not be a letter or digit; a rare wording
+    - `[maybe-false]` `[reject]` a line of only a no-break space after the deletion is kept -- would need a model text that is a phrase and a no-break space alone; low if true
+    - `[low]` `[reject]` all-clear wordings outside the lists pass -- same as the first Blind Hunter finding
+    - `[low]` `[reject]` no `check_status` call, no rows -- the words and the call are the model's; the instructions ask for the call, and the guard stays literal
+    - `[maybe-false]` `[reject]` `Render` and the page differ on an entry of Unicode spaces only -- entries come from `{name} production`, never blank; low if true
+    - `[maybe-false]` `[reject]` a `checkedAt` of the right shape but impossible digits -- the value is `LastRunAt`, set by code; low if true
+    - `[low]` `[reject]` an empty `DisplayName` gives " production" -- `StartWatch` always sets the display name; not reachable
+    - `[low]` `[reject]` non-web channels show no rows -- the spec's Never: no `*Out` operation renders a check key in this story
+  - Verification Gap
+    - `[low]` `[reject]` no test runs `CheckStatus` with a failing `CheckResults` inside a session turn -- the failure needs an `Ownership.Rows` SQL error, which no test can cause without a seam; the matrix row "Refused" names `CheckResults` directly, as 5.9's `TestIncidentsNotRead` does; reopen_if a read error is observed to answer "nothing watched"
+    - `[low]` `[patch]` the `check-rows.ts` wiring is pinned only by an e2e D7 that did not run -- applied: the wiring passes `[]` to `checkSentence`, `live sign-in` went red in D7 only (1 of 193), reverted, and the line is recorded in `## Verification`; the unmutated run is green (192 passed, 1 skipped)
+    - `[low]` `[patch]` the fail-closed path has no recorded mutation -- applied: `Catch` returns the text, `Checks.Guard.TestFailsClosed` red, reverted, line recorded
+  - Intent Alignment (descriptive; no divergence between the readings)
+    - `[low]` `[patch]` the test label "an emptied last line goes without the break before it" says the opposite of its assertion ("Hi.\n") -- the label now says the break before it stays, the assertion follows the spec ("dropped with its line break")
+    - `[low]` `[reject]` an edge no-break space may not be trimmed -- same as the Edge Case Hunter's no-break-space finding
+    - `[low]` `[reject]` the chat-level tests run only in CI stacks -- they ran in this pass (`Test.Checks.Turns` green fresh, `live sign-in` green); nothing to fix
+    - `[low]` `[reject]` files edited that the intent does not name (catalog generator, shared tests, `Tick` moved, `BrokenGuard`) -- all are in the spec's Tasks and footprint extensions, except `Test/Checks/BrokenGuard.cls`, a test-only class that the fail-closed test needs
+
 ## Design Notes
 
 **Rulings (all RULED 2026-10-27).** Q1 RULED by the orchestrator: decide, option (a), shared-by-entry, exactly the lines listed in the `check-rows.ts` task; conditions: `checkSentence` returns the three no-slot keys' catalog text as today, never derives an all-clear from the rows (N1), fills `whatFailed` only from rows that did not pass (the lead reads "failed" with the epics criterion's "failing or unchecked entry", veto U-111), gives "" for any other key, and its test pins all four; `check-rows.ts` and `shared/check-sentence.ts` (new) go under `footprint_extensions:`. Originally: Q1 was with the orchestrator (`web/src/app/chat/**` is Epic 6's, and Epic 6 is running). Lead decision at the gate (decide, tightens security posture): `check_status`, declared trusted output by the epics criterion, gets the same guard the owner set for `dismiss_incident` (U-102, DW-288): a `Test.Bridge.Gate` test pins its answer's keys and each check entry's keys to the code-built allow-list, with every reason or finding one of the `Checks` parameters, so a free-text field added later fails it.**
@@ -539,31 +574,67 @@ Conventions: "HostData", "Tool classification", "Tool results", "Agent step labe
 | DW-90 | `whatFailed` names only the first non-passed row | `check-sentence.test.mjs`, e2e D7 |
 | DW-90 | `checks.notEverythingRestPassed` dropped from `LISTED_KEYS` | `catalog.test.mjs`, `check-sentence.test.mjs` |
 
+**Mutations applied (Rule 19, implement stage).** Each was applied, observed red, and reverted byte-identically (tree hash equal to the one before the mutation):
+- mutation: `CheckStatus` without `PutChecks` -> `Watch.Tools.TestCheckStatus` and `TestCheckStatusHostData`, `Checks.Turns` (all three tests: no key on the Turn)
+- mutation: `ReplyGuard.Filter` returns the text unchanged -> `Checks.Turns.TestFailingOrdersInTheChat` and `TestNothingWatchedInTheChat`, `Checks.Guard.TestVariants` (and the other line tests), `Bridge.Ext.TestExtensionBases`
+- mutation: `Render` gives `KEYRESTPASSED` when every row passed -> `Checks.Render.TestAllPassed`, `Checks.Turns.TestAllClearOnlyFromCode`
+- mutation: `Render` returns "" for `[]` -> `Checks.Render.TestNothingWatched`, `Checks.Turns.TestNothingWatchedInTheChat`
+- mutation: `CheckResults` reads every session's rows (the session filter dropped) -> `Watch.Tools.TestCheckStatus`
+- mutation: `Checked` gives the UTC `checkedAt` as `checked` -> `Watch.Tools.TestCheckStatus`
+- mutation: the answer of `check_status` gains a `cause` key -> `Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt` (keys and free text)
+- mutation: `PutChecks` ignores the existing `HostData` (overwrites it whole) -> `Watch.Tools.TestCheckStatusHostData`
+- mutation: `allPassed` when a `not_checked` row is present (the not-checked group ignored) -> `Checks.Render.TestNonePassed` and `TestNotRunYet`
+- mutation: `RestPassed` always, also with no passed row -> `Checks.Render.TestNonePassed`
+- mutation: input order kept (the failed, not-checked, passed grouping dropped) -> `Checks.Render.TestOneFailing` and `TestNonePassed`
+- mutation: `passed` without `checkedAt` kept passed -> `Checks.Render.TestOddValues`
+- mutation: an element with no entry becomes a `not_checked` row -> `Checks.Render.TestNotResults`, `Core.ConversationTurns.TestStubRenderAddsNothing` (run warm)
+- mutation: case-sensitive matching (`(?i)` removed) -> `Checks.Guard.TestVariants`
+- mutation: the word boundary dropped (lookbehind and lookahead removed) -> `Checks.Guard.TestKeepsTheRest` ("Overall good progress.")
+- mutation: the tidy step runs on every line -> `Checks.Guard.TestKeepsTheRest` and `TestLines`
+- mutation: "no problems" removed from `BANNED` -> `Checks.Guard.TestBannedPhrases`
+- mutation: `check_status` left out of `Watching` -> `Watch.Tools.TestDeclarations`, `Agent.Instructions.TestToolsets`, `Agent.Runners.TestToolInventory` (fresh)
+- mutation: `READONLYCHECKSTATUS` 0 -> `Bridge.Gate.TestWatchToolsAreClassified`, `Bridge.Gate.TestFlagsAreListed`, `Watch.Tools.TestDeclarations`
+- mutation: `TRUSTEDOUTPUTCHECKSTATUS` 0 -> `Bridge.Gate.TestFlagsAreListed`, `Bridge.Gate.TestWatchToolsAreClassified` and the taint assertions of the `check_status` block
+- mutation: the instruction block cut from `Chat` -> `Agent.Instructions.TestChat`
+- mutation: `checkSentence` returns `texts[key]` with no slot filled -> `check-sentence.test.mjs` (and e2e D7 for the wiring, below)
+- mutation: `whatFailed` names only the first non-passed row -> `check-sentence.test.mjs`
+- mutation: `checks.notEverythingRestPassed` dropped from `LISTED_KEYS` (catalog regenerated) -> `catalog.test.mjs` and `check-sentence.test.mjs`
+- mutation: `ReplyGuard.Filter`'s `Catch` returns the unfiltered text instead of "" -> `Checks.Guard.TestFailsClosed` (warm; reverted, hash equal)
+- mutation: `check-rows.ts` passes `[]` instead of `this.checks()` to `checkSentence` -> e2e D7 in `live sign-in` (the only red of 193; reverted, hash equal)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Spec gate, 2026-10-27: Q1 ruled (a) by the orchestrator with conditions; V1 kept (veto U-110); condition 3 read with the epics criterion (veto U-111); AC 8 added; status set to `ready-for-dev`. The plan stage's halt read: intent gap -- Q1: DW-90's page half ("the page renders both keys") cannot be done without editing the contended web/src/app/chat/check-rows.ts (Epic 6's web/src/app/chat/**): L4 import, one new import of checkSentence, one module constant, the body of `sentence` L114-115 and the doc clause L11-12; recommended (a) allow exactly these lines as shared-by-entry wiring (precedent: Story 5.6 ruling Q2), alternatives (b) route the wiring to an Epic 6 story or (c) a server slot path (not recommended) -- see Design Notes Q1. Veto item V1 (public text "Not run yet" and the whatFailed form) also awaits the spec gate.
+**Summary.** `check_status` (safe, read-only, trusted output) copies the session's own production rows into `HostData.checks`; `Checks.Render` is a pure chooser of the key and the rows (failed, not checked, passed); `Checks.ReplyGuard` deletes the reserved sentences and the closed list of banned phrases (case-insensitive, either apostrophe, whole words, fail closed); the page derives `whatFailed` from the rows that did not pass (DW-90, Q1 wiring in `check-rows.ts`). A scenario of the CI mock (`checks-false-all-clear`) drives the real chat turn.
 
-**Planned (plan stage only; nothing implemented).**
-- The spec is written in full to the recommended answers of Q1 (a) and V1 (keep). Once Q1 is ruled (a), the gate only needs to set `status: ready-for-dev`.
-- If Q1 is ruled (b), the task for `check-rows.ts` and the D7 update leave this story, and `catalog.mjs` must not list the two keys (Design Notes Q1 (b)).
+**Files changed.**
+- Product: `Checks/Render.cls` and `Checks/ReplyGuard.cls` (built), `Tools/{WatchTools,WatchAnswers,Watching}.cls` (`check_status`, `CheckResults`, `PutChecks`, `Checked`), `Agent/Chat.cls` (instruction block), `ci/mock/scenarios/A/checks-false-all-clear.json` (new), `web/src/app/shared/check-sentence.ts` (new), `web/scripts/catalog.mjs` and the generated `web/src/app/msg/catalog.ts`, and the Q1 lines of `web/src/app/chat/check-rows.ts` (contended; the import, `CATALOG`, `sentence`, the doc clause; nothing else).
+- Tests: new `Test/Checks/{Render,Guard,Turns,BrokenGuard}.cls` and `web/scripts/check-sentence.test.mjs`; updated `Test/Watch/{Case,Tools,Turns}.cls` (`Tick` moved from `Test/Checks/Heartbeat.cls`), `Test/Bridge/{Gate,Ext,Api}.cls`, `Test/Agent/{Instructions,Runners}.cls`, `Test/Tools/Reminders.cls`, `web/scripts/{catalog.test,ux-strings.test}.mjs` and D7 of `web/e2e/chat/decision.spec.ts`. No edit to `Test/Core/**` or `Test/Live/**`.
+
+**Review.** 26 findings from four layers: high 0, medium 1, low 22, maybe-false 3. Patches applied: `TestEmptied` tightened and a test label corrected (`Test/Checks/Guard.cls`); two mutation lines recorded (fail-closed; the `check-rows.ts` wiring through e2e D7). Deferred: none. Rejected with reasons: see the Review Triage Log (mostly spec-bound wording rules, such as the closed phrase list, literal removal, and an emptied turn becoming Decide's fallback).
+
+**Follow-up review recommended:** false (no high patched; the patches were two test edits and two mutation records).
+
+**Verification.** All passed:
+- Web: `node --test` of the three web test files (59), `catalog.mjs --check`, `docker/tests/test-mock.sh`, `npm --prefix web test` (581).
+- Warm classes: `Test.Checks.{Render,Guard}`, `Test.Watch.Tools`, `Test.Bridge.{Gate,Ext,Api,CodeRules,Decide}`, `Test.Agent.Instructions`.
+- Fresh classes: `Test.Checks.{Turns,Heartbeat}`, `Test.Watch.Turns`, `Test.Agent.Runners`, `Test.Tools.Reminders`.
+- Shards: `lane-a` parts 1/4 to 4/4 (333 s, 148 s, 137 s, 357 s; 70 classes) and `lane-b` (116 s, 42 classes, `Test.Core.ConversationTurns` and `Test.Contract.Ac` among them).
+- `bash ci/checks.sh`, `bash docker/tests/test-web-build.sh`, and `live sign-in` (192 passed, 1 skipped; D7 included).
+- All mutations of `## Verification` were applied, observed red and reverted. The warm and fresh stacks were torn down; the lane-a lock folder is empty.
+
+**Residual risks.**
+- A reply that the guard empties becomes Decide's `invalid` fallback with no check key and no rows, as the spec says (the Chat instruction asks the model for a sentence of its own).
+- The guard is a closed list (the UX's), so an all-clear in other words is not removed; only the key chosen in code adds a check sentence.
+- `Test.Core.ConversationTurns`' doc still says "the real stub" (contended, not ours).
 
 **Footprint extensions to report:**
-- Not contended:
-  - `Agent/Chat.cls`;
-  - `Test/Agent/{Instructions,Runners}.cls`;
-  - `Test/Bridge/{Gate,Ext,Api}.cls`;
-  - `web/scripts/{catalog.mjs,catalog.test.mjs,ux-strings.test.mjs,check-sentence.test.mjs}`;
-  - `web/src/app/msg/catalog.ts` (generated);
-  - `web/src/app/shared/check-sentence.ts` (new);
-  - `web/e2e/chat/decision.spec.ts` (D7 only).
-- Contended, only under Q1: `web/src/app/chat/check-rows.ts`.
+- Not contended: `Agent/Chat.cls`; `Test/Agent/{Instructions,Runners}.cls`; `Test/Bridge/{Gate,Ext,Api}.cls`; `Test/Checks/BrokenGuard.cls` (new); `web/scripts/{catalog.mjs,catalog.test.mjs,ux-strings.test.mjs,check-sentence.test.mjs}`; `web/src/app/msg/catalog.ts` (generated); `web/src/app/shared/check-sentence.ts` (new); `web/e2e/chat/decision.spec.ts` (D7 only).
+- Contended, under Q1 only: `web/src/app/chat/check-rows.ts`.
 
-**Contended tests that this story keeps green without editing:** `Test.Core.ConversationTurns.TestStubRenderAddsNothing`. `Render` gives "" and no rows for an element with no entry. Only its doc wording ("the real stub") goes stale.
-
-**Spine candidates (Rule 20):**
+**Spine candidates (Rule 20, for the lead):**
 - the "HostData" row: `Render`'s rules and the `whatFailed` rule;
 - the "Tool classification" row: name `check_status`;
 - an AD-28 clarification of the guard's matching.

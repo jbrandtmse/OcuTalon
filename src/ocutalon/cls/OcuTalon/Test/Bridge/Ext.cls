@@ -5,8 +5,8 @@
 ///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4); since Story 1.9 also of a setting of
 ///     an item's adapter, such as the AgentClass of a runner, when the target is Adapter;
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
-///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter and ReplyGuard pass
-///     text through and Classification classifies nothing;
+///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter passes
+///     text through, ReplyGuard removes a reserved sentence (Story 5.7; Test.Checks.Guard pins the rest) and Classification classifies nothing;
 ///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
 ///     description, changes the row when it exists, and ValueFor reads the value;
 ///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current and starts the taint, the host data, the
@@ -173,7 +173,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 
 /// Row 6: HostSink accepts each of its eight event types and lists exactly those in EVENTS, builds the three payloads
 /// with exactly their keys, and BridgeSink extends it, does nothing and writes no live event; the reply filter and
-/// ReplyGuard return text unchanged, and Classify returns "".
+/// ReplyGuard removes a reserved sentence (Story 5.7), and Classify returns "".
 Method TestExtensionBases()
 {
 	Set expected = $ListBuild("turn.step", "decision.recorded", "approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result", "budget.capped")
@@ -199,7 +199,7 @@ Method TestExtensionBases()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.HostSink).BudgetCappedPayload("2026-10-19").day, "2026-10-19", "and carries the day")
 
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.ReplyFilter).Filter("text"), "text", "the default filter returns the text")
-	Do $$$AssertEquals(##class(OcuTalon.Checks.ReplyGuard).Filter("Everything I checked passed."), "Everything I checked passed.", "ReplyGuard returns the text, until Story 5.7")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.ReplyGuard).Filter("Everything I checked passed."), "", "ReplyGuard removes a reserved sentence (Story 5.7; Test.Checks.Guard pins the rest)")
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Checks.ReplyGuard", "%Extends", "OcuTalon.Bridge.Ext.ReplyFilter"), "ReplyGuard extends ReplyFilter")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("OcuTalon.Tools.WatchReads", "read_event_log"), "", "Classify returns an empty string")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("mcp:docs", "read_event_log", {"a": 1}), "", "also for an MCP source and with arguments")

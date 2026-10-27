@@ -6,8 +6,11 @@
 /// The rows of the I/O matrix of the spec:
 ///   - TestSafeBuiltInIsAllowedAndReported (1): a safe built-in is allowed and fires turn.step once, with the owner and the exact payload; a sink in
 ///     error or throw mode changes nothing but one warning;
-///   - TestWatchToolsAreClassified (2, DW-143): the three watch tools are safe and read-only by code, the watching tools are safe and trusted output (dismiss_incident, Story 5.9, is not read-only), and TestEveryBuiltInToolIsClassified scans every
+///   - TestWatchToolsAreClassified (2, DW-143): the three watch tools are safe and read-only by code, the watching tools are safe and trusted output (dismiss_incident, Story 5.9, is not read-only; check_status, Story 5.7, is read-only), and TestEveryBuiltInToolIsClassified scans every
 ///     built-in tool;
+///   - TestCheckStatusAnswerIsCodeBuilt (Story 5.7, AC 8, the pattern of U-102): every answer shape of check_status (rows of each result, no watch, no session, the
+///     read failing) carries only the code-built keys (CHECKSTATUSKEYS, CHECKSTATUSENTRYKEYS), every finding is one of Checks' parameters or a count built from one
+///     (read from the classes), and no free text of an incident is in it;
 ///   - TestDismissAnswerIsCodeBuilt (DW-288, the owner's answer U-102): every answer shape of dismiss_incident carries only the code-built keys
 ///     (DISMISSKEYS, DISMISSENTRYKEYS), a message that is one of the code's own parameter texts and no free text of the incident rows;
 ///   - TestRiskyByCodeAndUnclassified (3, 4; Story 3.6 rows 1 and 2): risky in code and unclassified calls are held (an approval request is raised
@@ -84,6 +87,14 @@ Parameter DISMISSKEYS = "ok,outcome,message,ref,production,state,openVariant,inc
 
 Parameter DISMISSENTRYKEYS = "ref,production,state,openVariant,since,count";
 
+/// The keys that an answer of check_status may carry, and those of each entry of its checks. Its answers are built by code from the session's own
+/// BackgroundCheck rows (the display name, the result, the finding that Checks built from its own parameters, and the time), so it is trusted output (AD-10,
+/// the lead's decision at the spec gate, the pattern of U-102): a key added to them fails TestCheckStatusAnswerIsCodeBuilt until it is added here, and that
+/// edit is the review of its output.
+Parameter CHECKSTATUSKEYS = "ok,message,checks";
+
+Parameter CHECKSTATUSENTRYKEYS = "result,entry,finding,checked";
+
 Parameter SAMPLE = "OcuTalon.Test.Bridge.ZzGateTools";
 
 Parameter AGENT = "OcuTalon.Test.Bridge.ZzGateAgent";
@@ -100,9 +111,9 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status";
 
-Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings";
+Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings";
 
 /// The suspicious-request sample of the UX (EXPERIENCE.md, Simulated devices and sample emails), as it arrives.
 Parameter SAMPLEFROM = "Order Partner Support <support@order-partner.example>";
@@ -227,7 +238,7 @@ Method TestSafeBuiltInIsAllowedAndReported()
 /// Row 2 (DW-143): the three watch tools are safe, read-only and not trusted output, classified by code. The three reminder tools are trusted output
 /// (Story 3.3: their answers are built by code): list_reminders is read-only, set_reminder and cancel_reminder are not. So are the watching tools of
 /// Story 5.1 (veto U-80): list_productions is read-only, start_watch and stop_watch are not. So is dismiss_incident of Story 5.9 (veto U-102), which is not
-/// read-only.
+/// read-only. So is check_status of Story 5.7, which is read-only.
 Method TestWatchToolsAreClassified()
 {
 	For name = "read_failed_messages", "read_event_log", "read_item_settings" {
@@ -249,6 +260,8 @@ Method TestWatchToolsAreClassified()
 	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 1, "by": "code"}.%ToJSON(), "list_productions is safe, read-only and trusted output")
 	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(..#WATCHING, "dismiss_incident")
 	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 0, "trustedOutput": 1, "by": "code"}.%ToJSON(), "dismiss_incident is safe, not read-only and trusted output")
+	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(..#WATCHING, "check_status")
+	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 1, "by": "code"}.%ToJSON(), "check_status is safe, read-only and trusted output")
 }
 
 /// DW-288 (the owner's answer U-102: dismiss_incident stays trusted output while this test pins its answer): every answer shape of dismiss_incident (ambiguous,
@@ -311,6 +324,48 @@ Method TestDismissAnswerIsCodeBuilt()
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
+}
+
+/// AC 8 (Story 5.7, the pattern of U-102): every answer shape of check_status carries only the keys of CHECKSTATUSKEYS, each entry of its checks only those of
+/// CHECKSTATUSENTRYKEYS and strings, every finding is one of the code's own texts (the FINDING and REASON parameters of Checks.Process, REASONNOTRUN of
+/// Checks.Render, or a count built from one, read from the classes), and no free text of the session's incidents (Cause, Element, FixSummary, SampleError) is in
+/// it. The shapes: no watch, rows of each result (passed, failed with a joined finding, not_checked with a reason, and a row that has not run), no session, and
+/// the read failing (WatchAnswers.CheckResults for an owner that Ownership refuses; the tool answers NOSESSION before it reads).
+Method TestCheckStatusAnswerIsCodeBuilt()
+{
+	If ..Guard() Quit
+	Set texts = ..CheckTexts()
+	Do $$$AssertTrue($ListLength(texts) > 12, "the allowed findings are read from the parameters: "_$ListLength(texts))
+	Set free = {"Cause": "zz free cause", "Element": "zz free element", "FixSummary": "zz free fix summary", "SampleError": "zz free sample error"}
+	Set refs = ""
+	Try {
+		Set request = ..Begin()
+		Set a = request.OwnerRef
+		Do ..FreeIncident(a, "open", "2030-01-01T10:00:00Z", free, .refs)
+		Do ..AssertChecksBuilt(##class(OcuTalon.Tools.WatchTools).CheckStatus(), texts, free, "no watch", "", 0)
+		Set process = "OcuTalon.Checks.Process"
+		Set stopped = $Parameter(process, "FINDINGSTOPPED")
+		Set failures = $Replace($Parameter(process, "FINDINGFAILURES"), "{count}", 3)
+		Set least = $Replace($Parameter(process, "FINDINGATLEAST"), "{count}", 50)
+		Set joined = $ZConvert($Extract(stopped, 1), "U")_$Extract(stopped, 2, $Length(stopped))_", "_failures_", "_$Parameter(process, "FINDINGOPEN")
+		Set refs = refs_$Select(refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.G1", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": "2030-01-01T10:00:00Z"})
+		Set refs = refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.G2", {"DisplayName": "Billing", "Result": "failed", "Finding": (joined), "LastRunAt": "2030-01-01T10:01:00Z"})
+		Set refs = refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.G3", {"DisplayName": "Shipping", "Result": "failed", "Finding": (least), "LastRunAt": "2030-01-01T10:02:00Z"})
+		Set refs = refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.G4", {"DisplayName": "Audit", "Result": "not_checked", "Finding": ($Parameter(process, "REASONTIMEOUT")), "LastRunAt": "2030-01-01T10:03:00Z"})
+		Set refs = refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.G5", {"DisplayName": "Fresh"})
+		Do ..AssertChecksBuilt(##class(OcuTalon.Tools.WatchTools).CheckStatus(), texts, free, "rows of each result", "Orders,Billing,Shipping,Audit,Fresh", 5)
+		Do ##class(OcuTalon.Bridge.Context).End()
+		Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+		Do ..AssertChecksBuilt(answer, texts, free, "no session", "", 0)
+		Do $$$AssertEquals(answer.message, $Parameter("OcuTalon.Tools.CommandCall", "NOSESSION"), "no session: NOSESSION")
+		Set answer = ##class(OcuTalon.Tools.WatchAnswers).CheckResults("instance", .results)
+		Do ..AssertChecksBuilt(answer, texts, free, "the read failing", "", 0)
+		Do $$$AssertEquals(answer.message, $Parameter("OcuTalon.Tools.WatchAnswers", "CHECKSNOTREAD"), "the read failing: CHECKSNOTREAD")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test ran to its end")
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
 	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 }
 
@@ -1644,7 +1699,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 	Quit ref
 }
 
-/// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders and the test tool zz_gate_read are
+/// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders, list_productions and check_status and the test tool zz_gate_read are
 /// allowed, each reports one turn.step, and the taint ends as the tool says (list_reminders is trusted output, zz_gate_read is not); in a fresh context every
 /// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
 /// with UNTRUSTED, runs no method, reports nothing, leaves the taint as it was and raises no approval request (dismiss_incident runs for an owner with a noticed
@@ -1669,6 +1724,14 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 	Do $$$AssertEquals(..Sentence(..Decided("list_productions", ..#WATCHING)), "<OK>", label_": list_productions is allowed")
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and fires one turn.step")
 	Do $$$AssertEquals(..Taint(), tainted, "list_productions is trusted output, so the taint stays "_tainted)
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	Kill ^||ZzProbeSink
+	Set request = ..Begin("turn", provenance)
+	If tainted Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("Tainted", 1), "the turn is tainted")
+	Do $$$AssertEquals(..Sentence(..Decided("check_status", ..#WATCHING)), "<OK>", label_": check_status is allowed")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and fires one turn.step")
+	Do $$$AssertEquals(..Taint(), tainted, "check_status is trusted output, so the taint stays "_tainted)
 	Do ##class(OcuTalon.Bridge.Context).End()
 
 	Kill ^||ZzProbeSink
@@ -1758,6 +1821,91 @@ Method AssertCodeBuilt(answer As %DynamicObject, outcome As %String, messages As
 	While iterator.%GetNext(.column, .text) {
 		Do $$$AssertNotTrue(json [ text, label_": the incident's "_column_" is not in the answer")
 	}
+}
+
+/// Asserts that an answer of check_status is code-built (TestCheckStatusAnswerIsCodeBuilt): a JSON object whose keys are all in CHECKSTATUSKEYS and whose
+/// ok is a JSON boolean; a message (when it has one) that is NOSESSION or CHECKSNOTREAD with ok false; checks (when it has them) an array of count entries,
+/// each with exactly the keys of CHECKSTATUSENTRYKEYS, all strings, a result that is passed, failed, not_checked or empty, an entry that is the display name
+/// of the names in ENTRY, and a finding that is empty or built from the texts (CheckTexts); and none of the free texts anywhere in its JSON.
+Method AssertChecksBuilt(answer As %DynamicObject, texts As %List, free As %DynamicObject, label As %String, names As %String, count As %Integer) [ Private ]
+{
+	If '$IsObject(answer) || 'answer.%IsA("%Library.DynamicObject") {
+		Do $$$AssertTrue(0, label_": the answer is a JSON object")
+		Quit
+	}
+	Set keys = $ListFromString(..#CHECKSTATUSKEYS)
+	Set extra = ""
+	Set iterator = answer.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		If '$ListFind(keys, key) Set extra = extra_" "_key
+	}
+	Do $$$AssertEquals(extra, "", label_": every key is a code-built one: "_answer.%ToJSON())
+	Do $$$AssertEquals(answer.%GetTypeOf("ok"), "boolean", label_": ok is a JSON boolean")
+	If answer.%IsDefined("message") {
+		Do $$$AssertTrue((answer.message = $Parameter("OcuTalon.Tools.CommandCall", "NOSESSION")) || (answer.message = $Parameter("OcuTalon.Tools.WatchAnswers", "CHECKSNOTREAD")), label_": the message is one of the code's own texts: "_answer.message)
+		Do $$$AssertEquals(answer.ok, 0, label_": and ok is false")
+	}
+	If answer.%IsDefined("checks") {
+		Set checks = answer.checks
+		Do $$$AssertEquals(answer.%GetTypeOf("checks"), "array", label_": checks is an array")
+		Set entryKeys = $ListFromString(..#CHECKSTATUSENTRYKEYS)
+		Set entryNames = ""
+		For i = 1:1:$Length(names, ",") {
+			If $Piece(names, ",", i) '= "" Set entryNames = entryNames_$ListBuild($Replace($Parameter("OcuTalon.Tools.WatchAnswers", "ENTRY"), "{name}", $Piece(names, ",", i)))
+		}
+		Do $$$AssertEquals(checks.%Size(), count, label_": checks has "_count_" entries")
+		Set entries = checks.%GetIterator()
+		While entries.%GetNext(, .entry) {
+			Set problem = ""
+			Set fields = entry.%GetIterator()
+			While fields.%GetNext(.field, .item) {
+				If '$ListFind(entryKeys, field) || (entry.%GetTypeOf(field) '= "string") Set problem = problem_" "_field
+			}
+			For field = 1:1:$ListLength(entryKeys) {
+				If 'entry.%IsDefined($List(entryKeys, field)) Set problem = problem_" no "_$List(entryKeys, field)
+			}
+			Do $$$AssertEquals(problem, "", label_": an entry has exactly the code-built keys, all strings: "_entry.%ToJSON())
+			Do $$$AssertTrue((entry.result = "") || (entry.result = "passed") || (entry.result = "failed") || (entry.result = "not_checked"), label_": its result is one of the four: "_entry.result)
+			Do $$$AssertTrue($ListFind(entryNames, entry.entry) > 0, label_": its entry is a display name in ENTRY: "_entry.entry)
+			Do $$$AssertTrue(..CodeFinding(entry.finding, texts), label_": its finding is built from Checks' texts: "_entry.finding)
+		}
+	}
+	Set json = answer.%ToJSON()
+	Set iterator = free.%GetIterator()
+	While iterator.%GetNext(.column, .text) {
+		Do $$$AssertNotTrue(json [ text, label_": the incident's "_column_" is not in the answer")
+	}
+}
+
+/// The texts that a finding or reason of a check may be built from, lower case: every FINDING and REASON parameter of Checks.Process (5.6) and
+/// REASONNOTRUN of Checks.Render, read from the classes. {count} stands for a number.
+ClassMethod CheckTexts() As %List [ Private ]
+{
+	Set texts = ""
+	Set definition = ##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Checks.Process")
+	If $IsObject(definition) {
+		For i = 1:1:definition.Parameters.Count() {
+			Set name = definition.Parameters.GetAt(i).Name
+			If ($Extract(name, 1, 7) = "FINDING") || ($Extract(name, 1, 6) = "REASON") Set texts = texts_$ListBuild($ZConvert($Parameter("OcuTalon.Checks.Process", name), "L"))
+		}
+	}
+	Quit texts_$ListBuild($ZConvert($Parameter("OcuTalon.Checks.Render", "REASONNOTRUN"), "L"))
+}
+
+/// 1 when the finding is empty or its parts, split at ", ", are each one of the texts (compared in lower case, a number for {count}).
+ClassMethod CodeFinding(finding As %String, texts As %List) As %Boolean [ Private ]
+{
+	If finding = "" Quit 1
+	For i = 1:1:$Length(finding, ", ") {
+		Set part = $ZConvert($Piece(finding, ", ", i), "L")
+		Set found = 0
+		Set position = 0
+		While $ListNext(texts, position, text) {
+			If $Match(part, $Replace(text, "{count}", "[0-9]+")) Set found = 1
+		}
+		If 'found Quit
+	}
+	Quit found
 }
 
 /// The texts that the message of an answer of dismiss_incident may be, read from the classes' parameters: every MESSAGE parameter of IncidentManager (the

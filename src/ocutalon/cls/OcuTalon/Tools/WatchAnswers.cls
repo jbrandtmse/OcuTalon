@@ -13,6 +13,14 @@
 ///     Nothing is submitted for a refusal, and no text of the incident from outside the instance (cause, element, fix summary, sample error) is read.
 ///   - Dismissed is the answer of the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the entry's production and ref, and the
 ///     state and openVariant that the owner's Data holds.
+///   - CheckResults is the one source of the results that check_status gives (9.3 adds its eval branch here): the session's own Kind production
+///     watches (read through the ownership API, by ID), each as {"result", "entry" (ENTRY with the display name), "finding", "checkedAt"} copied from
+///     the row's Result, Finding and LastRunAt, so the tool never decides a result (AD-28). Rows of another Kind are left out. A read that fails
+///     answers {"ok": false, "message": CHECKSNOTREAD}.
+///   - PutChecks sets the results as the checks member of the bridge context's HostData (a JSON object keeps its other members and loses an
+///     earlier checks; any other HostData becomes {"checks": results}), which Conversation hands to Checks.Render.
+///   - Checked is the answer of check_status for the model: {"ok": true, "checks": [{"result", "entry", "finding", "checked"}]}, where checked is the
+///     time in the instance zone (Data.Time.ForMessage; the UTC time never reaches the model).
 ///   - Listed is the answer of list_productions.
 ///   - Joined joins names with ", " and with " and " before the last one.
 /// A tool method runs inside AI Hub's callback, so this class makes no AI Hub call and no Python call (AD-6).
@@ -27,6 +35,12 @@ Parameter NOPRODUCTIONS = "no productions";
 
 /// The answer when the session's incidents cannot be read: nothing is dismissed.
 Parameter INCIDENTSNOTREAD = "The incidents of this conversation could not be read, so nothing was dismissed.";
+
+/// The entry of a check result: the display name of the watch is {name}.
+Parameter ENTRY = "{name} production";
+
+/// The answer when the session's background checks cannot be read: nothing is known about them.
+Parameter CHECKSNOTREAD = "The background checks of this conversation could not be read, so nothing is known about them.";
 
 /// The states of the incidents that dismiss_incident can close, and the states in which an incident is busy and cannot be dismissed (AD-15).
 Parameter DISMISSABLE = "open,resolved";
@@ -175,6 +189,51 @@ ClassMethod Submitted(result As OcuTalon.Msg.CommandResult, match As %DynamicObj
 	Set answer.outcome = result.Outcome
 	Set answer.production = match.displayName
 	Quit answer
+}
+
+/// The results of the session's production watches for check_status: "" and the results in results ([{"result", "entry", "finding", "checkedAt"}, ...], by
+/// ID, copied from the rows), or {"ok": false, "message": CHECKSNOTREAD} when they cannot be read (results is then []).
+ClassMethod CheckResults(sessionRef As %String, Output results As %DynamicArray) As %DynamicObject
+{
+	Set results = []
+	Set checks = ##class(OcuTalon.Data.Ownership).Checks($Get(sessionRef), .sc)
+	If $$$ISERR(sc) || '$IsObject(checks) Quit {"ok": false, "message": (..#CHECKSNOTREAD)}
+	For i = 1:1:checks.Count() {
+		Set check = checks.GetAt(i)
+		If check.Kind '= ..#KIND Continue
+		Do results.%Push({"result": (check.Result), "entry": ($Replace(..#ENTRY, "{name}", check.DisplayName)), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
+	}
+	Quit ""
+}
+
+/// Sets the results as the checks member of the bridge context's HostData. A HostData that is a JSON object keeps its other members; any other
+/// HostData (empty, not JSON, or not an object) becomes {"checks": results}. Returns the status of the context's Put.
+ClassMethod PutChecks(results As %DynamicArray) As %Status
+{
+	Set data = {}
+	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	If $IsObject(context) && (context.HostData '= "") {
+		Try {
+			Set parsed = {}.%FromJSON(context.HostData)
+			If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set data = parsed
+		} Catch exception {
+			Set data = {}
+		}
+	}
+	Do data.%Set("checks", results)
+	Quit ##class(OcuTalon.Bridge.Context).Put("HostData", data.%ToJSON())
+}
+
+/// The answer of check_status for the model: {"ok": true, "checks": [{"result", "entry", "finding", "checked"}, ...]} for the results, where checked is
+/// Data.Time.ForMessage of the result's checkedAt (empty before the first run).
+ClassMethod Checked(results As %DynamicArray) As %DynamicObject
+{
+	Set checks = []
+	Set iterator = results.%GetIterator()
+	While iterator.%GetNext(, .result) {
+		Do checks.%Push({"result": (result.result), "entry": (result.entry), "finding": (result.finding), "checked": (##class(OcuTalon.Data.Time).ForMessage(result.checkedAt))})
+	}
+	Quit {"ok": true, "checks": (checks)}
 }
 
 /// The answer of list_productions: {"ok": true, "list": the joined names, "productions": [{"name", "namespace"}, ...]} for the entries of the reader.

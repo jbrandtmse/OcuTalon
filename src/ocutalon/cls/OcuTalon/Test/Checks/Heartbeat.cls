@@ -16,15 +16,7 @@ Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Watch.Case
 
 Parameter SESSIONPREFIX = "zzbeat";
 
-/// The service that sends the Tick, and the item that handles it.
-Parameter HEARTBEAT = "HeartbeatIn";
-
-Parameter CHECKS = "Checks";
-
 Parameter WATCHOPS = "WatchOps";
-
-/// The longest a Tick is waited for, in seconds.
-Parameter TICKWAIT = 60;
 
 Method TestTickRunsTheWatch()
 {
@@ -165,21 +157,6 @@ ClassMethod Incident(ref As %String) As OcuTalon.Data.Incident [ Private ]
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	If $IsObject(row) Do row.%Reload()
 	Quit row
-}
-
-/// Sends a Tick of the time from HeartbeatIn to Checks and waits for the answer; the id of the service's session, the Tick's trace session, or "" with a failed
-/// assertion.
-Method Tick(tickAt As %String) As %Integer [ Private ]
-{
-	Set sc = ##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service)
-	Do $$$AssertStatusOK(sc, "the "_..#HEARTBEAT_" service is created")
-	If $$$ISERR(sc) Quit ""
-	Set tick = ##class(OcuTalon.Msg.Tick).%New()
-	Set tick.TickAt = tickAt
-	Set sc = service.SendRequestSync(..#CHECKS, tick, .response, ..#TICKWAIT)
-	Do $$$AssertStatusOK(sc, "Checks answers the Tick at "_tickAt)
-	If $$$ISERR(sc) Quit ""
-	Quit service.%SessionId
 }
 
 /// A fixture incident of the session on Orders, noticed, resolved, with the last failure at the time; its Ref (removed with the test's rows).

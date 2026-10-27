@@ -1,12 +1,16 @@
-/// Tests of the Chat agent's watch tools (Story 5.1; AD-1, AD-3, AD-4, AD-9, AD-10, AD-18): start_watch, stop_watch, list_productions and dismiss_incident (Story 5.9), the toolset
+/// Tests of the Chat agent's watch tools (Story 5.1; AD-1, AD-3, AD-4, AD-9, AD-10, AD-18): start_watch, stop_watch, list_productions, dismiss_incident (Story 5.9) and check_status (Story 5.7), the toolset
 /// OcuTalon.Tools.Watching, its provider OcuTalon.Tools.WatchTools and its helper OcuTalon.Tools.WatchAnswers. TestDeclarations, TestJoined, TestDecide,
 /// TestIncidentsNotRead and TestDismissedData need no production; THE OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: the tools read the real
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
-///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions and dismiss_incident of
-///     Tools.Names, each once, from WatchTools; each has its own step label and the flags of the spec (all safe and trusted output, only list_productions
-///     read-only); the inputs are name (required) and namespace for start and stop, none for list and incident and production (none required) for dismiss,
-///     and none names a session, an owner or an origin;
+///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
+///     check_status of Tools.Names, each once, from WatchTools; each has its own step label and the flags of the spec (all safe and trusted output, only
+///     list_productions and check_status read-only); the inputs are name (required) and namespace for start and stop, none for list and check_status, and incident
+///     and production (none required) for dismiss, and none names a session, an owner or an origin;
+///   - TestCheckStatus, TestCheckStatusHostData and TestCheckStatusNotRead (Story 5.7; matrix "check_status", "HostData kept", "Refused"): check_status gives the
+///     session's own production rows by ID with the time in the instance zone, copies them to HostData with the UTC time, keeps the other members of a JSON
+///     object HostData and replaces an earlier checks, submits nothing, and leaves HostData as it was when it is refused; each asserts the whole answer and the
+///     whole HostData, so a field added later fails;
 ///   - TestStart and TestStop (matrix "Start", "Stop"): one command with origin tool, the session of the turn, the key <ItemId>:1 and the namespace, the
 ///     production and (for a start) the display name, and no other field; the answer is the owner's message, ok, ref, the outcome and the production's name;
 ///   - TestNameForms: the name is trimmed, case-insensitive, may end in " production" and may be the class name, and the namespace argument narrows it;
@@ -58,9 +62,10 @@ Method TestDeclarations()
 	Set want("stop_watch") = $ListBuild("safe", 0, 1, "Stopping a watch", "name,namespace", "name")
 	Set want("list_productions") = $ListBuild("safe", 1, 1, "Listing the productions", "", "")
 	Set want("dismiss_incident") = $ListBuild("safe", 0, 1, "Dismissing an incident", "incident,production", "")
-	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"))
+	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
+	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
-	Do $$$AssertEquals(tools.%Size(), 4, "the toolset offers four tools")
+	Do $$$AssertEquals(tools.%Size(), 5, "the toolset offers five tools")
 	Set found = ""
 	Set iterator = tools.%GetIterator()
 	While iterator.%GetNext(, .tool) {
@@ -68,7 +73,7 @@ Method TestDeclarations()
 		Set name = tool.name
 		Do $$$AssertEquals(tool.provider, ..#TOOLS, name_" is a method of "_..#TOOLS)
 		If '$Data(want(name)) {
-			Do $$$AssertTrue(0, name_" is not one of the four tools")
+			Do $$$AssertTrue(0, name_" is not one of the five tools")
 			Continue
 		}
 		Set upper = $ZConvert($Translate(name, "_-"), "U")
@@ -111,7 +116,7 @@ Method TestDeclarations()
 	While iterator.%GetNext(, .tool) {
 		Set ownNames = ownNames _ $ListBuild(tool.name)
 	}
-	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.Runners).Sorted(ownNames)), "DismissIncident,ListProductions,StartWatch,StopWatch", ..#TOOLS_" offers its four methods and none of Result's")
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.Runners).Sorted(ownNames)), "CheckStatus,DismissIncident,ListProductions,StartWatch,StopWatch", ..#TOOLS_" offers its five methods and none of Result's")
 	Set definition = ##class(%Dictionary.XDataDefinition).%OpenId(..#TOOLSET_"||Definition")
 	Set xml = $Select($IsObject(definition): definition.Data.Read(32000), 1: "")
 	Do $$$AssertTrue(xml '= "", "the toolset has its Definition")
@@ -288,6 +293,10 @@ Method TestNoSession()
 		}
 		Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
 		Do ..AssertObject(answer, {"ok": false, "message": ($Parameter(..#CALL, "NOSESSION"))}, $List(case, 1)_": dismiss_incident() answers NOSESSION")
+		If $List(case, 2) Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1}")
+		Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+		Do ..AssertObject(answer, {"ok": false, "message": ($Parameter(..#CALL, "NOSESSION"))}, $List(case, 1)_": check_status() answers NOSESSION")
+		If $List(case, 2) Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1}", $List(case, 1)_": and leaves HostData as it was")
 		Do $$$AssertEquals(..Calls().%Size(), 0, $List(case, 1)_": the double recorded nothing")
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
@@ -298,6 +307,87 @@ Method TestNoSession()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).DismissIncident()
 	Do $$$AssertEquals(answer.ok, 1, "and so is dismiss_incident")
 	Do $$$AssertEquals(..Calls().%Size(), 2, "which the double recorded too")
+}
+
+/// check_status (matrix "check_status"): session A has a passed, a failed and a not-run production row, and a row of another Kind between them; session B
+/// has a row. The answer holds A's three production rows by ID with the time in the instance zone, HostData holds them with the UTC time, and nothing is
+/// submitted.
+Method TestCheckStatus()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set a = ..Session("checks-a")
+	Set b = ..Session("checks-b")
+	Set passedAt = "2030-01-01T10:00:00Z"
+	Set failedAt = "2030-01-01T10:01:00Z"
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Other", {"Kind": "zzother", "DisplayName": "Other", "Result": "failed", "Finding": "Other kind", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Failed", {"DisplayName": "Billing", "Result": "failed", "Finding": "3 new failures", "LastRunAt": (failedAt)})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.NotRun", {"DisplayName": "Shipping"})
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", "Zz.B", {"DisplayName": "Belongs to B", "Result": "failed", "Finding": "B's failure", "LastRunAt": (passedAt)})
+	Do ..Begin(a, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Set seen = [{"result": "passed", "entry": "Orders production", "finding": "", "checked": (##class(OcuTalon.Data.Time).ForMessage(passedAt))}, {"result": "failed", "entry": "Billing production", "finding": "3 new failures", "checked": (##class(OcuTalon.Data.Time).ForMessage(failedAt))}, {"result": "", "entry": "Shipping production", "finding": "", "checked": ""}]
+	Do ..AssertObject(answer, {"ok": true, "checks": (seen)}, "check_status()")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).ForMessage(passedAt) '= "", "the time that the model reads is not empty")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).ForMessage(passedAt) '[ "2030-01-01T", "and is not the UTC stamp")
+	Set kept = [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": (passedAt)}, {"result": "failed", "entry": "Billing production", "finding": "3 new failures", "checkedAt": (failedAt)}, {"result": "", "entry": "Shipping production", "finding": "", "checkedAt": ""}]
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, {"checks": (kept)}.%ToJSON(), "HostData holds the rows of A's production watches, with the UTC time")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
+	Do $$$AssertEquals(..Rows(a).%Size(), 4, "and no row is written")
+}
+
+/// check_status keeps HostData (matrix "HostData kept"): a JSON object keeps its other members, anything else becomes {"checks": ...}, and a second call
+/// replaces checks. A watches nothing at first.
+Method TestCheckStatusHostData()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set a = ..Session("hostdata")
+	Do ..Begin(a, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "", "HostData starts empty")
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do ..AssertObject(answer, {"ok": true, "checks": []}, "check_status() with nothing watched")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""checks"":[]}", "an empty HostData becomes checks alone, also for no results")
+	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1}")
+	Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1,""checks"":[]}", "a JSON object keeps its other members")
+	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1,""checks"":[""old""]}")
+	Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1,""checks"":[]}", "and an earlier checks is replaced")
+	Set others = $ListBuild("not json", "[1]", "7", """text""")
+	Set position = 0
+	While $ListNext(others, position, text) {
+		Do ##class(OcuTalon.Bridge.Context).Put("HostData", text)
+		Do ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""checks"":[]}", "HostData "_text_" becomes checks alone")
+	}
+	Set passedAt = "2030-01-01T10:00:00Z"
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", "Zz.Passed", {"DisplayName": "Orders", "Result": "passed", "LastRunAt": (passedAt)})
+	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""checks"":[]}")
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do $$$AssertEquals(answer.checks.%Size(), 1, "a second call after a watch exists answers the row")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, {"checks": [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": (passedAt)}]}.%ToJSON(), "and replaces checks")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
+}
+
+/// check_status not read (matrix "Refused"): the owners instance and eval and an empty one cannot be read, so CheckResults answers CHECKSNOTREAD with no
+/// results. TestNoSession covers the calls that are not a session's turn, with HostData untouched.
+Method TestCheckStatusNotRead()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set owners = $ListBuild("instance", "eval", "")
+	Set position = 0
+	While $ListNext(owners, position, owner) {
+		Set refusal = ##class(OcuTalon.Tools.WatchAnswers).CheckResults(owner, .results)
+		Do ..AssertObject(refusal, {"ok": false, "message": ($Parameter(..#ANSWERS, "CHECKSNOTREAD"))}, "CheckResults('"_owner_"')")
+		Do $$$AssertEquals(results.%ToJSON(), "[]", "'"_owner_"' leaves no results")
+	}
+	Set a = ..Session("notread")
+	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).CheckResults(a, .results)
+	Do $$$AssertEquals(refusal, "", "a session with no watch is read")
+	Do $$$AssertEquals(results.%ToJSON(), "[]", "and has no results")
 }
 
 Method TestSubmitFails()

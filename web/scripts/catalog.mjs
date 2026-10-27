@@ -10,15 +10,16 @@
 // It reads the XData block Entries of Msg/Catalog/Core.cls and of Msg/Catalog/Watch.cls (one JSON object each, the catalog
 // keys with their texts and slot types; the two are merged, and a key in both is refused) and the REASONKEYS parameter of
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key), and keeps an allowlist of the
-// keys the page renders: conversation.turnFallback, the check sentences checks.allPassed, checks.everythingElsePassed and
-// checks.nothingWatched, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself, howToSetKey
+// keys the page renders: conversation.turnFallback, the check sentences checks.allPassed, checks.everythingElsePassed,
+// checks.nothingWatched, checks.notEverything and checks.notEverythingRestPassed, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself, howToSetKey
 // and setUpBot) and every fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS
 // (the slot types of each listed key), REASON_KEYS and renderPageText. A fallbackReason slot renders as its reason text; a time,
 // count or cost slot takes the string the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned
-// like any string slot.
+// like any string slot. A text slot (the whatFailed of checks.notEverything and checks.notEverythingRestPassed, built by the
+// page from the check rows, DW-90) is allowed for those two keys only and is cleaned the same way.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
-// other than fallbackReason, time, count or cost or with a placeholder that is not a declared slot, a fallbackReason.* text
+// other than fallbackReason, time, count or cost (text for the two keys of TEXT_SLOT_KEYS only) or with a placeholder that is not a declared slot, a fallbackReason.* text
 // with a slot of a type other than fallbackReason, a listed key with a one form, a reason value whose fallbackReason.* key is
 // missing, a key that both catalogs define, and an XData block or a REASONKEYS parameter it cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
@@ -39,6 +40,8 @@ export const LISTED_KEYS = [
   'checks.allPassed',
   'checks.everythingElsePassed',
   'checks.nothingWatched',
+  'checks.notEverything',
+  'checks.notEverythingRestPassed',
   'banner.allowance',
   'banner.dailyCap',
   'banner.unreachable',
@@ -55,6 +58,9 @@ export const LISTED_KEYS = [
 export const REASON_PREFIX = 'fallbackReason.';
 /** The slot types the page renders: a fallbackReason slot gives its reason text, the others take the caller's formatted string. */
 const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost'];
+/** The keys that may also declare a text slot, which the page fills from the check rows (DW-90); every other key refuses it. */
+export const TEXT_SLOT_KEYS = ['checks.notEverything', 'checks.notEverythingRestPassed'];
+const TEXT_SLOT_TYPE = 'text';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';
 
@@ -118,8 +124,9 @@ function pageText(key, entry, file) {
   const slots = entry.slots;
   if (slots === null || typeof slots !== 'object' || Array.isArray(slots)) throw new CatalogError(file, 0, `the entry '${key}' declares no slots object`);
   for (const [name, type] of Object.entries(slots)) {
-    if (!SLOT_TYPES.includes(type)) {
-      throw new CatalogError(file, 0, `the entry '${key}' has the slot '${name}' of type '${String(type)}', which the page does not render (only ${SLOT_TYPES.join(', ')})`);
+    const allowed = TEXT_SLOT_KEYS.includes(key) ? [...SLOT_TYPES, TEXT_SLOT_TYPE] : SLOT_TYPES;
+    if (!allowed.includes(type)) {
+      throw new CatalogError(file, 0, `the entry '${key}' has the slot '${name}' of type '${String(type)}', which the page does not render (only ${allowed.join(', ')})`);
     }
   }
   if ('one' in entry) throw new CatalogError(file, 0, `the entry '${key}' has a one form, which the page does not render`);
@@ -168,8 +175,8 @@ function reasonText(value: unknown): string {
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
- * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost, a count or, for a text
+ * slot, the whatFailed sentence part that the page built from the check rows), cleaned like any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
@@ -234,7 +241,7 @@ export function generate(opts) {
     '/** The page wording of each catalog key that the page renders, with {name} placeholders for its slots. */',
     `export const PAGE_TEXTS: Readonly<Record<string, string>> = {\n${textLines.join('\n')}\n};`,
     '',
-    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */',
+    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others (time, count, cost and text) take the formatted string the caller passes. */',
     `export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n${slotLines.join('\n')}\n};`,
     '',
     '/** Each fallback reason value with the suffix of its fallbackReason.* key. */',

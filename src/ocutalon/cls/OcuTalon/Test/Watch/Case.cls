@@ -24,6 +24,8 @@ Include Ensemble
 ///     so that the notice step, or its absence, is done. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
 ///     untagged failures of the poller tests make are gone too.
+///   - for the tests of the checks (Story 5.6, moved here by Story 5.7): Tick, which sends a Tick as HeartbeatIn sends it to the Checks item and waits for the
+///     answer, with the parameters HEARTBEAT, CHECKS and TICKWAIT.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -75,6 +77,14 @@ Parameter SYNTHFIRST = 900000000;
 Parameter WAITBATCH = 30;
 
 Parameter QUIET = 7;
+
+/// The service that sends the Tick, and the item that handles it.
+Parameter HEARTBEAT = "HeartbeatIn";
+
+Parameter CHECKS = "Checks";
+
+/// The longest a Tick is waited for, in seconds.
+Parameter TICKWAIT = 60;
 
 /// What the CommandsIn item had before the double was put behind it, as JSON text, or "" while the double is not behind it.
 Property Swap As %String(MAXLEN = "");
@@ -437,6 +447,21 @@ Method Watch(sessionRef As %String) As %String [ Private ]
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// Sends a Tick of the time from HeartbeatIn to Checks and waits for the answer; the id of the service's session, the Tick's trace session, or "" with a failed
+/// assertion.
+Method Tick(tickAt As %String) As %Integer [ Private ]
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service)
+	Do $$$AssertStatusOK(sc, "the "_..#HEARTBEAT_" service is created")
+	If $$$ISERR(sc) Quit ""
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = tickAt
+	Set sc = service.SendRequestSync(..#CHECKS, tick, .response, ..#TICKWAIT)
+	Do $$$AssertStatusOK(sc, "Checks answers the Tick at "_tickAt)
+	If $$$ISERR(sc) Quit ""
+	Quit service.%SessionId
 }
 
 /// Deletes the BackgroundCheck rows of the sessions of the run (the rows that WatchOps made).
