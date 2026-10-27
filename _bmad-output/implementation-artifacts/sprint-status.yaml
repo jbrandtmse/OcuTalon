@@ -137,7 +137,7 @@ development_status:
   8-3-a-reminder-fires-on-time-on-every-channel: done
   8-4-set-list-and-cancel-reminders-in-plain-words: done
   8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: backlog
-  8-6-reminders-through-the-chat-on-the-demo-path: ready-for-dev
+  8-6-reminders-through-the-chat-on-the-demo-path: in-progress
   epic-8-retrospective: optional
 
   epic-9: backlog
