@@ -11,8 +11,8 @@ Parameter STOP = "OcuTalon created namespace OCUTALON. Now run: zn ""OCUTALON"" 
 /// (IPM's own command "enable -map -ns OCUTALON -q"), with transactions suspended, so that the rollback of a stopped run cannot
 /// undo the mapping. The suspension state before the call is restored on every path.
 /// Returns the mapping's error unchanged. Otherwise returns an error status with the stop sentence when the run namespace is
-/// not OCUTALON, and OK in OCUTALON, where the install continues. It writes nothing, switches no namespace and has no other
-/// effect.
+/// not OCUTALON, and OK in OCUTALON, where the install continues. It prints nothing and switches no namespace. IPM's command
+/// rewrites the instance's CPF file and reloads OCUTALON's mappings on every call, also when the mapping exists already.
 ClassMethod MapAndStop() As %Status
 {
 	Set suspended = $SYSTEM.Process.TransactionsSuspended(1)

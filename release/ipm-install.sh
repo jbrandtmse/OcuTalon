@@ -15,9 +15,11 @@
 #   3. the run created the four OCUTALON databases (public Read on %DB_OCUTALON_PUBLIC only), OCUTALON with Interoperability and
 #      AD-3's seven mappings, and mapped %IPM into OCUTALON from the database where %IPM resolves in USER; the services are those
 #      of the baseline;
-#   4. nothing of OcuTalon is left: no OcuTalon class, routine, global or module record in USER, %SYS or OCUTALON,
-#      no OcuTalon role, no user ocutalon and no /ocutalon web application;
-#   5. the same command again in USER, and in %SYS, gives the same stop, the same configuration and no residue;
+#   4. nothing of OcuTalon is left: no OcuTalon class, routine or module record in USER, %SYS or OCUTALON, no ^OcuTalon global
+#      in USER or %SYS, no OcuTalon role, no user ocutalon and no /ocutalon web application;
+#   5. the same command again in USER, and in %SYS, gives the same stop, the same configuration and no residue, and the same
+#      install through %IPM.Main.Shell() in USER returns the stop sentence as an error status (the stop is not reported as a
+#      success), leaves transactions neither suspended nor open in the session, and leaves no residue;
 #   6. IPM answers in OCUTALON (%IPM.Main.Shell("version") returns OK), so the next command can start there;
 #   Path B, `iris merge`:
 #   7. on a fresh instance from the same image, `iris merge IRIS /opt/ocutalon-ipm/src/cpf/ocutalon.cpf` exits 0 and gives the same
@@ -117,7 +119,7 @@ check_no_residue() {
   residue
   if grep -q '^CHK|ns|' "$tmp/last-snapshot"; then want=17; fi
   if [ "$(grep -c . "$tmp/residue.chk")" -eq "$want" ] && ! grep -v '|0$' "$tmp/residue.chk" | grep -q .; then
-    pass "$1: no OcuTalon class, routine, global, module record, role, user or web application is left in USER, %SYS or OCUTALON ($(grep -c . "$tmp/residue.chk") counts, all 0)"
+    pass "$1: no OcuTalon class, routine or module record in USER, %SYS or OCUTALON, no ^OcuTalon global in USER or %SYS, and no OcuTalon role, user or web application ($(grep -c . "$tmp/residue.chk") counts, all 0)"
   else
     grep -v '|0$' "$tmp/residue.chk" | sed 's/^/  residue: /'
     fail "$1: OcuTalon residue (a count above 0), or $(grep -c . "$tmp/residue.chk") counts printed instead of $want"
@@ -246,6 +248,16 @@ else
   fail "the run in %SYS: the configuration changed"
 fi
 check_no_residue "the run in %SYS"
+
+run shell-user USER 'Set sc=##class(%IPM.Main).Shell("load '"$SRC"'") Write !,"CHK|shell|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Process.TransactionsSuspended(),"|",$TLevel,"|",$SYSTEM.Status.GetOneStatusText(sc)'
+shell_chk=$(sed -n 's/.*\(CHK|shell|.*\)$/\1/p' "$tmp/shell-user.txt" | tail -n 1)
+if [ "$shell_chk" = "CHK|shell|0|0|0|$STOP" ]; then
+  pass "the install through Shell() in USER: an error whose text is the stop sentence, and transactions neither suspended nor open afterwards"
+else
+  echo "  got: '$shell_chk', wanted 'CHK|shell|0|0|0|$STOP' (IsOK|suspended|TLevel|text)"
+  fail "the install through Shell() in USER: not an error with the stop sentence, or transactions left suspended or open"
+fi
+check_no_residue "the install through Shell() in USER"
 
 check_session "IPM answers in OCUTALON, so the next command can start there" OCUTALON \
   "CHK|version|1" \

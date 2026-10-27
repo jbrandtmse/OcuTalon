@@ -8,8 +8,11 @@
 #      public Read on %DB_OCUTALON_PUBLIC only, the namespace OCUTALON with Interoperability, and the seven mappings;
 #   4. src/module.xml has exactly one <CPF> element, the exact one of the package, and no <Resource>, <FileCopy> or <Invoke> line
 #      comes before it: the CPF merge is the manifest's first resource;
-#   5. src/module.xml declares the preload resource of the second early step and invokes its MapAndStop once, at Initialize, After;
-#   6. .github/workflows/lane-a.yml defines job ipm-install, and the job runs release/ipm-install.sh.
+#   5. src/module.xml declares the preload resource of the second early step and invokes its MapAndStop once, at Initialize, After,
+#      and no other Invoke runs at Initialize, the phase where the first run stops (an Invoke of a later phase never runs there);
+#   6. .github/workflows/lane-a.yml defines job ipm-install, and the job runs release/ipm-install.sh;
+#   7. the job is wired the way the script needs: the base image in IRIS_IMAGE, a run tag that ends in -ipm, the web bundle built
+#      before the script runs, and a live deadline that ends before the job's timeout.
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -97,7 +100,7 @@ early_step_declared() {
     line == pre { npre++ }
     line ~ /^<Resource[ \/>].*OcuTalon\.Install\.Ipm/ && line != pre { bad = 1 }
     line == inv { ninv++ }
-    line ~ /^<Invoke[ \/>]/ && line != inv { bad = 1 }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Initialize"/ && line != inv { bad = 1 }
     END { exit (npre == 1 && ninv == 1 && !bad) ? 0 : 1 }' "$1"
 }
 
@@ -108,6 +111,22 @@ ipm_job_runs_script() {
     /^[^ ]/ { injob = 0 }
     injob && $0 ~ /^[ \t]+(- )?run: bash release\/ipm-install\.sh[ \t]*$/ { found = 1 }
     END { exit found ? 0 : 1 }' "$1"
+}
+
+# 7. The job's wiring: the base image, the -ipm tag suffix, the bundle build before the script, deadline inside the timeout.
+ipm_job_wired() {
+  awk '
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { injob = ($1 == "ipm-install:") ; next }
+    /^[^ ]/ { injob = 0 }
+    !injob { next }
+    { line = $0; sub(/^[ \t]+(- )?/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == "IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0" { image = 1 }
+    line ~ /^OCUTALON_RUN_TAG: .*-ipm$/ { tag = 1 }
+    line ~ /^timeout-minutes: [0-9]+$/ { timeout = substr(line, 18) + 0 }
+    line ~ /^OCUTALON_LIVE_DEADLINE: "?[0-9]+"?$/ { d = line; gsub(/[^0-9]/, "", d); deadline = d + 0 }
+    line == "run: bash ci/iris.sh build" { built = 1 }
+    line == "run: bash release/ipm-install.sh" { if (built) ordered = 1 }
+    END { exit (image && tag && ordered && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
 }
 
 # --- the rules on samples ---
@@ -194,9 +213,12 @@ grep -v 'Invoke' "$tmp/manifest.steps" > "$tmp/manifest.no-invoke"
 grep -v 'Preload' "$tmp/manifest.steps" > "$tmp/manifest.no-preload"
 sed 's/When="After"/When="Before"/' "$tmp/manifest.steps" > "$tmp/manifest.invoke-before"
 { cat "$tmp/manifest.steps"; echo "  $INVOKE_ELEMENT"; } > "$tmp/manifest.two-invokes"
-if early_step_declared "$tmp/manifest.steps" && ! early_step_declared "$tmp/manifest.no-invoke" && ! early_step_declared "$tmp/manifest.no-preload" \
-  && ! early_step_declared "$tmp/manifest.invoke-before" && ! early_step_declared "$tmp/manifest.two-invokes"; then
-  pass "rule 5 on samples: the preload resource and the one Invoke pass; a missing one, another phase or two Invokes fail"
+{ cat "$tmp/manifest.steps"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Activate" When="After"/>'; } > "$tmp/manifest.later-invoke"
+{ cat "$tmp/manifest.steps"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Initialize" When="After"/>'; } > "$tmp/manifest.other-initialize"
+if early_step_declared "$tmp/manifest.steps" && early_step_declared "$tmp/manifest.later-invoke" && ! early_step_declared "$tmp/manifest.no-invoke" \
+  && ! early_step_declared "$tmp/manifest.no-preload" && ! early_step_declared "$tmp/manifest.invoke-before" && ! early_step_declared "$tmp/manifest.two-invokes" \
+  && ! early_step_declared "$tmp/manifest.other-initialize"; then
+  pass "rule 5 on samples: the preload resource and the one Invoke pass, also beside an Invoke of a later phase; a missing one, another phase, two Invokes or another Invoke at Initialize fail"
 else
   fail "rule 5 on samples: the checker accepts a manifest without the exact preload resource and Invoke, or rejects the right one"
 fi
@@ -229,14 +251,41 @@ else
   fail "rule 6 on samples: the checker accepts a workflow whose job ipm-install does not run release/ipm-install.sh, or rejects the right one"
 fi
 
+cat > "$tmp/wired.good" <<'EOL'
+jobs:
+  ipm-install:
+    timeout-minutes: 30
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm
+      OCUTALON_LIVE_DEADLINE: "1500"
+    steps:
+      - run: bash ci/iris.sh build
+      - run: bash release/ipm-install.sh
+EOL
+sed 's/ocutalon-iris-base:2026.3.0AI.154.0/ocutalon-iris-base:latest/' "$tmp/wired.good" > "$tmp/wired.image"
+sed 's/-ipm$/-bridge/' "$tmp/wired.good" > "$tmp/wired.tag"
+grep -v 'ci/iris.sh build' "$tmp/wired.good" > "$tmp/wired.no-build"
+awk '/ci\/iris.sh build/ { held = $0; next } /ipm-install.sh/ { print; print held; next } { print }' "$tmp/wired.good" > "$tmp/wired.build-late"
+sed 's/"1500"/"1800"/' "$tmp/wired.good" > "$tmp/wired.deadline"
+awk '/^  ipm-install:/ { print "  other:"; next } { print }' "$tmp/wired.good" > "$tmp/wired.renamed"
+if ipm_job_wired "$tmp/wired.good" && ! ipm_job_wired "$tmp/wired.image" && ! ipm_job_wired "$tmp/wired.tag" \
+  && ! ipm_job_wired "$tmp/wired.no-build" && ! ipm_job_wired "$tmp/wired.build-late" && ! ipm_job_wired "$tmp/wired.deadline" \
+  && ! ipm_job_wired "$tmp/wired.renamed"; then
+  pass "rule 7 on samples: a wired job passes; another image, a tag without -ipm, no build, a late build, a deadline past the timeout or no job fails"
+else
+  fail "rule 7 on samples: the checker accepts a mis-wired job ipm-install, or rejects the right one"
+fi
+
 # --- the real files ---
 
 check "rule 1: $cpf_file has no line that names %Service_CallIn or %IPM" no_service_or_ipm "$cpf_file"
 check "rule 2: $merge_file without its %Service_CallIn and %IPM lines equals $cpf_file" files_agree "$merge_file" "$cpf_file"
 check "rule 3: $cpf_file creates the four databases, OCUTALON with Interoperability and the seven mappings" cpf_content "$cpf_file"
 check "rule 4: $manifest has the one CPF element, first" cpf_is_first "$manifest"
-check "rule 5: $manifest declares the preload resource and invokes MapAndStop once, at Initialize, After" early_step_declared "$manifest"
+check "rule 5: $manifest declares the preload resource and invokes MapAndStop once, at Initialize, After, and nothing else at Initialize" early_step_declared "$manifest"
 check "rule 6: .github/workflows/lane-a.yml defines job ipm-install, which runs release/ipm-install.sh" ipm_job_runs_script .github/workflows/lane-a.yml
+check "rule 7: job ipm-install has the base image, the -ipm tag, the bundle build before the script and a deadline inside the timeout" ipm_job_wired .github/workflows/lane-a.yml
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

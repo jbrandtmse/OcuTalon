@@ -167,6 +167,34 @@ deferred: []
 - Given the Docker install, whose consumer `docker/after-start.cos` loads the package in OCUTALON, when a throwaway stack starts, then the CPF resource and the step pass through and the after-start log shows `STEP package loaded` and every installer step OK: `ci/iris.sh group install-fresh` and `group install-upgrade` pass (Integration AC).
 - Given IPM 0.10.10, which allows no honest stop without its error prefix (Design Notes), when the first run stops, then the output keeps `ERROR!`, and `release/ipm-install.sh` checks that the final line, with ANSI codes removed, is exactly `ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.`
 
+### Review Findings
+
+Code review 2026-10-26 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 25 rows, 5 entries after grouping: 0 high, 1 medium, 4 low, from 9 rows; 16 rows rejected). Each entry: severity, fix-risk, footprint, spec-status, disposition.
+
+- [x] [Review][Patch] The restore of the transaction-suspension state in `MapAndStop` is not pinned [src/preload/cls/OcuTalon/Install/Ipm.cls:24] -- med, fix-risk low (one session line), in-story, spec-clear (Always: "restored on every path"); no check reads `TransactionsSuspended()` or `$TLevel` after a run, so deleting the restore line passes every check while the after-start process (which runs `Registry.Run` after the load) and the admin's session keep transactions suspended. Patch: the `Shell()` check also prints `TransactionsSuspended()` and `$TLevel` and wants `0|0`; mutation recorded.
+- [x] [Review][Patch] QA's `Shell()` check is a fourth install run whose output is not in the log and whose residue is not checked [release/ipm-install.sh:251] -- low, fix-risk low, in-story, spec-clear (AC 3: each install run's full output between `OUTPUT` lines); it ran through `check_session`, which keeps only `CHK|` lines and retries a session up to three times. Patch: it runs through `run()` (OUTPUT block, `TIME` line), its CHK line is read from the plain output, and `check_no_residue` follows it.
+- [x] [Review][Patch] The residue check claims no OcuTalon global in OCUTALON, but counts `^OcuTalon*` globals only in USER and %SYS [release/ipm-install.sh:18,121] -- low, fix-risk low, in-story, spec-clear (the Task scopes the global count to USER and %SYS); a PASS line that claims more than it checks. Patch: the header and the PASS line say what is counted.
+- [x] [Review][Patch] `test-cpf.sh` rule 5 fails on any other `<Invoke>`, so Story 15.2's `Registry.Run("ipm")` Invoke will turn it red under a label about MapAndStop [docker/tests/test-cpf.sh:102] -- low, fix-risk low, in-story, spec-clear; the guard that matters is that nothing else runs at Initialize, where the stop happens. Patch: rule 5 rejects only another Invoke at Phase Initialize; samples for an Initialize Invoke (fails) and a later-phase Invoke (passes).
+- [x] [Review][Patch] `MapAndStop`'s doc comment says it "writes nothing ... and has no other effect", while IPM's command rewrites the CPF file and reloads OCUTALON's mappings on every call, also when the mapping exists [src/preload/cls/OcuTalon/Install/Ipm.cls:14] -- low, fix-risk low, in-story, spec-clear (IPM 0.10.10 `EnableIPM` marks the namespace for `PerformBatchActivation` whenever `zpm` has no module record there, which is always outside %SYS). Patch: the comment says it prints nothing and states IPM's re-activation.
+
+All five patches applied in the review. Verification after them, tag `e15s1cr`, lane C: `bash ci/checks.sh` (all scripts passed), `ci/iris.sh build`, `release/ipm-install.sh` (all checks passed; `TIME shell-user 3s`), the mutations under `## Verification` ("Code review stage"), and `ci/iris.sh teardown` (0 left). The doc-comment change in `Ipm.cls` compiled in every run's preload step.
+
+Rejected (16 rows):
+- `false` blind-hunter 3 (the CPF resource and step add unmeasured cost to every Docker load): the full Initialize path on an existing configuration is measured, `TIME again-user 3s` and `again-sys 3s` (CPF merge, preload compile, step, rollback); the group deltas cited are not attributable to it (Story 2.16 moved `bundle-folder` into `install-fresh`).
+- `false` blind-hunter 8 (rule 2 describes a `%IPM` line that `docker/merge.cpf` lacks): the rule filters "lines that name %Service_CallIn or %IPM", the wording of AC 2 and AD-29, and claims nothing about which of them the file has.
+- `false` verification-gap other 1 (rule 3's `PublicPermission=` count cannot fail on its own): redundant with the exact-line and line-count clauses, but no check takes its green from it; the "second public Read" sample is really rejected. No named harm.
+- `low` blind-hunter 9, acceptance-auditor 4 (the Auto Run Result is stale after QA; frontmatter `status` differs from the tracker): the fix edits build-auto's contract sections of the spec under review; `status` is build-auto's machine state.
+- `low` blind-hunter 6, edge-case-hunter 4 (a hung session or merge has no timeout; the deadline bounds only `dc up`): the job still fails red at its 30-minute timeout and the teardown runs `if: always()`; the sibling `standalone-bridge.sh` has the same pattern; the fix adds timeouts around every session.
+- `low` blind-hunter 7 (`test-pinned-sources.sh` sends every `.CLS` resource to the preload branch): no non-preload `.CLS` resource exists or is planned; the fix adds a branch.
+- `low` edge-case-hunter 1 (Ctrl-C during the mapping: `Shell()` swallows the interrupt and the stop sentence prints without a mapping): a sub-second window, recoverable by the same command; the fix adds a guard.
+- `low` edge-case-hunter 2 (`zpm "ocutalon verify"`, or package or publish outside OCUTALON, stops with the sentence): no documented flow runs them outside OCUTALON, and IPM's `publish` has no Verify phase; reopen_if Story 15.3's release or registry path runs `verify` or runs a lifecycle outside OCUTALON.
+- `low` edge-case-hunter 3 (a step-level `timeout-minutes`, `IRIS_IMAGE` or tag would satisfy rule 7): hypothetical edit; the fix adds indentation-aware matching.
+- `low` edge-case-hunter 5 (an undeclared file under `src/preload/` would compile outside OCUTALON): hypothetical; the Conventions row allows further preload steps, so pinning one file would block them.
+- `low` verification-gap 2 (the mapping-error branch of `MapAndStop` has no test): no reachable trigger on the measured build; the spec records it under "Behaviour notes (source, not exercised)".
+- `low` verification-gap 3 (no check that the `OUTPUT` blocks reach the log): `run()` prints them by construction; a check needs the script to capture its own stdout.
+- `low` verification-gap other 2 (`! grep -q '^STEP '` cannot fail while no Invoke runs `Registry.Run`): a forward guard, not the pinning assertion of any AC; it becomes falsifiable when Story 15.2 adds the Invoke.
+- `low` acceptance-auditor 3 (the exact set of `%IPM` mappings, other namespaces' and `%ALL` mappings, and USER's mappings from the baseline to the first run are not compared): `MapAndStop`'s command is fixed text and the snapshot holds what the Task lists; the fix adds comparisons for a change no code path makes.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -327,6 +355,21 @@ Each `[C]` command uses only throwaway stacks: `release/ipm-install.sh` uses its
 - mutation: `ModifyService:Name=%Service_Bindings,Enabled=1` appended to `src/cpf/ocutalon.cpf` -> `test-cpf.sh` FAIL rules 2 and 3 (rule 3 alone pins an extra line).
 - mutation: `MapAndStop` skips `enable -map -ns OCUTALON` (returns OK) -> `ipm-install.sh` FAIL on "IPM answers in OCUTALON" and on the %IPM mappings of the first run (5 failures).
 - mutation: path B merges a copy of the CPF file without the `IRIS.IF.*` mapping -> `ipm-install.sh` FAIL "path B: the OCUTALON view differs from path A's" (the only failure).
+
+**QA stage (Rule 19; each applied, red observed, reverted, tree byte-identical):**
+- (QA) `docker/tests/test-cpf.sh` extended with rule 7 (job `ipm-install` wiring: base image, `-ipm` tag suffix, bundle build before the script, deadline inside the timeout), run on samples first. (QA) `release/ipm-install.sh` extended with a check that `%IPM.Main.Shell()` returns the stop sentence as an error status.
+- mutation: tag of job `ipm-install` changed from `-ipm` to `-bridge` in `lane-a.yml` -> `test-cpf.sh` FAIL rule 7.
+- mutation: `if: always()` dropped from the teardown step of job `ipm-install` -> `test-ci-config.sh` FAIL `teardown`.
+- mutation: `cpf` removed from `CHECK_SCRIPTS` in `ci/units.sh` -> `test-ci-config.sh` FAIL `units`.
+- mutation: `MapAndStop` stops with error code 7 instead of 5001 -> `ipm-install.sh` FAIL on the stop check of all three runs and on "the install through Shell() in USER" (`Shell()` returned `1|0|0|OK`; 4 failures; re-run by code review on the changed check).
+- mutation: `MapAndStop` runs without suspending transactions -> `ipm-install.sh` FAIL on the %IPM mappings of the first run, the repeat in USER and the run in %SYS (3 failures).
+- mutation: `ModifyService:Name=%Service_CallIn,Enabled=1,AutheEnabled=48` appended to `src/cpf/ocutalon.cpf` -> `ipm-install.sh` FAIL "the services are unchanged" for the first run and for path B.
+- mutation: `MapAndStop` creates role `OcuTalonQa` while suspended -> `ipm-install.sh` FAIL on the residue checks (instance-wide roles) of the first run, the repeat and the %SYS run.
+
+**Code review stage (Rule 19; each applied, red observed, reverted, tree byte-identical; tag `e15s1cr`):**
+- (review) `release/ipm-install.sh`: the `Shell()` check runs through `run()` (its output between `OUTPUT` lines), also reads `TransactionsSuspended()` and `$TLevel` after the run, and is followed by a residue check. `docker/tests/test-cpf.sh` rule 5 rejects only another Invoke at Phase Initialize.
+- mutation: the restore line `Do $SYSTEM.Process.TransactionsSuspended(suspended)` deleted from `MapAndStop` (Always: the suspension state is restored) -> `ipm-install.sh` FAIL "the install through Shell() in USER" (got `CHK|shell|0|1|0|...`; the only failure).
+- mutation: `<Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Initialize" When="After"/>` added to `src/module.xml` (AC 1, nothing else runs at Initialize) -> `test-cpf.sh` FAIL rule 5; the `MapAndStop` Invoke line deleted, re-run on the changed rule -> `test-cpf.sh` FAIL rule 5.
 
 **Shared surfaces:**
 - `src/module.xml`'s elements and their order: `test-pinned-sources.sh` `bridge_first` and `each_resource_has_its_package`, `test-compose-file.sh`'s FileCopy line, and the first `<Version>` that `docker/Dockerfile` and lib-live's `manifest_version` read.
