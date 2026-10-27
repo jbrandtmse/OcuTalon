@@ -16,7 +16,11 @@
 ///     (the required check, AC5);
 ///   - TestLatePressNamesAnotherUserOnALocalInstall: the 409 of an already answered request names another user's answer on a local
 ///     install, and names no one for the signed-in user (whatever the case) or on the online demo;
-///   - TestCancelledAndBadBodies: a cancelled request is 404, and a body that is not an answer is 400 with nothing sent;
+///   - TestOthersAnsweredRequestsAreNotFoundWithNoPayload (QA, AC15): another session's answered, rejected, expired, past-expiry,
+///     role-less and unwatched instance requests are all the 404 of an unknown ref, with no approval payload, on a local install and
+///     on the online demo;
+///   - TestCancelledAndBadBodies: a cancelled request is 404 whatever the body, with nothing sent, a body that is not an answer is
+///     400 with nothing sent, and a rejection from the phone (Story 6.3's channel) is answered;
 ///   - TestMalformedSessionRefIsNotAllowed (DW-199): Approval.Answer given a SessionRef that is not a Ref answers not_allowed and
 ///     changes nothing, and an empty one answers;
 ///   - TestGateStepAndHeldCallReachTheStream (DW-98): in a running turn's bridge context the real gate reports a safe built-in's
@@ -212,19 +216,60 @@ Method TestOnlineDemoOtherSessionIsNotFound()
 	Do $$$AssertEquals(row.AnsweredBy_row.AnsweredChannel_row.AnsweredAt, "", "the request has no answerer")
 }
 
+/// QA (AC15 with AC5): a request that the session can't see is 404 with the body of an unknown ref whatever its state, so a caller who
+/// may not answer never gets the approval payload of an answered or expired request in a 409 (and never a 403 either).
+Method TestOthersAnsweredRequestsAreNotFoundWithNoPayload()
+{
+	If '..Guard() Quit
+	Set a = ..WebSession("a"), b = ..WebSession("b")
+	Set at = "2030-01-01T14:15:00Z"
+	Set unknown = ..Post(b, "zzmissing"_..Number, ..Approve(), .status)
+	Do $$$AssertEquals(status, "404 Not Found", "control: an unknown ref is 404")
+	Set answered = {"AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredBy": "zzsam", "AnsweredAt": (at)}
+	Set noRole = {"RequiredRole": "ZzNoSuchRole"}
+	Set refs = ""
+	Set refs = refs_$ListBuild(..Request(a, "approved", , answered))
+	Set refs = refs_$ListBuild(..Request(a, "rejected", , answered))
+	Set refs = refs_$ListBuild(..Request(a, "expired"))
+	Set refs = refs_$ListBuild(..Request(a, , , {"ExpiresAt": "2020-01-01T00:00:00Z"}))
+	Set refs = refs_$ListBuild(..Request(a, "approved", , {"RequiredRole": "ZzNoSuchRole", "AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredBy": "zzsam", "AnsweredAt": (at)}))
+	Set refs = refs_$ListBuild(..Request(a, "expired", , noRole))
+	Set unwatched = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", "Zz.Answers"_..Number_".Unwatched")
+	Set ..Refs = ..Refs_","_unwatched
+	Set refs = refs_$ListBuild(..Request("instance", "approved", , answered, unwatched))
+	For online = 0, 1 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+		Set position = 0
+		While $ListNext(refs, position, ref) {
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+			Set state = row.State, by = row.AnsweredBy
+			Set body = ..Post(b, ref, ..Approve(), .status)
+			Do $$$AssertEquals(status, "404 Not Found", "onlineDemo "_online_": session B pressing a "_state_" request of A is 404, not 409 or 403")
+			Do $$$AssertEquals(body, unknown, "with the body of an unknown ref")
+			Do $$$AssertEquals({}.%FromJSON(body).%IsDefined("approval"), 0, "and no approval payload")
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+			Do $$$AssertEquals(row.State_"|"_row.AnsweredBy, state_"|"_by, "the row is as it was")
+		}
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "approval").%Size()_"|"_##class(OcuTalon.Test.Core.Observe).Events(b, "approval").%Size(), "0|0", "no event reached either stream")
+}
+
 Method TestCancelledAndBadBodies()
 {
 	If '..Guard() Quit
 	Set mine = ..WebSession("a")
 	Set unknown = ..Post(mine, "zzmissing"_..Number, ..Approve(), .status)
-	Set cancelled = ..Request(mine, "cancelled")
-	Set body = ..Post(mine, cancelled, ..Approve(), .status)
-	Do $$$AssertEquals(status, "404 Not Found", "a cancelled request is 404")
-	Do $$$AssertEquals(body, unknown, "with the body of an unknown ref")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(cancelled).State, "cancelled", "and stays cancelled")
-	Set pending = ..Request(mine)
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(mine).TraceRef
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace).%Size()
+	Set cancelled = ..Request(mine, "cancelled")
+	For json = ..Approve(), "not json" {
+		Set body = ..Post(mine, cancelled, json, .status)
+		Do $$$AssertEquals(status, "404 Not Found", "a cancelled request is 404 for the body '"_json_"'")
+		Do $$$AssertEquals(body, unknown, "with the body of an unknown ref")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Headers(trace).%Size(), headers, "nothing was sent for it")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(cancelled).State, "cancelled", "and it stays cancelled")
+	Set pending = ..Request(mine)
 	Set error = "{""error"":{""code"":""bad_answer"",""message"":""An answer needs an action, approve or reject, and a channel, web or phone.""}}"
 	For bad = "", "[]", "not json", "{}", "{""action"":""approve""}", "{""channel"":""web""}", "{""action"":""delete"",""channel"":""web""}", "{""action"":""approve"",""channel"":""telegram""}", "{""action"":""approve"",""channel"":""email""}", "{""action"":1,""channel"":""web""}", "{""action"":""Approve"",""channel"":""web""}" {
 		Set body = ..Post(mine, pending, bad, .status)
@@ -235,6 +280,12 @@ Method TestCancelledAndBadBodies()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(pending).State, "pending", "and the request is pending")
 	Set body = ..Post(mine, "zzmissing"_..Number, "not json", .status)
 	Do $$$AssertEquals(body, unknown, "an unknown ref is 404 whatever the body")
+	Set phone = ..Request(mine)
+	Set body = ..Post(mine, phone, "{""action"":""reject"",""channel"":""phone""}", .status)
+	Do $$$AssertEquals(status, "200 OK", "a rejection from the phone is answered")
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(phone)
+	Do $$$AssertEquals(row.State_"|"_row.AnsweredChannel, "rejected|phone", "and the request is rejected from the phone")
+	Do ..RemoveTaskWarnings(phone)
 }
 
 Method TestMalformedSessionRefIsNotAllowed()

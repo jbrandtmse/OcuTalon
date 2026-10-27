@@ -640,10 +640,10 @@ Method TestEndSession()
 }
 
 /// The two routes that name a record answer 404 not_found, with the error body, for a ref the session can't see: another
-/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible
-/// incident answers 501 not_built, and a visible approval answers 400 bad_answer to a call with no body. The CSP session is
-/// bound to the second of two rows of the user name, so a handler that took the session from the user name would resolve the
-/// first row and answer 404 for the visible refs.
+/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible incident answers
+/// 501 not_built, and a visible approval answers 400 bad_answer to a call with no body.
+/// The CSP session is bound to the second of two rows of the user name, so a handler that took the session
+/// from the user name would resolve the first row and answer 404 for the visible refs.
 Method TestUnseenRefIs404()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"

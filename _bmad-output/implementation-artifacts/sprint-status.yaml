@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-27-2026 12:28
+last_updated: 10-27-2026 14:03
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -118,7 +118,7 @@ development_status:
 
   epic-6: in-progress
   6-1-show-each-incident-as-one-card-in-the-chat: done
-  6-2-approve-or-reject-a-fix-from-the-web-chat: review
+  6-2-approve-or-reject-a-fix-from-the-web-chat: done
   6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: backlog
   6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: backlog
   epic-6-retrospective: optional

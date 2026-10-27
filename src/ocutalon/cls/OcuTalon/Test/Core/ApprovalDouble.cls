@@ -7,9 +7,10 @@
 Class OcuTalon.Test.Core.ApprovalDouble
 {
 
-/// Starts a run whose Answer returns the result, and clears the record. Returns the run.
+/// Ends the run before it (End) and starts a run whose Answer returns the result, with an empty record. Returns the run.
 ClassMethod Begin(result As %String = "done", winner As %String = "") As %String
 {
+	Do ..End()
 	Set run = $Increment(^OcuTalonTest("ApprovalDouble", "n"))
 	Set ^OcuTalonTest("ApprovalDouble", "run") = run
 	Kill ^OcuTalonTest("ApprovalDouble", run)

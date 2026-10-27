@@ -2,7 +2,7 @@
 // card's root and answer row carry the attributes that the focus rule and the New messages button read; the two buttons share one
 // busy state and are never `disabled`; Show details sits outside the pending/answered choice; every text is bound by interpolation;
 // the dry run's Before and After and each status tone read their own tokens; the call posts only {action, channel} to the answer
-// route; and the incident card hands the first request card its panel. The browser cases (floor/approval.spec.ts, A1 to A7) pin
+// route; and the incident card hands the first request card its panel. The browser cases (floor/approval.spec.ts, A1 to A10) pin
 // what the running page does; this reads the sources, so a state no case reaches cannot lose an attribute or read the wrong token
 // without a test turning red.
 // Run with: node --test web/scripts/

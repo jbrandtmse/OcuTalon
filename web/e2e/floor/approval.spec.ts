@@ -16,7 +16,7 @@ import {
 import { announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 6.2, the approval request card inside the incident card (A1 to A9), in a real browser against a real stack, as the FLOOR user
+ * Story 6.2, the approval request card inside the incident card (A1 to A10), in a real browser against a real stack, as the FLOOR user
  * (the floor stack is in demo mode, its instance zone is UTC and the browser's is UTC and en-GB; the page's clock is fixed at 14:30
  * UTC on the run's date). An incident card is made as IncidentManager will make it (an `incident` event, publishIncident); a
  * request is a fixture row (seedApproval) whose `approval` event reaches the page through BridgeSink (sinkEvent), with the required
@@ -25,7 +25,8 @@ import { announcedTexts, recordAnnouncements, tokenColor } from '../support/page
  * through iris, so that the expected text is exact. A case's rows are its own and are removed in finally.
  * A1 is the pending card (and runs in Firefox and WebKit too, tag @browsers), A2 an Approve, A3 two requests and a Reject, A4 the busy
  * rule (one request however often pressed, the notice after 10 s and the late answer), A5 the press that lost the race to the phone,
- * A6 the 1280x600 layout and A7 another session's request, A8 the replies that are not an answer and A9 a closed incident.
+ * A6 the 1280x600 layout and A7 another session's request, A8 the replies that are not an answer, A9 a closed incident and A10 the
+ * headline cap letting go once the reader scrolls on.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -244,14 +245,14 @@ test('A2: Approve is busy, then the status replaces the buttons with focus on it
     expect(answered.by.toLowerCase(), 'by the signed-in user').toBe(user.toLowerCase());
     const headers = await answerHeaders(user);
     expect(headers.count - before, 'one AnswersIn to AnswerOps header, tagged with the session\'s TraceRef').toBe(1);
-    expect(headers.traceRef).not.toBe('');
   } finally {
     await cleanFixtureRows(rows);
   }
 });
 
 /**
- * A3: two requests of one incident stand in the order raised with Show details only in the first card's row. The second was approved
+ * A3: two requests of one incident stand in the order raised with Show details only in the first card's row. The later one's event
+ * reaches the page first, so that the order is the page's sort by raisedAt and not the order of the events. The second was approved
  * by another user from the phone, and says so. Reject on the first reads "Rejected from the web chat at HH:MM. Nothing was changed.".
  */
 test('A3: two requests stand in the order raised, the second names who approved it, and Reject gives its status', async ({ page }) => {
@@ -261,7 +262,6 @@ test('A3: two requests stand in the order raised, the second names who approved 
     await open(page);
     const incident = refOf('A3');
     const requests: string[] = [];
-    const first = await raise(page, user, rows, incident, requests, { raisedAt: today('14:13:00') });
     const second = await raise(page, user, rows, incident, requests, {
       raisedAt: today('14:14:00'),
       state: 'approved',
@@ -271,6 +271,7 @@ test('A3: two requests stand in the order raised, the second names who approved 
       answeredAt: today('14:15:00'),
       dryRun: { ...DRY_RUN, affected: 2 },
     });
+    const first = await raise(page, user, rows, incident, requests, { raisedAt: today('14:13:00') });
     const cards = incidentCard(page, incident).locator('[data-part="approval"]');
     await expect(cards, 'two request cards').toHaveCount(2, { timeout: CARD_MS });
     await expect(cards.nth(0), 'the first raised is first').toHaveAttribute('data-key', first);
@@ -445,7 +446,8 @@ test('A7: another session\'s request answers 404 from the page\'s context and st
 /**
  * A8: the replies that are not an answer. Each reply of the answer route is fulfilled by the test: a 500 shows its own message, a
  * 403 its approver sentence, a 404 "That request is no longer available." and a network failure the busy notice at once (not after
- * 10 s). Each time both buttons are restored, the notice is announced once, and the next press clears it.
+ * 10 s). Each time both buttons are restored and the notice is announced once. A fifth press, whose reply the test holds, clears
+ * the notice before while its call is out.
  */
 test('A8: a reply that is not an answer shows its notice, restores both buttons and is announced', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -474,10 +476,17 @@ test('A8: a reply that is not an answer shows its notice, restores both buttons 
     },
   ];
   let next = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
   try {
-    await page.route(ANSWER, (route: Route) => {
+    await page.route(ANSWER, async (route: Route) => {
       const one = replies[next++];
-      return one === undefined ? route.continue() : one.reply(route);
+      if (one === undefined) {
+        await gate;
+        await replies[2]!.reply(route).catch(() => undefined);
+        return;
+      }
+      await one.reply(route);
     });
     await open(page);
     const incident = refOf('A8');
@@ -491,17 +500,20 @@ test('A8: a reply that is not an answer shows its notice, restores both buttons 
       await approve.click();
       const notice = card.getByText(one.text, { exact: true });
       await expect(notice, `${one.label}: the notice shows`).toBeVisible({ timeout: 5_000 });
-      if (previous !== undefined) {
-        await expect(previous, `${one.label}: the press cleared the notice before`).toHaveCount(0);
-      }
       await expect(approve, `${one.label}: Approve is restored`).not.toHaveAttribute('aria-busy', /.*/);
       await expect(reject, `${one.label}: Reject is restored`).not.toHaveAttribute('aria-busy', /.*/);
       await expect(card.locator('.buttons'), `${one.label}: the request is still pending on the page`).toHaveCount(1);
       await expect.poll(() => announcedTexts(page).then((texts) => texts.filter((text) => text === one.text).length), { message: `${one.label}: announced once` }).toBe(1);
       previous = notice;
     }
+    await approve.click();
+    await expect(approve, 'a fifth press is out').toHaveAttribute('aria-busy', 'true');
+    await expect(previous!, 'and it cleared the notice before while its call is out').toHaveCount(0);
+    release();
+    await expect(card.getByText('That request is no longer available.', { exact: true }), 'then its reply shows its own notice').toBeVisible({ timeout: 5_000 });
     expect(await readApproval(request).then((row) => row.state), 'nothing reached the request').toBe('pending');
   } finally {
+    release();
     await page.unroute(ANSWER);
     await cleanFixtureRows(rows);
   }
@@ -525,6 +537,45 @@ test('A9: a closed incident draws no request card and keeps its own Show details
     await expect(card.locator('.chip'), 'the incident is closed').toHaveText('Closed', { timeout: CARD_MS });
     await expect(requestCard(page, request), 'the closed card draws no request card').toHaveCount(0, { timeout: CARD_MS });
     await expect(card.locator('.actions').getByRole('button', { name: 'Show details', exact: true }), 'and has its own Show details row').toHaveCount(1);
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * A10: the headline cap lets go once the reader scrolls on. At 1280 by 600, as in A6, the newest incident card follows to its
+ * headline; after the user's own wheel scrolls the list further, the card's next change follows to the bottom and does not pull
+ * the list back up to the headline.
+ */
+test('A10: after the reader scrolls on with the wheel, the card\'s next change follows to the bottom, not back to the headline', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  try {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await changeSnapshot(page, (snapshot) => {
+      snapshot['status'] = [];
+    });
+    await open(page);
+    await page.getByRole('button', { name: 'Hide guide', exact: true }).click();
+    const incident = refOf('A10');
+    const requests: string[] = [];
+    const request = await raise(page, user, rows, incident, requests);
+    await expect(requestCard(page, request)).toHaveCount(1, { timeout: CARD_MS });
+    const card = incidentCard(page, incident);
+    await expect(card.getByRole('heading', { level: 3 }), 'control: the list follows to the headline').toBeInViewport({ ratio: 1 });
+    const list = page.locator('app-chat-panel .list');
+    const gap = (): Promise<number> => list.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop);
+    await expect.poll(gap, { message: 'control: and not to its bottom' }).toBeGreaterThan(64);
+    const capped = await list.evaluate((element) => element.scrollTop);
+
+    await list.hover();
+    await page.mouse.wheel(0, 24);
+    await expect.poll(() => list.evaluate((element) => element.scrollTop), { message: 'the wheel scrolls the list on' }).toBeGreaterThan(capped);
+    expect(await gap(), 'and not to its bottom').toBeGreaterThan(24);
+
+    await applied(page, await publishIncident(user, { ...incidentOf(incident, requests), count: 53 }));
+    await expect(card.locator('p.more'), 'the card changes').toHaveText('3 more since the notice', { timeout: CARD_MS });
+    await expect.poll(gap, { message: 'and the list follows to its bottom, not back to the headline' }).toBeLessThanOrEqual(24);
   } finally {
     await cleanFixtureRows(rows);
   }

@@ -43,6 +43,9 @@ interface Target {
 const PART = 'data-part';
 const KEY = 'data-key';
 
+/** The user's own input in the list that lets go of the newest incident card's headline: the wheel, a touch scroll and a press (on the scrollbar too). */
+const RELEASE_EVENTS = ['wheel', 'touchmove', 'pointerdown'] as const;
+
 /**
  * Where focus goes when an update removes the element that holds it inside the list (UX-DR131): an item that is still there takes
  * it (Retry sending leaves focus on its message), and one that is gone leaves it to the main region.
@@ -83,7 +86,8 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText'> = {
  * the bottom, new content keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
  * incident card taller than the view that is left, following stops at the card's headline, so that its headline, cause, dry-run
  * count and Approve and Reject stay in view (Story 6.2); a later entry follows to the bottom as before, and so does the card while
- * focus is inside it (a press on Show details shows the panel it opens). It leaves the bottom only when it is
+ * focus is inside it (a press on Show details shows the panel it opens) and once the user's own wheel, touch scroll or press in the
+ * list has let go of it (a reader who scrolled on is not pulled back to the headline). It leaves the bottom only when it is
  * scrolled up (its scrollTop falls), so content that grows between the panel's own scroll to the bottom and that scroll's
  * event does not stop it following. When it is scrolled up, content from
  * elsewhere (a new entry, a notice card or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
@@ -242,6 +246,8 @@ export class ChatPanel {
   private atBottom = true;
   /** The list's scrollTop at its last scroll event, or where the panel last put it: a scroll event below it is a scroll up. */
   private lastTop = 0;
+  /** The key of the incident card whose headline the user's own input in the list let go of ('' for none): it follows to the bottom. */
+  private released = '';
   /** Whether each turn's reply has landed, as of the last look. */
   private readonly landedBefore = new Map<string, boolean>();
   /** The entries as of the last look of the announcing effect; undefined until its first run. */
@@ -319,14 +325,24 @@ export class ChatPanel {
     });
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
+      const list = this.list().nativeElement;
       const observer = new ResizeObserver(() => {
         if (this.atBottom) {
           this.scrollToBottom();
         }
       });
-      observer.observe(this.list().nativeElement);
+      observer.observe(list);
       observer.observe(this.content().nativeElement);
-      destroyRef.onDestroy(() => observer.disconnect());
+      const release = (): void => this.release(list);
+      for (const type of RELEASE_EVENTS) {
+        list.addEventListener(type, release, { passive: true });
+      }
+      destroyRef.onDestroy(() => {
+        observer.disconnect();
+        for (const type of RELEASE_EVENTS) {
+          list.removeEventListener(type, release);
+        }
+      });
     });
   }
 
@@ -412,7 +428,7 @@ export class ChatPanel {
    * Puts the list at the bottom, except when the newest entry is an incident card taller than the view that is left: then the card's
    * headline is put at the list's top (below its scroll padding), so that the headline, the cause, the dry-run count and the answer
    * buttons stay in view (UX-DR20); the chip row above the headline is what scrolls out. The list still counts as at the bottom, and
-   * a later entry follows to the bottom as before, as does the card itself while focus is inside it.
+   * a later entry follows to the bottom as before, as does the card itself while focus is inside it and once the user let go of it.
    */
   private scrollToBottom(): void {
     const list = this.list().nativeElement;
@@ -421,15 +437,31 @@ export class ChatPanel {
     this.lastTop = list.scrollTop;
   }
 
-  /** Where the headline of the newest entry sits in the list's scroll range when that entry is an incident card, else undefined. */
+  /**
+   * Where the headline of the newest entry sits in the list's scroll range when that entry is an incident card, else undefined; also
+   * undefined while focus is inside the card and once the user's own input let go of it.
+   */
   private headlineTop(list: HTMLElement): number | undefined {
-    const newest = Array.from(list.querySelectorAll<HTMLElement>(`[${PART}][${KEY}]`)).filter((item) => item.parentElement?.closest(`[${PART}][${KEY}]`) === null);
-    const card = newest[newest.length - 1];
-    if (card === undefined || card.getAttribute(PART) !== 'incident' || card.contains(document.activeElement)) {
+    const card = this.newestEntry(list);
+    if (card === undefined || card.getAttribute(PART) !== 'incident' || card.getAttribute(KEY) === this.released || card.contains(document.activeElement)) {
       return undefined;
     }
     const gutter = Number.parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
     const headline = card.querySelector<HTMLElement>('.headline') ?? card;
     return Math.max(0, headline.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - gutter);
+  }
+
+  /** The user's own wheel, touch scroll or press in the list lets go of the newest incident card's headline, which then follows to the bottom. */
+  private release(list: HTMLElement): void {
+    const card = this.newestEntry(list);
+    if (card !== undefined && card.getAttribute(PART) === 'incident') {
+      this.released = card.getAttribute(KEY) ?? '';
+    }
+  }
+
+  /** The newest item of the list that is not inside another item (a message, a reply, a notice card or an incident card), or undefined. */
+  private newestEntry(list: HTMLElement): HTMLElement | undefined {
+    const items = Array.from(list.querySelectorAll<HTMLElement>(`[${PART}][${KEY}]`)).filter((item) => item.parentElement?.closest(`[${PART}][${KEY}]`) === null);
+    return items[items.length - 1];
   }
 }

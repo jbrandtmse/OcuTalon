@@ -427,11 +427,11 @@ describe('the generator on a fixture', () => {
   });
 
   it('fails when the CHANNELNAMES parameter is missing or is not code=name pairs', () => {
-    for (const [name, channels] of Object.entries({ missing: null, 'no-pair': 'web', 'no-name': 'web=', 'upper-code': 'Web=the web chat', 'bad-name': 'web=the "web" chat' })) {
+    for (const [name, channels] of Object.entries({ missing: null, 'no-pair': 'web', 'no-name': 'web=', 'upper-code': 'Web=the web chat', 'bad-name': 'web=the web chat 2' })) {
       const r = run(...fixture(`channels-${name}`, { channels }));
       assert.equal(r.status, 1, name);
       assert.match(r.stderr, /Catalog\.cls/, name);
-      assert.match(r.stderr, /CHANNELNAMES/, name);
+      assert.match(r.stderr, name === 'missing' ? /there is no Parameter CHANNELNAMES/ : /CHANNELNAMES holds/, name);
     }
   });
 

@@ -7,16 +7,21 @@
 ///   - TestBadActionAndChannel: an action other than approve or reject and a channel other than web, phone or telegram are
 ///     bad_answer, and the double is not called;
 ///   - TestUnseenRequestsAreNotFound: another session's request (on a local install and online), an eval request, an unwatched
-///     instance request, a missing ref and an instance request on the online demo are not_found, and the double is not called;
+///     instance request, a cancelled request, a missing ref and an instance request on the online demo are not_found, whatever the
+///     action and channel, and the double is not called;
 ///   - TestWatcherReachesInstanceRequest: on a local install a session that watches the production reaches the double for an
 ///     instance request, and the answer names that session's Ref and IRIS user (DW-199);
 ///   - TestMalformedSessionRefNeverReaches: a SessionRef that is not a 22-character Ref is not_found and never reaches the double;
 ///   - TestBridgeContextRefuses: inside a bridge context the answer is not_allowed and nothing is sent;
-///   - TestTelegramChannelReaches: the rules are entry-independent, so a telegram answer reaches the double;
-///   - TestHandOffIsTracedToTheSession: the hand-off is sent in a trace session of its own, tagged with the session's TraceRef;
+///   - TestTelegramChannelReaches: the rules are entry-independent, so a phone and a telegram answer reach the double;
+///   - TestHandOffIsTracedToTheSession: the hand-off is sent in a trace session of its own (whatever session the service held
+///     before), tagged with the session's TraceRef;
+///   - TestRequestRefIsTheRowsOwn: a ref that names the request in another letter case reaches the double as the row's own Ref;
 ///   - TestAnswerOpsRefusesOtherSenders: a request whose header names another item, or none, is an error status and answers nothing;
 ///   - TestAnswerOpsUnknownSession: a SessionRef with no Session row is not_found and never reaches the double;
 ///   - TestRoleRefusalReachesCaller: the double's not_allowed for a session whose IRIS user lacks the role reaches the caller;
+///   - TestAnswersInIsTheOnlySender (QA, AC14): no class of the product but AnswersIn names "AnswerOps" as a send target (method
+///     code, parameter defaults, the production's XData settings), and AnswersIn makes exactly one send;
 ///   - TestNoAllowanceOrConversation: the code of AnswersIn and AnswerOps names neither Allowance nor Conversation (an answer is not
 ///     a turn, AD-20).
 Class OcuTalon.Test.Core.AnswersIn Extends %UnitTest.TestCase
@@ -107,7 +112,9 @@ Method TestUnseenRequestsAreNotFound()
 	Set production = "Zz.Answers.Unwatched"
 	Set instanceIncident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", ##class(OcuTalon.Data.Time).NowUtc(), "ZZNS", production)
 	Set ..Refs = ..Refs_","_instanceIncident
-	Set unseen = $ListBuild(..Approval(theirs), ..Approval("eval"), ..Approval("instance", instanceIncident), "zzmissing")
+	Set cancelled = ##class(OcuTalon.Test.Data.Fixture).Approval(mine, "", "cancelled")
+	Set ..Refs = ..Refs_","_cancelled
+	Set unseen = $ListBuild(..Approval(theirs), ..Approval("eval"), ..Approval("instance", instanceIncident), cancelled, "zzmissing")
 	Set probe = ..NewProbe()
 	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin()
 	For online = 0, 1 {
@@ -122,6 +129,9 @@ Method TestUnseenRequestsAreNotFound()
 	Do $$$AssertEquals(probe.Sends, 0, "and nothing was sent")
 	Do ..Answer(probe, ..Approval(theirs), "bogus", "bogus", mine, .output)
 	Do $$$AssertEquals(output.Result, "not_found", "an unseen request is not_found whatever the action and channel")
+	Do ..Answer(probe, cancelled, "bogus", "bogus", mine, .output)
+	Do $$$AssertEquals(output.Result, "not_found", "and so is a cancelled one")
+	Do $$$AssertEquals(probe.Sends, 0, "and nothing was sent")
 }
 
 Method TestWatcherReachesInstanceRequest()
@@ -184,17 +194,20 @@ Method TestTelegramChannelReaches()
 {
 	Set mine = ..Session("a"), request = ..Approval(mine)
 	Set probe = ..NewProbe()
-	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin()
-	Do ..Answer(probe, request, "reject", "telegram", mine, .output)
-	Do $$$AssertEquals(output.Result, "done", "a telegram answer is done")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "channel"), "telegram", "and the double saw the channel")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "action"), "reject", "and the action")
+	For channel = "phone", "telegram" {
+		Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin()
+		Do ..Answer(probe, request, "reject", channel, mine, .output)
+		Do $$$AssertEquals(output.Result, "done", "a "_channel_" answer is done")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "channel"), channel, "and the double saw the channel")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "action"), "reject", "and the action")
+	}
 }
 
 Method TestHandOffIsTracedToTheSession()
 {
 	Set mine = ..Session("a"), request = ..Approval(mine)
 	Set probe = ..NewProbe()
+	Set probe.%SessionId = 1
 	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin()
 	Do ..Answer(probe, request, "approve", "web", mine, .output)
 	Do $$$AssertEquals(probe.Sends, 1, "one send")
@@ -226,9 +239,25 @@ Method TestAnswerOpsRefusesOtherSenders()
 		Do ..RemoveLogRows(mark, "OcuTalon.Test.Core.AnswerOpsProbe")
 	}
 	Set operation = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.AnswerOpsProbe", .sc)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set sc = operation.OnMessage(answer, .response)
 	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "a request with no header is an error status")
+	Do $$$AssertEquals(..LogRows(mark, 2, "OcuTalon.Test.Core.AnswerOpsProbe"), 1, "and one error is logged")
+	Do ..RemoveLogRows(mark, "OcuTalon.Test.Core.AnswerOpsProbe")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Calls(), 0, "the double was never called")
+}
+
+Method TestRequestRefIsTheRowsOwn()
+{
+	Set mine = ..Session("a"), request = ..Approval(mine)
+	Set variant = $ZConvert(request, "L")
+	If variant = request Set variant = $ZConvert(request, "U")
+	Do $$$AssertNotEquals(variant, request, "control: the ref in another letter case differs from the row's")
+	Set probe = ..NewProbe()
+	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin()
+	Do ..Answer(probe, variant, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "done", "the ref in another letter case names the session's request")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "ref"), request, "and the answer names the row's own Ref")
 }
 
 Method TestAnswerOpsUnknownSession()
@@ -272,6 +301,50 @@ Method TestNoAllowanceOrConversation()
 		Do $$$AssertTrue(code [ "Msg.Answer", "control: the code of "_class_" was read")
 		Do $$$AssertEquals(code [ "Allowance", 0, class_" does not name Allowance")
 		Do $$$AssertEquals(code [ "Conversation", 0, class_" does not name Conversation")
+	}
+}
+
+/// QA (AC14, owner condition U-113): AnswersIn is AnswerOps' only sender. Run time refuses any other source (TestAnswerOpsRefusesOtherSenders);
+/// this reads the compiled product and finds no other class that names the item as a target, and one send in AnswersIn.
+Method TestAnswersInIsTheOnlySender()
+{
+	Set target = """AnswerOps"""
+	Set seen = 0, others = ""
+	Set classes = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name LIKE 'OcuTalon.%' AND Name NOT LIKE 'OcuTalon.Test.%'")
+	Do $$$AssertEquals(classes.%SQLCODE, 0, "control: the class list is read")
+	While classes.%Next() {
+		Set class = classes.%Get("Name")
+		Set found = 0
+		Set methods = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.MethodDefinition WHERE parent = ?", class)
+		While methods.%Next() {
+			Set stream = ##class(%Dictionary.MethodDefinition).%OpenId(class_"||"_methods.%Get("Name")).Implementation
+			If stream.Size '= 0, stream.Read(stream.Size) [ target Set found = 1
+		}
+		Set params = ##class(%SQL.Statement).%ExecDirect(, "SELECT Default FROM %Dictionary.ParameterDefinition WHERE parent = ?", class)
+		While params.%Next() {
+			If params.%Get("Default") [ "AnswerOps" Set found = 1
+		}
+		Set seen = seen + 1
+		If found, class '= "OcuTalon.Core.AnswersIn", class '= "OcuTalon.Core.AnswerOps" Set others = others_" "_class
+	}
+	Do $$$AssertTrue(seen > 100, "control: the product's classes were read ("_seen_")")
+	Do $$$AssertEquals(others, "", "no other class names AnswerOps as a target")
+	Set sends = 0, code = ""
+	Set methods = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.MethodDefinition WHERE parent = 'OcuTalon.Core.AnswersIn'")
+	While methods.%Next() {
+		Set stream = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Core.AnswersIn||"_methods.%Get("Name")).Implementation
+		If stream.Size = 0 Continue
+		Set text = stream.Read(stream.Size)
+		Set sends = sends + $Length(text, "SendRequest") - 1
+		If text [ target Set code = methods.%Get("Name")
+	}
+	Do $$$AssertEquals(sends, 1, "AnswersIn makes exactly one send")
+	Do $$$AssertEquals(code, "Send", "and it is the private Send method, which names AnswerOps")
+	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Production||ProductionDefinition")
+	Do $$$AssertTrue($IsObject(xdata), "control: the production's definition is read")
+	If $IsObject(xdata) {
+		Set text = xdata.Data.Read(xdata.Data.Size)
+		Do $$$AssertEquals($Length(text, "AnswerOps") - 1, 2, "the production names AnswerOps only in its own item (its name and its class): no item or setting targets it")
 	}
 }
 

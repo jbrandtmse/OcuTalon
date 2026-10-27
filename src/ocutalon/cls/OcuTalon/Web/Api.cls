@@ -391,16 +391,17 @@ ClassMethod MailBody(Output from As %String, Output subject As %String, Output b
 }
 
 /// POST /v1/approvals/:ref/answer: see the class comment. The order is the session (Ownership.SessionRef), the request's visibility
-/// (Ownership.Approval: 404 not_found for a request the session can't see, whatever the body), the body (400 bad_answer) and
-/// AnswersIn.FromPage, whose AnswerResult is mapped by AnswerResponse. The visibility row is released before the answer, so that
-/// AnswerResponse reads the answered row afresh. An error status of the session, the read or AnswersIn is 500 server_error.
+/// (Ownership.Approval: 404 not_found for a request the session can't see or a cancelled one, whatever the body), the body
+/// (400 bad_answer) and AnswersIn.FromPage, whose AnswerResult is mapped by AnswerResponse. The visibility row is released before
+/// the answer, so that AnswerResponse reads the answered row afresh. An error status of the session, the read or AnswersIn is 500
+/// server_error.
 ClassMethod AnswerApproval(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, sessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '$IsObject(row) || (row.State = "cancelled") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If '..AnswerBody(.action, .channel) Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
 	Set kind = row.Kind
 	Kill row

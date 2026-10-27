@@ -1,7 +1,8 @@
 /// Live tests of what a web request can and cannot read, and of the answer path that avoids it (Story 6.2; DW-68, DW-113; AD-4,
 /// AD-11, AD-13). THROWAWAY STACKS AND CI ONLY (Rule 21): they create and delete a security user and need the running
 /// OcuTalon.Production with its CI override. Reason refuses everything else (the demo host, a user's instance, an IPM test run and
-/// a slot carry neither the mock's base URL nor the CI switch OCUTALON_MOCK_KEY_HEADER), before any user or row is made.
+/// a slot carry neither the mock's base URL nor the CI switch OCUTALON_MOCK_KEY_HEADER), and the setup then fails with the reason
+/// before any user or row is made.
 /// A job logs in (the one-argument $SYSTEM.Security.Login) as a fixture user whose roles are exactly OcuTalonUser and the
 /// application roles of Install.Step.Web (APPLICATIONROLES, parsed): the context of a web request. Probe is that job.
 ///   - TestWatcherReadsFailInAWebRequest (DW-113): in the job Ownership.Watchers, Ownership.ApprovalIncident and
@@ -10,12 +11,17 @@
 ///   - TestInstanceAnswerReachesBothWatchers (DW-68): with a CSP session bound to a session of that user, which watches the
 ///     production together with a second session, AnswersIn.FromPage answers an instance request through AnswerOps and the answered
 ///     approval event reaches both sessions' streams;
-///   - TestGuardRefusesOutsideAThrowaway: Reason is empty only for the CI override's pair of values;
+///   - TestGuardRefusesOutsideAThrowaway: Reason is empty only for the CI override's pair of values, and the setup of a run whose
+///     environment lacks them fails and provisions no user;
 ///   - TestFixtureUserIsRemoved: the hooks that end a test remove the fixture user, and a user left by an earlier run is removed
 ///     before the next one; the password is new for each user.
+///   - TestPasswordIsNeverWritten (QA, AC16): after a user is created no report, event-log row or global of the run holds the password's
+///     shape, and the code is the only place that sees it: Password() is read once, by CreateUser, which writes, logs and stores
+///     nothing, and the job's Login names no password.
 /// The user's password is random for each user and is never written to a log, an output or a global: the job logs in with no
 /// password. OnAfterOneTest and OnAfterAllTests remove every user with the prefix whatever the result of the test, and
-/// OnBeforeAllTests removes a leftover of an earlier run. The report of a job is under ^OcuTalonTest("AnswersInWebRoles", <number>).
+/// OnBeforeAllTests removes a leftover of an earlier run. OnAfterAllTests also removes the messages of the run's sessions
+/// (Fixture.RemoveMessages). The report of a job is under ^OcuTalonTest("AnswersInWebRoles", <number>).
 Class OcuTalon.Test.Core.AnswersInWebRoles Extends %UnitTest.TestCase
 {
 
@@ -40,13 +46,21 @@ Property Refs As %String(MAXLEN = "");
 /// The number of Setup calls, which gives each test a production of its own.
 Property Setups As %Integer [ InitialExpression = 0 ];
 
+/// The TraceRefs of the run's sessions: the SuperSessions of the messages that OnAfterAllTests removes.
+Property Supers As %DynamicArray;
+
+/// Values that stand in for the process environment, by variable name (Environ): a test sets them to run the setup as it runs
+/// outside a throwaway.
+Property Environment As %String [ MultiDimensional ];
+
 Method OnBeforeAllTests() As %Status
 {
 	Set running = ##class(Ens.Director).IsProductionRunning(.name)
-	Set ..Missing = ..Reason($SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"), $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER"), running, $Get(name))
-	If ..Missing '= "" Quit $$$OK
+	Set ..Missing = ..Reason(..Environ("OCUTALON_MODEL_BASE_URL"), ..Environ("OCUTALON_MOCK_KEY_HEADER"), running, $Get(name))
+	If ..Missing '= "" Quit $SYSTEM.Status.Error(5001, ..Missing)
 	Set ..Number = $Increment(^OcuTalonTest("AnswersInWebRoles", "n"))
 	Set ..Refs = ""
+	Set ..Supers = []
 	Do ..Clean()
 	Quit $$$OK
 }
@@ -55,8 +69,15 @@ Method OnAfterAllTests() As %Status
 {
 	If ..Missing '= "" Quit $$$OK
 	Do ..Clean()
+	If $IsObject(..Supers) Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $$$OK
+}
+
+/// The environment variable: the value that Environment holds for it when a test set one, else the process's.
+Method Environ(name As %String) As %String [ Private ]
+{
+	Quit $Select($Data(..Environment(name)): ..Environment(name), 1: $SYSTEM.Util.GetEnviron(name))
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
@@ -132,6 +153,7 @@ Method TestInstanceAnswerReachesBothWatchers()
 		Set payload = events.%Get(0).payload
 		Do $$$AssertEquals(payload.ref_"|"_payload.state_"|"_payload.answeredChannel, request_"|approved|web", "and it is the answered request")
 	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Type = 3 AND Text %STARTSWITH ?", "OcuTalon.Bridge.Approval: no open task of "_request)
 }
 
 Method TestGuardRefusesOutsideAThrowaway()
@@ -139,7 +161,7 @@ Method TestGuardRefusesOutsideAThrowaway()
 	Set production = ##class(OcuTalon.Test.Agent.RunnerFixture).#PRODUCTION
 	Set mock = "http://mock:8080/v1/"
 	Do $$$AssertEquals(..Reason(mock, 1, 1, production), "", "the CI override's environment with the production running may run")
-	For case = "a demo host or a user's instance|||", "an IPM test run|||1", "the real API|https://api.anthropic.com/v1/|1|1", "the mock without the CI switch|"_mock_"||1", "the switch off|"_mock_"|0|1" {
+	For case = "a demo host or a user's instance||", "an IPM test run||", "the real API|https://api.anthropic.com/v1/|1", "the mock without the CI switch|"_mock_"|", "the switch off|"_mock_"|0" {
 		Set label = $Piece(case, "|", 1), url = $Piece(case, "|", 2), switch = $Piece(case, "|", 3)
 		Set reason = ..Reason(url, switch, 1, production)
 		Do $$$AssertNotEquals(reason, "", label_" is refused")
@@ -147,6 +169,12 @@ Method TestGuardRefusesOutsideAThrowaway()
 	Do $$$AssertNotEquals(..Reason(mock, 1, 0, ""), "", "a stack with no production running is refused")
 	Do $$$AssertNotEquals(..Reason(mock, 1, 1, "Other.Production"), "", "so is another production")
 	Set users = ..UserCount()
+	Set outside = ##class(OcuTalon.Test.Core.AnswersInWebRoles).%New("")
+	Set outside.Environment("OCUTALON_MODEL_BASE_URL") = "", outside.Environment("OCUTALON_MOCK_KEY_HEADER") = ""
+	Set sc = outside.OnBeforeAllTests()
+	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "the setup of a run whose environment lacks the CI override's values fails")
+	Do $$$AssertNotEquals(outside.Missing, "", "with the reason")
+	Do $$$AssertEquals(outside.Provision("x"), "", "and the run provisions no user")
 	Set refused = ##class(OcuTalon.Test.Core.AnswersInWebRoles).%New("")
 	Set refused.Missing = "refused for this check"
 	Set refused.Number = ..Number
@@ -176,7 +204,59 @@ Method TestFixtureUserIsRemoved()
 	Do $$$AssertTrue($Length(..Password()) > 20, "and is long")
 }
 
+/// QA (AC16 (2)): the fixture user's password is random and is never written to a log, an output or a global. The password's shape
+/// ("Zz...xY!9") is looked for in the run's reports, the event log and the test globals after a user is created, and the code is
+/// read: Password() has one caller, CreateUser, which does no output, logging or global write; the job logs in with no password.
+Method TestPasswordIsNeverWritten()
+{
+	If '..Guard() Quit
+	Set user = ..NewUser("w")
+	If user = "" Quit
+	Do $$$AssertEquals(..UserExists(user), 1, "control: the user is created")
+	Set shape = "xY!9"
+	Set home = $Namespace
+	Set hits = ..GlobalHits(shape)
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set hits = hits + ..GlobalHits(shape)
+	Set $Namespace = home
+	Do $$$AssertEquals(hits, 0, "no node of ^OcuTalonTest, in this namespace or in %SYS (where the user is made), holds a password")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE Text LIKE ?", "%"_shape_"%")
+	Do rows.%Next()
+	Do $$$AssertEquals(+rows.%GetData(1), 0, "and no event-log row does")
+	Set callers = "", bodies = ""
+	Set methods = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.MethodDefinition WHERE parent = 'OcuTalon.Test.Core.AnswersInWebRoles' ORDER BY Name")
+	While methods.%Next() {
+		Set name = methods.%Get("Name")
+		Set stream = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Test.Core.AnswersInWebRoles||"_name).Implementation
+		If stream.Size = 0 Continue
+		Set code = stream.Read(stream.Size)
+		If name = "Password" || (name = "TestPasswordIsNeverWritten") Continue
+		If code [ "Password()" Set callers = callers_$ListBuild(name)
+		If name = "CreateUser" Set bodies = code
+		If name = "Probe" Do $$$AssertTrue(code [ "Login(user)", "the job logs in with the one-argument Login: no password")
+	}
+	Do $$$AssertEquals($ListToString(callers), "CreateUser,TestFixtureUserIsRemoved", "Password() is read by CreateUser and by the randomness check only")
+	Do $$$AssertTrue(bodies [ "Security.Users).Create(", "control: CreateUser's code was read")
+	For forbidden = "Write", "^", "Log", "LOG", "$$$Assert" {
+		Do $$$AssertEquals(bodies [ forbidden, 0, "CreateUser has no '"_forbidden_"': the password goes to Security.Users.Create and nowhere else")
+	}
+}
+
 /// --- helpers ---
+/// The number of nodes of ^OcuTalonTest in the current namespace whose value holds the text.
+ClassMethod GlobalHits(text As %String) As %Integer [ Private ]
+{
+	Set hits = 0, node = $Name(^OcuTalonTest)
+	For {
+		Set node = $Query(@node)
+		Quit:node=""
+		If $Extract(node, 1, $Length("^OcuTalonTest(")) '= "^OcuTalonTest(" Quit
+		If $Data(@node) # 2, $Get(@node) [ text Set hits = hits + 1
+	}
+	Quit hits
+}
+
 /// Two sessions that watch the production, the first of the user, and an instance incident of the production with a pending fix
 /// request that needs OcuTalonUser. The rows are kept for the clean-up.
 Method Setup(user As %String, Output s1 As %String, Output s2 As %String, Output incident As %String, Output request As %String, Output production As %String) [ Private ]
@@ -271,11 +351,12 @@ ClassMethod UserCount() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// A fixture session of the IRIS user; its Ref is kept for the clean-up.
+/// A fixture session of the IRIS user; its Ref is kept for the clean-up, and its TraceRef is a SuperSession of the run.
 Method Session(user As %String) As %String [ Private ]
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(user)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	If $IsObject(..Supers) Do ..Supers.%Push(##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef)
 	Quit ref
 }
 

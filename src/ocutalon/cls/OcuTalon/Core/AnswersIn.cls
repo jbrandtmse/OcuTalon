@@ -3,11 +3,12 @@
 /// one rule set of who may answer, applied for every entry, in this order:
 ///   1. inside a bridge context (a tool's job) the answer is not_allowed, logged as a warning: a risky action waits for a person;
 ///   2. a SessionRef that is not a 22-character Ref is not_found;
-///   3. a request that Ownership.Approval does not return for the SessionRef is not_found, whatever the Action and Channel: the
-///      session's own request, or on a local install (onlineDemo not 1) an instance request of a visible incident of a production
-///      the session watches; with onlineDemo 1 only the session's own request. A failed read is an error status;
+///   3. a request that Ownership.Approval does not return for the SessionRef, or a cancelled one, is not_found, whatever the Action
+///      and Channel: the session's own request, or on a local install (onlineDemo not 1) an instance request of a visible incident of
+///      a production the session watches; with onlineDemo 1 only the session's own request. A failed read is an error status;
 ///   4. an Action other than approve or reject, or a Channel other than web, phone or telegram, is bad_answer.
-/// The role rule stays with Approval.Answer: the row's RequiredRole is checked against the session's IRIS user.
+/// The role rule stays with Approval.Answer: the row's RequiredRole is checked against the session's IRIS user. The answer handed
+/// over names the request's own Ref, as Ownership.Approval read it.
 /// An accepted answer is sent synchronously to AnswerOps, in a trace session of its own whose SuperSession is the TraceRef of
 /// the session's Session row (an answer is not a turn, AD-26), and AnswerOps' AnswerResult is the output. AnswerOps calls
 /// Approval.Answer in a production job, so the answer, its audit entry and its live-event fan-out run with the production's
@@ -53,8 +54,9 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	If '##class(OcuTalon.Bridge.Approval).IsRef(pInput.SessionRef) Quit ..Refuse("not_found", .pOutput)
 	Set row = ##class(OcuTalon.Data.Ownership).Approval(pInput.Ref, pInput.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	If '$IsObject(row) Quit ..Refuse("not_found", .pOutput)
+	If '$IsObject(row) || (row.State = "cancelled") Quit ..Refuse("not_found", .pOutput)
 	If '$ListFind($ListFromString("approve,reject"), pInput.Action) || '$ListFind($ListFromString(..#CHANNELS), pInput.Channel) Quit ..Refuse("bad_answer", .pOutput)
+	Set pInput.Ref = row.Ref
 	Set ..%SessionId = "", ..%SuperSession = ""
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(pInput.SessionRef)
 	If $IsObject(session) Set ..%SuperSession = session.TraceRef
