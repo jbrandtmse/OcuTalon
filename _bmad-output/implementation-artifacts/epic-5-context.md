@@ -4,7 +4,7 @@
 
 ## Goal
 
-A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one diagnosed incident, which moves through a fixed state table. The heartbeat checks each watched production every minute and records what it found, and asked whether everything is fine, OcuTalon never gives a false all-clear. All of that is built. The one remaining story, 5.10, is the epic's burn-down. It keeps Epic 5's Watch and Checks tests reliable once Epic 8's real heartbeat sends a `Tick` every minute into the same production and tables the tests use.
+A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one diagnosed incident, which moves through a fixed state table and is noticed with what broke. The heartbeat checks each watched production every minute, and OcuTalon never gives a false all-clear. All of that is built. The one remaining story, 5.11, is a fix-forward. Since Epic 4's demo guide merged in, the real `FailurePoller` and `IncidentManager` turn real failing Orders messages into real, noticed incidents, and the guide's tests don't clean those up. 5.11 makes those tests hold again, so the integrated branch stays green and each case's guide shows the step its own rows say.
 
 ## Stories
 
@@ -17,77 +17,90 @@ A user asks OcuTalon in plain words to watch a production. New failures are pick
 - Story 5.7: Asked whether everything is fine, OcuTalon never gives a false all-clear
 - Story 5.8: Each noticed incident says what broke, with its evidence behind Show details
 - Story 5.9: Ask OcuTalon in the chat to dismiss an incident
-- Story 5.10: Epic 5 burn-down (DW-289)
+- Story 5.10: Epic 5 burn-down
+- Story 5.11: The demo guide's tests hold now that incidents are real
 
 ## Requirements & Constraints
 
-**DW-289, the one criterion of 5.10**
-- A real `HeartbeatIn` Tick runs every due check row and sweeps every quiet incident it finds, wherever they are. So a test that makes a check row due at once, or an incident 16 minutes quiet, can see a real Tick's run or close in the middle of the test.
-- The tests named as exposed are `Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` and any `Test.Watch` fixture that makes check rows.
-- Fix it in this epic's own tests, without changing product behaviour:
-  - Give fixture check rows a `NextDueAt` that a real Tick does not find due (for example a time in the future) wherever the test does not mean to run them.
-  - Give quiet incidents `LastAt` times that a real Tick does not sweep.
-- Every test must still prove what it proves now.
-- A test that must drive a Tick itself must do so in a way that a real Tick can't change its outcome.
-- If a pause hook in Epic 8's heartbeat is still needed after that, leave the residual routed to `burndown` and say so. The orchestrator routes it to an open Epic 8 story.
-
-**Product rules the tests must keep proving**
-- The heartbeat runs every due background check once a minute. Minutes missed during a restart are caught up once, not replayed. Each run shows in Visual Trace.
-- Each check shows its schedule, last run and last result.
-- How an unclosed incident closes on quiet:
-  - A resolved incident closes after 15 quiet minutes.
-  - An open incident (fallback, no fix, rejected or expired) closes this way only with demo mode off. With demo mode on, it waits for Dismiss.
-  - An incident that is awaiting approval or fixing never closes this way.
+**Story 5.11 (DW-305). Two criteria, both red twice in CI, so this is not a flake:**
+1. **Clean up after the real press.** The floor case that presses Break the feed for real is M4 in `web/e2e/floor/guide.spec.ts`. When it ends, no incident or failure group that its press caused may remain for the FLOOR session. That includes one the real `IncidentManager` records or notices after the case's batch clean-up has run. The next case's guide must open at the step its own rows say. The cases that went red are M7 ("the page opens at step 3") and M9 ("while step 5 is current the box is the secondary style").
+2. **Earlier tests' incidents stay invisible.** Some tests compute a new watching session's guide: `Test.Live.GuideRefresh` in the lane-b shard, or any floor case. No incident left by earlier tests that sent real failing Orders messages may be visible to that session, whichever test made it. The cases that went red are `TestHookPublishesOnChange` and `TestEventsBodyServesTheGuide`.
+- The ruling that created 5.11: the guide tests and their support code clean up the incidents that a real press or untagged failures leave. Fix it in the tests, not in product behaviour. Paths that another epic also edits go to the orchestrator.
 
 ## Technical Decisions
 
-**Background checks (the conventions 5.10 relies on)**
-- `WatchOps` creates and removes a watch's `OcuTalon.Data.BackgroundCheck` row.
-- `Checks` (`OcuTalon.Checks.Process`) writes only the run fields: `LastRunAt`, `Result`, `Finding`, `LastRunHeaderId` and `NextDueAt`. It writes them with one SQL `UPDATE` keyed by `Ref`, so a watch that was stopped meanwhile is never re-created.
-- **Due rule:** a row is due when `NextDueAt` is empty, or is at most 5 s after the Tick's time. After a run, `NextDueAt` becomes the Tick's time plus 60 s, so missed minutes give one run.
-  - (inference, as built) "The Tick's time" is the Tick's `TickAt` when that is a UTC stamp, and otherwise now. So a test Tick with a far-future `TickAt` can run rows whose `NextDueAt` is far in the future, and a real Tick at the real time won't.
-- **A run's trace** is its Tick's session in OcuTalon's own namespace.
-- **A run's result:**
-  - `not_checked`, with a code-written reason, when any part can't be read;
-  - otherwise `failed`, when the production isn't running, the session has new failures since the last run, or an `open`, `awaiting_approval` or `fixing` incident is in scope (the session's own, plus `instance` incidents off the online demo);
-  - otherwise `passed`.
-- **The finding** is joined from `Checks` class parameters, with counts as its only slots. It never holds error, event-log or diagnosis text.
-- **Quiet sweep:** before its checks, each Tick sends `closeQuiet` (origin `timer`) for every unclosed incident whose `LastAt` is more than `QUIETSECONDS` (900 s) old. `IncidentManager` decides:
-  - `not_quiet` when the incident isn't old enough;
-  - `not_allowed` when AD-15's table refuses the move;
-  - otherwise `closed`.
-  - (inference, as built) Both of these age checks use the clock, not the Tick's `TickAt`. So no fixture time can make an incident quiet for the test's own Tick but not for a real one. This is the hard case.
-- The `check` event has one publisher, `Checks`. A run publishes the row after the run.
+**How an incident becomes visible to a session (the ownership rules):**
+- Every REST read and the guide go through one ownership API, `OcuTalon.Data.Ownership`. It takes the caller's `SessionRef` from the CSP session.
+- A session sees its own incidents. On a local install, it also sees the `instance` incidents of every production it watches, and their approval requests.
+- Only incidents whose `NoticedAt` is set are visible. Until the notice, the snapshot, the guide and Break the feed's availability all leave the incident out.
+- `Session.Recipients(ownerRef, incidentRef)` gives the sessions that receive an incident: the owning session; for an `instance` incident, every session watching that production; none for owner `eval`. The notice and the `incident` events go to each recipient's stream.
+- (inference, as built) The visibility filter matches on the incident's `OwnerRef` (a `SessionRef` or `instance`), `Namespace` and `Production`. It ignores the incident's state, so closed incidents stay visible too.
+- On a local install, each IRIS user has one durable session. (inference) So every floor case signed in as the same user shares one FLOOR session, and whatever one case leaves, the next case sees.
 
-**The real Tick (Epic 8, Lane B)**
-- A Task Manager task calls the adapterless `HeartbeatIn` every minute. It sends one `OcuTalon.Msg.Tick` (the tick time and the previous tick time) to the `Checks` item, and writes the tick time to `StatusMark`. After downtime it sends one catch-up Tick.
-- (inference, from Epic 8's branch) `HeartbeatIn` sends the Tick asynchronously, and sends none while `Checks` is a stub. In this worktree `OcuTalon.Schedule.HeartbeatIn` is still a stub, so no real Tick reaches the tests here. The collision starts once Epics 5 and 8 meet on the integration branch, and 5.10 has to be made safe without seeing it locally.
-- AD-16 adds more to each Tick later: `Checks` will also send the final `FixResult`s from `OcuTalon.Fix.Run.Sweep()`, from Story 7.5 on.
+**Scope (AD-4):**
+- A failure tagged with a session's `TraceRef` as its `SuperSession` belongs to that session, on any install. An untagged failure has scope `instance`.
+- Break the feed tags each of its 50 orders with the session's `TraceRef`, so a press makes the session's own incident.
+- A test that sends untagged failing Orders messages makes an `instance` incident. Every session watching Orders can see it.
+- On the online demo, only Orders can be watched, so `instance` scope never arises there.
 
-**Where tests make due rows and quiet incidents** (inference, from the test sources)
-- `OcuTalon.Test.Data.Fixture`:
-  - `Check(sessionRef, namespace, production, fields)` leaves `NextDueAt` empty, so the row is due at once.
-  - `Incident(...)` defaults `LastAt` to 2030, which is never quiet.
-  - Both helpers take a `fields` override.
-- `WatchOps` sets a new watch's `NextDueAt` to its creation time. That is product behaviour, and `Test.Watch.Ops` and `Test.Watch.Turns` assert it, so a real Tick could rewrite it before they check.
-- `Test.Checks.Runs` drives an in-process probe (`Test.Checks.Probe`) over fixture rows in namespace `ZZNS`, with a 2030 Tick time, and runs warm. Its rows with an empty `NextDueAt`, and the quiet incidents in `TestQuietSweep` (`LastAt` now minus 960 s), are still visible to the real `Checks` item.
-- `Test.Checks.Heartbeat` and `Test.Checks.Turns` (through `Test.Watch.Case`) send Ticks the way `HeartbeatIn` does, synchronously to the real `Checks` item, with now as the tick time. They run only in fresh throwaways and CI, and assert only on their own rows. `TestQuietClose` needs a real 16-minute-old incident and checks that the test's own Tick sent exactly one `closeQuiet`.
-- Two more Lane A tests make due rows:
-  - `Test.Watch.Case` and `Test.Watch.Poller` make Orders watch rows through `Fixture.Check`.
-  - `Test.Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt` (5.7's pin test for `check_status`) makes `Fixture.Check` rows with no `NextDueAt`. A real Tick would replace their results.
+**What gets picked up and noticed:**
+- `FailurePoller` polls every 3 s, and only watched productions. It reads above `WatchMark`, starting no earlier than the earliest watch's `CreatedAt`.
+- A failure is a header with `Status` 8, or an event-log row of type 2 or 6 with no `SessionId`.
+- `IncidentManager` skips a failure it already holds.
+- Settle rule: the notice step starts after 10 s without a new same-cause failure, or 30 s after the first failure, whichever comes first. Diagnosis follows. A typical notice comes 30 to 35 s after the press (NFR-7 allows 60 s). So an incident can be created and noticed well after a test's clean-up has run.
+- The notice (Story 5.8) sets `NoticedAt` for two results:
+  - a fallback (refusal, timeout, any other fallback): the incident is open with variant `fallback`;
+  - a usable diagnosis with no fix in the fixed set, `unknown` included: open with variant `no_fix`.
+- A usable data-format diagnosis is stored and **left unnoticed**, so it stays invisible. Story 7.2 will send its with-fix notice, moving the incident to `awaiting_approval`. (inference) So a clean-up must not depend on which diagnosis the mock gives.
+- An open incident (fallback, no fix, rejected or expired) never closes on quiet in demo mode. Only Dismiss closes it. A leftover one keeps Break the feed inactive for good.
+- `IncidentManager` is the product's only writer of `Incident` and `FailureGroup` rows. Everything else asks it with `IncidentCommand`:
+  - `dismiss`, only from a recipient session;
+  - `closeForReplay`, only for a resolved incident;
+  - `closeQuiet`.
+- (inference) Test fixtures already write these rows directly. Criterion 1 says no incident or group may *remain*, which reads as removing them, not only closing them.
 
-**Conventions**
-- Edit Lane A files only: `OcuTalon.Checks`, `.Watch`, `.Tools`, `.Agent`, `.Bridge` and their `OcuTalon.Test.<Area>` packages.
-  - Never edit Lane B files: `OcuTalon.Schedule` (`HeartbeatIn`), `Core`, `Live`, `Msg`, `Web`, `web/`, or their tests. A heartbeat pause hook would be Lane B's.
-  - (inference) `Test.Data.Fixture` is shared by both lanes. Prefer per-call `fields` to changing its defaults.
-- Tests are named `OcuTalon.Test.<Area>.<Subject>`. Times are UTC ISO 8601 to the second. Product code reads the clock only through `OcuTalon.Data.Time`.
+**Guide rules. `OcuTalon.Demo.Guide.Compute(SessionRef)` is the only source of guide state.** A step is done only from the session's real state:
+- Step 1: an Orders production watch exists.
+- Step 2: a reminder exists, pending or fired.
+- Step 3: the notice of the session's Orders incident (with fix, fallback or no fix) arrived in the current run, so `NoticedAt` is set.
+- Step 4: that incident's approval request has been answered.
+- Step 5: the trace-opened marker is set.
+
+Break the feed's state:
+- inactive, "not watching", while there is no Orders watch;
+- inactive, "incident in progress", while the session's Orders incident is open (including after a rejection, until it is dismissed), awaiting approval or fixing, or while a run under 3 minutes old has no notice;
+- active otherwise, including while the incident is resolved.
+
+Other guide rules:
+- **Run again** starts a new run epoch. It resets the guide's markers and never the session's data.
+- (inference, as built) The current run starts at the epoch's latest `BreakFeedRun`. Without one, it starts at `GuideState.RunStartedAt`. Without that, it covers the whole session. So deleting a case's `BreakFeedRun` rows makes the window wider, and an earlier noticed incident still counts for step 3.
+- With demo mode on, `Live.Publish` recomputes the guide after it publishes `incident`, `approval`, `check`, `reminder`, `chat.message`, `pairing` or `breakfeed.progress`. It publishes `guide.state` only when the state changed. So a stray incident event can also publish a `guide.state`.
+- `StatusMonitor`'s 15 s tick recomputes the guide for open runs, and so does each marker write.
+- The guide's tests drive each step with fixture `BackgroundCheck`, `Reminder`, `Incident`, `ApprovalRequest` and `BreakFeedRun` rows.
+
+**Conventions:**
+- Tests are named `OcuTalon.Test.<Area>.<Subject>`.
+- Floor specs under `web/e2e/floor/` run only in the `live:floor` unit. `Test.Live` runs in the `lane-b` shard, and each shard is its own compose project.
+- Times are UTC ISO 8601 to the second.
+- The files 5.11 names are in Lane B's areas (`web/`, `.Live`, `.Demo`, `.Data.Ownership`). `Incident`, `FailureGroup` and `WatchMark` are Lane A's.
+
+## UX & Interaction Patterns
+
+- Step markers come only from `guide.state`, never from a click. The page opens at the current step.
+- The Break the feed box:
+  - active, it is the attention style, with a "Next step" tag while it is the current step;
+  - while step 5 is current, it is the secondary style;
+  - inactive, it shows the hint "Finish the current Orders incident first…".
 
 ## Cross-Story Dependencies
 
-- **Done in Epic 5:** 5.1 to 5.9.
-  - 5.10 changes only their tests.
-  - The quiet close and the state table come from 5.5, the runs and the sweep from 5.6, and the `check_status` and `Turns` tests from 5.7.
-- **Epic 8 (Lane B):**
-  - Story 8.1, done on its own branch, makes the real Tick. DW-289 came over from it.
-  - Any pause hook still needed afterwards is an Epic 8 residual, routed through `burndown`.
-- **Later Lane A work on each Tick:** Story 7.5 (`Fix.Run.Sweep`) and Story 30.4 (finding Items for stopped productions and disabled items). Tests built on these patterns should stay safe for them.
+- Already built in Epic 5:
+  - 5.2: the poller and the failure's scope;
+  - 5.3: the settle rule and `NoticedAt`;
+  - 5.5: the state table, dismiss and `closeQuiet`;
+  - 5.8: the fallback and no-fix notices.
+- Merged from other epics:
+  - Story 2.2: the ownership API's `NoticedAt` filter and `Session.Recipients`;
+  - Epic 4: 4.2 (`Guide.Compute`), 4.3 (the real 50-order batch, and `closeForReplay` before a new run), 4.4 (the box) and 4.7 (the step 4 variants and the finish state).
+- Story 7.2 will notice data-format incidents too, with the dry run and `Raise`. Clean-ups should already handle that case.
+- If 5.11 is dropped, DW-305 goes to an Epic 6 story instead. Epic 6 owns `Test/Live` next.
