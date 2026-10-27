@@ -376,14 +376,14 @@ const SOURCES = {
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
   },
   ruled: {
-    'Story 6.1 veto item V1 (the labels and item lines of the evidence panel from mockups/states.html A1, apart from "Error", which EXPERIENCE.md holds; the count of one of the grouping; and the state-change announcement; UX-DR72 says state changes are announced but gives no words)': [
+    'Story 6.1 veto item V1, kept with U-108\'s condition (the labels and item lines of the evidence panel from mockups/states.html A1, apart from "Error", which EXPERIENCE.md holds, with the one-failure line naming its one time; the count of one of the grouping; and the state-change announcement; UX-DR72 says state changes are announced but gives no words)': [
       'Cause',
       'Sample failed message',
       'Failures by item',
       'Sample message',
       'First failure',
       '{item}: {count} failures, first {first}, last {last}',
-      '{item}: 1 failure, first {first}, last {last}',
+      '{item}: 1 failure, at {time}',
       '1 failure grouped into this incident',
       'Incident: {headline}. {state}.',
     ],

@@ -46,6 +46,12 @@ describe('the order of the entries', () => {
     assert.equal(again[1].incident.state, 'fixing');
   });
 
+  it('keeps a closed incident\'s card when a new ref comes after it: two entries, in store order', () => {
+    const views = chatView([{ type: 'incident', payload: { ref: 'I1', state: 'closed' } }, turn('A'), incident('I2')], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['incident:I1', 'c-A', 'incident:I2']);
+    assert.deepEqual(views.filter((view) => view.entry === 'incident').map((view) => view.incident.state), ['closed', 'open']);
+  });
+
   it('shows an incident payload of a snapshot (row fields only) and one with no ref', () => {
     const views = chatView([{ type: 'incident', payload: { state: 'open' } }, { type: 'incident', payload: {} }], [], NO_RUNNING, NOW);
     assert.deepEqual(keys(views), ['incident:', 'incident:']);

@@ -39,7 +39,7 @@ interface Target {
   part: 'user' | 'reply' | 'notice' | 'incident';
 }
 
-/** The attributes that mark an item of the list (a user message, a reply or a notice card) with its part and its key. */
+/** The attributes that mark an item of the list (a user message, a reply, a notice card or an incident card) with its part and its key. */
 const PART = 'data-part';
 const KEY = 'data-key';
 

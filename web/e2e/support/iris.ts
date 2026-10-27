@@ -139,7 +139,8 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
  * Publishes one fixture incident on the user's own session stream and returns its Seq: the payload (a camelCase object of
  * OcuTalon.Live.Payload.Incident, parts included: itemNoun, groups, requests, evidence, traceTargets) is imported into the payload
  * class and published as the `incident` event, as IncidentManager will (Live.Publish.Publish). A later event with the same ref
- * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it.
+ * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it. A payload the class cannot
+ * import throws with the import's error text.
  */
 export async function publishIncident(user: string, payload: Record<string, unknown>): Promise<number> {
   const lines = await irisScript(
@@ -147,7 +148,7 @@ export async function publishIncident(user: string, payload: Record<string, unkn
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
       'Set p=##class(OcuTalon.Live.Payload.Incident).%New()',
       `Set sc=p.%JSONImport(${quoted(JSON.stringify(payload))})`,
-      'If $System.Status.IsError(sc) { Write !,"CHK|seq|0" Halt }',
+      'If $System.Status.IsError(sc) { Write !,"CHK|error|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  "),!,"CHK|seq|0" Halt }',
       'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"incident",p,.q)',
       'Write !,"CHK|seq|",q',
     ].join('\n'),

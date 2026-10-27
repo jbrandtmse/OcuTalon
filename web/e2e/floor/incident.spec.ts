@@ -1,13 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { STATE, changeSnapshot } from '../support/api';
+import { dropPhone } from '../support/devices';
 import { CARD_MS, HEADER, applied, mainOf, openFloor, unique } from '../support/floor';
 import { cleanFixtureRows, fixtureUser, publishIncident, seedDecision, seedIncident, sendNotification } from '../support/iris';
 import { announcedTexts, fromBottom, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 6.1, the incident card in the chat (I1 to I10), in a real browser against a real stack, as the FLOOR user (the floor stack is in
- * demo mode, its instance zone is UTC and the browser's is UTC and en-GB unless a case says otherwise). A card is made as
+ * Story 6.1, the incident card in the chat (I1 to I11), in a real browser against a real stack, as the FLOOR user (the floor stack is in
+ * demo mode, its instance zone is UTC and the browser's is UTC and en-GB unless a case says otherwise; the page's clock is fixed at
+ * 14:30 UTC on the run's date, the date of every time the spec writes). A card is made as
  * IncidentManager will make it, an `incident` event published through Live.Publish (publishIncident), or, for the snapshot, as a row
  * (seedIncident); a case's refs, markers and decisions are its own. The decision a card's footer names is seeded before the page opens,
  * because the page reads decisions from the snapshot. A case that makes rows removes them with cleanFixtureRows in finally.
@@ -16,7 +18,7 @@ import { announcedTexts, fromBottom, recordAnnouncements, scrollListTo, tokenCol
  * closing, I3 Show details, I4 the snapshot (a noticed row has a card, an unnoticed one has none, nothing is announced), I5 the
  * incident-kind notifications (no notice card), I6 the browser zone (Europe/Berlin), I7 the focus when the card compacts and I8 the
  * open variants, I9 the online demo (the headline's time ends " ET", in the card and in the announcement) and I10 New messages
- * (a card that lands while the list is scrolled up is focused by the press).
+ * (a card that lands while the list is scrolled up is focused by the press) and I11 the texts (markup in them is shown as text).
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -26,11 +28,22 @@ const KIND = 'FLOOR';
 /** How long a case looks on after the announcements it expects: longer than the 1 s between two texts, so a second one would show. */
 const SETTLE_MS = 3000;
 
-/** Today's date (UTC) with the time given, as a UTC ISO time. */
-const today = (time: string): string => `${new Date().toISOString().slice(0, 10)}T${time}Z`;
+/** The run's date (UTC), taken once, so that every time of the spec and the page's clock are on the same date. */
+const DAY = new Date().toISOString().slice(0, 10);
+
+/** The run's date with the time given, as a UTC ISO time. */
+const today = (time: string): string => `${DAY}T${time}Z`;
 
 const FIRST = today('14:12:00');
 const LAST = today('14:13:00');
+
+/**
+ * The page's clock in every case: 14:30 UTC on the run's date (15:30 or 16:30 in Europe/Berlin, the same date), so that the day words
+ * of the headline and of the top time do not depend on the hour the spec runs at.
+ */
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(Date.parse(today('14:30:00')));
+});
 
 /** A ref of this case's own: at most 22 characters, letters and digits. */
 const refOf = (label: string): string => `zz${label}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
@@ -165,6 +178,9 @@ test('I1: an incident event shows one full card, with its texts in order and its
     const trace = footer.locator('a[href*="/ocutalon/trace/ocutalon/"]');
     await expect(trace, 'and the diagnosis trace link').toHaveCount(1);
     await expect(trace).toHaveAttribute('href', `/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=${HEADER}`);
+    await expect(footer.locator('.line1 .item'), "the strip shows the decision's confidence and its own cost").toHaveText(['Confidence 0.94', '$0.0006']);
+    await expect(footer.locator('.reason'), 'and the first line of its reasons only (the card is not the newest strip)').toHaveText(['zz first reason.']);
+    await expect(footer.getByRole('button', { name: 'Decision details' }), 'with its Details button').toBeVisible();
 
     await heard(page, [`Incident: ${headlineOf(50)}. Approval needed.`]);
   } finally {
@@ -182,6 +198,7 @@ test('I2: one card per ref, updated in place through its states, and a new ref a
   try {
     const decisionRef = await seedStrip(user, rows, 'I2');
     await open(page);
+    const base = await cards(page).count();
     const ref = refOf('I2');
     const card = cardOf(page, ref);
     const headline = card.getByRole('heading', { level: 3 });
@@ -196,7 +213,7 @@ test('I2: one card per ref, updated in place through its states, and a new ref a
     await publish(page, user, payloadOf(ref, decisionRef, { count: 52, state: 'fixing', requests: [{ ref: `${ref}r`, state: 'executing', result: { total: 50 } }] }));
     await expect(headline, 'the second payload shows').toHaveText(headlineOf(52), { timeout: CARD_MS });
     await expect(cardOf(page, ref), 'still exactly one card for the ref').toHaveCount(1);
-    await expect(cards(page), 'and no other card').toHaveCount(1);
+    await expect(cards(page), 'and no other card').toHaveCount(base + 1);
     await expect(card.locator('p.more')).toHaveText('2 more since the notice');
     await expect(chip).toHaveText('Fixing');
     await expect(chip).toHaveCSS('background-color', await tokenColor(page, '--incident-state-fixing-background'));
@@ -231,7 +248,7 @@ test('I2: one card per ref, updated in place through its states, and a new ref a
     const next = refOf('I2b');
     await publish(page, user, payloadOf(next, decisionRef, { count: 4 }));
     await expect(cardOf(page, next), 'a new ref gives a new card').toHaveCount(1, { timeout: CARD_MS });
-    await expect(cards(page), 'and the closed one stays, compacted').toHaveCount(2);
+    await expect(cards(page), 'and the closed one stays, compacted').toHaveCount(base + 2);
     await expect(cardOf(page, ref).locator('p.cause')).toHaveCount(0);
     await expect(cardOf(page, next).locator('p.cause')).toHaveCount(1);
     said.push(`Incident: ${headlineOf(4)}. Approval needed.`);
@@ -276,6 +293,11 @@ test('I3: Show details opens the evidence panel inline, with its rows, mono valu
   await expect(panel.getByRole('link', { name: /^Sample message/ })).toHaveAttribute('href', '/ocutalon/trace/ocuorders/EnsPortal.VisualTrace.zen?SESSIONID=4243');
   await expect(panel.getByRole('link', { name: /^First failure/ })).toHaveAttribute('href', '/ocutalon/trace/ocuorders/EnsPortal.VisualTrace.zen?SESSIONID=4244');
   await inOrder([details, labels.first(), card.locator('.footer')], 'the panel is below the row and above the footer');
+  await expect(card.locator('.footer app-decision-strip'), 'no decision in the store: no strip').toHaveCount(0);
+  await expect(card.locator('.footer a'), 'the footer is the diagnosis trace link alone').toHaveAttribute(
+    'href',
+    `/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=${HEADER}`,
+  );
 
   await publish(page, user, payloadOf(ref, undefined, { count: 51 }));
   await expect(card.getByRole('heading', { level: 3 })).toHaveText(headlineOf(51), { timeout: CARD_MS });
@@ -336,23 +358,31 @@ test('I4: the page loads one card for the noticed row only, and announces nothin
  */
 test('I5: the incident-kind notifications make no notice card, and a tell-now after them does', async ({ page }) => {
   const { user } = fixtureUser(KIND);
-  await open(page);
-  const notices = page.locator('app-chat-panel app-notice-card');
-  const before = await notices.count();
-  for (const [kind, catalogKey] of [
-    ['incident', 'incident.fallback'],
-    ['approval', 'incident.laterRequest'],
-    ['answered', 'zz.answered'],
-    ['result', 'result.allThrough'],
-  ] as const) {
-    await sendNotification(user, { kind, catalogKey, slots: {}, approvalRef: refOf('I5') });
+  // The notifications record Delivery rows (and the tell-now a phone message) of the shared floor session: the case removes what it made
+  // (dropPhone), so that the later specs do not open a chat with this tell-now card in it.
+  const start = new Date(Date.now() - 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  try {
+    await open(page);
+    const notices = page.locator('app-chat-panel app-notice-card');
+    const before = await notices.count();
+    const incidentsBefore = await cards(page).count();
+    for (const [kind, catalogKey] of [
+      ['incident', 'incident.fallback'],
+      ['approval', 'incident.laterRequest'],
+      ['answered', 'zz.answered'],
+      ['result', 'result.allThrough'],
+    ] as const) {
+      await sendNotification(user, { kind, catalogKey, slots: {}, approvalRef: refOf('I5') });
+    }
+    const marker = unique('I5');
+    await sendNotification(user, { kind: 'tellnow', catalogKey: 'notice.tellNow', slots: { whatHappened: marker, reason: 'zz I5 reason' } });
+    await expect(notices.filter({ hasText: marker }), 'the tell-now shows its card').toHaveCount(1, { timeout: CARD_MS });
+    await page.waitForTimeout(SETTLE_MS);
+    await expect(notices, 'and no other notice card came').toHaveCount(before + 1);
+    await expect(cards(page), 'nor an incident card').toHaveCount(incidentsBefore);
+  } finally {
+    await dropPhone(user, start);
   }
-  const marker = unique('I5');
-  await sendNotification(user, { kind: 'tellnow', catalogKey: 'notice.tellNow', slots: { whatHappened: marker, reason: 'zz I5 reason' } });
-  await expect(notices.filter({ hasText: marker }), 'the tell-now shows its card').toHaveCount(1, { timeout: CARD_MS });
-  await page.waitForTimeout(SETTLE_MS);
-  await expect(notices, 'and no other notice card came').toHaveCount(before + 1);
-  await expect(cards(page), 'nor an incident card').toHaveCount(0);
 });
 
 test.describe('I6', () => {
@@ -493,4 +523,38 @@ test('I10: scrolled up, an incident card that lands shows New messages and the p
   await expect.poll(() => fromBottom(list), { message: 'pressing it puts the list at the bottom' }).toBeLessThanOrEqual(24);
   await expect(card, 'and focuses the card').toBeFocused();
   await expect(button, 'and the button is gone').toHaveCount(0);
+});
+
+/**
+ * I11 (QA): text that a model or IRIS wrote is shown as text, never as markup (AD-13): markup in the cause, the fix, the element, the
+ * sample error and an item name appears character for character in the card and in the open panel, and makes no element in either.
+ */
+test('I11: markup in the incident texts is shown as text in the card and in its panel', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  await open(page);
+  const markup = (what: string): string => `<b>zz ${what}</b><img src=x>`;
+  const ref = refOf('I11');
+  await publish(
+    page,
+    user,
+    payloadOf(ref, undefined, {
+      cause: markup('cause'),
+      fixSummary: markup('fix'),
+      element: markup('element'),
+      evidence: {
+        sampleHeaderId: 1047,
+        sampleError: markup('error'),
+        items: [{ itemName: markup('item'), count: 2, firstAt: today('14:12:03'), lastAt: today('14:12:31') }],
+      },
+    }),
+  );
+  const card = cardOf(page, ref);
+  await expect(card.locator('p.cause'), 'the cause is text').toHaveText(`${markup('cause')}.`, { timeout: CARD_MS });
+  await expect(card.locator('p.fix'), 'the fix is text').toHaveText(`I can ${markup('fix')}.`);
+  await expect(card.locator('p.evidence-line'), 'the element is text').toContainText(markup('element'));
+  await card.getByRole('button', { name: 'Show details' }).click();
+  const panel = card.locator('app-evidence-panel');
+  await expect(panel.locator('.value.mono').nth(1), 'the error is text').toHaveText(markup('error'));
+  await expect(panel.locator('.value.mono').nth(2), 'and the item name').toContainText(markup('item'));
+  expect(await card.locator('b, img').count(), 'no element came out of any of them').toBe(0);
 });

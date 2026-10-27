@@ -46,7 +46,7 @@ export const INCIDENT_TEXTS = {
   labelError: 'Error',
   labelItems: 'Failures by item',
   itemLine: '{item}: {count} failures, first {first}, last {last}',
-  itemLineOne: '{item}: 1 failure, first {first}, last {last}',
+  itemLineOne: '{item}: 1 failure, at {time}',
   held: 'Held as an IRIS Workflow task until someone answers.',
   linkSample: 'Sample message',
   linkFirstFailure: 'First failure',
@@ -245,14 +245,21 @@ function fixingLineOf(payload: IncidentPayload): string {
   return fill(INCIDENT_TEXTS.fixing, { count: String(count), noun: nounFor(payload.itemNoun, count) });
 }
 
-/** The failures-by-item lines, one per entry, with the first and last times as the panel shows them. */
+/**
+ * The failures-by-item lines, one per entry, with times as the panel shows them: one failure has its one time ("1 failure, at
+ * 16:12"), more have the first and the last ("3 failures, first 16:12, last 16:14").
+ */
 function itemLinesOf(payload: IncidentPayload, ctx: IncidentContext): string[] {
   return listOf(payload.evidence?.items)
     .filter((item) => item !== null && typeof item === 'object')
     .map((item) => {
       const count = numberOf(item.count) ?? 0;
-      return fill(count === 1 ? INCIDENT_TEXTS.itemLineOne : INCIDENT_TEXTS.itemLine, {
-        item: textOf(item.itemName),
+      const name = textOf(item.itemName);
+      if (count === 1) {
+        return fill(INCIDENT_TEXTS.itemLineOne, { item: name, time: ctx.itemTime(item.firstAt ?? item.lastAt ?? '', ctx.nowMs) });
+      }
+      return fill(INCIDENT_TEXTS.itemLine, {
+        item: name,
         count: String(count),
         first: ctx.itemTime(item.firstAt ?? '', ctx.nowMs),
         last: ctx.itemTime(item.lastAt ?? '', ctx.nowMs),

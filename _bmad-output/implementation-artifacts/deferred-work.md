@@ -1242,3 +1242,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg.Enum has no cause-category enumeration; eval/orders-date-format/case.json causeCategory data_format_change, elementAtFault OrderDate; EXPERIENCE.md L276 'Data format change · order date'; Story 5.4 (Epic 5) defines DiagnosisPayload
 - 2026-10-27T07:44:45Z status=wontfix-accepted owner=6-1-show-each-incident-as-one-card-in-the-chat by=harvest note=reopen_if=a real incident event (Epic 5/11) publishes Element in code form (e.g. OrderDate) or a category the humanizer misreads, so the card's evidence line differs from the UX's reader form
+
+### DW-294: After a page load an incident card's footer never finds its diagnosis decision: the snapshot seeds the store's decisions from the rail, which holds kind-decide decisions only, so the diagnose decision that decisionRef names reaches the store only as a live decision event
+- source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: live-store.ts fromSnapshot takes decisions from snapshot.rail.decisions; Ownership.cls's decisions query keeps Kind = 'decide' (spine Live events: other kinds reach the store, not the rail); an incident's decisionRef is its diagnosis (kind diagnose); floor I1/I7 seed a decide-kind decision, so they pass
+- 2026-10-27T08:44:01Z status=escalated owner=burndown by=cr note=needs /state (Web.Api, Epic 16) or Lane A's payload to carry the diagnosis decision, or a spine Live events change; sibling of DW-292

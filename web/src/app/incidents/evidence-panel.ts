@@ -5,9 +5,9 @@ import { INCIDENT_TEXTS, type PanelView } from './incident-view';
 
 /**
  * The evidence panel (UX-DR78, FR-24) of an incident card, below its Show details row: here, and only here, error text and item
- * names appear as IRIS shows them. Each row of the view is a label in the page's UI font over its value lines, which are in
- * mono-sm where the view says so; while a request is pending the note says the request is held as an IRIS Workflow task; the
- * links are the served trace URLs, each named by its own text. Every text is bound by interpolation, never as markup. The panel
+ * names appear as IRIS shows them. The rows are a description list: each row of the view is a label (dt) in the page's UI font
+ * over its value lines (dd), which are in mono-sm where the view says so; while a request is pending the note says the request is
+ * held as an IRIS Workflow task; the links are the served trace URLs, each named by its own text. Every text is bound by interpolation, never as markup. The panel
  * is not a live region and moves no focus.
  */
 @Component({
@@ -16,13 +16,17 @@ import { INCIDENT_TEXTS, type PanelView } from './incident-view';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel">
-      @for (row of panel().rows; track row.label) {
-        <div class="row">
-          <div class="label">{{ row.label }}</div>
-          @for (line of row.lines; track $index) {
-            <div class="value" [class.mono]="row.mono">{{ line }}</div>
+      @if (panel().rows.length > 0) {
+        <dl class="rows">
+          @for (row of panel().rows; track row.label) {
+            <div class="row">
+              <dt class="label">{{ row.label }}</dt>
+              @for (line of row.lines; track $index) {
+                <dd class="value" [class.mono]="row.mono">{{ line }}</dd>
+              }
+            </div>
           }
-        </div>
+        </dl>
       }
       @if (panel().held) {
         <p class="held">{{ texts.held }}</p>
@@ -49,6 +53,12 @@ import { INCIDENT_TEXTS, type PanelView } from './incident-view';
       border-radius: var(--evidence-panel-radius);
       color: var(--ink);
     }
+    .rows {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      margin: 0;
+    }
     .label {
       color: var(--ink-muted);
       font-family: var(--font-ui);
@@ -57,6 +67,7 @@ import { INCIDENT_TEXTS, type PanelView } from './incident-view';
       line-height: var(--type-label-line-height);
     }
     .value {
+      margin: 0;
       font-size: var(--type-body-sm-font-size);
       font-weight: var(--type-body-sm-font-weight);
       line-height: var(--type-body-sm-line-height);

@@ -349,15 +349,17 @@ describe('the Show details panel', () => {
     ]);
   });
 
-  it('writes one line per item, with a count of one in the singular, times as page times with their day', () => {
+  it('writes one line per item: one failure with its one time, more with the first and last, times as page times with their day', () => {
     const items = [
-      { itemName: 'Order transform', count: 1, firstAt: '2026-10-21T14:12:03Z', lastAt: '2026-10-22T14:12:31Z' },
-      { itemName: 'Order router', count: 3, firstAt: '2026-10-22T14:12:04Z', lastAt: '2026-10-22T14:12:05Z' },
+      { itemName: 'Order transform', count: 1, firstAt: '2026-10-22T14:12:03Z', lastAt: '2026-10-22T14:12:03Z' },
+      { itemName: 'Order router', count: 3, firstAt: '2026-10-21T14:12:04Z', lastAt: '2026-10-22T14:14:05Z' },
+      { itemName: 'Order sender', count: 1, firstAt: '2026-10-21T09:30:00Z', lastAt: '2026-10-21T09:30:00Z' },
     ];
     const lines = view(full({ evidence: { items } })).panel.rows.find((row) => row.label === 'Failures by item').lines;
     assert.deepEqual(lines, [
-      'Order transform: 1 failure, first Wednesday at 16:12, last 16:12',
-      'Order router: 3 failures, first 16:12, last 16:12',
+      'Order transform: 1 failure, at 16:12',
+      'Order router: 3 failures, first Wednesday at 16:12, last 16:14',
+      'Order sender: 1 failure, at Wednesday at 11:30',
     ]);
   });
 
@@ -502,7 +504,7 @@ describe('the fixed strings', () => {
         labelError: 'Error',
         labelItems: 'Failures by item',
         itemLine: '{item}: {count} failures, first {first}, last {last}',
-        itemLineOne: '{item}: 1 failure, first {first}, last {last}',
+        itemLineOne: '{item}: 1 failure, at {time}',
         held: 'Held as an IRIS Workflow task until someone answers.',
         linkSample: 'Sample message',
         linkFirstFailure: 'First failure',
