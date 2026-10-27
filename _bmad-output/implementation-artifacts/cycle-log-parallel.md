@@ -437,3 +437,7 @@
 2026-10-27T05:40:18Z	Epic 4	worktree_removed	worktree=.worktrees/epic-4 guard=clean_and_pushed runner_ended=yes(ListAgents) locks=lane-b_empty
 2026-10-27T05:40:18Z	Epic 4	epic_branches_deleted	branch=OCT-epic4 local(was_da5e764)+remote
 2026-10-27T05:40:18Z	Epic 4	carry_over_check	DW-146_residual=pointed_at_DW-285..287(runner;bullets_on_feature_since_cec2820) U-72=resolved_earlier U-79/WatchOps_note=for_Epic_5's_integrate-forward(keep_both_sides) DW-231=routed_10.3
+2026-10-27T05:47:22Z	Epic 1-37	ci_green_verified	runs=40456637232,40456637338 head=49ad15d branch=feature/OCT_OcuTalon_MVP result=success via=ci-gate (post-Epic-4 feature head)
+2026-10-27T05:47:22Z	Epic 1-37	ruling	question=slots_freed_by_Epic_4's_merge(B;C_idle) choice=B:Epic_6(B's_own_order_next,depends_4_merged);C:Epic_8(C's_own_order_next,waited_on_4) rejected=Epic_15(pool,15.2_now_eligible;behind_C's_own_order),Epic_10(B's_order_after_9;10.2_eligible;no_free_slot) why=lane_orders_first,no_preemption;A_runs_Epic_5 next=Epic_15_and_10_when_a_slot_frees category=decide policy=36abb05b2ba2f34d6e14569e62a14b8fcd06550f
+2026-10-27T05:47:22Z	Epic 6	worktree_provisioned	worktree=.worktrees/epic-6 branch=OCT-epic6 from=49ad15d(green) pushed=yes submodules=none
+2026-10-27T05:47:22Z	Epic 6	worktree_bootstrapped	epic=6 result=ok bootstrap_check=0
