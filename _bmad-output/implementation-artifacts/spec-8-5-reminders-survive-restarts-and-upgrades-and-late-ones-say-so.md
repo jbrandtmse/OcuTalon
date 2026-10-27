@@ -2,7 +2,7 @@
 title: 'Story 8.5: Reminders survive restarts and upgrades, and late ones say so'
 type: 'feature'
 created: '2026-10-27'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -225,22 +225,19 @@ Live tests and CI:
    - `ReminderTimer` still holds only `Ref` in its committed `Storage` block, and `test-storage.sh` passes (`storage`, and `release-diff`: no release tag yet). The full FR-60 harness is Lane A's release work. (NFR-17, AD-5)
 6. **CI.** Given the restart cases, when CI runs the IRIS groups on the IRIS runner, then `live:reminder-restart` in the `production` group restarts IRIS in its own compose project and asserts order and outcome (one notification per channel, late or not), never seconds. (NFR-10, NFR-16, AD-22)
 
-## Clarification Needed
-
-The rest of the spec is complete and measured. Only these rulings are open:
-
-- **Q1 (contended edit; blocks the story): `docker/tests/test-production-restart.sh`, row 20.**
-  - **Why it breaks.** Row 20 seeds its pending reminder with `Test.Data.Fixture.Reminder(s)` (`:130`), a row with no waiter. It kills IRIS, starts it again, and requires `StateBody`'s rail to be identical (`:182-195`). After this story, the Reconcile step at that start re-arms the row, as AC 1 requires, and stores the new waiter's header id. The rail's reminder then gains `traceHeaderId`, `traceNamespace` and `traceUrl`, so row 20 goes red. No product design meets AC 1 and leaves that row unchanged.
-  - **Recommended (a).** Allow the two lines in the last task: the seed takes its reminder from `ReminderFixture.Set(s, "zz restart snapshot", 86400)` (a real waiter), and the header phrase changes to match. Measured in planning: a product-made reminder's waiter survives a kill, a clean stop and a dev reload, so Reconcile starts nothing and the snapshot, trace link included, stays identical. Row 20 then also proves AC 1's "starts nothing for a waiting waiter" across an unclean stop.
-  - **Alternative (b).** Compare the rail without the reminder's trace fields. This is weaker.
-- **Q2 (`ci/units.sh` outside the group entry).** Add `live:reminder-restart` to `NO_WEB_BUNDLE_UNITS`; the script reads no web bundle. Then the `production` group keeps skipping web-only pushes (Story 32.2). If this is not allowed, the unit stays out of the list. The `production` group then also runs on web-only pushes, at about 18 runner-minutes each, with the wall clock unchanged.
-- **Q3 (for the lead, Rule 5 apply-and-report; no orchestrator ruling).** AC 6 in `epics.md` reads "When CI runs the Schedule shard on the IRIS runner". A `%UnitTest` shard runs inside the IRIS it would have to restart, so the restart cases are the live unit above. Recommended wording: "When CI runs the Schedule area's restart unit on the IRIS runner". The intent is unchanged, and AC 6 above already reads it that way.
-
 ## Spec Change Log
+
+- 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed Q1 and Q2; the lead applied Q3 (AC 6 reworded). Recorded under Design Notes; Clarification Needed removed; status set to `ready-for-dev` (the plan was otherwise complete and measured).
 
 ## Review Triage Log
 
 ## Design Notes
+
+**Rulings in force (recorded by the lead, 2026-10-27):**
+- **Q1, ALLOWED (orchestrator, decide):** in `docker/tests/test-production-restart.sh` change only row 20's seed line, to `ReminderFixture.Set(s, "zz restart snapshot", 86400)` (a real waiter), and the matching row-20 header phrase. Nothing else in the file. Reported as a footprint extension.
+- **Q2, ALLOWED (orchestrator, decide):** append `live:reminder-restart` to `NO_WEB_BUNDLE_UNITS` in `ci/units.sh`; the list is shared by entry (add Epic 8's name only, change nothing else). Epic 10's branch edits the same line: a plain union at integrate-forward. Reported as a footprint extension.
+- **Q3 (lead, Rule 5 tier 1, applied):** AC 6 in `epics.md` now reads "When CI runs the Schedule area's restart unit on the IRIS runner" (with an AMENDED marker).
+- **AD-18 note (Decided 1):** not written; the design complies with AD-1 as it stands, and a runner never amends an AD.
 
 **Governing ADs:**
 - AD-1: the re-arm enters the production through a business service (`HeartbeatIn`, `CreateBusinessService` and `ProcessInput`).
@@ -357,19 +354,5 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Q1 (contended docker/tests/test-production-restart.sh, row 20): AC 1's Reconcile step re-arms row 20's waiterless fixture reminder at the restart and stores the new waiter's trace header id, so the rail snapshot that row 20 compares changes and row 20 goes red; recommended ruling: allow its seed line (:130) to set the reminder through OcuTalon.Test.Schedule.ReminderFixture.Set (a real waiter, measured to survive a kill) plus the matching row-20 header phrase. Q2: allow live:reminder-restart in ci/units.sh NO_WEB_BUNDLE_UNITS (outside the Lane B group entry). Q3 is for the lead (Rule 5 apply-and-report rewording of AC 6's "the Schedule shard"). See ## Clarification Needed.
-
-**Plan stage (bmad-build-auto, halted after planning on the intent gap).**
-- **Context.** The cached `epic-8-context.md` was valid and reused; Stories 8.3, 8.4 and 8.6 were loaded for continuity.
-- **Design.**
-  - The Schedule area declares `Reconcile()`. It re-arms each pending row with no live `ReminderTimer`, through `HeartbeatIn` and 8.3's frozen `ReminderStart`/`ReminderTimer` path. It skips live waiters, fired and cancelled rows, and (with a warning) rows with no session.
-  - No product waiter logic changes.
-  - Tests: four new tests in `Test.Schedule.Reminders`, and a new live unit `live:reminder-restart` in the `production` group (a plain restart and an in-place upgrade by `OCUTALON_DEV=1`).
-- **Measured in planning** on a throwaway (`e8s5plan`, torn down):
-  - a waiter survives a clean stop, a kill and a dev reload by itself;
-  - a reminder that fell due while IRIS was down fires once, late, from its old waiter, right after the production starts;
-  - the dev reload recompiles `ReminderTimer`;
-  - restart to ready took 13 s, the dev reload 41 s, and the Reconcile step 0.1 s.
-- **Footprint extensions to report:** the new `docker/tests/test-reminder-restart.sh`, `ci/units.sh` (the group entry, and Q2), and `docker/tests/test-production-restart.sh` (Q1, only as ruled).
-- **Ledger inbox:** none. DW-296 is respected by design.
+Status: ready-for-dev
+Blocking condition: none
