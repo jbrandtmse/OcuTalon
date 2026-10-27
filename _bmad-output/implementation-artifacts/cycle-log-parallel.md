@@ -441,3 +441,5 @@
 2026-10-27T05:47:22Z	Epic 1-37	ruling	question=slots_freed_by_Epic_4's_merge(B;C_idle) choice=B:Epic_6(B's_own_order_next,depends_4_merged);C:Epic_8(C's_own_order_next,waited_on_4) rejected=Epic_15(pool,15.2_now_eligible;behind_C's_own_order),Epic_10(B's_order_after_9;10.2_eligible;no_free_slot) why=lane_orders_first,no_preemption;A_runs_Epic_5 next=Epic_15_and_10_when_a_slot_frees category=decide policy=36abb05b2ba2f34d6e14569e62a14b8fcd06550f
 2026-10-27T05:47:22Z	Epic 6	worktree_provisioned	worktree=.worktrees/epic-6 branch=OCT-epic6 from=49ad15d(green) pushed=yes submodules=none
 2026-10-27T05:47:22Z	Epic 6	worktree_bootstrapped	epic=6 result=ok bootstrap_check=0
+2026-10-27T05:47:52Z	Epic 6	runner_dispatched	agent=a2116563f5b67e05d model=opus runner=B slot=ocutalon-slot-b retro_review=skip(no_X.0_input) prompt=scratchpad/dispatch-epic-6.md(first_dispatch)
+2026-10-27T05:47:52Z	Epic 8	runner_dispatched	agent=a950da2c34f5b5eb4 model=opus runner=C slot=ocutalon-slot-c previous_runner=a0f804c1c0e5ca1f2 retro_review=skip(no_X.0_input) prompt=scratchpad/dispatch-epic-8.md(re-dispatch:integrate_forward,reload_slot_C,pre-warm,8.3-8.5)
