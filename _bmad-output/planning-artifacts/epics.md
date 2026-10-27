@@ -2703,6 +2703,7 @@ So that I can close what I've dealt with without hunting for a button.
 **When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
 **Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
 **And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+- DW-288: The owner's answer U-102: `dismiss_incident` stays trusted output on a condition: a `Test.Bridge.Gate` test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted (ledger; routed by spec_gate 2026-10-27)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 

@@ -1367,3 +1367,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Lifecycle.cls Host/Group/DropGroups vs Tell.cls Host L305, Group L255, DropGroups L271; also Diagnose, Evidence, NoticeText, Live.Payloads; the shared home Test.Data.Fixture is contended
 - 2026-10-26T22:32:40Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=cr note=reopen_if=another test class adds its own FailureGroup or probe-host builder; then add Fixture.Group and Host
+
+### DW-288: Owner answer U-102: dismiss_incident stays trusted output on a condition: a Gate test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted
+- source: inbox U-102 (owner decision 2026-10-27T00:44:42Z#311) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Test.Bridge.Gate pins dismiss_incident's classification flags only; nothing fails if WatchAnswers adds a Cause or SampleError key
+- 2026-10-27T00:51:30Z status=routed owner=5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident by=spec_gate note=owner_decision U-102 at=2026-10-27T00:44:42Z#311: keep, trusted output (1), as U-80, with this pinning test

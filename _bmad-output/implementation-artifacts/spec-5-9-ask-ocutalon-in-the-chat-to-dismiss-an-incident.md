@@ -130,9 +130,12 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless noted.
 - Given the gate, when `dismiss_incident` is classified and called, then it is safe, not read-only and trusted output by code; it runs in a user's untainted turn without approval, and in an untrusted or tainted turn it is denied with `UNTRUSTED`, its method does not run and nothing is raised.
 - Given an untrusted turn that asks to dismiss the incident, when the Chat agent calls `dismiss_incident`, then the step is denied, nothing reaches `CommandsIn` or `IncidentManager`, and the incident stays `open` (NFR-14).
 - Given the Chat agent, when its tools and instructions are read, then the model is offered the seven tools (`dismiss_incident` once, from `WatchTools`) and the instructions say how to answer each outcome of `dismiss_incident`.
+- Given every answer shape of `dismiss_incident` (submitted, refused by the owner, `ambiguous`, `unknown_incident`, `no_incident`, `NOSESSION`, `NOTSENT`, incidents not read), when `Test.Bridge.Gate` reads each answer, then its keys (and each entry's keys) are exactly the code-built allow-list (`ok`, `outcome`, `message`, `ref`, `production`, `state`, `openVariant`, `incidents`, `others`; entries `ref`, `production`, `state`, `openVariant`, `since`, `count`), and every `message` is one of the code's own parameter texts (`IncidentManager` `MESSAGE*`, `CommandsIn`'s refusal texts, `CommandCall` `NOSESSION`/`NOTSENT`, `WatchAnswers` `INCIDENTSNOTREAD`, the double's; read from the classes' parameters, never copied), so a free-text field (diagnosis, error or message text) added later fails the test instead of reaching the model as trusted output (DW-288, the owner's answer U-102).
 - Given the product source, when `Test.Bridge.CodeRules` and `bash ci/checks.sh` run, then they pass: the tool returns through `Result`, has its step label, submits only `Dismiss`, names no `IncidentCommand` and writes no incident.
 
 ## Spec Change Log
+
+- 2026-10-27, after QA (Epic 5 runner): the owner's answer U-102 (keep, with a pinning Gate test) added as DW-288: one acceptance criterion and one mutation row; the code-review stage writes the test.
 
 - 2026-10-26, spec gate (Epic 5 runner): V1 ruled keep (trusted output), veto U-102; the spine's "Tool classification" row amended; spec validated `ready-for-dev`.
 
@@ -177,7 +180,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless noted.
 
 Conventions: "Incident commands" (`Data` `{state, openVariant}`; `Message` is developer text, and the chat's words are the model's), "Tool classification", "Tool results", "Agent step labels", "Identifiers" (public Refs only; no row ids), "Times", "Tests".
 
-**Veto item for the spec gate (RULED 2026-10-26 by the epic lead: keep, veto U-102; the spine's "Tool classification" row names `dismiss_incident`):**
+**Veto item for the spec gate (RULED 2026-10-26 by the epic lead: keep, veto U-102; the spine's "Tool classification" row names `dismiss_incident`. The OWNER ANSWERED U-102 on 2026-10-27: keep, trusted output, as U-80, on the condition that a Gate test pins the answer to its code-built fields; added as DW-288, its acceptance criterion and the code-review patch):**
 - **V1. `dismiss_incident` is trusted output** (security posture). Recommended: `TRUSTEDOUTPUTDISMISSINCIDENT` 1. The spine's definition holds: the answer is built by code from `IncidentManager`'s `CommandResult` (parameter messages, outcome codes, `Data`) and the session's own rows (Refs, states, variants, times, counts, and the watch's display name, which veto U-80 already ruled trusted). It carries no diagnosis or error text (Always). The `Test.Bridge.Gate` `TRUSTEDTOOLS` edit is the review that row asks for. Spine candidate (Rule 20): the "Tool classification" row adds `dismiss_incident` beside the watch tools.
   - Alternative: 0. Then every dismissal taints its turn. A later state-changing call in that turn is denied, and the next turn starts fresh from a code-written recap (AD-10 3a). That costs the user the conversation's memory after each dismissal, and it buys no safety, because no outside text is in the answer.
 
@@ -261,6 +264,7 @@ Conventions: "Incident commands" (`Data` `{state, openVariant}`; `Message` is de
 | AC 3 (no approval) | `CLASSIFICATIONDISMISSINCIDENT` "risky" | `Turns.TestDismissThroughTheAgent` (the call is held), `Gate.TestWatchToolsAreClassified` |
 | AC 3, AC 4 | `READONLYDISMISSINCIDENT` 1 | `Gate` (`AssertSafeReadOnlyOnly`), `Turns.TestInjectedDismiss`, `Tools.TestDeclarations` |
 | V1 | `TRUSTEDOUTPUTDISMISSINCIDENT` 0 | `Gate.TestFlagsAreListed`, `Gate.TestWatchToolsAreClassified` |
+| DW-288 (U-102) | `WatchAnswers` adds a `cause` key to an entry, or a submitted answer's `message` takes the row's `Cause` | the Gate test of the answer's fields |
 | AC 5 | the dismiss block is left out of Chat's instructions | `Instructions.TestChat` |
 | AC 5 | `dismiss_incident` is left out of `Watching` | `Tools.TestDeclarations`, `Instructions.TestToolsets`, `Runners.TestToolInventory` |
 
@@ -280,6 +284,15 @@ Conventions: "Incident commands" (`Data` `{state, openVariant}`; `Message` is de
 - mutation: the dismiss block cut from Chat's INSTRUCTIONS -> `Instructions.TestChat` red
 - mutation: the `dismiss_incident` Tool element removed from `Watching` -> `Tools.TestDeclarations`, `Instructions.TestToolsets` and `Runners.TestToolInventory` (fresh, also `TestRequestsUnderTheModelRules`) red
 - mutation: `Set mutant = ##class(OcuTalon.Data.Incident).%New()` added to `WatchAnswers.ResolveIncident` (AC 6: the tool's helper opens an incident for writing) -> `Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` red (warm; green again on the same stack after the byte-identical revert)
+
+**QA stage (Rule 19; the tests below are marked `(QA)`):** audited every AC and I/O row against the mutation table above; every row has a pinning test whose red was observed, except the three gaps below, which the QA stage closed with tests that need no product seam and no contended change.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls` `TestIncidentsNotRead`: `WatchAnswers.ResolveIncident` called directly with the owners `instance`, `eval` and "" (which `Ownership.Rows` refuses to read for) answers INCIDENTSNOTREAD and offers nothing to submit (the "incidents could not be read" row).
+- (QA) `Test/Watch/Tools.cls` `TestDismissedData`: `WatchAnswers.Dismissed` called directly with ten shapes of the owner's `Data` (state and variant, state only, variant not a string, state not a string, no state, `{}`, an array, a string, text that is not JSON, empty): `state`/`openVariant` appear only for a JSON object with a string `state`, and nothing raises (the malformed-Data row).
+- (QA) `Test/Agent/Instructions.cls` `TestChat`: five more substrings of the dismiss block (the call at once with the production, the `closed` sentence, the `unknown_incident` sentence, the pick that is retried with its ref, the no-incident-at-all sentence), so that each outcome of AC 5 is pinned, not only ambiguous, busy and "anything else".
+- mutation: the `unknown_incident` sentence of Chat's instructions reworded -> `Instructions.TestChat` red (warm)
+- mutation: the `data.%GetTypeOf("state") = "string"` guard of `WatchAnswers.Dismissed` dropped -> `Tools.TestDismissedData` red (warm; four shapes)
+- mutation: `$$$ISERR(sc) ||` dropped from the read check of `WatchAnswers.ResolveIncident` -> `Tools.TestIncidentsNotRead` red (warm)
+- Each reverted from a backup and checked byte-identical (`git diff` and `git status --short` hashes equal before and after), and `Watch.Tools` and `Agent.Instructions` green again on the same warm stack (tag e5s9qw).
 
 **Loop results (Lane A, this tree):** `docker/tests/test-mock.sh` 94 of 94 passed; warm `Watch.Tools`, `Bridge.Gate`, `Agent.Instructions`, `Bridge.CodeRules`, `Bridge.Decide` passed; fresh `Watch.Turns`, `Agent.Runners`, `Tools.Reminders` passed.
 
