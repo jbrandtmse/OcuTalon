@@ -232,3 +232,5 @@
 2026-10-27T10:02:17Z	Story 5.7	story_cycle	plan_to_commit_min=232 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=1(plan:Q1_orchestrator) rulings=orchestrator_Q1(a),veto_U-110,veto_U-111,decide_AC8
 2026-10-27T10:03:08Z	Epic 5	ledger_burndown_chartered	story=5-10-epic-5-burn-down entries=DW-289(orchestrator_ruling) set_aside=DW-290(escalated->decision_sheet) overflow=DW-223(->15-2:Install/Step/Demo.cls_contended_by_Epic15) note=ledger_burndown_complete_is_logged_after_5.10%27s_pipeline
 2026-10-27T10:03:08Z	Story 5.10	ledger_routed_planned	story=5-10-epic-5-burn-down entries=1(DW-289) excess=0 by=burndown
+2026-10-27T10:08:23Z	Epic 5	epic_context_compiled	reason=planning_artifact_newer(epics.md_Story_5.10_burn-down) model=claude-opus-5-5 lines=93 spawn_agent=a7025ee6ed97102c9 spawn_at=2026-10-27T10:03:08Z
+2026-10-27T10:08:23Z	Story 5.10	stage_spawned	stage=plan spawn_at=2026-10-27T10:08:23Z model=claude-opus-5-5 agent_name=5-10-plan-1 cycle_iteration=1

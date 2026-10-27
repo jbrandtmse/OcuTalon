@@ -4,7 +4,7 @@
 
 ## Goal
 
-A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds, grouped by the settle rule into one diagnosed incident that moves through a fixed state table, and the heartbeat checks each watched production every minute and records what it found. All of that is built. The one remaining story, 5.7, makes the watch honest in the chat: asked "is everything fine?", OcuTalon answers only from the code-computed check results that 5.6 records, so the model can never give a false all-clear. This epic is the "what broke" half of the demo path, and Epic 7's approve-and-fix completes it.
+A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one diagnosed incident, which moves through a fixed state table. The heartbeat checks each watched production every minute and records what it found, and asked whether everything is fine, OcuTalon never gives a false all-clear. All of that is built. The one remaining story, 5.10, is the epic's burn-down. It keeps Epic 5's Watch and Checks tests reliable once Epic 8's real heartbeat sends a `Tick` every minute into the same production and tables the tests use.
 
 ## Stories
 
@@ -17,106 +17,77 @@ A user asks OcuTalon in plain words to watch a production. New failures are pick
 - Story 5.7: Asked whether everything is fine, OcuTalon never gives a false all-clear
 - Story 5.8: Each noticed incident says what broke, with its evidence behind Show details
 - Story 5.9: Ask OcuTalon in the chat to dismiss an incident
+- Story 5.10: Epic 5 burn-down (DW-289)
 
 ## Requirements & Constraints
 
-**Code decides the all-clear**
-- Code computes from the check results whether an all-clear may be given. The model can't add one.
-- Reply cases, chosen only by `Checks.Render`:
-  - Every check passed: "Everything I checked passed."
-  - Something failed or wasn't checked: that entry comes first, as "Not everything: {what failed, with its time}." Then "Everything else I checked passed." follows, but only if other checks passed. Example: "Not everything: the Orders production has 50 failed orders since 14:12 ET, and a fix is waiting for your approval."
-  - Nothing watched: "I'm not watching any productions yet, so I can't say. Ask me to watch one."
-  - In every case, code-computed check rows follow, giving what was checked, the result and when.
-- The guard removes two sets of wording from model text and keeps the rest:
-  - the reserved sentences: "Everything I checked passed.", "Everything else I checked passed." and "Your IRIS system is healthy";
-  - the closed list of banned phrases: "all good", "everything's fine", "everything is fine", "no issues", "no problems", "nothing to worry about".
-- Required tests:
-  - With Orders failing, "is everything OK?" gets no all-clear, and the failing check is named first.
-  - A mock scenario under `ci/mock/scenarios/A/` has the model claim everything is fine while a check fails. The reply still has no all-clear.
+**DW-289, the one criterion of 5.10**
+- A real `HeartbeatIn` Tick runs every due check row and sweeps every quiet incident it finds, wherever they are. So a test that makes a check row due at once, or an incident 16 minutes quiet, can see a real Tick's run or close in the middle of the test.
+- The tests named as exposed are `Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` and any `Test.Watch` fixture that makes check rows.
+- Fix it in this epic's own tests, without changing product behaviour:
+  - Give fixture check rows a `NextDueAt` that a real Tick does not find due (for example a time in the future) wherever the test does not mean to run them.
+  - Give quiet incidents `LastAt` times that a real Tick does not sweep.
+- Every test must still prove what it proves now.
+- A test that must drive a Tick itself must do so in a way that a real Tick can't change its outcome.
+- If a pause hook in Epic 8's heartbeat is still needed after that, leave the residual routed to `burndown` and say so. The orchestrator routes it to an open Epic 8 story.
 
-**What 5.7 consumes from 5.6**
-- Each production watch is one `OcuTalon.Data.BackgroundCheck` row owned by its session.
-- `Checks` writes only the row's run fields: `LastRunAt`, `Result`, `Finding`, `LastRunHeaderId` and `NextDueAt`. `Result` is a `CheckResult` value: `passed`, `failed` or `not_checked`.
-- How a run's result is decided:
-  - `not_checked`, with a code-written reason, when any part can't be read;
-  - otherwise `failed` when the production isn't running, when the session has new failures since the last run, or when an `open`, `awaiting_approval` or `fixing` incident is in scope (the session's own, plus `instance` incidents off the online demo);
-  - otherwise `passed`.
-- The finding is joined from `Checks` class parameters, with counts as its only slots. It never holds error, event-log or diagnosis text.
-- (inference) The not-checked reason is stored in `Finding`, because no other run field holds text.
-- (inference) A watch that has just started has no run yet. The spec decides how `check_status` reports it. Counting it as not checked matches the product's definition of "not checked" for a check that didn't run.
-
-**Security**
-- `check_status` is safe, read-only and trusted output, so calling it doesn't taint the turn.
-  - Trusted output means code builds it from OcuTalon's own records, and it holds no text from outside a user's untainted turn.
-  - 5.6's findings are code-written, so the rows stay trusted as long as no free text gets into them.
-- Database row ids never leave the server. Only Ens header and session ids may, for trace links.
-- (inference) `dismiss_incident` stays trusted output only while a `Test.Bridge.Gate` test pins its answer to its code-built fields (DW-288). A similar test for `check_status` would hold the same line, but no document requires one.
+**Product rules the tests must keep proving**
+- The heartbeat runs every due background check once a minute. Minutes missed during a restart are caught up once, not replayed. Each run shows in Visual Trace.
+- Each check shows its schedule, last run and last result.
+- How an unclosed incident closes on quiet:
+  - A resolved incident closes after 15 quiet minutes.
+  - An open incident (fallback, no fix, rejected or expired) closes this way only with demo mode off. With demo mode on, it waits for Dismiss.
+  - An incident that is awaiting approval or fixing never closes this way.
 
 ## Technical Decisions
 
-**How results travel**
-1. The Chat agent calls `check_status` in `OcuTalon.Tools`. It returns the session's latest results and puts them in the context's `HostData.checks`, a JSON array.
-2. The runner copies `HostData` and the turn's taint onto the `Reply`.
-3. `Conversation` (Lane B, Story 2.6) passes `HostData.checks` to `OcuTalon.Checks.Render` without reading it. After the guard has run, it puts the returned key and rows on the outbound reply and on `chat.message`.
+**Background checks (the conventions 5.10 relies on)**
+- `WatchOps` creates and removes a watch's `OcuTalon.Data.BackgroundCheck` row.
+- `Checks` (`OcuTalon.Checks.Process`) writes only the run fields: `LastRunAt`, `Result`, `Finding`, `LastRunHeaderId` and `NextDueAt`. It writes them with one SQL `UPDATE` keyed by `Ref`, so a watch that was stopped meanwhile is never re-created.
+- **Due rule:** a row is due when `NextDueAt` is empty, or is at most 5 s after the Tick's time. After a run, `NextDueAt` becomes the Tick's time plus 60 s, so missed minutes give one run.
+  - (inference, as built) "The Tick's time" is the Tick's `TickAt` when that is a UTC stamp, and otherwise now. So a test Tick with a far-future `TickAt` can run rows whose `NextDueAt` is far in the future, and a real Tick at the real time won't.
+- **A run's trace** is its Tick's session in OcuTalon's own namespace.
+- **A run's result:**
+  - `not_checked`, with a code-written reason, when any part can't be read;
+  - otherwise `failed`, when the production isn't running, the session has new failures since the last run, or an `open`, `awaiting_approval` or `fixing` incident is in scope (the session's own, plus `instance` incidents off the online demo);
+  - otherwise `passed`.
+- **The finding** is joined from `Checks` class parameters, with counts as its only slots. It never holds error, event-log or diagnosis text.
+- **Quiet sweep:** before its checks, each Tick sends `closeQuiet` (origin `timer`) for every unclosed incident whose `LastAt` is more than `QUIETSECONDS` (900 s) old. `IncidentManager` decides:
+  - `not_quiet` when the incident isn't old enough;
+  - `not_allowed` when AD-15's table refuses the move;
+  - otherwise `closed`.
+  - (inference, as built) Both of these age checks use the clock, not the Tick's `TickAt`. So no fixture time can make an incident quiet for the test's own Tick but not for a real one. This is the hard case.
+- The `check` event has one publisher, `Checks`. A run publishes the row after the run.
 
-- Tools may reference only `Msg`, `Data`, `Watch.Reader`, `Commands.Submit` and the bridge's shared classes, never `OcuTalon.Checks`. So `check_status` reads the `BackgroundCheck` rows itself. Core may call `Checks.Render`.
-- (inference) A missing `HostData.checks` (the tool wasn't called) must stay distinct from an empty array (nothing is watched). Only the empty array gives the nothing-watched sentence.
-- In Story 9.3, when the owner is `eval`, `check_status` reads the request's own `HostData` in place of the session's rows, and `EvalIn` calls `Render`. (inference) Keep the source of the results replaceable, so 9.3 can add that branch without reshaping the tool.
+**The real Tick (Epic 8, Lane B)**
+- A Task Manager task calls the adapterless `HeartbeatIn` every minute. It sends one `OcuTalon.Msg.Tick` (the tick time and the previous tick time) to the `Checks` item, and writes the tick time to `StatusMark`. After downtime it sends one catch-up Tick.
+- (inference, from Epic 8's branch) `HeartbeatIn` sends the Tick asynchronously, and sends none while `Checks` is a stub. In this worktree `OcuTalon.Schedule.HeartbeatIn` is still a stub, so no real Tick reaches the tests here. The collision starts once Epics 5 and 8 meet on the integration branch, and 5.10 has to be made safe without seeing it locally.
+- AD-16 adds more to each Tick later: `Checks` will also send the final `FixResult`s from `OcuTalon.Fix.Run.Sweep()`, from Story 7.5 on.
 
-**`Checks.Render`**
-- It keeps Epic 0's signature, `Render(results, *rows)`. `OcuTalon.Test.Contract.Ac`'s signature oracle pins that signature, and Lane A keeps the oracle green.
-- It returns a catalog key plus rows `{result, entry, finding, checkedAt}`:
-  - `result` is the enum value, because display words live only in the catalog and the web app;
-  - `checkedAt` is UTC ISO 8601.
-- Only `Render` chooses the reserved sentence. The sentences are catalog entries, which two places render:
-  - the `*Out` operations, through `Msg.Catalog.Render`;
-  - the page, from the generated `web/src/app/msg/catalog.ts`.
-- **DW-90.** The keys `checks.notEverything` and `notEverythingRestPassed` take a whatFailed slot that the pinned signature can't return, so the page shows no sentence for them. 5.7 decides how the page gets whatFailed (derived from the failing row, or a slot path through `Render`) and makes both keys render.
-  - Times travel as UTC ISO 8601 slots and are rendered only through `Data.Time`, which adds " ET" on the online demo. The renderer puts string slots into the text in a single pass and strips their line breaks.
-  - (inference) So whatFailed's time should come from a time slot or from the row's `checkedAt`, not as text that is already rendered.
-  - (inference) Each option reaches Lane B files:
-    - A slot path changes the pinned signature and adds a property to `Conversation` and `chat.message`.
-    - Deriving from the row changes only how the page renders, which is in `web/`.
-    - Either way, Lane A asks the owning lane for the change and doesn't edit those files itself.
-
-**`OcuTalon.Checks.ReplyGuard`**
-- It extends `OcuTalon.Bridge.Ext.ReplyFilter` and replaces Epic 0's pass-through stub. `Decide`'s `ReplyFilterClass` setting already names it.
-- It runs exactly once on every model-written text, before `Decide` records anything or answers its caller.
-  - That includes each property a reply class lists in `FILTERED`, such as the diagnosis payload's, and `Decide` validates those again after filtering.
-  - (inference) Whatever the guard strips has to leave that text valid.
-- The legitimate all-clear arrives later, from `Render`'s key, so the guard can strip all all-clear wording without deleting a real one.
-- (inference) The list of phrases is closed. Whether matching also covers case and punctuation variants is for the spec to decide.
+**Where tests make due rows and quiet incidents** (inference, from the test sources)
+- `OcuTalon.Test.Data.Fixture`:
+  - `Check(sessionRef, namespace, production, fields)` leaves `NextDueAt` empty, so the row is due at once.
+  - `Incident(...)` defaults `LastAt` to 2030, which is never quiet.
+  - Both helpers take a `fields` override.
+- `WatchOps` sets a new watch's `NextDueAt` to its creation time. That is product behaviour, and `Test.Watch.Ops` and `Test.Watch.Turns` assert it, so a real Tick could rewrite it before they check.
+- `Test.Checks.Runs` drives an in-process probe (`Test.Checks.Probe`) over fixture rows in namespace `ZZNS`, with a 2030 Tick time, and runs warm. Its rows with an empty `NextDueAt`, and the quiet incidents in `TestQuietSweep` (`LastAt` now minus 960 s), are still visible to the real `Checks` item.
+- `Test.Checks.Heartbeat` and `Test.Checks.Turns` (through `Test.Watch.Case`) send Ticks the way `HeartbeatIn` does, synchronously to the real `Checks` item, with now as the tick time. They run only in fresh throwaways and CI, and assert only on their own rows. `TestQuietClose` needs a real 16-minute-old incident and checks that the test's own Tick sent exactly one `closeQuiet`.
+- Two more Lane A tests make due rows:
+  - `Test.Watch.Case` and `Test.Watch.Poller` make Orders watch rows through `Fixture.Check`.
+  - `Test.Bridge.Gate.TestCheckStatusAnswerIsCodeBuilt` (5.7's pin test for `check_status`) makes `Fixture.Check` rows with no `NextDueAt`. A real Tick would replace their results.
 
 **Conventions**
-- Edit Lane A files only: `OcuTalon.Checks`, `.Tools`, `.Agent` and `ci/mock/scenarios/A/`.
-  - Never edit Lane B files (`Core`, `Live`, `Msg`, `Web`, `web/`). Ask the owner for properties instead.
-- Tool classes:
-  - declare `CLASSIFICATION`, `READONLY`, `TRUSTEDOUTPUT`, `STEPLABEL` and `RESOURCES`, optionally `<NAME>`-suffixed;
-  - take their names from `Tools.Names`;
-  - return a dynamic object through `Tools.Result`, never a JSON string that is already encoded.
-- Mock scenarios are one JSON file each: `name`; a `match` holding a `marker`; and `replies`, each with `text` or `toolUse`. A request picks one by `[[mock:<name>]]` in its newest user message.
-- (inference) The model can call `check_status` only if it is in the Chat agent's toolset.
-- Times are UTC ISO 8601 to the second. Tests are named `OcuTalon.Test.<Area>.<Subject>`.
-
-## UX & Interaction Patterns
-
-- Plain English, in the first person, with short sentences and no exclamation marks. No class names or codes outside Show details.
-- A check row appears under any reply that answers whether things are fine. It shows:
-  - a result icon and word: Passed in green, Failed in red, Not checked in amber;
-  - the entry name;
-  - the finding or reason with its time, in muted text.
+- Edit Lane A files only: `OcuTalon.Checks`, `.Watch`, `.Tools`, `.Agent`, `.Bridge` and their `OcuTalon.Test.<Area>` packages.
+  - Never edit Lane B files: `OcuTalon.Schedule` (`HeartbeatIn`), `Core`, `Live`, `Msg`, `Web`, `web/`, or their tests. A heartbeat pause hook would be Lane B's.
+  - (inference) `Test.Data.Fixture` is shared by both lanes. Prefer per-call `fields` to changing its defaults.
+- Tests are named `OcuTalon.Test.<Area>.<Subject>`. Times are UTC ISO 8601 to the second. Product code reads the clock only through `OcuTalon.Data.Time`.
 
 ## Cross-Story Dependencies
 
-- **Done:** 5.1 to 5.6, 5.8 and 5.9.
-  - 5.7 reads the rows that 5.6 records.
-  - The incident states that make a check fail come from 5.5.
-- **Upstream:**
-  - Epic 0: the pinned `Checks.Render`, the `ReplyGuard` stub, `Bridge.Ext.ReplyFilter`, `Decide`'s `ReplyFilterClass` setting, `HostData` on the context and on the `Reply`, and the catalog keys.
-  - Story 2.6: `Conversation` calls `Render`, `chat.message` carries the key and rows, and the page shows check rows.
-  - Epic 3: the gate's classifications and taint.
-- **Downstream:**
-  - Story 9.3: the all-clear evaluation cases, through the `eval` branch.
-  - Epic 17: the digest's all-clear and "Your IRIS system is healthy" also come from `Render`.
-  - Epic 8: the page's check rows.
-  - Story 30.4: finding Items.
+- **Done in Epic 5:** 5.1 to 5.9.
+  - 5.10 changes only their tests.
+  - The quiet close and the state table come from 5.5, the runs and the sweep from 5.6, and the `check_status` and `Turns` tests from 5.7.
+- **Epic 8 (Lane B):**
+  - Story 8.1, done on its own branch, makes the real Tick. DW-289 came over from it.
+  - Any pause hook still needed afterwards is an Epic 8 residual, routed through `burndown`.
+- **Later Lane A work on each Tick:** Story 7.5 (`Fix.Run.Sweep`) and Story 30.4 (finding Items for stopped productions and disabled items). Tests built on these patterns should stay safe for them.
