@@ -2,7 +2,8 @@
 title: 'Story 4.7: Finish the demo guide'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '782f86b61ee1810919ba193c52d2e961dc97bc51'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -396,6 +397,35 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 25 findings - high 0, medium 1, low 20, false 4, maybe-false 0
+- findings:
+  - `false` `reject` `GuideRun.Tokens` contradicts its doc (cache tokens added separately) - AD-20: a stored row's input tokens are `prompt_tokens + cache_read + cache_creation`, so `inputTokens` already includes the cache tiers and `cacheReadTokens` is a subset shown beside it; the doc and the sum agree.
+  - `low` `reject` `TestVariantFollowsState` loop asserts only inside `If view.finished` - The explicit cases above it pin `finished` 1 (resolved, approved, trace) and the stale-variant mutation went red; the loop is the stated invariant (no finished view with a variant), not the pin.
+  - `low` `reject` a stale live event can clear the held marker answer - The next `guide.state` (the one the marker published) restores the right view within one poll; the spec's Decided 8 chooses 'until the next live view'; a fix needs event ordering the page does not have.
+  - `low` `patch` M9 leaves the FLOOR user's guide markers set - Patched: `endRun` posts `run_again` in the `finally` of M9, M10 and M11.
+  - `low` `patch` hard sleeps in M10 - Patched: the 2.5 s sleep is replaced by a promise that the held poll resolves; the 1.5 s wait before the silence assertion stays (an absence needs a duration; M3 precedent).
+  - `low` `reject` finish and steps 3-5 not covered by the mocked guide project - By design: the spec's Boundaries keep `live sign-in` at its cap and place the new browser cases in `live floor`; Q2 and Q5 are edited.
+  - `low` `reject` `guideView`'s `format` argument is optional - The module must stay Node-loadable (Decided 15); the only caller passes it and the unit tests cover the finished view with and without `run`.
+  - `low` `reject` `counted()` formats decision counts with the token format - Both are plain en-US integer grouping (Decided 10 reuses `formatTokens`); no token format with a suffix exists.
+  - `low` `reject` spec notes carry process detail - A fix edits this build's spec.
+  - `low` `reject` an `expired` open variant shows the approve text - Out of scope by the intent contract and Decided 9 (no UX text; needs a Story 4.2 AC amendment); noted for the lead.
+  - `low` `reject` `signOutTrace` is not in a `finally` or `afterEach` in the sign-in, api, shell and session sites - The leak needs a case that is already red; the spec's task names the two trace files for `afterEach` (Decided 14) and the other sites end with the call.
+  - `low` `reject` a marker answer can override a newer live view - The answer is computed at the end of the POST, so it is at least as new as any view the page holds; the next event corrects any later change.
+  - `low` `reject` claim that every case signs out on failure too - Same as the `finally` finding; the claim is about cases that end.
+  - `medium` `patch` the plain press of Open the trace (`opened` after `!help.needed()`) has no test - Patched: M11 (help marked seen) presses it and expects the tab, the `trace_opened` write and the finish; mutation recorded.
+  - `low` `patch` M9's conditional branch pins whichever branch the stack selects - Patched: M9 asserts the popover branch directly.
+  - `low` `patch` M10 sleeps (same root cause as the blind finding) - Patched with the same change.
+  - `low` `reject` M9's silence check filters two substrings - M10's check covers the whole slice for Run again; the finish's announcement is also pinned by the source-scan speaker list (no new speaker).
+  - `low` `reject` `pendingApproval` test compares the function with its definition - The older literal `pendingApproval` tests remain the pin; the extra test is harmless.
+  - `low` `reject` no mutation line for Show me's fallback or the focus rule's finish parts - Rule 19 asks one demonstrated mutation per AC; AC2 and AC4 have theirs (M8, M9 recorded).
+  - `low` `reject` two of 01's three `@floor` tests carry no mutation line - AC8's pin has its mutation (`promptOf(3)` with no action, red in the guide test); the other two parts assert static labels.
+  - `low` `reject` mutations applied together in the floor runs - Each red was attributed to a named case and the clean tree passed all cases; M11 was run alone.
+  - `false` `reject` run line and sign-in name are composed, not verbatim - The composed output equals the contract's example and the templates are recorded `ruled` (V1) in `ux-strings.test.mjs`.
+  - `false` `reject` tests whitelisted to fit the implementation - Each edit is named by the spec's Tasks (source-scan lists, character rule, summary expectations).
+  - `low` `reject` matrix sub-cases without a dedicated case (inactive-box focus, Show me feed fallback, no conversation link, marker POST failure) - Each row has a covering test; the sub-cases are cells of those rows. They are test gaps with no user-reachable defect shown.
+  - `false` `reject` `payloads.ts` provenance - `node web/scripts/payloads.mjs --check` is clean and the diff is exactly the ruling's three additions.
+
 ## Design Notes
 
 **Orchestrator ruling q3 (2026-10-26; decide; policy 36abb05):** ALLOWED. This story may regenerate the contended `web/src/app/live/payloads.ts` as a shared-by-entry edit: only the three generated additions in Epic 4's own lines (the `GuideRun` interface, and `trace?: TraceTarget;` and `run?: GuideRun;` in `GuideStatePayload`), produced by `node web/scripts/payloads.mjs` and checked by `payloads.mjs --check`; never a hand edit, and no other epic's interface changes. The new part `Live/Payload/Part/GuideRun.cls` is Epic 4's. The lead reports `payloads.ts` under footprint_extensions; at integrate-forward the file is regenerated from the merged classes, never hand-merged.
@@ -450,6 +480,16 @@ The REL-2 demo-path parts that this epic owns are still skipped.
     - 4.7's own cases stub their trace tabs, so they take no licence unit.
 13. **DW-146's pin is relative.** V1 compares the LINKS user's `CSPCon` before and after, because one licence unit is held per user and client address, so an absolute "none" would depend on other cases.
 14. **`afterEach` in the two trace files.** Each case owns its context, so ending the group after the case harms nothing. A `beforeAll` API context has its own cookies and CSP sessions, and they survive a page context's sign-out.
+15. **Implement stage: the run line takes the page's formats as an argument.** `guide-view.ts` is a framework-free module that Node loads as it is, and a value import of `chat/decision-view.ts` (extension-less) cannot resolve there. `runTotalText(run, format)` and `guideView(view, selected, format?)` therefore take `{ tokens, cost }` (`formatTokens`, `formatCost`), which `demo-guide.ts` hands in. The tests pass the real functions from `decision-view.ts`. Rule 2 holds: one format, no copy.
+16. **Implement stage: the run line is built from count templates.** `GUIDE_TEXTS` holds `runTotal` ("This run: {decisions} \u00B7 {tokens} \u00B7 {cost} on {models}."), `runTotalNoModel`, `decisionOne`/`decisionMany` ("{n} decision(s)"), `tokenOne`/`tokenMany`, `modelsAnd` ("{list} and {last}") and `modelsComma`. Bare words "decision" and "token" would be strings that EXPERIENCE.md holds as substrings, so `ux-strings.test.mjs` could not record them as `ruled` (V1); the `{n}` forms keep V1's singular forms `ruled`. The plural forms and the two run templates are `ux`.
+17. **Implement stage: the arrow glyph and the sign-in name helper live in `trace-view.ts`.** `TRACE_TEXTS` gains `arrow` ("\u2197", `ux`) beside `signInFor`, and `signInNameOf(text)` (with `fillTrace`) is the one rule for the name of a trace link while the help is needed, used by `app-trace-link`. `trace-view.test.mjs` checks `TRACE_TEXTS` for ASCII except the arrow.
+18. **Implement stage: `app-trace-link` gains `guideFocus`.** The guide's focus rule finds the focused element by its closest `[data-guide-focus]`, and a focus move needs a focusable element, so the link's anchor carries the key itself (an input, default none) in place of the `app-trace-link` host. The default markup is unchanged.
+19. **Implement stage: M6 changed with M3.** M6's last assertion said that the removed Send hands focus to the prompt bar. Step 3 now has an action, so the focus rule hands it to Go to Break the feed (the first of `PROMPT_KEYS` that is there). The case asserts that.
+20. **Implement stage: M10 holds the page's polls while Run again is pressed.** The only way the prompt bar can return in that window is the 200 answer used at once (row 9), so the case pins it; it reaches the finish with the `trace_opened` marker through the API (the page's own write of it is M9's).
+21. **Implement stage: the demo-path summary test follows 01.** With every part of step 1 a `@floor` test, `--grep-invert @floor` leaves step 1 with no spec in the report, so `demo-path-summary.test.mjs` expects "step 1 page has no 01-page.spec.ts in the report" and checks steps 2 to 6 for the skipped verdict; `playwright-projects.test.mjs` lists the six `@floor` titles of step 1.
+22. **Implement stage: sign-in and session sites.** `sign-in.spec.ts` row 4 and `session.spec.ts` S5 end with `signOutTrace` too (row 4's request holds no session, so its call is harmless); `shell.spec.ts` row 10 and `api.spec.ts` row 18 as the task says. The sign-in unit gains no case (217 passed before and after).
+23. **Implement stage: the Slot B load.** `iris_doc_load` took absolute class file paths with an absolute `baseDir`; a wildcard path with a relative `baseDir` loaded nothing.
+24. **Review pass: M11, a deterministic M9, a clean run after M9 and M10, and a signal in place of M10's first sleep.** A plain press of Open the trace (the sign-in help already seen, as on the online demo) emitted `opened` with no test, because M9 takes the popover branch on the local floor stack. M11 presses it with the help marked seen; M9 now asserts the popover branch with no conditional. M9, M10 and M11 end with `run_again` (`endRun`), so a later floor case starts from a clean guide in either order. M10 waits for its held poll instead of sleeping 2.5 s; its 1.5 s wait before the silence assertion stays, because an absence needs a duration (M3 does the same).
 
 **Task 0 (DW-146), measured in this plan** (lane-B throwaway `e4s7p`, 2026-10-26, Apple silicon):
 - **How:** a temporary spec in `web/e2e/demo-path/` (deleted after the run, tree confirmed clean) ran inside `ci/iris.sh live demo-path`. It read `$SYSTEM.License` counters, `%SYSTEM.License:UserList` and the count of `^%cspSession` through `irisScript` at each step. The stack was torn down by the unit's own trap.
@@ -601,6 +641,25 @@ The REL-2 demo-path parts that this epic owns are still skipped.
 | 9 | `signOutTrace` sends no `IRISLogout` | V1 (the pin: `CSPCon` stays one higher) |
 | 10 | `promptOf(3)` gives no prompt (4.4's behaviour) | M3 (edited) |
 
+**Mutations run (Rule 19).** Each was applied, observed red, reverted from a backup, and `git diff | md5` was identical before and after.
+- mutation: `promptOf(3)` calls it 'goToBreakFeed' -> 'none' (Go to Break the feed dropped) -> red: 01's "the demo guide lists the steps" `@floor` test in `live demo-path` (floor 6 of 7).
+- mutation: the waiting line also for `no_notice` (`WAITING_STAGES` plus `no_notice`) -> red: `guide-view.test.mjs` "step 3 sends the user to Break the feed ... for every stage but the waiting ones".
+- mutation: step 4 `rejected` with action 'showMe' -> red: `guide-view.test.mjs` "step 4 shows the rejected, fallback and no-fix texts with no action".
+- mutation: the finish shows at step 5 (`view.finished === true` -> `chosen === 5`) -> red: `guide-view.test.mjs` "has a prompt for every step, and none once the guide is finished" and "has no finish while the view is not finished".
+- mutation: `boxView` keeps `secondary` when finished (`&& view.finished !== true` dropped) -> red: `break-feed-view.test.mjs` "takes the attention style again once the guide is finished".
+- mutation: `runTotalText` without the singular (`n === 1 ? one : many` -> `many`) -> red: `guide-view.test.mjs` "uses the singular at exactly 1".
+- mutation: `Guide.Compute` sets `run` while not finished (`If finished` -> `If 1`) -> red: `TestRunTotal` "not finished: no run" (and `TestBlank`, `TestBlankEqualsCompute`).
+- mutation: `run.tokens` = `inputTokens` only -> red: `TestRunTotal` "input plus output tokens" (the exact line in M9 is the end-to-end pin, not run for this mutation).
+- mutation: `GuideMarkers` without `TraceLink.Add` -> red: `TestMarkerAnswerTrace` "with the TraceLink URL".
+- mutation: `trace` from an incident before the run window (the lookup with an empty window) -> red: `TestTrace` "an incident noticed before the run: no trace".
+- mutation: the variant read for every state again (`VARIANTSTATES` test dropped) -> red: `TestVariantFollowsState` (the stale rejected variant in resolved, awaiting_approval and fixing).
+- mutation (`live floor`, four applied together, each in its own case): Go to Break the feed also clicks the box's button -> red: M7; Show me without `DeviceTabs.select('phone')` -> red: M8; the popover's Open Visual Trace not emitting `opened` -> red: M9; Run again's answer not held (`tap(() => undefined)`) -> red: M10. The run also failed 12 later cases that the real press and the missing finish left their state to; a clean tree passes all 96.
+- mutation (`live floor`, three applied together): Open the trace takes `guide.conversation` in place of `guide.view.trace.traceUrl` -> red: M9; `run_again` posted as `trace_opened` -> red: M10; `promptOf(3)` gives no prompt (4.4's behaviour) -> red: M3 (edited), and M6, M7, M10 which also read step 3's prompt.
+- mutation (`live floor`, review pass): `press()` without `this.opened.emit()` (the help not needed) -> red: M11 (the run also failed 12 later cases that M11's timeout left their state to; the reverted tree passes all 97).
+- mutation (`live sign-in`): `signOutTrace` sends no `IRISLogout` -> red: V1 (the pin: the user's `CSPCon` stays higher), and 13 later trace cases starved of licence connections.
+
+**Measured (this stage, then the parent's verification run).** `live floor` 317 s (97 passed, with M11), `live demo-path` 93 s (floor 7 of 7), `live sign-in` 452 s (217 passed), `shard lane-b` 162 s (58 classes), `live demo-switch` 296 s; `npm --prefix web test` 691 passed, lint, `payloads.mjs --check`, `docker/tests/test-web-build.sh` and `ci/checks.sh` green. Implement stage: `live floor` 305-318 s (the first run 445 s with an 120 s timeout in it), `live demo-path` 93 s (floor 7 of 7, STEP 1 passed 6 of 6), `live sign-in` 457 s (217 passed). `ci/warm.sh up` took 551 s on the first start of the slot and 78-85 s after.
+
 **Shared surfaces:**
 - the `guide.state` payload: `Test.Live.Payloads`, `payloads.ts` with `payloads.mjs --check`, `demo-switch/guide.spec.ts`'s `Guide` interface, `GuideStatePayload` readers (`guide-view.ts`, `break-feed-view.ts`);
 - the marker answer's JSON (`Test.Web.GuideApi`);
@@ -618,27 +677,25 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the plan's halt on the contended `payloads.ts` was answered by the orchestrator's ruling q3, recorded under Design Notes; the text below is the plan's record of the halt).
+Status: done
+Blocking condition: none
 
-**The file.** `web/src/app/live/payloads.ts` is generated by `web/scripts/payloads.mjs` from the payload classes. It sits in Epic 16's contended `web/src/app/live/**`, and it is not among this dispatch's shared-by-entry files.
+**Summary.** The demo guide is finished. `guide.state` carries `trace` (the run's incident trace target) and `run` (the `RunCost` total, only while finished); the prompt bar has steps 3 to 5 (Go to Break the feed with the waiting line, Show me with the step 4 variants, Open the trace); the finish state shows the run total, the two links, More to try and Run again; the Break the feed box takes the attention style again once finished. DW-215 is fixed (the open variant counts only while the incident is open or closed) and DW-146 is addressed (`signOutTrace`, with V1's relative pin). REL-2: 01's three parts run as `@floor`; 02, 03 and 06 name 11.1 and 8.4.
 
-**Why it must change.**
-- The guide's Open the trace needs the current run's incident trace (AC3; `Incident.TraceHeaderId`, which no page payload carries in this tree).
-- The finish needs the `Ownership.RunCost` total (AC4).
-- AD-12 puts both in the server's guide view: a payload is the full view, and trace targets travel as `traceHeaderId` and `traceNamespace` with the URL added by `TraceLink`. So `OcuTalon.Live.Payload.GuideState` (Epic 4's own class, Story 4.2) gains `Trace` and `Run`, and a new part `GuideRun` is added.
-- The build's `payloads.mjs --check` then requires `payloads.ts` to be regenerated. That is three additions, and only in Epic 4's own lines: a `GuideRun` interface among the parts, and `trace?: TraceTarget;` and `run?: GuideRun;` in `GuideStatePayload`. No other epic's interface changes.
+**Files changed.**
+- Server: `Demo/Guide.cls` (variant rule, `trace`, `run`), `Live/Payload/GuideState.cls`, `Live/Payload/Part/GuideRun.cls` (new), `Web/Api.cls` (`GuideMarkers` adds the trace URL).
+- Server tests: `Test/Demo/Guide.cls`, `Test/Live/Payloads.cls`, `Test/Web/GuideApi.cls` (one block appended).
+- Page: `guide/{guide-view,demo-guide}.ts`, `feed/break-feed-view.ts`, `phone/phone-view.ts`, `shared/{trace-link,trace-view}.ts`, `api/{api-client,api-types}.ts`, and the generated `live/payloads.ts`.
+- Unit tests: `web/scripts/{guide-view,break-feed-view,phone-view,trace-view,ux-strings,announce-focus-sources,demo-path-summary,playwright-projects}.test.mjs`.
+- E2E: `floor/guide.spec.ts` (M3, M6 edited; M7 to M11), `guide/guide.spec.ts` (Q2 and Q5), `demo-path/{01,02,03,06}`, `support/{trace,guide,iris}.ts`, and the DW-146 sites in `trace/{links,trace}.spec.ts`, `sign-in/{shell,sign-in}.spec.ts`, `api/api.spec.ts`, `session/session.spec.ts`.
 
-**Recommended ruling:** allow the regenerated `payloads.ts` as a shared-by-entry edit of Epic 4's own `GuideStatePayload` lines, reported as a footprint extension, with `node web/scripts/payloads.mjs` re-run at integrate-forward if Epic 16 also changes a payload. This is the same principle as the orchestrator's q1 ruling of 2026-10-26 15:35Z. On that ruling, set the status to `ready-for-dev`; no re-plan is needed.
+**Footprint extensions (outside Epic 4's own footprint).** `Live/Payload/GuideState.cls`, `Live/Payload/Part/GuideRun.cls` and `Test/Live/Payloads.cls` (not contended); `Test/Web/GuideApi.cls` (contended, one appended block); `web/src/app/live/payloads.ts` (contended, regenerated only, per ruling q3); `web/src/app/api/{api-client,api-types}.ts` (shared by entry, Epic 4's entries only); `web/scripts/playwright-projects.test.mjs` (the Playwright registry, Epic 4's three titles).
 
-**If refused:** the trace target and the run total would move to a new REST read (for example `GET /api/v1/guide/run`). That is a REST-surface addition (a veto item), with its own fetch triggers and busy states on the page. It needs a re-plan of the page's data flow (Decided 2 explains why the payload is preferred).
+**Review.** Four layers, 25 findings: high 0, medium 1, low 20, false 4. Patches applied: 5 (M11 for the plain press of Open the trace, a deterministic M9, `endRun` after M9 to M11, M10's first sleep replaced by a signal). Deferred: none. Every rejected finding and its reason is in the Review Triage Log. Follow-up review recommended: false (one medium patched, no high).
 
-**For the spec gate.**
-- **Veto item V1:** the sign-in name for custom trace-link labels, the singular forms and the model list joiners.
-- **Ledger:** DW-146 and DW-215 are addressed (Design Notes, Ledger).
-- **Task 0** (DW-146) was measured in this plan on the lane-B throwaway `e4s7p`, now torn down. The temporary spec was removed and the tree confirmed clean.
-- **Spine:** one measured-fact correction is recommended for AD-13's licence note (For the lead).
-- **Timing:**
-  - the new browser cases run in `live floor` (expected under about 8 minutes);
-  - `live demo-path` was measured at 248 s with an extra spec;
-  - `live sign-in` gains no case.
+**Verification.** `npm --prefix web test` (691), lint, `payloads.mjs --check`; `live floor` 317 s (97 passed), `live demo-path` 93 s (STEP 1 passed 6 of 6, floor 7 of 7, steps 2, 3, 6 skipped naming 11.1 and 8.4), `live sign-in` 452 s (217 passed, no case added), `shard lane-b` (58 classes), `live demo-switch`, `docker/tests/test-web-build.sh`, `ci/checks.sh`: all passed. Server classes `Test.Demo.Guide`, `Test.Live.Payloads`, `Test.Web.GuideApi`, `Test.Web.Api`, `Test.Demo.BreakFeedIn`, `Test.Data.OwnershipGuide` passed (warm, implement stage; `lane-b` shard again fresh). All throwaway tags torn down.
+
+**Residual risks and notes for the lead.**
+- DW-146's residual (a trace tab holds a licence unit until sign-out or the session timeout) stays with U-103; the spine is unchanged. AD-13's capacity note and the epic context's "about two minutes" are corrected by the Task 0 measurement, for the lead's call (Rule 20).
+- An `expired` step 4 text is not built (Decided 9).
+- `payloads.ts` must be regenerated from the merged classes at integrate-forward, never hand-merged.

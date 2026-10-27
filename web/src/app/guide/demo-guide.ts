@@ -1,16 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { type Observable, tap } from 'rxjs';
 
+import { ApiClient } from '../api/api-client';
+import type { GuideMarker } from '../api/api-types';
 import { ChatOutbox } from '../chat/chat-outbox';
+import { formatCost, formatTokens } from '../chat/decision-view';
+import { DeviceTabs } from '../devices/device-tabs';
 import { BreakFeedBox } from '../feed/break-feed-box';
 import { Icon } from '../icon/icon';
+import { README_URL } from '../links';
 import { LiveState } from '../live/live-state';
 import type { GuideStatePayload } from '../live/payloads';
+import { pendingRef, phoneOf, type PhoneSnapshot } from '../phone/phone-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
+import { ServerButton } from '../shared/server-button';
 import { readFlag, writeFlag } from '../shared/stored-flag';
-import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, type GuideSnapshot } from './guide-view';
+import { TraceLink } from '../shared/trace-link';
+import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
+import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, type GuideSnapshot, type RunFormat } from './guide-view';
 
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
@@ -21,11 +31,23 @@ const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 /** The prompt bar's action, its text and the bar itself, which take focus in that order when an advance replaces what held it. */
 const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
 
+/** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
+const FINISH_KEY = 'finish';
+const FINISH_PARTS = ['finish', 'finishLink', 'runAgain'];
+
+/** The page's token and cost formats, which the finish's run line is written with. */
+const RUN_FORMAT: RunFormat = { tokens: formatTokens, cost: formatCost };
+
+/** The newest phone message's container and the phone's feed, which Show me puts focus on. */
+const PHONE_FEED = 'app-simulated-phone .feed';
+const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-key="${CSS.escape(ref)}"]`;
+
 /**
  * Where focus goes when an update removes the element that holds it (UX-DR131, EXPERIENCE: focus replacement): Hide guide and Show guide
  * hand it to each other, the box's Do step 1 hands it to the Break the feed button beside it, and the prompt bar's action, text or the bar
  * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
- * else the bar). Focus anywhere else is never moved.
+ * else the bar), else to the finish's first line. The finish's parts (its first line, its links and Run again) hand it to the prompt
+ * bar's parts in the same order when Run again brings the prompt bar back. Focus anywhere else is never moved.
  */
 const FOCUS_RULE: FocusRule = {
   item: `[${FOCUS_KEY}]`,
@@ -38,7 +60,8 @@ const FOCUS_RULE: FocusRule = {
     if (key === 'step1') {
       return host.querySelector<HTMLElement>(BREAK_FEED_BUTTON);
     }
-    return PROMPT_KEYS.map(find).find((element) => element !== null) ?? null;
+    const prompt = PROMPT_KEYS.map(find).find((element) => element !== null) ?? null;
+    return FINISH_PARTS.includes(key) ? prompt : (prompt ?? find(FINISH_KEY));
   },
 };
 
@@ -46,9 +69,13 @@ const FOCUS_RULE: FocusRule = {
  * The demo guide (Story 4.4; UX-DR45, UX-DR131): the region "Demo guide" between the banners and the rail and chat, in demo mode only. It
  * shows the server's guide view (AD-12; guide-view.ts) and decides none of its progress. Row 1 holds the label, the five steps (buttons in
  * a list, joined by decorative chevrons; the current step carries aria-current="step" and its state is in every step's name), "About
- * 2 minutes" and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its Send button, which sends the prompt
- * as the user's own message from the guide (ChatOutbox, fromGuide). Steps 3 to 5 hold no prompt yet (Story 4.7). Any step can be
- * selected in any order, and nothing is marked done by a click. The Break the feed box sits at the right.
+ * 2 minutes" and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
+ * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Go to Break the feed focuses the box's button
+ * without pressing it, Show me selects the Simulated phone tab and focuses the pending notification, and Open the trace is the run's
+ * trace link, which writes the trace_opened marker once a Visual Trace tab opens. Once the server's view is finished the finish state
+ * replaces the prompt bar: the exact lines, the run total, the two links, More to try and Run again, which writes the run_again
+ * marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * is marked done by a click. The Break the feed box sits at the right.
  *
  * Hide guide collapses the region to one bar, "Demo guide - step n of 5 - Show guide" with Show guide aria-expanded, and the box keeps its
  * place at the bar's right end; the choice is stored in this browser (ocutalon.guide.hidden). Under 680px tall the steps (numbers only) and
@@ -56,12 +83,13 @@ const FOCUS_RULE: FocusRule = {
  * follows the prompt bar.
  *
  * Announcements and focus: "Step {n} of 5: {step}" is announced once when the view advances to a later step of the same run (never for the
- * first view, a reload or a lower step), through the Announcer; the guide is not a live region. The selection follows the current step when
- * it changes. Focus moves only when an update removed the element that held it (shared/focus-rule.ts) or by the user's own action.
+ * first view, a reload or a lower step), through the Announcer; the guide is not a live region, and the finish and Run again are silent.
+ * The selection follows the current step when it changes. Focus moves only when an update removed the element that held it
+ * (shared/focus-rule.ts) or by the user's own action (Go to Break the feed, Show me).
  */
 @Component({
   selector: 'app-demo-guide',
-  imports: [BreakFeedBox, Icon],
+  imports: [BreakFeedBox, Icon, ServerButton, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (model(); as guide) {
@@ -112,18 +140,52 @@ const FOCUS_RULE: FocusRule = {
               <span class="duration">{{ texts.duration }}</span>
               <button type="button" class="button button-ghost" data-guide-focus="hide" (click)="setHidden(true)">{{ texts.hide }}</button>
             </div>
-            <div class="prompt" tabindex="-1" data-guide-focus="bar">
-              @if (guide.telegramRow) {
-                <p class="telegram">{{ texts.telegram }}</p>
-              }
-              @if (guide.prompt; as prompt) {
-                <div class="prompt-line">
-                  <span class="next">{{ texts.next }}</span>
-                  <span class="prompt-text" tabindex="-1" data-guide-focus="text">{{ prompt.quoted }}</span>
-                  <button type="button" class="button button-primary" data-guide-focus="action" (click)="send(prompt.text)">{{ texts.send }}</button>
-                </div>
-              }
-            </div>
+            @if (guide.finish; as finish) {
+              <div class="finish">
+                <p class="finish-done" tabindex="-1" data-guide-focus="finish">{{ texts.finishDone }}</p>
+                @if (finish.runTotal; as total) {
+                  <p class="run-total">{{ total }}</p>
+                }
+                <p class="finish-links">
+                  @if (guide.conversation; as conversation) {
+                    <app-trace-link appearance="arrow" [text]="texts.conversationLink" [url]="conversation" guideFocus="finishLink" />
+                  }
+                  <a class="link" [href]="readme" target="_blank" rel="noopener noreferrer" data-guide-focus="finishLink"
+                    >{{ texts.installLink }}<span aria-hidden="true"> {{ trace.arrow }}</span><span class="visually-hidden"> {{ trace.opensInNewTab }}</span></a
+                  >
+                </p>
+                <p class="more">{{ texts.moreToTry }}</p>
+                <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
+              </div>
+            } @else {
+              <div class="prompt" tabindex="-1" data-guide-focus="bar">
+                @if (guide.telegramRow) {
+                  <p class="telegram">{{ texts.telegram }}</p>
+                }
+                @if (guide.prompt; as prompt) {
+                  <div class="prompt-line">
+                    @if (!prompt.waiting) {
+                      <span class="next">{{ texts.next }}</span>
+                    }
+                    <span class="prompt-text" tabindex="-1" data-guide-focus="text">{{ prompt.quoted }}</span>
+                    @switch (prompt.action) {
+                      @case ('send') {
+                        <button type="button" class="button button-primary" data-guide-focus="action" (click)="send(prompt.text)">{{ texts.send }}</button>
+                      }
+                      @case ('goToBreakFeed') {
+                        <button type="button" class="button button-primary" data-guide-focus="action" (click)="goToBreakFeed()">{{ texts.goToBreakFeed }}</button>
+                      }
+                      @case ('showMe') {
+                        <button type="button" class="button button-primary" data-guide-focus="action" (click)="showMe()">{{ texts.showMe }}</button>
+                      }
+                      @case ('openTrace') {
+                        <app-trace-link appearance="button" [text]="texts.openTrace" [url]="guide.view.trace?.traceUrl ?? ''" guideFocus="action" (opened)="mark('trace_opened')" />
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            }
           </div>
         }
         <app-break-feed-box [view]="guide.view" [inline]="hidden()" (doStep1)="select(1)" />
@@ -297,8 +359,47 @@ const FOCUS_RULE: FocusRule = {
       font-size: var(--type-body-chat-font-size);
       line-height: var(--type-body-chat-line-height);
     }
-    .prompt-line .button {
+    .prompt-line .button,
+    .prompt-line app-trace-link {
       flex: none;
+    }
+    /* The finish state takes the prompt bar's place: the same sunken block, with its lines stacked and no fixed height. */
+    .finish {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-1);
+      min-height: 44px;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--rounded-sm);
+      background: var(--sunken);
+    }
+    .finish p {
+      margin: 0;
+    }
+    .finish-done {
+      color: var(--ink);
+      font-size: var(--type-body-chat-font-size);
+      line-height: var(--type-body-chat-line-height);
+    }
+    .finish-done:focus-visible {
+      outline-offset: -2px;
+    }
+    .run-total,
+    .more {
+      color: var(--ink-muted);
+      font-size: var(--type-body-sm-font-size);
+      line-height: var(--type-body-sm-line-height);
+    }
+    .run-total {
+      font-variant-numeric: tabular-nums;
+    }
+    .finish-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-4);
+      font-size: var(--type-body-sm-font-size);
+      line-height: var(--type-body-sm-line-height);
     }
     .bar {
       display: flex;
@@ -341,7 +442,8 @@ const FOCUS_RULE: FocusRule = {
       .row1 {
         flex: none;
       }
-      .prompt {
+      .prompt,
+      .finish {
         flex: 1;
         min-width: 0;
       }
@@ -364,14 +466,27 @@ export class DemoGuide {
   private readonly live = inject(LiveState);
   private readonly outbox = inject(ChatOutbox);
   private readonly announcer = inject(Announcer);
+  private readonly api = inject(ApiClient);
+  private readonly tabs = inject(DeviceTabs);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
 
   protected readonly texts = GUIDE_TEXTS;
+  protected readonly trace = TRACE_TEXTS;
+  protected readonly readme = README_URL;
 
-  /** The guide view: the latest guide.state, else the snapshot's guide; undefined outside demo mode. */
-  private readonly view = computed(() => guideOf(this.live.snapshot() as GuideSnapshot | undefined, this.live.store()));
+  /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside demo mode. */
+  private readonly liveView = computed(() => guideOf(this.live.snapshot() as GuideSnapshot | undefined, this.live.store()));
+
+  /** The 200 answer of the page's last marker, which stands as the guide view until the next live view arrives. */
+  private readonly answered = signal<GuideStatePayload | undefined>(undefined);
+
+  /** The guide view: the held answer of a marker, else the live view. */
+  private readonly view = computed(() => {
+    const live = this.liveView();
+    return live === undefined ? undefined : (this.answered() ?? live);
+  });
 
   /** The step the user selected, or the current step until the first view. */
   private readonly selected = signal<number | undefined>(undefined);
@@ -382,7 +497,10 @@ export class DemoGuide {
   protected readonly model = computed(() => {
     const view = this.view();
     const selected = this.selected();
-    return view === undefined || selected === undefined ? undefined : { ...guideView(view, selected), view };
+    if (view === undefined || selected === undefined) {
+      return undefined;
+    }
+    return { ...guideView(view, selected, RUN_FORMAT), view, conversation: conversationUrl(this.live.store()?.chat) };
   });
 
   private last: GuideStatePayload | undefined;
@@ -391,6 +509,10 @@ export class DemoGuide {
     effect(() => {
       const view = this.view();
       untracked(() => this.follow(view));
+    });
+    effect(() => {
+      this.liveView();
+      untracked(() => this.answered.set(undefined));
     });
     effect(() => {
       this.model();
@@ -416,6 +538,41 @@ export class DemoGuide {
       return;
     }
     this.outbox.send(text, true);
+  }
+
+  /** Go to Break the feed: focus moves to the box's button. Nothing is pressed, and an inactive button still takes focus. */
+  protected goToBreakFeed(): void {
+    this.host.nativeElement.querySelector<HTMLElement>(BREAK_FEED_BUTTON)?.focus();
+  }
+
+  /**
+   * Show me: the Simulated phone tab is selected, then focus goes to the newest phone message that names a pending approval request,
+   * else to the phone's feed. Never to a button inside the phone.
+   */
+  protected showMe(): void {
+    const store = this.live.store();
+    const list = phoneOf(this.live.snapshot() as PhoneSnapshot | undefined, store) ?? [];
+    const ref = pendingRef(list, store?.approvals);
+    this.tabs.select('phone');
+    afterNextRender(
+      () => {
+        const message = ref === undefined ? null : document.querySelector<HTMLElement>(phoneMessage(ref));
+        (message ?? document.querySelector<HTMLElement>(PHONE_FEED))?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** Writes a marker and keeps its 200 answer as the guide view. A failure adds no text: a press of Open the trace writes it again. */
+  protected mark(marker: GuideMarker): void {
+    this.post(marker).subscribe({ error: () => undefined });
+  }
+
+  /** Run again: the call of its server button, which is busy until the answer. */
+  protected readonly runAgain = (): Observable<GuideStatePayload> => this.post('run_again');
+
+  private post(marker: GuideMarker): Observable<GuideStatePayload> {
+    return this.api.postGuideMarker(marker).pipe(tap((view) => this.answered.set(view)));
   }
 
   /** A view arrived: the selection follows the current step when it changes, and an advance is announced once. */

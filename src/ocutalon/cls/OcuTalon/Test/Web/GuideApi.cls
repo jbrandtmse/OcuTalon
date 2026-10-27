@@ -255,4 +255,35 @@ ClassMethod Ok(response As %CSP.Response) As %Boolean [ Private ]
 	Quit (response.Status = "") || (response.Status = "200 OK")
 }
 
+/// Story 4.7: the marker's 200 answer carries the run's trace target with its traceUrl, as TraceLink builds it.
+Method TestMarkerAnswerTrace()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = $ClassMethod(fixture, "Session", $Username)
+	Set csp = ..Csp(ref)
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Incident", ref, ##class(OcuTalon.Data.Time).NowUtc(), ..#NS, ..#PROD, {"State": "resolved", "TraceHeaderId": 4321})
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Set expected = ##class(OcuTalon.Web.TraceLink).Url(4321, $Namespace, , , .viewer)
+	Do $$$AssertNotEquals(expected, "", "the trace URL of the incident is built")
+	Set view = ##class(%DynamicObject).%FromJSON(..Post(csp, "{""marker"":""trace_opened""}", .response))
+	Do $$$AssertEquals(..Ok(response), 1, "200: "_response.Status)
+	Do $$$AssertEquals(view.trace.traceHeaderId_"|"_view.trace.traceNamespace, "4321|"_$Namespace, "the trace target")
+	Do $$$AssertEquals(view.trace.traceUrl, expected, "with the TraceLink URL")
+}
+
+/// Story 4.7: /state's guide carries the same trace target and URL.
+Method TestStateGuideTrace()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = $ClassMethod(fixture, "Session", $Username)
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Incident", ref, ##class(OcuTalon.Data.Time).NowUtc(), ..#NS, ..#PROD, {"State": "resolved", "TraceHeaderId": 4321})
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Set expected = ##class(OcuTalon.Web.TraceLink).Url(4321, $Namespace, , , .viewer)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set state = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(state.guide.trace.traceUrl, expected, "/state's guide.trace.traceUrl is the TraceLink URL")
+}
+
 }

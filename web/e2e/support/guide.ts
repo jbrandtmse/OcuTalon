@@ -1,6 +1,9 @@
 import { publishFixtureEvent } from './devices';
 import { chk, irisScript, quoted } from './iris';
 
+/** The guide's marker endpoint (Story 4.7: trace_opened and run_again). */
+export const GUIDE_MARKERS = '/ocutalon/api/v1/guide/markers';
+
 /**
  * What the demo guide's floor cases (floor/guide.spec.ts, Story 4.4) add to the fixtures of support/iris.ts: the Orders production's
  * identity as a watch check names it, a `watch.progress` event on the user's own stream, and the removal of what a real press of Break
@@ -61,4 +64,70 @@ export async function settleBatch(user: string): Promise<void> {
     before = Number.isInteger(count) ? count : -1;
     await new Promise((done) => setTimeout(done, 1000));
   }
+}
+
+/**
+ * Recomputes the user's guide and publishes it when it changed (Live.Publish.RefreshGuide, the guide.state event's one publisher), so
+ * that a row a case seeds directly shows in the open page: the check and reminder events refresh the guide themselves, nothing else a
+ * case seeds does.
+ */
+export async function refreshGuide(user: string): Promise<void> {
+  const lines = await irisScript(
+    [`Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`, 'Set sc=##class(OcuTalon.Live.Publish).RefreshGuide(s.Ref)', 'Write !,"CHK|refreshed|",$System.Status.IsOK(sc)'].join('\n'),
+  );
+  if (chk(lines, 'refreshed') !== '1') throw new Error(`the guide could not be refreshed (${lines.join(' ')})`);
+}
+
+/** Writes a Break the feed run of the user's session in the state, started at the UTC time (Test.Data.Fixture.BreakFeedRun); dropBreakFeed removes it. */
+export async function seedBreakFeedRun(user: string, state: 'sending' | 'sent', startedAt: string): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).BreakFeedRun(s.Ref,${quoted(state)},${quoted(startedAt)})`,
+      'Write !,"CHK|run|",(r=s.Ref)',
+    ].join('\n'),
+  );
+  if (chk(lines, 'run') !== '1') throw new Error(`the Break the feed run could not be seeded (${lines.join(' ')})`);
+}
+
+/** How many rows of each kind (BackgroundCheck, Reminder, Incident) have one of the refs. */
+export async function rowCount(table: 'BackgroundCheck' | 'Reminder' | 'Incident', refs: string[]): Promise<number> {
+  if (refs.length === 0 || refs.some((ref) => !/^[A-Za-z0-9_-]+$/.test(ref))) throw new Error('rowCount takes plain refs');
+  const lines = await irisScript(
+    [
+      `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.${table} WHERE Ref IN (${refs.map(() => '?').join(',')})",${refs.map((ref) => quoted(ref)).join(',')})`,
+      'Do rs.%Next()',
+      'Write !,"CHK|count|",rs.%GetData(1)',
+    ].join('\n'),
+  );
+  const count = Number(chk(lines, 'count'));
+  if (!Number.isInteger(count)) throw new Error(`the ${table} rows could not be counted (${lines.join(' ')})`);
+  return count;
+}
+
+/** Sets the state and open variant of an incident row, as the incident manager would (Lane A's table, written here for a fixture row). */
+export async function setIncident(ref: string, fields: { state: string; openVariant: string }): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(ref)})`,
+      `If '$IsObject(r) { Write !,"CHK|incident|0" Halt }`,
+      `Set r.State=${quoted(fields.state)}`,
+      `Set r.OpenVariant=${quoted(fields.openVariant)}`,
+      'Write !,"CHK|incident|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'incident') !== '1') throw new Error(`the incident could not be changed (${lines.join(' ')})`);
+}
+
+/** Deletes the Usage rows of the decisions (they have no Ref of their own, so cleanFixtureRows keeps them). */
+export async function dropUsage(decisionRefs: string[]): Promise<void> {
+  const refs = decisionRefs.filter((ref) => /^[A-Za-z0-9_-]+$/.test(ref));
+  if (refs.length === 0) return;
+  const lines = await irisScript(
+    [
+      `Set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef IN (${refs.map(() => '?').join(',')})",${refs.map((ref) => quoted(ref)).join(',')})`,
+      'Write !,"CHK|usage|",(rs.%SQLCODE>=0)',
+    ].join('\n'),
+  );
+  if (chk(lines, 'usage') !== '1') throw new Error(`the Usage rows could not be removed (${lines.join(' ')})`);
 }

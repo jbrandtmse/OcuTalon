@@ -1,7 +1,7 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 import { MESSAGES, STATE, post, sessionEvents } from './api';
-import { fixtureUser, type FixtureKind } from './iris';
+import { chk, fixtureUser, irisScript, type FixtureKind } from './iris';
 
 /**
  * What the specs that open Visual Trace share (Stories 2.9 and 2.13): the turn as /state and the live stream carry it, the newest turn of a
@@ -11,6 +11,41 @@ import { fixtureUser, type FixtureKind } from './iris';
 
 /** The page of Visual Trace in the trace application of OCUTALON, up to the session parameter. */
 export const TRACE_PAGE = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=';
+
+/** The sign-out address of the trace application: ends the whole sign-in group of the cookies that reach it (AD-13). */
+const TRACE_SIGN_OUT = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?IRISLogout=end';
+
+/**
+ * Signs the trace application out for the context behind `api` (the context's own cookies: `page.request`, or a request context that
+ * made the trace requests). A trace-application page holds one licence connection for its user and client address until its session
+ * ends (measured in Story 4.7, DW-146), and the stack has 8, so a case that opened one signs it out when it ends. IRISLogout=end ends the
+ * context's whole sign-in group, the page's own session included: call it when the case is over.
+ */
+export async function signOutTrace(api: APIRequestContext): Promise<void> {
+  const response = await api.get(TRACE_SIGN_OUT);
+  expect(response.status(), 'the trace sign-out answers').toBeLessThan(500);
+}
+
+/**
+ * The number of CSP connections that the licence counts for the IRIS user (%SYSTEM.License:UserList, column CSPCon, summed over the
+ * user's rows, whatever the case of the name), 0 when the user has none. It reads through irisScript, which a licence-exhausted stack
+ * refuses (no terminal), and says so.
+ */
+export async function traceSessions(user: string): Promise<number> {
+  if (!/^[A-Za-z0-9_]+$/.test(user)) throw new Error('a fixture user name is letters, digits and underscore');
+  const lines = await irisScript(
+    [
+      'Set rs=##class(%ResultSet).%New("%SYSTEM.License:UserList")',
+      'Do rs.Execute()',
+      'Set n=0',
+      `While rs.Next() { If $ZConvert($Piece(rs.Get("UserId"),"@",1),"U")=$ZConvert("${user}","U") Set n=n+rs.Get("CSPCon") }`,
+      'Write !,"CHK|csp|",n',
+    ].join('\n'),
+  );
+  const count = chk(lines, 'csp');
+  if (count === undefined) throw new Error('the licence is exhausted: irisScript was refused');
+  return Number(count);
+}
 
 /** A chat turn as /state and the live stream carry it. */
 export interface Turn {

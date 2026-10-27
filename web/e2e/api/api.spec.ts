@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type APIResponse, type Response }
 
 import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
 import { fixtureUser } from '../support/iris';
+import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
 /**
@@ -351,6 +352,7 @@ test('row 18: a trace-only user gets 403 no_role from the API, first, and stays 
   await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   const trace = await request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
   expect(await trace.text(), 'the session is not ended: the trace window still opens').toContain('Message Viewer');
+  await signOutTrace(request);
 });
 
 test('row 18: the README account gets 200', async ({ request }) => {

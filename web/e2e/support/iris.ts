@@ -223,6 +223,8 @@ export interface SeedTurn {
   replyText: string;
   channel?: string;
   fromGuide?: boolean;
+  /** The turn's trace session (Turn.TraceHeaderId), which gives its chat.message a trace target. */
+  traceHeaderId?: number;
   catalogKey?: string;
   fallbackReason?: string;
   state?: 'done' | 'running';
@@ -350,6 +352,7 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
       `Set t.CreatedAt=${quoted(turn.createdAt)}`,
       `Set t.Channel=${quoted(turn.channel ?? 'web')}`,
       `Set t.FromGuide=${turn.fromGuide ? 1 : 0}`,
+      ...(turn.traceHeaderId === undefined ? [] : [`Set t.TraceHeaderId=${numeric(turn.traceHeaderId, 'traceHeaderId')}`]),
       `Set t.Text=${quoted(turn.text)}`,
       `Set t.ReplyText=${quoted(turn.replyText)}`,
       `Set t.ReplyCatalogKey=${quoted(turn.catalogKey ?? '')}`,
@@ -802,6 +805,9 @@ export interface IncidentFields {
   noticedAt?: string;
   /** The incident's trace session, which its approval request's trace link opens (AD-26). */
   traceHeaderId?: number;
+  /** The incident's state (open unless given) and its open variant (fix unless given). */
+  state?: string;
+  openVariant?: string;
 }
 
 /**
@@ -809,7 +815,11 @@ export interface IncidentFields {
  * Ref; cleanFixtureRows removes it.
  */
 export async function seedIncident(owner: string, fields: IncidentFields = {}): Promise<string> {
-  const row = properties({ TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId') });
+  const row = properties({
+    TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
+    State: fields.state,
+    OpenVariant: fields.openVariant,
+  });
   const lines = await irisScript(
     [
       ...(owner === 'instance' ? ['Set o="instance"'] : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),

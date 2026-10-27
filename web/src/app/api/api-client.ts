@@ -2,7 +2,8 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
-import type { EventsResponse, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type { GuideStatePayload } from '../live/payloads';
+import type { EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -44,6 +45,11 @@ export class ApiClient {
   /** Delivers one of the sample emails (newsletter, partner-notice, suspicious-request) into the simulated mailbox (demo mode only). Only the answer 202 is a success. */
   postMailboxSample(name: string): Observable<MailboxAccepted> {
     return this.accepted<MailboxAccepted>(`${BASE}/mailbox/samples/${encodeURIComponent(name)}`, {});
+  }
+
+  /** Writes one of the guide's UI markers (demo mode only); the answer is the guide view that /state carries, with its trace URL. */
+  postGuideMarker(marker: GuideMarker): Observable<GuideStatePayload> {
+    return this.http.post<GuideStatePayload>(`${BASE}/guide/markers`, { marker });
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

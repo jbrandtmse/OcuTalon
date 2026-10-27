@@ -1,18 +1,24 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
-import { announcements, announcedTexts, recordAnnouncements } from '../support/page';
-import { CARD_MS, MOST_STOPS, SKIP_CHAT, composerOf, expectStopRing, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
-import { dropBreakFeed, ORDERS, publishWatchProgress, settleBatch } from '../support/guide';
-import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedCheck, seedReminder } from '../support/iris';
+import { post, STATE } from '../support/api';
+import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
+import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
+import { publishFixtureEvent } from '../support/devices';
+import { dropBreakFeed, dropUsage, GUIDE_MARKERS, ORDERS, publishWatchProgress, refreshGuide, rowCount, seedBreakFeedRun, setIncident, settleBatch } from '../support/guide';
+import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
+import { TRACE_PAGE } from '../support/trace';
 
 /**
- * Story 4.4, the demo guide and the Break the feed box on the floor stack, as the FLOOR user (M1 to M5; the floor stack is in demo mode).
+ * Story 4.4, the demo guide and the Break the feed box on the floor stack, as the FLOOR user (M1 to M6; the floor stack is in demo mode).
  * M1 and M2 run in all three engines (tag @browsers): the keyboard, the names, aria-current, Enter, the rings inside the viewport, the
  * inactive box that stays focusable and described, Hide and Show with their aria-expanded and focus. M3 and M4 read the real guide.state
  * and the real POST /v1/demo/break-feed: the check and the reminder of the Orders watch advance the page to step 2 and step 3, and a real
  * press runs from step 3 to its sent line. M5 reads the layout at 1280x600, 1100x720 and 1000x800 and the collapsed bar.
  * A case removes the check and the reminder it seeds with cleanFixtureRows, and M4 the run and the batch of 50 orders as well (the FLOOR
  * session is no fixture session, so Fixture.Clean keeps its run rows, and a run under 180 s old would show in the next case's guide).
+ * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 Go to Break the feed and the waiting line, M8 Show me
+ * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen. Their trace tabs
+ * are stand-ins (stubTraces), so they hold no licence connection, and M9 and M10 start from a run_again, so that the run window is clean.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -28,6 +34,15 @@ const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
 const P1 = 'Watch the Orders production and only tell me if something needs me.';
 const P2 = 'Remind me in 1 minute to stretch.';
 const H1 = 'Ask OcuTalon to watch the Orders production first (step 1).';
+const P3 = 'Press Break the feed. The partner will send 50 orders in a new date format.';
+const WAITING = 'Waiting for OcuTalon. The reminder may arrive first.';
+const APPROVE = 'Approve the fix on the simulated phone, or in the chat.';
+const REJECTED = 'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.';
+const P5 = "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.";
+const DONE =
+  'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.';
+const MORE = 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.';
+const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
 const SENT = 'Sent. OcuTalon usually notices within a minute.';
 const SENDING = 'Sending 50 orders\u2026';
 const NOTICED = 'OcuTalon noticed failures in the Orders production';
@@ -41,6 +56,8 @@ const breakOf = (page: Page): Locator => guideOf(page).getByRole('button', { nam
 const boxOf = (page: Page): Locator => page.locator('app-break-feed-box');
 const hideOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Hide guide', exact: true });
 const showOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Show guide', exact: true });
+const goOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Go to Break the feed', exact: true });
+const promptText = (page: Page): Locator => guideOf(page).locator('.prompt-text');
 
 /** The ring and the name of every tab stop inside the demo guide, from the first skip link until focus leaves it, each judged by expectStopRing. */
 async function guideStops(page: Page): Promise<string[]> {
@@ -184,7 +201,8 @@ test('M3: the real guide.state advances the page to step 2 and step 3, announced
     await expect(stepOf(page, 2, 'done')).toHaveCount(1);
     await expect(composerOf(page), 'focus in the composer stays there').toBeFocused();
     await expect.poll(() => announcements(page, 'Step 3 of 5: Break the feed'), { message: 'announced', timeout: CARD_MS }).toBe(1);
-    await expect(guideOf(page).locator('.prompt-text'), 'step 3 holds no prompt yet (Story 4.7)').toHaveCount(0);
+    await expect(promptText(page), "step 3's prompt (Story 4.7)").toHaveText(`"${P3}"`);
+    await expect(goOf(page), 'with its Go to Break the feed button').toBeVisible();
 
     // At step 3 the box is active, with the tag.
     await expect(breakOf(page)).toHaveClass(/button-attention/, { timeout: CARD_MS });
@@ -199,8 +217,8 @@ test('M3: the real guide.state advances the page to step 2 and step 3, announced
   }
 });
 
-/** M6: an update that removes the focused prompt button moves focus to the prompt bar; an update that removes nothing leaves focus in the composer. */
-test('M6: focus in the composer stays through an advance, and a removed prompt button hands focus to the prompt bar', async ({ page }) => {
+/** M6: an update that removes the focused prompt button moves focus to the next step's action; an update that removes nothing leaves focus in the composer. */
+test('M6: focus in the composer stays through an advance, and a removed prompt button hands focus to the next step\'s action', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
@@ -214,13 +232,13 @@ test('M6: focus in the composer stays through an advance, and a removed prompt b
     await expect(stepOf(page, 2, 'current'), 'the watch advances the guide to step 2').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
     await expect(composerOf(page), 'focus in the composer stays there').toBeFocused();
 
-    // Step 2 to step 3 with focus on the prompt bar's Send, which step 3 does not have: focus goes to the prompt bar.
+    // Step 2 to step 3 with focus on the prompt bar's Send, which step 3 replaces with Go to Break the feed: focus goes to that action.
     const reminder = await seedStretch(user, refs);
     await sendOf(page).focus();
     await expect(sendOf(page)).toBeFocused();
     await publishReminder(user, { ref: reminder, text: 'zz M stretch' });
     await expect(stepOf(page, 3, 'current'), 'the reminder advances it to step 3').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
-    await expect(guideOf(page).locator('.prompt'), 'the removed Send hands focus to the prompt bar').toBeFocused();
+    await expect(goOf(page), "the removed Send hands focus to the next step's action").toBeFocused();
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -287,6 +305,309 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
     if (pressed) await settleBatch(user);
     await cleanFixtureRows(refs);
     await dropBreakFeed(user);
+  }
+});
+
+/** Gives every trace application page of the context a stand-in answer, so that a tab the case opens holds no licence connection. */
+async function stubTraces(context: BrowserContext): Promise<void> {
+  await context.route('**/ocutalon/trace/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Visual Trace</title>' }));
+}
+
+/** The guide's step 4 and step 5 rows: an Orders incident with the trace session HEADER, and the watch and the reminder that come before it. */
+async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string }> {
+  await seedWatch(user, refs);
+  await seedStretch(user, refs);
+  const incidentRef = await seedIncident(user, { ...ORDERS, noticedAt: inMs(0), traceHeaderId: HEADER, ...incident });
+  refs.push(incidentRef);
+  const approval = await seedApproval(user, { incidentRef, state: request });
+  refs.push(approval);
+  return { incident: incidentRef, approval };
+}
+
+/** M7: Go to Break the feed focuses the box's button and presses nothing; a run in flight shows only the waiting line, and no notice brings the prompt back. */
+test('M7: Go to Break the feed focuses the box without pressing it, and a run in flight shows only the waiting line', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const posts: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST') posts.push(new URL(request.url()).pathname);
+  });
+  try {
+    const check = await seedWatch(user, refs);
+    const reminder = await seedStretch(user, refs);
+    await publishCheck(user, { ref: check, ...ORDERS, displayName: 'zz M Orders' });
+    await publishReminder(user, { ref: reminder, text: 'zz M stretch' });
+    await openFloor(page);
+    await expect(stepOf(page, 3, 'current'), 'the page opens at step 3').toHaveAttribute('aria-current', 'step');
+    await expect(promptText(page), "step 3's prompt, quoted").toHaveText(`"${P3}"`);
+    await expect(guideOf(page).locator('.prompt .next'), 'after Next:').toHaveText('Next:');
+
+    posts.length = 0;
+    await goOf(page).click();
+    await expect(breakOf(page), "focus moves to the box's Break the feed button").toBeFocused();
+    await expect(breakOf(page), 'which is active and still unpressed').not.toHaveAttribute('aria-busy', /.*/);
+    await settled(page);
+    expect(
+      posts.filter((path) => path.includes('/demo/break-feed') || path.includes('/guide/markers') || path.includes('/messages')),
+      'nothing was pressed or written',
+    ).toEqual([]);
+
+    // A run in flight (sent, no notice yet): only the waiting line, with no Next:, no quotes and no button.
+    await seedBreakFeedRun(user, 'sent', inMs(0));
+    await refreshGuide(user);
+    await expect(promptText(page), 'only the waiting line').toHaveText(WAITING, { timeout: CARD_MS });
+    await expect(guideOf(page).locator('.prompt .next'), 'with no Next:').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt .button'), 'and no button').toHaveCount(0);
+    await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
+
+    // No notice after 3 minutes: the prompt is back.
+    await dropBreakFeed(user);
+    await seedBreakFeedRun(user, 'sent', inMs(-200_000));
+    await refreshGuide(user);
+    await expect(promptText(page), 'no notice brings the prompt back').toHaveText(`"${P3}"`, { timeout: CARD_MS });
+    await expect(goOf(page)).toBeVisible();
+  } finally {
+    await dropBreakFeed(user);
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** M8: Show me selects the Simulated phone tab and focuses the pending notification, never a button; a rejection shows its text with no button. */
+test('M8: Show me selects the phone and focuses the pending notification, and a rejected fix shows its text with no button', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const message = `zzm8${Date.now().toString(36)}`;
+  try {
+    const { incident, approval } = await seedIncidentPath(user, refs, { state: 'open', openVariant: 'fix' }, 'pending');
+    await openFloor(page);
+    await expect(stepOf(page, 4, 'current'), 'the page opens at step 4').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+    await expect(promptText(page), 'the unpaired text, quoted').toHaveText(`"${APPROVE}"`);
+    const showMe = guideOf(page).getByRole('button', { name: 'Show me', exact: true });
+    await expect(showMe).toBeVisible();
+
+    // The phone message that names the request, with the mailbox tab selected first.
+    const seq = await publishFixtureEvent(user, 'phone', 'OcuTalon.Live.Payload.Phone', { Ref: message, Direction: 'out', Text: 'zz approve the fix', ApprovalRef: approval, CreatedAt: inMs(0) });
+    await applied(page, seq);
+    const phoneTab = page.getByRole('tab', { name: /^Simulated phone/ });
+    const mailboxTab = page.getByRole('tab', { name: /^Simulated mailbox/ });
+    await mailboxTab.click();
+    await expect(mailboxTab).toHaveAttribute('aria-selected', 'true');
+    await expect(phoneTab).toHaveAttribute('aria-selected', 'false');
+
+    await showMe.click();
+    await expect(phoneTab, 'Show me selects the phone tab').toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator(`app-simulated-phone .notification[data-key="${message}"]`), "and focuses the pending notification's container").toBeFocused();
+    await expect(page.locator('button:focus, a:focus'), 'never a button').toHaveCount(0);
+
+    // A rejection: the rejected text, no button, and step 5 still available.
+    await setApprovalState(approval, 'rejected');
+    await setIncident(incident, { state: 'open', openVariant: 'rejected' });
+    await refreshGuide(user);
+    await expect(promptText(page), 'the rejected text').toHaveText(`"${REJECTED}"`, { timeout: CARD_MS });
+    await expect(guideOf(page).locator('.prompt .button, .prompt app-trace-link'), 'with no action button').toHaveCount(0);
+    await expect(stepOf(page, 4, 'current'), 'step 4 stays current').toHaveAttribute('aria-current', 'step');
+    await stepOf(page, 5, 'upcoming').click();
+    await expect(promptText(page), 'step 5 is available').toHaveText(`"${P5}"`);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** Everything M9 and M10 start from: the guide at step 5 of a run that ended with an approved fix and a resolved incident, with its run total seeded. */
+async function seedFinishingRun(page: Page, user: string, refs: string[], usage: string[]): Promise<void> {
+  await openFloor(page);
+  const marked = await post(page.request, GUIDE_MARKERS, { marker: 'run_again' });
+  expect(marked.status(), await marked.text()).toBe(200);
+  await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
+  const seeded = await seedTurns(
+    user,
+    [
+      {
+        createdAt: inMs(0),
+        text: 'zz M9 turn',
+        replyText: 'zz M9 reply',
+        traceHeaderId: HEADER + 1,
+        triage: { outcome: 'tellnow', costUSD: 0.002 },
+        turn: { outcome: 'tellnow', costUSD: 0.0021 },
+        usage: [
+          { of: 'triage', inputTokens: 5000, outputTokens: 400, costUSD: 0.002 },
+          { of: 'turn', inputTokens: 4000, outputTokens: 450, costUSD: 0.0021 },
+        ],
+      },
+    ],
+    true,
+  );
+  refs.push(...turnRows(seeded));
+  usage.push(...seeded.decisions.flatMap((one) => [one.triage, one.turn]).filter((ref) => ref !== ''));
+  await refreshGuide(user);
+  await expect(stepOf(page, 5, 'current'), 'the guide is at step 5').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+}
+
+/** The sessionStorage key under which the sign-in help counts as seen in a tab. */
+const TRACE_HELP_SEEN_KEY = 'ocutalon.traceHelp.seen';
+
+/** Ends the run the case finished, so that the FLOOR user's next case starts from a clean guide. */
+async function endRun(page: Page): Promise<void> {
+  await post(page.request, GUIDE_MARKERS, { marker: 'run_again' }).catch(() => undefined);
+}
+
+/** The Open the trace link of the prompt bar. */
+const openTraceOf = (page: Page): Locator => guideOf(page).locator('.prompt app-trace-link a');
+
+/** M9: Open the trace opens the incident's trace and writes trace_opened, and the finish state replaces the prompt bar with the run total and its links. */
+test('M9: Open the trace, then the finish state: the exact lines, the run total, the two links, the attention box, focus on the first line, no announcement', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const usage: string[] = [];
+  try {
+    await stubTraces(page.context());
+    await recordAnnouncements(page);
+    await seedFinishingRun(page, user, refs, usage);
+    const before = (await announcedTexts(page)).length;
+
+    await expect(promptText(page), "step 5's prompt, quoted").toHaveText(`"${P5}"`);
+    const link = openTraceOf(page);
+    await expect(link, "its address is the incident's TraceLink URL").toHaveAttribute('href', `${TRACE_PAGE}${HEADER}`);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(link).toHaveClass(/button-primary/);
+    await expect(breakOf(page), 'while step 5 is current the box is the secondary style').toHaveClass(/button-secondary/);
+
+    const written = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/guide/markers') && (response.request().postData() ?? '').includes('trace_opened'));
+    const tab = page.context().waitForEvent('page');
+    await expect(link, 'on a local install it is named for the help it shows first').toHaveAccessibleName('Open the trace (shows sign-in help first)');
+    await expect(link).toHaveAttribute('aria-haspopup', 'dialog');
+    await link.click();
+    const dialog = page.getByRole('dialog', { name: 'Sign in to Visual Trace', exact: true });
+    await expect(dialog, 'the help shows first').toBeVisible();
+    await dialog.getByRole('link', { name: 'Open Visual Trace (opens in a new tab)', exact: true }).click();
+    const opened = await tab;
+    await opened.waitForLoadState('domcontentloaded');
+    expect(new URL(opened.url()).pathname + new URL(opened.url()).search, 'a new tab opened at the incident trace').toBe(`${TRACE_PAGE}${HEADER}`);
+    expect((await written).status(), 'trace_opened was written').toBe(200);
+
+    // The finish state replaces the prompt bar.
+    const finish = guideOf(page).locator('.finish');
+    await expect(finish, 'the finish replaces the prompt bar').toBeVisible({ timeout: CARD_MS });
+    await expect(guideOf(page).locator('.prompt')).toHaveCount(0);
+    await expect(finish.locator('.finish-done'), 'the first line').toHaveText(DONE);
+    await expect(finish.locator('.finish-done'), 'takes focus when the update removed the focused link').toBeFocused();
+    await expect(finish.locator('.run-total'), 'the run total').toHaveText('This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.');
+    const totalStyle = await finish.locator('.run-total').evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { numbers: style.fontVariantNumeric, size: style.fontSize };
+    });
+    expect(totalStyle.numbers, 'in tabular figures').toContain('tabular-nums');
+    await expect(finish.locator('.more')).toHaveText(MORE);
+
+    const conversation = finish.locator(`a[href="${TRACE_PAGE}${HEADER + 1}"]`);
+    await expect(conversation, 'the whole-conversation link').toHaveAccessibleName('See the whole conversation in Visual Trace (opens in a new tab)');
+    await expect(conversation).toHaveAttribute('target', '_blank');
+    await expect(conversation.locator('[aria-hidden="true"]'), 'with a hidden arrow').toHaveText('\u2197');
+    const install = finish.locator(`a[href="${README}"]`);
+    await expect(install, 'the install link').toHaveAccessibleName('Install OcuTalon yourself (opens in a new tab)');
+    await expect(install).toHaveAttribute('target', '_blank');
+    await expect(install).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(install.locator('[aria-hidden="true"]')).toHaveText('\u2197');
+    expect(await install.evaluate((node) => getComputedStyle(node).textDecorationLine), 'underlined').toContain('underline');
+    await expect(finish.getByRole('button', { name: 'Run again', exact: true })).toBeVisible();
+    await expect(guideOf(page).locator('ol .step'), 'the step list stays').toHaveCount(5);
+
+    // The box takes the attention style again.
+    await expect(breakOf(page)).toHaveClass(/button-attention/);
+    expect(await breakOf(page).evaluate((node) => getComputedStyle(node).backgroundColor), 'in the attention colour').toBe(await tokenColor(page, '--button-attention-background'));
+    expect((await announcedTexts(page)).slice(before).filter((text) => text.includes('Done') || text.includes('This run')), 'the finish is not announced').toEqual([]);
+  } finally {
+    await dropUsage(usage);
+    await cleanFixtureRows(refs);
+    await endRun(page);
+  }
+});
+
+/** M11: with the sign-in help already seen, a press of Open the trace opens the tab and writes trace_opened at once, and the finish state follows. */
+test('M11: with the sign-in help seen, Open the trace opens the tab and writes trace_opened with no popover', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const usage: string[] = [];
+  try {
+    await stubTraces(page.context());
+    await page.addInitScript((key) => {
+      try {
+        window.sessionStorage.setItem(key, '1');
+      } catch {
+        /* The page copes with a storage that fails. */
+      }
+    }, TRACE_HELP_SEEN_KEY);
+    await seedFinishingRun(page, user, refs, usage);
+    const link = openTraceOf(page);
+    await expect(link, 'named as a plain link').toHaveAccessibleName('Open the trace (opens in a new tab)');
+    await expect(link, 'with no popover').not.toHaveAttribute('aria-haspopup', /.*/);
+    const written = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/guide/markers') && (response.request().postData() ?? '').includes('trace_opened'));
+    const tab = page.context().waitForEvent('page');
+    await link.click();
+    const opened = await tab;
+    await opened.waitForLoadState('domcontentloaded');
+    expect(new URL(opened.url()).pathname + new URL(opened.url()).search, 'a new tab opened at the incident trace').toBe(`${TRACE_PAGE}${HEADER}`);
+    expect((await written).status(), 'trace_opened was written').toBe(200);
+    await expect(guideOf(page).locator('.finish'), 'and the finish replaces the prompt bar').toBeVisible({ timeout: CARD_MS });
+  } finally {
+    await dropUsage(usage);
+    await cleanFixtureRows(refs);
+    await endRun(page);
+  }
+});
+
+/** M10: Run again brings the prompt bar back at step 3, with focus on Go to Break the feed, silently; the session's data stays and the epoch rises. */
+test('M10: Run again returns the prompt bar at step 3 with focus on its action, silently, and changes only the guide markers', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const usage: string[] = [];
+  try {
+    await stubTraces(page.context());
+    await recordAnnouncements(page);
+    await seedFinishingRun(page, user, refs, usage);
+    const epochOf = async (): Promise<number> => ((await (await page.request.get(STATE)).json()) as { guide: { runEpoch: number } }).guide.runEpoch;
+    const epoch = await epochOf();
+    const checks = refs.filter((ref) => ref.length > 0);
+
+    // Step 5 is done by the marker alone, as the page writes it.
+    const marked = await post(page.request, GUIDE_MARKERS, { marker: 'trace_opened' });
+    expect(marked.status(), await marked.text()).toBe(200);
+    const finish = guideOf(page).locator('.finish');
+    await expect(finish, 'the finish shows').toBeVisible({ timeout: CARD_MS });
+    const counts = async (): Promise<number[]> => [await rowCount('BackgroundCheck', checks), await rowCount('Reminder', checks), await rowCount('Incident', checks)];
+    const rows = await counts();
+    expect(rows.every((count) => count > 0), 'the check, the reminder and the incident exist').toBe(true);
+    const before = (await announcedTexts(page)).length;
+
+    // The page's polls are held while Run again is pressed, so that only the 200 answer can bring the prompt bar back: it is the guide view at once.
+    let release!: () => void;
+    let held!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const polled = new Promise<void>((resolve) => (held = resolve));
+    await page.route('**/ocutalon/api/v1/events?*', async (route) => {
+      held();
+      await gate;
+      await route.continue();
+    });
+    await polled;
+    await finish.getByRole('button', { name: 'Run again', exact: true }).click();
+    try {
+      await expect(promptText(page), "the 200 answer's view brings the prompt bar back at step 3, before any poll").toHaveText(`"${P3}"`, { timeout: 5000 });
+    } finally {
+      release();
+    }
+    await expect(finish, 'in place of the finish').toHaveCount(0);
+    await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
+    await expect(goOf(page), 'with focus on its action').toBeFocused();
+    expect(await epochOf(), 'the run epoch rose').toBe(epoch + 1);
+    expect(await counts(), 'the session\'s checks, reminders and incidents are as they were').toEqual(rows);
+    await page.waitForTimeout(1500);
+    expect((await announcedTexts(page)).slice(before), 'Run again is silent').toEqual([]);
+  } finally {
+    await dropUsage(usage);
+    await cleanFixtureRows(refs);
+    await endRun(page);
   }
 });
 

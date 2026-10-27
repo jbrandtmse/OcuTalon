@@ -79,6 +79,9 @@ export interface MailboxAccepted {
   ref: string;
 }
 
+/** POST /ocutalon/api/v1/guide/markers: the guide's two UI markers (Story 4.7). The session is the caller's; the body never names one. */
+export type GuideMarker = 'trace_opened' | 'run_again';
+
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };

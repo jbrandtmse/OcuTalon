@@ -5,6 +5,8 @@
  * - TRACE_TEXTS holds every fixed string of the trace links, the sign-in help and the Visual Trace menu, in ASCII.
  * - needsSignInHelp says whether the sign-in help is still to be shown: never on the online demo, never before the
  *   snapshot has said which it is, and not once it has been seen in this tab's session or switched off for the browser.
+ * - signInFor is the sign-in name of a trace link with its own text (Story 4.7): the visible label first (WCAG 2.5.3), then the words of
+ *   signInName; arrow is the glyph of a link that opens a new tab, always hidden from assistive technology.
  * - conversationUrl gives the link behind "Open my conversation in Visual Trace": the traceUrl of the newest chat.message
  *   that has one, which opens the current day's thread at its newest turn. The page never builds or completes a trace URL.
  */
@@ -15,6 +17,8 @@ export const TRACE_TEXTS = {
   trace: 'Trace',
   opensInNewTab: '(opens in a new tab)',
   signInName: 'Open in Visual Trace (shows sign-in help first)',
+  signInFor: '{label} (shows sign-in help first)',
+  arrow: '\u2197',
   signInHeading: 'Sign in to Visual Trace',
   signInText: 'Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.',
   openVisualTrace: 'Open Visual Trace',
@@ -23,6 +27,16 @@ export const TRACE_TEXTS = {
   openConversation: 'Open my conversation in Visual Trace',
   conversationNotYet: 'Available after your first message.',
 } as const;
+
+/** The text with each {name} replaced by its value. */
+export function fillTrace(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole);
+}
+
+/** The accessible name of a trace link while the sign-in help is needed: signInName for the default text, else signInFor with the link's text. */
+export function signInNameOf(text: string): string {
+  return text === TRACE_TEXTS.trace ? TRACE_TEXTS.signInName : fillTrace(TRACE_TEXTS.signInFor, { label: text });
+}
 
 /** The sessionStorage key that says the help was shown in this tab's session. */
 export const TRACE_SEEN_KEY = 'ocutalon.traceHelp.seen';

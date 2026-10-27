@@ -15,6 +15,9 @@ const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
 
 const P1 = 'Watch the Orders production and only tell me if something needs me.';
 const P2 = 'Remind me in 1 minute to stretch.';
+const P3 = 'Press Break the feed. The partner will send 50 orders in a new date format.';
+const P4 = 'Approve the fix on the simulated phone, or in the chat.';
+const P5 = "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.";
 const H1 = 'Ask OcuTalon to watch the Orders production first (step 1).';
 const H2 = 'Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.';
 const SENT = 'Sent. OcuTalon usually notices within a minute.';
@@ -186,7 +189,7 @@ test('Q1: the empty chat and Background checks point at the guide in demo mode',
   await expect(page.getByRole('heading', { level: 2 }), 'the guide adds no heading').toHaveText(['Status', 'Chat']);
 });
 
-/** Q2: any step can be selected in any order; steps 3 to 5 hold no prompt; nothing is marked done by a click. */
+/** Q2: any step can be selected in any order; steps 3 to 5 show their prompts (Story 4.7); nothing is marked done by a click. */
 test('Q2: selecting steps changes the prompt and the bar under the step, and marks nothing done', async ({ page }) => {
   await serve(page, { guide: guideOf(0) });
   await recordAnnouncements(page);
@@ -203,11 +206,16 @@ test('Q2: selecting steps changes the prompt and the bar under the step, and mar
   await expect(stepOf(page, 1, 'current'), 'aria-current stays on the current step').toHaveAttribute('aria-current', 'step');
   await expect(stepOf(page, 2, 'upcoming')).not.toHaveAttribute('aria-current', /.*/);
 
-  for (const n of [5, 4, 3]) {
-    await stepOf(page, n, 'upcoming').click();
-    await expect(page.getByRole('region', { name: 'Demo guide' }).locator('.prompt-text'), `step ${n} holds no prompt (Story 4.7)`).toHaveCount(0);
-    await expect(promptOf(page).getByRole('button'), `and no button`).toHaveCount(0);
-  }
+  const action = (name: string): Locator => promptOf(page).getByRole('button', { name, exact: true });
+  await stepOf(page, 5, 'upcoming').click();
+  await expect(prompt, 'step 5 shows its prompt').toHaveText(`"${P5}"`);
+  await expect(promptOf(page).getByRole('button').or(promptOf(page).getByRole('link')), 'and no action: the view has no trace').toHaveCount(0);
+  await stepOf(page, 4, 'upcoming').click();
+  await expect(prompt, 'step 4 shows the unpaired text').toHaveText(`"${P4}"`);
+  await expect(action('Show me'), 'with Show me').toBeVisible();
+  await stepOf(page, 3, 'upcoming').click();
+  await expect(prompt, 'step 3 shows its prompt').toHaveText(`"${P3}"`);
+  await expect(action('Go to Break the feed'), 'with Go to Break the feed').toBeVisible();
   await stepOf(page, 1, 'current').click();
   await expect(prompt, 'back to step 1, in any order').toHaveText(`"${P1}"`);
   for (const n of [2, 3, 4, 5]) {
@@ -229,7 +237,8 @@ test('Q2: the markers, names and aria-current come from the guide view', async (
   await expect(stepOf(page, 5, 'upcoming')).toHaveCount(1);
   await expect(guideRegion(page).locator('.step.done .marker svg'), 'a check for each done step').toHaveCount(2);
   await expect(guideRegion(page).locator('.step.selected'), 'the selection starts on the current step').toHaveAttribute('aria-label', stepName(3, 'current'));
-  await expect(promptOf(page).locator('.prompt-text'), 'which holds no prompt yet').toHaveCount(0);
+  await expect(promptOf(page).locator('.prompt-text'), 'which shows its prompt').toHaveText(`"${P3}"`);
+  await expect(promptOf(page).getByRole('button', { name: 'Go to Break the feed', exact: true })).toBeVisible();
 });
 
 /** Q3: Send posts the exact prompt with fromGuide, shows its caption, announces nothing, and a second press while the first is sending sends nothing. */
@@ -299,7 +308,7 @@ test('Q5: the box shows the hints, the styles, the tag and Do step 1 as the view
 
   // Not watching: Do step 1 selects step 1.
   await stepOf(page, 3, 'upcoming').click();
-  await expect(promptOf(page).locator('.prompt-text')).toHaveCount(0);
+  await expect(promptOf(page).locator('.prompt-text')).toHaveText(`"${P3}"`);
   await expect(breakButton(page)).toHaveAccessibleDescription(H1);
   await expect(boxOf(page), 'no 4px bar while inactive: the box has its 1px divider').toHaveCSS('border-left-width', '1px');
   await boxOf(page).getByRole('button', { name: 'Do step 1', exact: true }).click();

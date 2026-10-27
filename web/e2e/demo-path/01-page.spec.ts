@@ -1,12 +1,18 @@
 import { expect, test, type Response } from '@playwright/test';
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
-import { notBuilt } from './not-built';
 
 /** The page's state snapshot (UJ-1 step 1). */
 const STATE = '/ocutalon/api/v1/state';
 const EVENTS = '/ocutalon/api/v1/events';
 const MESSAGES = '/ocutalon/api/v1/messages';
+
+/** The exact prompts of the guide's steps (EXPERIENCE, the demo guide), written out here as the independent oracle of the page's own. */
+const P1 = 'Watch the Orders production and only tell me if something needs me.';
+const P2 = 'Remind me in 1 minute to stretch.';
+const P3 = 'Press Break the feed. The partner will send 50 orders in a new date format.';
+const P4 = 'Approve the fix on the simulated phone, or in the chat.';
+const P5 = "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.";
 
 /**
  * The floor of the demo path: a fresh install, the README account signs in, and the page loads its snapshot once, with
@@ -113,6 +119,93 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
   expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
 });
 
-notBuilt('the simulated phone and the simulated mailbox, each labelled Simulated', '4.7');
-notBuilt('the demo guide lists the steps, each with its one-click prompt', '4.7');
-notBuilt('Break the feed is marked as a demo control', '4.7');
+/**
+ * The floor of the simulated devices (UJ-1 step 1, FR-13, Story 4.5): the demo-mode install shows the device panel with its two tabs, and the
+ * phone and the mailbox each carry the Simulated label inside them.
+ */
+test('the simulated phone and the simulated mailbox, each labelled Simulated', { tag: '@floor' }, async ({ page }) => {
+  const violations = watchViolations(page);
+
+  await signInReadme(page);
+
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  const devices = page.getByRole('region', { name: 'Simulated devices' });
+  await expect(devices, 'the device panel is on the page').toHaveCount(1);
+  const phoneTab = devices.getByRole('tab', { name: /^Simulated phone/ });
+  const mailboxTab = devices.getByRole('tab', { name: /^Simulated mailbox/ });
+  await expect(phoneTab).toHaveCount(1);
+  await expect(mailboxTab).toHaveCount(1);
+
+  await phoneTab.click();
+  await expect(phoneTab).toHaveAttribute('aria-selected', 'true');
+  await expect(devices.locator('app-simulated-phone app-simulated-label'), 'the phone is labelled Simulated').toHaveText('Simulated');
+  await expect(devices.locator('app-simulated-phone app-simulated-label')).toBeVisible();
+
+  await mailboxTab.click();
+  await expect(mailboxTab).toHaveAttribute('aria-selected', 'true');
+  await expect(devices.locator('.mailbox-header app-simulated-label'), 'the mailbox is labelled Simulated').toHaveText('Simulated');
+  await expect(devices.locator('.mailbox-header app-simulated-label')).toBeVisible();
+  expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+});
+
+/**
+ * The floor of the demo guide (UJ-1, Story 4.4 and 4.7): the region "Demo guide" lists the five steps by name, and selecting each shows its
+ * exact prompt and its action. Nothing is sent: Send and the other buttons are not pressed. A fresh install has no incident, so step 5 shows
+ * its prompt with no Open the trace.
+ */
+test('the demo guide lists the steps, each with its one-click prompt', { tag: '@floor' }, async ({ page }) => {
+  const violations = watchViolations(page);
+  const posted: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST') posted.push(new URL(request.url()).pathname);
+  });
+
+  await signInReadme(page);
+
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  posted.length = 0;
+  const guide = page.getByRole('region', { name: 'Demo guide' });
+  await expect(guide).toHaveCount(1);
+  const steps = guide.locator('ol .step');
+  await expect(steps, 'five steps').toHaveCount(5);
+  await expect(guide.locator('ol .step .step-label')).toHaveText(['Watch', 'Reminder', 'Break the feed', 'Approve', 'Open the trace']);
+  const prompt = guide.locator('.prompt');
+  const text = prompt.locator('.prompt-text');
+  const action = (name: string) => prompt.getByRole('button', { name, exact: true });
+
+  for (const [n, name, quoted, button] of [
+    [1, 'Watch', `"${P1}"`, 'Send'],
+    [2, 'Reminder', `"${P2}"`, 'Send'],
+    [3, 'Break the feed', `"${P3}"`, 'Go to Break the feed'],
+    [4, 'Approve', `"${P4}"`, 'Show me'],
+  ] as const) {
+    await steps.nth(n - 1).click();
+    await expect(steps.nth(n - 1), `step ${n} is ${name}`).toHaveAccessibleName(new RegExp(`^Step ${n}, ${name}, `));
+    await expect(text, `step ${n} shows its prompt`).toHaveText(quoted);
+    await expect(action(button), `step ${n} has ${button}`).toBeVisible();
+    await expect(prompt.getByRole('button'), `and no other button`).toHaveCount(1);
+  }
+
+  await steps.nth(4).click();
+  await expect(text, 'step 5 shows its prompt').toHaveText(`"${P5}"`);
+  await expect(prompt.getByRole('button').or(prompt.getByRole('link')), 'with Open the trace absent until the run has an incident').toHaveCount(0);
+  expect(posted, 'nothing was sent').toEqual([]);
+  expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+});
+
+/** The floor of the Break the feed box (UJ-1 step 3, Story 4.4): it is marked "Demo control", and on a fresh install its button is inactive with the not-watching hint. */
+test('Break the feed is marked as a demo control', { tag: '@floor' }, async ({ page }) => {
+  const violations = watchViolations(page);
+
+  await signInReadme(page);
+
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  const box = page.locator('app-break-feed-box');
+  await expect(box.getByText('Demo control', { exact: true })).toBeVisible();
+  const button = box.getByRole('button', { name: 'Break the feed', exact: true });
+  await expect(button, 'the button is inactive (aria-disabled, never disabled)').toHaveAttribute('aria-disabled', 'true');
+  await expect(button).not.toHaveAttribute('disabled', /.*/);
+  await expect(button, 'with its not-watching hint as its description').toHaveAccessibleDescription('Ask OcuTalon to watch the Orders production first (step 1).');
+  await expect(box.locator('.hint')).toHaveText('Ask OcuTalon to watch the Orders production first (step 1).');
+  expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+});

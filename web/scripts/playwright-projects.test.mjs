@@ -126,6 +126,9 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
       'signs in with the README account and loads the page snapshot',
       'shows the empty chat panel and the composer',
       'shows the status rail with its sections, counts and empty states',
+      'the simulated phone and the simulated mailbox, each labelled Simulated',
+      'the demo guide lists the steps, each with its one-click prompt',
+      'Break the feed is marked as a demo control',
     ]);
   });
 });

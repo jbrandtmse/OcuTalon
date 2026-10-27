@@ -23,4 +23,10 @@ Property Step4Variant As %String(%JSONFIELDNAME = "step4Variant", MAXLEN = 32);
 /// True when the guide shows the Telegram row of step 1.
 Property TelegramRow As %Boolean(%JSONFIELDNAME = "telegramRow") [ InitialExpression = 0 ];
 
+/// The trace step's target: the trace session of the incident noticed in the current run (AD-26); absent before one.
+Property Trace As OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME = "trace");
+
+/// The current run's total, only while the guide is finished.
+Property Run As OcuTalon.Live.Payload.Part.GuideRun(%JSONFIELDNAME = "run");
+
 }

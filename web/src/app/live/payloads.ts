@@ -32,6 +32,13 @@ export interface GuideBreakFeed {
   startedAt?: string;
 }
 
+export interface GuideRun {
+  decisions?: number;
+  tokens?: number;
+  costUSD?: number;
+  models?: string[];
+}
+
 export interface GuideStep {
   step?: number;
   done?: boolean;
@@ -243,6 +250,8 @@ export interface GuideStatePayload {
   breakFeed?: GuideBreakFeed;
   step4Variant?: string;
   telegramRow?: boolean;
+  trace?: TraceTarget;
+  run?: GuideRun;
 }
 
 export interface IncidentPayload {

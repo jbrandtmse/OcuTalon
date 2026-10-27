@@ -16,7 +16,7 @@ import {
   sendItemDecision,
   sinkEvent,
 } from '../support/iris';
-import { TRACE_PAGE, drawnMessages, expectDrawn, postTurn, signInToTrace, type Cursor, type Turn } from '../support/trace';
+import { TRACE_PAGE, drawnMessages, expectDrawn, postTurn, signInToTrace, signOutTrace, traceSessions, type Cursor, type Turn } from '../support/trace';
 import { signIn, signInOverHttp } from '../sign-in/helpers';
 
 /**
@@ -100,6 +100,14 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
+/**
+ * A trace-application page holds a licence connection for its user until its session ends (DW-146, measured in Story 4.7), so every case
+ * signs its context's trace session out when it ends.
+ */
+test.afterEach(async ({ page }) => {
+  await signOutTrace(page.request);
+});
+
 /** The newest done turn of the user's chat that has a trace link, posting one first when the chat holds none. */
 async function someTurn(): Promise<Turn> {
   const state = (await (await api.get(STATE)).json()) as { chat: Array<{ type: string; payload: Partial<Turn> }> };
@@ -169,6 +177,8 @@ const SETTLE_MS = 1000;
 /** V1: a reply's strip links to its turn, and the link opens Visual Trace on it. */
 test("V1: a reply's strip links to its turn, and the link opens Visual Trace on it", async ({ page }) => {
   const turn = await postTurn(api, cursor, 1, 'links');
+  const { user } = fixtureUser(KIND);
+  const sessions = await traceSessions(user);
   expect(turn.traceUrl, 'the turn has a trace link').toBe(`${TRACE_PAGE}${turn.traceHeaderId}&PAGE=${Math.ceil(turn.traceItemIndex / 40)}`);
   await helpSeen(page);
   await open(page);
@@ -199,6 +209,10 @@ test("V1: a reply's strip links to its turn, and the link opens Visual Trace on 
   const drawn = await drawnMessages(popup);
   expect(drawn.ids, "Visual Trace draws the turn's Item header").toContain(String(turn.traceHeaderId));
   expectDrawn(drawn, turn.traceHeaderId, turn.traceItemIndex, 'the reply strip link');
+
+  // DW-146: the tab held a licence connection for this user; signing the trace session out releases it.
+  await signOutTrace(page.request);
+  await expect.poll(() => traceSessions(user), { message: "the user's CSP connections return to the count before the tab", timeout: 5000 }).toBe(sessions);
 });
 
 /** V1, continued: a notice card's strip links to its decision, after the confidence and the cost. */

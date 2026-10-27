@@ -9,6 +9,11 @@
 ///   - Break the feed is available while the session watches Orders, no visible Orders incident is open, awaiting approval or
 ///     fixing, and the session's latest run (of any epoch) has either brought a notice or waited NOTICEWAIT seconds. The stage
 ///     of the run is reported only for a run of the current epoch, and only while the session watches Orders.
+///   - The open variant counts only while the incident is open or closed (VARIANTSTATES): it is stored beside the state and means
+///     nothing in another state.
+///   - trace is the trace session of the run's noticed incident, when it has one (AD-26); run is the Ownership.RunCost total
+///     since the run's start (the whole session when the epoch has no start), present only once the guide is finished. Both are
+///     absent otherwise, and the web layer adds the trace URL.
 ///   - Telegram counts as on only when the release includes it and TelegramState() says "on"; that stays "off", as /state's
 ///     telegram block does, until Story 10.3 records the real state.
 /// Times are UTC strings YYYY-MM-DDThh:mm:ssZ; ages are whole seconds. Compute throws when a read fails.
@@ -23,6 +28,9 @@ Parameter APPROVEDFIX = "approved,executing,done,failed";
 
 /// The incident open variants that step 4 shows in place of the paired or unpaired text.
 Parameter VARIANTS = "rejected,fallback,no_fix";
+
+/// The incident states whose open variant step 4 shows; the open variant is stored beside the state and means nothing in another.
+Parameter VARIANTSTATES = "open,closed";
 
 /// The reasons Break the feed is unavailable.
 Parameter REASONS = "not_watching,incident_in_progress";
@@ -89,7 +97,7 @@ ClassMethod Compute(sessionRef As %String) As OcuTalon.Live.Payload.GuideState
 	Set done = $ListBuild(watching, $IsObject(reminder), $IsObject(incident), answered, traceOpened)
 
 	Set variant = ""
-	If $IsObject(incident), $ListFind($ListFromString(..#VARIANTS), incident.OpenVariant) Set variant = incident.OpenVariant
+	If $IsObject(incident), $ListFind($ListFromString(..#VARIANTSTATES), incident.State), $ListFind($ListFromString(..#VARIANTS), incident.OpenVariant) Set variant = incident.OpenVariant
 	Set telegramOn = ..TelegramOn()
 	Set paired = 0
 	If telegramOn {
@@ -113,6 +121,26 @@ ClassMethod Compute(sessionRef As %String) As OcuTalon.Live.Payload.GuideState
 		}
 	}
 	If (step = ..#STEPS) && $ListFind($ListFromString(..#VARIANTS), variant) Set step = ..#STEPS - 1
+
+	Set trace = ""
+	If $IsObject(incident), incident.TraceHeaderId > 0 {
+		Set trace = ##class(OcuTalon.Live.Payload.Part.TraceTarget).%New()
+		Set trace.TraceHeaderId = incident.TraceHeaderId
+		Set trace.TraceNamespace = $Namespace
+	}
+	Set runTotal = ""
+	If finished {
+		Set cost = ##class(OcuTalon.Data.Ownership).RunCost(sessionRef, epochStart, .sc)
+		Do ..Check(sc)
+		Set runTotal = ##class(OcuTalon.Live.Payload.Part.GuideRun).%New()
+		Set runTotal.Decisions = +cost.decisions
+		Set runTotal.Tokens = +cost.inputTokens + +cost.outputTokens
+		Set runTotal.CostUSD = +cost.costUSD
+		Set iterator = cost.models.%GetIterator()
+		While iterator.%GetNext(, .modelId) {
+			Do runTotal.Models.Insert(##class(OcuTalon.Live.Payload.Decision).ModelName(modelId))
+		}
+	}
 
 	Set active = 0, reason = "", stage = "", startedAt = ""
 	If 'watching {
@@ -146,7 +174,7 @@ ClassMethod Compute(sessionRef As %String) As OcuTalon.Live.Payload.GuideState
 			Set active = 1
 		}
 	}
-	Quit ..View(epoch, done, step, finished, active, reason, stage, startedAt, variant, telegramRow)
+	Quit ..View(epoch, done, step, finished, active, reason, stage, startedAt, variant, telegramRow, trace, runTotal)
 }
 
 /// The view of a session with no rows: epoch 1, step 1, nothing done, Break the feed unavailable because nothing is watched, and
@@ -185,8 +213,8 @@ ClassMethod TelegramState() As %String [ Private ]
 	Quit "off"
 }
 
-/// The payload of the arguments; done is a list of the five steps' flags.
-ClassMethod View(epoch As %Integer, done As %List, step As %Integer, finished As %Boolean, active As %Boolean, reason As %String, stage As %String, startedAt As %String, variant As %String, telegramRow As %Boolean) As OcuTalon.Live.Payload.GuideState [ Private ]
+/// The payload of the arguments; done is a list of the five steps' flags. trace and run are set only when they are objects.
+ClassMethod View(epoch As %Integer, done As %List, step As %Integer, finished As %Boolean, active As %Boolean, reason As %String, stage As %String, startedAt As %String, variant As %String, telegramRow As %Boolean, trace As %RegisteredObject = "", run As %RegisteredObject = "") As OcuTalon.Live.Payload.GuideState [ Private ]
 {
 	Set view = ##class(OcuTalon.Live.Payload.GuideState).%New()
 	Set view.RunEpoch = epoch
@@ -205,6 +233,8 @@ ClassMethod View(epoch As %Integer, done As %List, step As %Integer, finished As
 	Set view.BreakFeed.StartedAt = startedAt
 	Set view.Step4Variant = variant
 	Set view.TelegramRow = telegramRow
+	If $IsObject(trace) Set view.Trace = trace
+	If $IsObject(run) Set view.Run = run
 	Quit view
 }
 

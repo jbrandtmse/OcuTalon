@@ -321,6 +321,26 @@ const SOURCES = {
     'Body',
     'Back',
     'Results Partner IT <it@results-partner.example>',
+    'Press Break the feed. The partner will send 50 orders in a new date format.',
+    'Waiting for OcuTalon. The reminder may arrive first.',
+    'Go to Break the feed',
+    'Approve the fix in Telegram on your phone, or on the simulated phone.',
+    'Approve the fix on the simulated phone, or in the chat.',
+    'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
+    "OcuTalon couldn't diagnose this run, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+    "OcuTalon found the cause but has no fix for it, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+    'Show me',
+    "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.",
+    'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.',
+    'This run: {decisions} \u00b7 {tokens} \u00b7 {cost} on {models}.',
+    'This run: {decisions} \u00b7 {tokens} \u00b7 {cost}.',
+    '{n} decisions',
+    '{n} tokens',
+    'See the whole conversation in Visual Trace',
+    'Install OcuTalon yourself',
+    'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
+    'Run again',
+    '\u2197',
   ],
   design: [
     'Unread',
@@ -336,6 +356,12 @@ const SOURCES = {
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
   },
   ruled: {
+    'Story 4.7 veto item V1 (the sign-in name of a trace link with its own label, the singular forms of the run line and the model list\'s "and")': [
+      '{label} (shows sign-in help first)',
+      '{n} decision',
+      '{n} token',
+      '{list} and {last}',
+    ],
     'Story 4.6 veto item V2 (the field errors of the compose form)': ['Enter a subject.', 'Enter a body.'],
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [
       'Close reset notice',
@@ -387,6 +413,7 @@ const SOURCES = {
     '{m} min {s} s',
     '{label} ({n})',
     '{label}, {n}',
+    ', ',
     '{text}{separator}{countdown}',
     '{day} at {time}',
     '{month} {day}, {year}',
@@ -547,10 +574,11 @@ describe('the ellipsis and the characters', () => {
     assert.equal(modules['msg/catalog.ts'].PAGE_TEXTS['banner.reconnecting'], 'Reconnecting\u2026 New messages may be delayed.');
   });
 
-  it('holds no non-ASCII character but U+2026 and U+00B7', () => {
+  it('holds no non-ASCII character but U+2026, U+00B7 and U+2197', () => {
+    // U+2197 is UX-DR47's arrow of a link that opens a new tab, hidden from assistive technology (Story 4.7).
     for (const text of strings) {
-      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7');
-      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026 and U+00B7`);
+      const stray = [...text].filter((char) => char.charCodeAt(0) > 127 && char !== '\u2026' && char !== '\u00b7' && char !== '\u2197');
+      assert.deepEqual(stray, [], `${JSON.stringify(text)} holds only ASCII, U+2026, U+00B7 and U+2197`);
     }
     assert.ok(/^[\x00-\x7f]*$/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')), 'this test is written in ASCII, with escapes');
   });

@@ -1,6 +1,7 @@
-// Tests the demo guide's view model (src/app/guide/guide-view.ts, Story 4.4): the guide view is the server's and only in demo mode, the
-// markers and names come from it, selecting changes only the selection and the prompt, the prompt entries exist for steps 1 and 2 only,
-// the Telegram row follows the view, and an advance is announced once for a later step of the same run. The module is imported as it
+// Tests the demo guide's view model (src/app/guide/guide-view.ts, Stories 4.4 and 4.7): the guide view is the server's and only in demo mode,
+// the markers and names come from it, selecting changes only the selection and the prompt, the prompt of every step (promptOf: steps 1
+// and 2 send, step 3 goes to Break the feed or waits, step 4 follows the variant, step 5 opens the trace), the finish state and its run line
+// (runTotalText) once the view is finished, the Telegram row follows the view, and an advance is announced once for a later step of the same run. The module is imported as it
 // is: Node strips its types, which holds only while it keeps to erasable syntax.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -10,7 +11,11 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
+const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView, promptOf, runTotalText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
+const { formatCost, formatTokens } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'decision-view.ts')).href);
+
+/** The page's token and cost formats, as the component hands them in. */
+const FORMAT = { tokens: formatTokens, cost: formatCost };
 
 const P1 = 'Watch the Orders production and only tell me if something needs me.';
 const P2 = 'Remind me in 1 minute to stretch.';
@@ -37,6 +42,31 @@ describe('the fixed strings', () => {
       labels: ['Watch', 'Reminder', 'Break the feed', 'Approve', 'Open the trace'],
       promptWatch: P1,
       promptReminder: P2,
+      promptBreakFeed: 'Press Break the feed. The partner will send 50 orders in a new date format.',
+      waiting: 'Waiting for OcuTalon. The reminder may arrive first.',
+      goToBreakFeed: 'Go to Break the feed',
+      approvePaired: 'Approve the fix in Telegram on your phone, or on the simulated phone.',
+      approveUnpaired: 'Approve the fix on the simulated phone, or in the chat.',
+      rejected: 'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
+      fallback: "OcuTalon couldn't diagnose this run, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+      noFix: "OcuTalon found the cause but has no fix for it, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again.",
+      showMe: 'Show me',
+      promptTrace: "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.",
+      openTrace: 'Open the trace',
+      finishDone:
+        'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.',
+      runTotal: 'This run: {decisions} \u00B7 {tokens} \u00B7 {cost} on {models}.',
+      runTotalNoModel: 'This run: {decisions} \u00B7 {tokens} \u00B7 {cost}.',
+      decisionOne: '{n} decision',
+      decisionMany: '{n} decisions',
+      tokenOne: '{n} token',
+      tokenMany: '{n} tokens',
+      modelsAnd: '{list} and {last}',
+      modelsComma: ', ',
+      conversationLink: 'See the whole conversation in Visual Trace',
+      installLink: 'Install OcuTalon yourself',
+      moreToTry: 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
+      runAgain: 'Run again',
       quoted: '"{text}"',
       send: 'Send',
       telegram: 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.',
@@ -119,10 +149,14 @@ describe('guideView: the selection', () => {
     assert.deepEqual(chosen.steps.map((one) => one.state), guideView(view(0), 1).steps.map((one) => one.state), 'a click marks nothing done');
   });
 
-  it('has the exact prompt of steps 1 and 2, quoted, and none for steps 3 to 5 (Story 4.7)', () => {
-    assert.deepEqual(guideView(view(0), 1).prompt, { text: P1, quoted: `"${P1}"` });
-    assert.deepEqual(guideView(view(0), 2).prompt, { text: P2, quoted: `"${P2}"` });
-    for (const step of [3, 4, 5]) assert.equal(guideView(view(0), step).prompt, undefined, `step ${step}`);
+  it('has the exact prompt of steps 1 and 2, quoted, each with a Send action', () => {
+    assert.deepEqual(guideView(view(0), 1).prompt, { text: P1, quoted: `"${P1}"`, action: 'send' });
+    assert.deepEqual(guideView(view(0), 2).prompt, { text: P2, quoted: `"${P2}"`, action: 'send' });
+  });
+
+  it('has a prompt for every step, and none once the guide is finished', () => {
+    for (const step of [1, 2, 3, 4, 5]) assert.ok(guideView(view(0), step).prompt, `step ${step}`);
+    for (const step of [1, 3, 5]) assert.equal(guideView(view(5, { finished: true }), step).prompt, undefined, `finished, step ${step}`);
   });
 
   it('keeps the selected step within 1 and 5', () => {
@@ -182,5 +216,103 @@ describe('the CI mock scenarios of the guide\'s prompts', () => {
     assert.equal(scenario('guide-reminder').match.prompt, GUIDE_TEXTS.promptReminder);
     assert.equal(GUIDE_TEXTS.promptWatch, P1);
     assert.equal(GUIDE_TEXTS.promptReminder, P2);
+  });
+});
+
+describe('promptOf: steps 3 to 5 (Story 4.7, rows 1 to 6)', () => {
+  const quoted = (text) => `"${text}"`;
+  const T = GUIDE_TEXTS;
+
+  it('step 3 sends the user to Break the feed, quoted, for every stage but the waiting ones (row 1)', () => {
+    for (const stage of [undefined, '', 'no_notice', 'notice_arrived']) {
+      const prompt = promptOf(3, view(2, { breakFeed: { active: true, stage } }));
+      assert.deepEqual(prompt, { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'goToBreakFeed' }, String(stage));
+    }
+    assert.deepEqual(promptOf(3, { step: 3 }), { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'goToBreakFeed' }, 'a view with no breakFeed');
+  });
+
+  it('step 3 shows only the waiting line, unquoted and with no action, while the batch is sending or waiting (row 2)', () => {
+    for (const stage of ['sending', 'waiting', 'still_waiting']) {
+      assert.deepEqual(promptOf(3, view(2, { breakFeed: { active: false, stage } })), { text: T.waiting, quoted: T.waiting, action: 'none', waiting: true }, stage);
+    }
+  });
+
+  it('step 4 shows the approve text with Show me for a paired or unpaired view (row 3)', () => {
+    assert.deepEqual(promptOf(4, view(3, { step4Variant: 'paired' })), { text: T.approvePaired, quoted: quoted(T.approvePaired), action: 'showMe' });
+    assert.deepEqual(promptOf(4, view(3, { step4Variant: 'unpaired' })), { text: T.approveUnpaired, quoted: quoted(T.approveUnpaired), action: 'showMe' });
+    assert.equal(promptOf(4, view(3)).text, T.approveUnpaired, 'no variant reads as unpaired');
+  });
+
+  it('step 4 shows the rejected, fallback and no-fix texts with no action (row 4)', () => {
+    for (const [variant, text] of [['rejected', T.rejected], ['fallback', T.fallback], ['no_fix', T.noFix]]) {
+      assert.deepEqual(promptOf(4, view(3, { step4Variant: variant })), { text, quoted: quoted(text), action: 'none' }, variant);
+    }
+  });
+
+  it('step 5 gives Open the trace only with the view\'s trace URL, and the quoted prompt either way (rows 5 and 6)', () => {
+    const withTrace = view(4, { trace: { traceHeaderId: 7, traceNamespace: 'OCUTALON', traceUrl: '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=7' } });
+    assert.deepEqual(promptOf(5, withTrace), { text: T.promptTrace, quoted: quoted(T.promptTrace), action: 'openTrace' });
+    for (const trace of [undefined, {}, { traceHeaderId: 7, traceNamespace: 'OCUTALON' }, { traceUrl: '' }]) {
+      assert.deepEqual(promptOf(5, view(4, { trace })), { text: T.promptTrace, quoted: quoted(T.promptTrace), action: 'none' }, JSON.stringify(trace));
+    }
+  });
+
+  it('is what guideView gives the selected step, whatever the current step is', () => {
+    const guide = view(2, { step4Variant: 'paired' });
+    assert.deepEqual(guideView(guide, 4).prompt, promptOf(4, guide));
+    assert.deepEqual(guideView(guide, 3).prompt, promptOf(3, guide));
+  });
+});
+
+describe('guideView: the finish state (Story 4.7, row 7)', () => {
+  const run = { decisions: 3, tokens: 9850, costUSD: 0.0041, models: ['Claude Haiku 5.5'] };
+
+  it('replaces the prompt when the view is finished, with the run line when the view carries the run', () => {
+    const done = guideView(view(5, { finished: true, run }), 5, FORMAT);
+    assert.equal(done.prompt, undefined);
+    assert.deepEqual(done.finish, { runTotal: 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.' });
+  });
+
+  it('has no run line without a run, and the step list stays', () => {
+    const done = guideView(view(5, { finished: true }), 5, FORMAT);
+    assert.deepEqual(done.finish, {});
+    assert.equal(done.steps.length, 5);
+  });
+
+  it('has no finish while the view is not finished, whatever step is current or selected', () => {
+    for (const finished of [false, undefined]) {
+      for (const step of [3, 5]) assert.equal(guideView(view(4, { finished, run }), step, FORMAT).finish, undefined, `${finished}, step ${step}`);
+    }
+    assert.equal(guideView(view(4, { finished: 'yes' }), 5, FORMAT).finish, undefined, 'only a true finished counts');
+  });
+});
+
+describe('runTotalText (Story 4.7, row 8)', () => {
+  const total = (over = {}) => runTotalText({ decisions: 3, tokens: 9850, costUSD: 0.0041, models: ['Claude Haiku 5.5'], ...over }, FORMAT);
+
+  it('reads the UX\'s example', () => {
+    assert.equal(total(), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.');
+  });
+
+  it('uses the singular at exactly 1 and the plural at 0 and above 1', () => {
+    assert.equal(total({ decisions: 1, tokens: 1 }), 'This run: 1 decision \u00B7 1 token \u00B7 $0.0041 on Claude Haiku 5.5.');
+    assert.equal(total({ decisions: 0, tokens: 0 }), 'This run: 0 decisions \u00B7 0 tokens \u00B7 $0.0041 on Claude Haiku 5.5.');
+    assert.equal(total({ decisions: 1200, tokens: 1234567 }), 'This run: 1,200 decisions \u00B7 1,234,567 tokens \u00B7 $0.0041 on Claude Haiku 5.5.');
+  });
+
+  it('shows a zero cost as "<$0.0001"', () => {
+    assert.equal(total({ costUSD: 0 }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 <$0.0001 on Claude Haiku 5.5.');
+  });
+
+  it('drops " on {models}" with no model, and joins two models with "and" and three or more with commas and "and"', () => {
+    assert.equal(total({ models: [] }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041.');
+    assert.equal(total({ models: undefined }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041.');
+    assert.equal(total({ models: ['A', 'B'] }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on A and B.');
+    assert.equal(total({ models: ['A', 'B', 'C'] }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on A, B and C.');
+    assert.equal(total({ models: ['A', 'B', 'C', 'D'] }), 'This run: 3 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on A, B, C and D.');
+  });
+
+  it('reads an absent figure as 0', () => {
+    assert.equal(runTotalText({}, FORMAT), 'This run: 0 decisions \u00B7 0 tokens \u00B7 <$0.0001.');
   });
 });

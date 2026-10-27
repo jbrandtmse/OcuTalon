@@ -1,4 +1,4 @@
-/// Tests of Demo.Guide (Story 4.2; matrix rows 1 to 14; AD-12, AD-15): Compute derives the guide from the session's fixture rows
+/// Tests of Demo.Guide (Story 4.2; matrix rows 1 to 14; Story 4.7 adds the trace target, the run total and the variant rule; AD-12, AD-15): Compute derives the guide from the session's fixture rows
 /// through Data.Ownership, with a fixed clock and the Telegram seam of Test.Demo.GuideProbe. The clock is 2030-01-01T12:00:00Z.
 /// TestTelegramCountsAsOff and TestBlankEqualsCompute use the real Guide. Every session is a fixture session (zzguide<n>), removed after
 /// its test (Fixture.Clean); demo.mode, onlineDemo and ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
@@ -435,6 +435,123 @@ Method TestInstanceIncident()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do ..Assert(..View(ref), "onlineDemo 1", {"done": "10000", "active": 1, "reason": ""})
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// Story 4.7 row 10: trace is the trace session of the run's noticed incident ({TraceHeaderId, $Namespace}); it is absent with no
+/// incident, for an incident noticed before the run, for an empty or 0 TraceHeaderId, and in a blank session's JSON.
+Method TestTrace()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set none = ..NewSession()
+	Do $ClassMethod(fixture, "Check", none, ..#NS, ..#PROD)
+	Set view = ..View(none)
+	Do $$$AssertEquals(view.%IsDefined("trace"), 0, "no incident: no trace")
+	Do $$$AssertEquals(view.%IsDefined("run"), 0, "and no run")
+
+	Set ref = ..NewSession()
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Incident", ref, ..At(-10), ..#NS, ..#PROD, {"TraceHeaderId": 4321})
+	Set view = ..View(ref)
+	Do $$$AssertEquals(view.trace.traceHeaderId, 4321, "the run's incident: traceHeaderId")
+	Do $$$AssertEquals(view.trace.traceNamespace, $Namespace, "and the current namespace")
+
+	Set before = ..NewSession()
+	Do $ClassMethod(fixture, "Check", before, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "BreakFeedRun", before, "sent", ..At(-100))
+	Do $ClassMethod(fixture, "Incident", before, ..At(-500), ..#NS, ..#PROD, {"TraceHeaderId": 4321})
+	Do $$$AssertEquals(..View(before).%IsDefined("trace"), 0, "an incident noticed before the run: no trace")
+
+	Set empty = ..NewSession()
+	Do $ClassMethod(fixture, "Check", empty, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Incident", empty, ..At(-10), ..#NS, ..#PROD, {"TraceHeaderId": ""})
+	Do $$$AssertEquals(..View(empty).%IsDefined("trace"), 0, "an empty TraceHeaderId: no trace")
+	Set zero = ..NewSession()
+	Do $ClassMethod(fixture, "Check", zero, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Incident", zero, ..At(-10), ..#NS, ..#PROD, {"TraceHeaderId": 0})
+	Do $$$AssertEquals(..View(zero).%IsDefined("trace"), 0, "a TraceHeaderId of 0: no trace")
+
+	Set blank = ..NewSession()
+	Do ##class(OcuTalon.Test.Demo.GuideProbe).Compute(blank).%JSONExportToString(.computed)
+	Do ##class(OcuTalon.Test.Demo.GuideProbe).Blank().%JSONExportToString(.blankJson)
+	Do $$$AssertEquals(computed, blankJson, "a blank session's JSON equals Blank()'s")
+}
+
+/// Story 4.7 row 11: run is the Ownership.RunCost total since RunStartedAt, present only while finished: decisions, input plus
+/// output tokens, the cost and the models' display names. An empty RunStartedAt counts the whole session.
+Method TestRunTotal()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set open = ..IncidentSession()
+	Do $$$AssertEquals(..View(open).%IsDefined("run"), 0, "not finished: no run")
+
+	Set ref = ..RunSession(..At(-300))
+	Set view = ..View(ref)
+	Do $$$AssertEquals(view.finished, 1, "finished")
+	Do $$$AssertEquals(view.run.decisions, 2, "decisions since RunStartedAt")
+	Do $$$AssertEquals(view.run.tokens, 9850, "input plus output tokens, the earlier row not counted")
+	Do $$$AssertEquals(+view.run.costUSD, 0.0041, "cost")
+	Do $$$AssertEquals(view.run.models.%Size(), 1, "one model")
+	Do $$$AssertEquals(view.run.models.%Get(0), "Claude Haiku 5.5", "named by its display name")
+
+	Set whole = ..RunSession("")
+	Set view = ..View(whole)
+	Do $$$AssertEquals(view.run.decisions, 3, "an empty RunStartedAt: every decision")
+	Do $$$AssertEquals(view.run.tokens, 10350, "and every usage row")
+}
+
+/// Story 4.7 row 12 (DW-215): the open variant counts only while the incident is open or closed. In another state step 4 shows
+/// paired or unpaired, and finished never comes with a variant of VARIANTS or with step 4.
+Method TestVariantFollowsState()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	For state = "resolved", "awaiting_approval", "fixing" {
+		Do ..Assert(..View(..Finishing(state, "rejected", "pending", 0)), state_" with a stale rejected variant", {"variant": "unpaired"})
+	}
+	Set awaiting = ..Finishing("awaiting_approval", "rejected", "pending", 0)
+	Do $ClassMethod(fixture, "Reminder", awaiting)
+	Do ..Assert(..View(awaiting), "awaiting approval with the other steps done", {"variant": "unpaired", "step": 4, "finished": 0})
+
+	Set resolved = ..Finishing("resolved", "rejected", "approved", 1)
+	Do $ClassMethod(fixture, "Reminder", resolved)
+	Do ..Assert(..View(resolved), "resolved with a stale variant, an approved fix and the trace", {"finished": 1, "step": 5, "variant": "unpaired"})
+
+	Set closed = ..Finishing("closed", "rejected", "rejected", 1)
+	Do $ClassMethod(fixture, "Reminder", closed)
+	Do ..Assert(..View(closed), "closed after a rejection", {"variant": "rejected", "finished": 0, "step": 4, "done": "11111"})
+
+	For state = "open", "awaiting_approval", "fixing", "resolved", "closed" {
+		For variant = "fix", "rejected", "fallback", "no_fix", "expired" {
+			For approval = "approved", "rejected", "pending" {
+				Set ref = ..Finishing(state, variant, approval, 1)
+				Do $ClassMethod(fixture, "Reminder", ref)
+				Set view = ..View(ref)
+				If view.finished {
+					Do $$$AssertEquals($ListFind($ListFromString(##class(OcuTalon.Demo.Guide).#VARIANTS), view.step4Variant), 0, state_"/"_variant_"/"_approval_": finished has no variant")
+					Do $$$AssertEquals(view.step, 5, state_"/"_variant_"/"_approval_": finished is step 5")
+				}
+			}
+		}
+	}
+}
+
+/// A finished session: a watch, a reminder, a resolved incident with a trace session, an approved fix and the trace marker, with
+/// RunStartedAt runStartedAt; two decisions after 300 s before the clock (one with a usage row of 9000 input and 850 output tokens,
+/// $0.0041, claude-haiku-5-5) and one decision with a usage row of 400 and 100 tokens, $0.0005, 1000 s before it.
+Method RunSession(runStartedAt As %String) As %String [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = ..NewSession()
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "Reminder", ref)
+	Set incident = $ClassMethod(fixture, "Incident", ref, ..At(-10), ..#NS, ..#PROD, {"State": "resolved", "TraceHeaderId": 4321})
+	Do $ClassMethod(fixture, "Approval", ref, incident, "approved")
+	Do $ClassMethod(fixture, "GuideState", ref, 1, runStartedAt, 1)
+	Set first = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-100))
+	Do $ClassMethod(fixture, "Usage", first, ref, {"InputTokens": 9000, "OutputTokens": 850, "CostUSD": 0.0041, "RecordedAt": (..At(-100))})
+	Do $ClassMethod(fixture, "Decision", ref, "decide", ..At(-50))
+	Set early = $ClassMethod(fixture, "Decision", ref, "decide", ..At(-1000))
+	Do $ClassMethod(fixture, "Usage", early, ref, {"InputTokens": 400, "OutputTokens": 100, "CostUSD": 0.0005, "RecordedAt": (..At(-1000))})
+	Quit ref
 }
 
 /// A session with a watch, a noticed Orders incident (state, openVariant) and a request (approvalState, "pending" and so on); the

@@ -7,7 +7,8 @@
  * - phoneOf(snapshot, store) is the phone's list, or undefined unless the snapshot says demo mode is on, whatever else it carries: the
  *   snapshot's `phone` in its order, then the store's phone messages that the snapshot does not hold, in arrival order. A ref in both
  *   takes the store's payload, in the snapshot's place.
- * - pendingApproval(list, approvals) is true when a message names an approval request that is pending.
+ * - pendingApproval(list, approvals) is true when a message names an approval request that is pending; pendingRef(list, approvals) is the
+ *   ref of the newest such message (Story 4.7: where the guide's Show me puts focus).
  */
 import type { StateSnapshot } from '../api/api-types';
 import type { PhonePayload } from '../live/payloads';
@@ -38,10 +39,19 @@ export function phoneOf(snapshot: PhoneSnapshot | undefined, store: { phones?: R
   return list;
 }
 
+/** The ref of the newest message of the list that names an approval request the store holds as pending; undefined with none. */
+export function pendingRef(list: readonly PhonePayload[], approvals: Readonly<Record<string, { state?: string }>> | undefined): string | undefined {
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const one = list[i];
+    const approval = one?.approvalRef ?? '';
+    if (one !== undefined && approval !== '' && approvals?.[approval]?.state === 'pending') {
+      return one.ref ?? '';
+    }
+  }
+  return undefined;
+}
+
 /** True when a message of the list names an approval request that the store holds as pending. */
 export function pendingApproval(list: readonly PhonePayload[], approvals: Readonly<Record<string, { state?: string }>> | undefined): boolean {
-  return list.some((one) => {
-    const ref = one.approvalRef ?? '';
-    return ref !== '' && approvals?.[ref]?.state === 'pending';
-  });
+  return pendingRef(list, approvals) !== undefined;
 }

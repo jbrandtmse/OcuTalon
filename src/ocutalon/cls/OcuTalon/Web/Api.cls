@@ -408,7 +408,7 @@ ClassMethod DismissIncident(ref As %String) As %Status
 /// read. The body is a JSON object whose marker is the string trace_opened or run_again; anything else is 400 bad_marker and
 /// nothing is written. A valid marker is written to the signed-in session's GuideState (trace_opened sets the flag, run_again
 /// starts the next epoch), the guide is refreshed (a guide.state event follows a change) and the answer is 200 with the guide
-/// view that /state carries. A session that can't be read, a marker that can't be written and a refresh that fails are 500
+/// view that /state carries, with its trace URL. A session that can't be read, a marker that can't be written and a refresh that fails are 500
 /// server_error.
 ClassMethod GuideMarkers() As %Status
 {
@@ -425,8 +425,11 @@ ClassMethod GuideMarkers() As %Status
 	Set sc = ##class(OcuTalon.Live.Publish).RefreshGuide(session.Ref, .guide)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(guide) Quit ..ServerError($SYSTEM.Status.Error(5001, "The guide could not be computed"))
+	Set answer = ..PayloadObject(guide)
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(answer, .viewer)
 	Set %response.ContentType = ..#CONTENTTYPE
-	Write ..PayloadObject(guide).%ToJSON()
+	Write answer.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 

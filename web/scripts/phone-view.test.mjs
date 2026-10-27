@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { PHONE_TEXTS, pendingApproval, phoneOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'phone', 'phone-view.ts')).href);
+const { PHONE_TEXTS, pendingApproval, pendingRef, phoneOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'phone', 'phone-view.ts')).href);
 
 const message = (ref, text = `text ${ref}`, over = {}) => ({ ref, direction: 'out', text, approvalRef: '', createdAt: '2030-01-01T10:00:00Z', ...over });
 const snapshot = (over = {}) => ({ demoMode: true, phone: [], ...over });
@@ -62,5 +62,28 @@ describe('pendingApproval', () => {
     assert.equal(pendingApproval([message('a')], approvals), false);
     assert.equal(pendingApproval([], approvals), false);
     assert.equal(pendingApproval([message('a', 'x', { approvalRef: 'p' })], undefined), false);
+  });
+});
+
+describe('pendingRef (Story 4.7)', () => {
+  const approvals = { p1: { state: 'pending' }, p2: { state: 'pending' }, ok: { state: 'approved' } };
+
+  it('is the ref of the newest message that names a pending approval request', () => {
+    const list = [message('a', 'x', { approvalRef: 'p1' }), message('b'), message('c', 'x', { approvalRef: 'p2' }), message('d')];
+    assert.equal(pendingRef(list, approvals), 'c');
+    assert.equal(pendingRef(list.slice(0, 2), approvals), 'a');
+  });
+
+  it('skips an answered or unknown request for an older pending one, and is undefined with none', () => {
+    assert.equal(pendingRef([message('a', 'x', { approvalRef: 'p1' }), message('b', 'x', { approvalRef: 'ok' }), message('c', 'x', { approvalRef: 'gone' })], approvals), 'a');
+    assert.equal(pendingRef([message('a', 'x', { approvalRef: 'ok' }), message('b')], approvals), undefined);
+    assert.equal(pendingRef([], approvals), undefined);
+    assert.equal(pendingRef([message('a', 'x', { approvalRef: 'p1' })], undefined), undefined);
+  });
+
+  it('leaves pendingApproval as it was: true exactly when pendingRef finds a message', () => {
+    for (const list of [[message('a', 'x', { approvalRef: 'p1' })], [message('a', 'x', { approvalRef: 'ok' })], []]) {
+      assert.equal(pendingApproval(list, approvals), pendingRef(list, approvals) !== undefined);
+    }
   });
 });

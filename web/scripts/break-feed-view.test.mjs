@@ -70,6 +70,14 @@ describe('boxView: the button follows the server', () => {
     assert.deepEqual([show(idle(5)).style, show(idle(5)).nextStep], ['secondary', false]);
   });
 
+  it('takes the attention style again once the guide is finished, and stays inactive when the server says so (Story 4.7, row 13)', () => {
+    const finished = { ...idle(5), finished: true };
+    assert.deepEqual([show(finished).style, show(finished).nextStep], ['attention', false]);
+    assert.equal(show({ ...idle(5), finished: false }).style, 'secondary', 'step 5 not finished');
+    assert.equal(show({ ...view({ active: false, reason: 'incident_in_progress' }, 5), finished: true }).style, 'inactive');
+    assert.equal(show({ ...idle(3), finished: true }).nextStep, true, 'the Next step tag is step 3 only');
+  });
+
   it('keeps the tag off while a run is in flight and brings it back after no_notice frees the button', () => {
     assert.equal(show(run('waiting')).nextStep, false);
     assert.equal(show(run('no_notice', { active: true, reason: undefined })).nextStep, true, 'the tag returns once the server says active');

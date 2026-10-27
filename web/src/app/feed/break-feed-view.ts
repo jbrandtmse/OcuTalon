@@ -98,7 +98,7 @@ export function conflictOf(error: unknown): string | undefined {
 
 /** What the box shows. */
 export interface BoxView {
-  /** The button's variant: attention, secondary (step 5 current) or inactive. */
+  /** The button's variant: attention, secondary (step 5 current, guide not finished) or inactive. */
   style: 'attention' | 'secondary' | 'inactive';
   /** True while the button follows the server's `inactive`: it is aria-disabled and a press sends nothing. */
   inactive: boolean;
@@ -134,7 +134,8 @@ export type ElapsedFormat = (sinceIso: string, nowMs: number) => Countdown;
  * The box for the guide view, the page's own press, the newest `watch.progress` line of this run, the page's clock (ms) and the
  * format of the elapsed time.
  *
- * - The button is active only when the view says so, and never while the page's own press holds. On step 5 it is the secondary style.
+ * - The button is active only when the view says so, and never while the page's own press holds. On step 5 it is the secondary style,
+ *   until the guide is finished: the finish state takes the attention style again.
  * - The stage line replaces the hint while the stage is sending, waiting or still waiting; a 409's reason replaces the view's reason
  *   until the next view.
  * - The 90 s and 3 min lines show from the page's elapsed time or from the server's stage, whichever comes first, over a waiting run
@@ -153,7 +154,7 @@ export function boxView(view: GuideStatePayload, local: LocalPress, progressLine
   const inactive = pressing ? false : sent || feed.active !== true;
   const current = view.step ?? 1;
   const result: BoxView = {
-    style: inactive ? 'inactive' : current === 5 ? 'secondary' : 'attention',
+    style: inactive ? 'inactive' : current === 5 && view.finished !== true ? 'secondary' : 'attention',
     inactive,
     busy: pressing,
     nextStep: false,
