@@ -86,8 +86,10 @@ ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray
 {
 	Set folder = ##class(%File).NormalizeDirectory(folder)
 	Set report = {"run": (runRef), "folder": (folder), "builtAt": (##class(OcuTalon.Bridge.Time).NowUtc()), "scores": {}, "cases": [], "tellNowMissed": [], "fallbacks": [], "notComplete": [], "unscored": [], "skipped": []}
-	Set report.cost = {"decisions": [], "priced": 0, "meanUSD": null, "maxUSD": null, "maxCase": "", "flagAtUSD": (..#FLAGUSD), "flagged": [], "unpriced": []}
-	Set report.size = {"largestTokens": null, "largestCase": "", "flagOverTokens": (..#FLAGTOKENS), "flagged": [], "unknown": []}
+	Set report.cost = {"decisions": [], "priced": 0, "meanUSD": null, "maxUSD": null, "maxCase": "", "flagAtUSD": null, "flagged": [], "unpriced": []}
+	Do report.cost.%Set("flagAtUSD", ..#FLAGUSD, "number")
+	Set report.size = {"largestTokens": null, "largestCase": "", "flagOverTokens": null, "flagged": [], "unknown": []}
+	Do report.size.%Set("flagOverTokens", ..#FLAGTOKENS, "number")
 	Kill tally
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT CaseName, State, DecisionRef, Outcome, Fallback, FallbackReason, CauseCategory, ElementAtFault, FixKind, CostUSD, TurnDecisionRef, TurnCostUSD, LargestRequestTokens FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ? ORDER BY CaseName", runRef)
 	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
@@ -125,8 +127,9 @@ ClassMethod Problems(report As %DynamicObject) As %DynamicArray
 	Quit problems
 }
 
-/// The report as Markdown: the title, the scores, the held-out scores, the tell-now cases missed, the fallbacks, the cost, the size, the
-/// cases not complete or not scored, the skipped cases and one table row for each scored case.
+/// The report as Markdown: the title, the scores, the held-out scores, the tell-now cases missed, the fallbacks, the cost (the mean, the
+/// maximum, every priced decision with its case, kind, model and cost, the flagged and the unpriced ones), the size, the cases not complete
+/// or not scored, the skipped cases and one table row for each scored case. Every free text goes through Cell.
 ClassMethod Text(report As %DynamicObject, title As %String = "") As %String
 {
 	If '$IsObject(report) Quit ""
@@ -143,16 +146,17 @@ ClassMethod Text(report As %DynamicObject, title As %String = "") As %String
 	Set cost = report.cost
 	Set text = text_nl_"## Cost"_nl_nl_"Priced decisions: "_cost.priced_"."
 	If cost.priced {
-		Set text = text_" Mean: $"_..Money(cost.meanUSD)_". Maximum: $"_..Money(cost.maxUSD)_" ("_cost.maxCase_")."
+		Set text = text_" Mean: $"_..Money(cost.meanUSD)_". Maximum: $"_..Money(cost.maxUSD)_" ("_..Cell(cost.maxCase)_")."
 	}
-	Set text = text_nl_nl_"Decisions at or above $"_..Money(cost.flagAtUSD)_":"_nl_nl_..List(cost.flagged, "{case}, {kind}, {model}: ${costUSD}")
+	Set text = text_nl_nl_..List(cost.decisions, "{case}, {kind}, {model}: ${costUSD}")
+	Set text = text_nl_"Decisions at or above $"_..Money(cost.flagAtUSD)_":"_nl_nl_..List(cost.flagged, "{case}, {kind}, {model}: ${costUSD}")
 	Set text = text_nl_"Unpriced decisions:"_nl_nl_..List(cost.unpriced, "{case}, {kind}, {model}")
 	Set size = report.size
 	Set text = text_nl_"## Request size"_nl_nl
 	If size.%GetTypeOf("largestTokens") = "null" {
 		Set text = text_"Largest request: not known."
 	} Else {
-		Set text = text_"Largest request: "_size.largestTokens_" tokens ("_size.largestCase_"), estimated by the bridge."
+		Set text = text_"Largest request: "_size.largestTokens_" tokens ("_..Cell(size.largestCase)_"), estimated by the bridge."
 	}
 	Set text = text_nl_nl_"Requests over "_size.flagOverTokens_" tokens:"_nl_nl_..List(size.flagged, "{case}: {tokens} tokens")
 	Set text = text_nl_"Requests of unknown size:"_nl_nl_..List(size.unknown, "{case}")

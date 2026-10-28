@@ -1867,3 +1867,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-140's ceiling is unverified on a live model; U-118's answer (at=2026-10-27T11:31:36Z#355, placement amended by the Planner 2026-10-27T11:3xZ) gives this live check to 11.6 and the tool change to 11.1
 - 2026-10-28T16:26:29Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=routed by orchestrator at Epic 8's merge, U-118 (kept): 11.6's hands-on pass with real keys runs it; the fix itself is DW-140 in Story 11.1
+
+### DW-362: Story 9.2's repository check docker/tests/test-eval-set.sh (a Lane A check of eval/) sits in Lane B's docker/tests and Lane B's ci/units.sh CHECK_SCRIPTS line, outside AD-29's lane map
+- source: spec-9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: AC3/Tasks 8-9 put it in the hosted checks job; lead logged both paths as footprint_extensions at spec_validated; ci/units.sh:5 is one line Lane B epics also append to
+- 2026-10-28T19:52:15Z status=by-design owner=9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si by=cr note=spec-bound (AC3: the repository checks); lead's footprint grant; lead may add an AD-29 as-built exception (Rule 20)
+
+### DW-363: eval/run.sh requires every test-only case to get one fixed answer (MOCK_WRONG_ANSWER=ignore), while test-eval-set.sh's markers rule accepts any scenario outcome other than the expected one
+- source: spec-9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: eval/run.sh:61,154 vs check-markers.mjs: a second test-only case whose scenario answers e.g. tellnow passes markers, scores wrong, yet the job FAILs 'did not get ignore'
+- 2026-10-28T19:52:15Z status=wontfix-accepted owner=9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si by=cr note=reopen_if=a second case lands in eval/mock-wrong/ (e.g. 9.6's incident case) and eval/run.sh FAILs its answer check
+
+### DW-364: No test checks that eval/run.sh appends both Markdown reports to $GITHUB_STEP_SUMMARY (AC4's step-summary clause)
+- source: spec-9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: eval/run.sh:173-174; GITHUB_STEP_SUMMARY appears in no test; run-guard stops at preflight, so only a CI run of the evaluation job shows it
+- 2026-10-28T19:52:15Z status=wontfix-accepted owner=9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si by=cr note=reopen_if=the first lane-a evaluation run's summary page lacks the set or the mock-wrong report

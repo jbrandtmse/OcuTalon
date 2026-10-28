@@ -21,7 +21,7 @@
 #      mock-wrong.md. Both runs print a first CHK line before they call Report.Run, because iris_script runs a session again when it
 #      printed no CHK line, and that early line keeps it from starting a second run;
 #   4. the four files are copied out into the report folder, both Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
-#      that is set, and the last line is "REPORT <folder>".
+#      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
 # The checks print one PASS or FAIL line each: each run started (a disabled EvalIn fails with the director's text), the set has no
 # problem, and the mock-wrong run has no problem, at least one case, and every case decided (not a fallback) with the scenario's answer
 # and not right. The SM-1 and SM-2 results are printed and never checked: a score below its target is reported and fails nothing. Exits 1

@@ -7,21 +7,28 @@
 ///   - TestIncidents: an incident is right on its cause category and element at fault together, the element ignoring case and spaces, and
 ///     the fix kind is shown and not scored;
 ///   - TestShares: SM-1 and SM-2 are met at 9 of 10 items and 8 of 10 incidents and not met below, and a kind with no row is not measured;
-///   - TestHeldOut: the held-out rows are also counted on their own, in items and in incidents;
+///   - TestHeldOut: the held-out rows are also counted on their own, in items and in incidents, and the text shows each held-out line;
 ///   - TestTellNowMissed: a tell-now case decided Ignore or Digest is listed, one decided Act is not;
-///   - TestCost: every priced decision is listed with its kind and model, the mean and the maximum are taken over the priced ones, the
-///     decisions at or above 0.001 are flagged and an unpriced one is listed apart and is a problem;
-///   - TestSize: the largest request has its case, the cases over 100,000 tokens are flagged and an empty size is unknown and a problem;
+///   - TestCost: every priced decision is listed with the kind of its Decision row (a diagnose included) and its model, the mean and the
+///     maximum are taken over the priced ones, the decisions at or above the number 0.001 are flagged and an unpriced one is listed apart and
+///     is a problem;
+///   - TestSize: the largest request has its case, the cases over the number 100,000 tokens are flagged (in the text too) and an empty size
+///     is unknown and a problem;
 ///   - TestSkipped, TestUnscored, TestEmptyRun and TestOtherRun: a skipped case is listed and scored in nothing, and only a skip of a kind
 ///     that EvalIn does not send yet is no problem; a row with no readable case file, no expectation or a kind that is not scored is
 ///     listed as unscored; a run with no row is a problem; the rows of another run are not in the report;
 ///   - TestIncomplete: a decided row that lacks a decision (a fallback included), a cost, a turn cost or a request size is listed once with its
 ///     reasons joined by "; " and is a problem, and its priced and unpriced decisions and unknown size are listed;
-///   - TestText, TestTextSections and TestSave: the Markdown holds the scores, a flagged decision, a tell-now case missed and a skip with its
-///     reason, and the sections for a scored incident, a fallback, an unpriced decision, an unknown size, a row not complete, a row not
+///   - TestText, TestTextSections and TestSave: the Markdown holds the scores, the mean, every priced decision, a flagged decision, a tell-now
+///     case missed and a skip with its reason, the costliest and largest case names with no pipe, and the sections for a scored incident, a fallback, an unpriced decision, an unknown size, a row not complete, a row not
 ///     scored and a skip reason with a pipe and a line break; Save writes the JSON and the Markdown, which read back equal to the report and
 ///     to Text;
-///   - TestRunRefused: Run returns the error of a disabled EvalIn and no report.
+///   - TestRunRefused: Run returns the error of a disabled EvalIn and no report;
+///   - (QA) TestMatchRules, TestNotDecidedNotRight, TestZeroCost, TestTextEmpty, TestSaveRefusals, TestCaseNameStaysInFolder and
+///     TestFolderWithoutSeparator: the match rules at their edges (an incident's category ignoring case, a near element, an item's outcome
+///     exactly), a row not decided or an incident fallback that matches is not right and is no tell-now case missed, a cost of 0 is priced,
+///     the sections of an empty run's text, the names Save refuses, a case name that does not leave the folder, and a folder with no
+///     trailing separator.
 Class OcuTalon.Test.Eval.Report Extends %UnitTest.TestCase
 {
 
@@ -211,7 +218,8 @@ Method TestShares()
 	Do $$$AssertEquals(..Line(report.scores.incidents), "7 of 10 share .7 met 0", "7 of 10 incidents do not meet SM-2")
 }
 
-/// A held-out item and incident are counted in the items and incidents and again in the held-out scores, which have no target.
+/// A held-out item and incident are counted in the items and incidents and again in the held-out scores, which have no target; the text
+/// shows the held-out incidents' own line.
 Method TestHeldOut()
 {
 	Set one = ..N("one"), two = ..N("two"), three = ..N("three"), four = ..N("four"), five = ..N("five"), six = ..N("six")
@@ -233,6 +241,10 @@ Method TestHeldOut()
 	Do $$$AssertEquals(..Line(report.scores.items), "2 of 3 share .6667 met 0", "and all three rows are also in the items")
 	Do $$$AssertEquals(..Line(report.scores.heldOutIncidents), "1 of 2 share .5 met -", "the held-out incidents are one right of two, with no target")
 	Do $$$AssertEquals(..Line(report.scores.incidents), "2 of 3 share .6667 met 0", "and all three rows are also in the incidents")
+	Set incidentOnly = ..NewRun()
+	Do ..Row(incidentOnly, four, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate"})
+	Set text = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(incidentOnly, ..Folder), "Held out")
+	Do $$$AssertTrue(text [ ("| Held-out items | 0 | 0 | not measured |  |  |"_$Char(10)_"| Held-out incidents | 1 | 1 | 100.0% |  |  |"_$Char(10)), "the text's held-out lines each have their own score and no target")
 	Set clean = ..NewRun()
 	Do ..Row(clean, three, {"Outcome": "digest"})
 	Set report = ##class(OcuTalon.Eval.Report).Build(clean, ..Folder)
@@ -257,8 +269,8 @@ Method TestTellNowMissed()
 	Do $$$AssertEquals(..Names(report.tellNowMissed, "got"), "digest,ignore", "with what they got")
 }
 
-/// The priced decisions are listed with their kind and model; the mean is over them, the maximum has its case, only the decision at 0.001 is
-/// flagged and the unpriced one is listed apart and is a problem.
+/// The priced decisions are listed with the kind of their Decision row and their model; the mean is over them, the maximum has its case,
+/// only the decision at 0.001 is flagged and the unpriced one is listed apart and is a problem.
 Method TestCost()
 {
 	Set a = ..N("a"), b = ..N("b"), c = ..N("c"), d = ..N("d")
@@ -266,7 +278,7 @@ Method TestCost()
 		Do ..ItemCase(name, "digest")
 	}
 	Set decideA = ..Decision("decide", "claude-haiku-5-5"), turnA = ..Decision("turn", "claude-sonnet-5-5")
-	Set decideB = ..Decision("decide", "claude-haiku-5-5"), decideC = ..Decision("decide", "claude-haiku-5-5"), decideD = ..Decision("decide", "claude-haiku-5-5")
+	Set decideB = ..Decision("decide", "claude-haiku-5-5"), decideC = ..Decision("diagnose", "claude-haiku-5-5"), decideD = ..Decision("decide", "claude-haiku-5-5")
 	Set run = ..NewRun()
 	Do ..Row(run, a, {"DecisionRef": (decideA), "CostUSD": (0.0002), "TurnDecisionRef": (turnA), "TurnCostUSD": (0.0004)})
 	Do ..Row(run, b, {"DecisionRef": (decideB), "CostUSD": (0.001)})
@@ -277,11 +289,11 @@ Method TestCost()
 	Do $$$AssertEquals(cost.priced_"|"_cost.decisions.%Size(), "4|4", "four decisions are priced")
 	Do $$$AssertEquals(+cost.meanUSD, .00065, "the mean is 0.00065")
 	Do $$$AssertEquals(+cost.maxUSD_"|"_cost.maxCase, ".001|"_b, "the maximum is 0.001, with its case")
-	Do $$$AssertEquals(+cost.flagAtUSD, .001, "the flag is at 0.001")
+	Do $$$AssertEquals(cost.%GetTypeOf("flagAtUSD")_"|"_(+cost.flagAtUSD), "number|.001", "the flag is the number 0.001")
 	Do $$$AssertEquals(..Names(cost.flagged, "case"), b, "only the decision at 0.001 is flagged")
 	Do $$$AssertEquals(..Names(cost.unpriced, "case"), d, "the unpriced decision is listed apart")
 	Do $$$AssertEquals(..Names(cost.decisions, "case"), a_","_a_","_b_","_c, "the decide and the turn of the first case, then the others, are listed")
-	Do $$$AssertEquals(..Names(cost.decisions, "kind"), "decide,turn,decide,decide", "with the kind of their Decision rows")
+	Do $$$AssertEquals(..Names(cost.decisions, "kind"), "decide,turn,decide,diagnose", "with the kind of their Decision rows, a diagnose decision included")
 	Do $$$AssertEquals(..Names(cost.decisions, "model"), "claude-haiku-5-5,claude-sonnet-5-5,claude-haiku-5-5,claude-haiku-5-5", "and their models")
 	Do $$$AssertEquals(..Names(cost.decisions, "ref"), decideA_","_turnA_","_decideB_","_decideC, "and their Refs")
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), d_": no cost", "the unpriced decision is the problem")
@@ -291,7 +303,8 @@ Method TestCost()
 	Do $$$AssertEquals(report.cost.priced_"|"_report.cost.%GetTypeOf("meanUSD")_"|"_report.cost.%GetTypeOf("maxUSD"), "0|null|null", "with no priced decision the mean and the maximum are null")
 }
 
-/// The largest request is the 100,001-token one and only it is flagged; a request of 100,000 is not; an empty size is unknown and a problem.
+/// The largest request is the 100,001-token one and only it is flagged, in the report and in the text; a request of 100,000 is not; an empty
+/// size is unknown and a problem.
 Method TestSize()
 {
 	Set a = ..N("a"), b = ..N("b"), c = ..N("c")
@@ -305,10 +318,12 @@ Method TestSize()
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
 	Set size = report.size
 	Do $$$AssertEquals(size.largestTokens_"|"_size.largestCase, "100001|"_b, "the largest request is 100001 tokens, with its case")
-	Do $$$AssertEquals(+size.flagOverTokens, 100000, "the flag is over 100000")
+	Do $$$AssertEquals(size.%GetTypeOf("flagOverTokens")_"|"_(+size.flagOverTokens), "number|100000", "the flag is over the number 100000")
 	Do $$$AssertEquals(..Names(size.flagged, "case")_"|"_..Names(size.flagged, "tokens"), b_"|100001", "only the request over 100000 is flagged")
 	Do $$$AssertEquals(..Names(size.unknown, ""), c, "the empty size is unknown")
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), c_": no request size", "and is the problem")
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Size")
+	Do $$$AssertTrue(text [ ("Requests over 100000 tokens:"_$Char(10, 10)_"- "_b_": 100001 tokens"_$Char(10)), "the text lists the request over 100000 with its tokens")
 	Set none = ..NewRun()
 	Do ..Row(none, c, {"LargestRequestTokens": ""})
 	Set report = ##class(OcuTalon.Eval.Report).Build(none, ..Folder)
@@ -393,8 +408,8 @@ Method TestOtherRun()
 	Do $$$AssertEquals(report.cost.priced_"|"_report.cost.flagged.%Size()_"|"_report.size.flagged.%Size(), "1|0|0", "and only its cost and size are in the report")
 }
 
-/// The Markdown holds the title, the score lines, the tell-now case missed, a flagged decision with its model, the size with its words and a
-/// skipped case with its reason.
+/// The Markdown holds the title, the score lines, the tell-now case missed, the mean, every priced decision with its model (or "model not
+/// known"), a flagged decision with its model, the size with its words and a skipped case with its reason.
 Method TestText()
 {
 	Set a = ..N("a"), b = ..N("b"), incident = ..N("incident"), bad = ..N("bad")
@@ -413,9 +428,9 @@ Method TestText()
 	Do $$$AssertTrue(text [ "| Incidents (SM-2) | 0 | 0 | not measured | 80% | not measured |", "the incidents line says not measured")
 	Do $$$AssertTrue(text [ "| Held-out items | 0 | 0 | not measured |", "the held-out line has no target")
 	Do $$$AssertTrue(text [ ("- "_b_": decided ignore"), "the tell-now case missed is listed")
-	Do $$$AssertTrue(text [ ("- "_b_", decide, claude-sonnet-5-5: $0.002"), "the flagged decision is listed with its case, kind, model and cost")
-	Do $$$AssertTrue(text [ "Priced decisions: 2.", "the priced decisions are counted")
-	Do $$$AssertTrue(text [ ("Maximum: $0.002 ("_b_")."), "and the maximum has its case")
+	Do $$$AssertTrue(text [ ("Decisions at or above $0.001:"_$Char(10, 10)_"- "_b_", decide, claude-sonnet-5-5: $0.002"_$Char(10)), "the flagged decision is listed with its case, kind, model and cost")
+	Do $$$AssertTrue(text [ ("Priced decisions: 2. Mean: $0.0011. Maximum: $0.002 ("_b_")."), "the priced decisions are counted, with the mean and the maximum and its case")
+	Do $$$AssertTrue(text [ ("Maximum: $0.002 ("_b_")."_$Char(10, 10)_"- "_a_", decide, model not known: $0.0002"_$Char(10)_"- "_b_", decide, claude-sonnet-5-5: $0.002"_$Char(10, 10)), "every priced decision is listed with its case, kind, model and cost, a model not known included")
 	Do $$$AssertTrue(text [ ("Largest request: 4321 tokens ("_b_"), estimated by the bridge."), "the largest request says it is estimated by the bridge")
 	Do $$$AssertTrue(text [ ("- "_incident_" (incident): "_reason_" [not run until its story]"), "the incident skip says it is not run until its story")
 	Do $$$AssertTrue(text [ ("- "_bad_" (kind not known): case.json is not a JSON object"), "the unreadable skip has its reason and no such note")
@@ -425,13 +440,14 @@ Method TestText()
 }
 
 /// The sections that TestText does not reach: a scored incident row with its category, element and fix kind, a fallback, an unpriced
-/// decision, a request of unknown size, a row not complete, a row not scored, and a skip reason with a pipe and a line break.
+/// decision, a request of unknown size, a row not complete, a row not scored, a skip reason with a pipe and a line break, and a costliest
+/// and largest case whose name holds a pipe.
 Method TestTextSections()
 {
-	Set incident = ..N("incident"), fallback = ..N("fallback"), unpriced = ..N("unpriced"), nosize = ..N("nosize"), nodecision = ..N("nodecision"), gone = ..N("gone"), skip = ..N("skip")
+	Set incident = ..N("incident"), fallback = ..N("fallback"), unpriced = ..N("unpriced"), nosize = ..N("nosize"), nodecision = ..N("nodecision"), gone = ..N("gone"), skip = ..N("skip"), pipe = ..N("pi|pe")
 	Set nl = $Char(10)
 	Do ..IncidentCase(incident, "data_format_change", "OrderDate", "repair_resend")
-	For name = fallback, unpriced, nosize, nodecision {
+	For name = fallback, unpriced, nosize, nodecision, pipe {
 		Do ..ItemCase(name, "digest")
 	}
 	Set run = ..NewRun()
@@ -441,6 +457,7 @@ Method TestTextSections()
 	Do ..Row(run, nosize, {"Outcome": "digest", "LargestRequestTokens": ""})
 	Do ..Row(run, nodecision, {"Outcome": "digest", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
 	Do ..Row(run, gone, {"Outcome": "digest"})
+	Do ..Row(run, pipe, {"Outcome": "digest", "CostUSD": 0.0005, "LargestRequestTokens": 2000})
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (skip), "reason": ("line one | line two"_nl_"line three")}])
 	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Sections")
 	Do $$$AssertTrue(text [ "| Incidents (SM-2) | 1 | 1 | 100.0% | 80% | met |", "the incidents line counts the scored incident")
@@ -452,6 +469,8 @@ Method TestTextSections()
 	Do $$$AssertTrue(text [ ("- "_nodecision_": no decision"_nl), "and so is the row with no decision")
 	Do $$$AssertTrue(text [ ("- "_gone_": "_$Parameter("OcuTalon.Eval.Report", "REASONNOCASEFILE")_nl), "the row with no case file is listed as not scored, with its reason")
 	Do $$$AssertTrue(text [ ("- "_skip_" (kind not known): line one / line two line three"_nl), "a skip reason has no pipe and no line break")
+	Do $$$AssertTrue(text [ ("Maximum: $0.0005 ("_$Translate(pipe, "|", "/")_")."), "the costliest case's name has no pipe")
+	Do $$$AssertTrue(text [ ("Largest request: 2000 tokens ("_$Translate(pipe, "|", "/")_"), estimated by the bridge."), "and neither has the largest request's")
 }
 
 /// A decided row that lacks a decision (a fallback included), a cost, a turn cost or a request size is listed once, with its reasons joined
@@ -516,6 +535,120 @@ Method TestRunRefused()
 	Do $$$AssertTrue($$$ISERR(sc), "Run is refused")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "disabled", "the error says disabled: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertEquals(report, "", "and there is no report")
+}
+
+/// (QA) The match rules at their edges: an incident's category is matched ignoring case and edge spaces like its element, a near element
+/// (OrderDateTime) is not the element, and an item's outcome is compared exactly (DIGEST is not digest).
+Method TestMatchRules()
+{
+	Set loose = ..N("m1-loose"), near = ..N("m2-near"), exact = ..N("m3-exact")
+	Do ..IncidentCase(loose, "data_format_change", "OrderDate", "repair_resend")
+	Do ..IncidentCase(near, "data_format_change", "OrderDate", "repair_resend")
+	Do ..ItemCase(exact, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, loose, {"Outcome": "", "CauseCategory": " DATA_Format_Change ", "ElementAtFault": "ORDERDATE"})
+	Do ..Row(run, near, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDateTime"})
+	Do ..Row(run, exact, {"Outcome": "DIGEST"})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Rights(report), loose_":1;"_near_":0;"_exact_":0", "the category matches ignoring case and spaces, a near element does not match, and an outcome matches exactly")
+	Do $$$AssertEquals(..Line(report.scores.incidents)_"|"_..Line(report.scores.items), "1 of 2 share .5 met 0|0 of 1 share 0 met 0", "and the scores follow")
+}
+
+/// (QA) A row that is not decided is not right even when its fields match its case (an item, an incident), a decided incident fallback is
+/// not right either, and a row still sent is not a tell-now case missed. All of them count in the totals.
+Method TestNotDecidedNotRight()
+{
+	Set item = ..N("n1-item"), sent = ..N("n2-incident"), fallback = ..N("n3-fallback"), told = ..N("n4-told")
+	Do ..ItemCase(item, "digest")
+	Do ..IncidentCase(sent, "data_format_change", "OrderDate", "repair_resend")
+	Do ..IncidentCase(fallback, "data_format_change", "OrderDate", "repair_resend")
+	Do ..ItemCase(told, "tellnow")
+	Set run = ..NewRun()
+	Do ..Row(run, item, {"State": "sent", "Outcome": "digest", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Do ..Row(run, sent, {"State": "sent", "Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Do ..Row(run, fallback, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "Fallback": 1, "FallbackReason": "timeout"})
+	Do ..Row(run, told, {"State": "sent", "Outcome": "ignore", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Rights(report), item_":0;"_sent_":0;"_fallback_":0;"_told_":0", "no row is right: two are still sent with matching fields, one is an incident fallback")
+	Do $$$AssertEquals(..Line(report.scores.items)_"|"_..Line(report.scores.incidents), "0 of 2 share 0 met 0|0 of 2 share 0 met 0", "and every one counts in its total")
+	Do $$$AssertEquals(report.tellNowMissed.%Size(), 0, "a tell-now case still sent is not a tell-now case missed")
+	Do $$$AssertEquals(..Names(report.notComplete, "case"), item_","_sent_","_told, "the three rows still sent are not complete")
+	Do $$$AssertEquals(..Names(report.fallbacks, "case"), fallback, "and the incident fallback is listed apart")
+}
+
+/// (QA) A cost of 0 is a cost: the decision is priced (only an empty cost is unpriced), the mean is 0 and nothing is flagged.
+Method TestZeroCost()
+{
+	Set name = ..N("zero")
+	Do ..ItemCase(name, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, name, {"Outcome": "digest", "CostUSD": 0})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(report.cost.priced_"|"_report.cost.unpriced.%Size()_"|"_report.cost.flagged.%Size(), "1|0|0", "the decision is priced, not unpriced and not flagged")
+	Do $$$AssertEquals(report.cost.%GetTypeOf("meanUSD")_"|"_report.cost.meanUSD_"|"_report.cost.maxCase, "number|0|"_name, "the mean is the number 0, and the maximum has its case")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and the run has no problem")
+}
+
+/// (QA) The text of a run with no row has every section in its place, in order, with "none" for each list, no mean or maximum, the largest
+/// request not known and a case table that holds only its header.
+Method TestTextEmpty()
+{
+	Set run = ..NewRun()
+	Set text = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(run, ..Folder), "Empty")
+	Set nl = $Char(10)
+	Set last = 0
+	For heading = "## Scores", "## Tell-now cases decided Ignore or Digest", "## Fallbacks", "## Cost", "## Request size", "## Cases not complete", "## Cases not scored", "## Cases skipped", "## Cases" {
+		Set at = $Find(text, nl_heading_nl)
+		Do $$$AssertTrue(at > last, heading_" is there, after the section before it")
+		If at > last Set last = at
+	}
+	Do $$$AssertTrue(text [ "| Items (SM-1) | 0 | 0 | not measured | 90% | not measured |", "the items line says not measured")
+	Do $$$AssertTrue(text [ ("Priced decisions: 0."_nl), "no decision is priced")
+	Do $$$AssertTrue(text '[ " Mean: ", "and there is no mean")
+	Do $$$AssertTrue(text '[ "Maximum: $", "and no maximum")
+	Do $$$AssertTrue(text [ "Largest request: not known.", "the largest request is not known")
+	Do $$$AssertTrue(text [ ("## Fallbacks"_nl_nl_"none"_nl), "a list with nothing says none")
+	Do $$$AssertTrue(text [ ("## Cases skipped"_nl_nl_"none"_nl), "so does the list of skipped cases")
+	Set tail = "| Case | Kind | Held out | Expected | Got | Right |"_nl_"|---|---|---|---|---|---|"_nl
+	Do $$$AssertEquals($Extract(text, *-$Length(tail)+1, *), tail, "the case table holds its header only")
+}
+
+/// (QA) Save refuses an empty name and a name with a path, and makes nothing for them.
+Method TestSaveRefusals()
+{
+	Set report = ##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder)
+	Set directory = ##class(%File).NormalizeDirectory("zz-refused", ..Folder)
+	For name = "", "a\b", "a/b", "../b" {
+		Do $$$AssertTrue($$$ISERR(##class(OcuTalon.Eval.Report).Save(report, "A title", directory, name)), "the name '"_name_"' is refused")
+	}
+	Do $$$AssertTrue('##class(%File).DirectoryExists(directory), "and no directory was made for them")
+}
+
+/// (QA) A case name with a path is not followed out of the case folder: a row named zz-rep-sub/inner, with a good case.json at that path
+/// below the folder, is not scored and is listed as unscored; as a skipped case it has no kind.
+Method TestCaseNameStaysInFolder()
+{
+	Set name = ..N("sub/inner")
+	Do ..ItemCase(name, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, name, {"Outcome": "digest"})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (name), "reason": "a reason"}])
+	Do $$$AssertEquals(report.cases.%Size()_"|"_report.unscored.%Size(), "0|1", "the row is not scored")
+	If report.unscored.%Size() '= 1 Quit
+	Do $$$AssertEquals(report.unscored.%Get(0).reason, $Parameter("OcuTalon.Eval.Report", "REASONNOCASEFILE"), "its case file is not read")
+	Do $$$AssertEquals(report.skipped.%Get(0).kind_"|"_report.skipped.%Get(0).%Get("notRunYet"), "|0", "and a skipped case of that name has no kind")
+}
+
+/// (QA) The folder is taken with or without its trailing separator, and the report names it with the separator.
+Method TestFolderWithoutSeparator()
+{
+	Set name = ..N("nosep")
+	Do ..ItemCase(name, "digest")
+	Set run = ..NewRun()
+	Do ..Row(run, name, {"Outcome": "digest"})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, $Extract(..Folder, 1, *-1))
+	Do $$$AssertEquals(..Line(report.scores.items), "1 of 1 share 1 met 1", "the case is read and scored")
+	Do $$$AssertEquals(report.folder, ..Folder, "and the report names the folder with its separator")
 }
 
 /// --- helpers ---

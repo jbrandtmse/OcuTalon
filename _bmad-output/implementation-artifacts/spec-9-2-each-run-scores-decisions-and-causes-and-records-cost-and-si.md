@@ -299,6 +299,56 @@ The first local `eval/run.sh` run is the measurement. Record in Verification its
 - **Integration (Rule 1).** Given the running production with EvalIn on, when `eval/run.sh` (the consumer) calls `Report.Run` over `eval/`, then the real `Intake`, `Decide` and the mock complete the newsletter's row, and the report scores it from that row (expected Ignore, the mock's default Digest: wrong), with its cost and size. `Test.Eval.Run.TestReport` does the same over 9.1's two runs.
 - **Hermeticity.** Given a fresh throwaway, when `Test.Eval.Report`, `Test.Eval.Run` and `Test.Eval.Cases` run forward and in reverse, then each passes. `Test.Eval.Report` leaves no row, `Decision` row or folder behind.
 
+### Review Findings
+
+Code review, 2026-10-28. Tier full-opus, with four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). The layers raised 31 rows, which group into 13 entries: high 0, medium 5, low 8. A further 14 rows were rejected (appendix below).
+
+Decision-needed (resolved):
+- [x] [Review][Decision] A Lane A check sits in Lane B's files (AD-29). `docker/tests/test-eval-set.sh` and its `ci/units.sh` `CHECK_SCRIPTS` entry are on Lane B's side of AD-29's lane map.
+  - Resolved `by-design` (DW-362). AC3 and Tasks 8 and 9 put the check in the hosted `checks` job, and the lead logged both paths as `footprint_extensions` at `spec_validated`. Lane A's Epic 1 has edited `docker/tests/*.sh` under the same mechanism.
+  - The lead may record an AD-29 as-built exception (Rule 20).
+  - Medium; fix-risk med (moving the check to a `%UnitTest` changes where AC3 runs).
+
+Patch (all applied in the review pass):
+- [x] [Review][Patch] `TestReportRun` leaves three warnings and an untracked run [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls:580].
+  - `TestRefusals`' count of 5 held only because `%UnitTest` runs methods in name order (Rule 19 hermeticity). Medium; fix-risk low.
+  - The test now asserts the three warnings and removes them, removes its run's rows, and pushes the run's Ref for the message clean-up.
+- [x] [Review][Patch] `cost.flagAtUSD` was the string `"0.001"` in the JSON, not the number in the spec's report shape [src/ocutalon/cls/OcuTalon/Eval/Report.cls:89].
+  - Both flags are now set with `%Set(..., "number")`, and `TestCost` and `TestSize` pin the type. Medium; fix-risk low.
+- [x] [Review][Patch] No test showed that a decision's kind comes from its `Decision` row: every test's kind equalled the slot's default [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:281].
+  - `TestCost` now gives one row a `diagnose` Decision. Medium (Rule 19); fix-risk low.
+- [x] [Review][Patch] No test pinned four parts of `Text`: the mean, the held-out incidents line, "model not known" and the list of requests over the limit [src/ocutalon/cls/OcuTalon/Eval/Report.cls:141-161].
+  - Assertions added in `TestText`, `TestHeldOut` and `TestSize`. Medium; fix-risk low.
+- [x] [Review][Patch] The Markdown did not list each decision's cost and model (AC2) [src/ocutalon/cls/OcuTalon/Eval/Report.cls:151].
+  - The Markdown is the only report the author can see in CI; until now only `set.json` in `$RUNNER_TEMP` held that list.
+  - `Text` now lists every priced decision under the mean and the maximum. Low.
+- [x] [Review][Patch] `Text` wrote the costliest and the largest case names without `Cell` [src/ocutalon/cls/OcuTalon/Eval/Report.cls:149,159]. Low.
+- [x] [Review][Patch] `run-guard` unset `OCUTALON_LOCK_DIR`, so a reordered preflight would have taken the top-level throwaway lock [docker/tests/test-eval-set.sh:461,473].
+  - It now names a folder that does not exist. Low.
+- [x] [Review][Patch] `eval/run.sh`'s header said its last line is `REPORT <folder>` [eval/run.sh:24]. Low.
+- [x] [Review][Patch] `test-eval-set.sh`'s header said it reads only `lane-a.yml` [docker/tests/test-eval-set.sh:3]. Low.
+- [x] [Review][Patch] The Hermeticity AC's forward and reverse runs had been recorded on warm stacks only.
+  - Closed by `shard lane-a --part 3/4` and `--reverse --part 2/4` on fresh stacks (see Verification). Low.
+
+Defer:
+- [x] [Review][Defer] `eval/run.sh` requires one fixed answer (`MOCK_WRONG_ANSWER=ignore`), while the `markers` rule accepts any outcome other than the expected one [eval/run.sh:61,154].
+  - Deferred as `wontfix-accepted` (DW-363). `reopen_if`: a second case lands in `eval/mock-wrong/`.
+- [x] [Review][Defer] No test checks the step summary that `eval/run.sh` appends [eval/run.sh:173-174].
+  - Deferred as `wontfix-accepted` (DW-364). `reopen_if`: the first lane-a `evaluation` run's summary page lacks a report.
+
+Rejected:
+- (low) `TestReport` reads `%Get(0)` and `%Get(1)` with no guard: a missing entry raises `<INVALID OREF>`, which already fails the test loudly, and guards would add branches. (blind-hunter, edge-case-hunter)
+- (low) The `markers` regex differs from the mock's grammar (no `:key`, a wider name class) and doesn't check `match.marker`.
+  - No eval case uses a keyed marker, and `eval/run.sh`'s runtime check fails any case that the scenario does not answer.
+  - The fix would import the mock's grammar and add a branch. (blind-hunter, edge-case-hunter, acceptance-auditor)
+- (low) An incident fallback would print "(outcome )". Incident rows arrive only with Story 9.6, and the defect is cosmetic. (edge-case-hunter)
+- (false) "`Problems` and `Text` throw on an object without the report's arrays": no caller passes one; they get `Build`'s object or "". (edge-case-hunter)
+- (false) "An all-clear case with `checks: []` passes": an empty array is the valid record of the "nothing watched" all-clear case. (edge-case-hunter, two rows)
+- (low) A marker in a field that EvalIn doesn't send, or a scenario whose first reply is not 200, passes `markers`; the runtime check fails both. (edge-case-hunter, two rows)
+- (false) "An AC sub-clause has no `mutation:` line": Rule 19 scopes the line to each AC, and every AC has one. (verification-gap)
+- (low) "not run until its story" is Task 3's wording; naming Story 9.6 in code would go stale when 9.6 lands. (acceptance-auditor)
+- (false) "The spec's frontmatter says `done`": that `status` is build-auto's machine state, and the story's status lives in `sprint-status.yaml`. (acceptance-auditor)
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -626,6 +676,76 @@ Mutations of the review pass (Rule 19; each applied from a backup, observed red,
 - mutation: the empty-tree guard of `cases` removed, then that of `markers` -> `test-eval-set.sh` `cases` went red (`bad-empty-tree` not flagged), then `markers` (`bad-no-test-only-case` not flagged).
 - mutation: the test-only case loses its `[[mock:eval-tellnow-ignored]]` marker, so the mock answers its default Digest -> `eval/run.sh` exited 1 with `FAIL mock-wrong: 1 of 1 test-only case(s) did not get the mock's wrong answer 'ignore'` (before the patch it passed).
 - `List` on the plain case names of `size.unknown` raised `<INVALID OREF>` in `TestTextSections` before its fix; the fix is that test's own red-to-green.
+
+**QA stage (2026-10-28, build 154, tags `e9s2q` and `e9s2qw`, lane-b `<B>` with `stage=qa`).** No new test file; two files of the story gained tests (QA):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (lane-a shard, part 3 of 4; warm-safe, same set-up and clean-up): seven methods. `TestMatchRules` (an incident's category matches ignoring case and edge spaces, a near element does not, an item's outcome is exact); `TestNotDecidedNotRight` (a row still sent with fields that match, and a decided incident fallback, are not right, count in the totals, and are no tell-now case missed); `TestZeroCost` (a cost of 0 is priced); `TestTextEmpty` (every section of an empty run's text, in order, "none" lists, no mean, "not known", header-only case table); `TestSaveRefusals`; `TestCaseNameStaysInFolder`; `TestFolderWithoutSeparator`.
+- (QA) `docker/tests/test-eval-set.sh` (hosted `checks` job, `CHECK_SCRIPTS` entry `eval-set`; no other file touched):
+  - every bad sample now carries its reason in `expect.txt`, and a rule must flag it for that reason (before, a sample flagged by any other rule counted, so a deleted rule stayed green: the `has no expectation` and snapshot-existence checks are examples);
+  - samples added: `bad-injection-outcome`, `bad-no-element`, `bad-heldout-missing`, `bad-no-item`, `bad-snapshot-path`, `bad-no-recordedby`, `bad-clear-no-checks`, and five `job` samples;
+  - the `job` rule also pins the evaluation job's `timeout-minutes`, its own `OCUTALON_RUN_TAG` (run id, attempt, `-eval`, so its teardown never removes the bridge job's stack) and the `ci/iris.sh build` step before the `eval/run.sh` step (`test-ci-config.sh` pins none of the three for a lane-a job);
+  - the new rule `run-guard` runs `eval/run.sh` with a stub in place of the container tool (it records its call and fails, so nothing starts): `OCUTALON_EVAL_WAIT` of `abc`, `0`, `3601`, `99999`, `1.5`, `-1`, ` 5` and `1 2` exits 2 before any call; `1`, `7`, `08`, `180` and `3600` go on to the preflight with no shell error; `OCUTALON_EVAL_REPORT_DIR` is made. Nine bad stand-in scripts pin each branch.
+
+Results (every command in its own foreground call, `<B>` as above):
+- `bash docker/tests/test-eval-set.sh`: six rules pass in about 3 s. `bash ci/checks.sh`: 14 blocks pass (103 s; `eval-set` 4 s, `ci-config` 24 s, `boundaries` 3 s).
+- Compile check on slot B (`ocutalon-slot-b`, build 154U, `OCUTALON`): `OcuTalon.Test.Eval.Report` compiles (`ck`); no test ran there.
+- Warm stack `e9s2qw` (up in 83 s, no change under `ci/mock`): `Test.Eval.Report` passed (0.07 s); forward `Cases`, `Report`, `Run` and reverse `Run`, `Report`, `Cases` each passed in separate calls (`Run` 7.2 s and 6.5 s).
+- `shard lane-a --part 3/4` on a fresh stack `e9s2q`: passed, 19 classes, `Test.Eval.Report` among them (0.16 s, `TestRunRefused` ran on the disabled EvalIn), ready in 81 s, 115 s in all. `ci/iris.sh classes lane-a` lists `OcuTalon.Test.Eval.Report` (Rule 8).
+- `OCUTALON_RUN_TAG=e9s2q bash eval/run.sh` (unmutated, fresh throwaway): exit 0; `READY evaluation 82s`, `KEYS ready and keys 3s`, `RUN set 1s`, `RUN mock-wrong 0s`; the set's report is items 0 of 1 (not met), incidents not measured, one priced decision of $0.000074, largest request 571 tokens, the incident case "not run until its story"; `PASS mock-wrong: all 1 test-only case(s) got 'ignore' and scored wrong`; `REPORT` held the four files.
+- Teardown: `ci/warm.sh down` (tag `e9s2qw`) and `ci/iris.sh teardown` (tag `e9s2q`): 0 containers, volumes, networks and images left of either tag, and the lane-b lock folder is empty.
+
+Mutations (Rule 19; each applied from a backup by a helper that restores on exit, run once, observed red, restored, and the tree confirmed byte-identical by `md5` of the file and an unchanged `git status --short`). `mutations_demonstrated=23` in this stage:
+- mutation (AC1): `Build` matches an incident's category exactly instead of ignoring case and edge spaces -> `Test.Eval.Report` `TestMatchRules` went red (both assertions).
+- mutation (AC1): a row still sent can be right (`decided` loses the state test) -> `TestNotDecidedNotRight` went red (three assertions); `TestUndecided` stayed green, which is why it was needed.
+- mutation (AC1): the tell-now list loses its `decided` guard -> `TestNotDecidedNotRight` went red (the row still sent is listed).
+- mutation (AC1): every incident counts as held out (`Tally(..., 1, "heldOutIncidents")`) -> `TestHeldOut` went red (the held-out incidents).
+- mutation (AC1): `Unscored` drops the row silently -> `TestUnscored` (eight assertions), `TestTextSections` and `TestCaseNameStaysInFolder` went red.
+- mutation (AC1): `ReadCase` follows a case name that holds a slash -> `TestCaseNameStaysInFolder` went red.
+- mutation (AC1): `Build` does not normalize the folder -> `TestFolderWithoutSeparator` went red (the report's folder).
+- mutation (AC2): a cost of 0 counts as unpriced (`If 'cost`) -> `TestZeroCost` went red (two assertions).
+- mutation (AC2): a decision's model is never read -> `TestCost` (models), `TestText` and `TestTextSections` went red.
+- mutation (AC2): `Text` writes a mean and maximum with no priced decision -> `TestTextEmpty` went red (three assertions).
+- mutation (AC2): `Save` accepts an empty name and a backslash -> `TestSaveRefusals` went red (three assertions).
+- mutation (AC3): the `has no expectation` check of `cases` removed -> `test-eval-set.sh` `cases` went red for `bad-no-expectation` and `bad-mock-wrong-case` (flagged by another rule, not for their reason).
+- mutation (AC3): the `heldOut` check accepts a string -> `cases` went red (`bad-heldout` not flagged).
+- mutation (AC3): the snapshot file is not required to exist -> `cases` went red (`bad-snapshot-missing` flagged for the wrong reason).
+- mutation (AC3): the marker scan reads `.txt` files only -> `markers` went red (`bad-outside` not flagged).
+- mutation (AC4): the `evaluation` job loses `timeout-minutes` -> `test-eval-set.sh` `job` went red on the real file.
+- mutation (AC4): the `evaluation` job loses its `ci/iris.sh build` step -> `job` went red on the real file.
+- mutation (AC4): the `evaluation` job's teardown step loses `if: always()` -> `test-ci-config.sh` `teardown` went red at `lane-a.yml:44`.
+- mutation (AC4): the `evaluation` job loses its fork guard -> `test-ci-config.sh` `fork-guard` went red at `lane-a.yml:44`.
+- mutation (AC4): `eval/run.sh` accepts a wait above 3600 (`-gt 36000`) -> `test-eval-set.sh` `run-guard` went red (`3601`).
+- mutation (AC4): `eval/run.sh` loses the `10#` prefix -> `run-guard` went red (`08` accepted with an error of the shell).
+- mutation (AC4): `eval/run.sh` does not export `OCUTALON_EVAL=1` -> `eval/run.sh` on a fresh stack exited 1 with `FAIL set: the run did not start: ... Configuration item 'EvalIn' is disabled` and the same for `mock-wrong` (matrix row "Job", a disabled EvalIn).
+- mutation (AC4): a refused case (`eval/zz-qa-noid`, an item with no `item.itemId`) added under `eval/` for one run -> `eval/run.sh` exited 1 with `FAIL set: the run has 1 problem(s)` (`zz-qa-noid: not sent: it has no item.itemId`); the folder was removed and `git status --short` was unchanged.
+
+**Code-review stage (2026-10-28, build 154, tags `e9s2c` and `e9s2cw`, lane-b `<B>` with `stage=code-review`).** The review's patches are listed under Review Findings. Every command ran in its own foreground call:
+- `bash docker/tests/test-eval-set.sh`: all six rules pass. `bash docker/tests/test-boundaries.sh`: passes.
+- Warm stack `e9s2cw` (up in 83 s):
+  - Before the `Report.cls` patches, `Test.Eval.Report` failed on exactly the three new pins of those patches: `TestCost` "the flag is the number 0.001" (the JSON held the string `"0.001"`), `TestText`'s list of decisions, and `TestTextSections`' costliest and largest case names. Every pin on existing behaviour passed.
+  - After the patches it passed. `Test.Eval.Run` passed (6.6 s).
+- Fresh stacks `e9s2c`, giving the Hermeticity AC's fresh forward and reverse runs:
+  - `shard lane-a --part 3/4`: ready in 83 s, 20 classes, all passed.
+  - `shard lane-a --reverse --part 2/4`: ready in 85 s, 20 classes, all passed; `Eval.Run`, `Eval.Report` and `Eval.Cases` ran in reverse order.
+  - The existing `SKIP TestStepHelpers` is not this story's.
+- `bash eval/run.sh` on a fresh stack: exit 0, with `READY evaluation 83s`, `KEYS ready and keys 3s`, `RUN set 1s` and `RUN mock-wrong 0s`.
+  - The set's Markdown lists `mail-newsletter, decide, claude-haiku-5-5: $0.000074` under the mean and the maximum.
+  - `set.json` holds `flagAtUSD` 0.001 and `flagOverTokens` 100000 as numbers.
+- Teardown: `ci/warm.sh down` (`e9s2cw`) and `ci/iris.sh teardown` (`e9s2c`) left no container, volume, network or image of either tag, and the lane-b lock folder is empty.
+
+Mutations of the review pass (Rule 19). They were applied together to a backup of the patched `Report.cls`, with each one pinned by its own assertion; each went red, and the file was restored (its md5 and `git status --short` unchanged):
+- mutation (AC2): `AddDecision` always takes the slot's default kind -> `TestCost` went red ("with the kind of their Decision rows, a diagnose decision included").
+- mutation (AC2): `Text`'s mean prints the maximum -> `TestText` went red (the mean).
+- mutation (AC1): `Text`'s held-out incidents line prints the held-out items' score -> `TestHeldOut` went red (the text's held-out lines).
+- mutation (AC2): `List` no longer writes "model not known" -> `TestText` went red (every priced decision).
+- mutation (AC2): the requests-over template names `{token}` -> `TestSize` went red (the text's request over 100000).
+- red before each patch, which is that patch's own red-to-green:
+  - `flagAtUSD` written raw -> `TestCost` red (a string);
+  - no list of decisions in `Text` -> `TestText` red;
+  - `maxCase` and `largestCase` written without `Cell` -> `TestTextSections` red (both).
+- demonstration (Hermeticity):
+  - `Test.Eval.Run` with the original `TestReportRun` renamed `TestAReportRun`, so that it runs before `TestRefusals` -> `TestRefusals` went red ("each of the five cases not sent was logged as a warning").
+  - The patched method, renamed the same way -> green.
+  - The file was restored to the patched version (md5).
 
 ## Auto Run Result
 

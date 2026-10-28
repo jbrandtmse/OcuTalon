@@ -27,7 +27,8 @@
 ///     problem; run 2 scores the act case right and the plain case wrong, lists the act case's two decisions and has the three refused
 ///     cases as its problems;
 ///   - TestReportRun (Story 9.2): Eval.Report.Run over the three refused cases sends nothing and returns the report with the three skipped
-///     cases Start listed, each a problem besides the run that sent no case.
+///     cases Start listed, each a problem besides the run that sent no case; it removes the warnings, rows and messages of its own run, so
+///     what TestRefusals counts does not depend on the order of the tests.
 /// OnAfterAllTests puts the EvalIn row, the runner keys, the case rows, the Decision, Usage and step rows, the AI sessions, the messages
 /// and the fixture folder back as it found them, and fails the class when a case row, message, Decision or Usage row of the runs, or the
 /// fixture folder, is still there.
@@ -575,11 +576,18 @@ Method TestReport()
 }
 
 /// Eval.Report.Run over the three refused cases of the fixture sends no message and writes no row: its report carries what Start skipped.
+/// The test removes the three warnings that its run logged, and the run's rows and messages, so no other test of the class sees them.
 Method TestReportRun()
 {
 	If '..Guard() Quit
-	Set report = ""
+	Set report = "", mark = ##class(OcuTalon.Test.Core.Observe).LastLog(), logged = ""
 	Set sc = ##class(OcuTalon.Eval.Report).Run(..Folder, "zz-noid,zz-user,zz-badjson", 5, .report)
+	If $IsObject(report) {
+		Do ..Supers.%Push(report.run)
+		Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(report.run)
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .logged, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED), 3, "the three refused cases were logged as warnings, which the test removes")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	Do $$$AssertStatusOK(sc, "Run starts: EvalIn is enabled in this throwaway")
 	If '$IsObject(report) Quit
 	Do $$$AssertEquals(report.cases.%Size()_"|"_report.skipped.%Size(), "0|3", "no case was sent and the three refused cases are listed as skipped")
