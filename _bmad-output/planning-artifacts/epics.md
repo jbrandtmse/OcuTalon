@@ -3222,21 +3222,16 @@ So that reminders work the way I would ask a person.
 **Then** it converts a `LocalDueAt` through `OcuTalon.Data.Time` in the instance's zone, so "Thursday at 10" fires at 10:00 local time, including in a week with a daylight-saving change, and a `DelaySeconds` counts from the moment the command arrives (FR-34, AD-18)
 **And** an empty `Text`, a due time already past, or anything other than exactly one of the due forms Story 0.4 fixes (`DueAt`, `DelaySeconds`, `LocalDueAt`) is refused with a `CommandResult` carrying a plain-English reason the tool passes back, and no row or waiter is created (FR-34, NFR-24)
 
-**Given** the CI mock with scenarios under `ci/mock/scenarios/B/`: one keyed by the guide prompt's exact text "Remind me in 1 minute to stretch." and one selected by a marker for "Remind me Thursday at 10 to load the new certificate."
-**When** each is sent as a chat message
-**Then** the Chat agent calls Epic 1's set tool, `ReminderOps` creates the reminder, the reply confirms it, the rail shows it, and the tool call is an agent step in Visual Trace (FR-34, AD-22)
-**And** the REL-2 spec for UJ-1's reminder step is turned on once it passes on the integration branch with the CI mock: pressing Send on guide step 2 shows the reply and a "Stretch" row with its countdown under Reminders, and the guide marks step 2 done (REL-2, AD-29, UX-DR44)
-
-**Given** a pending reminder set through the chat in each of two sessions
-**When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`)
-**Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command with its `ReminderRef` marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
+**Given** a pending reminder in each of two sessions, set through `ReminderOps`
+**When** a `ListReminders` command and then a `CancelReminder` command with the reminder's `ReminderRef` arrive for one session, as Epic 1's list and cancel tools (Story 1.10) send them
+**Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
 **And** a cancel naming another session's reminder, or one already fired or cancelled, is refused with a plain-English reason and changes nothing, and a command repeated with the same `IdempotencyKey` returns the first result without creating a second row or waiter (AD-1, AD-4, AD-8)
 **And** this story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, which cancels reminders through a test double until this story merges (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before this epic] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before Epic 16 starts, so Story 16.4 uses the real path from the start and this story turns on nothing in it.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for this epic. This story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, and in Story 16.4's closed-page case a reminder set before the CSP session times out fires on time after it ended.]
 - DW-135: Cross-lane contract for ReminderOps (Story 8.4): ListReminders answers with CommandResult.Data = {"reminders":[{"ref","text","dueAt"}]}, the command's session's pending reminders, earliest due first, dueAt in UTC; Story 1.10's list tool and its CommandsIn test double read and answer exactly this shape (ledger; routed by spec_gate 2026-10-23)
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran (ledger; routed by harvest 2026-10-24)
-- DW-232: The CI mock scenario for 'Remind me in 1 minute to stretch.' already exists as Story 4.4's `ci/mock/scenarios/B/guide-reminder.json`, and the mock loader refuses a repeated prompt (`scenarios.mjs`), so this story extends `guide-reminder.json` rather than adding a second scenario (ledger; routed by orchestrator 2026-10-27)
 - DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls (ledger; routed by harvest 2026-10-24)
 - DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request (ledger; routed by cr 2026-10-24)
+[AMENDED 2026-10-27, Epic 8 runner, unattended ruling (decide: a split into a sibling planned next in this epic, doctrine U5): the chat side of this story moved, unchanged in intent, to Story 8.6: the CI mock scenarios and their chat replies, the REL-2 reminder step, the cancel sent as a chat message, DW-210 and DW-232. This story keeps the command side. Its third criterion read "**Given** a pending reminder set through the chat in each of two sessions **When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`) **Then** ..., the reply confirms, ..."; its second criterion is Story 8.6's first.]
 
 ### Story 8.5: Reminders survive restarts and upgrades, and late ones say so
 
@@ -3267,8 +3262,41 @@ So that I never silently lose a reminder.
 **Then** it fires, because `ReminderTimer`'s persistent properties are frozen (append-only, with its logic in other classes), its storage block is committed and CI's storage diff against the previous release tag passes; the full upgrade harness of FR-60 stays with Lane A's release work (NFR-17, AD-5)
 
 **Given** the restart cases above
-**When** CI runs the Schedule shard on the IRIS runner
+**When** CI runs the Schedule area's restart unit on the IRIS runner [AMENDED 2026-10-27, Story 8.5 plan, Rule 5 apply-and-report (intent unchanged): a `%UnitTest` shard runs inside the IRIS it would have to restart, so the restart cases are a live unit in their own compose project; it read "When CI runs the Schedule shard on the IRIS runner"]
 **Then** the tests restart IRIS in their own compose project and assert order and outcome (one notification per channel, late or not), never the seconds (NFR-10, NFR-16, AD-22)
+
+### Story 8.6: Reminders through the chat on the demo path
+
+As a user,
+I want to set and cancel a reminder by chatting, as guide step 2 does on the demo path,
+So that reminders work the way I would ask a person.
+
+**Acceptance Criteria:**
+
+**Given** the CI mock with scenarios under `ci/mock/scenarios/B/`: one keyed by the guide prompt's exact text "Remind me in 1 minute to stretch." and one selected by a marker for "Remind me Thursday at 10 to load the new certificate."
+**When** each is sent as a chat message
+**Then** the Chat agent calls Epic 1's set tool, `ReminderOps` creates the reminder, the reply confirms it, the rail shows it, and the tool call is an agent step in Visual Trace (FR-34, AD-22)
+**And** the REL-2 spec for UJ-1's reminder step is turned on once it passes on the integration branch with the CI mock: pressing Send on guide step 2 shows the reply and a "Stretch" row with its countdown under Reminders, and the guide marks step 2 done (REL-2, AD-29, UX-DR44)
+
+**Given** a pending reminder set through the chat in each of two sessions
+**When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`)
+**Then** the Chat agent calls Epic 1's list and cancel tools, Story 8.4's `ReminderOps` cancels that session's reminder, its row leaves the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
+- DW-232: The CI mock scenario for 'Remind me in 1 minute to stretch.' already exists as Story 4.4's `ci/mock/scenarios/B/guide-reminder.json`, and the mock loader refuses a repeated prompt (`scenarios.mjs`), so this story extends `guide-reminder.json` rather than adding a second scenario (ledger; routed by orchestrator 2026-10-27)
+- DW-210: demo-path-summary.test.mjs's playwrightEnv() leaves the machine's browsers usable, so 'skip every unbuilt part' stays green for a demo-path test that launches a browser before it skips wherever Chromium is installed; only the browserless hosted web job goes red (ledger; routed by cr 2026-10-25)
+[AMENDED 2026-10-27, Epic 8 runner, unattended ruling (decide, doctrine U5): split from Story 8.4, whose chat side this is; the criteria above are 8.4's, unchanged in intent.]
+
+### Story 8.7: Epic 8 burn-down
+
+[AMENDED 2026-10-27, chartered by the burn-down gate, Rule 17 and Rule 22: DW-314 is the owner's decision through the Contest Planner (fix before Epic 8 merges; the orchestrator ruled it into this story), and DW-204 is the order dependence the split would expose.]
+
+As the author,
+I want the browser sign-in unit split into two runs that each fit a stage's foreground limit, and its instance-stream assertions independent of spec order,
+So that later stories can add sign-in tests without a run outgrowing the 10-minute cap or passing only because of file order.
+
+**Acceptance Criteria:**
+
+- DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
+- DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
 
 ## Epic 9: Quality is measured: the evaluation set
 

@@ -5,7 +5,8 @@
 ///   - TestComputedDailyCap: capped true gives dailyCap with the cap and the reset time as slots, capped false (or a reading that
 ///     is not an object) gives it with no slots, capped as the number 1 or 0 follows the number while a string is no cap, and a
 ///     reset time that is not a UTC time to the second gives no time;
-///   - TestComputedOrder: the conditions are dailyCap, then noModelKey, the CONDITIONS order, each there whether active or not;
+///   - TestComputedOrder: the conditions are dailyCap, noModelKey, then heartbeatStalled, the CONDITIONS order, each there whether active or
+///     not (the heartbeat reading is passed as "", so that the tests do not depend on the real heartbeat);
 ///   - TestActive: only the active conditions, as JSON objects shaped like the payload's export, with a clear carrying no slots;
 ///   - TestReadings: the keys are the agents' Keys.Status readings and the budget is Budget.State(), both as direct calls give them.
 /// The tests write no row and no global.
@@ -90,12 +91,12 @@ Method TestComputedDailyCap()
 /// The conditions come in CONDITIONS order, each there whether it holds or not.
 Method TestComputedOrder()
 {
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 0, "DiagnosisAgent": 0, "ChatAgent": 0}, {"cap": 20, "capped": true, "resetsAt": "2026-10-24T04:00:00Z"})
-	Do $$$AssertEquals(..Names(conditions), "dailyCap,noModelKey", "dailyCap, then noModelKey")
-	Do $$$AssertEquals(conditions.GetAt(1).Active_conditions.GetAt(2).Active, "11", "both hold")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}, {"capped": false})
-	Do $$$AssertEquals(..Names(conditions), "dailyCap,noModelKey", "the same two when neither holds")
-	Do $$$AssertEquals(conditions.GetAt(1).Active_conditions.GetAt(2).Active, "00", "and neither is active")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 0, "DiagnosisAgent": 0, "ChatAgent": 0}, {"cap": 20, "capped": true, "resetsAt": "2026-10-24T04:00:00Z"}, "")
+	Do $$$AssertEquals(..Names(conditions), "dailyCap,noModelKey,heartbeatStalled", "dailyCap, noModelKey, then heartbeatStalled")
+	Do $$$AssertEquals(conditions.GetAt(1).Active_conditions.GetAt(2).Active_conditions.GetAt(3).Active, "110", "the first two hold, the heartbeat reading is no tick")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}, {"capped": false}, "")
+	Do $$$AssertEquals(..Names(conditions), "dailyCap,noModelKey,heartbeatStalled", "the same three when none holds")
+	Do $$$AssertEquals(conditions.GetAt(1).Active_conditions.GetAt(2).Active_conditions.GetAt(3).Active, "000", "and none is active")
 	Set catalog = $ListFromString($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"))
 	Set last = 0
 	For i = 1:1:conditions.Count() {
@@ -108,14 +109,14 @@ Method TestComputedOrder()
 /// Active holds only the active conditions, as the payload's JSON.
 Method TestActive()
 {
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 0, "DiagnosisAgent": 1, "ChatAgent": 1}, {"cap": 20, "capped": true, "resetsAt": "2026-10-24T04:00:00Z"})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 0, "DiagnosisAgent": 1, "ChatAgent": 1}, {"cap": 20, "capped": true, "resetsAt": "2026-10-24T04:00:00Z"}, "")
 	Set active = ##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions)
 	Do $$$AssertEquals(active.%Size(), 2, "two conditions are active")
 	Do $$$AssertEquals(active.%Get(0).condition_"|"_active.%Get(0).active_"|"_+active.%Get(0).slots.cap_"|"_active.%Get(0).slots.time, "dailyCap|1|20|2026-10-24T04:00:00Z", "dailyCap with its slots")
 	Do $$$AssertEquals(active.%Get(1).%ToJSON(), "{""condition"":""noModelKey"",""active"":true}", "noModelKey with no slots")
 	Do $$$AssertEquals(active.%Get(0).%GetTypeOf("active"), "boolean", "active is a boolean")
 
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}, {"capped": false})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed({"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}, {"capped": false}, "")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions).%Size(), 0, "no condition active: an empty array")
 	Do $$$AssertStatusOK(conditions.GetAt(1).%JSONExportToString(.json), "an inactive condition exports")
 	Do $$$AssertEquals(json, "{""condition"":""dailyCap"",""active"":false}", "as the condition with active false and no slots")

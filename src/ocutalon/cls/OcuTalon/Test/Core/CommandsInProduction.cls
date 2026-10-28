@@ -1,7 +1,7 @@
 /// End-to-end tests of the command gate over the running production (Story 2.3; AD-1, AD-22, AD-26). THIS CLASS RUNS IN
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has. Where the
 /// production does not run, every test fails with that reason, so that a broken start can never give a green shard. Every
-/// test goes through OcuTalon.Core.Commands.Submit, to the two stub owners (ReminderOps and SessionOps), to the built SettingsOps,
+/// test goes through OcuTalon.Core.Commands.Submit, to the stub owner (SessionOps), to the built SettingsOps,
 /// and to IncidentManager, which Story 5.5 built. Each owner's story rewrites its row here when it builds the owner.
 ///   - TestStubOwnersAnswerPlainEnglish: a command to each stub owner gives status OK and a CommandResult with Ok 0, not_built
 ///     and the plain-English text;
@@ -24,14 +24,14 @@ Class OcuTalon.Test.Core.CommandsInProduction Extends OcuTalon.Test.Core.InProdu
 /// The text of a stub owner's answer.
 Parameter NOTBUILT = "This part of OcuTalon isn't built yet. Nothing was changed.";
 
-/// Each stub owner gets one verb with an origin it accepts: ReminderOps (SetReminder) and SessionOps (EndSession). Each
+/// Each stub owner gets one verb with an origin it accepts: SessionOps (EndSession). Each
 /// answers with status OK and a CommandResult that carries nothing out, in plain English.
 Method TestStubOwnersAnswerPlainEnglish()
 {
 	If '..Guard() Quit
 	Set a = ..Session("stubs")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "EndSession|SessionOps|web_user")
+	Set table = $ListBuild("EndSession|SessionOps|web_user")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
 		Set owner = $Piece($List(table, i), "|", 2)

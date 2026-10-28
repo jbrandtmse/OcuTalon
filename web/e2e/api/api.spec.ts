@@ -14,6 +14,10 @@ import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } f
  * required: a test that reads one fails without it. Each is read every time a test uses it, never at import, so that
  * listing the specs (`playwright test --list`) needs none of them.
  * Story 2.4's chat tests sign in as the chat user (OCUTALON_CHAT_USER), whose session no other spec reads.
+ * The instance stream is shared by every user and by every spec, so a spec that ran before this one (heartbeat.spec's onset and
+ * clear, for one) may have added events to it. What this file pins exactly is what the script seeded: the README account's two
+ * session events and the instance stream's first event, instance:1, a noModelKey status. Every other expectation about the instance
+ * stream is relative to the events that the test reads when it starts (instanceBaseline), so the files may run in any order.
  */
 function required(name: string): string {
   const value = process.env[name];
@@ -96,6 +100,20 @@ function ids(events: Array<Record<string, unknown>>): string[] {
   return events.map((event) => `${String(event['stream'])}:${String(event['seq'])}`);
 }
 
+/**
+ * The ids of the instance stream's events as the test starts, read right after it signs in: instance:1 to instance:N with no gap, N >= 1,
+ * the first being the seeded status. The stream is shared with the specs that ran before, so a count or a cursor is taken from this
+ * list and never from the seeded event alone. The poll's session cursor is past any Seq, so it serves the instance events only.
+ */
+async function instanceBaseline(request: APIRequestContext): Promise<string[]> {
+  const response = await request.get(`${EVENTS}?after=999999999999999&afterInstance=0`);
+  expect(response.status(), await response.text()).toBe(200);
+  const baseline = ids(((await response.json()) as { events: Array<Record<string, unknown>> }).events);
+  expect(baseline.length, 'the instance stream holds at least the seeded event').toBeGreaterThanOrEqual(1);
+  expect(baseline, 'the instance stream is instance:1 to instance:N, with no gap').toEqual(baseline.map((_, index) => `instance:${index + 1}`));
+  return baseline;
+}
+
 /** Row 13: the page loads the snapshot, and the snapshot is the seeded session's. */
 test('row 13: the page loads /state and marks the snapshot loaded', async ({ page }) => {
   const answered: Response[] = [];
@@ -103,6 +121,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     if (new URL(response.url()).pathname === STATE) answered.push(response);
   });
   await signInReadme(page);
+  const baseline = await instanceBaseline(page.request);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
@@ -111,7 +130,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
-  expect(body['streams']).toEqual({ session: 2, instance: 1 });
+  expect(body['streams'], "the session's two seeded events, and the instance stream's events as the test read them").toEqual({ session: 2, instance: baseline.length });
   expect(body['chat']).toEqual([]);
   expect(body['rail']).toEqual({ approvals: [], checks: [], reminders: [], decisions: [] });
   expect(body['user'], "the session row's user, not the client's").toBe(README_ACCOUNT.user);
@@ -146,6 +165,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
  */
 test("rows 13 and 14: a user's /state answers the session that sign-in created, and its poll holds the instance events and not another user's session events", async ({ request }) => {
   await signInOverHttp(request, SEEDED.firstCall.user, SEEDED.firstCall.password);
+  const baseline = await instanceBaseline(request);
   const first = await request.get(STATE);
   expect(first.status(), await first.text()).toBe(200);
   const body = (await first.json()) as { epoch: string; streams: { session: number; instance: number } };
@@ -158,13 +178,15 @@ test("rows 13 and 14: a user's /state answers the session that sign-in created, 
   const response = await request.get(`${EVENTS}?after=0&afterInstance=0`);
   expect(response.status(), await response.text()).toBe(200);
   const poll = (await response.json()) as { epoch: string; events: Array<Record<string, unknown>> };
-  expect(ids(poll.events), "the README account's two session events are not here").toEqual(['instance:1']);
+  expect(ids(poll.events), "the README account's two session events are not here").toEqual(baseline);
   expect(poll.epoch, "the user's own epoch, the same as /state's").toBe(body.epoch);
 });
 
 /** Row 14: the poll serves the seeded events, session stream first, and refuses a bad cursor. */
 test('row 14: /events serves the seeded events by cursor', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const baseline = await instanceBaseline(request);
+  const last = baseline.length;
   const poll = async (query: string): Promise<{ epoch: string; events: Array<Record<string, unknown>> }> => {
     const response = await request.get(`${EVENTS}${query}`);
     expect(response.status(), query).toBe(200);
@@ -173,7 +195,8 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
 
   const all = await poll('?after=0&afterInstance=0');
   expect(all.epoch).toBe(SEEDED.epoch);
-  expect(all.events.map((event) => `${String(event['stream'])}:${String(event['seq'])}:${String(event['type'])}`)).toEqual([
+  expect(ids(all.events), 'the session events, then the instance events as the test read them').toEqual(['session:1', 'session:2', ...baseline]);
+  expect(all.events.slice(0, 3).map((event) => `${String(event['stream'])}:${String(event['seq'])}:${String(event['type'])}`)).toEqual([
     'session:1:reminder',
     'session:2:reminder',
     'instance:1:status',
@@ -188,10 +211,11 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
   expect((all.events[1]['payload'] as { text: string }).text).toBe(`${SEEDED.marker}-2`);
   expect(all.events[2]['payload']).toMatchObject({ condition: 'noModelKey', active: true });
 
-  expect((await poll('?after=2&afterInstance=1')).events).toEqual([]);
-  const partial = await poll('?after=1&afterInstance=1');
+  expect((await poll(`?after=2&afterInstance=${last}`)).events).toEqual([]);
+  const partial = await poll(`?after=1&afterInstance=${last}`);
   expect(partial.epoch).toBe(SEEDED.epoch);
   expect(ids(partial.events)).toEqual(['session:2']);
+  expect(ids((await poll('?after=2&afterInstance=1')).events), 'the instance events after the first, which may be none').toEqual(baseline.slice(1));
 
   for (const query of ['', '?after=0', '?afterInstance=0', '?after=-1&afterInstance=0', '?after=0&afterInstance=-1', '?after=x&afterInstance=0', '?after=0&afterInstance=1.5', '?after=&afterInstance=']) {
     await expectError(await request.get(`${EVENTS}${query}`), 400, 'bad_cursor', BAD_CURSOR);
@@ -201,16 +225,17 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
 /** Row 14: each cursor moves its own stream, whatever the other says, and the session's stream is always first. */
 test('row 14: the two cursors are independent, and the session stream is served before the instance stream', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const baseline = await instanceBaseline(request);
   const poll = async (query: string): Promise<string[]> => {
     const response = await request.get(`${EVENTS}${query}`);
     expect(response.status(), query).toBe(200);
     return ids(((await response.json()) as { events: Array<Record<string, unknown>> }).events);
   };
 
-  expect(await poll('?after=2&afterInstance=0'), 'the session cursor at its end leaves the instance stream whole').toEqual(['instance:1']);
-  expect(await poll('?after=0&afterInstance=1'), 'the instance cursor at its end leaves the session stream whole').toEqual(['session:1', 'session:2']);
-  expect(await poll('?after=1&afterInstance=0'), 'a partial session cursor, session first').toEqual(['session:2', 'instance:1']);
-  expect(await poll('?after=001&afterInstance=00'), 'leading zeros are whole numbers').toEqual(['session:2', 'instance:1']);
+  expect(await poll('?after=2&afterInstance=0'), 'the session cursor at its end leaves the instance stream whole').toEqual(baseline);
+  expect(await poll(`?after=0&afterInstance=${baseline.length}`), 'the instance cursor at its end leaves the session stream whole').toEqual(['session:1', 'session:2']);
+  expect(await poll('?after=1&afterInstance=0'), 'a partial session cursor, session first').toEqual(['session:2', ...baseline]);
+  expect(await poll('?after=001&afterInstance=00'), 'leading zeros are whole numbers').toEqual(['session:2', ...baseline]);
   expect(await poll('?after=999999999999999&afterInstance=999999999999999'), 'a cursor of 15 digits, past the last Seq, is an empty poll').toEqual([]);
 
   for (const query of ['?after=0&afterInstance=1234567890123456', '?after=1234567890123456&afterInstance=0', '?after=%2B1&afterInstance=0', '?after=0&afterInstance=1e2', '?after=0x1&afterInstance=0']) {
