@@ -141,7 +141,12 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - `ci/compose.ci.yml` passes `OCUTALON_EVAL` through.
 - The Production install step turns `EvalIn` on only when `OCUTALON_EVAL` is `1`.
 - `eval/orders-date-format/` exists.
-- `EvalIn` and `EvalSink` are stubs (`Parameter STUB = 1`): `EvalIn` is disabled and `EvalSink` enabled. Story 11.5's release check refuses an enabled stub, so `EvalSink` must be built before release.
+- **Built by Story 9.1 (done, `6e5100c`; spec `spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md`):**
+  - `OcuTalon.Eval.In` (no stub): `Start(folder, names, .runRef, .sent, .skipped)` reaches the item only through `Ens.Director.CreateBusinessService("EvalIn")` (refused while disabled), mints the run Ref (the `SuperSession` of every message of the run), and sends each `item`/`injection` case to `Intake`; other kinds (incident, turn) are listed in `skipped` with a reason. `Wait(runRef, seconds)` returns the run's unanswered rows.
+  - `OcuTalon.Eval.Sink` (no stub): completes the case's row by `ItemId` from the `ItemDecision`, reading cost (`Usage.Totals`), the largest request (max over the decide and turn Decisions' `Usage` rows) and, for a `diagnose` Decision, the cause category, element at fault, fix kind and parameters.
+  - `OcuTalon.Eval.Data.CaseResult` (Lane A table, `^OcuTalonP.EvalCaseResult`, in the spine's Tables line): `RunRef`, `CaseName`, `SourceItemId`, `ItemId`, `State` (sent/decided), `DecisionRef`, `Outcome`, `Fallback`, `FallbackReason`, cause fields, `CostUSD`, `TurnDecisionRef`, `TurnCostUSD`, `LargestRequestTokens`; `Open`, `Pending`, `Unanswered`, `Remove`. Owner condition (U-131): `EvalIn` stays off on the demo host and in a judge's install, or a purge task comes with the change.
+  - The case format: `eval/<case>/case.json` with `name`, `kind`, `heldOut`, `description`, `expectation`, `recordedBy`, and for item kinds `item{itemId, channel, provenance, sender, subject, text, catalogKey?, slots?}`; first item case `eval/mail-newsletter/` (expectation `ignore`).
+  - Tests: `Test.Eval.{Switch,Sink,Run,In,Table,Cases}` (lane-a shard; `Run` drives the real production on a throwaway, about 7 s) and the doubles `ZzIn`, `ZzSink`.
 
 ## UX & Interaction Patterns
 
@@ -160,11 +165,11 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
   - Epic 2: `Intake` sends evaluation decisions to `EvalSink`.
   - Epic 5: `IncidentManager`, `EvidencePack`, `WatchOps`, `Checks`, `Checks.Render`, `check_status` and `ReplyGuard`.
 - **Order inside the epic:**
-  - 9.1 builds `EvalIn`'s item path, `EvalSink` and its table, and the isolation test (DW-337 first).
+  - 9.1 (done) built `EvalIn`'s item path, `EvalSink` and its table, and the isolation test; DW-337 (live:cards to install-upgrade) is done and measured.
   - 9.2 scores 9.1's rows.
-  - 9.3 adds `TurnResult` and `check_status`'s eval branch.
+  - 9.3 adds `TurnResult` and `check_status`'s eval branch, and carries DW-110 (each turn request `SessionMode` fresh with no `SeedText`, with a test that two turn cases of one run share no conversation).
   - 9.4 records the incidents (`EvidencePack.Build` replay only; no `IncidentManager` change).
-  - 9.6 adds the incident path through `IncidentManager`, after Epic 7 merges (integrate forward first), and adds the incident cases to the mock job.
+  - 9.6 adds the incident path through `IncidentManager`, after Epic 7 merges (integrate forward first), and adds the incident cases to the mock job; it carries DW-353 (`EvalSink` must match an incident's row by `RunRef` and `SourceItemId`, because the incident's `ItemDecision` carries the incident's Ref as `ItemId`).
   - 9.5 needs 9.1 to 9.4 and 9.6, and Epic 7 merged for Story 7.1's repair-and-resend validation.
 - **DW-337** is Story 9.1's first change, and it is test infrastructure only. It moves `live:cards` out of the CI shards group, measures the result on CI and updates any pin in `test-ci-config.sh`. The orchestrator ruled that this edit of `ci/units.sh` group lines is allowed, because those lines are shared by region.
 - **Epic 7 is running in parallel.** It is editing `Watch/IncidentManager.cls`, `Watch/EvidencePack.cls`, `Watch/Notice.cls`, `Watch/Msg/DiagnosisPayload.cls` and `Agent/Diagnosis.cls`. Epic 9 uses them as they are and never edits them.
