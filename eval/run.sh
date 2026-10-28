@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# The evaluation run against the CI mock (Story 9.2; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
+# .github/workflows/lane-a.yml and runs the same way on a developer machine:
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh
+# It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own with the CI override and
+# its model mock, and reaches the container only through the functions of those files (stack_start, stack_ready, check_session,
+# iris_script, dc exec). It never pulls the base image, never runs warm, and its exit trap removes its project, its volume and its
+# lock. It exports OCUTALON_EVAL=1 for its own process only: that switch enables EvalIn in this throwaway, and no workflow, compose
+# file or class default sets it (owner condition U-131).
+# Variables:
+#   OCUTALON_RUN_TAG          the run tag of ci/iris.sh (default local-<epoch>-<pid>)
+#   OCUTALON_EVAL_WAIT        the seconds each run may take to have every case decided: a whole number from 1 to 3600 (default 180);
+#                             anything else exits 2
+#   OCUTALON_EVAL_REPORT_DIR  the folder that receives the report files (default: a new folder from mktemp -d below
+#                             ${RUNNER_TEMP:-${TMPDIR:-/tmp}})
+# The steps:
+#   1. the throwaway starts and the production runs with every item (RunnerFixture.ReadyReason() is empty); the runners' keys are
+#      pointed at the mock with RunnerFixture.PointKeys(), as the live units do;
+#   2. run 1, the set: OcuTalon.Eval.Report.Run over /opt/ocutalon/eval/, saved in the container as set.json and set.md;
+#   3. run 2, the test-only cases of eval/mock-wrong/, which the mock answers wrongly on purpose: saved as mock-wrong.json and
+#      mock-wrong.md. Both runs print a first CHK line before they call Report.Run, because iris_script runs a session again when it
+#      printed no CHK line, and that early line keeps it from starting a second run;
+#   4. the four files are copied out into the report folder, both Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
+#      that is set, and the last line is "REPORT <folder>".
+# The checks print one PASS or FAIL line each: each run started (a disabled EvalIn fails with the director's text), the set has no
+# problem, and the mock-wrong run has no problem, at least one case, and every case decided (not a fallback) with the scenario's answer
+# and not right. The SM-1 and SM-2 results are printed and never checked: a score below its target is reported and fails nothing. Exits 1
+# when any check fails, 0 otherwise.
+set -u
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root" || exit 1
+
+limit=${OCUTALON_EVAL_WAIT:-180}
+case $limit in
+  '' | *[!0-9]*)
+    echo "FAIL OCUTALON_EVAL_WAIT '$limit' must be a whole number of seconds from 1 to 3600"
+    exit 2
+    ;;
+esac
+limit=$((10#$limit))
+if [ "$limit" -lt 1 ] || [ "$limit" -gt 3600 ]; then
+  echo "FAIL OCUTALON_EVAL_WAIT '$limit' must be a whole number of seconds from 1 to 3600"
+  exit 2
+fi
+
+. "$root/ci/iris.sh"
+setup_tag
+export OCUTALON_EVAL=1
+
+report_dir=${OCUTALON_EVAL_REPORT_DIR:-}
+if [ -z "$report_dir" ]; then
+  report_dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ocutalon-eval.XXXXXX") || exit 1
+else
+  mkdir -p "$report_dir" || exit 1
+fi
+
+CONTAINER_REPORTS=/tmp/ocutalon-eval
+
+# The outcome that the mock's scenario eval-tellnow-ignored answers to the test-only case (ci/mock/scenarios/A/eval-tellnow-ignored.json).
+MOCK_WRONG_ANSWER=ignore
+
+# eval_run <name> <case folder in the container> <title>: one run in its own IRIS session. The session runs Report.Run, prints the
+# CHK lines of the run, and saves the report as <name>.json and <name>.md in the container. The lines are in $tmp/<name>.chk.
+eval_run() {
+  local name=$1 folder=$2 title=$3 begun=$SECONDS
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set sc=##class(OcuTalon.Eval.Report).Run(\"$folder\",\"\",$limit,.report)" \
+    'Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+    'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
+    'Set problems=##class(OcuTalon.Eval.Report).Problems(report)' \
+    'Write !,"CHK|problems|",problems.%Size()' \
+    'For i=0:1:problems.%Size()-1 { Write !,"CHK|problem|",$Translate(problems.%Get(i),$Char(13,10),"  ") }' \
+    'Write !,"CHK|cases|",report.cases.%Size()' \
+    'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):"",1:c.got),"|",c.%Get("fallback") }' \
+    'For g="items","incidents" { Set s=report.scores.%Get(g) Write !,"CHK|",g,"|",s.right," of ",s.total,"|",$Select(s.%GetTypeOf("met")="null":"not measured",s.%Get("met"):"met",1:"not met") }' \
+    "Set sc=##class(OcuTalon.Eval.Report).Save(report,\"$title\",\"$CONTAINER_REPORTS/\",\"$name\")" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name $((SECONDS - begun))s"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# chk_value <name> <key>: the value of the first CHK|<key>| line of the run.
+chk_value() {
+  sed -n "s/^CHK|$2|//p" "$tmp/$1.chk" | head -n 1
+}
+
+# run_started <name>: 0 when the run started, which is also a pass; otherwise it prints the FAIL line and returns 1.
+run_started() {
+  local name=$1
+  if [ ! -s "$tmp/$name.chk" ]; then
+    fail "$name: the IRIS session printed nothing"
+    return 1
+  fi
+  if [ "$(chk_value "$name" run)" != 1 ]; then
+    fail "$name: the run did not start: $(chk_value "$name" error)"
+    return 1
+  fi
+  pass "$name: the run started"
+}
+
+# fetch <name>: copies the report files of the run out of the container into the report folder.
+fetch() {
+  local name=$1 ext
+  for ext in json md; do
+    if ! dc exec -T iris cat "$CONTAINER_REPORTS/$name.$ext" > "$report_dir/$name.$ext" 2> "$tmp/cat.log"; then
+      fail "$name: $name.$ext could not be copied out of the container"
+    fi
+  done
+}
+
+begun=$SECONDS
+stack_start eval
+stack_ready "evaluation" "$begun"
+
+keys_begun=$SECONDS
+check_session "the production runs with every item, and the runners' keys point at the CI mock" OCUTALON \
+  "CHK|ready|
+CHK|keys|1" \
+  'Write !,"CHK|ready|",##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' \
+  'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys() Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|why|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ")' \
+  'Halt'
+if [ "$fails" -ne 0 ]; then
+  sed -n 's/^CHK|why|/  /p' "$tmp/actual.chk"
+  die "the stack is not ready for the evaluation set"
+fi
+echo "KEYS ready and keys $((SECONDS - keys_begun))s"
+
+# --- run 1: the set ---
+
+eval_run set /opt/ocutalon/eval/ "Evaluation set against the CI mock"
+if run_started set; then
+  if [ "$(chk_value set problems)" = 0 ]; then
+    pass "set: the run has no problem ($(chk_value set cases) case(s))"
+  else
+    fail "set: the run has $(chk_value set problems) problem(s)"
+  fi
+  if [ "$(chk_value set saved)" = 1 ]; then fetch set; else fail "set: the report could not be saved"; fi
+fi
+
+# --- run 2: the test-only cases, which the mock answers wrongly ---
+
+eval_run mock-wrong /opt/ocutalon/eval/mock-wrong/ "Test-only cases against the CI mock, every one scored wrong"
+if run_started mock-wrong; then
+  if [ "$(chk_value mock-wrong problems)" = 0 ]; then
+    pass "mock-wrong: the run has no problem"
+  else
+    fail "mock-wrong: the run has $(chk_value mock-wrong problems) problem(s)"
+  fi
+  wrong_cases=$(chk_value mock-wrong cases)
+  right_cases=$(awk -F'|' '$1 == "CHK" && $2 == "case" && $4 == "1"' "$tmp/mock-wrong.chk" | wc -l | tr -d ' ')
+  unanswered=$(awk -F'|' -v want="$MOCK_WRONG_ANSWER" '$1 == "CHK" && $2 == "case" && ($5 != want || $6 != "0") { n++ } END { print n + 0 }' "$tmp/mock-wrong.chk")
+  if [ "${wrong_cases:-0}" -lt 1 ]; then
+    fail "mock-wrong: the run scored no case"
+  elif [ "$right_cases" -ne 0 ]; then
+    fail "mock-wrong: $right_cases of $wrong_cases test-only case(s) scored right, so a wrong answer is not scored wrong"
+  elif [ "$unanswered" -ne 0 ]; then
+    fail "mock-wrong: $unanswered of $wrong_cases test-only case(s) did not get the mock's wrong answer '$MOCK_WRONG_ANSWER' as a decision, so the scenario did not answer"
+  else
+    pass "mock-wrong: all $wrong_cases test-only case(s) got '$MOCK_WRONG_ANSWER' and scored wrong"
+  fi
+  if [ "$(chk_value mock-wrong saved)" = 1 ]; then fetch mock-wrong; else fail "mock-wrong: the report could not be saved"; fi
+fi
+
+# --- the reports ---
+
+for name in set mock-wrong; do
+  if [ -s "$report_dir/$name.md" ]; then
+    echo "==== report $name"
+    cat "$report_dir/$name.md"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      { cat "$report_dir/$name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+    fi
+  fi
+done
+echo "REPORT $report_dir"
+
+if [ "$fails" -ne 0 ]; then
+  echo "eval/run: $fails check(s) failed (project $P)"
+  exit 1
+fi
+echo "eval/run: all checks passed"

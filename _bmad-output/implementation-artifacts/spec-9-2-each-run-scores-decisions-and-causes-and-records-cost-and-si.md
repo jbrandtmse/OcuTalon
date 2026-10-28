@@ -2,9 +2,10 @@
 title: 'Story 9.2: Each run scores decisions and causes and records cost and size'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5b05a925ae911074ef8d55b82bb073cb20fbba8b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
 warnings: ['multiple-goals', 'oversized']
@@ -301,6 +302,42 @@ The first local `eval/run.sh` run is the measurement. Record in Verification its
 
 ## Review Triage Log
 
+### 2026-10-28 — Review pass
+- verdicts: 28 findings — high 0, medium 9, low 17, false 2, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[medium]` `[patch]` B1: the mock-wrong check in `eval/run.sh` asserts only that no case is right, so a fallback or the mock's default Digest passes it — confirmed: `right = decided && got = expected`, so both score wrong; the case lines now carry `got` and `fallback`, and the check requires the scenario's answer `ignore` and no fallback (`MOCK_WRONG_ANSWER`); mutation (the case loses its marker) is red.
+    - `[low]` `[reject]` B2: an exception in `Report.Run` (Build's SQL error) is reported as "did not start" with no reason — Build throws only on a SQL error from a table that Start has just written, and the job fails either way; a Try/Catch is more than a direct correction for text that is unlikely to be met.
+    - `[medium]` `[patch]` B3: the U-131 guard of the `job` rule reads only `lane-a.yml`, and the header says only `eval/run.sh` sets the switch — confirmed (`test-production-restart.sh` sets it too, and another workflow was not scanned); `check_job` now scans every workflow file, the header says what the rule pins, and the sample `bad-switch-in-other-workflow` is flagged; mutation is red.
+    - `[low]` `[reject]` B4: a `case.json` at `eval/<group>/<case>/` is validated but never sent — no such folder convention exists (held-out is a flag), and the fix adds a new rule for a mistake that Story 9.5's gate would show as a missing case.
+    - `[medium]` `[patch]` B5: a decided fallback with no `DecisionRef` is a run problem and no test pins it — it is the spec's Task 3 behaviour ("a decided row with no `DecisionRef`"); the new `TestIncomplete` pins it (with the other reasons joined by "; "); mutation is red.
+    - `[low]` `[patch]` B6: `Text` writes the skipped case, kind, reason, folder and title raw — a reason can hold a pipe or a line break; all five go through `Cell`, and `TestTextSections` pins it; mutation is red.
+    - `[medium]` `[patch]` B7: `Text` and `Report.Run` are barely tested — confirmed, and writing the missing test found a crash: `List` called `%GetIterator` on the plain case names of `size.unknown`; fixed in `List`, with `TestTextSections`, `TestIncomplete` and `Test.Eval.Run.TestReportRun`.
+    - `[low]` `[reject]` B8: the `OCUTALON_EVAL_WAIT` exit-2 branches are untested and a 20-digit value wraps in `10#` — a knob set by a human at a prompt, with its manual evidence in Verification; a test that runs `eval/run.sh` would start a stack the moment the guard broke.
+    - `[low]` `[reject]` B9: `TestReport` depends on `mail-newsletter` and the mock's default answer — Task 5 specifies exactly this real-path test, and the class's run 1 and `zz-plain` already depend on the same data.
+    - `[low]` `[reject]` B10: `FLAGTOKENS` repeats the bridge's `MAXREQUESTTOKENS` — Task 3 names the parameter; NFR-3's number is a product number, and reading the bridge's parameter would add a dependency edge.
+  - Edge Case Hunter
+    - `[medium]` `[patch]` E1: the mock-wrong check passes when the case ends as a fallback — the same root cause as B1, one fix.
+    - `[low]` `[reject]` E2: `Build` can throw inside `Run` — the same as B2.
+    - `[false]` `[reject]` E3: a decided `act` row can lack its turn when the turn Decision comes after the sink completes the row — `Intake` sends the ItemDecision only after the turn ends (its class doc, lines 18-22) and the sink reads the turn at that moment; `TestReport` shows both decisions of `zz-act` on the real path.
+    - `[low]` `[reject]` E4: a `DecisionRef` with no Decision row, or an empty model, shows "model not known" and is no problem — Decided in-stage 20 chose this; the bridge writes the Decision row before the Usage rows that the cost comes from.
+    - `[false]` `[reject]` E5: the eval step could carry `continue-on-error` or an `if` — `test-ci-config.sh`'s never-skipped rule refuses `continue-on-error` in every workflow file (it passes), and a step-level `if` on the run step is not a state anyone is working toward.
+    - `[low]` `[reject]` E6: a second malformed marker leaves the static `markers` rule green — the mock then answers 500 and the case falls back, which the new runtime assertion (B1) fails.
+    - `[low]` `[reject]` E7: `10#` wraps a very long digit string — the same as B8.
+  - Verification Gap
+    - `[medium]` `[patch]` V1: `Run`'s pass-through of Start's skipped list is pinned by no test — confirmed (`TestSkipped` and `TestReport` call `Build` directly); `Test.Eval.Run.TestReportRun` calls `Run` over the three refused cases (no message, no row); mutation is red.
+    - `[medium]` `[patch]` V2: the mock-wrong check asserts only `right=0` — the same as B1.
+    - `[medium]` `[patch]` V3: the Markdown sections and the incident row are unasserted — the same as B7; mutation (`Describe` drops the element) is red.
+    - `[low]` `[reject]` V4: the `OCUTALON_EVAL_WAIT` guard is checked only by hand — the same as B8 (its `''` case is not a branch: an empty value takes the default).
+    - `[medium]` `[patch]` V5: `$$$AssertTrue(1, ...)` in `TestRunRefused` cannot fail — confirmed; where EvalIn is enabled the test now asserts that the director created an `OcuTalon.Eval.In`.
+    - `[low]` `[patch]` V6: the real-tree rules pass on an empty tree — `cases` now fails with no `case.json` below `eval/` and `markers` with no test-only case; the samples `bad-empty-tree` and `bad-no-test-only-case` are flagged; mutations are red.
+    - `[low]` `[patch]` V7: several sub-pins have no `mutation:` line of their own — Rule 19 scopes the line to each AC, and every AC has one; the fallback veto (U-135) and the review patches now have lines too.
+    - `[low]` `[reject]` V8: `TestReport` relies on committed data and the mock's answers — the same as B9.
+  - Intent Alignment
+    - `[low]` `[reject]` I1: `passed/failed/not_checked`, `untrusted` and the snapshot format are literals in the check although `Msg.Enum` has `CHECKRESULT` and `PROVENANCE` — Task 8 names these values in its rules and names five enumerations to read; reading more would add a dependency edge the spec did not ask for.
+    - `[low]` `[reject]` I2: the matrix says the mock-wrong run has one case, the script requires at least one — Task 6 says "at least one case".
+    - `[low]` `[reject]` I3: no committed test runs `eval/run.sh` itself — the job is its consumer (AC4); the branches that matter now have the B1 assertion and its mutation.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6):**
@@ -347,6 +384,24 @@ No AC contradicts an AD.
 16. **`eval/run.sh` never calls `docker` directly.** `test-boundaries.sh`'s docker rules don't scan `eval/`, and that file can't be edited here, so `test-eval-set.sh`'s `eval-scripts` rule pins it instead.
 17. **The check's all-clear rule** uses the epic's scoring key (`catalogKey`) and the spine's HostData convention (Consistency Conventions, `HostData.checks`: check rows whose `result` is `passed`, `failed` or `not_checked`) under the same key, `checks`. Story 9.3 may rename the key in the same change as its first all-clear case.
 18. **Size of the story.** A split was considered: the repository check could have been a sibling story. It was kept whole. The four parts are one deliverable (the job runs the report over cases that the check validates), and together they are smaller than 9.1.
+19. **Two reads of a row, kept apart.** `Report.Build` reads each row twice, and the two reads are independent:
+    - completeness, cost and size come from the row alone, so a row whose case file is gone still has its decisions priced and its size known;
+    - the score comes from the row and its case file.
+20. **`cost.decisions` lists the priced decisions only** (so its size equals `priced`); an unpriced decision is listed under `unpriced` with the same fields and no cost. A decision's `kind` and `model` come from its `Decision` row (`decide`, `diagnose` or `turn`); with no such row the kind is `decide` or `turn` and the model is empty (the text says "model not known").
+21. **One `notComplete` entry for each row**, with its reasons joined by "; " (`not decided`, `no decision`, `no cost`, `no turn cost`, `no request size`). A decided row with no `DecisionRef` says `no decision` only, because its cost and size follow from it. A fallback that has its decision, cost and size is complete and is no problem; its score effect is the only consequence.
+22. **A row that cannot be scored is `unscored`, not wrong**, and is a problem: no readable `case.json`; an item or injection with no `expectation.outcome`; an incident with no `expectation.causeCategory` or `expectation.elementAtFault`; a kind that `Build` does not score (`all-clear`, or a kind that is none of `CASEKINDS`).
+23. **The incident match ignores case and edge spaces for the category too**, not only for the element, as the Boundaries sentence reads. The outcome of an item is compared exactly.
+24. **The repository check's choices:**
+    - an incident's `fixKind` may be absent or "" for a category that has no fix;
+    - the `OCUTALON_EVAL` check matches the whole word, so a future `OCUTALON_EVAL_WAIT` in the workflow is not the switch;
+    - a file whose name starts with a dot is no file of a case folder;
+    - the real tree is listed with `scan_files`, so a tracked or not-yet-ignored file is read.
+25. **`Test.Eval.Report` adds** `TestInjection`, `TestRunRefused` (guarded like `Test.Eval.Switch`: it asserts the director's "disabled" error only where EvalIn is disabled) and an `OnAfterAllTests` that fails the class when a run's case row, a `Decision` row or a folder it made is left.
+26. **`eval/run.sh` writes the report files in the container to `/tmp/ocutalon-eval/`** and copies them out with `dc exec -T iris cat`; the exit trap of `live_start` removes the project and `$tmp` but not the report folder, which holds the four files after the exit.
+27. **The mock-wrong check asserts the scenario's answer.** A fallback and the mock's default Digest also score wrong, so `eval/run.sh` prints `got` and `fallback` in each `CHK|case|` line and requires every test-only case to be a decision (not a fallback) whose outcome is `MOCK_WRONG_ANSWER` (`ignore`, the answer of `eval-tellnow-ignored`), besides not right. The `markers` rule already pins that the scenario's outcome differs from the expected one.
+28. **`Report.Text` escapes every free text with `Cell`** (title, folder and the skipped case, kind and reason), and `List` takes a plain case name (the entries of `size.unknown`) as `{case}`.
+29. **The check cannot pass on a tree without cases.** `cases` fails when nothing below `eval/` is a `case.json`, and `markers` when `eval/mock-wrong/` holds no case. The `job` rule scans every workflow file for the whole word `OCUTALON_EVAL` (owner condition U-131: no workflow sets it), not only `lane-a.yml`.
+30. **New tests of the review pass.** `Test.Eval.Run.TestReportRun` pins that `Report.Run` passes Start's skipped cases to `Build` (the three refused cases of the fixture send nothing and write no row). `Test.Eval.Report` adds `TestTextSections` (a scored incident row, a fallback, an unpriced decision, an unknown size, a row not complete, a row not scored, an escaped skip reason) and `TestIncomplete` (the reasons of a row not complete, a fallback with no decision included). Where EvalIn is enabled `TestRunRefused` asserts that the director created an `OcuTalon.Eval.In`.
 
 **The report's shape** (a run with the newsletter case and the skipped incident):
 
@@ -507,9 +562,101 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | AC4 | `Problems` ignores a skipped case that is not `notRunYet` | `TestSkipped`, and `Test.Eval.Run` `TestReport` |
 | Integration | `Build` reads every run's rows (no `RunRef` filter) | `TestOtherRun` and `TestReport` |
 
+**Implement-stage results (2026-10-28, build 154, tags `e9s2i` and `e9s2iw`).**
+
+Task 0 measurements, from the first `<B> OCUTALON_RUN_TAG=e9s2i bash eval/run.sh` (local Docker caches warm, the base and mock images on the machine):
+- stack start (preflight, build, up, ready): 82 s (`READY evaluation 82s`);
+- ready-and-keys step (`ReadyReason()` and `PointKeys()` in one session): 4 s (`KEYS ready and keys 4s`);
+- run 1, the set (one case sent, decided): 1 s; run 2, `eval/mock-wrong/` (one case): 0 s;
+- the whole script, exit 0: 90 s, then the exit trap. A second run under mutation 1 took 102 s, 3 s, 0 s and 0 s.
+- CI job time: about 2 to 3 minutes `(inference)`: the same 90 s on the runner, plus checkout, `ci/iris.sh build` (5 s here) and teardown. Label stays `(inference)` until the lead's first CI run.
+
+Shard parts (`ci/iris.sh shard lane-a --part k/4`, fresh stack, each in its own call; every class passed, `Test.Eval.Report` ran in part 3 and `Test.Eval.Run` took 7.3 s):
+
+| Part | Classes | Stack ready | Part total |
+|---|---|---|---|
+| 1/4 | 20 | 87 s | 357 s |
+| 2/4 | 19 | 87 s | 163 s |
+| 3/4 | 19 | 84 s | 124 s |
+| 4/4 | 19 | 82 s | 396 s |
+
+Commands, all run from the worktree, all with the lane-b `<B>` string:
+- `ci/iris.sh build`: the web bundle was current after the Epic 8 merge (5 s).
+- `ci/warm.sh up` (after Task 1's scenario existed): `LOCK acquired warm-iris`, ready in 82 s.
+- `bash docker/tests/test-eval-set.sh`: PASS for `enumerations`, `cases`, `markers`, `job` and `eval-scripts` (each rule flags every synthetic bad sample for its own reason, 20 for `cases`, 7 for `markers`, 4 for `job`, 6 for `eval-scripts`, and passes the good one).
+- `bash docker/tests/test-ci-config.sh`: passed (`units` with `eval-set`, every workflow rule on the new job, `lane-a`, `yaml`).
+- `OCUTALON_WARM=1 ... ci/iris.sh class OcuTalon.Test.Eval.Report`: passed; `...Test.Eval.Run`: passed, with `TestReport`; `...Test.Eval.Cases`: passed (`eval/mock-wrong/` is not a case of the set). Forward (Cases, Report, Run) and reverse (Run, Report, Cases) each passed in separate calls on the warm stack.
+- `<B> OCUTALON_RUN_TAG=e9s2i ci/iris.sh class OcuTalon.Test.Eval.Report` on a fresh stack: passed (86 s with the start; `TestRunRefused` ran on the disabled EvalIn).
+- `bash eval/run.sh`: exit 0; `PASS set: the run started`, `PASS set: the run has no problem (1 case(s))`, `PASS mock-wrong: the run started`, `PASS mock-wrong: the run has no problem`, `PASS mock-wrong: all 1 test-only case(s) scored wrong`; both reports printed; `REPORT <folder>` held `set.json`, `set.md`, `mock-wrong.json` and `mock-wrong.md`. The set's report: items 0 of 1 (the newsletter expected Ignore, got Digest), not met; incidents not measured; `orders-date-format` skipped as not run until its story; cost 1 priced decision of $0.000074; largest request 571 tokens. The test-only case: expected tellnow, got ignore, listed under the tell-now cases decided Ignore or Digest.
+- `bash ci/checks.sh`: all 14 blocks passed (`eval-set` the last; `boundaries` and `ci-config` included).
+- `bash docker/tests/test-mock.sh`: 94 of 94 node tests passed with the new scenario.
+- `OCUTALON_EVAL_WAIT` of `abc`, `0` and `3601` exits 2 before anything starts.
+- Slot B (`ocutalon-slot-b`, build 154U): `OcuTalon.Eval.Report`, `OcuTalon.Test.Eval.Report` and `OcuTalon.Test.Eval.Run` compile (`ck`); no test ran there.
+- Teardown: `ci/warm.sh down` for `e9s2iw` and `ci/iris.sh teardown` for `e9s2i` left 0 containers, volumes, networks and images of either tag, and the lane-b lock folder empty.
+
+Mutations (Rule 19). Each was applied to a backup-restorable copy, run, observed red, reverted from the backup, and the tree confirmed byte-identical to its state before (`md5` of every changed file, and `git status --short` unchanged):
+- mutation: `Build` scores an item right whatever its outcome (`Set right = decided`) -> `Test.Eval.Report` `TestItems` (also `TestShares`, `TestHeldOut`, `TestText`) went red, and `eval/run.sh` exited 1 with `FAIL mock-wrong: 1 of 1 test-only case(s) scored right`.
+- mutation: `Build` scores an incident on its category alone -> `TestIncidents` (also `TestShares`) went red.
+- mutation: `MISSEDOUTCOMES` gains `act`, so a tell-now case decided act is listed in `tellNowMissed` -> `TestTellNowMissed` went red.
+- mutation: `Build` counts every row as held out (`Set heldOut = 1`) -> `TestHeldOut` (also `TestText`) went red.
+- mutation: the cost flag is `>` instead of `>=` 0.001 -> `TestCost` went red (`only the decision at 0.001 is flagged`).
+- mutation: the size flag is `>=` instead of `>` 100,000 -> `TestSize` went red (`only the request over 100000 is flagged`).
+- mutation: `eval/mail-newsletter/case.json` loses its `expectation` -> `test-eval-set.sh` `cases` went red (`eval/mail-newsletter/case.json: has no expectation`).
+- mutation: the `evaluation` job's `bash eval/run.sh` step is removed from `lane-a.yml` -> `test-eval-set.sh` `job` went red.
+- mutation: `Problems` ignores a skipped case that is not `notRunYet` -> `TestSkipped` and `Test.Eval.Run` `TestReport` went red.
+- mutation: `Build` reads every run's rows (`WHERE RunRef = ? OR 1 = 1`) -> `TestOtherRun` and `Test.Eval.Run` `TestReport` went red (also `TestShares` and `TestSize`).
+- mutation: `Test.Eval.Report`'s `OnAfterOneTest` no longer removes its case folder -> the class went red from `OnAfterAllTests` (`The class left the folder ...`), the guard for `Test.Eval.Report` leaving no row, `Decision` row or folder.
+
+**Review-patch pass (2026-10-28, same tags `e9s2i` and `e9s2iw`).** The patches are Decided in-stage 27 to 30. Every command ran in its own foreground call, with the lane-b `<B>` string:
+- `bash docker/tests/test-eval-set.sh`: all five rules passed (20 `cases` samples plus `bad-empty-tree`, 7 `markers` plus `bad-no-test-only-case`, 4 `job` plus `bad-switch-in-other-workflow`, 6 `eval-scripts`); `bash docker/tests/test-ci-config.sh`: 30 PASS lines, all rules passed.
+- Warm stack (`ci/warm.sh up` again, ready in 97 s): `Test.Eval.Report` passed (19 tests), `Test.Eval.Run` passed in 6.5 s with `TestReportRun`, `Test.Eval.Cases` passed.
+- `<B> OCUTALON_RUN_TAG=e9s2i bash eval/run.sh`: exit 0; `READY evaluation 90s`, `KEYS ready and keys 3s`, `RUN set 0s`, `RUN mock-wrong 0s`; `CHK|case|tellnow-ignored|0|ignore|0`; `PASS mock-wrong: all 1 test-only case(s) got 'ignore' and scored wrong`.
+- `bash ci/checks.sh`: all 14 blocks passed; `bash docker/tests/test-mock.sh`: 94 of 94; `Test.Eval.Report` on a fresh stack passed.
+- `shard lane-a --part k/4`, fresh stacks, every class passed: part 1 352 s (20 classes), part 2 159 s, part 3 120 s (`Test.Eval.Report` 0.13 s, `Test.Eval.Run` 7.24 s; the existing `SKIP TestStepHelpers` is not this story's), part 4 403 s; stack ready in 82 to 92 s.
+- Teardown: `ci/warm.sh down` for `e9s2iw` and `ci/iris.sh teardown` for `e9s2i` left 0 containers, volumes, networks and images of either tag, and the lane-b lock folder empty.
+
+Mutations of the review pass (Rule 19; each applied from a backup, observed red, restored from the backup, and the tree confirmed byte-identical by `md5` of every changed file):
+- mutation: `Report.Run` calls `Build(runRef, folder)` without the skipped list -> `Test.Eval.Run` `TestReportRun` went red (both assertions); `TestReport` and `TestSkipped` stayed green, which is why the test is needed.
+- mutation: `Describe` leaves the element at fault out of an incident's text -> `Test.Eval.Report` `TestTextSections` went red (the incident row).
+- mutation: `Complete` no longer sets the "no decision" reason -> `TestIncomplete` (three assertions) and `TestTextSections` went red.
+- mutation: `Build` lets a fallback be right (`decided` without `'row.fallback`; the lead's ruling U-135) -> `TestFallback` went red (the fallback is not right; the case shows the fallback).
+- mutation: the skip reason is written without `Cell` -> `TestTextSections` went red.
+- mutation: `check_job` skips every other workflow file -> `test-eval-set.sh` `job` went red (`the rule does not flag the sample bad-switch-in-other-workflow`).
+- mutation: the empty-tree guard of `cases` removed, then that of `markers` -> `test-eval-set.sh` `cases` went red (`bad-empty-tree` not flagged), then `markers` (`bad-no-test-only-case` not flagged).
+- mutation: the test-only case loses its `[[mock:eval-tellnow-ignored]]` marker, so the mock answers its default Digest -> `eval/run.sh` exited 1 with `FAIL mock-wrong: 1 of 1 test-only case(s) did not get the mock's wrong answer 'ignore'` (before the patch it passed).
+- `List` on the plain case names of `size.unknown` raised `<INVALID OREF>` in `TestTextSections` before its fix; the fix is that test's own red-to-green.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement stage (2026-10-28).** One implementation pass, one review pass with four layers, and the patches below. Nothing was pushed; the one local commit is the finalize commit.
+
+**Summary.** `OcuTalon.Eval.Report` (`Build`, `Problems`, `Text`, `Save`, `Run`) scores a run's `CaseResult` rows against their `case.json` files (items and injections by outcome, incidents by category and element, a fallback never right) and lists cost, model, request size, tell-now misses, fallbacks, skipped and unscored cases, with nothing stored in IRIS. `eval/run.sh` starts a throwaway of its own with `OCUTALON_EVAL=1`, runs the set and the test-only cases of `eval/mock-wrong/`, prints and saves both reports, and exits 1 on a problem or on a test-only case that is right or was not answered by the mock's scenario. The `evaluation` job runs it in `lane-a.yml`. `test-eval-set.sh` (a `CHECK_SCRIPTS` entry) fails the build on a case file without its kind, held-out flag, record or expectation.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Eval/Report.cls` (new): the report class.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (new): 19 synthetic-row tests, warm-safe, with a leftovers guard.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls`: `TestReport` and `TestReportRun` on the real path.
+- `eval/run.sh` (new, 755): the job's script.
+- `eval/mock-wrong/tellnow-ignored/case.json` (new) and `ci/mock/scenarios/A/eval-tellnow-ignored.json` (new): the test-only case and the scenario that answers it wrongly.
+- `docker/tests/test-eval-set.sh` (new, 755) and `ci/units.sh` (`eval-set` in `CHECK_SCRIPTS`): the repository check.
+- `.github/workflows/lane-a.yml`: the `evaluation` job, appended.
+- This spec: Design Notes 19 to 30, Verification results and mutation lines, the triage log.
+
+**Review.** 28 findings from the four layers: high 0, medium 9, low 17, false 2.
+- Patched (7 entries): the mock-wrong check now requires the scenario's answer and no fallback (B1/E1/V2); the U-131 guard scans every workflow file and the header says what it pins (B3); `TestIncomplete` pins the reasons of a row not complete, a fallback with no decision included (B5); `Text` escapes free text (B6); `TestTextSections` and `TestReportRun` pin the Markdown sections and `Run`'s pass-through of skipped cases, and writing them found and fixed a crash in `List` on plain case names (B7/V1/V3); `TestRunRefused` asserts the created service (V5); the check fails on an empty tree (V6); the review-pass mutation lines are written (V7).
+- Deferred: none.
+- Rejected, with their reasons in the triage log: B2/E2 (a Try/Catch for a SQL error that Start's own writes rule out), B4 (a case filed at the wrong depth; no such convention), B8/E7/V4 (the `OCUTALON_EVAL_WAIT` knob: a human-set value, manual evidence recorded), B9/V8 (`TestReport` uses the committed data on purpose, as Task 5 says), B10 (`FLAGTOKENS` is the spec's named parameter), E3 (false: Intake sends the ItemDecision after the turn), E4 (Decided in-stage 20), E5 (false: `test-ci-config.sh` refuses `continue-on-error`), E6 (the new runtime assertion covers it), I1 to I3 (spec-bound).
+- Follow-up review recommended: true. Four medium entries were patched (the mock-wrong assertion, the workflow-wide switch scan, the incomplete-row pin, the Markdown and `Run` pins). The unverified risk: those patches (`eval/run.sh`'s new `CHK|case|` fields and the `awk` that reads them, `Report.List`'s plain-entry branch, `check_job`'s loop) were verified by the live job run, the tests and eight mutations, and not read again by an independent layer.
+
+**Verification.** In Verification above: every `(loop)` and `(once)` command passed after the last patch (`test-eval-set.sh`, `test-ci-config.sh` with 30 PASS lines, `Test.Eval.Report`, `Test.Eval.Run` and `Test.Eval.Cases` warm and `Test.Eval.Report` fresh, `eval/run.sh` exit 0 in 90 s of stack start plus 3 s of keys and about 1 s for the two runs, `ci/checks.sh` 14 blocks, `test-mock.sh` 94 of 94, `shard lane-a` four parts). The Matrix Test Audit found every matrix row covered by a test that ran and passed. Slot B compile-checked the three classes of the first pass (build 154U); no test ran there. Both tags are down and the lane-b lock folder is empty.
+
+**Residual risks.**
+- The CI job time (about 2 to 3 minutes of its own work plus checkout, bundle build and teardown) is `(inference)` until the lead's first CI run.
+- A run in which every case fell back, with each decision, cost and size present, passes the job and only lowers the scores; Story 9.5's gate reads `met`, `fallbacks` and the flags.
+- A change to `eval/run.sh` or `eval/` runs every `ci.yml` IRIS group (`IRIS_INPUT` claims `eval/`), though none reads it `(inference)`.
+- The existing `SKIP TestStepHelpers` in shard part 3 is not this story's.
 
 **Plan stage (2026-10-28).** The plan halted after planning, as the dispatch asked. It used the committed `epic-9-context.md` without recompiling it: the planning changes merged in by `71f0311` touch only Epics 8, 11 and 15 and the Status marks convention row. Story 9.1's spec (`done`) gave continuity. The worktree was clean at `f6841653a84edf9b9899106e4ecdae694690643f`. No subagent was spawned, no runtime was touched, and nothing was committed.

@@ -22,6 +22,12 @@
 ///   - TestUsage (AC3): every Usage row of the runs' items has owner eval, their cost is above 0, and the daily spend is unchanged;
 ///   - TestHops (AC3): the messages of the runs go from and to the items of the item path only, EvalIn sends only to Intake, and
 ///     EvalSink sends nothing.
+///   - TestReport (Story 9.2): the report of each run, built from its real rows (Eval.Report.Build): the newsletter is scored wrong with
+///     its cost, model and request size, the incident case is skipped as not run yet and the case that is not there is the run's only
+///     problem; run 2 scores the act case right and the plain case wrong, lists the act case's two decisions and has the three refused
+///     cases as its problems;
+///   - TestReportRun (Story 9.2): Eval.Report.Run over the three refused cases sends nothing and returns the report with the three skipped
+///     cases Start listed, each a problem besides the run that sent no case.
 /// OnAfterAllTests puts the EvalIn row, the runner keys, the case rows, the Decision, Usage and step rows, the AI sessions, the messages
 /// and the fixture folder back as it found them, and fails the class when a case row, message, Decision or Usage row of the runs, or the
 /// fixture folder, is still there.
@@ -514,6 +520,75 @@ Method TestUsage()
 	Do $$$AssertEquals(others, 0, "every one is owned by eval")
 	Do $$$AssertTrue(cost > 0, "their cost is above 0, so the next check can fail: "_cost)
 	Do $$$AssertEquals(+##class(OcuTalon.Bridge.Budget).State().spent, ..Marks.spent, "the daily spend is as it was before the runs")
+}
+
+/// The report of each run is built from its real rows: scores, cost with model, request size, skipped cases and problems.
+Method TestReport()
+{
+	If '..Guard() Quit
+	Set report = ##class(OcuTalon.Eval.Report).Build(..Run1, ##class(OcuTalon.Eval.In).#FOLDER, ..Skipped1)
+	Set items = report.scores.items
+	Do $$$AssertEquals(items.right_"|"_items.total_"|"_items.share_"|"_items.%Get("met"), "0|1|0|0", "run 1: the newsletter expected Ignore and got the mock's Digest, so items are 0 of 1 and SM-1 is not met")
+	Set first = report.cases.%Get(0)
+	Do $$$AssertEquals(report.cases.%Size()_"|"_first.case_"|"_first.expected_"|"_first.got_"|"_first.%Get("right"), "1|mail-newsletter|ignore|digest|0", "and the case is listed as wrong")
+	Do $$$AssertEquals(report.cost.decisions.%Size(), 1, "run 1 has one priced decision")
+	If report.cost.decisions.%Size() = 1 {
+		Set decision = report.cost.decisions.%Get(0)
+		Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run1, "mail-newsletter")
+		Do $$$AssertEquals(decision.case_"|"_decision.kind_"|"_decision.ref, "mail-newsletter|decide|"_$Select($IsObject(row): row.DecisionRef, 1: ""), "it is the newsletter's decide decision")
+		Do $$$AssertTrue(decision.costUSD > 0, "with a cost above 0: "_decision.costUSD)
+		Do $$$AssertTrue(decision.model '= "", "and its model: "_decision.model)
+	}
+	Do $$$AssertEquals(report.cost.unpriced.%Size()_"|"_report.cost.flagged.%Size(), "0|0", "no decision of run 1 is unpriced or flagged")
+	Do $$$AssertTrue(report.size.largestTokens > 0, "the largest request is above 0: "_report.size.largestTokens)
+	Do $$$AssertEquals(report.size.largestCase, "mail-newsletter", "and is the newsletter's")
+	Do $$$AssertEquals(report.skipped.%Size(), 2, "run 1 skipped two cases")
+	Set incident = report.skipped.%Get(0), missing = report.skipped.%Get(1)
+	Do $$$AssertEquals(incident.case_"|"_incident.kind_"|"_incident.%Get("notRunYet"), "orders-date-format|incident|1", "the incident case is skipped as not run yet")
+	Do $$$AssertEquals(missing.case_"|"_missing.kind_"|"_missing.%Get("notRunYet"), "zz-missing||0", "and the case that is not there is not")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Do $$$AssertEquals(problems.%Size()_"|"_problems.%Get(0), "1|zz-missing: not sent: "_$Parameter("OcuTalon.Eval.In", "REASONNOCASEFILE"), "the case that is not there is the only problem of run 1")
+
+	Set report = ##class(OcuTalon.Eval.Report).Build(..Run2, ..Folder, ..Skipped2)
+	Set items = report.scores.items
+	Do $$$AssertEquals(items.right_"|"_items.total_"|"_items.share_"|"_items.%Get("met"), "1|2|.5|0", "run 2: items are 1 of 2 with share 0.5, and SM-1 is not met")
+	Set rights = ""
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set rights = rights_$Select(rights = "": "", 1: ";")_one.case_":"_one.expected_">"_one.got_":"_one.%Get("right")
+	}
+	Do $$$AssertEquals(rights, "zz-act:act>act:1;zz-plain:ignore>digest:0", "the act case is right and the plain case is wrong")
+	Set kinds = ""
+	Set iterator = report.cost.decisions.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set kinds = kinds_$Select(kinds = "": "", 1: ";")_one.case_":"_one.kind
+		Do $$$AssertTrue(one.costUSD > 0 && (one.model '= ""), one.case_" "_one.kind_": a cost above 0 and a model")
+	}
+	Do $$$AssertEquals(kinds, "zz-act:decide;zz-act:turn;zz-plain:decide", "the act case has two decisions, the decide and the turn")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Set list = ""
+	Set iterator = problems.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set list = list_$Select(list = "": "", 1: ";")_$Piece(one, ": ", 1)
+	}
+	Do $$$AssertEquals(problems.%Size()_"|"_list, "3|zz-badjson;zz-noid;zz-user", "the three refused cases are the problems of run 2, and nothing else is")
+}
+
+/// Eval.Report.Run over the three refused cases of the fixture sends no message and writes no row: its report carries what Start skipped.
+Method TestReportRun()
+{
+	If '..Guard() Quit
+	Set report = ""
+	Set sc = ##class(OcuTalon.Eval.Report).Run(..Folder, "zz-noid,zz-user,zz-badjson", 5, .report)
+	Do $$$AssertStatusOK(sc, "Run starts: EvalIn is enabled in this throwaway")
+	If '$IsObject(report) Quit
+	Do $$$AssertEquals(report.cases.%Size()_"|"_report.skipped.%Size(), "0|3", "no case was sent and the three refused cases are listed as skipped")
+	Set list = ""
+	Set iterator = ##class(OcuTalon.Eval.Report).Problems(report).%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set list = list_$Select(list = "": "", 1: ";")_$Piece(one, ": ", 1)
+	}
+	Do $$$AssertEquals(list, ##class(OcuTalon.Eval.Report).#PROBLEMNOCASE_";zz-noid;zz-user;zz-badjson", "the run that sent no case and each refused case are the problems")
 }
 
 /// --- helpers ---
