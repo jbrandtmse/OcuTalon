@@ -1246,6 +1246,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T07:44:45Z status=routed owner=burndown by=harvest note=cross-lane: Lane A builder (Epic 5); re-owned at Epic 6's burn-down to the story that can build it
 - 2026-10-27T12:28:21Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat note=after a reload an answered request has no request card until its next approval or incident event: /state rail.approvals holds pending requests only (Web/Api.cls RailBody) and the snapshot's incident has no requests part
 - 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=after a reload an answered request has no request card, so its result band never shows on an open card while the chat announces it
+- 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the snapshot's incident parts (orchestrator ruling 5); the parts need Lane A's builder (Epic 5); recommended: route to Story 11.1 (Epic 11 turns the real path on), /state building the parts with IncidentManager's builder
 
 ### DW-293: Incident.CauseCategory and Incident.Element values are fixed by no contract: the card humanizes a snake_case category (data_format_change -> 'Data format change') and shows Element as published, while the UX evidence line reads 'order date' and eval/orders-date-format records elementAtFault 'OrderDate'
 - source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1267,6 +1268,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured by Story 6.2 implement on a lane-B throwaway: floor A6 passes only after Hide guide and an empty status; the guide lives in web/src/app/guide/** (Epic 16's contended path; built by Epic 4)
 - 2026-10-27T12:28:21Z status=routed owner=burndown by=harvest note=cross-epic: the guide's compact height is Epic 16's area; re-owned at Epic 6's burn-down to the story that owns web/src/app/guide, then A6 runs without Hide guide
 - 2026-10-27T14:01:37Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat by=cr note=cr confirms routed burndown: card order is UX-fixed; only the guide's compact height (web/src/app/guide) fixes it
+- 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the guide's compact height (orchestrator ruling 5); recommended: a guide-layout fix (the guide reaches DESIGN's 56 px compact form while its Break the feed box shows), routed to Story 11.1's UJ-1 check or a new pool story, then 6.2's A6 runs without Hide guide
 
 ### DW-301: Story 6.2's design is missing from the spine: AD-11's Rule and AD-31 still say AnswersIn's job calls Approval.Answer (Veto V1, kept by U-113: AnswerOps' production job calls it), and AD-32's render exceptions do not list the answer endpoint's 409 text (Web.Api renders the answered.* late-press and expired texts through Catalog.Render)
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1290,6 +1292,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/NoticesIn.cls Join and Core/CommandsIn.cls Join differ only in the parameter's class; a change to the join rule (DW-74's SessionId restore, an OwnerRef check) must be made twice
 - 2026-10-27T19:02:02Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify both joins in one helper once Core/Commands*.cls or Core/Trace.cls is not contended
+- 2026-10-28T02:25:49Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=burndown note=reopen_if=AD-26's in-process join rule changes, or a third in-process service copies the join; no next-epic story owns the shared home (Core/Commands*.cls is Epic 8's, Core/Trace.cls Epic 10's) without a contended edit
 
 ### DW-311: web/e2e/support/approvals.ts and answers/answers.spec.ts copy floor/approval.spec.ts's private fixture helpers (DAY, today, TOMORROW_AT_1413, refOf, DRY_RUN, incidentOf, raise, inOrder) instead of the floor spec importing them
 - source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: in-epic
@@ -1322,3 +1325,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and-dismiss.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: test-cards.sh (code review, DW-315 split) modelled on test-answers.sh; test-floor.sh and test-sign-in.sh carry the same steps
 - 2026-10-28T01:06:08Z status=wontfix-accepted owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=cr note=reopen_if=a change to the browser units' start, fixture-user or redaction steps has to be made in more than two test-*.sh files
+
+### DW-333: flake: live:sign-in rail.spec.ts R1 (open(): main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun
+- source: CI run 40616237736 attempt 1, job iris (browser), head 992e99a (Story 6.4) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: R1 is the first case of rail.spec; R2-R19 use the same open() helper and passed in the same run; actions-runner-8; attempt 2 of the same run green
+- 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
+- 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
