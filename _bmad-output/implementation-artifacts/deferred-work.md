@@ -459,6 +459,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.8 links every user turn by (OwnerRef, agent) (AD-6); an eval turn case is a user turn with owner eval (AD-30)
 - 2026-10-23T12:47:58Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=spec_gate note=each eval turn case starts fresh (SessionMode fresh with no SeedText) or gets an OwnerRef of its own
+- 2026-10-28T12:59:29Z status=routed owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=spec_gate note=9.1's EvalIn sends no turn request (its act turn already goes fresh with no SeedText, pinned by Test.Eval.Run TestActTurn); 9.3's EvalIn turn requests must each set SessionMode fresh with no SeedText (or an OwnerRef of their own), with a test that two turn cases of one run share no conversation
 
 ### DW-114: Decide probes the conversation lock inside its one job (PoolSize 1), so each user turn that finds its conversation held stalls every other Decide request for the probe's 2 seconds
 - source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: high | footprint: in-epic
