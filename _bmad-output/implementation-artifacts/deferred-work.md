@@ -1172,6 +1172,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/e2e/api/api.spec.ts:121,159,208-211 expect instance 1; web/e2e/heartbeat/heartbeat.spec.ts causes StatusMonitor's onset and clear on the sign-in stack; only workers 1 and path order keep them apart
 - 2026-10-25T15:09:29Z status=routed owner=burndown by=cr note=Rule 19 shared surface left in its old shape: api.spec should read instance counts against a baseline (outside Epic 8's footprint)
 - 2026-10-28T01:13:02Z status=routed owner=8-7-epic-8-burn-down by=burndown note=chartered into Epic 8's burn-down; the sign-in split changes spec order, so api.spec reads instance counts against its own baseline
+- 2026-10-28T04:00:48Z status=resolved-by:8-7-epic-8-burn-down by=adjudication note=api.spec reads instance-stream events against a per-test baseline; with heartbeat/ moved first, the old api.spec failed 4 tests and the new one passed 21 of 21 (9525ac0)
 
 ### DW-205: StallFixture's ticks after Hold record synthetic heartbeatGap marks (start = the moved-back mark) that no test removes
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: low | fix-risk: low | footprint: in-story
@@ -1327,6 +1328,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 8.3: 506 s (219); 8.4: 499-500 s (220); 8.6 implement: 515 s (222); local default deadline 540 s; CI deadline 1200 s (701 s on CI)
 - 2026-10-27T19:23:58Z status=escalated owner=burndown by=harvest note=fix is a split of the sign-in unit (docker/tests/test-sign-in.sh, contended) and its group entry (ci/units.sh, Lane B region), or a spec filter for local runs; for the owner/orchestrator at the decision sheet; Epic 8 adds no further browser cases
 - 2026-10-28T01:13:02Z status=routed owner=8-7-epic-8-burn-down by=burndown note=owner via Contest Planner: split live sign-in into two ~4-5 min runs (orchestrator ruling: part argument in docker/tests/test-sign-in.sh, split by spec file; CI's browser group runs the whole unit; Rule 21 recipe line)
+- 2026-10-28T04:00:48Z status=resolved-by:8-7-epic-8-burn-down by=adjudication note=ci/iris.sh live sign-in --part 1/2 (126 tests, ~307 s) and --part 2/2 (96 tests, ~301 s); whole unit 222 tests 513 s; CI browser group runs the whole unit unchanged; Rule 21 recipe bullet; a short part fails its count guard (9525ac0, 74cf449)
 
 ### DW-316: Test.Schedule.ReminderChat.AssertToolSteps is a near-copy of Lane A's private Test.Tools.Reminders.AssertSteps (the step kinds, tool labels, summaries, status and outside-session count), forced by AD-29; the two AgentStep checkers drift when the step shape changes
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1388,13 +1390,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/e2e/api/api.spec.ts:103; StatusMonitor publishes only on a change; the one heartbeat-first run passed 21 of 21; standing runs never put heartbeat before api
 - 2026-10-28T02:48:10Z status=open owner=8-7-epic-8-burn-down by=harvest note=unverified (inference); settles with a repeated heartbeat-first run on a fresh stack
 - 2026-10-28T03:23:24Z occurrence=8-7-epic-8-burn-down
+- 2026-10-28T04:00:48Z status=wontfix-theoretical by=adjudication note=unverified race: StatusMonitor publishes only on a change and no spec before api.spec publishes; with the split api/ runs in part 1 and heartbeat/ in part 2; real if a status-publishing spec ever runs before api.spec in one stack (spec order or part boundary change)
 
 ### DW-335: The hosted web job's unit tests run and cut docker/tests/test-sign-in.sh (web/scripts/e2e-part.test.mjs), but WEB_INPUT_PATTERN in ci/units.sh does not declare that script, so a push that changes only it skips them (AD-22 skip rule)
 - source: spec-8-7-epic-8-burn-down.md | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/changes.sh sets web=false unless a changed path matches WEB_INPUT_PATTERN (ci/units.sh:54: web/, ci/, test-web-build.sh and test-mock.sh only); ci.yml's Unit tests step runs npm --prefix web test only when web=true. The browser group runs live:sign-in whole, with no --part, so a broken --part path or a stale cut anchor stays green on a branch push. Fix: add docker/tests/test-sign-in\.sh$ to WEB_INPUT_PATTERN.
 - 2026-10-28T03:23:24Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=cr note=AD-22 (Rule 6 high); one alternation in contended ci/units.sh:54 (Epic 6); the orchestrator may apply it at Epic 8's merge
+- 2026-10-28T03:58:04Z status=resolved-by:8-7-epic-8-burn-down by=cr note=74cf449 ci/units.sh:54 alternation; e2e-part.test.mjs pin sources ci/units.sh, red on drop, loosen, rename; web=true
 
 ### DW-336: Five spec headers (chat/chat, chat/decision, chat/notice, live/live, banners) still say api.spec pins the instance stream's count, and banners.spec.ts says no spec publishes on that stream
 - source: spec-8-7-epic-8-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Since Story 8.7, api.spec reads the instance stream against each test's own baseline, and heartbeat.spec (Story 8.2) and reminder/chat.spec publish on it. Decided 8 and the spec's Never list keep those five files unedited in this story.
 - 2026-10-28T03:23:24Z status=wontfix-accepted owner=8-7-epic-8-burn-down by=cr note=reopen_if=a story edits one of the five files and its header still says api.spec pins the instance stream's count
+
+### DW-338: The comment above WEB_INPUT_PATTERN (ci/units.sh:46-53) lists the web job's inputs but not docker/tests/test-sign-in.sh, which line 54 holds since DW-335
+- source: spec-8-7-epic-8-burn-down.md (code review, rework 1) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: The comment names 'the scripts that build the web and run the mock's tests'; test-sign-in.sh, added to the pattern for DW-335, is neither, so the comment no longer states the whole contract (Rule 14). The orchestrator's ruling allowed only the alternation in ci/units.sh, so Story 8.7 cannot edit the comment.
+- 2026-10-28T03:58:11Z status=wontfix-accepted owner=8-7-epic-8-burn-down by=cr note=reopen_if=a story edits ci/units.sh:46-54 (the WEB_INPUT_PATTERN comment or pattern): name test-sign-in.sh there

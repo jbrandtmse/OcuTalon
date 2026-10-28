@@ -1,12 +1,14 @@
 // Tests of the part cut of the sign-in unit (e2e-part.mjs): synthetic listings in the shape of Playwright 1.64.1's JSON listing
 // (one top-level suite per spec file, tests in specs, nested suites counted too), the command line's exit codes, and the real
 // listing of the chromium project, made the way docker/tests/test-sign-in.sh makes it. No stack and no browser start.
+// The hosted web job runs these tests, so WEB_INPUT_PATTERN of ci/units.sh must match the sign-in script they read and run: the
+// last block pins that, applying the pattern the way ci/changes.sh applies it.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -463,7 +465,8 @@ describe('WEB_INPUT_PATTERN of ci/units.sh, applied the way ci/changes.sh applie
   }
 
   it('matches docker/tests/test-sign-in.sh, the script that this file reads and runs', () => {
-    assert.equal(matches('docker/tests/test-sign-in.sh'), true);
+    const fromRoot = relative(join(here, '..', '..'), unitPath);
+    assert.equal(matches(fromRoot), true, fromRoot);
   });
 
   it('does not match a near miss of that path', () => {
