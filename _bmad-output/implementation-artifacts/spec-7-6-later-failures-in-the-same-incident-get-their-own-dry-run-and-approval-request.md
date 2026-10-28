@@ -1,0 +1,377 @@
+---
+title: 'Later failures in the same incident get their own dry run and approval request'
+type: 'feature'
+created: '2026-10-28'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context: []
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Since Story 7.2, an incident with a fix gets one dry run and one approval request at its notice. Same-cause failures that join it afterwards only raise its count: no settle waiter starts for them (`IncidentManager.Begin` and `Check` stop once `NoticeCount` is set), `RepairResend.DryRun` would read every key of the group's `Seen` (so a second dry run would re-target what the first request already holds), and nothing records when the later failures began. So later failures are counted but never proposed, and a user could not approve them without approving more than they were shown.
+
+**Approach:** Each dry-run ask records the window of failures it covers, as two marks per failure group (`AskedFrom`, `AskedTo`: keys of `Seen`), and the dry run reads only that window. Same-cause failures that join after an ask, while the incident awaits approval, is fixing or is resolved, start a later round: `IncidentManager` stores when the first of them arrived (`Incident.LaterSince`) and starts a waiter in the incident's trace session. The waiter settles the round by the same rule, then asks `FixExecutor` for a dry run of the new window only. It uses the kind and parameters of the incident's first request, and holds the round's time in `Incident.AskingSince` while the ask is on its way. On the answer, `IncidentManager` raises one request of its own, appends it to `RequestRefs`, moves the incident per AD-15's table and sends each recipient one kind-`approval` `incident.laterRequest` notification with its `ApprovalRef`. An open incident only counts. These are four appended stored properties (V1, a schema veto). The "own `FixRun`" clause depends on 7.3's `Execute` (V3).
+
+## Boundaries & Constraints
+
+**Always:**
+- `IncidentManager` is the only writer of `Incident` and `FailureGroup` and the only publisher of `incident` events. It moves an incident only through `OcuTalon.Watch.Transitions.Next` and publishes only after its save (AD-12, AD-15, AD-33). Every state lives in rows and in the persisted waiter instances (AD-5). A waiter alarm is at most 120 s (`Settle.Alarm`).
+- **Windows.** Every dry-run ask, the first included, first moves each group's marks: `AskedFrom` := `AskedTo`, then `AskedTo` := the last key of `Seen`. It saves the marks (with the incident's own fields that the caller set) in one transaction, and only then sends the ask. The window of the newest ask is `Settle.Window(Seen, AskedFrom, AskedTo)`. `FixExecutor`'s dry run reads each group's window, or its whole `Seen` when the group has no marks (7.1's rows and fixtures). A request's fixed targets therefore come only from its own window, and a failure is never in two windows.
+- **Later failures.** A fresh key that joins a not-new incident is a later failure when its group has an `AskedTo` and the incident is not open-and-noticed. `Record` then sets `LaterSince` to the earliest `FailedAt` of the later failures (min, like `FirstAt`).
+  - When `LaterSince` goes from empty to set on a noticed incident, `Batch` starts one later waiter: a `Settle` request to itself with `%SessionId` = the incident's `TraceHeaderId` (AD-26) and the batch's `SuperSession` kept.
+  - On an unnoticed incident (the first ask is on its way), no waiter starts. The first answer's raise route starts one after its notice, and its no-fix route clears `LaterSince`.
+  - An open, noticed incident (fallback, no_fix, rejected, expired) gets no `LaterSince`: it only updates its count.
+- **The later waiter** (a `Settle` whose incident's `NoticeCount` is set; its alarms use the completion key `laterSettle`) re-reads the row on each wake:
+  - The incident is gone, closed, or has no `LaterSince`: it ends.
+  - The incident is open: it clears `LaterSince` and ends.
+  - `Settle.Wait(LaterSince, LastAt, now, quiet, max)` > 0: it sets an alarm for that long.
+  - An ask is on its way (`AskingSince` set): it re-checks after `quiet` seconds (one ask at a time per incident).
+  - Otherwise it asks (`AskLater`):
+    - It reads `FixKind` and `FixParameters` from the incident's first request row. If that row is missing or has no kind, it logs one Type 3 warning, clears `LaterSince` and ends.
+    - If no group holds a key after its `AskedTo`, it clears `LaterSince` and ends.
+    - Otherwise: `AskingSince` := `LaterSince`, `LaterSince` := "", the marks move, and one `Fix.Msg.DryRun` goes out (completion key `laterDryRun`, from the waiter, so in the incident's trace session).
+- **The later answer** (`Proposed` with `later` 1; it acts only when the incident exists, is not closed and has `AskingSince` set). It always clears `AskingSince`, then:
+  - `Reason` → one warning, no request. Empty `Targets` → no request.
+  - Otherwise `Transitions.Next(state, 1, "raised")` must accept (awaiting_approval → awaiting_approval, fixing → fixing, resolved → awaiting_approval). A refusal, which is an open incident, raises nothing.
+  - The slots are `Notice.WithFixSlots(incident, .sc, dryRun, count, time)`: count = the number of keys in the windows, time = the round's `AskingSince`.
+  - The row is built exactly as for the first request: kind `fix`, the incident, its owner, `ResultTarget` `IncidentManager`, `TraceRef`, and the ask's kind and parameters with the result's targets and dry run (U-126). `RaiseRequest` runs at `$TLevel` 0 with the incident's `TraceHeaderId` and `SuperSession`.
+  - The Ref is appended to `RequestRefs`, and `Move` saves the row and sends one Notification per recipient: `Kind` `approval`, `CatalogKey` `incident.laterRequest`, the Ref as `ApprovalRef`, the incident's Ref and `DecisionRef`. Then it publishes the `incident` event.
+  - A save that fails after `Raise` cancels the request (`CancelRequest`) and logs one warning.
+- One `Execute` per approved request, one at a time per incident, by 5.5's table: `awaiting_approval` + approved → `Execute` own; `fixing` + approved waits; `fixing` + final with a waiting request → `Execute` the earliest waiting in `RequestRefs` order.
+- No model call: a later round asks only `FixExecutor` (AD-16), and the mock logs no request for it.
+- Producers send keys and slots, never text (AD-32). Warnings go through `Bridge.Redact.Text`. Rule 14: ASCII escapes, and comments that state the contract.
+- Stored properties are append-only, and their `Storage` blocks are committed (AD-5, AD-33).
+- Tests are `%UnitTest` classes under `OcuTalon.Test.<Area>`. Tests that drive the running production run only on throwaways, fresh, never on `ocutalon-slot-a`.
+
+**Never:**
+- Nothing of a later story:
+  - 7.3: no `Execute`/`Recheck` handler, no change to `Fix/Executor.cls`, no `FixRun` row written (V3), no `answered.approved`;
+  - 7.4: no `result` notification and no stored counts;
+  - 7.5: no `Reconcile`/`Sweep`.
+- No edit to:
+  - `Watch/Transitions.cls` (it already holds every row this story uses);
+  - `Msg/Catalog/*.cls`, `Live/Payload/*`, `Fix/Msg/**` (AD-16 lists their properties) or `src/bridge/**`;
+  - `Core/BridgeSink.cls`, `Test/Demo/**`, `Test/Msg/**`, `Test/Live/**` or `Test/Data/**` beyond `Tables.cls`'s own two entries.
+- No change to the first notice's key, slots or count.
+- No new public text: a later round that cannot raise a request sends nothing (V2).
+- No mock scenario. No stored property other than V1's four. No edit to any AD. No `[Language = python]`.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|---|---|---|---|
+| Later request, awaiting (live) | S's incident `awaiting_approval` with R1 over 3 failed orders, then 2 more same-cause orders fail with S's TraceRef | At once: `Count` 5, `NoticeCount` 3, one `incident` event with count 5, and R1's `FixTargets`, `DryRun` and state unchanged.<br>After the settle: one `DryRun` to `FixExecutor` in the incident's trace session.<br>R2: `fix`, `pending`, owner S, R1's `FixKind`/`FixParameters`, `FixTargets` = the 2 new ids ascending, `DryRun` `{2, 2, 0, "order date", "10/16/2026", "2026-10-16", {order, orders}}`, its hold in the trace session.<br>The row: `awaiting_approval`, `RequestRefs` "R1,R2", `NoticedAt` unchanged, `LaterSince` and `AskingSince` empty.<br>S gets one `approval` Notification: `incident.laterRequest`, `ApprovalRef` R2, slots `count 2`, `time` = the first new failure's `FailedAt`, `itemNoun`, `fixSummary`, `field`, `before`, `after`, `resendCount 2`. It renders "2 more orders failed since …, with the same cause. I can … Approve?" plus its Dry run paragraph.<br>`WebChatOut` records an `approval` Delivery row with R2. The event and `/state` list R1 and R2 `pending`. The mock logs no request. | none |
+| Later rejected while R1 pending | `Approval.Answer(R2, "reject", "web", …)` | Stays `awaiting_approval`. One `answered.rejected` with R2's Ref per recipient. The event lists R2 `rejected`. No `Execute`. | none |
+| Fixing (probe) | `fixing`, R1 `executing`, later round raised | Stays `fixing`. The `approval` notice goes out. R2 approved → no `Execute`. R1 final `FixResult` → exactly one `Execute` (R2) in the trace session. R2 final → `resolved`. | none |
+| Resolved (probe) | `resolved`, later round raised | `awaiting_approval`, the `approval` notice | none |
+| Open only counts | open with `fallback`, `no_fix`, `rejected` or `expired`; same-cause failures join | `Count` and the `incident` event only. `LaterSince` stays empty, no waiter, no `DryRun`, no request, no Notification. | none |
+| Still gathering | waiter wakes with `Settle.Wait` > 0 | an alarm for those seconds; nothing asked | none |
+| One ask at a time | round 2 settles while round 1's ask is on its way | re-check after `quiet` s, no second ask. After round 1's answer, round 2 asks only its own window, and its `time` is its own first failure's. | none |
+| After the first ask (stragglers) | failures join after the first ask, before its answer | `LaterSince` set, no waiter. The raise route starts the later waiter after the notice. The no-fix route clears `LaterSince`. | none |
+| Later dry run refused (V2) | `Reason` set | no request and no Notification. `AskingSince` cleared, the state unchanged, one Type 3 warning (`LOGLATER`, the redacted reason). | logged |
+| Nothing to resend (V2) | `Reason` "" and `Targets` "" | as above, with no warning | none |
+| Raise fails / ask not sent / error answer / slots unbuildable (V2) | `Raise` error, a send error, `OnError` for `laterDryRun`, or a dry run without `field`/`before`/`after` or with `resend` < 1 | as "refused": nothing raised or sent, `AskingSince` cleared, one warning | logged |
+| Opened during the ask | R1 rejected (open) before the answer | nothing raised or sent, `AskingSince` cleared, no warning | dropped |
+| Save fails after Raise | `Move`'s save fails | `CancelRequest(R2)`, nothing sent, one warning | logged |
+| Gone | the incident is closed or deleted before the wake or the answer | nothing written, raised or sent, no error | dropped |
+| No first request row | R1's row missing | one warning, `LaterSince` cleared, nothing asked | logged |
+
+</intent-contract>
+
+## Code Map
+
+Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as of `2a6fa80`.
+
+**`Watch/IncidentManager.cls`** (the class this story changes most):
+- The class doc L1-72: the notice bullet L34-54 and the states bullet L55-64. Parameters L77-164.
+- `OnResponse` L182: diagnose key, then dryrun key, else `Check`. `OnError` L198.
+- `Batch` L211: it starts waiters only for `added = "new"` (L223-225) and publishes the event for noticed non-new incidents (L226-228).
+- `Record` L234: the fresh keys loop L285-305, where `added` is set at L305. `Find` L318.
+- `Start` L348 clears `%SessionId`. `Begin` L360 quits when `'Waiting`, so a noticed incident gets nothing. `Check` L376 is the settle rule: `SetTimer(Alarm(seconds), ALARMKEY)` L382, then `NoticeCount` and `Diagnose`.
+- `Answered` L445 → `Notice` L507 → `Propose` L532 (builds and sends the ask through `SendDryRun` L553).
+- `Unproposed` L560. `Proposed` L579-637: `Open` check, Reason, Targets, table, dry-run parse, `WithFixSlots`, the row L609-618, `RaiseRequest` L619, the append L625, `Deliver` L626, the cancel L627-631.
+- `NoFix` L654. `Deliver` L670 builds the Notification at L673-679, then calls `Move` L690.
+- `Apply` L711, `Facts` L727 (pending/waiting/earliest), `Owns` L748, `Execute` L764, `Outcome` L832, `Result` L867, `Event` L880. `Open` L953, `Waiting` L959, `Tell` L969.
+
+**Pure and data classes:**
+- `Watch/Settle.cls`: `Values` L56, `Wait` L70, `Alarm` L90, `Hold` L111 (`Seen` stays oldest first and is cut to `SEENMAX` = 1000).
+- `Watch/Notice.cls`: `KEYWITHFIX` L28, `WithFixSlots` L94-121, `Common` L124 (count = `NoticeCount`, time = `FirstAt`).
+- `Watch/Transitions.cls` L104-135: awaiting/fixing/resolved + raised, fixing + approved waits, finished with waiting → `EARLIEST`. Read only.
+- `Fix/Kind/RepairResend.cls` `DryRun` L90: L98-105 reads every `h` key of each group's `Seen`.
+- `Data/Incident.cls`: `RequestRefs` L81, Storage Value 26 L165-167. `Data/FailureGroup.cls`: `ErrorSummary` L38, Storage Value 11 L94-96, `OfIncident` L49.
+
+**Read only, unchanged consumers:**
+- `Msg/Catalog/Watch.cls` L99 `incident.laterRequest` (slots `count`, `itemNoun`, `time`, `fixSummary`, `field`, `before`, `after`, `resendCount`; an undeclared slot such as `cause` is ignored, as `Test.Msg.Catalog.TestExtraSlots` shows).
+- `Channel/WebChat/Out.cls` L50-53 records an `approval` notification as a Delivery row with its `ApprovalRef`.
+- `Live/Payload/Incident.cls` `Details` L138-147 lists every `RequestRefs` entry with `Ref` and `State`.
+- `Data/Ownership.cls` L54 `APPROVALVISIBLE`.
+- `Test/Demo/SimPhoneOut.cls` L342-365 (Epic 6) renders a later request as its own phone message.
+
+**Test helpers:**
+- `Test/Watch/IncidentProbe.cls`: overrides `Move` L62, `SendExecute` L73, `SendDryRun` L82, `RaiseRequest` L91, `CancelRequest` L102 and `SendNotice` L124; helpers `Dried` L147, `Undried` L155, `Answer` L164.
+- `Test/Watch/Tell.cls`: `PARAMETERS`/`DRYRUN` L46-48, `Group` L498 (empty `Seen`), `Diagnosis` L524, `Ask` L543, `Result` L553, `Logged` L564, `Setup` L588 (two watchers of an `instance` ZZNS incident), `Host` L602. `TestRaisedGetsTheWithFixNotice` L272 is the model for the new probe tests.
+- `Test/Watch/Lifecycle.cls`: `TestFixResults` L348; helpers `Incident` L850, `Request` L867, `Link` L901, `SetRequest` L909, `Outcome` L976, `Result` L987.
+- `Test/Data/Fixture.cls` (read only): `Incident` L81 and `Approval` L102 take a fields object (`FixKind`, `FixParameters`, `FixTargets`, `LaterSince`, …).
+- `Test/Watch/Case.cls`:
+  - set-up: `Fail` L629, `WaitFailed` L662, `Fixture` L687, `Group` L1172, `WaitCount` L1212, `WaitRow` L1220;
+  - notifications and the page: `NoticeBodies(ref, kind)` L1257, `AssertDelivered` L1274, `Listed` L1291, `StateIncident` L1300, `Notifications` L1313, `WaitNotices` L1322;
+  - requests and the trace: `ApprovalReady` L247, `Requests` L270, `HeadersBetween` L284, `HoldInSession` L296;
+  - clean-up: `DropIncidentRows` L1371 removes requests, holds and tasks.
+- `Test/Fix/Raise.cls`: the private helpers `Raised` L214, `Noticed` L241, `Answered` L255, `NoticeSessionOf` L269 and `Unchanged` L277 (lifted to `Case` by this story).
+- `Test/Contract/Mock.cls`: `LogMark` L365, `LogSince` L378.
+- `Test/Watch/NoticeText.cls` `TestWithFix` L172. `Test/Msg/Catalog.cls` L19 `NOW` = "2026-10-16T18:20:00Z" and L1233 the UX fixture (read only).
+- `Test/Watch/Settle.cls` `At` L35, `TestHold` L87.
+- `Test/Fix/DryRun.cls`: `Params` L73, `Ask` L80, `TestTargetsAscendAcrossGroups` L241 (no marks: every group's whole `Seen` is still read).
+
+**Tests whose expectations this story changes (shared surface; verified by reading):**
+- `Test/Watch/Incidents.cls` `TestInstanceShared` L300-366: its fourth failure (L347) now starts a later round. "No notification" and "no second request" hold only until that round settles (≥ 10 s). The class doc L21-27.
+- `Test/Data/Tables.cls` L498-556: the `Incident` and `FailureGroup` contracts (Lane A's own entries).
+- Run unchanged:
+  - `Test.Watch.Incidents.TestTrickle` (its later failure lands on an open or unnoticed incident);
+  - `Test.Watch.Diagnose`, `Test.Fix.Raise` and `Test.Fix.DryRun` (the first ask now writes marks; with no marks the whole `Seen` is read);
+  - `Test.Watch.Notices`, `Test.Watch.Closing`, `Test.Checks.Turns` and `Test.Demo.Production` (lane-b).
+
+## Tasks & Acceptance
+
+**Execution:**
+- Task 0 (on the stage's first fresh throwaway; record the results in `## Verification`):
+  - (a) The seconds from the second `Fail` to the `approval` Notification in `Test.Fix.Later`. Expected (inference): about 15 (one poll, 10 s quiet, a dry run under 1 s); it sets `WAITLATER` (default 30).
+  - (b) The class time of `Test.Fix.Later` on a fresh stack. If the call runs past about 180 s, split the class in two, one test each.
+  - (c) The later waiter's `Settle` header and the later `DryRun` lie in the incident's `TraceHeaderId` session.
+  - (d) The second `Partner.Send` joins the same group (one incident, `Count` 5).
+- `Data/FailureGroup.cls` (V1):
+  - Append `AskedFrom` and `AskedTo` (`%String(MAXLEN = 32)`), Storage Values 12 and 13 in that order.
+  - Add the instance method `AskedKeys()`: `Settle.Window(..Seen, ..AskedFrom, ..AskedTo)`, or `..Seen` when both marks are empty.
+  - Doc: what each mark means (Always, "Windows").
+- `Data/Incident.cls` (V1): append `LaterSince` and `AskingSince` (`%String(MAXLEN = 20)`, UTC), Storage Values 27 and 28; doc per Always.
+- `Watch/Settle.cls`: `Window(seen, from, to)` (pure):
+  - It gives the keys of `seen` after `from` up to and including `to`, comma-separated, in order.
+  - `from` empty or not in `seen`: it starts at the first key.
+  - `to` empty, not in `seen`, or not after the start: "".
+  - Update the class doc.
+- `Fix/Kind/RepairResend.cls`: `DryRun` reads each group's `AskedKeys()` instead of `Seen` (L101); update the class doc. Why: AC 1 (a later dry run never re-targets an earlier request's window).
+- `Watch/Notice.cls`:
+  - Add `KEYLATER` ("incident.laterRequest").
+  - `WithFixSlots(incident, Output sc, dryRun = "", count = "", time = "")`: a given count replaces `count` and must be a whole number of at least 1; a given time replaces `time` and must not be empty. Otherwise it refuses in `sc`.
+  - Update the class doc. Rule 2: extends the with-fix builder.
+- `Watch/IncidentManager.cls`:
+  - Parameters: `LATERALARMKEY` ("laterSettle"), `LATERDRYRUNKEY` ("laterDryRun"), `APPROVALKIND` ("approval"), `LOGLATER` ("IncidentManager could not raise the later request of incident ").
+  - `Record`/`Batch`: the later-failure rule (Always); `added` = "later" when `LaterSince` went from empty to set on a noticed incident; `Batch` calls `StartLater` for it. `StartLater(incident)` calls `Start(ref, incident.TraceHeaderId)`; a failed send logs one warning and clears `LaterSince` (save).
+  - `Start(ref, session = "")`: `%SessionId` := session for the send. `Begin`: a `NoticeCount` already set goes to `Later(ref)`.
+  - `OnResponse`: `LATERALARMKEY` → `Later`; `LATERDRYRUNKEY` with a `DryRunResult` → `Proposed(ref, callrequest, callresponse, 1)`. `OnError`: `LATERDRYRUNKEY` → `Unproposed(ref, text, 1)`, OK.
+  - `Later(ref)` and `AskLater(incident)` per Always. The seam `LaterAlarm(seconds)` = `SetTimer(Settle.Alarm(seconds), LATERALARMKEY)`.
+  - `Ask(incident, kind, parameters, key)`, shared by `Propose` and `AskLater`: it moves the marks, saves them with the incident in one transaction, then sends through `SendDryRun(ask, key = DRYRUNKEY)`.
+  - `Proposed(ref, ask, result, later = 0)` and `Unproposed(ref, error, later = 0)`: the first-request route is unchanged except for two things. The raise route starts the later waiter after `Deliver` when `LaterSince` is set, and `NoFix` clears `LaterSince`. The later route is per Always. Every early exit clears `AskingSince` through `Unask(incident)` (a plain save; a failure logs one warning).
+  - `Notification(incident, kind, key, slots, approvalRef)`, lifted from `Deliver` and used by both routes.
+  - Update the class doc (a later-requests bullet).
+  - Why: AC 1-4 and AC 6.
+- `Test/Watch/IncidentProbe.cls`:
+  - Override `Start`, which records `{ref, sessionId}` in `Started`, and `LaterAlarm`, which records seconds in `Alarms`. `SendDryRun` also records the `key`.
+  - Add the helpers `Wake(ref)` (`OnResponse` with `LATERALARMKEY`), `LaterDried(ref, ask, result)` and `LaterUndried(ref, error)`.
+  - Update the doc.
+- `Test/Watch/Case.cls`:
+  - Lift `Raised`, `Noticed`, `Answered` and `NoticeSessionOf` from `Test.Fix.Raise` (Rule 2), with the parameters they read (`WAITHOLD`; the order count becomes `Raised`'s trailing argument, default 3). `Raise` calls them.
+  - `Listed(payload, index = 0)` reads the index-th request.
+  - Update the class doc.
+- `Test/Watch/Settle.cls` `TestWindow` (pure): the first ask (`from` ""), a later window, an empty window (`from` = `to`), `from` trimmed out of `seen`, `to` trimmed, and `to` "".
+- `Test/Watch/NoticeText.cls` `TestLaterRequest` (AC 5, pure):
+  - The row's `FixSummary` is "repair and resend all 3". `WithFixSlots(row, .sc, dryRun{resend 3, field "order date", before "10/16/2026", after "2026-10-16"}, 3, "2026-10-16T18:20:00Z")`.
+  - `RenderAt("incident.laterRequest", slots, "telegram", "2026-10-16T18:20:00Z", 1)` equals the UX fixture text of `Test.Msg.Catalog` L1233 exactly, and `web` equals its `web` text.
+  - A count of 0 and an empty time are refused.
+- `Test/Watch/Tell.cls` (probe, warm). Fixture: `Setup`, `Group` with `Seen` "h101,h102,h103" and `AskedTo` "h103", and R1 from `Fixture.Approval` with `FixKind` repair_resend, `PARAMETERS` and `FixTargets` "101,102,103". Failure times are 2 minutes ago, so the rule has ended.
+  - `TestLaterRequestToEachWatcher` (AC 1-3): every step of the "Later request, awaiting" row on the probe, with no warning logged.
+  - `TestLaterRequestStates` (AC 3, AC 6): resolved becomes awaiting_approval, while each open variant only counts (no `Started`, `LaterSince` empty).
+  - `TestOneAskAtATime`, `TestStragglersOfTheFirstAsk`, `TestStillGathering` (an alarm of the remaining seconds), and `TestLaterNoRequestRoutes` (V2: every logged or dropped row).
+  - `TestSaveFailureCancelsTheLaterRequest` (`FailMove`).
+- `Test/Watch/Lifecycle.cls` `TestLaterRequestWhileFixing` (AC 4, probe, warm): the "Fixing" row. R2's row is made with `Fixture.Approval` and given to the probe as `RaiseRef`, so `Outcome` and `Result` find it.
+- `Test/Fix/DryRun.cls` `TestAskedWindow` (fresh):
+  - 5 real failed orders in one group's `Seen`. Marks `AskedFrom` = the 2nd key, `AskedTo` = the 4th: the targets are the 3rd and 4th ids, `affected` 2.
+  - Marks "" and the 2nd: the first two ids.
+  - `from` = `to`: the `Reason` "no failed message of its scope".
+- `Test/Fix/Later.cls` (new; extends `Test.Watch.Case`; throwaway, fresh; class doc per Rule 14):
+  - `TestLaterFailuresGetTheirOwnRequest` (AC 1, 2, 3; Integration). `Raised("later", …)`, then `LogMark`, then `Fail(2, S's TraceRef)`, `WaitFailed(5)`, and a wait up to `WAITLATER` for 2 requests. It asserts the whole "Later request, awaiting" row:
+    - the render prefix "2 more orders failed since " and the exact Dry run paragraph;
+    - `AssertDelivered(a, "approval", R2)`, `Listed(…, 1)` on the event and on `StateIncident`;
+    - 2 `DryRun` headers in the trace session (`HeadersBetween`), the hold in the session (`HoldInSession`), `LogSince` with no `POST /v1/messages`.
+    - Then it runs the "Later rejected while R1 pending" row.
+  - `TestOpenIncidentOnlyCounts` (AC 6): `Raised`, then reject R1 (open `rejected`), then `Fail(2)`. `WaitCount(ref, 5)` and one more `incident` event; `LaterSince` empty. After `quiet` + 3 s: one request, no `approval` Notification, one `DryRun` header.
+  - The incidents, requests and holds go with `DropIncidentRows`.
+- `Test/Fix/Raise.cls`: use `Case`'s lifted helpers; behaviour unchanged.
+- `Test/Watch/Incidents.cls` `TestInstanceShared` and its doc:
+  - After the fourth failure: R1's `FixTargets` unchanged and `LaterSince` = the fourth failure's time.
+  - Keep "no notification and no second request yet" (well within the 10 s settle).
+- `Test/Data/Tables.cls` (Lane A's own entries): `Incident` gains `LaterSince` and `AskingSince` `%String(MAXLEN=20)`; `FailureGroup` gains `AskedFrom` and `AskedTo` `%String(MAXLEN=32)`.
+
+**Acceptance Criteria:**
+- AC 1: Given an incident awaiting approval, fixing or resolved whose request R1 holds fixed targets, when same-cause failures join it, then R1's `FixTargets`, `DryRun` and state never change, and once the failures settle by the same rule (`Settle.Wait` from the first of them), `FixExecutor` is asked for a dry run of only those failures, and one new request R2 of the same kind and parameters is raised over them alone and appended to `RequestRefs`. The mock logs no request.
+- AC 2: Given R2 is raised, when the notice goes out, then each recipient session gets exactly one Notification of kind `approval` with `incident.laterRequest`, R2's `ApprovalRef`, the incident's Ref and the slots of the new failures and their own dry run (`count`, `time` = the first of them, `resendCount` = R2's `DryRun.resend`), which renders "{count} more {itemNoun} failed since {time}, with the same cause. …". `WebChatOut` records an `approval` Delivery row with R2's Ref, and the `incident` event and `/state` list R1 and R2 (Integration AC).
+- AC 3: Given R2 is raised, when the table applies `raised`, then `awaiting_approval` stays `awaiting_approval` (and a rejection of R2 while R1 is pending keeps it there, with R2's `answered.rejected`), `fixing` stays `fixing`, and `resolved` becomes `awaiting_approval`.
+- AC 4: Given the incident is fixing with R1's run, when R2 is approved, then no `Execute` is sent; when R1's final `FixResult` arrives, exactly one `Execute` goes out, for R2, in the incident's trace session; and R2's own final `FixResult` resolves the incident. R2's `FixRun` row is Story 7.3's `Execute` (V3).
+- AC 5: Given the UX fixture slots, when the later-request entry of `OcuTalon.Msg.Catalog.Watch` renders the slots that `Notice.WithFixSlots` builds, then the text is "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?", then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page."
+- AC 6: Given an open incident (fallback, no fix, rejected or expired), when same-cause failures join it, then only its count and its `incident` event change: no waiter, dry run, request or Notification.
+
+## Spec Change Log
+
+- 2026-10-28, spec gate (lead): V1, V2 and V3 ruled as veto items U-132, U-133 and U-134 (kept as planned; V3 moves the `FixRun` row pin to Story 7.3 in `epics.md`); the spine gains the Conventions row "Later requests". Nothing else in the plan changed.
+
+## Review Triage Log
+
+## Design Notes
+
+**V1. Where the later rounds live (schema change, veto window; the lead rules it).**
+- **Chosen:** four appended stored properties on Lane A's tables (AD-33): `FailureGroup.AskedFrom` and `AskedTo` (Values 12-13), and `Incident.LaterSince` and `AskingSince` (Values 27-28).
+  - The marks fix each ask's window in IncidentManager's one job, before the ask goes out, so `FixExecutor` reads exactly it. A failure is never in two requests, and a failure that joins during an ask is never lost.
+  - `LaterSince` is the gathering round's first failure, which drives the settle rule and the `{time}` slot (UX: "`{time}` is the first of the new failures").
+  - `AskingSince` keeps the asked round's `{time}` while the next round gathers, and marks an ask on its way.
+- **Rejected:**
+  - New properties on `Fix.Msg.DryRun`/`DryRunResult`: AD-16 lists their properties, so that would be an AD amendment.
+  - A failure group per round: it splits one cause into several groups, and changes 5.8's `groups` slot and `Find`.
+  - Key sets instead of marks: the same number of properties, and an empty window loses its end.
+  - One JSON column: opaque to tests and to SQL.
+  - Properties on the IncidentManager BP: AD-5 keeps its state in rows.
+- **Reversal:** stop writing the four. The properties stay empty (append-only), the dry run reads the whole `Seen` again (7.1's behaviour), and later failures only count (5.8's). No migration: no row has them yet.
+
+**V2. A later round that cannot raise a request (a public-behaviour edge, veto window).** This covers a refused dry run, nothing to resend, a failed `Raise`, an ask not sent and unbuildable slots.
+- **Chosen:** send nothing, and log one Type 3 warning for an error. The incident's count has already reached every recipient through the `incident` event, and the page shows it.
+- **Rejected:** the no-fix notice. It is defined for an un-noticed incident only (the table refuses `notice` on a noticed one), and new text would be public text that is not in the UX.
+- This matches 7.2's route for the first request in spirit (U-127: no new text).
+
+**V3. "Each approved request gets its own `FixRun`" (an AC move, veto window; flagged, not decided).**
+- `FixRun` rows are written by `FixExecutor`'s `Execute` (AD-16), which is Story 7.3's (`STUB = 1` until then).
+- This story delivers and pins `IncidentManager`'s half: one `Execute` per approved request, one at a time, the earliest waiting next (AC 4).
+- **Proposed:** move the `FixRun` row half to Story 7.3, as an added acceptance pin: "two approved requests of one incident make two `FixRun` rows, each with its own `ApprovalRef`". It is not on a release gate: UJ-1 has one request.
+
+**Spec gate rulings (lead, 2026-10-28; policy 6df0676):**
+- V1 (schema): ruled `veto`, inbox U-132, kept as planned (the four appended properties). The spine's Conventions row "Later requests" records the window marks and the round state (Rule 20 light path).
+- V2 (a later round that cannot raise a request sends nothing, one warning for an error): ruled `veto`, inbox U-133, kept as planned.
+- V3 (the `FixRun` row per approved request): ruled `veto`, inbox U-134: moved to Story 7.3 as an added acceptance criterion in `epics.md` ("two approved requests of one incident make two `FixRun` rows, each with its own `ApprovalRef`"); Story 7.6's criterion carries the `[AMENDED]` marker. This story pins `IncidentManager`'s half (AC 4).
+
+**Decided in-stage (small, reversible, within the intent):**
+- Completion keys `laterSettle` (alarms) and `laterDryRun` (the ask) tell the later waiter's events apart from the first waiter's. The mode of `Begin` comes from the row: `NoticeCount` is set.
+- The later waiter joins the incident's trace session, like `Execute` does (L768-771). AD-26 gives each incident chain one session. The first waiter still starts the session.
+- The kind and parameters of a later ask come from the incident's first request row: the same cause gives the same fix. U-126 holds per request, because each row is built from its own ask and answer.
+- The first dry run's window is now `Seen` at the time of the ask, not at `FixExecutor`'s read. A failure that joins in between becomes the first later round instead of riding into the first request unseen.
+- Failures that join after the first ask but before its answer (stragglers) are later failures. They become a later round only if the first request is raised. AD-15's "after the notice" read so that no failure falls between two windows.
+- `count` is the number of keys in the round's windows, as the first notice's count is `NoticeCount`. The later notification also carries `cause` (an undeclared slot the catalog ignores), because it reuses `WithFixSlots` (Rule 2). Its `DecisionRef` is the incident's.
+- One ask at a time per incident. A round that settles while another ask is on its way re-checks every `quiet` seconds.
+- A later answer that arrives when `AskingSince` is empty is stale and dropped.
+
+**Governing ADs:**
+- AD-1: items by name.
+- AD-5: rows and persisted waiters are the state; append-only storage; alarms ≤ 120 s.
+- AD-11: `Raise`, the row is the truth, a cancel sends no outcome.
+- AD-12: the full view after the commit; `Requests` lists every request.
+- AD-13: `FromRow` and `OfIncident` use no SQL.
+- AD-15: the later-request bullet, the transition table and one writer.
+  - "One instance per new failure group" stays true for first settles. A later round gets its own waiter because its rule is "the same rule".
+- AD-16: the stored dry run, the executor trusts the row, and `FixRun` per run (V3).
+- AD-22: throwaways and the mock log. AD-26: the incident's trace session. AD-29: Lane A.
+- AD-32: kind `approval` only for a later request; slots only. AD-33: the tables' owner.
+
+Conventions: "Incident notice", "Approval requests", "Times", "Messages", "Redaction".
+
+**Integration ACs, Consumes, Consumed-by (Rules 1 and 2):**
+- **Integration ACs (AC 2):**
+  - `WebChatOut` records the `approval` Delivery row with R2's Ref.
+  - `Catalog.Render` of the received slots gives the later-request text.
+  - `/state` (`Web.Api.StateBody`) and the `incident` event list R1 and R2.
+  - The real hold of R2 sends the rejection that `IncidentManager` turns into R2's answered notice.
+- **Consumes:**
+  - 7.2: `Propose`, `Proposed`, `NoFix`, `Deliver`, `Move`, `Tell`, `RequestRefs`, and the row's `FixKind`, `FixParameters` and `FixTargets`.
+  - 7.1: `FixExecutor`'s dry run and `RepairResend.DryRun`.
+  - 5.5: `Transitions`, `Facts`, `Apply`, `Execute`. 5.3: `Record`, `Settle`, the waiter.
+  - Epic 6: `WebChatOut`, `SimPhoneOut` and the card for kind `approval`.
+  - Epic 0: `incident.laterRequest`.
+- **Consumed-by:**
+  - 7.3: `Execute` per approved request, its `FixRun` (V3), and `Recheck` against each row's own `FixTargets`. A copy that fails again must never reach `Record` as a later failure (AD-15).
+  - 7.4: the result per request. DW-318's `SEENMAX` cap also bounds a window when more than 1000 failures join during one ask.
+  - 7.5: one final `FixResult` per run, each request's own.
+  - Epic 6: the second request card. Lane B's Telegram: Approve and Reject on kind `approval`.
+
+**Extend, don't copy (Rule 2):**
+- `Start` gains a session argument.
+- `Propose` and `AskLater` share `Ask`.
+- `Proposed` and `Unproposed` gain a `later` flag instead of a sibling copy.
+- `Notification` is lifted out of `Deliver`.
+- `WithFixSlots` gains `count` and `time` (no `LaterSlots`).
+- `SendDryRun` gains a key.
+- `Window` sits beside `Settle.Hold`, and `AskedKeys` is shared by `RepairResend` and `IncidentManager`.
+- `Later` is `Check`'s counterpart with a different end (an ask, not a diagnosis). It shares `Settle.Values`/`Wait`/`Alarm` and is a separate method because `Waiting` and `NoticeCount` do not apply.
+- Tests: the probe tests extend `Tell` and `Lifecycle`. `Raised`, `Noticed`, `Answered` and `NoticeSessionOf` are lifted from `Raise` into `Case`, and `Listed` gains an index.
+
+**Ledger inbox:** none.
+
+**Residual risks:**
+1. An ask that is never answered (DW-345, theoretical) leaves `AskingSince` set, and later rounds of that incident re-check every `quiet` seconds until it closes.
+2. A failed `StartLater` send (theoretical) clears `LaterSince`. Those failures join the next round's window, whose `{time}` is then that round's own.
+3. The `SEENMAX` cap (DW-318, 7.4's).
+
+**Footprint:** `Data/{Incident,FailureGroup}.cls` (Lane A tables), `Watch/**`, `Fix/Kind/RepairResend.cls`, `Test/Watch/**`, `Test/Fix/**`, and `Test/Data/Tables.cls` (own entries). No contended path.
+
+## Verification
+
+`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=7 stage=implement'`, run from the worktree root.
+- Run one command per tool call with `timeout: 600000`, in the foreground, and never two IRIS test runs in one message.
+- The harness moves a call to the background after about 180 s. Poll such a run to completion in bounded foreground calls before anything else, and never abandon it.
+- **Tests run only on throwaways, never on `ocutalon-slot-a`.**
+- `IncidentManager`- and `FixExecutor`-driven classes run fresh, because a warm stack's production jobs keep the classes they loaded.
+
+**Commands:**
+- (loop) `<lane> OCUTALON_RUN_TAG=e7s6iw ci/warm.sh up`, once per stage. Expected: READY.
+- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e7s6iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Watch.Settle`, `OcuTalon.Test.Watch.NoticeText`, `OcuTalon.Test.Watch.Tell`, `OcuTalon.Test.Watch.Lifecycle`, `OcuTalon.Test.Watch.Transitions`, `OcuTalon.Test.Data.Tables`. Expected: `CLASS … passed`.
+- (loop) `<lane> OCUTALON_RUN_TAG=e7s6i ci/iris.sh class <Class>`, fresh, one call per class: `OcuTalon.Test.Fix.Later` (first: Task 0), `OcuTalon.Test.Fix.DryRun`, `OcuTalon.Test.Fix.Raise`, `OcuTalon.Test.Watch.Incidents`, `OcuTalon.Test.Watch.Diagnose`, `OcuTalon.Test.Watch.Notices`, `OcuTalon.Test.Watch.Closing`, `OcuTalon.Test.Checks.Turns`. Expected: passed.
+- (once) `<lane> OCUTALON_RUN_TAG=e7s6i ci/iris.sh shard lane-a --part k/12` for k = 1 to 12, one call each (77 classes took 381, 187 and 428 s in thirds after the integrate-forward). Expected: passed. Record each part's time.
+- (once) `<lane> OCUTALON_RUN_TAG=e7s6i ci/iris.sh shard lane-b --part k/3` for k = 1 to 3, one call each. Expected: passed (`Test.Data`, `Test.Demo`, `Test.Live`).
+- (once) `<lane> OCUTALON_RUN_TAG=e7s6i ci/iris.sh live storage-roundtrip`. Expected: passed (the two Storage blocks).
+- (once) `bash ci/checks.sh`. Expected: every script passes (storage blocks, boundaries, class rules).
+- (once) `<lane> OCUTALON_RUN_TAG=e7s6iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e7s6i ci/iris.sh teardown`. Run both also after a failure.
+
+**Shared surfaces:**
+- **`Incident` and `FailureGroup` columns:**
+  - `Test.Data.Tables` (changed);
+  - the `storage-roundtrip` unit and `ci/checks.sh`'s storage checks.
+- **Same-cause failures after an ask now start later rounds:**
+  - changed: `Test.Watch.Incidents.TestInstanceShared` and its class doc;
+  - run unchanged: `TestTrickle`, `Test.Watch.Diagnose`, `Test.Fix.Raise`, `Test.Checks.Turns` and `Test.Demo.Production`.
+- **The dry run reads the window of its ask:** `Test.Fix.DryRun` (fixtures without marks still read the whole `Seen`).
+- **`IncidentProbe`'s new overrides** (`Start`, `LaterAlarm`) and `SendDryRun`'s recorded key: the existing tests that use it (`Tell`, `Lifecycle`) are unchanged.
+- **`Case`'s lifted helpers** and `Listed`'s index: `Raise` (changed to use them), `Diagnose` (unchanged calls).
+- Requests that IncidentManager raises are removed with their incidents (`Case.DropIncidentRows`), so `Test.Bridge.Approval`'s instance-wide counts stay its own.
+- Every test added or changed passes on a fresh environment, in either order.
+
+**Pinning mutations to apply (Rule 19).** The implement stage applies each one, observes red, reverts byte-identically, and records `mutation: … → …` here.
+
+| AC or row | Mutation | Expected red |
+|---|---|---|
+| AC 1 later round | `Record` never sets `LaterSince` | `Later.TestLaterFailuresGetTheirOwnRequest`, `Tell.TestLaterRequestToEachWatcher` |
+| AC 1 window | `RepairResend.DryRun` reads `group.Seen` again | `DryRun.TestAskedWindow`, `Later.TestLaterFailuresGetTheirOwnRequest` (R2's targets) |
+| AC 1 no double cover | `Ask` leaves `AskedFrom` empty for a later ask, so R2's window starts at `Seen`'s first key | `Tell.TestLaterRequestToEachWatcher` (the marks), `Later` (R2's targets hold R1's ids) |
+| AC 2 kind | the later notice is sent with kind `incident` | `Tell.TestLaterRequestToEachWatcher`, `Later` (`AssertDelivered`) |
+| AC 2 Ref | the later notice has an empty `ApprovalRef` | the same |
+| AC 2 time | `AskLater` does not move `LaterSince` to `AskingSince` | `Tell.TestOneAskAtATime`, `Later` (`time`) |
+| AC 3 states | `Later` ends for `resolved` | `Tell.TestLaterRequestStates` |
+| AC 4 waits | `Apply` executes `OWN` for `approved` while fixing | `Lifecycle.TestLaterRequestWhileFixing` |
+| AC 5 | `WithFixSlots` ignores a given count | `NoticeText.TestLaterRequest` |
+| AC 6 | `Record`'s later rule ignores the open-and-noticed check, and `Later` does not end on open | `Later.TestOpenIncidentOnlyCounts`, `Tell.TestLaterRequestStates` |
+| one ask | `Later` ignores `AskingSince` | `Tell.TestOneAskAtATime` |
+| stragglers | the raise route does not call `StartLater` | `Tell.TestStragglersOfTheFirstAsk` |
+| V2 | a later `Reason` keeps `AskingSince` | `Tell.TestLaterNoRequestRoutes` |
+| trace | `StartLater` starts the waiter with session "" | `Tell.TestLaterRequestToEachWatcher` (`Started`), `Later` (`HeadersBetween`) |
+| window arithmetic | `Window` includes `from` | `Settle.TestWindow` |
+
+## Auto Run Result
+Status: ready-for-dev
+Blocking condition: none
+
+**Plan stage (2026-10-28).** Planned in full against the READY FOR DEVELOPMENT standard. The plan stage made no runtime call: no slot read and no throwaway; Task 0 is the implement stage's. Three items need the lead's ruling at the spec gate. Each is planned as recommended, and none blocks the build:
+- **V1 (veto, schema):** four appended stored properties: `Incident.LaterSince`, `Incident.AskingSince`, `FailureGroup.AskedFrom`, `FailureGroup.AskedTo`. Recommend keep. Design Notes give the rejected alternatives and the reversal.
+- **V2 (veto, public behaviour in an edge case):** a later round that cannot raise a request sends no notification, and logs one Type 3 warning for an error. Recommend keep (no new public text; the count reaches every recipient through the `incident` event).
+- **V3 (veto, AC move):** the "each approved request gets its own `FixRun`" half of the criterion depends on Story 7.3's `Execute` (`FixExecutor` writes `FixRun` rows; `STUB = 1` until 7.3). This story delivers `IncidentManager`'s half: one `Execute` per approved request, serialized (AC 4). Proposed: add to Story 7.3 the pin "two approved requests of one incident make two `FixRun` rows". Flagged, not decided.
+
+No AD amendment, no NFR tripwire, no contended path. Ledger inbox: none.
