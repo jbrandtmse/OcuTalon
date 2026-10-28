@@ -672,3 +672,8 @@
 2026-10-28T20:07:28Z	Epic 10	owner_decision	id=U-137 at=2026-10-28T20:06:41Z#412 via=inbox by=Contest_Planner(delegated) answer=keep:(1)six_Pairing_columns+two_indexes(hash_only),purge_by_SeenAt,telegramState;(2)409_not_available_texts,DELETE_/pairing_200;(3)CI_dummy_TELEGRAM_BOT_TOKEN effect=none_needed(rulings_already_in_10.3_spec)
 2026-10-28T20:07:28Z	Epic 10	owner_decision	id=U-138 at=2026-10-28T20:06:41Z#413 via=inbox by=Contest_Planner(delegated) answer=keep:qrcode-generator_2.0.4_exact_pin_in_web/package.json+lockfile,spine_Stack_row effect=none_needed(the_ruling_stands)
 2026-10-28T20:07:41Z	Epic 1-37	deps_hash_rerecorded	reason=prose old=7f782418 new=c3fe7dbe (U-136's condition: one AC line under Story 31.3, the LICENSE and README licence line; no boundary or dependency change)
+2026-10-28T20:08:07Z	Epic 1-37	inbox_resolved	id=U-135 by=orchestrator note=kept
+2026-10-28T20:08:07Z	Epic 1-37	inbox_resolved	id=U-136 by=orchestrator note=kept(condition_in_31.3_ACs,ffee21d)
+2026-10-28T20:08:07Z	Epic 1-37	inbox_resolved	id=U-137 by=orchestrator note=kept
+2026-10-28T20:08:07Z	Epic 1-37	inbox_resolved	id=U-138 by=orchestrator note=kept
+2026-10-28T20:08:07Z	Epic 1-37	planner_fyi	from=Contest_Planner[6f6170] note=owner_2026-10-28:1.0.0_is_the_one_public_release;0.1.0,0.1.1_private_tags(gates_unchanged);hold_#8:Planner_amends_1.0.0_release_check(31.3_measurement_on_gated_demo_host_serving_1.0.0_candidate)+lane_text effect=none_on_the_run
