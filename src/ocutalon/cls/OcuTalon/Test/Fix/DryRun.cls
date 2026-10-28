@@ -4,14 +4,21 @@
 /// A test sends the request from the SimMailboxIn service (an adapterless host, in the owner's trace session), waits up to SENDWAIT seconds for the answer, and
 /// removes the headers of the request's session in the end; the orders and the incident rows are removed by Case.
 ///   - TestFiftyOrdersChangeNothing (AC 3, AC 4): 50 failed orders of one session, with a snapshot (Test.Fix.Snapshot) of OCUTALON and OCUORDERS before and after: the
-///     targets are the 50 header ids, ascending; the dry run has exactly the keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace
-///     changed but the request's own session; and the mock logged no request;
+///     snapshot before holds the 50 orders with their bodies, the Orders production and its queues; the targets are the 50 header ids, ascending; the dry run has exactly the
+///     keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace changed but the request's own session, the incident's row and its group's
+///     rows are unchanged, FixExecutor wrote no event-log row in the request's session; and the mock logged no request;
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
 ///     was delivered are not counted; the example is the lowest target;
-///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap: the targets are still ascending, and an order of two groups is counted once;
+///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap, and one order is only in the second group: every group is read,
+///     the targets are still ascending, and an order of two groups is counted once;
 ///   - TestNothingReadable: in-scope failed orders, none of which reads in the source format: the dry run is worked out, with no target;
 ///   - TestRefusals: an unknown or closed incident, an unknown kind, parameters that are not a JSON object or that the kind refuses, a production that cannot be read
-///     or is not current, and no failed message of the scope are each answered OK with a plain Reason and no targets and no dry run;
+///     or is not current, and no failed message of the scope are each answered OK with no targets and no dry run, and a plain Reason that says why (never the
+///     internal-error sentence);
+///   - TestReasonIsRedactedAndBounded (QA): the Reason of a refusal that quotes the model's field holds no key (it is redacted) and is cut at 1000 characters;
+///   - TestItemNounFallback (QA): an incident noun that is no JSON, no object, or lacks a form is not used; the noun of the orders' body class is;
+///   - TestMissingBodyIsLeftOut (QA): a failed message whose body can no longer be read, the lowest one included, is counted as affected and left out, never as a
+///     target and never dropped;
 ///   - TestOtherRequest: a request that is not a DryRun gets error 5003 from FixExecutor;
 ///   - TestServiceUserMayResend (AC 1): the service user may use %Ens_MessageResend and not %Ens_MessageEditResend;
 ///   - TestInvalidRepairTakesTheFallbackRoute (AC 2): a repair that the kind refuses ends in Epic 5's fallback notice of reason invalid; a valid one is stored.
@@ -86,12 +93,18 @@ Method Ask(incidentRef As %String, kind As %String, parameters As %String, super
 	Quit $Select($$$ISOK(sc) && $IsObject($Get(response)): response, 1: "")
 }
 
-/// The number of headers of the session in the home namespace.
-ClassMethod SessionHeaders(session As %String) As %Integer [ Private ]
+/// The incident's row and its groups' rows as text (every column), to compare before and after.
+ClassMethod RowsOf(ref As %String) As %String [ Private ]
 {
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ?", session)
-	Do rs.%Next()
-	Quit +rs.%GetData(1)
+	Set text = ""
+	For sql = "SELECT * FROM OcuTalon_Data.Incident WHERE Ref = ?", "SELECT * FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID" {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, sql, ref)
+		While rs.%Next() {
+			For i = 1:1:rs.%ResultColumnCount Set text = text _ rs.%GetData(i) _ $Char(31)
+			Set text = text _ $Char(30)
+		}
+	}
+	Quit text
 }
 
 /// The trace reference of the session.
@@ -152,19 +165,33 @@ Method TestFiftyOrdersChangeNothing()
 	Set failed = ..WaitFailed(50)
 	If failed.%Size() < 50 Quit
 	Set ids = ..HeaderIds(failed)
-	Set incident = ..Fixture(owner, ids, , , , {"ItemNoun": (..#NOUN)})
+	// LastAt is now, so that a heartbeat's quiet sweep (QUIETSECONDS) does not close the incident while its row is compared.
+	Set incident = ..Fixture(owner, ids, , , , {"ItemNoun": (..#NOUN), "LastAt": (##class(OcuTalon.Data.Time).NowUtc())})
 	Do $$$AssertTrue(##class(%File).Exists($Parameter(..#MOCK, "LOGFILE")), "the mock's request log exists")
 	Set mark = $ClassMethod(..#MOCK, "LogMark")
 	Set started = $ZHorolog
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take($ListBuild($Namespace, ..#ORDERS), .before)
 	Do $$$LogMessage("Snapshot.Take took "_$Justify($ZHorolog - started, 0, 2)_" seconds")
+	Set orders = before.%Get(..#ORDERS)
+	Set held = 0
+	For i = 1:1:$Length(ids, ",") {
+		If $IsObject(orders) && ($Piece(orders.headers.%Get($Piece(ids, ",", i)), $Char(30), 2) [ ("OrderDate=10/16/2026"_$Char(31))) Set held = held + 1
+	}
+	Do $$$AssertEquals(held, 50, "the snapshot before holds the 50 failed orders with their bodies")
+	Do $$$AssertTrue($IsObject(orders) && (orders.productions.%Get(..#ORDERSPRODUCTION) [ "<Item ") && (orders.queues.%Size() > 0), "and the Orders production's definition with its items, and its queues")
+	Set rows = ..RowsOf(incident.Ref)
 	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
 	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take($ListBuild($Namespace, ..#ORDERS), .after)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after, session)
-	Do $$$AssertEquals(..SessionHeaders(session), 2, "the request's session holds the request and its answer, and nothing else")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session).%Size(), 2, "the request's session holds the request and its answer, and nothing else")
 	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUTALON or OCUORDERS changed but the request's own session: "_lines.%ToJSON())
-	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
+	Do $$$AssertTrue($Length(rows, $Char(30)) = 3, "the incident and its one group are read")
+	Do $$$AssertEquals(..RowsOf(incident.Ref), rows, "and the incident's row and its group's rows are unchanged")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE SessionId = ?", session)
+	Do rs.%Next()
+	Do $$$AssertEquals(+rs.%GetData(1), 0, "FixExecutor wrote no event-log row in the request's session")
+	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), "the mock's request log is read")
 	Do $$$AssertEquals(entries.%Size(), 0, "the mock logged no request")
 	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
 	If '$IsObject(response) Quit
@@ -220,20 +247,19 @@ Method TestTargetsAscendAcrossGroups()
 	Set failed = ..WaitFailed(4)
 	If failed.%Size() < 4 Quit
 	Set ids = ..HeaderIds(failed)
-	Set reversed = $Piece(ids, ",", 4)_","_$Piece(ids, ",", 3)_","_$Piece(ids, ",", 2)_","_$Piece(ids, ",", 1)
-	Set incident = ..Fixture(owner, reversed)
+	Set incident = ..Fixture(owner, $Piece(ids, ",", 4)_","_$Piece(ids, ",", 3)_","_$Piece(ids, ",", 2))
 	Set second = ##class(OcuTalon.Data.FailureGroup).%New()
 	Set second.IncidentRef = incident.Ref
 	Set second.Seq = 2
 	Set second.ItemName = "OrdersFromPartner"
 	Set second.ErrorPattern = "zzSecondGroup"
-	Set second.Seen = "h"_$Piece(ids, ",", 3)_",h"_$Piece(ids, ",", 2)
-	Do $$$AssertStatusOK(second.%Save(), "a second group of the incident holds two of the same orders")
+	Set second.Seen = "h"_$Piece(ids, ",", 2)_",h"_$Piece(ids, ",", 1)
+	Do $$$AssertStatusOK(second.%Save(), "a second group of the incident holds one order of the first group and the lowest order, which only it holds")
 	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
 	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
 	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
 	If '$IsObject(response) Quit
-	Do $$$AssertEquals(response.Targets, ids, "the targets are ascending though the groups hold them descending, and each is listed once")
+	Do $$$AssertEquals(response.Targets, ids, "every group is read, the targets are ascending though the groups hold them descending, and each is listed once")
 	Set dryRun = {}.%FromJSON(response.DryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "4|4|0", "an order of two groups is counted once")
 }
@@ -274,34 +300,35 @@ Method TestRefusals()
 	Set other = ..IdsOf(failed, "")
 	Set incident = ..Fixture(owner, scoped)
 	Set ref = incident.Ref
-	Do ..AssertRefused(ref, "repair_resend", ..Params("ShipDate"), super, "a field that the failed messages do not have")
-	Do ..AssertRefused(ref, "repair_resend", ..Params("OrderDate", "MM-DD-YY"), super, "a format that is not registered")
-	Do ..AssertRefused(ref, "repair_resend", ..Params("OrderDate", "MM/DD/YYYY", "1234.56"), super, "formats of two families")
-	Do ..AssertRefused(ref, "repair_resend", {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD", "rounding": "2"}.%ToJSON(), super, "an extra parameter")
-	Do ..AssertRefused(ref, "rollback", ..Params(), super, "a fix kind that does not exist")
-	Do ..AssertRefused(ref, "", ..Params(), super, "no fix kind")
-	Do ..AssertRefused(ref, "repair_resend", "[1,2]", super, "parameters that are an array")
-	Do ..AssertRefused(ref, "repair_resend", "not json", super, "parameters that are no JSON")
-	Do ..AssertRefused(ref, "repair_resend", "", super, "no parameters")
-	Do ..AssertRefused("zznosuchincident", "repair_resend", ..Params(), super, "an incident that does not exist")
+	Do ..AssertRefused(ref, "repair_resend", ..Params("ShipDate"), super, "a field that the failed messages do not have", "is not a field of the sample message")
+	Do ..AssertRefused(ref, "repair_resend", ..Params("OrderDate", "MM-DD-YY"), super, "a format that is not registered", "is not a registered format")
+	Do ..AssertRefused(ref, "repair_resend", ..Params("OrderDate", "MM/DD/YYYY", "1234.56"), super, "formats of two families", "are not of one family")
+	Do ..AssertRefused(ref, "repair_resend", {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD", "rounding": "2"}.%ToJSON(), super, "an extra parameter", "The parameter 'rounding' is not one of")
+	Do ..AssertRefused(ref, "rollback", ..Params(), super, "a fix kind that does not exist", "The fix kind 'rollback' is not one of")
+	Do ..AssertRefused(ref, "", ..Params(), super, "no fix kind", "The fix kind '' is not one of")
+	Do ..AssertRefused(ref, "repair_resend", "[1,2]", super, "parameters that are an array", "are not one JSON object")
+	Do ..AssertRefused(ref, "repair_resend", "not json", super, "parameters that are no JSON", "are not one JSON object")
+	Do ..AssertRefused(ref, "repair_resend", "", super, "no parameters", "are not one JSON object")
+	Do ..AssertRefused("zznosuchincident", "repair_resend", ..Params(), super, "an incident that does not exist", "There is no incident zznosuchincident")
 	Set closed = ..Fixture(owner, scoped)
 	Set closed.State = "closed"
 	Do $$$AssertStatusOK(closed.%Save(), "an incident is closed")
-	Do ..AssertRefused(closed.Ref, "repair_resend", ..Params(), super, "a closed incident")
+	Do ..AssertRefused(closed.Ref, "repair_resend", ..Params(), super, "a closed incident", "is closed")
 	Set nowhere = ..Fixture(owner, scoped, "ZZNONE")
-	Do ..AssertRefused(nowhere.Ref, "repair_resend", ..Params(), super, "a namespace that the service user cannot read")
+	Do ..AssertRefused(nowhere.Ref, "repair_resend", ..Params(), super, "a namespace that the service user cannot read", "could not be read")
 	Set foreign = ..Fixture(owner, scoped, , "Zz.Other")
-	Do ..AssertRefused(foreign.Ref, "repair_resend", ..Params(), super, "a production that is not the namespace's own")
+	Do ..AssertRefused(foreign.Ref, "repair_resend", ..Params(), super, "a production that is not the namespace's own", "could not be read")
 	Set instance = ..Fixture(owner, other)
-	Do ..AssertRefused(instance.Ref, "repair_resend", ..Params(), super, "no failed message of the owner's scope")
+	Do ..AssertRefused(instance.Ref, "repair_resend", ..Params(), super, "no failed message of the owner's scope", "has no failed message of its scope")
 	Set delivered = ..Fixture(owner, ..LateHeader(super))
-	Do ..AssertRefused(delivered.Ref, "repair_resend", ..Params(), super, "no failed message at all")
+	Do ..AssertRefused(delivered.Ref, "repair_resend", ..Params(), super, "no failed message at all", "has no failed message of its scope")
 	Set logs = ..Fixture(owner, "1", , , "l")
-	Do ..AssertRefused(logs.Ref, "repair_resend", ..Params(), super, "a group that holds only event-log keys")
+	Do ..AssertRefused(logs.Ref, "repair_resend", ..Params(), super, "a group that holds only event-log keys", "has no failed message of its scope")
 }
 
-/// Sends the DryRun and asserts that FixExecutor answers OK with a plain Reason and no targets and no dry run.
-Method AssertRefused(ref As %String, kind As %String, parameters As %String, super As %String, label As %String) [ Private ]
+/// Sends the DryRun and asserts that FixExecutor answers OK with no targets and no dry run, and a plain Reason that holds the phrase (the guard's own sentence,
+/// never the internal-error sentence).
+Method AssertRefused(ref As %String, kind As %String, parameters As %String, super As %String, label As %String, phrase As %String) [ Private ]
 {
 	Set response = ..Ask(ref, kind, parameters, super, .session, .sc)
 	Do $$$AssertStatusOK(sc, label_": FixExecutor answers OK")
@@ -309,10 +336,96 @@ Method AssertRefused(ref As %String, kind As %String, parameters As %String, sup
 		Do $$$AssertTrue(0, label_": there is an answer")
 		Quit
 	}
-	Do $$$AssertTrue(response.Reason '= "", label_": the Reason says why")
+	Do $$$AssertTrue((response.Reason [ phrase) && (response.Reason '[ "internal error"), label_": the Reason says why ("_phrase_"): "_response.Reason)
 	Do $$$AssertTrue($Length(response.Reason) '> 1000 && (response.Reason '[ "ERROR #"), label_": as one plain sentence: "_response.Reason)
 	Do $$$AssertEquals(response.Targets_"|"_response.DryRun, "|", label_": with no targets and no dry run")
 	Do $$$AssertEquals(response.IncidentRef, ref, label_": for the incident that was asked about")
+}
+
+/// Deletes the body of the order that the header holds, in OCUORDERS (the header stays). The test removes only the orders it made.
+ClassMethod DeleteOrderBody(headerId As %Integer) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set header = ##class(Ens.MessageHeader).%OpenId(headerId)
+	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_headerId)
+	Quit ##class(OcuTalon.Demo.Orders.PartnerOrder).%DeleteId(header.MessageBodyId)
+}
+
+Method TestReasonIsRedactedAndBounded()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("reason")
+	Set super = ..TraceOf(owner)
+	Set id = ..SampleOrder(super)
+	If id = "" Quit
+	Set incident = ..Fixture(owner, id)
+	// Built from parts, so that no key-shaped literal is committed (the boundaries check).
+	Set key = "sk"_"-ant-"_"api03-ZQXJVKWBNMLPDRTYUHGF"
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(key), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertTrue(response.Reason [ "is not a field of the sample message", "a field that the orders do not have is refused: "_response.Reason)
+	Do $$$AssertTrue(response.Reason [ "[redacted]", "and the key-shaped field in the sentence is redacted: "_response.Reason)
+	Do $$$AssertTrue(response.Reason '[ "ZQXJVKWBNMLPDRTYUHGF", "so the sentence holds no part of the key")
+	Set long = $Translate($Justify("", 3000), " ", "a")
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(long), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult for a field of 3000 characters")
+	If '$IsObject(response) Quit
+	Do $$$AssertTrue(($Length(response.Reason) > 0) && ($Length(response.Reason) '> 1000), "and its Reason is cut at 1000 characters: "_$Length(response.Reason))
+	Do $$$AssertEquals(response.Targets_"|"_response.DryRun, "|", "with no targets and no dry run")
+}
+
+Method TestItemNounFallback()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("noun")
+	Set super = ..TraceOf(owner)
+	Set id = ..SampleOrder(super)
+	If id = "" Quit
+	Set incident = ..Fixture(owner, id)
+	For noun = "[1,2]", "not json", "{""one"":""order""}", "{""one"":"""",""other"":""x""}", "{""one"":""x"",""other"":""""}", "{}", """text""" {
+		Set incident.ItemNoun = noun
+		Do $$$AssertStatusOK(incident.%Save(), "the incident holds the noun "_noun)
+		Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+		Do $$$AssertTrue($IsObject(response), noun_": FixExecutor gives a DryRunResult")
+		If '$IsObject(response) Continue
+		Do $$$AssertEquals(response.Reason, "", noun_": the dry run is worked out")
+		Set dryRun = $Select(response.DryRun '= "": {}.%FromJSON(response.DryRun), 1: {})
+		Do $$$AssertEquals(dryRun.itemNoun.%ToJSON(), ..#NOUN, noun_": is not used; the noun of the orders' body class is")
+	}
+	Set incident.ItemNoun = ..#OTHERNOUN
+	Do $$$AssertStatusOK(incident.%Save(), "the incident holds a noun of its own")
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals({}.%FromJSON(response.DryRun).itemNoun.%ToJSON(), ..#OTHERNOUN, "and that noun is used")
+}
+
+Method TestMissingBodyIsLeftOut()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("nobody")
+	Set super = ..TraceOf(owner)
+	Set first = ..SampleOrder(super)
+	Set second = ..SampleOrder(super)
+	Set third = ..SampleOrder(super)
+	Set fourth = ..SampleOrder(super)
+	If (first = "") || (second = "") || (third = "") || (fourth = "") Quit
+	Do $$$AssertStatusOK(..DeleteOrderBody(first), "the first order's body is gone")
+	Do $$$AssertStatusOK(..SetOrderDate(third, "2026/10/16"), "the third order's date is in another format")
+	Do $$$AssertStatusOK(..DeleteOrderBody(fourth), "the fourth order's body is gone")
+	Set incident = ..Fixture(owner, first_","_second_","_third_","_fourth)
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason, "", "the dry run is worked out")
+	Do $$$AssertEquals(response.Targets, second, "only the order that reads is a target")
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "4|1|3", "four failed messages are affected: the two with no body, the lowest included, and the one in another format are left out, not dropped")
+	Do $$$AssertEquals(dryRun.before_"|"_dryRun.after, "10/16/2026|2026-10-16", "the example is the order that reads")
 }
 
 Method TestOtherRequest()

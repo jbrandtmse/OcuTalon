@@ -2,7 +2,7 @@
 /// parameter schema. The model picks only the kind (its NAME) and the kind's parameters; the kind validates them (CheckParameters) and does the work in code.
 ///   - NAME is the kind's name as the diagnosis writes it (fixKind); PARAMETERS the names of its parameters, comma-separated, each a required string that is not blank;
 ///     RESOURCES the IRIS privileges the kind needs, in the tool form resource:permission[,resource:permission...] (Install.Step.Fix composes them into the
-///     service role's grants; the executor checks them before it runs);
+///     service role's grants; the executor checks them before it runs Execute, Story 7.3);
 ///   - KINDS is the fixed set of kinds that exist, as class names: a class that is not listed is not a kind. A step that adds a kind adds its class here;
 ///   - Check(name, parameters, fields) is what the reply check of a diagnosis calls: an unknown kind is an error, else the kind's CheckParameters, which is given
 ///     the field names of the sample message as the model saw them;

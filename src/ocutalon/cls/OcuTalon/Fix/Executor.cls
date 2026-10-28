@@ -4,7 +4,8 @@
 ///     the targets and the dry run's JSON. It changes nothing and calls no model. A dry run that cannot be worked out (an unknown or closed incident, an unknown kind, parameters
 ///     that are not a JSON object or that the kind refuses, a production that cannot be read) is still answered with OK: Reason holds one plain sentence (redacted),
 ///     and Targets and DryRun are empty.
-///   - Every other request is answered "not implemented" (error 5003), with no response and no log row.
+///   - Every other request is answered "not implemented" (error 5003) with no response; the handler writes no log row itself (the business operation's host logs
+///     the error status, as it does for any error).
 Class OcuTalon.Fix.Executor Extends Ens.BusinessOperation
 {
 

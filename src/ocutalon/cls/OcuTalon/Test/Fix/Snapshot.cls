@@ -1,12 +1,14 @@
 /// A snapshot of what a fix could change in namespaces (Story 7.1; the helper of the "nothing changed" tests; Stories 7.3 and 7.4 reuse it). It has no Test methods.
 ///   - Take(namespaces) first waits up to WAITQUEUES seconds for every queue of every namespace to be empty, then reads, in each namespace: every Ens.MessageHeader
-///     row (all columns) with the stored properties of its body; each production definition (its description, settings, items and their settings), the production's
-///     state, and every Ens_Config.DefaultSettings row; and the queue counts (Ens.Queue_Enumerate()). The snapshot is a dynamic object, one member per namespace,
-///     each with the members headers, productions, state, defaults and queues, keyed by id or name, whose values are text;
-///   - Diff(before, after, allowedSessions) gives one line per changed or missing item, and per new item: a new header is left out when its SessionId is one of
-///     allowedSessions (a comma-separated list: the session of the request the test sent, which its answer shares) or when its session is one that a new HeartbeatIn header
-///     started (a scheduled tick of the home namespace, with whatever it sends on). The lines are given as a dynamic array of strings, empty when nothing changed.
-/// It only reads, and it switches namespace only in a method that calls nothing but Ens, %SQL and dictionary classes there.
+///     row (all columns) with the stored properties of its body; each production definition (its XML export: the production's attributes and settings, and every
+///     item with its attributes and settings), the production's state, and every Ens_Config.DefaultSettings row; and the queue counts (Ens.Queue_Enumerate()). The
+///     snapshot is a dynamic object, one member per namespace, each with the members headers, productions, state, defaults and queues, keyed by id or name, whose
+///     values are text. A query that fails throws, so that no category is missed silently;
+///   - Diff(before, after, allowedSessions, allowedIn) gives one line per changed or missing item, and per new item: a new header is left out when its namespace is
+///     allowedIn (the namespace Diff runs in, by default) and its SessionId is one of allowedSessions (a comma-separated list: the session of the request the test
+///     sent, which its answer shares), or when its session is one that a new HeartbeatIn header of its namespace started (a scheduled tick, with whatever it sends on).
+///     The lines are given as a dynamic array of strings, empty when nothing changed.
+/// It only reads. It switches namespace in QueuedIn and TakeIn, which call Ens, %SQL and dictionary classes there and open each header's body through its own class.
 Class OcuTalon.Test.Fix.Snapshot
 {
 
@@ -39,7 +41,7 @@ ClassMethod QueuedIn(namespace As %String) As %Integer [ Private ]
 	New $NAMESPACE
 	Set $NAMESPACE = namespace
 	Set total = 0
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Count FROM Ens.Queue_Enumerate()")
+	Set rs = ..Query("SELECT ""Count"" FROM Ens.Queue_Enumerate()")
 	While rs.%Next() {
 		Set total = total + rs.%GetData(1)
 	}
@@ -52,7 +54,7 @@ ClassMethod TakeIn(namespace As %String) As %DynamicObject [ Private ]
 	New $NAMESPACE
 	Set $NAMESPACE = namespace
 	Set taken = {"headers": {}, "productions": {}, "state": {}, "defaults": {}, "queues": {}}
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT * FROM Ens.MessageHeader ORDER BY ID")
+	Set rs = ..Query("SELECT * FROM Ens.MessageHeader ORDER BY ID")
 	Set columns = rs.%ResultColumnCount
 	While rs.%Next() {
 		Set row = ""
@@ -61,7 +63,7 @@ ClassMethod TakeIn(namespace As %String) As %DynamicObject [ Private ]
 		Set bodyClass = rs.%Get("MessageBodyClassName")
 		Do taken.headers.%Set(id, $Piece(row, $Char(31), 1, columns) _ $Char(30) _ ..BodyOf(bodyClass, rs.%Get("MessageBodyId")))
 	}
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Ens_Config.Production")
+	Set rs = ..Query("SELECT Name FROM Ens_Config.Production")
 	While rs.%Next() {
 		Set name = rs.%GetData(1)
 		Do taken.productions.%Set(name, ..DefinitionOf(name))
@@ -70,18 +72,26 @@ ClassMethod TakeIn(namespace As %String) As %DynamicObject [ Private ]
 	Set pstate = ""
 	Do ##class(Ens.Director).GetProductionStatus(.pname, .pstate)
 	Do taken.state.%Set("production", $Get(pname) _ ":" _ $Get(pstate))
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT * FROM Ens_Config.DefaultSettings ORDER BY ID")
+	Set rs = ..Query("SELECT * FROM Ens_Config.DefaultSettings ORDER BY ID")
 	Set columns = rs.%ResultColumnCount
 	While rs.%Next() {
 		Set row = ""
 		For i = 1:1:columns Set row = row _ rs.%GetData(i) _ $Char(31)
 		Do taken.defaults.%Set(rs.%Get("ID"), row)
 	}
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Count FROM Ens.Queue_Enumerate()")
+	Set rs = ..Query("SELECT Name, ""Count"" FROM Ens.Queue_Enumerate()")
 	While rs.%Next() {
 		Do taken.queues.%Set(rs.%GetData(1), rs.%GetData(2))
 	}
 	Quit taken
+}
+
+/// The result of the query in the current namespace; an SQL error is thrown.
+ClassMethod Query(sql As %String) As %SQL.StatementResult [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, sql)
+	If rs.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rs.%SQLCODE, rs.%Message)
+	Quit rs
 }
 
 /// The stored datatype properties of a message body, as name=value pairs in the order of the class, or "" when the body cannot be read.
@@ -108,29 +118,17 @@ ClassMethod BodyOf(bodyClass As %String, bodyId As %String) As %String [ Private
 	Quit text
 }
 
-/// The definition of the production in the current namespace as text: its description and settings, and each item with its class, pool size, enabled flag and settings.
+/// The definition of the production in the current namespace as text: its XML export, or "unreadable" when it cannot be exported.
 ClassMethod DefinitionOf(name As %String) As %String [ Private ]
 {
 	Set production = ##class(Ens.Config.Production).%OpenId(name)
 	If '$IsObject(production) Quit ""
-	Set text = "description=" _ production.Description
-	For i = 1:1:production.Settings.Count() {
-		Set setting = production.Settings.GetAt(i)
-		Set text = text _ $Char(31) _ "setting " _ setting.Target _ "/" _ setting.Name _ "=" _ setting.Value
-	}
-	For i = 1:1:production.Items.Count() {
-		Set item = production.Items.GetAt(i)
-		Set text = text _ $Char(31) _ "item " _ item.Name _ " class=" _ item.ClassName _ " pool=" _ item.PoolSize _ " enabled=" _ item.Enabled _ " category=" _ item.Category
-		For j = 1:1:item.Settings.Count() {
-			Set setting = item.Settings.GetAt(j)
-			Set text = text _ $Char(31) _ "item " _ item.Name _ " setting " _ setting.Target _ "/" _ setting.Name _ "=" _ setting.Value
-		}
-	}
-	Quit text
+	If $$$ISERR(production.XMLExportToString(.xml)) Quit "unreadable"
+	Quit xml
 }
 
 /// One line per difference between the snapshots (see the class description), as a dynamic array of strings.
-ClassMethod Diff(before As %DynamicObject, after As %DynamicObject, allowedSessions As %String = "") As %DynamicArray
+ClassMethod Diff(before As %DynamicObject, after As %DynamicObject, allowedSessions As %String = "", allowedIn As %String = {$Namespace}) As %DynamicArray
 {
 	Set lines = []
 	Set iterator = before.%GetIterator()
@@ -141,7 +139,7 @@ ClassMethod Diff(before As %DynamicObject, after As %DynamicObject, allowedSessi
 			Continue
 		}
 		For category = "headers", "productions", "state", "defaults", "queues" {
-			Do ..DiffCategory(namespace, category, was.%Get(category), now.%Get(category), allowedSessions, lines)
+			Do ..DiffCategory(namespace, category, was.%Get(category), now.%Get(category), $Select(namespace = allowedIn: allowedSessions, 1: ""), lines)
 		}
 	}
 	Quit lines

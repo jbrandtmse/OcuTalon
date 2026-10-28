@@ -4,8 +4,8 @@
 /// repair and the resend are Story 7.3's.
 /// The dry run reads the failed messages of the incident's failure groups through OcuTalon.Watch.Reader.Evidence only, changes nothing and calls no model.
 /// A message is a target when it is a header of a group's Seen that is still in the status Error, its scope (OcuTalon.Watch.FailurePoller Scope of its
-/// SuperSession) is the incident's owner, and its field reads in the source format. A failed message of the scope whose field does not read is counted
-/// as affected and left out. Lane A.
+/// SuperSession) is the incident's owner, and its field reads in the source format. A failed message of the scope whose field does not read (another format,
+/// no value, or no body that can be read) is counted as affected and left out. Lane A.
 Class OcuTalon.Fix.Kind.RepairResend Extends OcuTalon.Fix.Kind
 {
 
@@ -86,7 +86,7 @@ ClassMethod Lower(char As %String) As %Boolean [ Private ]
 /// The targets and the dry run for the incident's failure groups (see the class description). targets holds the header ids, ascending; dryRun holds the keys
 /// of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS: affected, resend and leftOut (counts), field (the property name in words), before and after (the
 /// first target's value and its repair, or empty when there is none) and itemNoun ({one, other}). An error status when the production cannot be read,
-/// the incident has no failed message of its scope or the parameters do not pass CheckParameters against the first of them.
+/// the incident has no failed message of its scope or the parameters do not pass CheckParameters against the body of the first of them that has one.
 ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output targets As %String, Output dryRun As %DynamicObject) As %Status
 {
 	Set targets = ""
@@ -119,10 +119,16 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	}
 	Set first = $Order(scoped(""))
 	If first = "" Quit $$$ERROR($$$GeneralError, "The incident has no failed message of its scope to repair")
+	Set sample = first
+	While (sample '= "") && (scoped(sample).%Size() = 0) {
+		Set sample = $Order(scoped(sample))
+	}
 	Set fields = []
-	Set iterator = scoped(first).%GetIterator()
-	While iterator.%GetNext(.name) {
-		Do fields.%Push(name)
+	If sample '= "" {
+		Set iterator = scoped(sample).%GetIterator()
+		While iterator.%GetNext(.name) {
+			Do fields.%Push(name)
+		}
 	}
 	Set sc = ..CheckParameters(parameters, fields)
 	If $$$ISERR(sc) Quit sc

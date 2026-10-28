@@ -1526,3 +1526,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Settle.SEENMAX caps FailureGroup.Seen at 1000; RepairResend.DryRun takes targets only from Seen; 7.1 exercises 50 orders, 7.4 measures 500
 - 2026-10-28T00:12:03Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=harvest note=7.4 owns scale: make the dry run's count honest past the Seen cap (say how many it could not list, or read the targets another way) and pin it
+- 2026-10-28T01:03:01Z occurrence=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing
+
+### DW-328: The spine's dependency rule lists only Watch -> Fix.Kind and Checks -> Fix.Run.Sweep inside the domain layer, while the Fix area (RepairResend, Executor) references Watch.Reader, FailurePoller.Scope, ItemNoun and Transitions
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-3 makes Watch.Reader the only reader and AD-16 asks for the scope check, so the code is right; ARCHITECTURE-SPINE.md L98 does not name these arrows (Checks already uses the same classes); the spec's spine notes list them for the lead
+- 2026-10-28T01:02:38Z status=escalated owner=burndown by=cr note=Rule 20 spine write: add Fix -> Watch.Reader, FailurePoller.Scope, ItemNoun, Transitions to the domain sentence (veto item)
+
+### DW-329: A data_format_change whose sample has no body, or whose values are in a format outside the registered nine, has no valid reply and ends as the fallback invalid
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: DiagnosisPayload requires a registered fixKind for data_format_change and the kind check fails closed without a sample body (AC 2, Always); the fallback notice is Epic 5's safe route
+- 2026-10-28T01:03:01Z status=by-design owner=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing by=cr note=spec-bound: AC 2 and the fail-closed rule; reopens only by a spec amendment (for example more formats, or a fix-less data_format_change)
+
+### DW-330: Test.Fix.DryRun.DropSession repeats the per-session loop of Test.Data.Fixture.RemoveMessages (bodies, headers, Ens_Util.Log) for one OCUTALON session
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: RemoveMessages works by super session and Test/Data/** is Epic 16's (contended), so a per-session entry point cannot be added here
+- 2026-10-28T01:03:01Z status=wontfix-accepted owner=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing by=cr note=reopen_if=a third copy of a per-session message clean-up appears under src/ocutalon/cls/OcuTalon/Test, or Fixture gains a per-session entry point

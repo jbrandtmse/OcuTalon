@@ -2,7 +2,8 @@
 /// Orders namespace. Each kind of difference must give a line, and an allowed change none.
 ///   - TestEachCategoryIsCompared: a changed, a missing and a new item of the productions, the defaults and the queues, a changed production state, and a namespace that is
 ///     missing after each give a line;
-///   - TestNewHeaders: a new header gives a line, unless its session is one of the allowed sessions or the session of a new HeartbeatIn header; a changed or missing header gives a line;
+///   - TestNewHeaders: a new header gives a line, unless its session is one of the allowed sessions of its namespace or the session of a new HeartbeatIn header; a session
+///     allowed in another namespace does not allow it; a changed or missing header gives a line;
 ///   - TestNothingChanged: two equal snapshots give no line.
 Class OcuTalon.Test.Fix.SnapshotDiff Extends %UnitTest.TestCase
 {
@@ -60,9 +61,10 @@ Method TestNewHeaders()
 	Set row = ..Row(7, "A")
 	Set now = ..Taken({"1": (..Row(1, "A")), "2": (row)})
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now).%Size(), 1, "a new header in a session that nobody allowed gives a line")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "7").%Size(), 0, "and none when its session is allowed")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "3,7").%Size(), 0, "also in a list of sessions")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "8").%Size(), 1, "but not for another session")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "7", "ZZNS").%Size(), 0, "and none when its session is allowed in its namespace")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "3,7", "ZZNS").%Size(), 0, "also in a list of sessions")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "8", "ZZNS").%Size(), 1, "but not for another session")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, now, "7", "ZZOTHER").%Size(), 1, "nor for the same session number allowed in another namespace")
 	Set tick = ..Taken({"1": (..Row(1, "A")), "2": (..Row(7, "HeartbeatIn")), "3": (..Row(7, "B"))})
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, tick).%Size(), 0, "the headers of a session that a new HeartbeatIn header started are allowed")
 	Set changed = ..Taken({"1": (..Row(2, "A"))})

@@ -655,23 +655,7 @@ ClassMethod MakeSampleOrder(superSession As %String) As %Integer [ Private ]
 	Set body.Sku = "ZZ-1"
 	Set body.Quantity = 1
 	If $$$ISERR(body.%Save()) Quit ""
-	Set header = ##class(Ens.MessageHeader).%New()
-	Set header.SuperSession = superSession
-	Set header.TimeCreated = earlier
-	Set header.TimeProcessed = earlier
-	Set header.SourceConfigName = "zzPollerSource"
-	Set header.TargetConfigName = "zzPollerTarget"
-	Set header.Type = 1
-	Set header.Status = 8
-	Set header.IsError = 1
-	Set header.MessageBodyClassName = "OcuTalon.Demo.Orders.PartnerOrder"
-	Set header.MessageBodyId = body.%Id()
-	Set sc = header.%Save()
-	If $$$ISOK(sc) {
-		Set header.SessionId = header.%Id()
-		Set sc = header.%Save()
-	}
-	Quit $Select($$$ISOK(sc): header.%Id(), 1: "")
+	Quit ..MakeHeader(superSession, earlier, 8, "OcuTalon.Demo.Orders.PartnerOrder", body.%Id())
 }
 
 /// A header in OCUORDERS that has not failed yet: a request from zzPollerSource to zzPollerTarget in the SuperSession, Status 3 (delivered), created and
@@ -684,7 +668,9 @@ Method LateHeader(superSession As %String) As %Integer [ Private ]
 	Quit id
 }
 
-ClassMethod MakeHeader(superSession As %String, stamp As %String) As %Integer [ Private ]
+/// A request header in OCUORDERS from zzPollerSource to zzPollerTarget in the SuperSession, created and processed at the stamp, in a session of its own: in the
+/// status (3, delivered, by default; 8 is an error, with IsError set), with the body when its class and id are given. Its id is given back, or "".
+ClassMethod MakeHeader(superSession As %String, stamp As %String, status As %Integer = 3, bodyClass As %String = "", bodyId As %String = "") As %Integer [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
@@ -695,7 +681,10 @@ ClassMethod MakeHeader(superSession As %String, stamp As %String) As %Integer [ 
 	Set header.SourceConfigName = "zzPollerSource"
 	Set header.TargetConfigName = "zzPollerTarget"
 	Set header.Type = 1
-	Set header.Status = 3
+	Set header.Status = status
+	Set header.IsError = (status = 8)
+	Set header.MessageBodyClassName = bodyClass
+	Set header.MessageBodyId = bodyId
 	Set sc = header.%Save()
 	If $$$ISOK(sc) {
 		Set header.SessionId = header.%Id()

@@ -11,6 +11,8 @@
 ///   - TestGrants: Install.Step.Fix.Grants is generated from the RESOURCES of the registered kinds, GrantsOf of ZzKind gives its pairs once each, and no registered kind
 ///     declares a forbidden resource of the Roles step;
 ///   - TestInstructionsNameTheFormats: each registered format appears quoted in the instructions of the Diagnosis agent, which hold no template token;
+///   - TestFromInput: EvidencePack.FromInput gives back the pack that Input made (braces and quotes inside a string included), ignores text after the pack, and
+///     gives "" for no pack: an empty text, another first line, no JSON object, another format or an object that is not closed;
 ///   - TestReplyCheckRows: the validation rows through Decide.CheckReply: a valid repair is accepted; an unknown field, a bad format, formats of two families, one format
 ///     twice and an extra parameter are refused with the reply-check error; with no ReplyCheck begun, or an input that is no pack or a pack with no sample body, every repair
 ///     is refused, and a diagnosis with no fix is still accepted;
@@ -187,16 +189,22 @@ Method TestFromInput()
 	Set line = $Parameter(class, "INPUTLINE")
 	Set object = {"format": "ocutalon.evidencePack/1", "item": "A } { \"quoted\" \\ item", "sample": {"body": {"OrderDate": "10/16/2026"}}}
 	Set input = $ClassMethod(class, "Input", object)
-	Do $$$AssertEquals($ClassMethod(class, "FromInput", input).%ToJSON(), object.%ToJSON(), "FromInput gives back the pack that Input made, braces and quotes in a string included")
-	Do $$$AssertEquals($ClassMethod(class, "FromInput", input_" (test zz) {x}").%ToJSON(), object.%ToJSON(), "text after the pack is ignored")
-	Do $$$AssertEquals($ClassMethod(class, "FromInput", input_$Char(10)).%ToJSON(), object.%ToJSON(), "so is a line break")
+	Do $$$AssertEquals(..JsonOf($ClassMethod(class, "FromInput", input)), object.%ToJSON(), "FromInput gives back the pack that Input made, braces and quotes in a string included")
+	Do $$$AssertEquals(..JsonOf($ClassMethod(class, "FromInput", input_" (test zz) {x}")), object.%ToJSON(), "text after the pack is ignored")
+	Do $$$AssertEquals(..JsonOf($ClassMethod(class, "FromInput", input_$Char(10))), object.%ToJSON(), "so is a line break")
 	For text = "", "Triage this item.", line, line_$Char(10), line_$Char(10)_"[]", line_$Char(10)_"{""format"":""x""}", line_$Char(10)_" {""format"":""ocutalon.evidencePack/1""}", line_$Char(10)_"{""format"":""ocutalon.evidencePack/1""", "x"_$Char(10)_$Piece(input, $Char(10), 2) {
 		Do $$$AssertEquals($ClassMethod(class, "FromInput", text), "", "'"_$Extract(text, 1, 30)_"' holds no pack")
 	}
 }
 
-/// A usable repair as a dynamic object: the field, the source format and the target format may be changed by the caller.
-ClassMethod Repair() As %DynamicObject [ Private ]
+/// The JSON text of a dynamic object, or "none" when the value is no object (so that an assertion on a missing pack fails instead of throwing).
+ClassMethod JsonOf(value As %DynamicObject) As %String [ Private ]
+{
+	Quit $Select($IsObject(value): value.%ToJSON(), 1: "none")
+}
+
+/// A usable repair as a dynamic object: the field, the source format and the target format may be changed by the caller. Test.Fix.Validation uses it too.
+ClassMethod Repair() As %DynamicObject
 {
 	Quit {"outcome": "act", "causeCategory": "data_format_change", "elementAtFault": "OrderDate", "evidence": ["h2"], "fixKind": "repair_resend", "fixParameters": {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}, "cause": "The order date is in another format.", "fixSummary": "rewrite the order date and send the orders again", "itemNoun": {"one": "order", "other": "orders"}, "reasons": ["The sample holds 10/16/2026."], "confidence": 0.9}
 }
@@ -216,14 +224,15 @@ Method NewRequest(input As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
 }
 
 /// The input of a diagnose request over an evidence pack whose sample holds the body (a dynamic object), or no sample body when body is "".
-ClassMethod PackInput(body As %DynamicObject = "") As %String [ Private ]
+ClassMethod PackInput(body As %DynamicObject = "") As %String
 {
 	Set pack = {"format": "ocutalon.evidencePack/1", "namespace": "OCUORDERS", "item": "OrdersFromPartner", "count": 50, "sample": {"headerId": 2, "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder"}}
 	If $IsObject(body) Set pack.sample.body = body
 	Quit ##class(OcuTalon.Watch.EvidencePack).Input(pack)
 }
 
-ClassMethod OrderBody() As %DynamicObject [ Private ]
+/// The body of an order as the evidence pack holds it.
+ClassMethod OrderBody() As %DynamicObject
 {
 	Quit {"OrderNumber": "A-1001", "OrderDate": "10/16/2026", "Sku": "SKU-1", "Quantity": "3"}
 }
