@@ -3635,6 +3635,11 @@ So that every README claim happens on the product's real items in about two minu
 **Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
 
 - DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+- DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time; U-118 (kept by the owner): Lane A's cancel_reminder takes one or more reminder ids and sends one CancelReminder per id within one tool call, each with its own IdempotencyKey, with no AD-20 change; Story 11.6 runs the live check (DW-358) (ledger; routed by merge_gate 2026-10-28)
+- DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools; U-118 (kept by the owner): Chat's instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest, and a live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, passes before 0.1.0 is cut (ledger; routed by merge_gate 2026-10-28)
+- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
+- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
+- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 11.2: Upgrades and restarts keep every record working
 
@@ -3805,6 +3810,7 @@ So that what the automated tests can't see is found and fixed before the first r
 **Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
 
 - DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
+- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 
 ## Epic 12: Approve from your own phone with Telegram
 
@@ -4333,6 +4339,7 @@ So that the IPM install is as durable as the Docker one.
 **When** the registry install path is run once on a clean build 154 instance with the README's two commands
 **Then** it gives the same working OcuTalon, and the result is recorded in the release notes (FR-57, REL-8, REL-11)
 - DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
+- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
 
 ## Epic 16: Anyone can try the online demo
 
