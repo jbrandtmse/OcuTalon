@@ -3207,6 +3207,19 @@ So that reminders work the way I would ask a person.
 - DW-210: demo-path-summary.test.mjs's playwrightEnv() leaves the machine's browsers usable, so 'skip every unbuilt part' stays green for a demo-path test that launches a browser before it skips wherever Chromium is installed; only the browserless hosted web job goes red (ledger; routed by cr 2026-10-25)
 [AMENDED 2026-10-27, Epic 8 runner, unattended ruling (decide, doctrine U5): split from Story 8.4, whose chat side this is; the criteria above are 8.4's, unchanged in intent.]
 
+### Story 8.7: Epic 8 burn-down
+
+[AMENDED 2026-10-27, chartered by the burn-down gate, Rule 17 and Rule 22: DW-314 is the owner's decision through the Contest Planner (fix before Epic 8 merges; the orchestrator ruled it into this story), and DW-204 is the order dependence the split would expose.]
+
+As the author,
+I want the browser sign-in unit split into two runs that each fit a stage's foreground limit, and its instance-stream assertions independent of spec order,
+So that later stories can add sign-in tests without a run outgrowing the 10-minute cap or passing only because of file order.
+
+**Acceptance Criteria:**
+
+- DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
+- DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
+
 ## Epic 9: Quality is measured: the evaluation set
 
 A recorded evaluation set (at least 20 items across all four outcomes, injection cases including the suspicious-request email, the all-clear cases and at least 10 recorded incidents including the demo's) scores decisions and causes, records cost and the largest request, runs against the mock on every push and on Claude Haiku 5.5 for each release candidate, and gates the release with the 10-run demo-incident check.

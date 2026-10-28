@@ -1171,6 +1171,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: web/e2e/api/api.spec.ts:121,159,208-211 expect instance 1; web/e2e/heartbeat/heartbeat.spec.ts causes StatusMonitor's onset and clear on the sign-in stack; only workers 1 and path order keep them apart
 - 2026-10-25T15:09:29Z status=routed owner=burndown by=cr note=Rule 19 shared surface left in its old shape: api.spec should read instance counts against a baseline (outside Epic 8's footprint)
+- 2026-10-28T01:13:02Z status=routed owner=8-7-epic-8-burn-down by=burndown note=chartered into Epic 8's burn-down; the sign-in split changes spec order, so api.spec reads instance counts against its own baseline
 
 ### DW-205: StallFixture's ticks after Hold record synthetic heartbeatGap marks (start = the moved-back mark) that no test removes
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: low | fix-risk: low | footprint: in-story
@@ -1325,6 +1326,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.3: 506 s (219); 8.4: 499-500 s (220); 8.6 implement: 515 s (222); local default deadline 540 s; CI deadline 1200 s (701 s on CI)
 - 2026-10-27T19:23:58Z status=escalated owner=burndown by=harvest note=fix is a split of the sign-in unit (docker/tests/test-sign-in.sh, contended) and its group entry (ci/units.sh, Lane B region), or a spec filter for local runs; for the owner/orchestrator at the decision sheet; Epic 8 adds no further browser cases
+- 2026-10-28T01:13:02Z status=routed owner=8-7-epic-8-burn-down by=burndown note=owner via Contest Planner: split live sign-in into two ~4-5 min runs (orchestrator ruling: part argument in docker/tests/test-sign-in.sh, split by spec file; CI's browser group runs the whole unit; Rule 21 recipe line)
 
 ### DW-316: Test.Schedule.ReminderChat.AssertToolSteps is a near-copy of Lane A's private Test.Tools.Reminders.AssertSteps (the step kinds, tool labels, summaries, status and outside-session count), forced by AD-29; the two AgentStep checkers drift when the step shape changes
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: low | footprint: out-of-footprint
