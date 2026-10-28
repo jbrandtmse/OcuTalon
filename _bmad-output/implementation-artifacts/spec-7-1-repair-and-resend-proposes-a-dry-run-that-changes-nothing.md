@@ -2,12 +2,20 @@
 title: 'Repair and resend proposes a dry run that changes nothing'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2deb933f7a65815240340252db1854b82bd5cf63'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A dry run reads only each group's Seen set (the newest 1000 keys), so for an incident with more than 1000 failures the dry run's affected and resend counts are lower than the incident's Count, with nothing in the result saying so.
+    evidence: |-
+      Settle.SEENMAX caps FailureGroup.Seen at 1000 and the spec makes Seen the only source of targets. Only 50 orders are exercised; Story 7.4 measures 500.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Fix/Kind/RepairResend.cls (DryRun)
+    severity: medium
 ---
 
 <intent-contract>
@@ -190,6 +198,40 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 
 ## Review Triage Log
 
+### 2026-10-27 - Review pass
+- verdicts: 30 findings - high 0, medium 4, low 24, false 2, maybe-false 0
+- findings:
+  - `[medium]` `[defer]` Blind: a dry run reads only each group's Seen (newest 1000 keys), so an incident with more than 1000 failures is under-counted - the spec names Seen as the source; recorded in `deferred:`; Story 7.4 measures the large dry run.
+  - `[low]` `[reject]` Blind: fields are checked against the first in-scope message only - messages without the field are counted as left out, so no false all-clear; a mixed-class incident is not a reachable demo case.
+  - `[low]` `[patch]` Blind: a missing or non-object `failure.body` ends in a thrown dry run - `RepairResend.DryRun` now takes `{}` for such a body.
+  - `[low]` `[patch]` Blind: exception text (code, location) reaches `Reason` - the catch path now sets one fixed sentence.
+  - `[low]` `[reject]` Blind: the INSTRUCTIONS have no way out for a field format outside the list - the same text names "use repair_resend only when ..." and the other categories exist; the reply is then `invalid` and falls back safely.
+  - `[low]` `[reject]` Blind: MM/DD/YYYY and DD/MM/YYYY both read values with day and month up to 12 - inherent to the formats; the approval shows the first target's before and after.
+  - `[low]` `[reject]` Blind: `Kind.Classes` drops a bad KINDS entry silently - `Kind.TestContract` pins `Classes()` to exactly RepairResend, so a typo is red.
+  - `[low]` `[patch]` Blind: `Test.Fix.Kind` names a method that does not exist, and nothing ran `Registry.Declared("Grants")` - the header is corrected and `TestGrants` asserts that the Fix area's grant is among the declared grants.
+  - `[low]` `[reject]` Blind: an exception in the post-filter check escapes `Conclude` - that structure is the prior behaviour of `Interpret`; `ReplyCheck` is ended and the exception thrown on (U-125); `CheckFix` has no throwing input.
+  - `[low]` `[patch]` Blind: `Case.SampleOrder` does not assert its save - it now asserts and does not record an empty id.
+  - `[low]` `[patch]` Edge: `Reason` carries raw error text on the catch path - same root cause and fix as the Blind row.
+  - `[low]` `[patch]` Edge: an `ItemNoun` that is valid JSON but not an object aborts the dry run - the noun test now requires a dynamic object.
+  - `[low]` `[reject]` Edge: header id 0 could become a target - header keys come from real headers, and `Reader.Evidence` answers only existing ids.
+  - `[low]` `[reject]` Edge: a redacted or cut field value is left out with no hint - it is counted as left out, which is the contract.
+  - `[low]` `[reject]` Edge: an incident in a state other than open or closed still gets a dry run - the dry run is read-only; the states are Story 7.2's.
+  - `[low]` `[reject]` Edge: the output filter may alter the fix parameters before the second check - the repair is then refused as `invalid`, which is the safe failure.
+  - `[false]` `[reject]` Edge: a nested `Interpret` clears an outer ReplyCheck - Decide never nests `Interpret`, and U-125 requires `Begin` to clear.
+  - `[low]` `[reject]` Edge: `TestFilterDiagnosis` lost its assertions on the stored filtered fix texts - the spec's task directs the move to a partner_outage reply; the filter-call order is still pinned.
+  - `[low]` `[patch]` Edge: the claim "Reason is one plain sentence" fails on the catch path - same fix as above.
+  - `[medium]` `[patch]` Verification gap: the incident-noun versus body-class choice of `itemNoun` is not pinned - `TestNothingReadable` now gives the incident a different noun; mutation recorded.
+  - `[medium]` `[patch]` Verification gap: ascending order and the merge of groups are not pinned (every fixture is ascending and single-group) - new `TestTargetsAscendAcrossGroups`; mutation recorded.
+  - `[medium]` `[patch]` Verification gap: `Snapshot.Diff` is exercised for the headers category only - new pure `Test.Fix.SnapshotDiff` (every category, the allowed sessions, the heartbeat rule) with two mutations, and the 50-orders test asserts that the request's session holds exactly two headers; reading `OcuTalon.Data` tables in `Take` is not in the spec and is not added.
+  - `[low]` `[patch]` Verification gap: three DryRun tests pass silently without a response - each asserts the response first.
+  - `[low]` `[reject]` Verification gap: the 50-orders test relies on no BackgroundCheck row watching Orders - the spec's set-up asserts it, so the dependency is a visible check.
+  - `[low]` `[reject]` Verification gap: `Snapshot.Take` goes on after 10 s of non-empty queues - a leftover would show as a diff line (a flake, not a vacuous pass).
+  - `[low]` `[patch]` Verification gap: the stale method name in `Test.Fix.Kind` - same fix as the Blind row.
+  - `[low]` `[reject]` Verification gap: the dropped `TestFilterDiagnosis` fix-text assertions - same as the Edge row.
+  - `[low]` `[reject]` Verification gap: the static scan covers only `Reformat` and `RepairResend` - the spec lists them; the other classes call `$ClassMethod` only on names from the fixed KINDS list.
+  - `[low]` `[reject]` Verification gap: `Interpret` ignores the status of `ReplyCheck.Begin` - the argument is a Request by type, so Begin cannot refuse there.
+  - `[false]` `[reject]` Intent: nothing shows that the live runner's Input starts with the pack line - `Agent.Decide.TestSnapshotDiagnosis` (through the runner) and `Watch.Diagnose.TestDemoDiagnosis` (a live pack) pass with a valid repair.
+
 ## Design Notes
 
 **V1. The validation seam.** `CheckReply` validates with `%ValidateObject()` in Decide's job, which has no bridge context. The check needs the message class's fields.
@@ -212,6 +254,15 @@ This is a veto item for the spec gate, because it adds a bridge API.
 **V2. The registered set and the names the model sees** (Always, first bullet). This is decided in-stage: the AC says "a fixed set". Number names are written as examples because a comma list cannot hold them. The ruling may change members. The tests read `Reformat.Names()`.
 
 **V3. `FixExecutor` keeps `STUB = 1`** until Story 7.3 builds Execute, so Test.Install.Production's oracle stays unchanged.
+
+**Decided in-stage (implement):**
+- `Targets` (the `DryRunResult` field and the kind's `targets` output) are the plain header ids, comma-separated and ascending (`101,102`), not `h<id>` keys; the `h<id>` keys are only what `Seen` holds.
+- `EvidencePack.FromInput` ignores text after the pack's first JSON object (found by a string-aware brace scan). `Test.Agent.Decide`'s fixture appends ` (test <ref>)` to every input, and a strict parse would have made `TestSnapshotDiagnosis` refuse its repair. The fields still come from a genuine pack: no pack, another first line, another format or an unclosed object still gives "" and refuses every repair.
+- The date range is that of `$ZDATEH` (1840-12-31 to 9999-12-31); `0001-01-01` is refused. A number has an optional minus sign, whole digits (grouped in threes where the format groups, no leading zero but a lone 0) and an optional fraction of one or more digits after the decimal separator; a `+`, an exponent and a trailing separator are refused. Two equal formats are refused by `Convert` as well as by the kind.
+- `Reformat` has `DATES` and `NUMBERS` parameters (vertical-bar lists) and no `NAMES`, because a comma list cannot hold `1234,56`. `Names()` returns a list.
+- `Install.Step.Fix.Grants()` has no role-only entry (the Tools step declares the role): it is exactly the one `%Ens_MessageResend:U` pair.
+- `Decide.Interpret` is a wrapper (`ReplyCheck.Begin`, `Try`, `End` on both exits, the exception thrown on) around the previous body, now the private `Judge`.
+- `Snapshot.Diff` allows a new header whose session is in `allowedSessions` or whose session a new `HeartbeatIn` header started (the answer of `Checks` has another source in the same session).
 
 **Schema changes:** none to existing classes. There are two new message classes, which the lead's brief authorizes. `ReplyCheck` is not persistent.
 
@@ -273,7 +324,7 @@ Conventions: "Tool resources" (the tool form; one permission letter per check), 
 **Footprint extensions** (none contended; Rule 11(b)):
 - `Watch/Msg/DiagnosisPayload.cls`, `Watch/EvidencePack.cls`;
 - `Agent/Diagnosis.cls`;
-- `Test/Watch/{Case,Evidence,Payload}.cls`, `Test/Bridge/{Decide,ReplyCheck,ProbeReplyCheck}.cls`;
+- `Test/Watch/{Case,Evidence,Payload,Incidents}.cls`, `Test/Bridge/{Decide,ReplyCheck,ProbeReplyCheck}.cls`;
 - `ci/units.sh` (`shared_by_region`, the `lane-a` entry);
 - `Install/Step/Fix.cls`, a new file inside Epic 15's `Install/**`, as the brief allows. No existing `Install/**` file changes: `Registry` discovers areas.
 
@@ -335,9 +386,56 @@ Conventions: "Tool resources" (the tool form; one permission letter per check), 
 | AC 6 clear | `ReplyCheck.Begin` keeps earlier values it is not given | `Bridge.ReplyCheck` (second decision in one job) |
 | AC 6 error path | `Interpret` ends `ReplyCheck` only on its normal exit | `Bridge.ReplyCheck` (error path) |
 
+**Task 0 results (implement, warm stack `e7s1iw`, 2026-10-27):**
+- Idle window: 70 s on a started warm stack, after the stack had been up for more than a minute: no new `Ens.MessageHeader` row at all in OCUTALON (2 headers before and after) and none in OCUORDERS (1 header). So `HeartbeatIn` did not tick in the window (its cadence is longer than 70 s on a throwaway), and `Snapshot` needs no allowance beyond `HeartbeatIn` sessions. `Snapshot.Diff` allows the sessions that a new `HeartbeatIn` header starts, which covers a tick that does fall in a test.
+- `Snapshot.Take` over OCUTALON and OCUORDERS: 0.02 s on a fresh stack (3 headers); 0.37 s on a warm stack after the Fix, Evidence and Decide test classes (340 headers in OCUTALON), a second take 0.36 s. About 1 ms per header, so the full `lane-a` shard (a few thousand headers) is a few seconds. It was not timed after the whole shard, because each shard part runs on its own throwaway that is gone when it ends.
+
+**Test results (implement):**
+- Slot A (pure classes): `Test.Fix.Reformat` 6/6, `Test.Fix.Kind` 9/9, `Test.Bridge.ReplyCheck` 4/4, `Test.Watch.Payload` 4/4, `Test.Bridge.Decide:TestFilterDiagnosis`.
+- Warm `e7s1iw`: `Fix.Reformat`, `Fix.Kind`, `Bridge.ReplyCheck`, `Watch.Payload`, `Bridge.Decide`, `Watch.Evidence`, `Bridge.CodeRules`, `Agent.Instructions`, `Install.Production` passed.
+- Fresh `e7s1i`: `Fix.DryRun` passed; `Agent.Decide` passed (after the `FromInput` decision above; it failed before it); `Watch.Diagnose` passed.
+- `lane-a` shard, final run after the last code change (fresh `e7s1i`): part 1/3 passed (378 s), part 2/3 passed (125 s), part 3/3 passed (417 s); the first run of part 3/3 had failed in `Test.Watch.Incidents` (`TestInstanceShared`, `TestTwoSessions`), closed as decided below. `lane-b` passed (228 s, before the `Test.Watch` fixture change, which `lane-b` does not run). `bash ci/checks.sh` passed after the last change.
+- `Test.Watch.Incidents` (decided in-stage, a shared surface the plan did not list): its two tests delivered synthetic failures whose evidence pack had no sample body (a namespace that does not exist, or header ids that do not exist), and relied on the mock's default `repair_resend` staying unnoticed until Story 7.2. With the kind check failing closed that diagnosis is the fallback `invalid`, which is noticed. `TestInstanceShared` and `TestTwoSessions` now give the first failure of each incident the id of a failed fixture order of OCUORDERS (`Case.SampleOrder`: Status 8, an hour old so the poller never reads it, a `PartnerOrder` body dated `10/16/2026`, removed with the test), and `TestTwoSessions` delivers to OCUORDERS' Orders production, because only a namespace's own current production can be read. The assertions are unchanged. The file is in Lane A's `Test/Watch/**`: a footprint extension.
+
+**Pinning mutations (Rule 19)**, each applied, observed red and reverted (the tree is byte-identical to before; the one test edit after the baseline is `Test/Bridge/ReplyCheck.cls`, which gained a refused-Begin assertion in `TestSecondDecision`):
+- mutation: delete `Recheck` from `Fix.Kind` -> red: `Kind.TestContract` (slot A).
+- mutation: `RepairResend.RESOURCES` "" -> red: `Kind.TestContract`, `Kind.TestGrants` (slot A); `DryRun.TestServiceUserMayResend` (fresh `e7s1i`).
+- mutation: `CheckParameters` skips the field check -> red: `Kind.TestCheckParameters`, `TestConcludeRows`, `TestReplyCheckRows` (slot A).
+- mutation: `Reformat.Family` accepts any name (gives "date") -> red: `Kind.TestCheckParameters`, `TestConcludeRows`, `TestReplyCheckRows` (slot A).
+- mutation: the base `CheckParameters` ignores extra keys -> red: `Kind.TestCheckParameters`, `Kind.TestSchemaCheck` (slot A).
+- mutation: `Interpret` skips `ReplyCheck.Begin` -> red: `Bridge.ReplyCheck` (`TestBothChecksSeeTheRequest`, `TestErrorPath`, `TestSecondDecision`) (slot A). `Agent.Decide.TestSnapshotDiagnosis` (fresh) was not run with this mutation.
+- mutation: `Interpret` skips `End` on its normal exit -> red: `Bridge.ReplyCheck.TestBothChecksSeeTheRequest` (`Active` after `Conclude`) (slot A).
+- mutation: `DiagnosisPayload` skips the kind check -> red: `DryRun.TestInvalidRepairTakesTheFallbackRoute` (warm; the test calls `Conclude` in its own process).
+- mutation: `DryRun` drops the scope test -> red: `DryRun.TestLeftOutAndScope`, `TestRefusals` (warm).
+- mutation: an unreadable value becomes a target -> red: `DryRun.TestLeftOutAndScope`, `TestNothingReadable` (warm).
+- mutation: `DryRun` saves the repaired value into the original body -> red: `DryRun.TestFiftyOrdersChangeNothing` (the snapshot diff names 50 changed headers) (warm).
+- mutation: `DryRun` sends one POST to the mock's `/v1/messages` -> red: `DryRun.TestFiftyOrdersChangeNothing` (the mock log) (warm).
+- mutation: `FieldWords` returns the name as is -> red: `DryRun.TestFiftyOrdersChangeNothing`, `TestNothingReadable` (warm).
+- mutation: the patterns use `\d` -> red: `Reformat.TestRefuses` (Arabic-Indic digits in a fraction; the date patterns still refuse them through the calendar check) (slot A).
+- mutation: `Convert` runs `Xecute "Set x="_value` -> red: `Reformat.TestNeverEvaluates` (sentinel defined), `TestStaticScan` (slot A).
+- mutation: `FixExecutor` answers OK to other requests -> red: `Install.Production.TestStubsAnswer` (warm).
+- mutation: `ReplyCheck.Begin` keeps earlier values (no `Kill`) -> red: `Bridge.ReplyCheck.TestBegin` (the planted stale value, and a refused Begin), `TestSecondDecision` (a refused Begin after A leaves nothing of A) (slot A). A second decision whose request has an empty `Input` overwrites it, so the clear is pinned by the stale value and the refused Begin.
+- mutation: `Interpret` ends `ReplyCheck` only on its normal exit -> red: `Bridge.ReplyCheck.TestErrorPath` (slot A).
+- mutation: `Snapshot.Diff` drops the queues category -> red: `SnapshotDiff.TestEachCategoryIsCompared` (slot A).
+- mutation: `Snapshot.Diff` ignores the allowed sessions -> red: `SnapshotDiff.TestNewHeaders` (slot A).
+- mutation: `Install.Step.Fix` made Abstract (the registry skips it) -> red: `Kind.TestGrants` (the declared grants lack the Fix area's) (slot A).
+- mutation: `RepairResend.DryRun` lists the targets in the order the groups held them -> red: `DryRun.TestTargetsAscendAcrossGroups` (fresh `e7s1i`).
+- mutation: `RepairResend.DryRun` ignores `Incident.ItemNoun` -> red: `DryRun.TestNothingReadable` (fresh `e7s1i`).
+- Not run: none of the 18 rows is without a line; two rows name a second test that was not run with their mutation (`Agent.Decide.TestSnapshotDiagnosis` for the seam, as said above).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-The plan stage halted after planning, as the dispatch asked. The spec passed the READY-FOR-DEVELOPMENT gate on its first check. The working directory is the Epic 7 worktree `.worktrees/epic-7` (branch `OCT-epic7`, HEAD `69aa892fe24469f16c45c36b4a031bfd342442df`, tree clean at the start). The committed `epic-7-context.md` was reused. Epic 7 has no earlier `done` story. The ledger inbox is empty. The read-only measurements on `ocutalon-slot-a` are listed in Design Notes. Veto items V1 to V3 are for the spec gate. Nothing was committed.
+**Change.** The fix-kind contract `OcuTalon.Fix.Kind` with its one kind `RepairResend` (parameter check, field words, a read-only dry run that reads through `Watch.Reader.Evidence` and returns ascending in-scope targets and the `DRYRUNKEYS` JSON); the registered reformatters `OcuTalon.Fix.Reformat`; the bridge API `OcuTalon.Bridge.ReplyCheck` and `Decide.Interpret` beginning it and ending it on every exit (owner decision U-125); the kind check as the last check of `DiagnosisPayload` against the sample body of the evidence pack (`EvidencePack.FromInput`); `Fix.Msg.DryRun`/`DryRunResult` answered by `FixExecutor` (`STUB = 1` kept, every other request still error 5003); `Install.Step.Fix.Grants()` giving the service role `%Ens_MessageResend:U`; one INSTRUCTIONS bullet naming the formats.
+
+**Files changed.**
+- New: `src/ocutalon/cls/OcuTalon/Fix/{Kind,Reformat}.cls`, `Fix/Kind/RepairResend.cls`, `Fix/Msg/{DryRun,DryRunResult}.cls`, `Install/Step/Fix.cls`, `src/bridge/cls/OcuTalon/Bridge/ReplyCheck.cls`; tests `Test/Fix/{Reformat,Kind,ZzKind,Snapshot,SnapshotDiff,DryRun}.cls`, `Test/Bridge/{ReplyCheck,ProbeReplyCheck}.cls`.
+- Changed: `Fix/Executor.cls`, `src/bridge/.../Bridge/Process/Decide.cls`, `Watch/EvidencePack.cls`, `Watch/Msg/DiagnosisPayload.cls`, `Agent/Diagnosis.cls`, `ci/units.sh` (the `lane-a` areas), `Test/Watch/{Case,Evidence,Payload,Incidents}.cls`, `Test/Bridge/Decide.cls`.
+
+**Review.** 30 findings: high 0, medium 4, low 24, false 2. Patches applied: 3 medium (itemNoun source, ascending across groups, Snapshot.Diff oracle) and 8 low. Deferred: 1 medium (the 1000-key `Seen` cap, in `deferred:`). Every rejected finding has its reason in the triage log above. Follow-up review recommended: true, because three medium patches (new tests `TestTargetsAscendAcrossGroups`, the `SnapshotDiff` class, the `itemNoun` assertion) were made after the review layers ran; each was run green and each has a recorded red mutation, but none was reviewed again.
+
+**Verification.** `lane-a` shard parts 1/3 and 3/3 passed after the `Test.Watch` fixture change and part 2/3 passed after the last patch; `lane-b` passed (before the last test-only patches); `Test.Fix.DryRun` passed fresh after the last product change; `Test.Watch.Incidents` passed fresh; `bash ci/checks.sh` passed after the last change. Both throwaway tags (`e7s1i`, `e7s1iw`) are torn down.
+
+**Residual risks.** The `Seen` cap (deferred). The dry run's reading of 500 messages inside a 60 s synchronous call is Story 7.4's measurement. `Test.Watch.Incidents` now seeds its two tests with a fixture order; other Epic 5 tests that deliver synthetic failures do not assert on a stored diagnosis and stayed green.

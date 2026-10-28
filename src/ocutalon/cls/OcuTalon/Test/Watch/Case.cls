@@ -598,6 +598,82 @@ ClassMethod HeaderIds(failed As %DynamicArray) As %String
 	Quit ids
 }
 
+/// An incident row of the owner over the failed headers (their ids, in order, are the keys of its group; kind l makes them log keys), and its group. The members of fields
+/// (an object; none by default) are set on the incident before it is saved, as properties of that name. The row is cleaned up by Case.
+Method Fixture(owner As %String, ids As %String, namespace As %String = {..#ORDERS}, production As %String = {..#ORDERSPRODUCTION}, kind As %String = "h", fields As %DynamicObject = "") As OcuTalon.Data.Incident [ Private ]
+{
+	Set incident = ##class(OcuTalon.Data.Incident).%New()
+	Set incident.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set incident.OwnerRef = owner
+	Set incident.Namespace = namespace
+	Set incident.Production = production
+	Set incident.State = "open"
+	Set incident.Count = $Length(ids, ",")
+	Set incident.NoticeCount = incident.Count
+	Set incident.FirstAt = "2026-10-25T08:00:00Z"
+	Set incident.LastAt = "2026-10-25T08:00:05Z"
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Set $Property(incident, name) = value
+		}
+	}
+	Do $$$AssertStatusOK(incident.%Save(), "a fixture incident is saved")
+	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set group.IncidentRef = incident.Ref
+	Set group.Seq = 1
+	Set group.ItemName = "OrdersFromPartner"
+	Set group.ErrorPattern = ##class(OcuTalon.Watch.Settle).Pattern(..#ORDERDATETEXT)
+	Set keys = ""
+	For i = 1:1:$Length(ids, ",") {
+		Set keys = keys _ $Select(keys = "": "", 1: ",") _ kind _ $Piece(ids, ",", i)
+	}
+	Set group.Seen = keys
+	Do $$$AssertStatusOK(group.%Save(), "and its group")
+	Quit incident
+}
+
+/// A failed header (Status 8) in OCUORDERS in the SuperSession, an hour old so that the poller never reads it, whose body is a PartnerOrder dated 10/16/2026: the
+/// sample of an incident whose failures the test delivers as a FailureBatch (SendBatch, with the id on the first failure). Its id is given back; it and its body are
+/// removed with the test.
+Method SampleOrder(superSession As %String) As %Integer [ Private ]
+{
+	Set id = ..MakeSampleOrder(superSession)
+	Do $$$AssertTrue(id '= "", "a failed fixture order is made for the sample")
+	If id '= "" Set ..FixtureHeaders = ..FixtureHeaders_$ListBuild(id)
+	Quit id
+}
+
+ClassMethod MakeSampleOrder(superSession As %String) As %Integer [ Private ]
+{
+	Set earlier = ##class(OcuTalon.Watch.Mark).Shift(##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc()), -3600)
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set body = ##class(OcuTalon.Demo.Orders.PartnerOrder).%New()
+	Set body.OrderNumber = "PO-ZZ"
+	Set body.OrderDate = "10/16/2026"
+	Set body.Sku = "ZZ-1"
+	Set body.Quantity = 1
+	If $$$ISERR(body.%Save()) Quit ""
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.SuperSession = superSession
+	Set header.TimeCreated = earlier
+	Set header.TimeProcessed = earlier
+	Set header.SourceConfigName = "zzPollerSource"
+	Set header.TargetConfigName = "zzPollerTarget"
+	Set header.Type = 1
+	Set header.Status = 8
+	Set header.IsError = 1
+	Set header.MessageBodyClassName = "OcuTalon.Demo.Orders.PartnerOrder"
+	Set header.MessageBodyId = body.%Id()
+	Set sc = header.%Save()
+	If $$$ISOK(sc) {
+		Set header.SessionId = header.%Id()
+		Set sc = header.%Save()
+	}
+	Quit $Select($$$ISOK(sc): header.%Id(), 1: "")
+}
+
 /// A header in OCUORDERS that has not failed yet: a request from zzPollerSource to zzPollerTarget in the SuperSession, Status 3 (delivered), created and
 /// processed five minutes ago, in a session of its own. LateError moves it to the error status later. Its id is given back, and removed with the test.
 Method LateHeader(superSession As %String) As %Integer [ Private ]
@@ -933,6 +1009,9 @@ ClassMethod DropFixtures(headers As %List, logs As %List) [ Private ]
 	Set $NAMESPACE = ..#ORDERS
 	Set position = 0
 	While $ListNext(headers, position, id) {
+		Set header = ##class(Ens.MessageHeader).%OpenId(id)
+		If $IsObject(header) && (header.MessageBodyClassName = "OcuTalon.Demo.Orders.PartnerOrder") && (header.MessageBodyId '= "") Do ##class(OcuTalon.Demo.Orders.PartnerOrder).%DeleteId(header.MessageBodyId)
+		Set header = ""
 		Do ##class(Ens.MessageHeader).%DeleteId(id)
 	}
 	Set position = 0

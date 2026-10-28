@@ -7,7 +7,9 @@ Include Ensemble
 /// missing. The settle settings are the code defaults, 10 and 30 seconds: no setting row is written. A test waits at most 20 seconds (45 for the trickle),
 /// polling every half second: a test bound, not NFR-7. The rows, events and batches of a test are removed after it. Every test points the runners at the CI
 /// mock (Case.PointKeys), whose default diagnosis is the one with a fix (a data-format change), which is stored and not noticed here (Story 5.8): with no key
-/// the diagnosis is a fallback, and a fallback is noticed at once.
+/// the diagnosis is a fallback, and a fallback is noticed at once. The repair is valid only when the incident's evidence pack holds a sample body that names the
+/// field, so TestTwoSessions and TestInstanceShared, which assert that nothing is noticed yet, deliver a failed fixture order of OCUORDERS (Case.SampleOrder) as
+/// the first failure of each incident.
 ///   - TestBurstThroughThePoller (rows Burst and Trace): session A watches Orders and 50 failing orders tagged with A's TraceRef become one open incident of A
 ///     with one group (Story 5.8: Seq 1, Count 50, the incident's FirstAt and LastAt, NoticeCount 50, the error summary "The order date was not in the expected format."
 ///     and, on the incident, FirstHeaderId the earliest failed header), `noticed`, `settling` and (Story 5.4, once the settle rule has ended) `diagnosing` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
@@ -243,17 +245,19 @@ Method TestTwoSessions()
 	Set item = ..Item("s")
 	Set since = ..Since()
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
-	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (..Stamp(-1))}, {"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (..Stamp(-1))}])
-	Do ..Deliver(..#SYNTHNS, ..#SYNTH, b, [{"item": (item), "text": "Field 'Qty' was empty in order 3", "at": (..Stamp(-1))}])
-	Set rowsA = ..WaitIncident(a, ..#SYNTH)
-	Set rowsB = ..WaitIncident(b, ..#SYNTH)
+	Set sampleA = ..SampleOrder(##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef)
+	Set sampleB = ..SampleOrder(##class(OcuTalon.Data.Session).RefIndexOpen(b).TraceRef)
+	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, a, [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (..Stamp(-1)), "id": (sampleA)}, {"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (..Stamp(-1))}])
+	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, b, [{"item": (item), "text": "Field 'Qty' was empty in order 3", "at": (..Stamp(-1)), "id": (sampleB)}])
+	Set rowsA = ..WaitIncident(a, ..#ORDERSPRODUCTION)
+	Set rowsB = ..WaitIncident(b, ..#ORDERSPRODUCTION)
 	Do $$$AssertEquals(rowsA.%Size()_"|"_rowsB.%Size(), "1|1", "each session has one incident")
 	If (rowsA.%Size() '= 1) || (rowsB.%Size() '= 1) Quit
 	Set refA = rowsA.%Get(0).ref
 	Set refB = rowsB.%Get(0).ref
 	Do $$$AssertTrue(refA '= refB, "two incidents, with two Refs")
 	Do $$$AssertEquals(..WaitCount(refA, 2), 2, "A's holds A's two failures")
-	Do $$$AssertEquals(..Incidents(b, ..#SYNTH).%Get(0).count, 1, "and B's holds B's one")
+	Do $$$AssertEquals(..Incidents(b, ..#ORDERSPRODUCTION).%Get(0).count, 1, "and B's holds B's one")
 	Do $$$AssertTrue(..WaitDiagnosed(refA), "A's incident holds its diagnosis")
 	Do $$$AssertTrue(..WaitDiagnosed(refB), "and B's holds its")
 	Do $$$AssertTrue(..WaitAnswered(refA) && ..WaitAnswered(refB), "and IncidentManager has handled both answers, so the negatives below follow the notice step")
@@ -294,7 +298,7 @@ Method TestInstanceShared()
 	Set item = ..Item("i")
 	Set since = ..Since()
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
-	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, "instance", [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (..Stamp(-2))}, {"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (..Stamp(-1))}, {"item": (item), "text": "Field 'Qty' was empty in order 3", "at": (..Stamp(-1))}])
+	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, "instance", [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (..Stamp(-2)), "id": (..SampleOrder(""))}, {"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (..Stamp(-1))}, {"item": (item), "text": "Field 'Qty' was empty in order 3", "at": (..Stamp(-1))}])
 	Set rows = ..WaitIncident("instance", ..#ORDERSPRODUCTION)
 	Do $$$AssertEquals(rows.%Size(), 1, "one instance incident")
 	If rows.%Size() '= 1 Quit

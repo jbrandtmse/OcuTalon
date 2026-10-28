@@ -42,7 +42,7 @@ Include Ensemble
 ///     Classify once. A reply that is usable is checked (CheckReply: one JSON object that the ReplyClass setting of the runner accepts,
 ///     for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the ReplyFilterClass (the reasons, and the
 ///     properties that the reply class names in a FILTERED parameter, a dotted name for a property of an object property and a list item by item,
-///     which are then checked again), the user
+///     which are then checked again; the request is exposed to both checks through ReplyCheck, ended on every exit), the user
 ///     rule is applied, one Decision row is recorded, the event decision.recorded is fired after the commit (FireEvent) and the answer
 ///     is built. For a user's decide request an ignore or digest becomes tellnow.
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
@@ -540,7 +540,7 @@ ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %Str
 }
 
 /// Checks the reply text against the class: one JSON object that the class imports (%JSONImport, with exceptions caught) and
-/// validates (%ValidateObject). Only surrounding white space, or one surrounding Markdown code fence, is removed first.
+/// validates (%ValidateObject). A reply class's %OnValidateObject may read the request through OcuTalon.Bridge.ReplyCheck, which Interpret begins. Only surrounding white space, or one surrounding Markdown code fence, is removed first.
 /// payload is the validated object, or "" with an error that names the reply check.
 ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As %RegisteredObject) As %Status
 {
@@ -804,7 +804,28 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
 /// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
+/// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
+/// exit, an exception included, and an exception is thrown on.
 ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
+{
+	Set sc = $$$OK
+	Set outcome = "tellnow"
+	Set reasons = ""
+	Set confidence = ""
+	Set json = ""
+	Do ##class(OcuTalon.Bridge.ReplyCheck).Begin(request)
+	Try {
+		Set valid = ..Judge(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc)
+	} Catch exception {
+		Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+		Throw exception
+	}
+	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+	Quit valid
+}
+
+/// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results.
+ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
 	Set outcome = "tellnow"
