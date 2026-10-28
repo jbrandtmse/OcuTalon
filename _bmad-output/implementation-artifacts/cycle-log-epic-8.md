@@ -234,3 +234,6 @@
 2026-10-28T12:21:38Z	Epic 8	launch_env	depth=4 watchdog=1 bash_max_ms=default
 2026-10-28T12:21:38Z	Epic 8	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec lane=C slot=ocutalon-slot-c hold_at=none note=re-dispatch_after_hold_7;policy_changed_from_36abb05(Epic_11_priority_sentence,runner_A_only) model=claude-opus-5-5
 2026-10-28T12:21:38Z	Story 8.7	ci_resolved	story=8.7 sha=bfa8e67 runs=40631148197,40631148103 failed=none via=none result=success resolved_at=resume first_ci=success
+2026-10-28T12:22:48Z	Epic 8	integrate_forward_merged	feature=ce66c6b head=75dc785 conflicts_resolved=none note=bookkeeping_and_policy_only(cycle-log-parallel,deferred-work,inbox_snapshot,unattended.yaml);suite_after_8.6_re-review model=claude-opus-5-5
+2026-10-28T12:22:48Z	Epic 8	slot_reloaded	server=ocutalon-slot-c namespace=OCUTALON identity=build_154U loaded=477(432_ocutalon+45_bridge)_from_75dc785 compile=CompilePackage(OcuTalon,ck-d)_ok_errors=0 model=claude-opus-5-5
+2026-10-28T12:22:48Z	Story 8.6	stage_spawned	stage=code-review spawn_at=2026-10-28T12:22:48Z model=opus agent_name=8-6-chat-demo-path-cr-2 cycle_iteration=2 scope=rework(36be424..HEAD;source=d06a015_ReminderChat.cls)
