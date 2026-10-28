@@ -33,10 +33,6 @@ Parameter GUIDEPROMPT = "Remind me in 1 minute to stretch.";
 /// The Ref that scenario reminder-cancel-chat cancels.
 Parameter FIXEDREF = "zzReminderChatCancel01";
 
-/// The reminder tools that Chat offers its model, comma-separated. Chat offers more tools than these, and Triage offers none, so a request
-/// is Chat's when it offers every one of them.
-Parameter REMINDERTOOLS = "cancel_reminder,list_reminders,set_reminder";
-
 /// 1 while the runners' keys point at the CI mock.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
@@ -115,7 +111,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 /// Sends the text as a typed chat message of the session through WebChatIn (the guide's own Send, with FromGuide, is the page spec's) and
 /// waits for its turn. row is the Turn, or "" when none was made; chat is the requests of the mock's log since the send that Chat made (a
-/// POST to /v1/messages that offers the three reminder tools, among others; Triage offers none), in order. 1 when the turn is done.
+/// POST to /v1/messages that offers the three reminder tools, among others: OffersReminderTools), in order. 1 when the turn is done.
 Method Turn(session As %String, clientId As %String, text As %String, Output row As OcuTalon.Data.Turn, Output chat As %DynamicArray) As %Boolean [ Private ]
 {
 	Set chat = []
@@ -140,11 +136,13 @@ Method Turn(session As %String, clientId As %String, text As %String, Output row
 	Quit row.State = "done"
 }
 
-/// 1 when the logged request offers every tool of REMINDERTOOLS (RunnerFixture.ToolNames lists the offered names, sorted and comma-separated).
+/// 1 when the logged request offers every reminder tool of OcuTalon.Tools.Names (set, list and cancel), among any others. The selection needs
+/// that only Chat offers them: Triage offers no tool and Diagnosis only the Watch reads. RunnerFixture.ToolNames lists the offered names,
+/// sorted and comma-separated.
 ClassMethod OffersReminderTools(entry As %DynamicObject) As %Boolean [ Private ]
 {
 	Set offered = ","_##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(entry)_","
-	Set wanted = $ListFromString(..#REMINDERTOOLS)
+	Set wanted = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER)
 	Set ptr = 0, all = 1
 	While $ListNext(wanted, ptr, tool) {
 		If offered '[ (","_tool_",") Set all = 0
