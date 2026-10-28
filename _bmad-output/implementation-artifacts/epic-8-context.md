@@ -4,106 +4,75 @@
 
 ## Goal
 
-Epic 8 builds OcuTalon's clock in `OcuTalon.Schedule`. It runs on runner C, in Lane B's files. The one-minute heartbeat, its stalled warning and the firing of a reminder at its UTC due time on every channel are done. What remains is the rest of the reminder lifecycle:
-- the commands the chat agent's tools send: set by a relative or local time, plain-English refusals, list, cancel and repeats;
-- reminders set and cancelled through the chat on the demo path (guide step 2);
-- surviving restarts and in-place upgrades, saying so when a reminder arrives late.
+Epic 8 builds OcuTalon's clock in `OcuTalon.Schedule`. It runs on runner C, in Lane B's files. It delivers a one-minute heartbeat with its stalled warning, and reminders asked for in plain words. A reminder fires within 10 s of its due time on every channel, can be listed and cancelled in the chat, and survives restarts and upgrades, marked late when it arrives late. Stories 8.1 to 8.6 are done.
 
-A lost reminder, a duplicate, or a late one that doesn't say so would break the user's trust.
+What remains is the burn-down. The browser sign-in unit has grown to the edge of the 10-minute foreground cap every stage works under, and one of its specs passes only because of file order. Story 8.7 splits the unit into two parts that each fit the cap and removes that order dependence, so later stories can keep adding sign-in tests. The owner wants this fixed before Epic 8 merges.
 
 ## Stories
 
 - Story 8.1: The heartbeat ticks every minute and catches up once after a restart (done)
 - Story 8.2: The heartbeat-stalled warning comes from the real heartbeat (done)
 - Story 8.3: A reminder fires on time on every channel (done)
-- Story 8.4: Set, list and cancel reminders in plain words (the command side)
-- Story 8.6: Reminders through the chat on the demo path (the chat side, split from 8.4)
-- Story 8.5: Reminders survive restarts and upgrades, and late ones say so
-
-Build order: 8.4, then 8.6, then 8.5, so the demo path comes first.
+- Story 8.4: Set, list and cancel reminders in plain words (done)
+- Story 8.5: Reminders survive restarts and upgrades, and late ones say so (done)
+- Story 8.6: Reminders through the chat on the demo path (done)
+- Story 8.7: Epic 8 burn-down (DW-314 and DW-204)
 
 ## Requirements & Constraints
 
-- **On time.** A reminder fires within 10 s of its due time and never before it, with one notification per channel. It is late only if its waiter woke more than 10 s after the due time (exactly 10 s is on time). CI asserts order and outcome only, never seconds. The 10 s bound is measured in the clean-machine rehearsal.
-- **Due forms.** A `SetReminder` carries exactly one of:
-  - `DueAt` in UTC (built in 8.3);
-  - `DelaySeconds`, counted from when the command arrives;
-  - `LocalDueAt` with no zone, read in the instance's zone, so "Thursday at 10" fires at 10:00 local time, even in a daylight-saving week.
-- **Refusals.** Empty or blank text, a past due time, or no due form or more than one is refused with a plain-English reason that the tool passes back. A refusal creates no row, no waiter and no event.
-- **Isolation and repeats.** A list returns only the caller's session's pending reminders. A cancel naming another session's reminder, or one already fired or cancelled, is refused and changes nothing, and it never reveals another session's reminder. A command repeated with the same `IdempotencyKey` returns the first result and creates no second row or waiter.
-- **Restarts.**
-  - A reminder that fell due while IRIS was down fires once, right after the production starts, marked late.
-  - A reminder still in the future fires on time, not late, and the rail shows its countdown throughout.
-  - No reminder ever fires twice, even when an old waiter and a re-armed one both wake.
-- **Visibility.** Every change reaches the page within one live update. A pending reminder shows in Visual Trace as a waiting process. Every text the user sees comes from the catalog.
+- **Two parts (DW-314).**
+  - `live sign-in` (`docker/tests/test-sign-in.sh`) runs as part 1/2 and part 2/2 of the same script, split by spec file.
+  - Each part takes about 4 to 5 minutes on the developer machine.
+  - Together the two parts run every spec of the whole unit exactly once, and that must still hold when a spec file is added later.
+  - With no part given, the script runs the whole unit as it does today.
+- **CI unchanged.** CI's `browser` group still runs the whole unit. Its deadline is 1200 s, and the unit took 701 s on CI.
+- **Recipe line.** Rule 21 in `_bmad/custom/skill-rules.md` gains a line that says how to run the two parts. The story decides the wording. The same rule's note "`live:sign-in` near its local deadline" is where the unit's timings are recorded.
+- **Order independence (DW-204).**
+  - `web/e2e/api/api.spec.ts` pins the instance stream at exactly one event, the script's seeded `noModelKey` status event. It checks this in `/state`'s stream counts and in its cursor polls.
+  - `heartbeat.spec.ts` adds two status events to that stream, the onset and the clear. api.spec stays green only because `api/` sorts before `heartbeat/` and there is one worker.
+  - api.spec must read the instance stream's events against a baseline it takes itself. It must pass whether or not heartbeat.spec ran first: in either part and in the whole unit.
+- **Evidence (Rule 19).** Before the fix, see api.spec fail with heartbeat.spec run first, and record that mutation. Every test added or changed must pass on a fresh stack in either order.
+- No committed file may hold a local absolute path, or CI's `test-boundaries.sh` fails.
 
 ## Technical Decisions
 
-- **Ownership.**
-  - Epic 8 may edit: `ReminderOps`, `ReminderTimer`, `Schedule.Reminder`, `ReminderStart`, the `Reminder` table, the `reminder` event and its payload, `Install.Step.Schedule`, `ci/mock/scenarios/B/` and `Test/Schedule/**`.
-  - Lane B's but contended with other running epics, so edit them only under an orchestrator ruling: `CommandsIn`, `Commands`, `Notify`, `WebChatOut`, `SimPhoneOut`, `Production.cls`, the catalog classes, `web/src/**`, `ci/mock/mock.mjs` and `scenarios.mjs`, `Test/Data/Fixture.cls`, and `Ownership.Reminders`.
-  - Lane A's, read only: the reminder tools in `OcuTalon.Tools` (Story 1.10), `Agent/**` including `Agent/Chat.cls`, `Test/Tools/**`, `Test/Agent/**`, `Test/Bridge/**`, `src/bridge/**`, the installer core and its `Reconcile` step, and `release/`.
-- **Shared files, as ruled.**
-  - `Test/Data/Tables.cls` XData `Contracts` and the stub rows of `Test/Core/CommandsInProduction.cls` are shared by entry: Epic 8 edits only its own entries, and an integrate-forward conflict there is a plain union. 8.4 removes only the `SetReminder|ReminderOps|web_user` stub entry and `ReminderOps` from the stub-owner sentences. Epic 5 makes the same kind of edit, so expect a union.
-  - In `docker/tests/test-production.sh` row 17, 8.4 changes only the two expected lines (`not_built` becomes `refused`) and the matching header phrase.
-  - The header comment of `docker/tests/test-demo-path.sh` is 8.6's, once it turns spec 03 on.
-  - Every such edit is reported as a footprint extension.
-- **Command path.** Commands go only through `OcuTalon.Core.Commands.Submit`, then `CommandsIn`, then `ReminderOps`, which answers with a synchronous `CommandResult` (`Ok`, `Outcome`, `Ref`, `DueAt`, `Message`, `Data`).
-  - `CommandsIn` accepts the three reminder verbs only from origin `tool`. `Submit` forces `tool` inside a bridge context, so tests submit under one.
-  - A tool's key is the turn's `ItemId` plus the call's position (DW-141: a re-run turn can reuse it for a different call).
-  - Story 1.10's set tool sends only `DelaySeconds` or `LocalDueAt`, never `DueAt`. Its list tool reads exactly `Data = {"reminders":[{"ref","text","dueAt"}]}`: pending reminders, earliest due first, `dueAt` in UTC (DW-135).
-  - The tools pass `Message` to the model unchanged, and the user never sees it as written.
-- **As built in 8.3.**
-  - `ReminderOps` carries out only a set with a UTC `DueAt`. It answers every other form and verb `$$$NotImplemented`, which `CommandsIn` turns into `not_built`. It keeps `STUB = 1`, and its oracle row in `Test/Core/ProductionItems.cls` stays `stub: 1` until 8.4 deletes both.
-  - The set saves the row, then starts the waiter synchronously (`ReminderStart`, 10 s limit). The waiter writes its own start header id to `Reminder.TraceHeaderId` before it answers. A failed start deletes the row and answers `failed`. The answer for a set reminder is `set`, with the message "The reminder is set."
-  - `ReminderTimer` is frozen. It stores only `Ref`, and `OnRequest` and `OnResponse` call `Schedule.Reminder.Start` and `Wake`.
-  - When it wakes, the waiter opens the row under an exclusive lock and:
-    - ends without sending if the row is not pending;
-    - sets the timer again if it woke early;
-    - if the row is busy, logs a warning and tries again in 1 s;
-    - otherwise marks the row fired and saves it, sends one `reminder` Notification, releases the lock, and publishes the fired event.
-
-    A failed send is logged and never retried.
-  - Each waiter runs in its own trace session. The starter clears `..%SessionId`, sets `..%SuperSession` to the session's `TraceRef`, and restores both afterwards. The job's session id doesn't move.
-- **The `Reminder` row is the source of truth.** It holds `Ref` (from `Bridge.Ids.NewRef()`), `SessionRef`, `Text`, `DueAt` (UTC), `State` (pending, fired or cancelled), `Late`, `CreatedAt` and `TraceHeaderId`.
-  - Ruled for 8.4: the row gains `IdempotencyKey` and `CancelKey` (`%String(MAXLEN=128)`, no index).
-  - Storage is append-only. Every persistent and message class commits its compiler-generated `Storage` block and never edits it by hand. CI diffs those blocks against the previous `v*` tag.
-  - Only `ReminderTimer` and `ApprovalHold` may hold a timer longer than 2 minutes.
-- **Reconcile.** The Schedule area's `Reconcile()` runs at every start, so it must be idempotent. For each pending row whose waiter is gone, it starts a new waiter armed from the row's due time, and the waiter stores its new header id. It leaves fired and cancelled rows alone, and starts nothing for a row whose waiter is still waiting.
-- **Notification and text.** Producers never render text. `Kind` is `reminder`, with key `reminder.due` ("Reminder: {text}.", slots `text` and `dueAt`) or `reminder.late` ("Reminder (late; it was due at {time}): {text}.", slots `time`, `text` and `dueAt`). Both keys are in `Catalog.Core`. `WebChatOut` keeps `dueAt` on the card's `Delivery` row.
-- **Routing.** `Notify` sends a reminder to `WebChatOut`, to `SimPhoneOut` in demo mode, and to `TelegramOut` only when Telegram is included and the session is paired. `TelegramOut` is a disabled stub until Epic 12, so test that route on `Notify`'s rule, with a fixture pairing and `^OcuTalonTest("TelegramIncluded")`.
-- **Live events.** `ReminderOps` publishes `reminder` created and cancelled, and `ReminderTimer` publishes fired. Events go only through `Live.Publish`, after the commit and never inside a transaction. The payload is `Payload.Reminder.FromRow`, the full view keyed by `Ref`. In demo mode `Publish` recomputes the guide itself.
-- **Time.** `OcuTalon.Data.Time` is the only converter, and `Bridge.Time` is the bridge's twin. The instance zone is the container's `TZ`, but throwaways run in UTC, so pin daylight-saving cases in-process with the zone set. Measured on build 154: a spring-forward gap time reads one hour later, a fall-back overlap time takes its first instant, and an impossible date throws.
-- **Mock.**
-  - Story 4.4's `B/guide-reminder.json` answers "Remind me in 1 minute to stretch." with `set_reminder` (text `stretch`, `delaySeconds` 60), then a text reply. `Test.Demo.GuidePrompts` and `guide-view.test.mjs` pin it.
-  - The loader refuses a repeated prompt, so 8.6 extends that file and adds no second one (DW-232).
-  - The mock replays fixed tool inputs. It can't compute "next Thursday" or carry a `Ref` from an earlier tool result. The Thursday and cancel cases are `[[mock:<name>]]` marker scenarios.
-- **Tests.**
-  - `%UnitTest` classes go in `OcuTalon.Test.Schedule.<Subject>`, shard `lane-b`. They run only on throwaways or CI. Each test creates and removes what it asserts on, and ends every waiter it started. Restart cases restart IRIS in their own compose project.
-  - A warm stack picks up a changed class that a production item runs only after that item restarts.
-  - The framework deletes a completed `ReminderTimer` instance, so wait for "no live instance".
-  - `live:sign-in` ran about 506 s against its 540 s local deadline after 8.3 (CI allows 1200 s).
-  - No committed file may hold a local absolute path, or CI's `test-boundaries.sh` fails.
-
-## UX & Interaction Patterns
-
-- **Rail row.** It shows the text, the due time, a tabular countdown ("Stretch · in 59 s") and a trace link to the waiting process. It is read-only, with the hint: To cancel, ask: "Cancel my reminder to stretch." When none is pending, the rail reads "None pending."
-- **When it fires.** The row leaves the rail and becomes a notice card in the chat, showing the catalog text exactly plus "Due {time} · arrived {time}". The simulated phone shows the same text as the paired chat.
-- **Guide step 2.** It sends "Remind me in 1 minute to stretch." word for word. It is done when the session has a reminder, pending or fired. The reminder lands during step 3's wait ("The reminder may arrive first."). Rehearsal measurement may later shorten the prompt to "in 30 seconds".
+- **Ownership and rulings.**
+  - `docker/tests/test-sign-in.sh`, `web/e2e/**` and the CI recipe are Lane B's files, which this epic works in.
+  - The orchestrator ruled that `test-sign-in.sh` is not contended: no open branch changes it. The part argument goes in it.
+  - Epic 6 is editing three things right now: the `browser` group line in `ci/units.sh`, `BROWSER_UNITS`, and the browser expectations in `docker/tests/test-demo-path-gate.sh`. Choose a part shape that leaves all three alone: no new unit name and no change to the group. The gate stubs `test-sign-in.sh`, runs `ci/iris.sh group browser`, and expects `UNIT live:sign-in passed`.
+- **Plumbing today.**
+  - `ci/iris.sh live <name>` runs `bash docker/tests/test-<name>.sh` with no arguments. Getting a part through the recipe needs one of two things: `cmd_live` forwards its arguments, or the script reads a variable.
+  - Story 5.3 has already changed `ci/iris.sh` on the integration branch, so that file comes in on the next integrate-forward.
+- **Precedent: `ci/iris.sh shard <name> --part k/n`.**
+  - It comes from Story 5.3 and is on the integration branch, not yet on this epic's branch. Its helper is `shard_part` in `ci/iris.sh`.
+  - It accepts `--part k/n` or `--part=k/n`.
+  - It cuts the ordered list into n contiguous parts whose sizes differ by at most one. The first (count mod n) parts are the larger ones.
+  - It titles the run "`<name>` part k/n".
+  - It exits 2 for a malformed value, a k outside 1 to n, or an n above the item count.
+- **The unit as built.**
+  - One call starts one throwaway stack. It rebuilds the web bundle, builds the image and does the first start. It then runs the security checks, creates 14 fixture users with random passwords, and seeds three events: two reminder events on the README account's session and one status event on the instance stream.
+  - Then it runs Playwright's `chromium` project: every spec under `web/e2e/` except `demo-path/`, `demo-switch/` and `floor/`, with one worker, in file-path order.
+  - Each part pays that whole setup again.
+  - The browser run's global timeout is whatever is left of `OCUTALON_LIVE_DEADLINE` minus 20 s. That deadline is 540 s by default locally and 1200 s in CI.
+- **Timings.**
+  - The unit has 222 tests in 18 spec files.
+  - The whole call took 506 s at Story 8.3, 6.9 minutes of it in Playwright. At Story 8.6 it took 512 to 515 s, run with `OCUTALON_LIVE_DEADLINE=900`.
+  - Spec files differ widely in run time. heartbeat.spec waits for two StatusMonitor runs, 15 s apart, and the trace specs post until a session holds more than 45 items. An even split by file count may therefore not split the time evenly.
+  - Setting `OCUTALON_E2E_JSON` writes a JSON report with the time of each test.
+- **State shared across files within a part.**
+  - `reminder/chat.spec.ts` points the model keys at the mock and puts them back in its `afterAll` (`pointKeys` and `restoreKeys` in `support/devices.ts`). Later specs, `trace/links.spec.ts` among them, expect the no-key fallback.
+  - session.spec S4 expects that nothing signed the sign-in user in before it.
+  - Each part starts from the same fresh stack with no key, so all of this still holds if each part keeps file-path order.
+- **Epic 8 as built, for orientation only.** 8.7 changes none of this.
+  - `HeartbeatIn` sends a `Tick` to `Checks` every minute.
+  - `ReminderOps` handles set, list and cancel, with plain-English refusals and repeats by `IdempotencyKey`.
+  - Each reminder waits in its own frozen `ReminderTimer`.
+  - The Schedule area's `Reconcile` re-arms reminders at every start.
+  - The restart cases are the live unit `reminder-restart`, in the `production` group.
 
 ## Cross-Story Dependencies
 
-- **Merged.** Epic 1 (the set, list and cancel tools), Epic 2 (rail rows, notice cards, `Notify`) and Epic 4 (simulated phone, demo routing, guide step 2, `guide-reminder.json`). Epic 4's guide tests use fixture `Reminder` rows and must stay green.
-- **Within the epic.**
-  - 8.4's cancel relies on 8.3's rule that a waiter whose row is no longer pending sends nothing, and on the same row lock.
-  - 8.6 needs 8.4's `DelaySeconds` set, list and cancel.
-  - 8.5 re-arms through `ReminderStart` and `ReminderTimer`, and reuses 8.3's late key. It leaves cancelled rows and the key properties alone.
-  - DW-296: a caller holding a `Reminder` row lock for 10 s or more, or across a waiter's start, leaves that waiter unarmed. 8.5's `Reconcile` must not do it.
-- **Demo-path spec 03** (`web/e2e/demo-path/03-reminder.spec.ts`). Its `notBuilt(..., '8.4')` line predates the split, and Story 8.6 turns it on once it passes on the integration branch with the CI mock. Under DW-210, skip before any browser fixture starts: `demo-path-summary.test.mjs`'s `playwrightEnv()` leaves local browsers usable, so a late skip fails only the browserless hosted `web` job. Check with `PLAYWRIGHT_BROWSERS_PATH=/nonexistent`.
-- **Story 16.4 is not built.** Under DW-291, its sign-out test uses 8.4's real cancel path: one `CancelReminder` per pending `Ref`, with no cancel-by-session entry point. Its closed-page case expects a reminder to fire after the CSP session ended. Epic 8 touches nothing of Epic 16. Story 29.4 waits for this epic.
-- **Heartbeat tests.** A test that suspends the heartbeat task or moves its tick mark must end with the task as it found it and a fresh real tick, because `/state` and `StatusMonitor` read the real heartbeat. This matters for 8.5's restarts.
-- **Routed elsewhere.**
-  - DW-142 (Chat's instructions still refuse commands and name no reminder ability) goes to Story 11.1.
-  - DW-140 (Chat's 4-iteration ceiling) goes to Story 11.6.
-  - Epic 8 never edits `Agent/Chat.cls`. Lane A's release work keeps the full upgrade harness.
-- **Ledger owned here.** 8.4 owns DW-135 and DW-141; 8.6 owns DW-210 and DW-232.
+- Stories 8.1 to 8.6 left specs in this unit: `heartbeat/heartbeat.spec.ts`, `reminder/reminder.spec.ts` and `reminder/chat.spec.ts`. They must pass in whichever part they land and in the whole unit.
+- The `demo-path`, `demo-switch` and `floor` units use other Playwright projects and are not affected.
+- Epic 6 is editing the browser group and the gate at the same time (see the rulings above). Expect a union, not a rewrite, if Story 8.7 touches anything near them.
+- This epic owns DW-204 and DW-314 in the ledger. Both close in Story 8.7, and Epic 8 merges after it.
