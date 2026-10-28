@@ -359,6 +359,36 @@ Code review, 2026-10-28 (Epic 8 code-review stage; four layers, no model overrid
   Acceptance: a fresh `live demo-path` is green, with STEP 3 passed, STEP 4 and STEP 5 back to the feature's results, and the floor 7 of 7. If the fix touches the card or the chat code, `live answers` and `live cards` stay green too. Never edit `src/ocutalon/cls/OcuTalon/{Agent,Tools,Fix,Watch}/**`, `src/bridge/**`, or `web/src/app/{header,session,live,api,banners,guide,mailbox}/**` (other open epics' paths). If the fix needs one of them, HALT `blocked` with an intent gap that names the file and the change. Each changed pinning assertion gets its `mutation:` line.
   - Resolved (implement, rework 2): the cause is neither (a) nor (b). The lane-C web bundle was stale (Design Notes, Decided 17), and a rebuild made a fresh `live demo-path` green (tag `e8s6i3c`: STEP 3 passed, STEP 4 `partly skipped, 2 passed, 2 skipped`, STEP 5 `partly skipped, 2 passed, 1 skipped`, floor 7 of 7), with 03's turn and decision still in the README session. No assertion changed; 03's header comment now says what 03 leaves behind.
 
+### Review Findings (rework re-review, iteration 2)
+
+Code review, 2026-10-28 (Epic 8 code-review stage; review tier full-opus, four layers, no model override; diff `95af1d2..HEAD`, source only: the rework commit `dfb3af5`, 03's header comment). 9 findings from the layers (Blind 4, Edge 0, Gap 1, Auditor 4). They make 4 rows (high 0, med 0, low 4), all patched in one rewrite of the same header lines. 2 were rejected. No ledger entry.
+
+- [x] [Review][Patch] (low; Blind, Auditor; fix-risk low: comment only; in-story; spec-clear) The header said "the guide turn and its fallback decision stay". A guide turn writes two decisions: a triage decision, which is a fallback under the CI mock (Decided 10), and a turn decision, which is not, with its agent steps. The cancelled reminder row stays too, because `CancelPending` cancels and does not remove. Fixed: the header says that the turn and everything else it made stay, with these as examples. [web/e2e/demo-path/03-reminder.spec.ts:13]
+- [x] [Review][Patch] (low; Blind, Auditor; fix-risk low: comment only; in-story; spec-clear) The header gave step 2 done as the test's result but did not say that the cancel undoes it. `Demo/Guide.cls:76` marks step 2 from `Ownership.ReminderSetOrFired`, which counts pending or fired rows only (Decided 6). Fixed: "and the guide's step 2 is no longer done". [web/e2e/demo-path/03-reminder.spec.ts:12]
+- [x] [Review][Patch] (low; Auditor; fix-risk low: comment only; in-story; spec-clear) "The reminder it set is cancelled" was narrower than `CancelPending`, which cancels every pending reminder of the session, as the intent's "Spec 03" bullet says. Fixed: "every pending reminder of the README session (on the first-start stack, only the one it set)". `test-demo-path.sh` seeds no event, so the parenthesis is exact. [web/e2e/demo-path/03-reminder.spec.ts:11]
+- [x] [Review][Patch] (low; Auditor, Blind; fix-risk low: comment only; in-story; spec-clear) "The steps that follow do not depend on their absence" was a fact only for the built cases of 04 and 05. 06 and the `notBuilt` parts of 04 and 05 have never run after 03. Fixed: the header now states it as the contract that later steps must keep ("must not depend on their absence"). [web/e2e/demo-path/03-reminder.spec.ts:14]
+- [x] [Smoke] second round, checklist: confirmed fixed.
+  - **The root cause is established with evidence** (Decided 17), and it is neither a product fault nor 03's state.
+    - `ensure_web_bundle` (`docker/tests/lib-live.sh:156-160`) builds `src/ocutalon/csp/` only when `index.html` or `web/node_modules` is missing, or when `LIVE_REBUILD_WEB` is 1.
+    - The stale bundle held 0 incident card and 0 approval card components; a rebuilt bundle holds 3 of each.
+    - On a fresh bundle, `live demo-path` was green twice locally (`e8s6i3c`, `e8s6i3p`), and CI run 40692572200 on the merged tree printed the same STEP lines.
+  - **04's and 05's assertions were not weakened, skipped or re-tagged.** `git diff af61733` is empty for `04-incident.spec.ts`, `05-approval.spec.ts`, `06-trace.spec.ts` and `not-built.ts`, and `git diff af61733 -- src web docker ci` lists only `03-reminder.spec.ts`.
+  - **No forbidden path was touched.** `git diff --name-only 95af1d2` is empty for `src/ocutalon/cls/OcuTalon/{Agent,Tools,Fix,Watch}`, `src/bridge` and `web/src/app/{header,session,live,api,banners,guide,mailbox}`.
+  - **03's header now states what 03 leaves behind** (the four patches above). It matches 03's `afterAll` (`CancelPending` at least 1, then `restoreKeys`, then `WaitRecords`) and Decided 6 and 17.
+  - No test body or assertion changed, so no `mutation:` line is owed.
+
+**Evidence (re-review, lane C, static).**
+- `npm --prefix web run lint` exited 0, and `bash docker/tests/test-boundaries.sh` passed.
+- The header is ASCII only.
+- No live unit ran. The lead's smoke (`ci/iris.sh build`, then `live demo-path`) follows.
+
+**Rejected:**
+- `false` (Blind): "a second run of 03 on the same stack fails (two prompt messages; step 2 current), so the header should say that 03 needs a fresh stack". The header already says it needs the first-start stack. `test-demo-path.sh` starts one fresh throwaway per call ("the stack holds only what the first start creates"), and 01 already requires the empty chat panel. The precondition is the unit's, and a re-run fails loudly.
+- `low`, outside the rework range (Gap, Blind): Story 11.1's "the reminder lands in the chat and on the phone during the wait" (`04-incident.spec.ts:158`) needs 03's reminder alive, but 03's `afterAll` cancels it. The hand-off exists only in this spec (Decided 6, Consumed-by).
+  - It is not this diff: the cancel and its stated reason date from round 1.
+  - It is not HIGH: a failure would be loud (03's `afterAll` asserts the cancel), never a false green, and 03's header states the cancel's purpose in the file that 11.1 must edit.
+  - The dispatch files a finding outside the rework range only when it is HIGH.
+
 ## Spec Change Log
 
 - 2026-10-28 (lead): rework iteration 1 opened at Epic 8's integrate-forward: ReminderChat red on the merged tree (Chat's toolset grew with Epic 5's Watching tools); one `[Smoke]` item.
