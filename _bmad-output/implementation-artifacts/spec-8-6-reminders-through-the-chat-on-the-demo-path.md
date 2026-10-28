@@ -2,7 +2,7 @@
 title: 'Story 8.6: Reminders through the chat on the demo path'
 type: 'feature'
 created: '2026-10-27'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '36be42418f97800de50ae2711c1bd0c3d9e8557a'
 baseline_commit: '36be42418f97800de50ae2711c1bd0c3d9e8557a'
 review_loop_iteration: 0
@@ -330,9 +330,21 @@ Code review, 2026-10-28 (Epic 8 code-review stage; four layers, no model overrid
 - `false` (Blind): `REMINDERTOOLS` reused the name of `Test.Agent.Runners`' eight-tool parameter. Parameters are class-scoped, so `..#REMINDERTOOLS` never reads the other class's value. ReminderChat's value was exactly the three reminder tools its name says. The eight-tool misnomer is Runners' own (Lane A). The first patch removes the parameter anyway.
 - `false` (Edge): a `/v1/messages` entry with a null `request` makes `ToolNames` throw. This is not new: the code at `36be424` called `ToolNames` on the same entries. A null `request` only follows a body that is not JSON, and no runner sends one. A throw is a loud test error, never a false green.
 
+- [ ] [Smoke] Integrate-forward red, second round (merged tree `af61733` = feature `ce66c6b` + Epic 8): a fresh `ci/iris.sh live demo-path` (lane C, tag `e8if3d`, 2026-10-28) fails STEP 4 and STEP 5, while STEP 3 (this story's `03-reminder.spec.ts`) passes just before them:
+  - `04-incident.spec.ts:105` "the incident card and the phone's notice, on fixtures for Lane A's raise path": `app-chat-panel [data-part="approval"][data-key=<request>]` has count 0 after 15 s (line 138);
+  - `05-approval.spec.ts:25` "Approve on the simulated phone, on fixtures": the same, at line 57;
+  - `05-approval.spec.ts:74` "Fixing, then ...": timed out (120 s).
+  On the feature head alone (CI browser job of `6151327`), STEP 3 was still `notBuilt` and STEP 4/5 passed, so turning 03 on is the trigger. At the failure (Playwright error-context) the page shows: the README session's chat holds 03's turn (the guide prompt and "The CI mock set the reminder." with its Tell now / Fallback strip), "Recent decisions (1)", "Reminders (0)", and the guide at "Step 2, Reminder, current". The rail counts "Approval requests (1)", the simulated phone shows the incident notice, and `applied()` saw the page reach the incident event's Seq, yet the chat shows NO incident card at all.
+  First find the root cause, with evidence: reproduce on a lane-C throwaway, and capture the page's console errors and the live store's chat entries (for example with a Playwright `page.on('console')` listener or a trace) on the failing page. Then:
+  - (a) If the product drops or fails to render the incident card when the session already holds a turn or a fallback decision, it would break UJ-1 itself, where the reminder step comes before Break the feed. Fix the product so the card shows, with a pinning test that has a prior turn and decision.
+  - (b) If it is test state that 03 leaves behind and the real path is unaffected (prove it), make 03 leave the README session as the later steps expect. 03's own doc promises "the README session's later steps see it as before"; `ReminderFixture.RemoveTurns` is the existing helper that `web/e2e/reminder/chat.spec.ts` uses.
+  - Never weaken, skip or re-tag any assertion of 04 or 05.
+  Acceptance: a fresh `live demo-path` is green, with STEP 3 passed, STEP 4 and STEP 5 back to the feature's results, and the floor 7 of 7. If the fix touches the card or the chat code, `live answers` and `live cards` stay green too. Never edit `src/ocutalon/cls/OcuTalon/{Agent,Tools,Fix,Watch}/**`, `src/bridge/**`, or `web/src/app/{header,session,live,api,banners,guide,mailbox}/**` (other open epics' paths). If the fix needs one of them, HALT `blocked` with an intent gap that names the file and the change. Each changed pinning assertion gets its `mutation:` line.
+
 ## Spec Change Log
 
 - 2026-10-28 (lead): rework iteration 1 opened at Epic 8's integrate-forward: ReminderChat red on the merged tree (Chat's toolset grew with Epic 5's Watching tools); one `[Smoke]` item.
+- 2026-10-28 (lead): rework iteration 2 opened at Epic 8's integrate-forward suite: `live demo-path` STEP 4/5 red on the merged tree once STEP 3 runs; one `[Smoke]` item.
 
 ## Review Triage Log
 
