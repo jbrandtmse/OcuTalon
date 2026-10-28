@@ -6,7 +6,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -14,7 +13,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createMock, redact } from '../mock.mjs';
 import { loadScenarios } from '../scenarios.mjs';
-import { spawnServer } from './helpers.mjs';
+import { makeTree, spawnServer, withServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_DIR = path.join(HERE, '..');
@@ -64,45 +63,6 @@ const STEPS = {
     { status: 200, text: 'Done.' },
   ],
 };
-
-function makeTree(extra = {}, omit = []) {
-  const tree = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-tree-'));
-  fs.cpSync(COMMITTED, tree, { recursive: true });
-  for (const name of omit) fs.rmSync(path.join(tree, 'A', `${name}.json`));
-  for (const [rel, data] of Object.entries(extra)) {
-    fs.mkdirSync(path.dirname(path.join(tree, rel)), { recursive: true });
-    fs.writeFileSync(path.join(tree, rel), JSON.stringify(data, null, 2));
-  }
-  return tree;
-}
-
-// withServer({files, omit}, fn): fn({base, mock, lines, logFile, readLog}) runs against a fresh in-process server.
-async function withServer(opts, fn) {
-  const tree = makeTree(opts.files, opts.omit);
-  const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-log-'));
-  const logFile = path.join(logDir, 'requests.jsonl');
-  let server = null;
-  try {
-    const { scenarios, problems } = loadScenarios(tree);
-    assert.deepEqual(problems, []);
-    const lines = [];
-    const mock = createMock({ scenarios, logDir, out: { write: (s) => lines.push(s) } });
-    server = http.createServer((req, res) => {
-      mock.handle(req, res);
-    });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const base = `http://127.0.0.1:${server.address().port}`;
-    const readLog = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
-    await fn({ base, mock, lines, logFile, readLog });
-  } finally {
-    if (server !== null) {
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-    }
-    fs.rmSync(tree, { recursive: true, force: true });
-    fs.rmSync(logDir, { recursive: true, force: true });
-  }
-}
 
 async function post(base, body, headers = {}, key = KEY) {
   const h = { 'content-type': 'application/json', ...(key === null ? {} : { 'x-api-key': key }), ...headers };
@@ -601,7 +561,7 @@ test('row 14: one stdout line and one file line per request, written before the 
     const { request: logged, ...fileFields } = fileLines[0];
     assert.deepEqual(fileFields, stdoutLine);
     assert.equal(Object.hasOwn(stdoutLine, 'request'), false);
-    assert.deepEqual(Object.keys(stdoutLine), ['ts', 'id', 'method', 'path', 'status', 'scenario', 'selectedBy', 'marker', 'step', 'countdown', 'headerNames', 'keyLength', 'rejected', 'model', 'maxTokens']);
+    assert.deepEqual(Object.keys(stdoutLine), ['ts', 'id', 'method', 'path', 'status', 'scenario', 'selectedBy', 'marker', 'step', 'countdown', 'headerNames', 'keyLength', 'tokenLength', 'rejected', 'model', 'maxTokens']);
     assert.equal(stdoutLine.id, 1);
     assert.equal(stdoutLine.method, 'POST');
     assert.equal(stdoutLine.path, '/v1/messages');
@@ -610,6 +570,7 @@ test('row 14: one stdout line and one file line per request, written before the 
     assert.equal(stdoutLine.selectedBy, 'mockkey');
     assert.equal(stdoutLine.step, 0);
     assert.equal(stdoutLine.keyLength, PLAIN_KEY.length);
+    assert.equal(stdoutLine.tokenLength, null, 'a model call has no Bot API token');
     assert.equal(stdoutLine.rejected, null);
     assert.equal(stdoutLine.model, MODEL);
     assert.equal(stdoutLine.maxTokens, 8000);
@@ -676,7 +637,7 @@ test('row 14: one stdout line and one file line per request, written before the 
   }
 });
 
-test('row 17: other paths are 404s, the Bot API one names Story 10.3, and health answers', async () => {
+test('row 17: other paths are 404s, a Bot API path is served without the model key rule, and health answers', async () => {
   await withServer({}, async ({ base, readLog }) => {
     const wrong = await fetch(`${base}/messages`, { method: 'POST', headers: { 'x-api-key': KEY }, body: '{}' });
     const wrongBody = await wrong.json();
@@ -688,10 +649,14 @@ test('row 17: other paths are 404s, the Bot API one names Story 10.3, and health
     assert.equal(list.json.error.type, 'not_found_error');
     assert.ok(list.json.error.message.includes('/v1/models'));
     const bot = await getJson(`${base}/bot${'1234567890'}:${'A'.repeat(35)}/getMe`);
-    assert.equal(bot.status, 404);
-    assert.equal(bot.json.error.type, 'not_found_error');
-    assert.ok(bot.json.error.message.includes('Story 10.3'));
+    assert.equal(bot.status, 200, 'the Bot API is served, with no x-api-key header');
+    assert.equal(bot.json.ok, true);
+    assert.equal(bot.json.result.username, 'ocutalon_ci_bot');
     assert.equal(bot.text.includes('A'.repeat(35)), false);
+    const notBot = await getJson(`${base}/botnotapi`);
+    assert.equal(notBot.status, 404, 'a path that is no /bot<token>/<method> is the generic 404');
+    assert.equal(notBot.json.error.type, 'not_found_error');
+    assert.equal(notBot.json.error.message.includes('Story 10.3'), false);
     const getMessages = await getJson(`${base}/v1/messages`, { 'x-api-key': KEY });
     assert.equal(getMessages.status, 404);
     assert.equal(readLog().some((l) => JSON.stringify(l).includes('A'.repeat(35))), false);

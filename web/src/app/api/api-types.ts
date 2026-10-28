@@ -18,7 +18,12 @@ export type LiveEnvelope<T extends LiveEventType = LiveEventType> = LiveItem<T> 
   ts: string;
 };
 
-/** The Telegram block of the snapshot: whether the release includes Telegram, the bot's state and the session's pairing. */
+/**
+ * The Telegram block of the snapshot: whether the release includes Telegram, the bot's state and the session's pairing. The server
+ * builds it in Web.Api.StateBody: `included` from Channel.Telegram.In.Included(), `state` and `botUserName` from the telegramState status
+ * mark (StatusMark.RecordTelegram), `paired` and `displayName` from the session's Pairing row (Data.Ownership.Pairing), and
+ * `pausedUntil` from the telegramPaused mark while its time is in the future, else "".
+ */
 export interface TelegramState {
   included: boolean;
   state: 'off' | 'on' | 'rejected';
@@ -94,6 +99,23 @@ export interface AnswerBody {
 /** POST /ocutalon/api/v1/incidents/:ref/dismiss: the body of the 200 answer. The request body is {} and the session is the caller's. */
 export interface DismissBody {
   result: 'done';
+}
+
+/** POST /ocutalon/api/v1/pairing/code: the 200 answer. The code is 22 characters, shown once and valid until `expiresAt` (UTC); the server stores only its hash. */
+export interface PairingCode {
+  code: string;
+  expiresAt: string;
+}
+
+/** DELETE /ocutalon/api/v1/pairing: the body of the 200 answer, also when nothing was paired. The request body is {} and the session is the caller's. */
+export interface UnpairDone {
+  result: 'done';
+}
+
+/** POST /ocutalon/api/v1/demo/break-feed: the 200 answer to a press, the run's batch is sent, and when it started. The request body is {} and the session is the caller's. */
+export interface BreakFeedSent {
+  state: 'sent';
+  startedAt: string;
 }
 
 /** The body of an error answer to an answer: the error, and the request's payload beside it for a 409 (already answered, expired). */

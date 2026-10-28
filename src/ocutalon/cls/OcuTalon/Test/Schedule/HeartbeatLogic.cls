@@ -11,7 +11,7 @@
 /// The stalled rule (Story 8.2; FR-32), with no production:
 ///   - TestStalled: every row of the matrix of that spec through Heartbeat.Stalled: never ticked, fresh, the 180 s boundary (off), 181 s (on),
 ///     240 s, an unreadable tick or now, a tick later than now, and a missing argument;
-///   - TestStalledCondition: Status.Computed with an injected heartbeat reading: the order dailyCap, noModelKey, heartbeatStalled, the exact
+///   - TestStalledCondition: Status.Computed with an injected heartbeat reading: the order dailyCap, noModelKey, heartbeatStalled, telegramPaused, the exact
 ///     exported JSON on and off, a reading of "" or one that is not an object is off, and ActiveOf holds the condition only when on.
 Class OcuTalon.Test.Schedule.HeartbeatLogic Extends %UnitTest.TestCase
 {
@@ -122,7 +122,7 @@ Method TestStalledCondition()
 	For i = 1:1:conditions.Count() {
 		Set names = names _ $Select(names = "": "", 1: ",") _ conditions.GetAt(i).Condition
 	}
-	Do $$$AssertEquals(names, "dailyCap,noModelKey,heartbeatStalled", "the order: dailyCap, noModelKey, heartbeatStalled")
+	Do $$$AssertEquals(names, "dailyCap,noModelKey,heartbeatStalled,telegramPaused", "the order: dailyCap, noModelKey, heartbeatStalled, telegramPaused")
 	Set condition = conditions.GetAt(3)
 	Do $$$AssertEquals(condition.Active, 1, "240 s back: on")
 	Do $$$AssertStatusOK(condition.%JSONExportToString(.json), "it exports")
@@ -144,7 +144,7 @@ Method TestStalledCondition()
 	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark)})
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "a reading with no now: off")
 	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, "")
-	Do $$$AssertEquals(conditions.Count(), 3, "a reading of the empty string: still the three conditions")
+	Do $$$AssertEquals(conditions.Count(), 4, "a reading of the empty string: still the four conditions")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "and the empty string is no tick: off")
 	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, [1, 2])
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "an array is not a reading: off")

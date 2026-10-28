@@ -2,12 +2,20 @@
 title: 'The session side of Telegram is ready and stays off'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
+baseline_revision: '3cc30457ca05ae31e069c0c8a04caf9c30eef81a'
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so Story 12.1 must decide how a start with no bot token (FR-21: no token, so off) is expressed once Included() is 1.
+    evidence: |-
+      ci/compose.ci.yml sets TELEGRAM_BOT_TOKEN unconditionally, and live_key_count counts an empty token as a key. Nothing in the Design Notes says how a no-token start is made in CI, by a start without the override or by an explicit empty value. Unverified: it depends on how Story 12.1 enables the Telegram items; Story 12.1's design settles it.
+    location: >-
+      ci/compose.ci.yml
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -424,6 +432,60 @@ Paths under `src/ocutalon/cls/OcuTalon/` unless they start otherwise.
 
 ## Review Triage Log
 
+### 2026-10-28 — Review pass
+- verdicts: 46 findings — high 0, medium 2, low 32, false 10, maybe-false 2
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` Pair can fail after a move or an other_chat drop, leaving the session with no chat and the dropped chat told of a pairing — real but deliberate: the matrix orders the unlinks before the `linked` entry, the dropped chat must learn that it lost its pairing, and the same unused code pairs again; the code is unchanged, the behaviour is stated in the class comment and pinned by the new `TestPairAuditFailsAfterADrop` (Decided 27).
+    - `[low]` `[reject]` The rollback and failure branch of `Link` are untested — an error branch with no AC or matrix row, and testing the rollback needs a failure seam inside a transaction; reopen_if=a pairing is found linked with its code unused.
+    - `[low]` `[reject]` `Link` does not re-check the code row against a concurrent `StoreCode` — it needs the user to ask for a new code in the same milliseconds as the old code pairs, and the only effect is that the new code reads as used; the fix adds a lock and re-checks; reopen_if=a code shown to a user is found used before they use it.
+    - `[low]` `[patch]` `TestPurge` pins only coarse ages — rows an hour either side of the 30-day cutoff were added, by SeenAt and by CreatedAt; the mutation "cutoff a day older" is red.
+    - `[low]` `[patch]` The mock reads a negative `getUpdates` offset as none — it now answers 400 (Decided 28), with a test, and the wait comment was reworded.
+    - `[low]` `[patch]` The `FromTelegram` comment says `not_allowed {}` for a row with no session Ref — reworded: a row with no session value is `not_paired`, a value that is no Ref is `not_allowed {}`.
+    - `[low]` `[patch]` The `TestBodyNamesNoSession` comment claims the caller's own chat is unlinked, and the `not_built` branch is untested — the test now pairs the caller's chat and asserts it is unlinked; the 501 branch stays because Task D requires it; reopen_if=an owner answers `not_built` again.
+    - `[low]` `[patch]` `pairing.spec.ts` removes the wrong code row on failure — the latest hash is tracked and removed in `finally`; `live:sign-in` part 1 passes.
+    - `[maybe-false]` `[defer]` The CI override's dummy bot token leaves no way to express a no-token start in CI once Included() is 1 — medium if true; it depends on how Story 12.1 enables its items; recorded in `deferred:` with what would settle it.
+    - `[low]` `[patch]` Mutation evidence is missing for the key check, `pairing.spec.ts` and the QR pin, and the Auto Run Result status is stale — mutation lines were added for the key count and the QR pin, `pairing.spec.ts` runs in `live:sign-in`, and the Auto Run Result is rewritten at finalize.
+    - `[low]` `[patch]` `PairingRows` holds an unused `MarkExisted` property — removed.
+  - Edge Case Hunter
+    - `[low]` `[patch]` Pair failure after drops — same root as the first Blind Hunter row: pinned, not changed.
+    - `[low]` `[reject]` `Link` re-check — same root as the third Blind Hunter row.
+    - `[low]` `[patch]` `RecordChat` treats a failed SQL lookup as "no chat" and makes a second row — a failed lookup is now an error status and no row (Decided 29); no test can cause the SQL error.
+    - `[low]` `[patch]` A client that hung up before the long poll registers its close listener keeps the timer up to 50 s — the loop now also stops on a destroyed response.
+    - `[low]` `[reject]` `Reject` writes an audit entry for every junk Pair — the AC audits every pair outcome (by design); a throttle belongs to the Telegram service, whose `TakeReplySlot` already limits replies; reopen_if=the audit log is flooded by junk /start commands.
+    - `[low]` `[reject]` `qr-pin.test.mjs` fails with ENOENT when `web/node_modules` is absent — the web tests run after `npm ci` in CI, and the error names the file; unlikely and loud.
+    - `[low]` `[patch]` Claim: the Pair order is moves first, not audit first — same root as the first Blind Hunter row (Decided 17 and 27).
+    - `[false]` `[reject]` `telegramPaused` and the Telegram block read their marks without an Included() check — nothing writes either mark in 0.1.0 (the Telegram service of Story 12.2 does), so a judge's install holds the defaults, and the matrix rows for Status do not depend on Included().
+  - Verification Gap
+    - `[medium]` `[patch]` The "no Notification" assertions look in a trace that the Pair and /stop commands are not in — confirmed: those commands carry no session, and `CommandsIn.Join` sets the SuperSession only for a session. They now count the SessionOps-to-Notify headers newer than a mark, with a positive control in the page-Unpair test; the mutation "/stop sends a notice" is red.
+    - `[low]` `[patch]` `RecordTelegram`'s "mark unchanged" assertion ran after successful writes — moved before them; the mutation "write before validating" is red.
+    - `[low]` `[patch]` The unpair route's 500 mapping and the code route's 500s are untested — `TestNoSessionIs500` covers both routes (the mutation "404 for an unreadable session" is red); the `failed` outcome to 500 stays without a test because it needs a failure seam in a running production; reopen_if=an unpair that fails answers 200.
+    - `[medium]` `[patch]` Three of the five origins in `CHANNELS` are never exercised — `TestUnpairOriginsAuditTheirChannel` covers web_user, web_admin, timer and system; the mutation "drop web_admin" is red.
+    - `[low]` `[reject]` The lock and atomicity of `TakeReplySlot` and `RecordChat` are untested — a test needs a second job that holds the lock, and no consumer exists before Stories 12.4 and 12.5; reopen_if=two updates from one unpaired chat both get a reply.
+    - `[low]` `[reject]` The `SessionOps` catch and the `Link` failure are untested — same root as the second Blind Hunter row (the catch is the generic safety net).
+    - `[low]` `[patch]` Two fixed sleeps in the mock long-poll test — replaced by polling `/_mock/telegram/calls` until the `getUpdates` call is listed.
+    - `[low]` `[patch]` One element of the token-in-refusal-body loop is vacuous — the loop now checks the text of every refusal, the 401 and the 405 included; the mutation "token in the 405 body" is red.
+    - `[low]` `[patch]` `ApprovalKnown` exactness is untested — a wrong-case Ref of another session's request must answer `unknown`; the mutation "no exact compare" is red.
+    - `[false]` `[reject]` Rule 19: some ACs have a mutation line that covers only part of the AC — Rule 19 asks for one demonstrated mutation per AC, and all 13 have one; more lines were added for the parts this review touched.
+    - `[low]` `[reject]` `TestPurge` deletes every old unpaired row of the namespace — `Purge` is global by definition (AD-27), and the class header limits the test to throwaways and CI.
+    - `[low]` `[reject]` `qr-pin.test.mjs` needs `web/node_modules` and reads the spine outside `web/` — same root as the sixth Edge Case Hunter row; the spine read is the Stack pin the spec requires.
+    - `[low]` `[patch]` `pairing.spec.ts` leaks the second code row on failure — same patch as the seventh Blind Hunter row.
+    - `[low]` `[reject]` Fixed `Hang` calls in two absence checks — they bound an absence check and cannot produce a false green.
+    - `[maybe-false]` `[reject]` The second-chat notice is sent from a Pair command with no session, so it is in no session's trace — the spec is silent on its trace placement; if true it is low; reopen_if=a spec places the notice in the session's trace.
+  - Intent Alignment (the divergences it reported)
+    - `[false]` `[reject]` SessionOps rows run on the probe, with the real production only for some — by design (Task G: a shadow instance with the two seams, and the production classes for the end-to-end rows).
+    - `[low]` `[patch]` Pair failure atomicity (C1 or C2) has no test after a drop — same root as the first Blind Hunter row; `TestPairAuditFailsAfterADrop` pins reading C2.
+    - `[false]` `[reject]` "Origin telegram only" for Pair is not checked in SessionOps — the route map of `CommandsIn` sends Pair to SessionOps from `telegram` only (Code Map), and the comment says so.
+    - `[low]` `[reject]` The REST rows are tested by direct calls and a subset over HTTP — as Task G and the Rule 3 note plan (`PairingApi` mirrors `DismissApi`, `pairing.spec.ts` is the real-HTTP evidence).
+    - `[false]` `[reject]` No product caller of `RecordTelegram` or writer of the pause mark — intended: the first consumers are Stories 12.1 and 12.2 (Design Notes, Integration ACs).
+    - `[low]` `[reject]` The web client is verified by a source scan — Task F names exactly these source pin tests; no Angular test host exists for `ApiClient` in this project.
+    - `[false]` `[reject]` Nothing in the diff tests that `demo-path-summary.mjs` accepts both Telegram files — `live:demo-path` does, and its summary shows both skips (Story 12.4 and 12.7).
+    - `[false]` `[reject]` The notice keys are not checked against the catalog — both keys are in `Msg/Catalog/Core.cls` (Code Map), and the Catalog tests own that file.
+    - `[false]` `[reject]` Removing `STUB` while EndSession is unbuilt — Task B says to delete `STUB`, and EndSession keeps answering 5003 (`not_built`), pinned by two tests.
+    - `[low]` `[reject]` The AD-6 scanner exempts `Data.Pairing.Chat` — Decided 18: a lookbehind on the receiver with a test that the same call on any other class is still flagged; reopen_if=a second class named `Chat` appears.
+    - `[false]` `[reject]` No caller of `Purge` appears in the diff — Story 30.2 owns the task, and the Core area is how it finds `Purge` (Task A).
+    - `[false]` `[reject]` The key check is tested with fakes except in `test-compose-start.sh` — the matrix row "CI env" names `test-lib-live.sh` and the compose-start key line, and `live:compose-start` passes with the dummy.
+
 ## Design Notes
 
 **Governing ADs:** AD-1, AD-4, AD-5, AD-11, AD-12, AD-13, AD-14, AD-17, AD-19, AD-20, AD-22, AD-23, AD-26, AD-27, AD-29, AD-30, AD-31, AD-32 and AD-33.
@@ -492,6 +554,19 @@ Method Unlink(sessionRef As %String, chatRef As %String, reason As %String, chan
       - `uqr` 0.1.3: a 0.x version;
       - `lean-qr` 2.7.4: suitable, but younger and changing faster.
 16. **No split.** Every part shares one contract: the row model, the outcome codes and the REST shapes. Epics 12 and 16 cite "Story 10.3" for the unlink, the mock and the client, so a split would rewrite dependency statements in other epics, which is owner-only. The task groups A to F are separable checkpoints inside one implement pass. If the lead prefers to split anyway, the natural cut is A–D (IRIS), E (mock and CI) and F (web).
+17. **Move order of the audit entries.** The matrix orders a move's entries unlinked, then linked, and Task B puts the linked entry before the moves. The matrix stands: `Pair` runs the moves first, each through `Unlink` with its entry, event and (for a second chat) notice, then writes the `linked` entry, and only then writes the link. A failed `linked` entry still links nothing and answers `failed`. The old chat stays unlinked in that case, which is the safe side (Decided 5), and the unused code lets the user pair again.
+18. **`Pairing.Chat` and AD-6's scanner.** `Test.Bridge.CodeRules` refuses any call of a method named `Chat` outside the runner and its adapter. `Pairing.Chat` is a table lookup. `CHATCALLS` therefore skips a call whose receiver is `OcuTalon.Data.Pairing`, and the test shows that the scanner passes that call and still flags the same call on any other class. Product code calls it only as `##class(OcuTalon.Data.Pairing).Chat(...)`.
+19. **Unique code indexes.** `CodeSessionRefIndex` and `CodeHashIndex` are unique: IRIS does not check an empty value in a unique index, so the chat rows share it (measured on build 154). This gives `StoreCode`, which runs in a web request, and `ForCode` an index open, because the only unchecked SQL prepares are the three that `test-class-rules.sh` allows. `RecordChat` finds its chat by a checked `%ExecDirect` on the non-unique `ChatIdIndex`, because it runs only in the Telegram service's production job. An index open that finds nothing answers code 5770.
+20. **Small validations.** `StoreCode` also refuses an expiry that is not a UTC time. `Unlink` also refuses an empty session and an empty reason, before any change. `TakeReplySlot` does not look at the pairing: the slot is the chat's, paired or not. The display name is stripped of control characters, then trimmed, then cut to 128.
+21. **The code route reads the session last.** It checks the state and the pause first, so a 409 reads no session and makes no `Session` row. The 200 is `{"code","expiresAt"}`, and the code is the Ref `Ids.NewRef()` makes.
+22. **`SessionOps` refuses a message that is not a command** with an error status of code 5001 and an error log row, as `ReminderOps` does. Row 16 of `docker/tests/test-production.sh` sent a string request to the stub and expected code 5003 from `SessionOps`; it now expects 5001 from `SessionOps` and keeps 5003 for `TriageAgent` (footprint extension, Rule 19).
+23. **The mock's answers.** `GET /_mock/telegram/calls` answers `{"calls":[...]}`, and each call is `{seq, ts, method, params}` for every Bot API call that has a token, refused ones included (the 401 for an empty token and the 405 for a verb other than GET and POST are not calls). `POST /_mock/telegram/updates` takes a JSON list of update objects or `{"updates":[...]}` and always assigns `update_id` itself, counting from 1; `reset` also restarts the update and message counters. A queued reply of a method comes before the update queue of `getUpdates`. A long poll that the client hangs up on is logged with `rejected` `client-closed` and no status. The log entry has `tokenLength` after `keyLength`; a Bot API entry has the shape of a model entry, with `selectedBy` `telegram`, `queued`, `updates`, `empty` or `default`.
+24. **`check_no_key`.** `live_key_count` (lib-live) counts `ANTHROPIC_API_KEY` and any `TELEGRAM_BOT_TOKEN` that is not exactly the dummy that `ci/compose.ci.yml` sets, and `check_no_key` and `test-compose-start.sh` both use it. `test-compose-file.sh`'s "no key variable" check allows exactly the two Telegram lines of the CI override, and "the judges' files name neither" is read as: no judge's file names `OCUTALON_TELEGRAM_API_BASE` or holds the dummy value (`.env.example` keeps its empty `TELEGRAM_BOT_TOKEN=` slot).
+25. **Footprint extensions found by Rule 19.** Existing tests that pinned a changed shared surface were updated: `Test.Schedule.HeartbeatLogic` (four conditions), `Test.Bridge.CodeRules` (Decided 18), `Test.Demo.Guide`, `Test.Live.Status`, `Test.Web.Api` and `docker/tests/test-production.sh` (Decided 22). Two helper classes are new in `Test/Core`: `SessionOpsProbe` and `AnswersTelegramProbe`.
+26. **Warm stacks and production jobs.** A warm run reloads classes, but a running production job keeps the class it started with. After a change to `SessionOps`, or to a class it calls, the tests that go through the production need `Ens.Director.EnableConfigItem("SessionOps", 0, 1)` and then `1` on the warm stack. A fresh stack starts with the new code and needs nothing.
+27. **A failed `linked` entry after a drop.** The matrix orders a move's or a second chat's unlink entries before the `linked` entry, so the drops cannot wait for it. A failed `linked` entry therefore leaves the dropped chat unlinked, nothing linked and the code unused; the dropped chat has been told at the drop (`pairing.otherChatPaired`), so it is never left unpaired without a notice, and the same code pairs once the entry can be written. `Test.Core.SessionOps.TestPairAuditFailsAfterADrop` pins this.
+28. **A negative `getUpdates` offset is a 400.** The Bot API reads a negative offset as "the last updates", which the mock does not model. Reading it as no offset would give a poller a false green, so the mock refuses it with a Bot API error (`rejected` `bad-offset`).
+29. **`RecordChat` and a failed lookup.** A lookup that fails (SQLCODE below 0) is an error status and no row is made, because treating it as "no chat" would make a second row for a chat that has one.
 
 **Ledger:**
 - **DW-200:** addressed by Task C, the FromTelegram rows and the `AnswersTelegram`/`AnswersTelegramProduction` tests (Decided 6).
@@ -628,6 +703,13 @@ Shared surfaces:
 
 Every test added or changed passes on a fresh environment, in either order. Known flake classes: DW-349 (a seeded check row with no `NextDueAt`) and DW-306 (`test-production.sh` row 21). Neither involves this story's tests.
 
+Task 0 measurement (warm stack `e10s3iw`, Lane C, the temporary probe `OcuTalon.Test.Core.ZzTelegramQueueProbe`, deleted afterwards): with `Included()` = 1, one kind-`pairing` Notification with a fixture ChatRef sent to `Notify` produced
+- one `Notify`->`TelegramOut` header within 10 s, with `Status` 2 (Queued) and `ErrorStatus` OK;
+- `Ens.Queue.GetCount("TelegramOut")` "" (empty queue) before and 1 after;
+- no event-log row of Type 2 or 6 (and no warning row, Type 3).
+
+`Ens.Queue:EnumerateItem("TelegramOut")` found the item (priority 6, index 1) and `AbortItem` removed it with status OK. The count then read 0 and the header's `Status` read 7 (Aborted). So `Test.Web.PairingApi`'s paired-DELETE case aborts the queued item (through `EnumerateItem` and `AbortItem`) and `Included()` stays 1 for that case; no error row is written, so no change to the plan.
+
 Mutations (Rule 19; the implement stage writes one `mutation:` line per AC). Examples:
 - compare `CodeHash` without the used check → the used-code row is red;
 - store the code under `SessionRef` → the snapshot `paired` row is red;
@@ -638,7 +720,53 @@ Mutations (Rule 19; the implement stage writes one `mutation:` line per AC). Exa
 - skip `TelegramPaused` in `Computed` → the `Status` row is red;
 - keep `break-feed-api.ts` → `api-client-sources` is red.
 
+Demonstrated on the warm stack (apply, observe red, revert, `git diff` and `git status` byte-identical to before):
+- mutation: `Pair` skips the used-code check (`If code.CodeUsedAt '= "" {` -> `If 0 {`) -> `Test.Core.SessionOps` `TestPairUsedCode` and `TestPairRepeatChangesNothing` red (AC Pairing);
+- mutation: `StoreCode` also sets the code row's `SessionRef` (the code stored under the session's pairing) -> `Test.Core.SessionOpsProduction` `TestPairAndStopThroughTheProduction` and `TestPageUnpairSendsTheNotice` red (AC Pairing's consumers);
+- mutation: `Pair` drops the notice key of the dropped second chat (`"pairing.otherChatPaired"` -> `""`) -> `Test.Core.SessionOps` `TestPairSecondChat` and `TestNotifyReadsTheNotice` red (AC Notices to a dropped chat);
+- mutation: `Unlink` skips its channel check -> `Test.Core.SessionOps` `TestUnlinkApi` red (AC The unlink API);
+- mutation: `TakeReplySlot` ignores its 60 seconds (`If 1 {`) -> `Test.Data.PairingRows` `TestTakeReplySlot` red (AC Pairing rows);
+- mutation: the code route ignores the Telegram state (`If 0 Quit ..Fail(409, ...)`) -> `Test.Web.PairingApi` `TestCodeRouteNotAvailable` red (AC The code route);
+- mutation: the unpair route answers 500 for `not_paired` -> `Test.Web.PairingApi` `TestPageUnpairNothingPaired` and `TestBodyNamesNoSession` red (AC The unpair route);
+- mutation: `Computed` ignores the telegram reading (`..TelegramPaused("")`) -> `Test.Live.Status` `TestComputedTelegramPaused` and `TestTelegramPausedDefaultRead` red (AC Status);
+- mutation: `FromTelegram` hands the ChatRef as the session (`answer.SessionRef = chatRef`) -> `Test.Core.AnswersTelegram` `TestApprovedAndRejected`, `TestOtherAnswers` and `TestToolCallHasNoSlots` red (AC AnswersIn's Telegram entry, DW-200);
+- mutation: `Delivery.FindByApproval` answers only the message-id part of the id -> `Test.Core.TelegramCalls` `TestDeliveryIsFoundByItsOwner` red (AC Direct calls);
+- mutation: the mock logs the raw Bot API path (`path: pathname`) -> `ci/mock/test/telegram.test.mjs` red in three tests, the token-in-the-log ones (AC The mock);
+- mutation: `getUpdates` answers at once (`while (false)`) -> `ci/mock/test/telegram.test.mjs` "with none queued getUpdates waits" red (AC The mock);
+- mutation: `feed/break-feed-api.ts` kept -> `web/scripts/api-client-sources.test.mjs` three tests red (AC Web);
+- mutation: `Pairing()` skips the `Included()` check -> `Test.Web.Api` `TestPairing` red (AC The switch).
+
+Added in the review pass (same method, each restored and byte-identical afterwards):
+- mutation: `Unlink` also sends a notice for the reason `stop` -> `Test.Core.SessionOpsProduction` `TestPairAndStopThroughTheProduction` red at "and no Notification was sent" (the absence check reads the headers newer than a mark, not a session's trace; AC Notices to a dropped chat);
+- mutation: `RecordTelegram` writes the mark before it validates -> `Test.Data.PairingRows` `TestRecordTelegram` red at "the refused calls left the mark as it was" (AC Status);
+- mutation: `CHANNELS` without `web_admin:web` -> `Test.Core.SessionOps` `TestUnpairOriginsAuditTheirChannel` red (AC The unpair route);
+- mutation: `Ownership.ApprovalKnown` without the exact Ref compare -> `Test.Core.AnswersTelegram` `TestNotVisibleAndUnknown` red (AC AnswersIn's Telegram entry);
+- mutation: `Pairing.Purge` cutoff one day older (`- daysToKeep - 1`) -> `Test.Data.PairingRows` `TestPurge` red at "a row an hour outside the 30 days is deleted" (AC Pairing rows);
+- mutation: the unpair route answers 404 instead of 500 for an unreadable session -> `Test.Web.PairingApi` `TestNoSessionIs500` red (AC The unpair route);
+- mutation: the mock reads a negative `getUpdates` offset as none -> `ci/mock/test/telegram.test.mjs` "an offset confirms the earlier ones" red (AC The mock);
+- mutation: the mock puts the token in its 405 body -> `ci/mock/test/telegram.test.mjs` "mock refusals" red (AC The mock);
+- mutation: `web/package.json` pins `^2.0.4` -> `web/scripts/qr-pin.test.mjs` "package.json pins qrcode-generator at exactly 2.0.4" red (AC Web);
+- mutation: `live_key_count` ignores `TELEGRAM_BOT_TOKEN` -> `docker/tests/test-lib-live.sh` six `live_key_count` rows red (AC The mock: the start-with-no-key checks still hold).
+- Not mutated: `web/e2e/api/pairing.spec.ts`, which runs in `live:sign-in` (the `(once)` lines); `Test.Web.PairingApi` pins the same code-route and unpair rows by the mutations above.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The session side of Telegram is built and stays off (`Included()` and `Channel.Telegram.**` untouched). `SessionOps` pairs, unpairs and unlinks (public `Unlink`, the API Story 16.4 calls) with audit entries, `pairing` events and notices to a dropped chat. `Data.Pairing` has its code rows, `HashCode`, `RecordChat`, `TakeReplySlot`, `StoreCode`, `Chat`, `ForCode` and `Purge`, and `Install.Step.Core` declares the purge. `AnswersIn.FromTelegram` answers a closed set of codes from the chat's live pairing only. `StatusMark.RecordTelegram`/`TelegramState`, the `telegramPaused` condition and `/state`'s Telegram block, the two pairing routes and the guide's Telegram state read the new marks. The CI mock serves the Bot API (five methods, queues, scenarios, token masked); the CI override carries the endpoint and the dummy token, and the no-key checks accept only that dummy. In `web/`: `pairingCode()`, `unpair()` and `breakFeed()` in `ApiClient` (DW-231 closed: `break-feed-api.ts` deleted), the two skipped `telegram-*.spec.ts` files, and `qrcode-generator` 2.0.4 pinned (Task F5, one `package.json` line and the new lockfile entry only; `npm ci` passes).
+
+**Files changed.**
+- Data and install: `Data/Pairing.cls` (columns, indexes, methods), `Data/StatusMark.cls`, `Data/Ownership.cls` (one appended `ApprovalKnown` block), `Install/Step/Core.cls` (new).
+- Core and web layer: `Core/SessionOps.cls` (the stub replaced), `Core/AnswersIn.cls` (`FromTelegram`, `Deliver`), `Live/Payload/Status.cls` (`telegramPaused`), `Web/Api.cls` (code route, unpair route, `/state` block), `Demo/Guide.cls`.
+- Mock and CI: `ci/mock/mock.mjs`, `ci/mock/scenarios.mjs`, the mock's `helpers.mjs`, `server.test.mjs`, `scenarios.test.mjs` and the new `telegram.test.mjs`; `ci/compose.ci.yml`; `docker/tests/lib-live.sh`, `test-compose-start.sh`, `test-compose-file.sh`, `test-lib-live.sh` and `test-production.sh` (row 16).
+- Web: `api-client.ts`, `api-types.ts`, `feed/break-feed-box.ts`, `feed/break-feed-api.ts` (deleted), `package.json`, `package-lock.json`, `e2e/api/pairing.spec.ts`, `e2e/demo-path/telegram-{page,approval}.spec.ts`, `scripts/api-client-sources.test.mjs`, `scripts/qr-pin.test.mjs`.
+- IRIS tests (new): `Test/Data/PairingRows`, `Test/Core/{SessionOps,SessionOpsProbe,SessionOpsProduction,AnswersTelegram,AnswersTelegramProbe,AnswersTelegramProduction,TelegramCalls}`, `Test/Web/PairingApi`; changed: `Test/Contract/{Ac,Mock}`, `Test/Core/{ProductionItems,StatusMonitor}`, `Test/Data/Tables`, `Test/Demo/Guide`, `Test/Live/Status`, `Test/Web/Api`, `Test/Schedule/HeartbeatLogic`, `Test/Bridge/CodeRules`.
+
+**Review findings.** 46 findings from the four layers: high 0, medium 2, low 32, false 10, maybe-false 2. Patches applied (test-side or one-line, 21 rows): the two mediums (the vacuous "no Notification" absence checks, now by header id with a positive control; the three untested channel origins), the `RecordTelegram` mark-unchanged check, `TestNoSessionIs500`, `ApprovalKnown` exactness, `TestPurge` boundary rows, the pin test for a failed `linked` entry after a drop (Decided 27), the mock's negative-offset 400 and its `!res.destroyed` guard, the mock tests' readiness poll and non-vacuous token loop, `RecordChat`'s failed-lookup error, two comment fixes, the `pairing.spec.ts` clean-up, an unused property. One item deferred (the dummy bot token and a no-token CI start, for Story 12.1, medium unverified). Rejected with a recorded reason: 24 rows (false 10, maybe-false 1, low 13, with a reopen probe where one applies; some repeat a patched or rejected root).
+
+**Follow-up review recommended: false.** Two mediums were patched, but both are test-only changes with a demonstrated red-then-green mutation (the stop-notice mutation; the dropped `web_admin` mutation), so no unverified risk can be named.
+
+**Verification.** Warm stack `e10s3iw` (one class per call): all 20 `(loop)` classes pass, plus `Test.Bridge.CodeRules`; `test-mock.sh` 116 tests, `npm --prefix web test` 1000 tests, `npm --prefix web run lint`, `test-compose-file.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `test-class-rules.sh`, `test-lib-live.sh` and shellcheck (68 findings before and after, the same codes) pass. Once, after the last patch: `ci/warm.sh down`; `test-web-build.sh` and `ci/checks.sh` pass; on fresh stack tag `e10s3i`: `ci/iris.sh build`, `live sign-in` 1/2 (127 tests, includes `pairing.spec.ts`) and 2/2 (96), `live demo-path` (12 passed, 9 skipped, summary names Story 12.4 and 12.7, floor 7 of 7), `live compose-start` (key line passes with the dummy), and `shard lane-b` 1/3, 2/3 and 3/3 (78 classes passed); teardown done. Task 0 (queue measurement) and 24 mutations (14 by the handoff, 10 in review) are recorded under `## Verification`. `ProductionItems` is a data class with no runnable tests, so the loop list's entry for it is covered by `Install.Production` and the lane-b shard.
+
+**Residual risks.** (1) `web/e2e/api/pairing.spec.ts` ran once green; its `finally` clean-up on a failed assertion was not exercised. (2) Untested error branches, all rejected with a reopen probe: `Link`'s rollback, `SessionOps`' catch, the lock-timeout paths of `TakeReplySlot` and `RecordChat`, and the unpair route's `failed` outcome to 500. (3) A running production job keeps the class it started with, so a warm stack needs `Ens.Director.EnableConfigItem` off and on after a `SessionOps` change (Decided 26); a fresh stack is unaffected. (4) The deferred item above.

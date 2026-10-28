@@ -7,6 +7,9 @@ Include Ensemble
 ///   - TestChangePublishesTheChangedConditions: a change publishes the full view of exactly the conditions that changed, in the
 ///     catalog's order, and a run with nothing changed publishes nothing;
 ///   - TestSlotChangeAndClear: a change of the slots publishes, and a clear publishes the condition with active false and no slots;
+///   - TestTelegramPausePublishes (Story 10.3, AD-12): a telegramPaused mark recorded for a time in the future makes the next run publish one
+///     status event telegramPaused, active, with that time; a run after the pause has ended publishes it inactive with no slots; nothing in
+///     between. The test records the mark and puts it back;
 ///   - TestRefusedPublishIsPublishedAtTheNextRun: a publish that is refused (inside an open transaction, or to a stream that is
 ///     no stream) leaves the run returning OK with a warning, and the change is published at the next run;
 ///   - TestFailingReadingReturnsOK: a reading that throws gives OK with a warning and publishes nothing;
@@ -143,6 +146,39 @@ Method TestSlotChangeAndClear()
 	Set probe.BudgetReading = ..Budget(0, 30, "2026-10-26T04:00:00Z")
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do $$$AssertEquals(..Events().%Size(), 3, "a new reset time on a condition that doesn't hold publishes nothing")
+}
+
+/// A telegramPaused mark for a time in the future: the next run publishes telegramPaused, active, with Time = the mark. A run with the same
+/// state publishes nothing. Once the time has passed the next run publishes it inactive, with no slots. The mark is put back afterwards.
+Method TestTelegramPausePublishes()
+{
+	Set saved = ##class(OcuTalon.Data.StatusMark).Get("telegramPaused")
+	Try {
+		Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", "")
+		Set probe = ..Probe()
+		Set probe.KeysReading = ..Keys(1)
+		Set probe.BudgetReading = ..Budget(0, 0, "")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 0, "the first run remembers the state, with no pause")
+		Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record("telegramPaused", until), "a pause is recorded")
+		Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
+		Set events = ..Telegram()
+		Do $$$AssertEquals(events.%Size(), 1, "one telegramPaused event is published")
+		If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""telegramPaused"",""active"":true,""slots"":{""time"":"""_until_"""}}", "active, with the time of the pause")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 1, "a run with the same state publishes nothing")
+		Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -60))
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Set events = ..Telegram()
+		Do $$$AssertEquals(events.%Size(), 2, "after the pause has ended the next run publishes it again")
+		If events.%Size() = 2 Do $$$AssertEquals(events.%Get(1).payload.%ToJSON(), "{""condition"":""telegramPaused"",""active"":false}", "inactive, with no slots")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 2, "and then nothing more")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
+	}
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", saved)
 }
 
 /// A publish that is refused leaves the run returning OK with a warning and the change unremembered, so the next run publishes it.
@@ -289,6 +325,17 @@ ClassMethod Budget(capped As %Boolean, cap As %Numeric, resetsAt As %String) As 
 Method Events() As %DynamicArray [ Private ]
 {
 	Quit ##class(OcuTalon.Live.Event).Since(..Stream, 0, 200, "session")
+}
+
+/// The telegramPaused events of the private stream, as the page's envelopes.
+Method Telegram() As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set events = ..Events()
+	For i = 0:1:events.%Size() - 1 {
+		If events.%Get(i).payload.condition = "telegramPaused" Do found.%Push(events.%Get(i))
+	}
+	Quit found
 }
 
 /// Removes the events and the counter of the private stream.

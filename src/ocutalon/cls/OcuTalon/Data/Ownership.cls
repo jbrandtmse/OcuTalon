@@ -679,4 +679,19 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	Quit ""
 }
 
+/// 1 when an approval request with exactly this Ref exists in a state other than cancelled, whoever owns it. It answers only whether
+/// the request is known: it returns no row and no field, and it is no way to see a request (AD-31). The index ignores case, so the Ref
+/// is compared exactly after the open. sc is OK unless the read failed; the answer is then 0.
+ClassMethod ApprovalKnown(ref As %String, Output sc As %Status) As %Boolean
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(ref) = "" Quit 0
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref, , .sc)
+	If '$IsObject(row) {
+		If $SYSTEM.Status.Equals(sc, 5770) Set sc = $SYSTEM.Status.OK()
+		Quit 0
+	}
+	Quit (row.Ref = ref) && (row.State '= "cancelled")
+}
+
 }

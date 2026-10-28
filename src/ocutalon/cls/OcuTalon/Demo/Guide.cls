@@ -14,8 +14,8 @@
 ///   - trace is the trace session of the run's noticed incident, when it has one (AD-26); run is the Ownership.RunCost total
 ///     since the epoch's start, GuideState.RunStartedAt (the whole session when the epoch has no start), present only once the
 ///     guide is finished. Both are absent otherwise, and the web layer adds the trace URL.
-///   - Telegram counts as on only when the release includes it and TelegramState() says "on"; that stays "off", as /state's
-///     telegram block does, until Story 10.3 records the real state.
+///   - Telegram counts as on only when the release includes it and TelegramState() says "on", the state that /state's telegram block
+///     reports.
 /// Times are UTC strings YYYY-MM-DDThh:mm:ssZ; ages are whole seconds. Compute throws when a read fails.
 Class OcuTalon.Demo.Guide
 {
@@ -207,10 +207,10 @@ ClassMethod TelegramOn() As %Boolean [ Private ]
 	Quit ''##class(OcuTalon.Channel.Telegram.In).Included() && (..TelegramState() = "on")
 }
 
-/// The Telegram state as /state reports it: "off" until Story 10.3 records the real state.
+/// The Telegram state as /state reports it: off, on or rejected (Data.StatusMark.TelegramState).
 ClassMethod TelegramState() As %String [ Private ]
 {
-	Quit "off"
+	Quit ##class(OcuTalon.Data.StatusMark).TelegramState()
 }
 
 /// The payload of the arguments; done is a list of the five steps' flags. trace and run are set only when they are objects.

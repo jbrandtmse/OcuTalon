@@ -13,7 +13,14 @@
 //   reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "stopReason": "<API value>",
 //           and exactly one of "text": "<string>", "toolUse": {"name", "input"} or a list of them, "body": {...}}
 //   headers: valid HTTP names and string values, never Content-Length or Transfer-Encoding, which the mock sets itself.
-// A marker scenario's marker is its name. The match type telegram is reserved for Story 10.3 and refused.
+// A marker scenario's marker is its name. The match type telegram serves the Telegram Bot API side of the mock (Story 10.3):
+//   {"name": "<kebab-case, the file's name>", "match": {"telegram": "<method>"}, "replies": [<telegram reply>, ...]}
+//   method: one of BOT_METHODS (getMe, getUpdates, sendMessage, editMessageText, answerCallbackQuery), in A/ or B/; getFile arrives
+//           in Story 25.3 and is refused; several scenarios may name one method;
+//   telegram reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "body": {...}}, the body being required and a JSON
+//           object; text, toolUse and stopReason are model replies and are refused.
+// A telegram scenario is never selected by a model request: a test queues it for its method through POST /_mock/telegram/replies.
+// checkTelegramReplies(replies, where) applies the telegram reply rules to a list and returns the problems.
 // This module reads files and holds no state.
 
 import fs from 'node:fs';
@@ -25,6 +32,9 @@ export const MATCH_TYPES = ['marker', 'prompt', 'mockkey', 'telegram'];
 export const SCENARIO_FIELDS = ['name', 'match', 'replies'];
 export const REPLY_FIELDS = ['status', 'headers', 'delayMs', 'stopReason', 'text', 'toolUse', 'body'];
 export const REPLY_BODY_FIELDS = ['text', 'toolUse', 'body'];
+export const TELEGRAM_REPLY_FIELDS = ['status', 'headers', 'delayMs', 'body'];
+// The Bot API methods that the mock serves (Story 10.3). getFile is Story 25.3's.
+export const BOT_METHODS = ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery'];
 export const STOP_REASONS = ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal'];
 // The grammar of a scenario name and of a marker's test key, as regular expression source; every pattern below is built
 // from these two.
@@ -95,24 +105,30 @@ function checkToolUse(use, where, bad) {
   }
 }
 
-function checkReply(reply, where, bad) {
+// checkReply(reply, where, bad, telegram): the rules of a reply. A telegram reply (a Bot API reply) holds status, headers, delayMs and a
+// body that is a JSON object, and nothing else; any other reply is a model reply.
+function checkReply(reply, where, bad, telegram = false) {
   if (!isObject(reply)) {
     bad(`${where}: a reply is not an object`);
     return;
   }
   for (const k of Object.keys(reply)) {
-    if (!REPLY_FIELDS.includes(k)) bad(`${where}: a reply has the unknown field "${k}"`);
+    if (!(telegram ? TELEGRAM_REPLY_FIELDS : REPLY_FIELDS).includes(k)) bad(`${where}: a reply has the unknown field "${k}"`);
   }
   const status = reply.status;
   if (!Number.isInteger(status) || status < MIN_STATUS || status > MAX_STATUS) {
     bad(`${where}: status must be an integer from ${MIN_STATUS} to ${MAX_STATUS}`);
   }
-  const present = REPLY_BODY_FIELDS.filter((k) => Object.hasOwn(reply, k));
-  if (present.length !== 1) bad(`${where}: a reply must hold exactly one of text, toolUse and body, found ${present.length}`);
-  if (Object.hasOwn(reply, 'text') && typeof reply.text !== 'string') bad(`${where}: text is not a string`);
-  if (Object.hasOwn(reply, 'toolUse')) checkToolUse(reply.toolUse, where, bad);
-  if (Object.hasOwn(reply, 'body') && !(reply.body !== null && typeof reply.body === 'object')) {
-    bad(`${where}: body is not a JSON object or list`);
+  if (telegram) {
+    if (!isObject(reply.body)) bad(`${where}: a telegram reply needs a body that is a JSON object`);
+  } else {
+    const present = REPLY_BODY_FIELDS.filter((k) => Object.hasOwn(reply, k));
+    if (present.length !== 1) bad(`${where}: a reply must hold exactly one of text, toolUse and body, found ${present.length}`);
+    if (Object.hasOwn(reply, 'text') && typeof reply.text !== 'string') bad(`${where}: text is not a string`);
+    if (Object.hasOwn(reply, 'toolUse')) checkToolUse(reply.toolUse, where, bad);
+    if (Object.hasOwn(reply, 'body') && !(reply.body !== null && typeof reply.body === 'object')) {
+      bad(`${where}: body is not a JSON object or list`);
+    }
   }
   if (reply.headers !== undefined) {
     if (!isObject(reply.headers) || !Object.values(reply.headers).every((v) => typeof v === 'string')) {
@@ -133,6 +149,7 @@ function checkReply(reply, where, bad) {
   if (reply.delayMs !== undefined && (!Number.isInteger(reply.delayMs) || reply.delayMs < 0 || reply.delayMs > MAX_DELAY_MS)) {
     bad(`${where}: delayMs must be an integer from 0 to ${MAX_DELAY_MS}`);
   }
+  if (telegram) return;
   const error = Number.isInteger(status) && status >= 400;
   if (reply.stopReason !== undefined) {
     if (!STOP_REASONS.includes(reply.stopReason)) bad(`${where}: stopReason is not one of ${STOP_REASONS.join(', ')}`);
@@ -140,6 +157,15 @@ function checkReply(reply, where, bad) {
     if (error) bad(`${where}: stopReason cannot come with an error status`);
   }
   if (error && Object.hasOwn(reply, 'toolUse')) bad(`${where}: a toolUse reply needs a status below 400`);
+}
+
+// checkTelegramReplies(replies, where): the problems of a list of telegram replies, one line each, each starting with where.
+export function checkTelegramReplies(replies, where) {
+  const problems = [];
+  const bad = (msg) => problems.push(msg);
+  if (!Array.isArray(replies) || replies.length === 0) bad(`${where}: replies must be a non-empty list`);
+  else replies.forEach((reply, i) => checkReply(reply, `${where} reply ${i + 1}`, bad, true));
+  return problems;
 }
 
 function checkScenario(rel, folder, base, data, bad) {
@@ -161,12 +187,14 @@ function checkScenario(rel, folder, base, data, bad) {
   } else {
     const type = Object.keys(match)[0];
     const value = match[type];
-    if (type === 'telegram') {
-      bad(`${rel}: match telegram is reserved for Story 10.3`);
-    } else if (!MATCH_TYPES.includes(type)) {
+    if (!MATCH_TYPES.includes(type)) {
       bad(`${rel}: match has the unknown key "${type}"`);
     } else if (typeof value !== 'string' || value === '') {
       bad(`${rel}: match ${type} is not a non-empty string`);
+    } else if (type === 'telegram' && value === 'getFile') {
+      bad(`${rel}: match telegram getFile arrives in Story 25.3`);
+    } else if (type === 'telegram' && !BOT_METHODS.includes(value)) {
+      bad(`${rel}: match telegram must be one of ${BOT_METHODS.join(', ')}`);
     } else if (type === 'marker' && value !== data.name) {
       bad(`${rel}: marker "${value}" differs from name "${data.name}"`);
     } else if (type === 'prompt' && folder !== 'B') {
@@ -178,7 +206,8 @@ function checkScenario(rel, folder, base, data, bad) {
   if (!Array.isArray(data.replies) || data.replies.length === 0) {
     bad(`${rel}: replies must be a non-empty list`);
   } else {
-    data.replies.forEach((reply, i) => checkReply(reply, `${rel} reply ${i + 1}`, bad));
+    const telegram = isObject(match) && Object.keys(match).length === 1 && Object.hasOwn(match, 'telegram');
+    data.replies.forEach((reply, i) => checkReply(reply, `${rel} reply ${i + 1}`, bad, telegram));
   }
 }
 

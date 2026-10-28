@@ -6,6 +6,21 @@
 //   POST /_mock/countdown    {"marker":"<name>[:<key>]","remaining":0-1000|null}  arms (or clears) a countdown
 //   GET  /_mock/countdown?marker=<name>[:<key>]   {"marker":...,"remaining":<n>|null}
 // Any other path is a 404. The /v1/ paths need a non-empty x-api-key header (401 otherwise); /_mock/ takes no key.
+// It also serves the Telegram Bot API the way the Telegram service calls it (Story 10.3; AD-22), before the model API's key check:
+//   GET or POST /bot<token>/<method>   getMe, getUpdates, sendMessage, editMessageText and answerCallbackQuery; the parameters
+//                                      come from the query, a JSON object body or a form body (a multipart body is a 400)
+//   POST /_mock/telegram/updates       a JSON list of updates, or {"updates":[...]}, queued with update_id 1, 2, ...
+//   POST /_mock/telegram/replies       {"scenario":"<telegram scenario>"} or {"method":"<method>","replies":[<telegram reply>,...]}:
+//                                      the replies answer that method's next calls in order
+//   GET  /_mock/telegram/calls         {"calls":[{seq, ts, method, params}, ...]}, every Bot API call with a token, in order
+//   POST /_mock/telegram/reset         clears the updates, the queued replies, the calls and the counters
+// A Bot API call is answered by the first queued reply of its method; else getUpdates by the update queue (updates below the offset
+// are dropped, and a negative offset is a 400; with none queued it waits until one is queued or min(timeout, 50) seconds pass, then answers an empty list, and a
+// client that hangs up ends the wait); else by the default of the method: getMe the bot ocutalon_ci_bot, sendMessage and
+// editMessageText a Message with a counted message_id, the chat.id as given and the text, answerCallbackQuery true. An empty token is a
+// 401, getFile (Story 25.3) and any other method a 404, all as Bot API errors {"ok":false,"error_code","description"}. The token is
+// never logged: the path is /bot[redacted]/<method> and the entry holds tokenLength; a Bot API call logs its method and parameter names
+// (never their values) as the file line's request. A telegram scenario is never selected by a model request.
 // The checks of POST /v1/messages run in this order: the key; a JSON object body; no stream:true; messages a non-empty list;
 // no temperature, top_p or top_k (NFR-1); max_tokens an integer of at least 4000 (NFR-2). Then the scenario is selected:
 //   1. a summarizer request (the system text starts with OCUTALON-COMPACTION-V1) reads only the last summary-* marker of its
@@ -20,9 +35,11 @@
 //   unarmed marker, prompt or mock key:                  replies[min(k, last)]
 //   marker armed with remaining > 0:                     replies[0], and remaining decreases by one
 //   marker armed with remaining = 0:                     replies[min(1 + k, last)]
-// The only state is the countdown map, keyed by the marker without its brackets. Selection never reads wording.
+// The state of the model side is the countdown map, keyed by the marker without its brackets; the Bot API side keeps the queues above.
+// Selection never reads wording.
 // The log: one JSON line per request outside /_mock/, to out (stdout) and, with logDir, to logDir/requests.jsonl, written
-// synchronously before the reply and before any delay. It holds header names, the x-api-key length and, in the file, the
+// synchronously before the reply and before any delay. It holds header names, the x-api-key length, the length of a Bot API token
+// (tokenLength, null for a model call) and, in the file, the
 // request with system text and tools reduced to size and names. It never holds a header value or a key; key-like text
 // is replaced by [redacted]. Its marker is the label of the marker that the request carries, as selection reads it, on a
 // refused request too, so a test finds every request of its own marker. A reply with delayMs waits on a timer that a
@@ -30,7 +47,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { findMarkers, isObject, isSummaryVariant, parseLabel } from './scenarios.mjs';
+import { BOT_METHODS, checkTelegramReplies, findMarkers, isObject, isSummaryVariant, parseLabel } from './scenarios.mjs';
 
 export const SUMMARIZER_PREFIX = 'OCUTALON-COMPACTION-V1';
 export const MOCKKEY_HEADER = 'x-ocutalon-mockkey';
@@ -38,6 +55,11 @@ export const SAMPLING_FIELDS = ['temperature', 'top_p', 'top_k'];
 export const MIN_MAX_TOKENS = 4000;
 export const MAX_COUNTDOWN = 1000;
 export const LOG_FILE = 'requests.jsonl';
+// A Bot API path: /bot<token>/<method>. The token may be empty (a 401).
+export const BOT_PATH = /^\/bot([^/]*)\/([^/]*)$/;
+// The longest that getUpdates waits for an update, in seconds.
+export const MAX_POLL_SECONDS = 50;
+export const MAX_UPDATES = 100;
 
 // A copy of the key_like alternatives of docker/tests/test-boundaries.sh, as JavaScript regular expressions.
 export const KEY_LIKE = [
@@ -165,16 +187,57 @@ function shortPath(p) {
   return cut.replace(/^\/bot[^/]+/, '/bot[redacted]');
 }
 
+// botError(status, description): the body of a Bot API error.
+export function botError(status, description) {
+  return { ok: false, error_code: status, description };
+}
+
+// The default answer of a Bot API method that is not scripted; nextMessageId() counts the messages that it makes.
+function defaultAnswer(method, params, nextMessageId) {
+  if (method === 'getMe') return { ok: true, result: { id: 424242, is_bot: true, first_name: 'OcuTalon CI', username: 'ocutalon_ci_bot' } };
+  if (method === 'answerCallbackQuery') return { ok: true, result: true };
+  return {
+    ok: true,
+    result: {
+      message_id: nextMessageId(),
+      date: Math.floor(Date.now() / 1000),
+      chat: { id: params.chat_id === undefined ? null : params.chat_id, type: 'private' },
+      text: typeof params.text === 'string' ? params.text : '',
+    },
+  };
+}
+
+// botParams(req, query, raw): {params, multipart, error}: the query parameters, then those of a JSON object body or a form body.
+function botParams(req, query, raw) {
+  const params = Object.fromEntries(new URLSearchParams(query));
+  const type = String((req.headers && req.headers['content-type']) || '').toLowerCase();
+  if (type.startsWith('multipart/')) return { params, multipart: true, error: null };
+  if (raw.trim() === '') return { params, multipart: false, error: null };
+  if (type.includes('json') || raw.trimStart().startsWith('{')) {
+    let data = null;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = null;
+    }
+    if (!isObject(data)) return { params, multipart: false, error: "Bad Request: can't parse the JSON object" };
+    return { params: { ...params, ...data }, multipart: false, error: null };
+  }
+  return { params: { ...params, ...Object.fromEntries(new URLSearchParams(raw)) }, multipart: false, error: null };
+}
+
 export function createMock({ scenarios, logDir, out }) {
   const countdowns = new Map();
   const logPath = logDir ? path.join(logDir, LOG_FILE) : null;
   let counter = 0;
+  // The Bot API side: the queued updates, the queued replies by method, the calls, the counters, and the long polls that wait.
+  const tg = { updates: [], replies: new Map(), calls: [], nextUpdateId: 1, nextMessageId: 1, waiters: new Set() };
 
-  function emit(entry, body) {
+  function emit(entry, body, summary = summarizeRequest(body)) {
     const line = redact(JSON.stringify(entry));
     out.write(`${line}\n`);
     if (logPath) {
-      fs.appendFileSync(logPath, `${redact(JSON.stringify({ ...entry, request: summarizeRequest(body) }))}\n`);
+      fs.appendFileSync(logPath, `${redact(JSON.stringify({ ...entry, request: summary }))}\n`);
     }
   }
 
@@ -237,7 +300,113 @@ export function createMock({ scenarios, logDir, out }) {
       sendJson(res, 200, { marker: parsed.label, remaining: countdowns.has(parsed.label) ? countdowns.get(parsed.label) : null });
       return;
     }
+    if (pathname.startsWith('/_mock/telegram/')) {
+      telegramControl(req, res, pathname, raw);
+      return;
+    }
     sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
+  }
+
+  function wakeWaiters() {
+    for (const wake of [...tg.waiters]) wake();
+  }
+
+  function queueReplies(method, replies, scenario) {
+    if (!tg.replies.has(method)) tg.replies.set(method, []);
+    for (const reply of replies) tg.replies.get(method).push({ reply, scenario });
+  }
+
+  // The control routes of the Bot API side.
+  function telegramControl(req, res, pathname, raw) {
+    const route = pathname.slice('/_mock/telegram/'.length);
+    if (route === 'calls' && req.method === 'GET') {
+      sendJson(res, 200, { calls: tg.calls });
+      return;
+    }
+    if (route === 'reset' && req.method === 'POST') {
+      tg.updates = [];
+      tg.replies = new Map();
+      tg.calls = [];
+      tg.nextUpdateId = 1;
+      tg.nextMessageId = 1;
+      wakeWaiters();
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+    if ((route === 'updates' || route === 'replies') && req.method === 'POST') {
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = null;
+      }
+      if (route === 'updates') {
+        const list = Array.isArray(data) ? data : isObject(data) && Array.isArray(data.updates) ? data.updates : null;
+        if (list === null || list.length === 0 || !list.every(isObject)) {
+          sendJson(res, 400, errorBody(400, 'CI mock: the updates body is a non-empty JSON list of objects, or {"updates": [...]}'));
+          return;
+        }
+        const ids = [];
+        for (const update of list) {
+          const queued = { ...update, update_id: tg.nextUpdateId };
+          tg.nextUpdateId += 1;
+          tg.updates.push(queued);
+          ids.push(queued.update_id);
+        }
+        wakeWaiters();
+        sendJson(res, 200, { ok: true, updateIds: ids });
+        return;
+      }
+      if (!isObject(data)) {
+        sendJson(res, 400, errorBody(400, 'CI mock: the replies body is not a JSON object'));
+        return;
+      }
+      if (data.scenario !== undefined) {
+        const scenario = typeof data.scenario === 'string' ? scenarios.byName.get(data.scenario) : undefined;
+        if (data.method !== undefined || data.replies !== undefined || !scenario || !Object.hasOwn(scenario.match, 'telegram')) {
+          sendJson(res, 400, errorBody(400, 'CI mock: give {"scenario": "<name of a telegram scenario>"} alone, or {"method", "replies"}'));
+          return;
+        }
+        queueReplies(scenario.match.telegram, scenario.replies, scenario.name);
+        sendJson(res, 200, { ok: true, method: scenario.match.telegram, queued: scenario.replies.length, pending: tg.replies.get(scenario.match.telegram).length });
+        return;
+      }
+      if (typeof data.method !== 'string' || !BOT_METHODS.includes(data.method)) {
+        const hint = data.method === 'getFile' ? 'getFile arrives in Story 25.3' : `the method must be one of ${BOT_METHODS.join(', ')}`;
+        sendJson(res, 400, errorBody(400, `CI mock: ${hint}`));
+        return;
+      }
+      const problems = checkTelegramReplies(data.replies, 'replies');
+      if (problems.length > 0) {
+        sendJson(res, 400, errorBody(400, `CI mock: ${problems.join('; ')}`));
+        return;
+      }
+      queueReplies(data.method, data.replies, null);
+      sendJson(res, 200, { ok: true, method: data.method, queued: data.replies.length, pending: tg.replies.get(data.method).length });
+      return;
+    }
+    sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
+  }
+
+  // The updates that getUpdates answers: those below the offset are confirmed and dropped, then at most limit are listed.
+  function pendingUpdates(offset, limit) {
+    if (offset !== null) tg.updates = tg.updates.filter((u) => u.update_id >= offset);
+    return tg.updates.slice(0, limit);
+  }
+
+  // Waits up to ms for the next change of the queues (an update queued or a reset) or for the end of the connection.
+  function pollWait(res, ms) {
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        tg.waiters.delete(done);
+        res.removeListener('close', done);
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      tg.waiters.add(done);
+      res.once('close', done);
+    });
   }
 
   function markerScenario(name) {
@@ -337,6 +506,107 @@ export function createMock({ scenarios, logDir, out }) {
     return Buffer.concat(chunks).toString('utf8');
   }
 
+  // One Bot API call (Story 10.3): /bot<token>/<method>. The log entry has the shape of a model call's, with tokenLength.
+  async function handleBot(req, res, match, query, raw, headers, n, pathname) {
+    const token = match[1];
+    const method = match[2];
+    const entry = {
+      ts: new Date().toISOString(),
+      id: n,
+      method: req.method,
+      path: shortPath(pathname),
+      status: null,
+      scenario: null,
+      selectedBy: 'telegram',
+      marker: null,
+      step: null,
+      countdown: null,
+      headerNames: Object.keys(headers).map((h) => h.toLowerCase()),
+      keyLength: typeof headers['x-api-key'] === 'string' ? headers['x-api-key'].length : 0,
+      tokenLength: token.length,
+      rejected: null,
+      model: null,
+      maxTokens: null,
+    };
+    let summary = { botMethod: method, paramNames: [] };
+    const refuse = (status, rejected, description) => {
+      entry.status = status;
+      entry.rejected = rejected;
+      emit(entry, null, summary);
+      sendJson(res, status, botError(status, description), { 'request-id': `req_mock_${n}` });
+    };
+    if (token === '') {
+      refuse(401, 'no-token', 'Unauthorized');
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      refuse(405, 'method', `CI mock: the Bot API takes GET and POST, not ${req.method}`);
+      return;
+    }
+    const { params, multipart, error } = botParams(req, query, raw);
+    summary = { botMethod: method, paramNames: Object.keys(params) };
+    tg.calls.push({ seq: tg.calls.length + 1, ts: entry.ts, method, params });
+    if (multipart) {
+      refuse(400, 'multipart', 'Bad Request: the CI mock takes query, JSON and form parameters, not multipart/form-data');
+      return;
+    }
+    if (error !== null) {
+      refuse(400, 'bad-body', error);
+      return;
+    }
+    if (method === 'getFile') {
+      refuse(404, 'get-file', 'CI mock: getFile arrives in Story 25.3');
+      return;
+    }
+    if (!BOT_METHODS.includes(method)) {
+      refuse(404, 'unknown-method', `CI mock: the Bot API method ${method.slice(0, 40)} is not served`);
+      return;
+    }
+    let reply = null;
+    const queue = tg.replies.get(method);
+    if (queue !== undefined && queue.length > 0) {
+      const queued = queue.shift();
+      reply = queued.reply;
+      entry.scenario = queued.scenario;
+      entry.selectedBy = 'queued';
+    } else if (method === 'getUpdates') {
+      if (/^-[0-9]+$/.test(String(params.offset))) {
+        refuse(400, 'bad-offset', 'Bad Request: the CI mock takes an offset of 0 or more');
+        return;
+      }
+      const offset = /^[0-9]+$/.test(String(params.offset)) ? Number(params.offset) : null;
+      const limit = /^[0-9]+$/.test(String(params.limit)) ? Math.min(Math.max(Number(params.limit), 1), MAX_UPDATES) : MAX_UPDATES;
+      const seconds = /^[0-9]+$/.test(String(params.timeout)) ? Math.min(Number(params.timeout), MAX_POLL_SECONDS) : 0;
+      let ready = pendingUpdates(offset, limit);
+      const until = Date.now() + seconds * 1000;
+      while (ready.length === 0 && Date.now() < until && !res.destroyed) {
+        await pollWait(res, until - Date.now());
+        if (res.destroyed || res.writableEnded) break;
+        ready = pendingUpdates(offset, limit);
+      }
+      if (res.destroyed || res.writableEnded) {
+        entry.rejected = 'client-closed';
+        emit(entry, null, summary);
+        return;
+      }
+      entry.selectedBy = ready.length > 0 ? 'updates' : 'empty';
+      reply = { status: 200, body: { ok: true, result: ready } };
+    } else {
+      entry.selectedBy = 'default';
+      reply = { status: 200, body: defaultAnswer(method, params, () => tg.nextMessageId++) };
+    }
+    const built = build(reply, n, null, raw.length);
+    entry.status = built.status;
+    emit(entry, null, summary);
+    const deliver = () => send(res, built.status, built.headers, built.payload);
+    if (reply.delayMs > 0) {
+      const timer = setTimeout(deliver, reply.delayMs);
+      res.once('close', () => clearTimeout(timer));
+    } else {
+      deliver();
+    }
+  }
+
   async function handle(req, res) {
     try {
       const url = req.url || '/';
@@ -351,6 +621,11 @@ export function createMock({ scenarios, logDir, out }) {
       counter += 1;
       const n = counter;
       const headers = req.headers || {};
+      const botMatch = BOT_PATH.exec(pathname);
+      if (botMatch !== null) {
+        await handleBot(req, res, botMatch, query, raw, headers, n, pathname);
+        return;
+      }
       const keyHeader = headers['x-api-key'];
       let body = null;
       try {
@@ -373,6 +648,7 @@ export function createMock({ scenarios, logDir, out }) {
         countdown: null,
         headerNames: Object.keys(headers).map((h) => h.toLowerCase()),
         keyLength: typeof keyHeader === 'string' ? keyHeader.length : 0,
+        tokenLength: null,
         rejected: null,
         model: isObj && typeof body.model === 'string' ? body.model : null,
         maxTokens: isObj && typeof body.max_tokens === 'number' ? body.max_tokens : null,
@@ -388,10 +664,7 @@ export function createMock({ scenarios, logDir, out }) {
       const isMessages = req.method === 'POST' && pathname === '/v1/messages';
       const isModel = req.method === 'GET' && modelMatch !== null;
       if (!isMessages && !isModel) {
-        const botSide = /^\/bot[^/]+\//.test(pathname);
-        refuse(404, 'not-found', botSide
-          ? `CI mock: the Telegram Bot API side arrives in Story 10.3: ${req.method} ${shortPath(pathname)}`
-          : `CI mock: no route for ${req.method} ${shortPath(pathname)}`);
+        refuse(404, 'not-found', `CI mock: no route for ${req.method} ${shortPath(pathname)}`);
         return;
       }
       if (entry.keyLength === 0) {

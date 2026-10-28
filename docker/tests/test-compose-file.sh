@@ -206,10 +206,11 @@ check "dev: config parses together with the judges' file (--quiet)" docker compo
 
 ci=ci/compose.ci.yml
 
-# The override is exactly the model mock's wiring (Story 0.11): the project name; the iris service with OCUTALON_EVAL passed
+# The override is exactly the mock's wiring (Stories 0.11 and 10.3): the project name; the iris service with OCUTALON_EVAL passed
 # through from the environment (default 0), OCUTALON_MODEL_BASE_URL, the CI-only switch OCUTALON_MOCK_KEY_HEADER (owner
-# decision 5) and the read-only log volume; the mock service from the public node image pinned by digest, with ci/mock mounted
-# read-only; and the named volume mock-log. Nothing else.
+# decision 5), the Bot API base OCUTALON_TELEGRAM_API_BASE and the dummy bot token TELEGRAM_BOT_TOKEN, and the read-only log volume;
+# the mock service from the public node image pinned by digest, with ci/mock mounted read-only; and the named volume mock-log.
+# Nothing else.
 ci_file_is_exact() {
   [ "$(code "$ci")" = 'name: ocutalon-ci
 services:
@@ -218,6 +219,8 @@ services:
       OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
       OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
       OCUTALON_MOCK_KEY_HEADER: "1"
+      OCUTALON_TELEGRAM_API_BASE: http://mock:8080
+      TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token
     volumes:
       - mock-log:/opt/ocutalon/mock-log:ro
   mock:
@@ -262,7 +265,12 @@ ci_adds_no_port_or_publishing_key() {
   ! code "$ci" | grep -qE '^[[:space:]]*(ports|env_file|container_name|build|privileged|network_mode|extra_hosts):'
 }
 
-ci_adds_no_key_variable() { ! code "$ci" | grep -qE 'ANTHROPIC|TELEGRAM|API_KEY|_TOKEN'; }
+# No model key and no variable that looks like a key, a token or a secret, except the one dummy bot token (Story 10.3), which the
+# iris block sets once and which is checked below. A line that sets TELEGRAM_BOT_TOKEN is the only line that may name TELEGRAM.
+ci_adds_no_key_variable() {
+  ! code "$ci" | grep -v -x -e '      OCUTALON_TELEGRAM_API_BASE: http://mock:8080' -e '      TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token' \
+    | grep -qE 'ANTHROPIC|TELEGRAM|API_KEY|_TOKEN|SECRET|PASSWORD'
+}
 
 # image: appears once, in the mock block, as node:<x.y.z>-slim@sha256:<64 hex>.
 ci_image_is_the_pinned_node() {
@@ -283,20 +291,48 @@ ci_sets_mock_key_header_for_iris() {
     && [ "$(ci_block iris | grep -cx '      OCUTALON_MOCK_KEY_HEADER: "1"')" -eq 1 ]
 }
 
+# The Bot API wiring of Story 10.3: the iris block sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and TELEGRAM_BOT_TOKEN to the dummy,
+# once, and no other line of the file names either variable.
+ci_sets_telegram_base_for_iris() {
+  [ "$(code "$ci" | grep -c 'OCUTALON_TELEGRAM_API_BASE')" -eq 1 ] \
+    && [ "$(ci_block iris | grep -cx '      OCUTALON_TELEGRAM_API_BASE: http://mock:8080')" -eq 1 ]
+}
+ci_sets_telegram_token_for_iris() {
+  [ "$(code "$ci" | grep -c 'TELEGRAM_BOT_TOKEN')" -eq 1 ] \
+    && [ "$(ci_block iris | grep -cx '      TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token')" -eq 1 ]
+}
+
+# The dummy bot token matches neither key pattern of test-boundaries.sh that could apply to it (an Anthropic key and a bot token of
+# Telegram's shape), so it can sit in a committed file.
+ci_dummy_token_is_no_key() {
+  local dummy
+  dummy=$(code "$ci" | sed -n 's/^      TELEGRAM_BOT_TOKEN:[[:space:]]*//p')
+  [ -n "$dummy" ] && ! printf '%s\n' "$dummy" | grep -qE 'sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}'
+}
+
 # Only ci/compose.ci.yml sets the switch (owner decision 5): the file must exist and must not name it, so no surface that ships
 # or that a developer starts without the CI override carries the mock-key header (the online demo never does).
 mock_key_header_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_MOCK_KEY_HEADER' "$1"; }
 
+# Only ci/compose.ci.yml sets the Bot API base and gives a bot token a value (Story 10.3): the file must exist, must not name the base and
+# must not hold the dummy token. A judge's file may still name TELEGRAM_BOT_TOKEN, as an empty key to fill in (.env.example) or as a
+# variable to read.
+telegram_wiring_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_TELEGRAM_API_BASE' "$1" && ! grep -q 'ocutalon-ci-dummy-bot-token' "$1"; }
+
 check "ci: the file is exactly the mock's wiring (project name, iris variables and log volume, mock service, log volume)" ci_file_is_exact
 check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no other line names it" ci_sets_mock_key_header_for_iris
+check "ci: the iris service sets OCUTALON_TELEGRAM_API_BASE to the mock, once, and no other line names it" ci_sets_telegram_base_for_iris
+check "ci: the iris service sets TELEGRAM_BOT_TOKEN to the dummy, once, and no other line names it" ci_sets_telegram_token_for_iris
+check "ci: the dummy bot token matches no key pattern" ci_dummy_token_is_no_key
 for f in "$compose" "$dev" "$dockerfile" .env.example docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
   docker/tests/compose.throwaway.yml docker/tests/lib-live.sh; do
   check "judges: $f does not name OCUTALON_MOCK_KEY_HEADER (only ci/compose.ci.yml sets it)" mock_key_header_absent "$f"
+  check "judges: $f names neither OCUTALON_TELEGRAM_API_BASE nor the dummy bot token (only ci/compose.ci.yml sets them)" telegram_wiring_absent "$f"
 done
 check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'
 check "ci: the services are iris, and mock if there is one" ci_services_are_known
 check "ci: no ports, env_file, container_name, build, privileged, network_mode or extra_hosts" ci_adds_no_port_or_publishing_key
-check "ci: no key variable anywhere" ci_adds_no_key_variable
+check "ci: no key variable anywhere, but the one dummy bot token" ci_adds_no_key_variable
 check "ci: image appears once, in the mock block, as node:<x.y.z>-slim pinned by a sha256 digest" ci_image_is_the_pinned_node
 check "ci: command appears only in the mock block" ci_command_only_in_mock
 check "ci: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$ci" config --quiet

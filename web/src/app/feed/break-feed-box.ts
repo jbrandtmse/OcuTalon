@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { finalize, type Observable, tap } from 'rxjs';
 
+import { ApiClient } from '../api/api-client';
 import { elapsedText } from '../chat/page-time';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
@@ -9,7 +10,6 @@ import { Announcer } from '../shared/announcer';
 import { BUSY_TIMEOUT_MS } from '../shared/busy-state';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { ServerButton } from '../shared/server-button';
-import { BreakFeedApi } from './break-feed-api';
 import { boxView, conflictOf, FEED_TEXTS, heldSent, type LocalPress, NO_PRESS, sentToAnnounce, watchLine } from './break-feed-view';
 
 /** The ids of the box's status line and hint, which the button is described by. */
@@ -158,7 +158,7 @@ export class BreakFeedBox {
   protected readonly hintId = HINT_ID;
 
   private readonly live = inject(LiveState);
-  private readonly api = inject(BreakFeedApi);
+  private readonly api = inject(ApiClient);
   private readonly announcer = inject(Announcer);
 
   /** The page's own press: in flight, answered 200, or refused 409. */
@@ -218,7 +218,7 @@ export class BreakFeedBox {
     this.pressRefs = new Set(Object.keys(this.live.store()?.watchProgress ?? {}));
     this.local.set({ pressing: true });
     const timer = globalThis.setTimeout(() => this.local.update((local) => ({ ...local, pressing: false })), BUSY_TIMEOUT_MS);
-    return this.api.press().pipe(
+    return this.api.breakFeed().pipe(
       tap({
         next: (answer) => this.sent(answer.startedAt),
         error: (error: unknown) => this.refused(conflictOf(error)),
