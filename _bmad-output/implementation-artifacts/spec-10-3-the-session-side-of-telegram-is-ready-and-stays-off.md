@@ -5,6 +5,7 @@ created: '2026-10-28'
 status: 'done'
 review_loop_iteration: 0
 baseline_revision: '3cc30457ca05ae31e069c0c8a04caf9c30eef81a'
+baseline_commit: '3cc30457ca05ae31e069c0c8a04caf9c30eef81a'
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
 warnings: ['multiple-goals', 'oversized']
