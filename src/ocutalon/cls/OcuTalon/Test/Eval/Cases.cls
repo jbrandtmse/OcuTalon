@@ -4,10 +4,16 @@
 /// no message; where eval/ is not mounted (a dev slot) they fail with the reason.
 ///   - TestRecordedCases: every case of eval/ (a subfolder that holds a case.json) is named for its folder; every case of a kind that holds a
 ///     recorded Item (item or injection) is sent by EvalIn as the Item that the record says, so a run over the whole folder skips no
-///     such case; a case of any other kind (the incident case) is skipped with its kind in the reason;
+///     such case; a case of any other kind (the incident case) is skipped with its kind in the reason; the catalog key and the slots that the
+///     double records (list positions 9 and 10) are the record's (Story 9.3);
 ///   - TestNewsletterCase: eval/mail-newsletter is the item case of Task 5: kind item, not held out, recorded id mail-newsletter,
 ///     provenance untrusted, channel mailbox, the exact sender, subject and body of the simulated mailbox's newsletter (UX-DR86), and the
-///     expectation {"outcome": "ignore"}, an outcome of the product's Msg.Enum.
+///     expectation {"outcome": "ignore"}, an outcome of the product's Msg.Enum;
+///   - TestSampleEmails (Story 9.3): the newsletter and the partner notice are item cases and the suspicious request is an injection case,
+///     each in the mailbox channel, untrusted, with the exact sender, subject and body of its SimMailbox.In parameters (UX-DR86);
+///   - TestFindingCases (Story 9.3): every case with a catalog key is an untrusted system Item with no sender or subject, a key of
+///     Eval.Report FINDINGKEYS (both keys are used), exactly the slots its catalog entry declares, a catalog text that renders, and a text
+///     that is the entry's text with the slots filled and the time written in UTC.
 Class OcuTalon.Test.Eval.Cases Extends %UnitTest.TestCase
 {
 
@@ -63,6 +69,7 @@ Method TestRecordedCases()
 			Set record = case.item
 			Do $$$AssertEquals($List(seen, 2)_"|"_$List(seen, 3)_"|"_$List(seen, 5), record.itemId_"|eval|untrusted", name_": SourceItemId is the recorded id, owner eval, untrusted")
 			Do $$$AssertEquals($List(seen, 4)_"|"_$List(seen, 6)_"|"_$List(seen, 7)_"|"_$List(seen, 8), record.channel_"|"_record.sender_"|"_record.subject_"|"_record.text, name_": channel, sender, subject and text are the record's")
+			Do $$$AssertEquals($List(seen, 9)_"|"_$List(seen, 10), record.%Get("catalogKey")_"|"_$Select($IsObject(record.slots): record.slots.%ToJSON(), 1: ""), name_": the catalog key and the slots are the record's")
 		} Else {
 			Do $$$AssertTrue(output.StringValue [ case.kind, name_": a case of kind "_case.kind_" is skipped with its kind in the reason: "_output.StringValue)
 		}
@@ -89,7 +96,83 @@ Method TestNewsletterCase()
 	Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#OUTCOME), case.expectation.outcome), "and ignore is an outcome of the product")
 }
 
+/// The three sample emails are cases that hold the exact sender, subject and body of the simulated mailbox: the newsletter and the partner
+/// notice are item cases, the suspicious request is an injection case (UX-DR86).
+Method TestSampleEmails()
+{
+	Set folder = ..Folder()
+	If folder = "" Quit
+	Set mailbox = "OcuTalon.Channel.SimMailbox.In"
+	For sample = "mail-newsletter|item|NEWSLETTER", "mail-partner-notice|item|PARTNER", "mail-suspicious-request|injection|SUSPICIOUS" {
+		Set name = $Piece(sample, "|", 1), prefix = $Piece(sample, "|", 3)
+		Set file = ##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name))
+		Do $$$AssertTrue(##class(%File).Exists(file), "eval/"_name_"/case.json exists")
+		If '##class(%File).Exists(file) Continue
+		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(file)
+		Do $$$AssertEquals(case.name_"|"_case.kind, name_"|"_$Piece(sample, "|", 2), name_": the case is named for its folder and has its kind")
+		Do $$$AssertEquals(case.item.itemId_"|"_case.item.channel_"|"_case.item.provenance, name_"|mailbox|untrusted", name_": its recorded id is its name, in the mailbox channel, untrusted")
+		Do $$$AssertEquals(case.item.sender, $Parameter(mailbox, prefix_"FROM"), name_": the sender is the simulated mailbox's")
+		Do $$$AssertEquals(case.item.subject, $Parameter(mailbox, prefix_"SUBJECT"), name_": the subject is the simulated mailbox's")
+		Do $$$AssertEquals(case.item.text, $Parameter(mailbox, prefix_"BODY"), name_": the text is the simulated mailbox's body")
+	}
+}
+
+/// Every case with a catalog key is a finding in the shape of a production state change: an untrusted system Item with no sender or subject,
+/// a key of Eval.Report FINDINGKEYS, exactly the slots its catalog entry declares, and a text that is the entry's text with the slots filled
+/// and the time written in UTC (the model sees that text; Agent.Input never renders the key). Both keys are used.
+Method TestFindingCases()
+{
+	Set folder = ..Folder()
+	Set names = ..Names(folder)
+	If names = "" Quit
+	Set keys = $ListFromString($Parameter("OcuTalon.Eval.Report", "FINDINGKEYS")), used = ""
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
+		Set record = case.item
+		If '$IsObject(record) || (record.%Get("catalogKey") = "") Continue
+		Set key = record.catalogKey
+		Do $$$AssertEquals(case.kind_"|"_record.channel_"|"_record.provenance_"|"_record.sender_"|"_record.subject, "item|system|untrusted||", name_": a finding is an untrusted system item with no sender or subject")
+		Do $$$AssertTrue($ListFind(keys, key), name_": the key "_key_" is one of Eval.Report FINDINGKEYS")
+		If '$ListFind(used, key) Set used = used_$ListBuild(key)
+		Set entry = ##class(OcuTalon.Msg.Catalog).Entry(key, .sc)
+		Do $$$AssertStatusOK(sc, name_": the catalog has the entry "_key)
+		If '$IsObject(entry) Continue
+		Do $$$AssertTrue($IsObject(record.slots), name_": its slots are an object")
+		If '$IsObject(record.slots) Continue
+		Do $$$AssertEquals(..Keys(record.slots), ..Keys(entry.slots), name_": its slots are exactly the slots of the entry")
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(key, record.slots.%ToJSON(), "web", .sc)
+		Do $$$AssertStatusOK(sc, name_": the slots render")
+		Do $$$AssertTrue(text '= "", name_": the rendered text is not empty")
+		Set expected = entry.text
+		Set iterator = record.slots.%GetIterator()
+		While iterator.%GetNext(.slot, .value) {
+			Set shown = $Select(entry.slots.%Get(slot) = "time": $Extract(value, 12, 16)_" UTC", 1: value)
+			Set expected = $Replace(expected, "{"_slot_"}", shown)
+		}
+		Do $$$AssertEquals(record.text, expected, name_": its text is the entry's text with the slots filled and the time in UTC")
+	}
+	Do $$$AssertEquals($ListLength(used), $ListLength(keys), "every key of FINDINGKEYS is used by a finding case")
+}
+
 /// --- helpers ---
+/// The names of the members of the object in order, comma-separated.
+ClassMethod Keys(object As %DynamicObject) As %String [ Private ]
+{
+	Kill sorted
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set sorted(key) = ""
+	}
+	Set text = "", key = ""
+	For {
+		Set key = $Order(sorted(key))
+		If key = "" Quit
+		Set text = text_$Select(text = "": "", 1: ",")_key
+	}
+	Quit text
+}
+
 /// The folder of the recorded cases, with a trailing separator, or "" with a failed assertion where it is not there.
 Method Folder() As %String [ Private ]
 {

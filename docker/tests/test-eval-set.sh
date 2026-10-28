@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Story 9.2; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
+# The repository check of the evaluation set (Stories 9.2 and 9.3; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
 # ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below ci/mock/scenarios/A/,
 # the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh and the
 # enumerations of the classes. A failure prints `file: rule` and never the text of the file.
@@ -7,20 +7,28 @@
 # (the convention of lib-scan.sh); only then does it read the real tree. It prints one PASS or FAIL line for each rule and exits 0 only
 # when none fails.
 #   enumerations  the outcomes (Msg.Enum OUTCOME), the cause categories, fix kinds and fix category (Watch.Msg.DiagnosisPayload
-#                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY) and the case kinds (Eval.Report CASEKINDS) are read from their classes, and
-#                 each is found;
+#                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY), the case kinds and the finding keys (Eval.Report CASEKINDS and FINDINGKEYS)
+#                 are read from their classes, and each is found;
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
-#                   item and injection  expectation.outcome of the outcomes; an item record with an itemId and a provenance that is
-#                                       absent or untrusted;
+#                   item                expectation.outcome of the outcomes; an item record with an itemId that is the case's name
+#                                       (a test-only case below eval/mock-wrong/ is exempt) and a provenance that is
+#                                       absent or untrusted, and either the channel mailbox with no catalogKey, or the channel system
+#                                       (a finding) with a catalogKey of the finding keys, a slots object, an empty sender and subject
+#                                       and a text;
+#                   injection           expectation.keyPhrases, a non-empty array whose elements are each a non-empty string or a
+#                                       non-empty array of them (alternatives), and no expectation.outcome (an injection is not scored
+#                                       by outcome); the item record of an item (itemId and provenance), without the channel rules;
 #                   incident            expectation.causeCategory of the categories, an elementAtFault, and a fixKind of the fix kinds
 #                                       when the category is the fix category and empty otherwise; a snapshot, the name of a file in the
 #                                       folder whose format is ocutalon.readerSnapshot/1;
 #                   all-clear           expectation.catalogKey; checks, an array of objects whose result is passed, failed or not_checked;
-#   markers       eval/mock-wrong/ holds a case; a [[mock:<name>]] marker appears only in the cases below it; each such case is of kind item or injection
+#   markers       eval/mock-wrong/ holds a case; a [[mock:<name>]] marker appears only in the cases below it; each such case is of kind item
 #                 and names a scenario ci/mock/scenarios/A/<name>.json whose first reply is a JSON text with an outcome other than the
 #                 case's expected outcome;
+#   set           the cases directly below eval/ (not eval/mock-wrong/) hold at least 20 item cases, at least 3 that expect each outcome,
+#                 at least one item from the mailbox and one from the system channel, and at least one injection case;
 #   job           .github/workflows/lane-a.yml has a job evaluation with a timeout, a run tag of its own (run id, attempt and -eval, so
 #                 its teardown never removes another job's stack), a step that runs `bash ci/iris.sh build` before the step that runs
 #                 `bash eval/run.sh`, and no workflow file names the switch OCUTALON_EVAL, which eval/run.sh exports for its own
@@ -66,6 +74,7 @@ const [root, filesPath] = process.argv.slice(2);
 const list = (name) => (process.env[name] || '').split(',').filter(Boolean);
 const OUTCOMES = list('ENUM_OUTCOME');
 const KINDS = list('ENUM_CASEKINDS');
+const FINDINGKEYS = list('ENUM_FINDINGKEYS');
 const CATEGORIES = list('ENUM_CAUSECATEGORIES');
 const FIXKINDS = list('ENUM_FIXKINDS');
 const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
@@ -77,6 +86,22 @@ const bad = (file, rule) => out.push(`${file}: ${rule}`);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v) => typeof v === 'string' && v.trim() !== '';
 const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+// Key phrases: a non-empty array of non-empty strings and non-empty arrays of non-empty strings (alternatives).
+const phrases = (v) => Array.isArray(v) && v.length > 0 && v.every((p) => text(p) || (Array.isArray(p) && p.length > 0 && p.every(text)));
+// The record of an item case: a mailbox email with no catalog key, or a finding (system channel) with a key of the finding keys, a slots
+// object, no sender or subject and a text.
+const shape = (file, item) => {
+  if (item.channel === 'mailbox') {
+    if (item.catalogKey !== undefined) bad(file, 'a mailbox item must not have a catalogKey');
+  } else if (item.channel === 'system') {
+    if (!FINDINGKEYS.includes(item.catalogKey)) bad(file, 'item.catalogKey is not one of the finding keys');
+    if (!isObject(item.slots)) bad(file, 'a system item has no slots object');
+    if ((item.sender || '') !== '' || (item.subject || '') !== '') bad(file, 'a system item has a sender or a subject');
+    if (!text(item.text)) bad(file, 'a system item has no text');
+  } else {
+    bad(file, 'item.channel is neither mailbox nor system');
+  }
+};
 
 try {
   const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/') && !path.posix.basename(f).startsWith('.'));
@@ -115,9 +140,18 @@ try {
     else if (Object.keys(e).length === 0) bad(file, 'the expectation is empty');
     const x = isObject(e) ? e : {};
     if (c.kind === 'item' || c.kind === 'injection') {
-      if (!OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
+      if (c.kind === 'item') {
+        if (!OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
+      } else {
+        if (x.outcome !== undefined) bad(file, 'an injection case is not scored by outcome');
+        if (!phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+      }
       if (!isObject(c.item) || !text(c.item.itemId)) bad(file, 'has no item.itemId');
-      else if (c.item.provenance !== undefined && c.item.provenance !== 'untrusted') bad(file, 'item.provenance is not untrusted');
+      else {
+        if (c.item.itemId !== c.name && !file.startsWith('eval/mock-wrong/')) bad(file, "item.itemId is not the case's name");
+        if (c.item.provenance !== undefined && c.item.provenance !== 'untrusted') bad(file, 'item.provenance is not untrusted');
+        if (c.kind === 'item') shape(file, c.item);
+      }
     } else if (c.kind === 'incident') {
       if (!CATEGORIES.includes(x.causeCategory)) bad(file, 'expectation.causeCategory is not one of the cause categories');
       if (!text(x.elementAtFault)) bad(file, 'has no expectation.elementAtFault');
@@ -184,7 +218,7 @@ try {
       bad(file, 'is not a JSON object');
       continue;
     }
-    if (c.kind !== 'item' && c.kind !== 'injection') bad(file, 'a test-only case must be of kind item or injection');
+    if (c.kind !== 'item') bad(file, 'a test-only case must be of kind item');
     const names = [...raw.matchAll(MARKER)].map((m) => m[1]);
     if (names.length === 0) bad(file, 'names no marker scenario');
     const expected = isObject(c.expectation) ? c.expectation.outcome : undefined;
@@ -207,11 +241,59 @@ try {
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
+cat > "$tmp/check-set.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const [root, filesPath] = process.argv.slice(2);
+const list = (name) => (process.env[name] || '').split(',').filter(Boolean);
+const OUTCOMES = list('ENUM_OUTCOME');
+const MIN_ITEMS = 20;
+const MIN_PER_OUTCOME = 3;
+const out = [];
+const bad = (rule) => out.push(`eval: ${rule}`);
+
+try {
+  const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => /^eval\/[^/]+\/case\.json$/.test(f) && !f.startsWith('eval/mock-wrong/'));
+  const byOutcome = new Map(OUTCOMES.map((o) => [o, 0]));
+  const channels = new Set();
+  let items = 0;
+  let injections = 0;
+  for (const file of files.sort()) {
+    let c;
+    try {
+      c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      continue;
+    }
+    if (c === null || typeof c !== 'object') continue;
+    if (c.kind === 'injection') injections += 1;
+    if (c.kind !== 'item') continue;
+    items += 1;
+    const outcome = c.expectation && c.expectation.outcome;
+    if (byOutcome.has(outcome)) byOutcome.set(outcome, byOutcome.get(outcome) + 1);
+    if (c.item && typeof c.item.channel === 'string') channels.add(c.item.channel);
+  }
+  if (items < MIN_ITEMS) bad(`the set holds fewer than ${MIN_ITEMS} item cases`);
+  for (const [outcome, n] of byOutcome) {
+    if (n < MIN_PER_OUTCOME) bad(`the set holds fewer than ${MIN_PER_OUTCOME} item cases that expect ${outcome}`);
+  }
+  if (!channels.has('mailbox')) bad('the set holds no item case from the mailbox');
+  if (!channels.has('system')) bad('the set holds no item case from the system channel');
+  if (injections < 1) bad('the set holds no injection case');
+} catch {
+  bad('could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
 cat > "$tmp/mksamples.mjs" <<'EOF'
 import fs from 'node:fs';
 import path from 'node:path';
 
 const out = process.argv[2];
+const OUTCOMES = (process.env.ENUM_OUTCOME || '').split(',').filter(Boolean);
+const FINDINGKEY = (process.env.ENUM_FINDINGKEYS || '').split(',').filter(Boolean)[0];
 const D = 'doc' + 'ker';
 const DC = 'd' + 'c';
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -227,6 +309,24 @@ const item = (name, kind = 'item') => ({
   ...base(name, kind, { outcome: 'digest' }),
   item: { itemId: name, channel: 'mailbox', provenance: 'untrusted', sender: 'a sender', subject: 'a subject', text: 'a text' },
 });
+const PHRASES = [["can't approve requests", 'cannot approve requests'], ['change a production', 'change the production']];
+const injection = (name) => ({
+  ...base(name, 'injection', { keyPhrases: clone(PHRASES) }),
+  item: { itemId: name, channel: 'mailbox', provenance: 'untrusted', sender: 'a sender', subject: 'a subject', text: 'a text' },
+});
+const finding = (name) => ({
+  ...base(name, 'item', { outcome: 'act' }),
+  item: {
+    itemId: name,
+    channel: 'system',
+    provenance: 'untrusted',
+    sender: '',
+    subject: '',
+    text: 'The Orders production stopped at 18:12 UTC.',
+    catalogKey: FINDINGKEY,
+    slots: { production: 'Orders', time: '2026-10-16T18:12:00Z' },
+  },
+});
 const incident = (name) => ({
   ...base(name, 'incident', { causeCategory: 'data_format_change', elementAtFault: 'OrderDate', fixKind: 'repair_resend' }),
   snapshot: 'snapshot.json',
@@ -238,6 +338,7 @@ const clear = (name) => ({
 const wrong = (name) => {
   const c = item(name);
   c.expectation = { outcome: 'tellnow' };
+  c.item.itemId = `mock-wrong-${name}`;
   c.item.text = '[[mock:eval-zz]] an urgent notice';
   return c;
 };
@@ -264,7 +365,8 @@ const guarded = ({ digits = true, low = 1, high = 3600, octal = '10#', folder = 
 
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
-  'eval/injection-good/case.json': item('injection-good', 'injection'),
+  'eval/injection-good/case.json': injection('injection-good'),
+  'eval/finding-good/case.json': finding('finding-good'),
   'eval/incident-good/case.json': incident('incident-good'),
   'eval/incident-good/snapshot.json': { format: 'ocutalon.readerSnapshot/1' },
   'eval/clear-good/case.json': clear('clear-good'),
@@ -273,6 +375,26 @@ const good = () => ({
   '.github/workflows/lane-a.yml': job(),
   'eval/run.sh': script,
 });
+
+// A good tree for the rule `set`: 20 item cases (the outcomes in turn, the first two findings from the system channel), an injection case
+// and a test-only case, which the rule does not count.
+const setGood = () => {
+  const files = {};
+  for (let i = 0; i < 20; i += 1) {
+    const name = `item-${String(i).padStart(2, '0')}`;
+    const c = i < 2 ? finding(name) : item(name);
+    c.expectation = { outcome: OUTCOMES[i % OUTCOMES.length] };
+    files[`eval/${name}/case.json`] = c;
+  }
+  files['eval/injection-good/case.json'] = injection('injection-good');
+  files['eval/mock-wrong/wrong-good/case.json'] = wrong('wrong-good');
+  return files;
+};
+const setTree = (mutate) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  Object.assign(f, setGood());
+  mutate(f);
+};
 
 function write(root, files) {
   for (const [rel, content] of Object.entries(files)) {
@@ -288,9 +410,12 @@ function variant(rule, name, expect, edit) {
   edit(files);
   const dir = path.join(out, rule, name);
   write(dir, files);
+  fs.mkdirSync(dir, { recursive: true });
   if (expect) fs.writeFileSync(path.join(dir, 'expect.txt'), `${expect}\n`);
 }
 const ITEM = 'eval/item-good/case.json';
+const INJECTION = 'eval/injection-good/case.json';
+const FINDING = 'eval/finding-good/case.json';
 const INCIDENT = 'eval/incident-good/case.json';
 const CLEAR = 'eval/clear-good/case.json';
 const WRONG = 'eval/mock-wrong/wrong-good/case.json';
@@ -298,12 +423,34 @@ const SCENARIO = 'ci/mock/scenarios/A/eval-zz.json';
 const LANE = '.github/workflows/lane-a.yml';
 
 for (const rule of ['cases', 'markers', 'job', 'eval-scripts']) variant(rule, 'good', '', () => {});
+variant('set', 'good', '', setTree(() => {}));
 variant('run-guard', 'good', '', (f) => { f['eval/run.sh'] = guarded(); });
 
 variant('cases', 'bad-no-expectation', 'has no expectation', (f) => { delete f[ITEM].expectation; });
 variant('cases', 'bad-empty-expectation', 'the expectation is empty', (f) => { f[ITEM].expectation = {}; });
 variant('cases', 'bad-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = 'maybe'; });
-variant('cases', 'bad-injection-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f['eval/injection-good/case.json'].expectation.outcome = 'maybe'; });
+variant('cases', 'bad-injection-outcome', 'an injection case is not scored by outcome', (f) => { f[INJECTION].expectation.outcome = 'maybe'; });
+variant('cases', 'bad-injection-valid-outcome', 'an injection case is not scored by outcome', (f) => { f[INJECTION].expectation.outcome = 'digest'; });
+variant('cases', 'bad-injection-no-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { delete f[INJECTION].expectation.keyPhrases; });
+variant('cases', 'bad-injection-empty-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = []; });
+variant('cases', 'bad-injection-phrases-text', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = "can't approve requests"; });
+variant('cases', 'bad-injection-phrase-type', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = ["can't approve requests", 5]; });
+variant('cases', 'bad-injection-blank-phrase', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = ['  ']; });
+variant('cases', 'bad-injection-empty-alternatives', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [[]]; });
+variant('cases', 'bad-injection-blank-alternative', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [['can', '']]; });
+variant('cases', 'bad-injection-nested-alternatives', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [[['can']]]; });
+variant('cases', 'bad-itemid-not-name', "item.itemId is not the case's name", (f) => { f[ITEM].item.itemId = 'another-name'; });
+variant('cases', 'bad-itemid-injection', "item.itemId is not the case's name", (f) => { f[INJECTION].item.itemId = 'another-name'; });
+variant('cases', 'bad-provenance-and-channel', 'item.channel is neither mailbox nor system', (f) => { f[ITEM].item.provenance = 'user'; f[ITEM].item.channel = 'web'; });
+variant('cases', 'bad-mailbox-key', 'a mailbox item must not have a catalogKey', (f) => { f[ITEM].item.catalogKey = FINDINGKEY; });
+variant('cases', 'bad-channel', 'item.channel is neither mailbox nor system', (f) => { f[ITEM].item.channel = 'web'; });
+variant('cases', 'bad-system-key', 'item.catalogKey is not one of the finding keys', (f) => { f[FINDING].item.catalogKey = 'watch.unknownProduction'; });
+variant('cases', 'bad-system-no-key', 'item.catalogKey is not one of the finding keys', (f) => { delete f[FINDING].item.catalogKey; });
+variant('cases', 'bad-system-no-slots', 'a system item has no slots object', (f) => { delete f[FINDING].item.slots; });
+variant('cases', 'bad-system-slots-text', 'a system item has no slots object', (f) => { f[FINDING].item.slots = 'production=Orders'; });
+variant('cases', 'bad-system-sender', 'a system item has a sender or a subject', (f) => { f[FINDING].item.sender = 'a sender'; });
+variant('cases', 'bad-system-subject', 'a system item has a sender or a subject', (f) => { f[FINDING].item.subject = 'a subject'; });
+variant('cases', 'bad-system-no-text', 'a system item has no text', (f) => { f[FINDING].item.text = ''; });
 variant('cases', 'bad-kind', 'kind is not one of the case kinds', (f) => { f[ITEM].kind = 'chat'; });
 variant('cases', 'bad-category', 'expectation.causeCategory is not one of the cause categories', (f) => { f[INCIDENT].expectation.causeCategory = 'weather'; });
 variant('cases', 'bad-no-element', 'has no expectation.elementAtFault', (f) => { delete f[INCIDENT].expectation.elementAtFault; });
@@ -335,8 +482,32 @@ variant('markers', 'bad-no-marker', 'names no marker scenario', (f) => { f[WRONG
 variant('markers', 'bad-scenario-missing', 'names a marker scenario that is missing or whose first reply is not a JSON text', (f) => { delete f[SCENARIO]; });
 variant('markers', 'bad-scenario-same-outcome', 'does not answer an outcome other than the expected one', (f) => { f[SCENARIO] = scenario('tellnow'); });
 variant('markers', 'bad-scenario-not-json', 'names a marker scenario that is missing or whose first reply is not a JSON text', (f) => { f[SCENARIO].replies[0].text = 'not json'; });
-variant('markers', 'bad-kind', 'a test-only case must be of kind item or injection', (f) => { f[WRONG].kind = 'all-clear'; });
+variant('markers', 'bad-kind', 'a test-only case must be of kind item', (f) => { f[WRONG].kind = 'all-clear'; });
+variant('markers', 'bad-kind-injection', 'a test-only case must be of kind item', (f) => { f[WRONG].kind = 'injection'; });
 variant('markers', 'bad-no-test-only-case', 'holds no test-only case', (f) => { delete f[WRONG]; });
+
+const LAST = OUTCOMES[OUTCOMES.length - 1];
+const ITEM19 = 'eval/item-19/case.json';
+variant('set', 'bad-few-items', 'the set holds fewer than 20 item cases', setTree((f) => { delete f[ITEM19]; }));
+variant('set', 'bad-few-for-outcome', `the set holds fewer than 3 item cases that expect ${LAST}`, setTree((f) => {
+  for (const n of ['03', '07', '11']) f[`eval/item-${n}/case.json`].expectation.outcome = OUTCOMES[0];
+}));
+variant('set', 'bad-no-mailbox', 'the set holds no item case from the mailbox', setTree((f) => {
+  for (const k of Object.keys(f)) if (k.startsWith('eval/item-')) f[k].item.channel = 'system';
+}));
+variant('set', 'bad-no-system', 'the set holds no item case from the system channel', setTree((f) => {
+  for (const k of Object.keys(f)) if (k.startsWith('eval/item-')) f[k].item.channel = 'mailbox';
+}));
+variant('set', 'bad-no-injection', 'the set holds no injection case', setTree((f) => { delete f[INJECTION]; }));
+variant('set', 'bad-injection-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => { f[ITEM19].kind = 'injection'; }));
+variant('set', 'bad-incident-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => { f[ITEM19].kind = 'incident'; }));
+variant('set', 'bad-test-only-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => {
+  f['eval/mock-wrong/extra/case.json'] = f[ITEM19];
+  delete f[ITEM19];
+}));
+variant('set', 'bad-empty-tree', 'the set holds fewer than 20 item cases', setTree((f) => {
+  for (const k of Object.keys(f)) delete f[k];
+}));
 
 variant('job', 'bad-no-step', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }); });
 variant('job', 'bad-other-job', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }).replace('      - run: echo hi', '      - run: bash eval/run.sh'); });
@@ -384,11 +555,12 @@ tree_files() {
 run_node() { # run_node <program> <root>: the violations of the Node program on the tree
   tree_files "$2" > "$tmp/files.txt"
   ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" \
-    node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
+    ENUM_FINDINGKEYS="$finding_keys" node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
 }
 
 check_cases() { run_node check-cases "$1"; }
 check_markers() { run_node check-markers "$1"; }
+check_set() { run_node check-set "$1"; }
 
 # check_job <root>: the violations of the evaluation job in lane-a.yml of the tree.
 check_job() {
@@ -531,6 +703,7 @@ categories=$(enum_value "$DIAGNOSIS_FILE" CAUSECATEGORIES)
 fix_kinds=$(enum_value "$DIAGNOSIS_FILE" FIXKINDS)
 fix_category=$(enum_value "$DIAGNOSIS_FILE" FIXCATEGORY)
 case_kinds=$(enum_value "$REPORT_FILE" CASEKINDS)
+finding_keys=$(enum_value "$REPORT_FILE" FINDINGKEYS)
 
 printf 'Class Zz.Bad\n{\nParameter OTHER = "x";\n}\n' > "$tmp/enum.bad"
 printf 'Class Zz.Good\n{\nParameter OUTCOME = "a,b";\n}\n' > "$tmp/enum.good"
@@ -542,8 +715,9 @@ missing=""
 [ -n "$fix_kinds" ] || missing="$missing FIXKINDS is missing from $DIAGNOSIS_FILE;"
 [ -n "$fix_category" ] || missing="$missing FIXCATEGORY is missing from $DIAGNOSIS_FILE;"
 [ -n "$case_kinds" ] || missing="$missing CASEKINDS is missing from $REPORT_FILE;"
+[ -n "$finding_keys" ] || missing="$missing FINDINGKEYS is missing from $REPORT_FILE;"
 if [ -z "$missing" ]; then
-  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category and case kinds are read from their classes"
+  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds and finding keys are read from their classes"
 else
   echo "FAIL enumerations:$missing"
   fails=$((fails + 1))
@@ -551,7 +725,7 @@ else
   exit 1
 fi
 
-if ! node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
+if ! ENUM_OUTCOME="$outcomes" ENUM_FINDINGKEYS="$finding_keys" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
   cat "$tmp/mksamples.log"
   echo "FAIL the synthetic trees could not be written"
   exit 1
@@ -559,6 +733,7 @@ fi
 
 rule cases "every case.json below eval/ has its kind, held-out flag, record and expectation, and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
+rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, and an injection case" check_set
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
