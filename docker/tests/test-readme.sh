@@ -1,0 +1,872 @@
+#!/usr/bin/env bash
+# Pins README.md (Story 10.2; FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
+# and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
+#
+# What it pins, one rule each:
+#   top            the README opens with "# OcuTalon", then only blank lines, then the H2 sections "Try it in two minutes",
+#                  "What's interesting" and "Contest task -> where to see it" in this order; the other H2 sections are there
+#   try-it         the online demo link comes before ./install.sh, with "nothing to install", "no Early Access image" and the
+#                  splash screen; the local path is four numbered steps
+#   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
+#                  audit log
+#   contest-table  one row each for the three task parts and the five criteria, with all three cells filled
+#   teaser         the teaser line is there once, word for word, as the last line of the table's section, with no embed
+#   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
+#   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs
+#   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
+#   commands       every `docker compose` command that install.sh prints after "run:" is in the README (DW-134), and the README
+#                  has no `docker compose restart`, "install.sh again", "rerun" or "re-run"
+#   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence, the README account and
+#                  "Sign in to Visual Trace"; no key-shaped example
+#   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps (DW-3)
+#   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
+#   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
+#   dev-only       no ##class(, class name or error code above "For admins and developers"
+#   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
+#                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
+#   no-telegram    no "Telegram" while Included() has its test-only body
+#   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
+#   readme-links   every link of the README reaches a heading, a file or folder of the repository, or an allow-listed host;
+#                  no two headings share a slug
+#
+# What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, install.sh,
+# src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
+# web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls (not /Test/).
+#
+# The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1,
+# the page never shows the link to a README Telegram section. Then the check prints one "SKIP #telegram" line, leaves #telegram
+# out of product-links and refuses the word Telegram. Any other body, or no In.cls, covers #telegram (the README needs a heading
+# with that slug) and allows the word, so the change that turns Telegram on edits the README, not this check.
+#
+# Each rule first runs on copies of its input that are broken for that rule, each of which it must flag (a rule that can no
+# longer flag anything fails), and only then on the real files. With no README.md every rule fails closed, which is checked first
+# (a FAIL no-readme line names a rule that does not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
+# wrong (a README line number or a missing text); exits 0 only when no rule fails.
+# shellcheck disable=SC2016
+set -u
+export LC_ALL=C
+
+root=$(cd "$(dirname "$0")/../.." && pwd)
+cd "$root" || exit 1
+# shellcheck source=/dev/null
+. "$root/docker/tests/lib-scan.sh"
+
+fails=0
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-rd.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT
+
+# --- the inputs: text files of the tree, read by their paths ---
+
+README=README.md
+INSTALL=install.sh
+ADMIN=src/ocutalon/cls/OcuTalon/Core/Admin.cls
+INCLUDED=src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls
+EXPERIENCE=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md
+CHATVIEW=web/src/app/chat/chat-view.ts
+
+listing=$(scan_files)
+if [ -z "$listing" ]; then
+  echo "FAIL no files in scope"
+  exit 1
+fi
+in_tree() { printf '%s\n' "$listing" | grep -qxF -- "$1"; }
+
+# of <path>: the path when the tree holds that file, else an empty file, so that a rule that reads it flags the absence.
+: > "$tmp/absent"
+of() { if in_tree "$1"; then printf '%s' "$1"; else printf '%s' "$tmp/absent"; fi; }
+
+have_readme=0
+if in_tree "$README"; then have_readme=1; fi
+install_p=$(of "$INSTALL")
+admin_p=$(of "$ADMIN")
+included_p=$(of "$INCLUDED")
+experience_p=$(of "$EXPERIENCE")
+chatview_p=$(of "$CHATVIEW")
+
+# The files whose README anchors the product can show: the page's sources and the server's classes, none of the tests.
+printf '%s\n' "$listing" | grep -E '^(web/src/app/.*\.ts|src/.*\.cls)$' | grep -v '\.spec\.ts$' | grep -v '/Test/' > "$tmp/product.list"
+
+ARROW=$(printf '\342\206\222')
+H_TRY='Try it in two minutes'
+H_INT="What's interesting"
+H_TABLE="Contest task $ARROW where to see it"
+TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
+NOTE='OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.'
+OTHER_H2='What OcuTalon does
+Install it yourself
+Set a model key
+Sign in
+Stop, start and update
+Troubleshooting
+For admins and developers
+Credits and licences'
+
+# --- readers of the Markdown ---
+
+# headings <file>: level, GitHub slug and text of each heading outside a code fence, tab separated. The slug (Design Note 8) is
+# the lower-cased text without every character but letters, digits, spaces, - and _, then spaces to -.
+headings() {
+  awk '
+    function slug(s) { s = tolower(s); gsub(/[^a-z0-9 _-]/, "", s); gsub(/ /, "-", s); return s }
+    /^```/ { fence = !fence; next }
+    !fence && /^#+ / { match($0, /^#+/); lvl = RLENGTH; t = substr($0, lvl + 2); printf "%d\t%s\t%s\n", lvl, slug(t), t }
+  ' "$1"
+}
+
+# section <file> <H2 title>: the lines of that H2 section, subsections included, without its heading.
+section() {
+  awk -v t="## $2" '
+    /^```/ { fence = !fence }
+    !fence && /^## / { on = ($0 == t); next }
+    on { print }
+  ' "$1"
+}
+
+# chk_facts <label> <file> <facts, one per line>: "<label>: missing '<fact>'" for each fact the file does not hold word for word.
+chk_facts() {
+  local fact
+  printf '%s\n' "$3" | while IFS= read -r fact; do
+    if [ -n "$fact" ] && ! grep -qF -e "$fact" "$2"; then echo "$1: missing '$fact'"; fi
+  done
+}
+
+# --- the self-test helpers: broken copies of an input ---
+
+st_bad=0
+st_msgs=""
+S1=""
+S2=""
+S3=""
+# st_note <what>: a broken copy that was not flagged. The notes are shown only when the real input passes, because a real input
+# that already has the fault leaves nothing to break.
+st_note() {
+  st_msgs="$st_msgs  self-test: $1
+"
+  st_bad=1
+}
+
+# mutate <input> <awk program>: writes $tmp/m, the input edited by the program. Returns 1 when the edit changed nothing.
+mutate() {
+  awk "$2" "$1" > "$tmp/m" || return 1
+  ! cmp -s "$1" "$tmp/m"
+}
+
+# strip_str <input> <string>: writes $tmp/m, the input with every occurrence of the string replaced by ZZ. Returns 1 when none.
+strip_str() {
+  awk -v s="$2" '{ out = ""; line = $0; n = length(s); while ((i = index(line, s)) > 0) { out = out substr(line, 1, i - 1) "ZZ"; line = substr(line, i + n) } print out line }' "$1" > "$tmp/m" || return 1
+  ! cmp -s "$1" "$tmp/m"
+}
+
+# st <label> <slot 1 to 3> <input> <awk program> <checker>: the checker, given S1 S2 S3 with the slot's one replaced by the
+# input edited by the program, must print something.
+st() {
+  local label=$1 slot=$2 in=$3 prog=$4 checker=$5 a1=$S1 a2=$S2 a3=$S3
+  if ! mutate "$in" "$prog"; then
+    st_note "$label: the edit changed nothing"
+    return
+  fi
+  case $slot in
+    1) a1=$tmp/m ;;
+    2) a2=$tmp/m ;;
+    3) a3=$tmp/m ;;
+  esac
+  if [ -z "$("$checker" "$a1" "$a2" "$a3")" ]; then st_note "$label: not flagged"; fi
+}
+
+# st_append <label> <text> <checker>: the checker must flag the README with the text added as its last line.
+st_append() { st "$1" 1 "$README" "{ print } END { print \"$2\" }" "$3"; }
+
+# st_facts <checker> <facts, one per line>: the checker must flag the README without any one of the facts.
+st_facts() {
+  local fact
+  while IFS= read -r fact; do
+    [ -n "$fact" ] || continue
+    if ! strip_str "$README" "$fact"; then
+      st_note "without '$fact': the edit changed nothing"
+    elif [ -z "$("$1" "$tmp/m" "$S2" "$S3")" ]; then
+      st_note "without '$fact': not flagged"
+    fi
+  done <<EOF
+$2
+EOF
+}
+
+# rule_begin <rule> <S1> <S2> <S3>: sets the real arguments of the rule. Returns 1, after a FAIL line, when there is no README.
+rule_begin() {
+  st_bad=0
+  st_msgs=""
+  S1=${2:-}
+  S2=${3:-}
+  S3=${4:-}
+  if [ "$have_readme" -ne 1 ]; then
+    echo "FAIL $1: $README is missing"
+    fails=$((fails + 1))
+    return 1
+  fi
+}
+
+# finish <rule> <description> <checker>: runs the checker on the real arguments. FAIL, with what it found, when it finds a problem;
+# FAIL when it finds none and a broken copy was not flagged; else PASS.
+finish() {
+  local out
+  out=$("$3" "$S1" "$S2" "$S3")
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out" | head -n 10 | sed 's/^/  /'
+    echo "FAIL $1"
+    fails=$((fails + 1))
+  elif [ "$st_bad" -ne 0 ]; then
+    printf '%s' "$st_msgs"
+    echo "FAIL $1: a broken copy was not flagged"
+    fails=$((fails + 1))
+  else
+    echo "PASS $1: $2"
+  fi
+}
+
+# --- the rules' checkers: each prints one line per problem and nothing when the rule holds ---
+
+# top
+chk_top() {
+  local f=$1 h2s t
+  awk '
+    state == 0 && $0 ~ /[^ \t]/ { if ($0 != "# OcuTalon") print FILENAME ":" FNR ": the first line is not \"# OcuTalon\""; state = 1; next }
+    state == 1 && /^## / { state = 2 }
+    state == 1 && $0 ~ /[^ \t]/ { print FILENAME ":" FNR ": a line between the title and the first H2 section" }
+  ' "$f"
+  h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
+  if [ "$(printf '%s\n' "$h2s" | head -n 3)" != "$(printf '%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_TABLE")" ]; then
+    echo "$f: the first three H2 sections are not, in this order: $H_TRY, $H_INT, Contest task ... where to see it"
+  fi
+  printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
+    if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
+  done
+}
+
+# try-it
+TRY_FACTS='https://demo.ocutalon.com
+./install.sh
+nothing to install
+no Early Access image
+splash'
+chk_try_it() {
+  local sec="$tmp/sec.try" demo install n
+  section "$1" "$H_TRY" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_TRY'"
+    return
+  fi
+  chk_facts try-it "$sec" "$TRY_FACTS"
+  demo=$(grep -nF -m 1 'https://demo.ocutalon.com' "$sec" | cut -d: -f1)
+  install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
+  if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
+    echo "try-it: ./install.sh comes before https://demo.ocutalon.com"
+  fi
+  for n in 1 2 3 4; do
+    if ! grep -q "^$n\\. " "$sec"; then echo "try-it: the local path has no step $n"; fi
+  done
+  if grep -q '^5\. ' "$sec"; then echo "try-it: the local path has more than four steps"; fi
+}
+
+# interesting
+INT_FACTS='Interoperability
+Visual Trace
+AI Hub
+dry run
+audit log'
+chk_interesting() {
+  local sec="$tmp/sec.int" n
+  section "$1" "$H_INT" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_INT'"
+    return
+  fi
+  n=$(wc -w < "$sec")
+  n=$((n + 0))
+  if [ "$n" -gt 120 ]; then echo "interesting: $n words, at most 120"; fi
+  chk_facts interesting "$sec" "$INT_FACTS"
+}
+
+# contest-table
+TABLE_ROWS='IRIS Interoperability workflow
+IRIS AI Hub agent
+decision-making task
+Complexity
+Clarity of Instructions
+Developer Experience
+Applicability
+Usability'
+chk_table() {
+  local sec="$tmp/sec.table" label row
+  section "$1" "$H_TABLE" > "$sec"
+  printf '%s\n' "$TABLE_ROWS" | while IFS= read -r label; do
+    row=$(awk -F'|' -v l="$label" '/^\|/ && index($2, l) { print; exit }' "$sec")
+    if [ -z "$row" ]; then
+      echo "contest-table: no row for '$label'"
+    elif ! printf '%s\n' "$row" | awk -F'|' '{ bad = (NF < 5); for (i = 2; i <= 4; i++) { c = $i; gsub(/^[ \t]+/, "", c); gsub(/[ \t]+$/, "", c); if (c == "") bad = 1 } exit bad }'; then
+      echo "contest-table: the row for '$label' has fewer than three filled cells"
+    fi
+  done
+}
+
+# teaser
+chk_teaser() {
+  local f=$1 sec="$tmp/sec.teaser" n last at lastrow
+  n=$(grep -cxF -- "$TEASER" "$f")
+  if [ "$n" -ne 1 ]; then echo "teaser: the line '$TEASER' is there $n times, not once"; fi
+  section "$f" "$H_TABLE" > "$sec"
+  last=$(grep -v '^[[:space:]]*$' "$sec" | tail -n 1)
+  if [ "$last" != "$TEASER" ]; then echo "teaser: it is not the last line of the section '$H_TABLE'"; fi
+  at=$(grep -nxF -- "$TEASER" "$sec" | head -n 1 | cut -d: -f1)
+  lastrow=$(grep -n '^|' "$sec" | tail -n 1 | cut -d: -f1)
+  if [ -z "$lastrow" ] || [ -z "$at" ] || [ "$at" -le "$lastrow" ]; then echo "teaser: it does not come after the table"; fi
+  grep -nE '!\[|<img|<iframe|<video' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image or embed (the teaser is a plain link)|"
+}
+
+# outcomes: chk_outcomes <readme> <chat-view.ts>
+chk_outcomes() {
+  local key name meaning
+  for key in Ignore:meaningIgnore Digest:meaningDigest 'Tell now:meaningTellNow' Act:meaningAct; do
+    name=${key%%:*}
+    meaning=$(sed -n "s/^[[:space:]]*${key#*:}: '\\(.*\\)',\$/\\1/p" "$2" | head -n 1)
+    if [ -z "$meaning" ]; then
+      echo "outcomes: $CHATVIEW has no ${key#*:}"
+    elif ! grep -qF -e "**$name**: $meaning." "$1"; then
+      echo "outcomes: missing '**$name**: $meaning.'"
+    fi
+  done
+}
+
+# install (DW-2): the facts of the install sections
+INSTALL_FACTS='2.24
+irishealth-community:2026.3.0AI.154.0
+ocutalon-iris-base:2026.3.0AI.154.0
+docker load -i
+docker tag
+docker compose up -d
+docker compose ps
+https://evaluation.intersystems.com/Eval/early-access/AIHub
+arm64
+x64
+iris-community:2026.3.0AI.154.0
+HealthShare
+HSCUSTOM
+ARM64
+15 minutes'
+chk_install() {
+  local sec="$tmp/sec.install"
+  section "$1" 'Install it yourself' > "$sec"
+  chk_facts install "$sec" "$INSTALL_FACTS"
+}
+
+# install-pointer: chk_install_pointer <readme> <install.sh>
+chk_install_pointer() {
+  local names name
+  names=$(sed -n 's/.*[Tt]he \([A-Za-z][A-Za-z ]*\) section of README\.md.*/\1/p' "$2" | sort -u)
+  if [ -z "$names" ]; then
+    echo "install-pointer: install.sh names no README section (the extraction found none)"
+    return
+  fi
+  printf '%s\n' "$names" | while IFS= read -r name; do
+    if ! grep -qxF -- "## $name" "$1"; then echo "install-pointer: install.sh points to the section '$name', and the README has no '## $name' heading"; fi
+  done
+}
+
+# commands (DW-134): chk_commands <readme> <install.sh>
+chk_commands() {
+  local cmds cmd
+  cmds=$(sed -n 's/.*run: *\(docker compose[^"]*\)".*/\1/p' "$2" | sed 's/ *$//' | sort -u)
+  if [ -z "$cmds" ]; then
+    echo "commands: install.sh prints no docker compose command after 'run:' (the extraction found none)"
+  else
+    printf '%s\n' "$cmds" | while IFS= read -r cmd; do
+      if ! grep -qF -e "$cmd" "$1"; then echo "commands: install.sh prints '$cmd', and the README does not"; fi
+    done
+  fi
+  grep -niE 'docker compose restart|install\.sh`? again|re-?run' "$1" | cut -d: -f1 | sed 's|^|commands: README.md:|; s|$|: wording the README must not use (DW-134)|'
+}
+
+# key-account
+KEY_FACTS='ANTHROPIC_API_KEY=<your key>
+.env.example
+Claude Haiku 5.5
+fixed rules
+Sign in to Visual Trace'
+ACCOUNT_FACTS='User name: `ocutalon`
+Password: `ocutalon`'
+chk_key_account() {
+  local sec="$tmp/sec.signin"
+  chk_facts key-account "$1" "$KEY_FACTS"
+  section "$1" 'Sign in' > "$sec"
+  chk_facts key-account "$sec" "$ACCOUNT_FACTS"
+  grep -n 'ANTHROPIC_API_KEY=' "$1" | grep -v 'ANTHROPIC_API_KEY=<your key>' | cut -d: -f1 | sed 's|^|key-account: README.md:|; s|$|: a key-shaped example|'
+}
+
+# lan (DW-3)
+LAN_FACTS='LAN
+Management Portal
+](#change-the-readme-accounts-password)
+Change the README account'"'"'s password after your first sign-in'
+chk_lan() {
+  local sec="$tmp/sec.lan"
+  section "$1" 'Sign in' > "$sec"
+  chk_facts lan "$sec" "$LAN_FACTS"
+}
+
+# demo-mode (DW-45, U-72): chk_demo_mode <readme> <Admin.cls> <EXPERIENCE.md>
+DEMO_FACTS='### Demo mode
+do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)
+OcuTalonAdmin
+%All'
+chk_demo_mode() {
+  local kept
+  chk_facts demo-mode "$1" "$DEMO_FACTS"
+  if ! grep -qF 'ClassMethod SetDemoMode(' "$2"; then echo "demo-mode: Admin.cls has no 'ClassMethod SetDemoMode('"; fi
+  kept=$(sed -n 's/^.*"\(OcuTalon left the OCUORDERS namespace[^"]*\)".*$/\1/p' "$3" | head -n 1)
+  if [ -z "$kept" ]; then
+    echo "demo-mode: EXPERIENCE.md has no kept-OCUORDERS sentence (the extraction found none)"
+  elif ! grep -qF -e "$kept" "$1"; then
+    echo "demo-mode: the README does not hold EXPERIENCE.md's kept-OCUORDERS sentence word for word"
+  fi
+}
+
+# admin-commands: the terminal sessions and the password line that the walkthrough ran, in the admin section
+ADMIN_FACTS='docker compose exec iris iris session IRIS -U OCUTALON
+docker compose exec iris iris session IRIS -U %SYS
+kill p set p("Password")="<new password>" write ##class(Security.Users).Modify("ocutalon",.p)'
+chk_admin_commands() {
+  local sec="$tmp/sec.admin"
+  section "$1" 'For admins and developers' > "$sec"
+  chk_facts admin-commands "$sec" "$ADMIN_FACTS"
+}
+
+# dev-only: file:line of each line above "For admins and developers" with a ##class( call, a class name (a dotted name whose parts
+# start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
+dev_names() {
+  awk '
+    FNR == 1 { stop = 0 }
+    /^## For admins and developers$/ { stop = 1 }
+    stop { next }
+    /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+# public-text: file:line of each line with a provider, "from your phone", "per step", private infrastructure, an IPv4 address other
+# than 127.0.0.1 and 0.0.0.0, or OpenClaw outside the note; and what a README lacks: the note, the credit, the licence pointers.
+PUBLIC_FACTS='Built with the BMAD Method and Claude Code.
+web/public/assets/licenses
+docker/ipm/LICENSE
+3rdpartylicenses.txt'
+public_text_scan() {
+  local f
+  awk -v note="$NOTE" '
+    function word(l, w) { return l ~ ("(^|[^a-z0-9])(" w ")([^a-z0-9]|$)") }
+    {
+      l = tolower($0)
+      if (word(l, "openai|gpt|chatgpt|gemini|mistral|cohere|llama|ollama|bedrock|azure|deepseek|grok")) print FILENAME ":" FNR
+      else if (l ~ /from your phone|per step|find a bug|bonus/) print FILENAME ":" FNR
+      else if (l ~ /ocutalon-ci|ocutalon-slot|\.worktrees|\.coordination|digitalocean|droplet|sfo2|contest planner|epic-cycle|self-hosted/) print FILENAME ":" FNR
+      else if (l ~ /openclaw/ && $0 != note) print FILENAME ":" FNR
+      else {
+        s = $0
+        while (match(s, /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+          ip = substr(s, RSTART, RLENGTH)
+          if (ip != "127.0.0.1" && ip != "0.0.0.0") { print FILENAME ":" FNR; break }
+          s = substr(s, RSTART + RLENGTH)
+        }
+      }
+    }
+  ' "$@"
+  for f in "$@"; do
+    if ! grep -qxF -- "$NOTE" "$f"; then echo "$f: the not-affiliated note is missing or not word for word"; fi
+    chk_facts "$f" "$f" "$PUBLIC_FACTS"
+  done
+}
+
+# The scanners take files, the self-test helpers three arguments: these give them the first.
+dev_names_1() { dev_names "$1"; }
+public_text_1() { public_text_scan "$1"; }
+
+# no-telegram: chk_no_telegram <readme> <mode>
+chk_no_telegram() {
+  if [ "$2" = testonly ]; then
+    grep -niF telegram "$1" | cut -d: -f1 | sed 's|^|no-telegram: README.md:|; s|$|: the word Telegram while Included() is test-only|'
+  fi
+}
+
+# telegram_mode <In.cls>: testonly when Included() has the test-only body, else included.
+telegram_mode() {
+  local body
+  if [ ! -s "$1" ]; then
+    echo included
+    return
+  fi
+  body=$(awk '/^ClassMethod Included\(/ { on = 1; next } on && /^\}/ { exit } on { print }' "$1" | tr -d '\r' | tr '\t\n' '  ' | sed 's/  */ /g; s/^ //; s/ $//')
+  if [ "$body" = '{ Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1' ]; then echo testonly; else echo included; fi
+}
+
+# inventory <list file>: the README anchors that the files of the list can link to, one per line, sorted: the part after # of a
+# jbrandtmse/OcuTalon# address, the section argument of a readmeSection(..., '<x>') call, and the value of a *_ANCHOR constant of
+# a TypeScript file.
+inventory() {
+  {
+    tr '\n' '\0' < "$1" | xargs -0 grep -hoE 'jbrandtmse/OcuTalon#[A-Za-z0-9_-]+' /dev/null 2>/dev/null | sed 's/.*#//'
+    tr '\n' '\0' < "$1" | xargs -0 grep -hoE "readmeSection\\([^,)]*,[[:space:]]*'[^']*'" /dev/null 2>/dev/null | sed "s/.*'\\([^']*\\)'\$/\\1/"
+    grep -E '\.ts$' "$1" | tr '\n' '\0' | xargs -0 grep -hoE "[A-Z][A-Z_]*_ANCHOR[^=']*=[[:space:]]*'[^']*'" /dev/null 2>/dev/null | sed "s/.*'\\([^']*\\)'\$/\\1/"
+  } | sort -u
+}
+
+# product-links: chk_product_links <readme> <list file> <In.cls>
+chk_product_links() {
+  local anchors mode slugs a
+  anchors=$(inventory "$2")
+  for a in readme telegram; do
+    if ! printf '%s\n' "$anchors" | grep -qxF -- "$a"; then
+      echo "product-links: the link inventory finds no '#$a' anchor, so a renamed constant could hide every page link"
+    fi
+  done
+  mode=$(telegram_mode "$3")
+  slugs=$(headings "$1" | cut -f2)
+  printf '%s\n' "$anchors" | while IFS= read -r a; do
+    case $a in
+      '') continue ;;
+      readme) continue ;;
+      telegram) if [ "$mode" = testonly ]; then continue; fi ;;
+    esac
+    if ! printf '%s\n' "$slugs" | grep -qxF -- "$a"; then echo "product-links: the page links to '#$a', and the README has no heading with that slug"; fi
+  done
+}
+
+# readme-links (Design Notes 8 and 9)
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com docs.docker.com learn.microsoft.com'
+URL_RE='https?://[^][:space:])>"<`]+'
+url_allowed() {
+  local rest=${1#*://} host entry
+  host=${rest%%[/?#]*}
+  host=${host%%:*}
+  for entry in $ALLOWED_HOSTS; do
+    case $entry in
+      */*)
+        case $rest in
+          "$entry" | "$entry"/* | "$entry"\?* | "$entry"#* | "$entry".git) return 0 ;;
+        esac
+        ;;
+      *) if [ "$host" = "$entry" ]; then return 0; fi ;;
+    esac
+  done
+  return 1
+}
+chk_readme_links() {
+  local slugs dup
+  slugs=$(headings "$1" | cut -f2)
+  dup=$(printf '%s\n' "$slugs" | sort | uniq -d)
+  if [ -n "$dup" ]; then printf '%s\n' "$dup" | sed 's|^|readme-links: two headings have the slug |'; fi
+  grep -oE '\]\([^)]*\)' "$1" | sed 's/^](//; s/)$//' | while IFS= read -r target; do
+    case $target in
+      '#'*)
+        if ! printf '%s\n' "$slugs" | grep -qxF -- "${target:1}"; then echo "readme-links: the link ($target) reaches no heading"; fi
+        ;;
+      http://* | https://*) ;;
+      *://* | mailto:*) echo "readme-links: the link ($target) is not an http or https address" ;;
+      *)
+        path=${target%%[#?]*}
+        if [ -z "$path" ] || [ -z "$(scan_files "${path%/}" | head -n 1)" ]; then echo "readme-links: the link ($target) reaches no file or folder of the repository"; fi
+        ;;
+    esac
+  done
+  grep -oE "$URL_RE" "$1" | sed 's/[.,;:]*$//' | sort -u | while IFS= read -r url; do
+    if ! url_allowed "$url"; then echo "readme-links: the address $url is not on the allow-list"; fi
+  done
+}
+
+# --- the rules ---
+
+rule_top() {
+  rule_begin top "$README" || return
+  st 'a line before the first H2 section' 1 "$README" 'NR == 1 { print; print "A stray line."; next } { print }' chk_top
+  st 'a first line that is not the title' 1 "$README" 'NR == 1 { print "# Other"; next } { print }' chk_top
+  st 'the first two sections swapped' 1 "$README" '/^## What.s interesting$/ { print "## Try it in two minutes"; next } /^## Try it in two minutes$/ { print "## What'"'"'s interesting"; next } { print }' chk_top
+  st 'the Contest task section moved down' 1 "$README" '/^## Contest task / { sub(/^## /, "## Zz ") } { print }' chk_top
+  st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
+  finish top 'the title, then the three top sections in order, and the other sections are there' chk_top
+}
+
+rule_try_it() {
+  rule_begin try-it "$README" || return
+  st_facts chk_try_it "$TRY_FACTS"
+  st 'install.sh before the demo link' 1 "$README" '{ print } /^## Try it in two minutes$/ { print ""; print "Run ./install.sh first." }' chk_try_it
+  st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
+  st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
+  finish try-it 'the online demo comes first, then four numbered steps for the local path' chk_try_it
+}
+
+rule_interesting() {
+  local n
+  rule_begin interesting "$README" || return
+  st_facts chk_interesting "$INT_FACTS"
+  n=$(section "$README" "$H_INT" | wc -w)
+  n=$((n + 0))
+  if [ "$n" -le 120 ]; then
+    # The limit itself: the section padded to exactly 121 words is flagged, and padded to exactly 120 it is not.
+    st 'exactly 121 words' 1 "$README" "{ print } /^## What.s interesting\$/ { print \"\"; for (i = $n; i < 121; i++) printf \"w \"; print \"\" }" chk_interesting
+    if ! mutate "$README" "{ print } /^## What.s interesting\$/ { print \"\"; for (i = $n; i < 120; i++) printf \"w \"; print \"\" }"; then
+      st_note 'exactly 120 words: the edit changed nothing'
+    elif [ -n "$(chk_interesting "$tmp/m")" ]; then
+      st_note 'exactly 120 words is flagged'
+    fi
+  fi
+  finish interesting 'at most 120 words, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
+}
+
+rule_contest_table() {
+  local label
+  rule_begin contest-table "$README" || return
+  while IFS= read -r label; do
+    st "the row for '$label' removed" 1 "$README" "BEGIN { FS = \"|\" } !(\$0 ~ /^\\|/ && index(\$2, \"$label\"))" chk_table
+    st "an empty cell in the row for '$label'" 1 "$README" "BEGIN { FS = OFS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { \$4 = \" \" } { print }" chk_table
+    st "an empty feature cell in the row for '$label'" 1 "$README" "BEGIN { FS = OFS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { \$3 = \" \" } { print }" chk_table
+    st "the row for '$label' without its closing bar" 1 "$README" "BEGIN { FS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { sub(/[ \\t]*\\|[ \\t]*\$/, \"\") } { print }" chk_table
+  done <<EOF
+$TABLE_ROWS
+EOF
+  finish contest-table 'a row for each of the three task parts and the five criteria, each with its feature and its place' chk_table
+}
+
+rule_teaser() {
+  rule_begin teaser "$README" || return
+  st 'the teaser line removed' 1 "$README" '!/^Watch the 35-second teaser: /' chk_teaser
+  st 'the teaser line changed' 1 "$README" '{ sub(/35-second/, "36-second"); print }' chk_teaser
+  st 'the teaser moved to the end of the README' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } END { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st 'the teaser before the table' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } /^## Contest task / { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st_append 'an embedded image' '![teaser](teaser.png)' chk_teaser
+  st_append 'an image tag' '<img src=teaser.png>' chk_teaser
+  st_append 'a frame' '<iframe src=teaser></iframe>' chk_teaser
+  st_append 'a video tag' '<video src=teaser.mp4></video>' chk_teaser
+  st_append 'the teaser line twice' "$TEASER" chk_teaser
+  finish teaser 'the teaser is a plain link, word for word, after the table, as the last line of its section' chk_teaser
+}
+
+rule_outcomes() {
+  local name
+  rule_begin outcomes "$README" "$chatview_p" || return
+  for name in Ignore Digest 'Tell now' Act; do
+    st "the outcome $name removed" 1 "$README" "{ if (index(\$0, \"**$name**: \") > 0) next; print }" chk_outcomes
+  done
+  st 'a meaning of the page changed' 2 "$chatview_p" '/meaningIgnore:/ { sub(/'"'"'.*'"'"'/, "'"'"'Changed meaning'"'"'") } { print }' chk_outcomes
+  st 'no meanings in the page' 2 "$chatview_p" '!/meaningIgnore/' chk_outcomes
+  finish outcomes 'Ignore, Digest, Tell now and Act, with the meanings that the page shows' chk_outcomes
+}
+
+rule_install() {
+  rule_begin install "$README" || return
+  st_facts chk_install "$INSTALL_FACTS"
+  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
+}
+
+rule_install_pointer() {
+  rule_begin install-pointer "$README" "$install_p" || return
+  st 'the Troubleshooting heading removed' 1 "$README" '!/^## Troubleshooting$/' chk_install_pointer
+  st 'install.sh names another section' 2 "$install_p" '{ sub(/The Troubleshooting section/, "The Cooking section"); print }' chk_install_pointer
+  st 'install.sh names no section' 2 "$install_p" '{ sub(/section of README/, "part of README"); print }' chk_install_pointer
+  finish install-pointer 'every README section that install.sh points to is an H2 heading' chk_install_pointer
+}
+
+rule_commands() {
+  local cmds cmd
+  rule_begin commands "$README" "$install_p" || return
+  cmds=$(sed -n 's/.*run: *\(docker compose[^"]*\)".*/\1/p' "$install_p" | sed 's/ *$//' | sort -u)
+  while IFS= read -r cmd; do
+    [ -n "$cmd" ] || continue
+    if ! strip_str "$README" "$cmd"; then
+      st_note "without '$cmd': the edit changed nothing"
+    elif [ -z "$(chk_commands "$tmp/m" "$S2")" ]; then
+      st_note "without '$cmd': not flagged"
+    fi
+  done <<EOF
+$cmds
+EOF
+  st_append 'docker compose restart' 'Run docker compose restart to apply it.' chk_commands
+  st_append 'install.sh again' 'Run ./install.sh again to apply it.' chk_commands
+  st_append 'install.sh in backticks again' 'Run `./install.sh` again to apply it.' chk_commands
+  st_append 'rerun' 'Then rerun the script.' chk_commands
+  st_append 're-run' 'Then Re-run the script.' chk_commands
+  st 'install.sh prints no command after run:' 2 "$install_p" '{ gsub(/run:/, "go:"); print }' chk_commands
+  finish commands 'every command that install.sh prints is in the README, and none that it never gives' chk_commands
+}
+
+rule_key_account() {
+  rule_begin key-account "$README" || return
+  st_facts chk_key_account "$KEY_FACTS"
+  st_facts chk_key_account "$ACCOUNT_FACTS"
+  st_append 'a key-shaped example' 'Set ANTHROPIC_API_KEY=abc in .env.' chk_key_account
+  finish key-account 'the key line, .env.example, the default model, fixed rules, the README account and the Visual Trace sign-in' chk_key_account
+}
+
+rule_lan() {
+  rule_begin lan "$README" || return
+  st_facts chk_lan "$LAN_FACTS"
+  finish lan 'Sign in warns about the LAN and the Management Portal and links to the password steps' chk_lan
+}
+
+rule_demo_mode() {
+  local kept
+  rule_begin demo-mode "$README" "$admin_p" "$experience_p" || return
+  st_facts chk_demo_mode "$DEMO_FACTS"
+  st 'Admin.cls without SetDemoMode' 2 "$admin_p" '{ sub(/ClassMethod SetDemoMode\(/, "ClassMethod SetDemo("); print }' chk_demo_mode
+  st 'the kept sentence changed in EXPERIENCE.md' 3 "$experience_p" '{ sub(/OcuTalon left the OCUORDERS namespace/, "&, as agreed"); print }' chk_demo_mode
+  st 'no kept sentence in EXPERIENCE.md' 3 "$experience_p" '!/OcuTalon left the OCUORDERS namespace/' chk_demo_mode
+  kept=$(sed -n 's/^.*"\(OcuTalon left the OCUORDERS namespace[^"]*\)".*$/\1/p' "$experience_p" | head -n 1)
+  if [ -n "$kept" ]; then
+    if ! strip_str "$README" "$kept"; then
+      st_note "without the kept sentence: the edit changed nothing"
+    elif [ -z "$(chk_demo_mode "$tmp/m" "$S2" "$S3")" ]; then
+      st_note "without the kept sentence: not flagged"
+    fi
+  fi
+  finish demo-mode 'the SetDemoMode line, its roles and the kept-OCUORDERS sentence as EXPERIENCE.md writes it' chk_demo_mode
+}
+
+rule_admin_commands() {
+  rule_begin admin-commands "$README" || return
+  st_facts chk_admin_commands "$ADMIN_FACTS"
+  finish admin-commands 'the terminal sessions and the password line are the ones the walkthrough ran' chk_admin_commands
+}
+
+rule_dev_only() {
+  local text label
+  if ! rule_begin dev-only "$README"; then return; fi
+  printf '# T\n\nSee OcuTalon.Core.Admin here.\n\n## For admins and developers\n' > "$tmp/dev.bad"
+  printf '# T\n\n## Plain\n\ntext\n\n## For admins and developers\n\ndo ##class(OcuTalon.Core.Admin).SetDemoMode(1)\nERROR #5001 <UNDEFINED> %%SYS.Namespace\n' > "$tmp/dev.good"
+  while IFS='|' read -r label text; do
+    [ -n "$label" ] || continue
+    st "$label above the section" 1 "$README" "NR == 1 { print; print \"$text\"; next } { print }" dev_names_1
+  done <<'EOF'
+a ##class( call|Call ##class(Foo.Bar).Baz() now.
+a class name|The class OcuTalon.Core.X does it.
+a system class name|Security.Users holds it.
+a percent class name|The class %SYS.Namespace holds it.
+an error code|It failed with ERROR #5001 today.
+an error name|It showed <UNDEFINED> there.
+EOF
+  if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README")" ]; then
+    printf '%s' "$st_msgs"
+    echo "FAIL dev-only: a broken copy was not flagged"
+    fails=$((fails + 1))
+    return
+  fi
+  scan_rule 'dev-only: no ##class(, class name or error code above "For admins and developers"' dev_names "$tmp/dev.bad" "$tmp/dev.good" "$README"
+}
+
+rule_public_text() {
+  local text label
+  if ! rule_begin public-text "$README"; then return; fi
+  printf 'This runs on OpenAI.\n' > "$tmp/pub.bad"
+  { printf '%s\n' "$NOTE"; printf '%s\n' "$PUBLIC_FACTS"; printf 'Listen on 127.0.0.1 or 0.0.0.0 only.\n'; } > "$tmp/pub.good"
+  st_facts public_text_1 "$PUBLIC_FACTS"
+  st 'the note altered' 1 "$README" '{ sub(/not affiliated with/, "affiliated with"); print }' public_text_1
+  st 'OpenClaw outside the note' 1 "$README" '/^# OcuTalon$/ { print; print ""; print "An OpenClaw-style assistant."; next } { print }' public_text_1
+  while IFS='|' read -r label text; do
+    [ -n "$label" ] || continue
+    st_append "$label" "$text" public_text_1
+  done <<'EOF'
+a model provider|It also works with Gemini.
+a model provider in capitals|It also works with ChatGPT.
+from your phone|Approve it from your phone.
+per step|Costs are shown per step.
+a bug-hunt section|Find a bug in AI Hub and win.
+a bonus section|Bonus: a second prize.
+a private word|Runs on a droplet.
+a CI host name|Runs on ocutalon-ci-b.
+an IPv4 address|Open http://192.168.1.10:52773 now.
+EOF
+  if [ "$st_bad" -ne 0 ] && [ -z "$(public_text_scan "$README")" ]; then
+    printf '%s' "$st_msgs"
+    echo "FAIL public-text: a broken copy was not flagged"
+    fails=$((fails + 1))
+    return
+  fi
+  scan_rule 'public-text: the note, the credit and the licence pointers; no other provider, private word or address' public_text_scan "$tmp/pub.bad" "$tmp/pub.good" "$README"
+}
+
+rule_no_telegram() {
+  rule_begin no-telegram "$README" "$(telegram_mode "$included_p")" || return
+  S2=testonly st_append 'the word Telegram' 'Set up Telegram here.' chk_no_telegram
+  S2=testonly st_append 'the word in capitals' 'TELEGRAM_BOT_TOKEN=x' chk_no_telegram
+  printf 'Set up Telegram here.\n' > "$tmp/tg.txt"
+  if [ -n "$(chk_no_telegram "$tmp/tg.txt" included)" ]; then st_note 'the word is flagged although Included() no longer has its test-only body'; fi
+  if [ "$(telegram_mode "$included_p")" = testonly ]; then
+    finish no-telegram 'no Telegram while Included() has its test-only body' chk_no_telegram
+  else
+    finish no-telegram 'Included() no longer has its test-only body, so the word is allowed' chk_no_telegram
+  fi
+}
+
+rule_product_links() {
+  local mode lits
+  rule_begin product-links "$README" "$tmp/product.list" "$included_p" || return
+  # An anchor with no heading is named.
+  mkdir -p "$tmp/inv"
+  printf "export const SETUP_ANCHOR = 'nowhere';\n" > "$tmp/inv/Extra.ts"
+  { cat "$tmp/product.list"; printf '%s\n' "$tmp/inv/Extra.ts"; } > "$tmp/inv/with-extra.list"
+  if ! chk_product_links "$README" "$tmp/inv/with-extra.list" "$included_p" | grep -q "'#nowhere'"; then st_note 'an anchor with no heading is not named'; fi
+  # No inventory: the check fails closed.
+  : > "$tmp/inv/none.list"
+  if [ -z "$(chk_product_links "$README" "$tmp/inv/none.list" "$included_p")" ]; then st_note 'an empty link inventory is not flagged'; fi
+  printf "export const OTHER = 'x';\n" > "$tmp/inv/Other.ts"
+  printf '%s\n' "$tmp/inv/Other.ts" > "$tmp/inv/other.list"
+  if [ -z "$(chk_product_links "$README" "$tmp/inv/other.list" "$included_p")" ]; then st_note 'an inventory without #readme and #telegram is not flagged'; fi
+  # The other two places an anchor is written, a readmeSection literal and an address, are named too.
+  printf "const link = readmeSection(README_URL, 'lit-section');\n" > "$tmp/inv/Lit.ts"
+  printf '/// https://github.com/jbrandtmse/OcuTalon#lit-address\n' > "$tmp/inv/Lit.cls"
+  { cat "$tmp/product.list"; printf '%s\n%s\n' "$tmp/inv/Lit.ts" "$tmp/inv/Lit.cls"; } > "$tmp/inv/with-lits.list"
+  lits=$(chk_product_links "$README" "$tmp/inv/with-lits.list" "$included_p")
+  case $lits in *"'#lit-section'"*) ;; *) st_note 'a readmeSection literal with no heading is not named' ;; esac
+  case $lits in *"'#lit-address'"*) ;; *) st_note 'an address literal with no heading is not named' ;; esac
+  # Included() with another body, or no In.cls, covers #telegram: a README without a heading with that slug is flagged. While
+  # the body is the test-only one, #telegram is left out. The README of these cases has any Telegram heading renamed.
+  awk '/^#+ [Tt]elegram$/ { sub(/[Tt]elegram$/, "Zz") } { print }' "$README" > "$tmp/inv/README.md"
+  printf 'ClassMethod Included() As %%Boolean\n{\n\tQuit $Get(^OcuTalonTest("TelegramIncluded")) = 1\n}\n' > "$tmp/inv/In.testonly.cls"
+  printf 'ClassMethod Included() As %%Boolean\n{\n\tQuit 1\n}\n' > "$tmp/inv/In.changed.cls"
+  if ! chk_product_links "$tmp/inv/README.md" "$tmp/product.list" "$tmp/inv/In.changed.cls" | grep -q "'#telegram'"; then st_note 'Included() with another body does not cover #telegram'; fi
+  if ! chk_product_links "$tmp/inv/README.md" "$tmp/product.list" "$tmp/absent" | grep -q "'#telegram'"; then st_note 'no In.cls does not cover #telegram'; fi
+  if chk_product_links "$tmp/inv/README.md" "$tmp/product.list" "$tmp/inv/In.testonly.cls" | grep -q "'#telegram'"; then st_note 'the test-only body does not leave #telegram out'; fi
+  mode=$(telegram_mode "$included_p")
+  finish product-links 'every README anchor that the page or the server text can show reaches a heading' chk_product_links
+  if [ "$mode" = testonly ]; then
+    echo 'SKIP #telegram: Included() has its test-only body, so the page never shows the link to a README Telegram section'
+  fi
+}
+
+rule_readme_links() {
+  rule_begin readme-links "$README" || return
+  st_append 'a link to a heading that is not there' '[x](#nowhere)' chk_readme_links
+  st_append 'a link to a file that is not there' '[x](docs/missing.md)' chk_readme_links
+  st_append 'a link to a folder that is not there' '[x](missing-folder/)' chk_readme_links
+  st_append 'a link to a host off the list' '[x](https://example.org/a)' chk_readme_links
+  st_append 'a bare address off the list' 'See http://example.org/a for more.' chk_readme_links
+  st_append 'a repository path off the list' '[x](https://github.com/someone-else/OcuTalon)' chk_readme_links
+  st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
+  st_append 'two headings with one slug' '## Sign in' chk_readme_links
+  finish readme-links 'every link reaches a heading, a file or folder of the repository, or an allow-listed host' chk_readme_links
+}
+
+RULES='top try_it interesting contest_table teaser outcomes install install_pointer commands key_account lan demo_mode admin_commands dev_only public_text no_telegram product_links readme_links'
+
+# With no README.md every rule fails closed: each one, run as if the file were absent, must print a FAIL line that says so.
+for r in $RULES; do
+  out=$(have_readme=0; "rule_$r")
+  case $out in
+    FAIL*"$README is missing"*) ;;
+    *)
+      echo "FAIL no-readme: rule $r does not fail when $README is missing"
+      fails=$((fails + 1))
+      ;;
+  esac
+done
+
+for r in $RULES; do "rule_$r"; done
+
+if [ "$fails" -ne 0 ]; then
+  echo "test-readme: $fails rule(s) failed"
+  exit 1
+fi
+echo "test-readme: all rules passed"
