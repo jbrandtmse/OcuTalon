@@ -1,0 +1,16 @@
+2026-10-28T12:24:10Z	Epic 9	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 hold_at=none lane=B slot=ocutalon-slot-b dispatch=first hashes=verified(main_checkout)
+2026-10-28T12:24:10Z	Epic 9	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-28T12:24:10Z	Epic 9	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh config_paths=aligned(resolver=bmm/config.yaml) v7_markers=none
+2026-10-28T12:24:10Z	Epic 9	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-28T12:24:10Z	Epic 9	telemetry_gate	pending=0 action=none
+2026-10-28T12:24:10Z	Epic 9	bootstrap_check	result=ok
+2026-10-28T12:24:10Z	Epic 9	epic_branch_checked_out	repos=. head=ce66c6b ci_expected=.github/workflows/ci.yml,.github/workflows/lane-a.yml mode=fresh(pre-provisioned_SC-2;0_commits_beyond_feature_ce66c6b;origin/OCT-epic9=ce66c6b)
+2026-10-28T12:24:10Z	Epic 9	ci_resolved	story=none sha=ce66c6b runs=40686493147,40686493205 result=success failed=none via=none resolved_at=epic_start
+2026-10-28T12:24:10Z	Epic 9	slot_merge_cpf_checked	slot=ocutalon-slot-b result=same(config_and_last_merge) refresh=none server=build154(iris_server_info:2026.3.0AI_Build_154U,ns_OCUTALON)
+2026-10-28T12:24:10Z	Epic 9	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON files=453(bridge_45,ocutalon_408) compile=CompilePackage(OcuTalon,ck-d) errors=0 classes=483(453+30_generated) stale=OcuTalon.Tools.WatchFixture(deleted_on_feature;removed_from_slot) source=worktree_ce66c6b
+2026-10-28T12:24:10Z	Epic 9	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final lint=baseline(8_low_placeholder,no_ad_findings;line_923_HostData_row_quotes) spine_next_id=34
+2026-10-28T12:24:10Z	Epic 9	ledger_load	total=278 open=0 routed=48 escalated=0 decision_pending=0 terminal=230 owner_unknown=0 burndown=1(DW-300_epic7_X.0) reowned_none=0 epic9_owned=DW-110(9.1),DW-337(9.1)
+2026-10-28T12:24:54Z	Epic 9	sprint_planning_complete	gate=PASS in_sync=true valid=true warnings=2_title_headings mode=headless(skill_invoked;tracker_dry-run_in_sync,no_write) basis=epic9_foundations_on_feature(Intake_eval->EvalSink;EvidencePack.Build_snapshot;WatchAnswers_9.3_eval_branch_reserved;OCUTALON_EVAL_in_compose.ci.yml;EvalIn/EvalSink_stubs) known_wait=9.5_on_epic7(7.1) model=claude-opus-5-5
+2026-10-28T12:24:54Z	Epic 9	retro_review_skipped	reason=handled_by_epic_7(no_X.0_input) assigned=skip(orchestrator) inputs=burndown_DW-300_owned_by_epic7_X.0;open_action_items_owner_held(epic-32_ci_capacity,epic-1_InterSystems_report_outward) model=claude-opus-5-5
+2026-10-28T12:24:54Z	Epic 9	ruling	question=retro_review_gate choice=skip rejected=insert_story_9.0 why=orchestrator_assignment;no_closable_input category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
+2026-10-28T12:24:54Z	Epic 9	ruling	question=DW-337_edit_of_ci/units.sh_group_lines(+test-ci-config.sh_group_pin) choice=allowed_shared_by_region by=orchestrator(spawn_prompt) why=only_epic8_edits_a_group_line(production);plain_union_at_integrate-forward;epic10_edits_other_test-ci-config.sh_lines category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
