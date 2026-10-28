@@ -19,9 +19,12 @@
 ///   - TestRefusals: each run lists the cases it did not send with their reasons, and makes a row for each case it sent;
 ///   - TestIsolation (AC3): no message of the runs reaches a router, a notice, a conversation, the digest, an approval, the incident
 ///     manager or any item ending in Out, and no Delivery, ApprovalRequest, live event or incident of another owner is written;
-///   - TestUsage (AC3): every Usage row of the runs' items has owner eval, their cost is above 0, and the daily spend is unchanged.
+///   - TestUsage (AC3): every Usage row of the runs' items has owner eval, their cost is above 0, and the daily spend is unchanged;
+///   - TestHops (AC3): the messages of the runs go from and to the items of the item path only, EvalIn sends only to Intake, and
+///     EvalSink sends nothing.
 /// OnAfterAllTests puts the EvalIn row, the runner keys, the case rows, the Decision, Usage and step rows, the AI sessions, the messages
-/// and the fixture folder back as it found them.
+/// and the fixture folder back as it found them, and fails the class when a case row, message, Decision or Usage row of the runs, or the
+/// fixture folder, is still there.
 Class OcuTalon.Test.Eval.Run Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -36,6 +39,13 @@ Parameter RUN1CASES = "mail-newsletter,orders-date-format,zz-missing";
 
 /// The reasons that stay in the message of Missing at most.
 Parameter MISSINGMAX = 200;
+
+/// The items that a message of a run may come from or go to: the item path and nothing else (Task 10's list of items that must not
+/// be reached is the denial; this is the permission, so an item that is not on it is a new hop that this story did not allow). They
+/// are the ones a throwaway run was observed to use: EvalIn, Intake and EvalSink, Decide with the two agent runners it calls (the
+/// attention decision's TriageAgent and the untrusted turn's ChatAgent), AgentSteps (which records their steps) and the Ens.Alarm
+/// timer. None of them sends to a person.
+Parameter ITEMPATH = "EvalIn,Intake,Decide,EvalSink,TriageAgent,ChatAgent,AgentSteps,Ens.Alarm";
 
 /// 1 when the runner keys were pointed at the mock and must be put back.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
@@ -185,8 +195,9 @@ Method WriteCase(name As %String, text As %String) As %String [ Private ]
 }
 
 /// Puts back what OnBeforeAllTests changed: the EvalIn row and the production, the runner keys, the case rows, the Decision, Usage
-/// and step rows of the runs' items, the AI sessions, the warnings and the fixture folder; then the superclass removes the messages.
-/// The status is the error of the step that could not put its part back.
+/// and step rows of the runs' items, the AI sessions, the warnings, the fixture folder and the runs' messages, then checks that none
+/// of the runs' case rows, messages, Decision or Usage rows or fixture folder is left (Leftovers); then the superclass runs. The status
+/// is the error of the step that could not put its part back, or names what is left.
 Method OnAfterAllTests() As %Status
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -223,8 +234,41 @@ Method OnAfterAllTests() As %Status
 	If ..LogMark '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	If ..Folder '= "" Do ##class(%File).RemoveDirectoryTree(..Folder)
 	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
+	Try {
+		Set sc = $$$ADDSC(sc, ..Leftovers(items))
+	} Catch exception {
+		Set sc = $$$ADDSC(sc, exception.AsStatus())
+	}
 	Set super = ##super()
 	Quit $$$ADDSC(sc, super)
+}
+
+/// OK when the clean-up left nothing of the runs; otherwise an error that names what is left: a run's case rows or messages, the
+/// Decision or Usage rows of an Item of the runs, or the fixture folder.
+Method Leftovers(items As %List) As %Status [ Private ]
+{
+	Set left = ""
+	For number = 1, 2 {
+		Set run = $Property($This, "Run"_number)
+		If run = "" Continue
+		If ..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", run) Set left = left_", case rows of run "_number
+		If ##class(OcuTalon.Test.Data.Fixture).Headers(run).%Size() Set left = left_", messages of run "_number
+	}
+	Set position = 0
+	While $ListNext(items, position, itemId) {
+		If ..Count("OcuTalon_Bridge_Data.Decision", "ItemId", itemId) + ..Count("OcuTalon_Bridge_Data.Usage", "ItemId", itemId) Set left = left_", Decision or Usage rows of the Item "_itemId
+	}
+	If (..Folder '= "") && ##class(%File).DirectoryExists(..Folder) Set left = left_", the fixture folder "_..Folder
+	Quit $Select(left = "": $$$OK, 1: $SYSTEM.Status.Error(5001, "The clean-up left"_$Extract(left, 2, *)))
+}
+
+/// The number of rows of the table whose column holds the value. A query that fails throws.
+ClassMethod Count(table As %String, column As %String, value As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_table_" WHERE "_column_" = ?", value)
+	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// The newsletter case of run 1 goes through the product's path and its row is completed from the Decision and Usage rows.
@@ -397,6 +441,45 @@ Method TestIsolation()
 		}
 	}
 	Do $$$AssertEquals(found, 0, "no live event holds a Ref of the runs")
+}
+
+/// The messages of the runs come from and go to the items of the item path only. This is the allowance behind TestIsolation's list of
+/// refused targets: a hop to an item that is on neither list fails here. EvalIn sends only to Intake, EvalSink sends nothing, and the
+/// control is that the two hops of the path were seen.
+Method TestHops()
+{
+	If '..Guard() Quit
+	Kill pairs, requests
+	Set total = 0
+	For run = ..Run1, ..Run2 {
+		Set iterator = ##class(OcuTalon.Test.Data.Fixture).Headers(run).%GetIterator()
+		While iterator.%GetNext(, .header) {
+			Set total = total + 1
+			Set pairs(header.source_">"_header.target) = ""
+			If header.type = 1 Set requests(header.source_">"_header.target) = ""
+		}
+	}
+	Set outside = "", list = "", pair = ""
+	For {
+		Set pair = $Order(pairs(pair))
+		If pair = "" Quit
+		Set list = list_$Select(list = "": "", 1: ", ")_pair
+		Set source = $Piece(pair, ">", 1), target = $Piece(pair, ">", 2)
+		If '$ListFind($ListFromString(..#ITEMPATH), source) || '$ListFind($ListFromString(..#ITEMPATH), target) Set outside = outside_" "_pair
+	}
+	Do $$$AssertTrue(total > 6, "the runs sent messages (a control): "_total)
+	Do $$$AssertTrue($Data(pairs("EvalIn>Intake")) && $Data(pairs("Intake>EvalSink")), "the two hops of the path were seen (a control): "_list)
+	Do $$$AssertEquals(outside, "", "every message of the runs is between items of the item path: "_list)
+	Set fromIn = "", fromSink = ""
+	Set pair = ""
+	For {
+		Set pair = $Order(requests(pair))
+		If pair = "" Quit
+		If $Piece(pair, ">", 1) = "EvalIn" Set fromIn = fromIn_" "_pair
+		If $Piece(pair, ">", 1) = "EvalSink" Set fromSink = fromSink_" "_pair
+	}
+	Do $$$AssertEquals(fromIn, " EvalIn>Intake", "EvalIn sends requests only to Intake")
+	Do $$$AssertEquals(fromSink, "", "EvalSink sends no request")
 }
 
 /// Every Usage row of the runs' items is owned by eval (the rows are found by the ItemId that EvalIn opened its rows with, so a run that

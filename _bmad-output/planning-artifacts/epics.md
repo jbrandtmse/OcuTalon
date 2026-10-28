@@ -3409,6 +3409,7 @@ So that the cause scores measure the product's diagnosis and an incident case ca
 **Given** a push to any branch
 **When** Lane A's evaluation job runs the set against the CI mock
 **Then** the incident cases in `eval/` run with the item and turn cases, and each completes with a recorded diagnosis, cost and request size in the report (REL-5, AD-22)
+- DW-353: EvalSink completes a case row only by the ItemDecision's ItemId, but an evaluation incident's ItemDecision carries the incident's Ref as ItemId (AD-30), which EvalIn cannot know when it opens the row; 9.6 opens incident rows and matches them by RunRef and SourceItemId, with an index (ledger; routed by cr 2026-10-28)
 
 ### Story 9.5: Release candidates pass the evaluation and the demo incident gate
 

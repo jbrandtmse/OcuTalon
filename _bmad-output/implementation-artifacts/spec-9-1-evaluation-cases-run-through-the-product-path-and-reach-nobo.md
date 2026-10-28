@@ -329,6 +329,40 @@ Tests (each asserts on these runs only):
 - **DW-337.** Given `98f69be`, when the `(once)` checks run, then `test-ci-config.sh` and `test-ci-changes.sh` pass, and Rule 21 holds the measured grouping record.
 - **Hermeticity.** Given a fresh throwaway stack, when the tests this story adds or changes (`Test.Eval.Switch`, `.Sink` and `.Run`, and `Test.Install.Production`) run forward and in reverse order, then each one passes. Each also leaves the `EvalIn` row, the runner keys, its rows, its messages and its folders as it found them.
 
+### Review Findings
+
+Code review, 2026-10-28 (story's first review; full-opus tier, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 23 rows, 9 entries after grouping including one of the reviewer's own (Rule 2); high 0, medium 2, low 7).
+
+- [x] [Review][Patch] The Hermeticity AC's "leaves its rows, its messages and its folders as it found them" had no pin: deleting `Test.Eval.Run`'s case-row, Decision/Usage or folder clean-up shipped green (verification-gap; medium, fix-risk low, in-story) [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls:199] — fixed: `OnAfterAllTests` ends with `Leftovers`, which fails the class naming any case row, message, Decision or Usage row of the runs, or the fixture folder, still there; mutation line under Verification.
+- [x] [Review][Patch] DW-350: `Test.Core.RoutingProduction.TestEvalItemWritesNoDeliveryOrEvent`'s docstring said the stub EvalSink answers an error status (blind-hunter; low) [src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls:168] — fixed: the one sentence now says EvalSink finds no sent case row, logs a warning, stores nothing and answers OK (the lead-authorized footprint extension; nothing else in the file changed).
+- [x] [Review][Patch] `Test.Eval.Cases`'s header said every case folder of `eval/` has a case.json, but it lists only the folders that hold one (edge-case-hunter; low) [src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls:5] — fixed: the two doc comments say what the test checks.
+- [x] [Review][Patch] Rule 21's DW-337 record measured four of the six `Test.Eval` classes (blind-hunter + acceptance-auditor; low) [_bmad/custom/skill-rules.md:289] — fixed: appended the fresh six-class figures from this review's `shard lane-a --part 6/10`.
+- [x] [Review][Defer] EvalSink completes a row only by the ItemDecision's `ItemId`, which for an evaluation incident is the incident's Ref (AD-30) [src/ocutalon/cls/OcuTalon/Eval/Sink.cls:49] — deferred: DW-353 `routed owner=9-6-…` (medium, in-epic; this spec's Consumed-by gives the RunRef+SourceItemId match to Story 9.6).
+- [x] [Review][Defer] Nothing pins `live:cards` to `install-upgrade` [ci/units.sh] — deferred: DW-354 `wontfix-accepted` (low; a pin is a `docker/tests` rule, out of footprint).
+- [x] [Review][Defer] No check reads the spine's Tables line [ARCHITECTURE-SPINE.md:1098] — deferred: DW-355 `wontfix-accepted` (low, out of footprint).
+- [x] [Review][Defer] AD-22's as-built text lags 9.1 (the lane-a shard list; the item/injection case.json shape) [ARCHITECTURE-SPINE.md:607] — deferred: DW-356 `wontfix-accepted` (low; an AD text edit is the lead's, Rule 20).
+- [x] [Review][Defer] Small helpers copied between `Test.Eval` classes (`Table`/`Sink` `NewRun` and `RowOf`, `Run.Kind`/`In.KindReason`, four COUNT helpers) [src/ocutalon/cls/OcuTalon/Test/Eval/Table.cls:175] — deferred: DW-357 `wontfix-accepted` (Rule 2, weak reason: each warm-safe class keeps its own prefix helpers; a shared TestCase base would be a shard class with no test).
+
+Rejected:
+- blind-hunter, no fresh run of QA's classes (low): closed by evidence. This review ran `shard lane-a --part 6/10` fresh, and all six `Test.Eval` classes passed with `Install.Audit` and `Install.PrivateData`. The lead's Rule 19 fresh check still runs before push.
+- blind-hunter, the triage summary's counts and the Auto Run Result's file list, mutation count and loop commands are stale (low, 2 rows): the fix edits build-auto's record in this spec, not code.
+- blind-hunter, `CostUSD` and `TurnCostUSD` come from different sources, and a timed-out call's late Usage row is missed (low):
+  - Reading `TurnCostUSD` from the turn Decision row is Task 4 and Design Note 10.
+  - The late row needs a real-model timeout and a later re-read, which belongs to Story 9.2's report design.
+  - The "label contradicts the code" part is false: `Usage.Totals(DecisionRef)` is the attention decision's own cost.
+- blind-hunter + edge-case-hunter, the teardown runs while cases may still be in flight (low, 2 rows): failure path only, and the run is already red on `Open1`/`Open2`. The fix would be a second bounded wait, and `Leftovers` now names anything left.
+- edge-case-hunter, `Switch` would start a real run if `Run`'s teardown left `EvalIn` enabled (low): a cascade after a teardown that `Apply` has already reported red; the fix is a guard.
+- edge-case-hunter, midnight between the spend mark and `TestUsage` (low): a window of about 7 s a day; the fix is a day guard.
+- edge-case-hunter, Design Note 10's list of methods that log errors leaves out `Complete`'s save failure (low): spec text only; the code logs it and `TestSaveFailure` pins it.
+- verification-gap, the absence-check helpers (`Run.MaxId`/`CountAbove`, `Switch.Rows`/`Headers`) would pass on a failed query (false): checked on a warm stack. With `Switch.Rows` pointed at a missing table and no guard, `%GetData` raises `<METHOD DOES NOT EXIST>` and `TestStartRefused` errors. The guard patch was reverted.
+- acceptance-auditor, the DW-350 docstring edit breaks the Never list and AD-33 (false):
+  - The lead authorized that one sentence as a reported footprint extension.
+  - Epic 9 runs on runner B, Lane B's runner, so the owning lane edits its own class.
+  - It is a docstring only, and AD-33's Prevents line is untouched.
+- acceptance-auditor, Task 10 does not list `zz-plain` and still says "each run has one row" (low): a spec edit; Design Note 13 records the change.
+- acceptance-auditor, the `ci/units.sh` edit is not declared as a footprint extension (false): Task 7 directs it, and the stage prompt authorizes the `lane-a` areas line.
+- acceptance-auditor, Task 11's lint and memlog are unmet (low): already ledgered as DW-351 and DW-352 (`by-design` at harvest).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -474,6 +508,10 @@ On every recent full run, `install-upgrade` was the shorter of the two install g
 
 **After this change:** the spine edit makes the planning artifacts newer than `epic-9-context.md`, so the lead re-runs the pre-warm before Story 9.2's plan (Rule 20).
 
+**Owner conditions (2026-10-28, applied by the lead):**
+- **U-131 (`CaseResult` kept as ruled: no grants, no purge task).** Condition: `EvalIn` stays off on the demo host and in a judge's install. If that ever changes, a purge task for `OcuTalon.Eval.Data.CaseResult` comes with the change. The default-off state is already pinned on three levels: `Test.Eval.Switch` `TestDefinition` (`OcuTalon.Production` defines `EvalIn` with `Enabled` 0), `Test.Eval.Switch` `TestRow` (the Production install step writes the `EvalIn` row as 1 only for `OCUTALON_EVAL` "1"), and `docker/tests/test-production.sh` row 14 (on a start from the judges' compose file, `CreateBusinessService("EvalIn")` is refused as disabled), which CI's `live production` unit runs.
+- **U-130 (the split kept).** The incident-case criterion is Story 9.6, which waits for Epic 7; from Epic 7's merge, 9.6, then 9.5, then Epic 9's close are the critical path to Epic 11.
+
 ## Verification
 
 `<B>` stands for:
@@ -553,6 +591,40 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 **DW-337 after figures (the lead fills these):** the `iris (shards)` and `iris (install-upgrade)` job times of CI run 40688986518, or of a later full run, against the before figures in Design Notes. Then the lead adds the minutes to the Rule 21 record from task 12(c).
 
 **DW-337 after figures (lead, 2026-10-28):** CI run 40688986518 on `98f69be` (every group ran: the push changed `ci/`), all six IRIS jobs started 12:34:59Z: `iris (shards)` 26 min 23 s (before: 32 min 36 s to 34 min 15 s), `iris (install-upgrade)` 18 min 27 s (before: 13 min 25 s to 14 min 50 s), `install-fresh` 13 min 35 s, `browser` 23 min 1 s, `image` 21 min 39 s, `production` 9 min 36 s. The longest job is now `shards` at 26 min 23 s, under REL-4's 35 minutes and the 40-minute job limit. The implement stage writes these minutes into the Rule 21 record of task 12(c) with the grouping line.
+
+**QA stage (2026-10-28; tags `e9s1q` fresh and `e9s1qw` warm; `LOCK` lines as before, `LOCK acquired` / `LOCK released throwaway-iris` once for every fresh call and `warm-iris` for the warm stack).** Test files, all uncommitted:
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Table.cls` (QA, new, warm-safe): `CaseResult.Open`, `Pending`, `Unanswered`, `Remove` and `EvalIn.Wait` directly (5 tests).
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` (QA, new, warm-safe): the recorded `eval/` cases through the `ZzIn` double (`TestRecordedCases`, `TestNewsletterCase`); it reads the mounted `eval/`, so it needs a throwaway or CI stack.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/ZzSink.cls` (QA, new): a double of `EvalSink` whose size read can throw; not a test class (no `Method Test`).
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Sink.cls` (QA, extended): `TestCauseOnlyFromDiagnose`, `TestLongValues`, `TestSaveFailure`, `TestNeverThrows`; `Deliver` now calls `DeliverTo`.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls` (QA, extended): `TestHops` and the `ITEMPATH` parameter (the hops a throwaway run was seen to use: `EvalIn`, `Intake`, `Decide`, `EvalSink`, `TriageAgent`, `ChatAgent`, `AgentSteps`, `Ens.Alarm`).
+
+QA mutations (each applied, observed red, reverted from a backup with the sha identical and `git status --short` unchanged; warm unless noted):
+- mutation: `CaseResult.Unanswered` counts every state (the `AND State = ?` dropped) -> `Test.Eval.Table` `TestUnanswered` ("the run has one sent row left") and `TestWait` (the wait ran its full 30 s).
+- mutation: `CaseResult.Pending` ignores the state -> `Test.Eval.Table` `TestPending` ("a decided row is no longer pending").
+- mutation: `CaseResult.Open`'s check of an empty run, case or ItemId turned off -> `Test.Eval.Table` `TestOpen` (the three refusals and "nothing was stored").
+- mutation: `CaseResult.Remove` ignores the case name -> `Test.Eval.Table` `TestRemove`.
+- mutation: `EvalIn.Wait` returns 0 whatever is open -> `Test.Eval.Table` `TestWait`.
+- mutation (AC4): `EvalSink` reads the payload of a decide Decision too (the `Kind = "diagnose"` test dropped) -> `Test.Eval.Sink` `TestCauseOnlyFromDiagnose` only; every earlier Sink test stayed green.
+- mutation (AC4): `EvalSink` keeps `causeCategory` at its full length (the `$Extract` dropped) -> `Test.Eval.Sink` `TestLongValues` (the row cannot be saved and stays sent).
+- mutation (AC4): `EvalSink` does not log a failed row save -> `Test.Eval.Sink` `TestSaveFailure`.
+- mutation (the Boundaries' "never throws"): the Try/Catch of `EvalSink.OnMessage` removed -> `Test.Eval.Sink` `TestNeverThrows` (the exception reached the test).
+- mutation (AC2): `EvalIn` `KINDS` changed from `item,injection` to `injection` -> `Test.Eval.Cases` `TestRecordedCases` ("mail-newsletter: a case of kind item is sent").
+- mutation (AC2, Task 5): `eval/mail-newsletter/case.json` expectation `ignore` changed to `digest` -> `Test.Eval.Cases` `TestNewsletterCase`.
+- mutation (AC3): `EvalSink` sends the `ItemDecision` on to `FixExecutor` (an item on no refusal list) -> `Test.Eval.Run` `TestHops` ("every message of the runs is between items of the item path" and "EvalSink sends no request"), with `TestIsolation` staying green; fresh stack.
+- mutation (AC3, the table checks): `EvalSink` saves a `Delivery` row of owner `eval` -> `Test.Eval.Run` `TestIsolation` ("no Delivery row was written"); fresh stack.
+- mutation (AC1, the refusal with `OCUTALON_EVAL` unset): `EvalIn.Start` creates the service as a shadow instance, not through `Ens.Director.CreateBusinessService` -> `Test.Eval.Switch` `TestStartRefused` ("Start is refused", "the error says disabled"); fresh stack.
+- mutation (DW-337): `Eval` removed from `lane-a` in `ci/units.sh` -> `bash docker/tests/test-ci-config.sh` (`units` and `test classes` rules red, the five `Test/Eval` classes "in no shard").
+- mutation (AC4, the registered table): `CaseResult`'s `DEFAULTGLOBAL` changed to `^OcuTalonP.EvalCaseResults` -> `bash docker/tests/test-storage.sh` (`registry-class`, `datalocation`, `locations`).
+- mutation (Hermeticity): `Test.Eval.Run.OnAfterAllTests` no longer restores the `EvalIn` row -> `Test.Eval.Run` itself ("After the production update EvalIn is still enabled", from `OnAfterAllTests`) and then `Test.Eval.Switch` `TestStartRefused` on the same stack; the contaminated warm stack was torn down and a clean one started.
+- `mutations_demonstrated=17` (QA's; the implement stage's nine stand).
+- mutation (code review, Hermeticity): `Test.Eval.Run.OnAfterAllTests` no longer removes the runs' case rows (the `CaseResult.Remove` loop deleted) -> `Test.Eval.Run` went red from `OnAfterAllTests` ("The clean-up left case rows of run 1, case rows of run 2") with every test method green; reverted from a backup (sha identical, `git status --short` and `git diff --stat` unchanged); fresh stack (tag `e9s1c`). The patched class had passed fresh in `shard lane-a --part 6/10` just before.
+
+Pinned by nothing (observed, not fixed; both need an edit outside this story's footprint):
+- DW-337's group of `live:cards`: moving it back from `install-upgrade` to `shards` leaves `test-ci-config.sh` and `test-ci-changes.sh` green. Rule 21's record is the only pin.
+- AD-33's spine Tables line: no check reads the spine, so a missing `CaseResult` there would pass every test (it is there, `ARCHITECTURE-SPINE.md:1098`).
+
+QA results: the warm classes `Test.Eval.Cases`, `In`, `Run`, `Sink`, `Switch`, `Table` and `Test.Install.Production` passed forward and in reverse name order in one stack (`Run` warm 6.6 to 7.1 s); then, after a probe by `docker exec ... iris session` on that stack, it held no `CaseResult` row, no `eval` Decision or Usage row, no header from `EvalIn` or to `EvalSink`, no `^OcuTalonTest("EvalIn")` or `("EvalSink")`, `EvalIn` refused and its default row 0 (the one log row, "Host Class OcuTalon.Eval.Sink has been recompiled", is the warm reload's, not a test's). Fresh: `Test.Eval.Run` passed (7.3 s of tests after an 82 s start) on the final tree. `test-ci-config.sh`, `test-ci-changes.sh`, `test-class-rules.sh` and `test-storage.sh` passed; `ci/iris.sh classes lane-a` lists the six `Eval` test classes. Torn down: `e9s1qw` (`ci/warm.sh down`) and `e9s1q` (`ci/iris.sh teardown`), the lane-b lock folder empty.
 
 ## Auto Run Result
 

@@ -1628,11 +1628,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci.yml group times on bed6d27: shards 31m52s, browser 23m05s, image 21m32s, install-fresh 14m02s, install-upgrade 12m58s, production 9m20s; production and browser are pinned by test-ci-changes.sh and the demo-path gate
 - 2026-10-28T03:51:21Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=merge_gate note=first change in 9.1: move live:cards to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated; test infrastructure only
 - 2026-10-28T03:54:34Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=orchestrator note=owner via Contest Planner: TRIGGER - if any head's iris (shards) job runs longer than 36 min before Epic 9 merges, pull this forward as a fix-forward in the epic whose head did it (move live:cards to the shorter of install-fresh and install-upgrade, measured); the iris job's hard limit is timeout-minutes 40 (ci.yml:89)
+- 2026-10-28T16:28:18Z status=resolved-by:9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=adjudication note=98f69be moved live:cards from shards to install-upgrade (ci/units.sh); CI run 40688986518 on 98f69be: shards 26m23s (was 32m36s-34m15s), install-upgrade 18m27s, longest job 26m23s; test-ci-config.sh and test-ci-changes.sh pass; Rule 21 measured record appended (skill-rules.md, Groups from DW-337)
 
 ### DW-350: Test.Core.RoutingProduction's TestEvalItemWritesNoDeliveryOrEvent docstring still says the stub EvalSink answers an error status; since 9.1 EvalSink finds no sent row for that Item, logs a warning, stores nothing and answers OK
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Lane B test passed unchanged in 9.1's lane-b shard run (64 classes); only the docstring sentence is stale
 - 2026-10-28T15:22:57Z status=open owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=one-sentence docstring fix: Test/Core/RoutingProduction.cls is no contended epic's path, so 9.1's code review patches it as a reported footprint extension
+- 2026-10-28T16:28:18Z status=resolved-by:9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=adjudication note=9.1 code review corrected the one stale docstring sentence of Test.Core.RoutingProduction TestEvalItemWritesNoDeliveryOrEvent (lead-authorized footprint extension; no other change to the file)
 
 ### DW-351: Spine lint reports ok:false with 8 low 'possible unfilled template token' findings (lines 402, 847, 860, 923, 927), so 9.1's task 11 expectation of ok:true cannot hold
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1643,3 +1645,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: .gitignore:48 ignores .memlog.md; memlog.py append in the worktree raised FileNotFoundError and wrote nothing
 - 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=runner precedent memlog=absent (27 runner entries): the spine text itself is the durable record of the Tables-line change
+
+### DW-353: EvalSink completes a case row only by the ItemDecision's ItemId, but an evaluation incident's ItemDecision carries the incident's Ref as ItemId (AD-30), which EvalIn cannot know when it opens the row
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Eval/Sink.cls:49 takes CaseResult.Pending(request.ItemId); AD-30 (spine :833) and Story 9.6's first AC send the incident's Ref as ItemId; 9.1's Design Notes (Consumed-by) give the RunRef+SourceItemId match to 9.6
+- 2026-10-28T16:25:04Z status=routed owner=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=9.6 opens incident rows and matches by RunRef+SourceItemId (with an index); its AC3 'each completes' needs it
+
+### DW-354: Nothing pins live:cards to the install-upgrade group (DW-337, 98f69be): moving it back to shards leaves test-ci-config.sh and test-ci-changes.sh green
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: QA's 'Pinned by nothing' note in the spec's Verification; a pin is a new test-ci-config.sh rule under docker/tests, outside Epic 9's footprint
+- 2026-10-28T16:25:04Z status=wontfix-accepted owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=cr note=reopen_if=a full CI run's iris (shards) job passes 30 min, or ci/units.sh lists live:cards under shards
+
+### DW-355: No check reads the spine's Tables line, so a new persistent class that it does not name (AD-33's same-change rule) passes every test
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: QA's 'Pinned by nothing' note; OcuTalon.Eval.Data.CaseResult is named at ARCHITECTURE-SPINE.md:1098; a check would be new test infrastructure under docker/tests
+- 2026-10-28T16:25:04Z status=wontfix-accepted owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=cr note=reopen_if=a review or retro finds a persistent class under src/ that the spine's Tables line does not name
+
+### DW-356: AD-22's as-built text lags 9.1: its shard list gives lane-a as Agent, Bridge, Install, Tools and Digest (Checks, Watch and now Eval run there), and its case.json shape is the incident one only
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:607 vs ci/units.sh's lane-a line; 9.1's item/injection case.json shape is only in Eval/In.cls and the spec's Design Note 3; an AD text edit is the lead's (Rule 20)
+- 2026-10-28T16:25:04Z status=wontfix-accepted owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=cr note=reopen_if=a later Epic 9 story writes a case.json EvalIn refuses (Test.Eval.Cases red); lead may fix it under Rule 20
+
+### DW-357: Small Test.Eval helpers are copied between classes: Table's NewRun and RowOf repeat Sink's, Run.Kind repeats In.KindReason, and Table.Count, In.Rows, Sink.CountRows and Switch.Rows run one COUNT query
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test/Eval/Table.cls:175-189 vs Test/Eval/Sink.cls:395-465; Run.cls Kind vs In.cls:239 KindReason; a shared TestCase base would be a shard class with no test (Rule 2: weak reason, LOW)
+- 2026-10-28T16:25:04Z status=wontfix-accepted owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=cr note=reopen_if=a CaseResult row-API change needs the same edit in three or more Test.Eval classes

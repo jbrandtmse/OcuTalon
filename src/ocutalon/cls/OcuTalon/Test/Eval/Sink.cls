@@ -14,7 +14,10 @@
 ///     the ItemId and the SourceItemId and store or change nothing;
 ///   - TestRefused: a message that is not an ItemDecision, and one whose owner is not eval, log a warning and store nothing;
 ///   - TestUnpriced: a cost that is not known is empty, never 0.
-///   - TestCostFromUsage: the cost is read from the Usage rows, not from the Decision's own cost field.
+///   - TestCostFromUsage: the cost is read from the Usage rows, not from the Decision's own cost field;
+///   - TestCauseOnlyFromDiagnose, TestLongValues, TestSaveFailure and TestNeverThrows: only a diagnose Decision's payload gives the
+///     cause and the fix; values longer than the row's properties are cut and the row is still decided; a row that cannot be saved
+///     stays sent and the failure is logged; an exception inside the completion is logged and the call still answers OK.
 /// Every call answers OK with no response.
 Class OcuTalon.Test.Eval.Sink Extends %UnitTest.TestCase
 {
@@ -27,6 +30,12 @@ Parameter CASEPREFIX = "zz-sink-";
 
 /// The method of EvalSink that logs the warnings.
 Parameter WARNER = "Complete";
+
+/// The class that Deliver makes a shadow instance of.
+Parameter SINK = "OcuTalon.Eval.Sink";
+
+/// The double whose size read can throw.
+Parameter DOUBLE = "OcuTalon.Test.Eval.ZzSink";
 
 /// The Refs of the Decision rows (and their Usage rows) that the test made, comma-separated.
 Property Refs As %String(MAXLEN = "");
@@ -52,11 +61,12 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Kill ^OcuTalonTest("EvalSink")
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	For i = 1:1:$Length(..Runs, ",") {
 		If $Piece(..Runs, ",", i) '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove($Piece(..Runs, ",", i))
 	}
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND SourceClass = ?", ..Mark, "OcuTalon.Eval.Sink")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND SourceClass IN (?, ?)", ..Mark, ..#SINK, ..#DOUBLE)
 	Quit $$$OK
 }
 
@@ -303,6 +313,83 @@ Method TestCostFromUsage()
 	If $IsObject(row) Do $$$AssertEquals(row.CostUSD, "", "an unpriced Usage row makes the cost empty although the Decision holds a cost")
 }
 
+/// Only a diagnose Decision's payload gives the cause and the fix. A decide Decision whose payload holds the same keys leaves the four
+/// cause fields empty (the row is still decided with the message's fields).
+Method TestCauseOnlyFromDiagnose()
+{
+	Set payload = {"outcome": "act", "causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "repair_resend", "fixParameters": {"field": "OrderDate"}}.%ToJSON()
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "kindguard", "source-kindguard")
+	Set decision = ..Decision(itemId, "decide", {"Outcome": "act", "Payload": (payload)})
+	Set turn = ..Decision(itemId, "turn", {"Outcome": "tellnow", "Payload": (payload)})
+	Do ..Usage(decision, 0.0001, 100)
+	Do ..Deliver(..Message(itemId, "source-kindguard", decision, "act"))
+	Set row = ..RowOf(run, "kindguard")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.TurnDecisionRef, "decided|"_decision_"|act|"_turn, "the row is decided with the decide Decision and the turn")
+	Do $$$AssertEquals(row.CauseCategory_row.ElementAtFault_row.FixKind_row.FixParameters, "", "a decide Decision's payload is not read for a cause or a fix")
+}
+
+/// A payload is a model's words. Values longer than the row's properties are cut to their length, and the row is still decided
+/// (a row that kept the long value could not be saved and would stay sent).
+Method TestLongValues()
+{
+	Set category = $Translate($Justify("", 100), " ", "c"), element = $Translate($Justify("", 200), " ", "e"), kind = $Translate($Justify("", 50), " ", "k")
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "long", "source-long")
+	Set payload = {"outcome": "act", "causeCategory": (category), "elementAtFault": (element), "fixKind": (kind), "fixParameters": {"field": "OrderDate"}}
+	Set decision = ..Decision(itemId, "diagnose", {"Outcome": "act", "Payload": (payload.%ToJSON())})
+	Do ..Deliver(..Message(itemId, "source-long", decision, "act"))
+	Set row = ..RowOf(run, "long")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef, "decided|"_decision, "the row is decided")
+	Do $$$AssertEquals(row.CauseCategory, $Extract(category, 1, 64), "the cause category is cut to 64 characters")
+	Do $$$AssertEquals(row.ElementAtFault, $Extract(element, 1, 128), "the element at fault is cut to 128 characters")
+	Do $$$AssertEquals(row.FixKind, $Extract(kind, 1, 32), "the fix kind is cut to 32 characters")
+	Do $$$AssertEquals(row.FixParameters, payload.fixParameters.%ToJSON(), "and the fix parameters are the payload's object")
+}
+
+/// A row that cannot be saved (an outcome longer than the row's property) stays sent, the failure is logged as one error, and the
+/// call answers OK with no response.
+Method TestSaveFailure()
+{
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "savefail", "source-savefail")
+	Set decision = ..Decision(itemId, "decide", {"Outcome": "digest"})
+	Set message = ..Message(itemId, "source-savefail", decision, "digest")
+	Set message.Outcome = $Translate($Justify("", 40), " ", "o")
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ..Deliver(message)
+	Set row = ..RowOf(run, "savefail")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.DecidedAt, "sent|||", "the row is left as it was: sent, with nothing of the decision")
+	Do $$$AssertEquals(..Errors(mark, ..#WARNER, ##class(OcuTalon.Eval.Sink).#LOGFAILED), 1, "one error says that the row could not be completed")
+}
+
+/// OnMessage never throws. An exception inside the completion (the double's size read throws) is logged as one error that carries
+/// the exception's text, the call answers OK with no response, and the row stays sent.
+Method TestNeverThrows()
+{
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "throws", "source-throws")
+	Set decision = ..Decision(itemId, "decide", {"Outcome": "digest"})
+	Do ..Usage(decision, 0.0001, 100)
+	Set ^OcuTalonTest("EvalSink", "throw") = "the size read broke"
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ..DeliverTo(..#DOUBLE, ..Message(itemId, "source-throws", decision, "digest"))
+	Kill ^OcuTalonTest("EvalSink")
+	Set row = ..RowOf(run, "throws")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome, "sent||", "the row is left as it was")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ? AND Text %STARTSWITH ? AND Text [ ?", mark, "OnMessage", ##class(OcuTalon.Eval.Sink).#LOGFAILED, "the size read broke")
+	Do result.%Next()
+	Do $$$AssertEquals(+result.%GetData(1), 1, "one error carries the exception's text")
+	Kill ^OcuTalonTest("EvalSink", "throw")
+	Do ..DeliverTo(..#DOUBLE, ..Message(itemId, "source-throws", decision, "digest"))
+	Set row = ..RowOf(run, "throws")
+	If $IsObject(row) Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_+row.LargestRequestTokens, "decided|"_decision_"|100", "the double is EvalSink itself when it does not throw")
+}
+
 /// --- helpers ---
 /// A new run Ref that starts with zz, kept for the clean-up.
 Method NewRun() As %String [ Private ]
@@ -354,8 +441,14 @@ Method Message(itemId As %String, sourceItemId As %String, decisionRef As %Strin
 /// Hands the message to EvalSink's OnMessage on a shadow instance: it answers OK with no response.
 Method Deliver(message As %Library.Persistent) [ Private ]
 {
-	Set sink = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Eval.Sink", .sc)
-	Do $$$AssertStatusOK(sc, "a shadow instance of EvalSink is made")
+	Do ..DeliverTo(..#SINK, message)
+}
+
+/// Hands the message to OnMessage on a shadow instance of the class (EvalSink or its double): it answers OK with no response.
+Method DeliverTo(class As %String, message As %Library.Persistent) [ Private ]
+{
+	Set sink = ##class(Ens.Host).GetShadowInstance("class||"_class, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of "_class_" is made")
 	If '$IsObject(sink) Quit
 	Kill response
 	Do $$$AssertStatusOK(sink.OnMessage(message, .response), "OnMessage answers OK")
