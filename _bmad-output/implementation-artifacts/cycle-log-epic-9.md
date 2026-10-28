@@ -69,3 +69,4 @@
 2026-10-28T20:01:07Z	Story 9.2	committed	sha=ce7fbd0 submodules= ci=pending runs=40759361528,40759361441 pushed_with=36c6c44(build),71f0311(merge_be69672) amendments=none footprint_extensions=docker/tests/test-eval-set.sh(new),ci/units.sh(CHECK_SCRIPTS_eval-set),ci/mock/scenarios/A/eval-tellnow-ignored.json(new),.github/workflows/lane-a.yml(evaluation_job_appended)
 2026-10-28T20:01:07Z	Story 9.2	story_cycle	plan_to_commit_min=197 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-10-28T20:01:07Z	Epic 9	epic_context_compiled	reason=continuity(9.2_as_built) mode=lead_patch(already_on_tree:+9.2) header=ok model=claude-opus-5-5
+2026-10-28T20:01:29Z	Story 9.3	stage_spawned	spawn_at=2026-10-28T20:01:29Z stage=plan model=claude-opus agent_name=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl-plan-1 cycle_iteration=1
