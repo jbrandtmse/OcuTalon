@@ -3049,7 +3049,7 @@ So that I never approve more than I was shown, and later failures are not lost.
 
 **Given** same-cause failures that join the incident after its notice, while it is awaiting approval, fixing or resolved
 **When** `IncidentManager` updates the incident's count
-**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156) [AMENDED 2026-10-28, Story 7.6 spec gate, Epic 7 runner, unattended ruling (veto U-134): 7.6 delivers IncidentManager's half, one `Execute` per approved request, one at a time per incident; the `FixRun` row of each approved request is written by `Execute` and pinned in Story 7.3]
+**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: 7.6 delivers IncidentManager's half, one `Execute` per approved request, one at a time per incident; the `FixRun` row of each approved request is written by `Execute` and pinned in Story 7.3]
 **And** a test that renders the later-request entry of `OcuTalon.Msg.Catalog.Watch` with fixture slots gets "{count} more {item noun} failed since {time}, with the same cause. I can {fix summary}. Approve?" filled in (fixture "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?"), then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page." (FR-8, P27, UX-DR156)
 **And** failures that join an Open incident (fallback, no fix, rejected or expired) only update its count (FR-8, P27)
 
@@ -3090,7 +3090,7 @@ So that the broken orders are delivered without the originals being touched or a
 
 **Given** two approved requests of one incident (a first request and a later one, Story 7.6)
 **When** `IncidentManager` sends their `Execute` requests one at a time
-**Then** each run writes its own `FixRun` row with its own `ApprovalRef`, and each request's result is its own (FR-8, P27, AD-15, AD-16) [ADDED 2026-10-28, Story 7.6 spec gate, Epic 7 runner, unattended ruling (veto U-134): moved from Story 7.6, whose `Execute` ordering is pinned there]
+**Then** each run writes its own `FixRun` row with its own `ApprovalRef`, and each request's result is its own (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: moved from Story 7.6, whose `Execute` ordering is pinned there]
 
 ### Story 7.4: OcuTalon reports how many orders went through
 
