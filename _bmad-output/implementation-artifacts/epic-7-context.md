@@ -10,32 +10,31 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
 
 - Story 7.1: Repair and resend proposes a dry run that changes nothing (done)
 - Story 7.2: The incident notice carries the dry run and one approval request (done)
-- Story 7.6: Later failures in the same incident get their own dry run and approval request (next; split from 7.2)
-- Story 7.3: Approved repairs are re-checked and resent
+- Story 7.6: Later failures in the same incident get their own dry run and approval request (done)
+- Story 7.3: Approved repairs are re-checked and resent (next)
 - Story 7.4: OcuTalon reports how many orders went through
 - Story 7.5: A resend cut short by a restart says how far it got
 
 ## Requirements & Constraints
 
 - **A repair is narrow.** It reformats one field with a reformatter registered in code (date patterns and number formats from a fixed set). The model picks only the kind and its parameters (field, source format, target format). No model-written code runs. A reformatter refuses a value that doesn't match its source format and never evaluates its input.
-- **What is approved is exactly what runs (owner decision U-126).** The card, the notice and the executor read one record: the `ApprovalRequest` row's `FixKind`, `FixParameters`, `FixTargets` and `DryRun`, all written from one dry-run ask and its one answer. `FixExecutor` loads the kind, targets and change from the row alone.
+- **What is approved is exactly what runs (owner decision U-126), per request.** The card, the notice and the executor read one record: the `ApprovalRequest` row's `FixKind`, `FixParameters`, `FixTargets` and `DryRun`, all written from that request's own dry-run ask and its answer. `FixExecutor` loads the kind, targets and change from the row alone. A later request takes the first request's kind and parameters, and its targets from its own window only.
 - **No model, and no change before approval.**
   - The CI mock receives no request during a dry run or an execution.
   - A dry run, a rejection or an expiry changes nothing in OCUTALON or OCUORDERS. A rejection or expiry sends no `Execute`.
   - A cancellation sends no outcome, and the incident stays as it is.
-- **Re-check before resending.** Each target must still be failed, not resent, unchanged in its body and inside the request's scope. A changed target is skipped with a plain reason and never acted on without a new approval. Parse and check each id in `FixTargets`: `Raise` checks only that it is non-empty.
+- **Re-check before resending.** Each target must still be failed, not resent, unchanged in its body and inside the request's scope. Each request is re-checked against its own row's `FixTargets`. A changed target is skipped with a plain reason and never acted on without a new approval. Parse and check each id in `FixTargets`: `Raise` checks only that it is non-empty.
 - **The originals stay unchanged.** Each copy stays in its original's trace session, with the same `SuperSession`. The incident's trace links to the copies by their registered header ids.
-- **A copy that fails again** is reported and never retried without a new approval. It is recognised by its registered header id and counts against the fix; it never opens a new failure group or incident.
-- **Later requests (7.6).**
-  - Same-cause failures that join after the notice never join an existing request's fixed targets.
-  - While the incident is awaiting approval, fixing or resolved, they settle by the same rule and get their own dry run, request and notice.
-  - An Open incident (fallback, no fix, rejected or expired) only updates its count.
-  - Each approved request gets its own `FixRun`, and one fix runs at a time per incident.
+- **A copy that fails again** is reported and never retried without a new approval. It is recognised by its registered header id and counts against the fix. It never opens a new failure group or incident, and never reaches `Record` as a later failure, so it never starts a later round.
+- **Several requests in one incident.**
+  - Two approved requests of one incident make two `FixRun` rows, each with its own `ApprovalRef`, and each request's result is its own (owner U-134; Story 7.3 pins it).
+  - One fix runs at a time per incident. `IncidentManager` sends one `Execute` per approved request, the earliest waiting one next (7.6 pins this half).
 - **Results and audit.** Each run sends one `result` notification, so every channel shows the same result at once. It writes one OcuTalon `Action` audit entry beside IRIS's own resend entries. The entry holds no key, token, password or Telegram identity.
 - **Scale.** One request covers at least 500 messages. The test runs at exactly 500: 500 counted, 500 targets, 500 resent, 500 completed.
 - **No fix to propose.**
   - A fallback diagnosis, or a cause that isn't a data-format change, gets no dry run and no request.
-  - A data-format diagnosis whose dry run is refused or finds nothing to resend, or whose `Raise` fails, takes Epic 5's no-fix notice (U-127; no new public text).
+  - A first dry run that is refused or finds nothing to resend, or whose `Raise` fails, takes Epic 5's no-fix notice (U-127; no new public text).
+  - A later round that cannot raise a request sends nothing and logs one warning for an error (U-133).
 - **Approval before risk** in every configuration. The production's testing switch stays off. Each fix kind has a test that sends `Execute` with no approved row and expects nothing to happen.
 
 ## Technical Decisions
@@ -47,7 +46,7 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
   - Permission checks use `$SYSTEM.Security.CheckUserPermission`, one letter per call. No role ever holds `%Ens_MessageEditResend`.
 - **Messages.**
   - `Fix.Msg.Execute` (`ApprovalRef` only) and `Fix.Msg.FixResult` (`ApprovalRef`, `IncidentRef`, `Final`, `Total`, `Resent`, `Completed`, `FailedAgain`, `Skipped`, `Interrupted`, `Reason`) get no new properties.
-  - The dry-run ask is `Fix.Msg.DryRun`, answered by `DryRunResult`.
+  - The dry-run ask is `Fix.Msg.DryRun`, answered by `DryRunResult`; neither gets new properties.
   - Items are addressed only by name.
   - The bridge never references OcuTalon packages (a CI check), so a fix kind is a plain string on bridge rows.
 - **The approval row.**
@@ -61,12 +60,17 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
   - It is the only writer of `Incident` and `FailureGroup`, and the only publisher of `incident` events. It publishes after commit, each payload the full current view.
   - It moves the incident only by AD-15's transition table, which already covers overlapping requests, a waiting `Execute` and interrupted results.
   - It refuses an `ApprovalOutcome` or `FixResult` that the row doesn't show.
-  - A request counts as pending while it is `pending`, or while it is `approved` and the incident is still `awaiting_approval`. The earliest waiting request in `RequestRefs` order gets the next `Execute`.
+  - A request counts as pending while it is `pending`, or while it is `approved` and the incident is still `awaiting_approval`. A `FixResult`'s own request never counts as waiting. The earliest waiting request in `RequestRefs` order gets the next `Execute`.
   - `Live.Payload.Incident.FromRow` (Lane A's, per AD-33, though it lives under `Live/`) uses object access only, because `/state` has no SQL grant. It opens each request by `Ref`.
+- **Later requests (spine convention, built by 7.6).**
+  - Before each dry-run ask goes out, `IncidentManager` marks its window on every failure group of the incident (`FailureGroup.AskedFrom`, `AskedTo`: keys of `Seen`). `RepairResend.DryRun` reads only that window (`FailureGroup.AskedKeys`), so a failure is never in two requests.
+  - `Incident.LaterSince` is the gathering round's first failure (the settle start and the notice's `time` slot). `Incident.AskingSince` allows one ask on its way per incident. A later round settles by the same rule in a waiter in the incident's trace session.
+  - On an error path (ask not sent, error answer, failed `Raise`, cancel after a failed save) the round puts its marks back, so its failures rejoin the next round's window. A refused or empty dry run keeps its marks.
+  - An Open incident (fallback, no fix, rejected or expired) only updates its count.
 - **Notifications.**
   - Producers send catalog keys and slots, never text: times in UTC ISO 8601, counts as integers, `itemNoun` as `{one, other}`, and model-written slots as plain sentences without times.
   - For an incident's fix requests, `IncidentManager` (not `BridgeSink`) sends one notification per recipient from `Session.Recipients(ownerRef, incidentRef)`.
-  - Kind `approval` is only for a later request (`incident.laterRequest`, with the same dry-run slots as `incident.withFix`).
+  - Kind `approval` is only for a later request (`incident.laterRequest`, with the same dry-run slots as `incident.withFix`; `count` is the round's window size).
   - `answered` and `result` carry `ApprovalRef` and `IncidentRef`, so the chat and the phone edit their message in place.
   - The answered keys are `answered.approved` (7.3's), `answered.rejected` and `answered.expired`, never the `…By` forms.
 - **Result texts (spine convention).** Every `result` producer (7.3, 7.4, 7.5 and Epic 30's Story 30.5) picks its key from the stored result fields in the order the page uses. The first match wins:
@@ -84,16 +88,16 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
   - It resends from its one `New $NAMESPACE` method with `Ens.MessageHeader.ResendDuplicatedMessage(original, , target, newBody)`. It builds each body with the body class as resolved in that namespace, registers each new header id on the `FixRun`, and waits up to 60 s per copy.
   - A stopped target production returns `ErrProductionNotRunning`, and that copy is `Skipped` with a plain reason.
   - Measured on build 154: 500 copies resend in under a second, and IRIS audits each one.
-- **`Data.FixRun`** holds only `ApprovalRef`, `IncidentRef` and `StartedAt`. It needs appended properties for the registered copies, the run state and the stored final counts. Stored properties are append-only, and every persistent class commits its `Storage` block.
+- **`Data.FixRun`** holds only `ApprovalRef`, `IncidentRef` and `StartedAt`; one row per `Execute`. It needs appended properties for the registered copies, the run state and the stored final counts. Stored properties are append-only, and every persistent class commits its `Storage` block.
 - **Restarts.**
   - `Install.Registry.CallAreas("Reconcile")` calls `Reconcile()` on every `Install.Step.<Name>`.
   - The Fix area's `Reconcile()`, in `Install.Step.Fix`, marks each running `FixRun` interrupted, never resumes it, and closes its row with `FinishExecution` `interrupted`.
-  - On every `Tick`, `Checks` calls `Fix.Run.Sweep()` beside its existing quiet sweep and sends each final `FixResult` to `IncidentManager`: exactly one per run, never a second.
+  - On every `Tick`, `Checks` calls `Fix.Run.Sweep()` beside its existing quiet sweep and sends each final `FixResult` to `IncidentManager`: exactly one per run, never a second, each request's own.
   - Sweep's still-running branch is Story 30.5's.
 - **Audit.** Write only through `OcuTalon.Bridge.Audit.Record("Action", data)`, with exactly `irisUser`, `sessionRef`, `channel`, `action`, `target`, `result`, `counts` and `approvalRef`. Tests read entries by `UTCTimeStamp` range, polling with a timeout, because the indexes lag up to 60 s.
 - **Tests and the mock.**
   - Tests are `%UnitTest` classes under `OcuTalon.Test.<Area>`, run on throwaways.
-  - The mock logs every request to `/opt/ocutalon/mock-log/requests.jsonl`, the evidence for "no model request".
+  - The mock logs every request to `/opt/ocutalon/mock-log/requests.jsonl`, the evidence for "no model request". A test must fail when that log is missing.
   - To get failed orders without Break the feed, call `Partner.Send(count, dateFormat, traceRef, orderDate)` in OCUORDERS. UJ-1's live case is 50 `MM/DD/YYYY` orders with the mock's existing `diagnosis` scenario.
   - Times convert only through `OcuTalon.Data.Time` (`Bridge.Time` in the bridge).
 
@@ -111,39 +115,37 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
 
 ## Cross-Story Dependencies
 
-- **Story order.** 7.6 → 7.3 → 7.4 → 7.5. Until 7.3, `FixExecutor` keeps `STUB = 1` and answers only `DryRun` (every other request gets error 5003). So 7.6 checks approvals and `Execute` through `IncidentManager`'s seams (`Test.Watch.IncidentProbe`).
+- **Story order.** 7.3 → 7.4 → 7.5. 7.3 replaces `FixExecutor`'s `STUB = 1` (today it answers only `DryRun`; every other request gets error 5003) and the base `Recheck`/`Execute`, which return NotImplemented.
 - **Built by 7.1.**
-  - `Fix.Kind` and `Fix.Kind.RepairResend`: parameters `field,sourceFormat,targetFormat`, `RESOURCES` `%Ens_MessageResend:U`, `FieldWords`, and a read-only `DryRun` through `Watch.Reader`.
-  - Targets are plain header ids, ascending. The base `Recheck`/`Execute` return NotImplemented; they are 7.3's.
+  - `Fix.Kind` and `Fix.Kind.RepairResend`: parameters `field,sourceFormat,targetFormat`, `RESOURCES` `%Ens_MessageResend:U`, `FieldWords`, and a read-only `DryRun` through `Watch.Reader`. Targets are plain header ids, ascending.
   - `Fix.Reformat`; `Install.Step.Fix.Grants()` (where 7.5's `Reconcile()` belongs); `Bridge.ReplyCheck`.
   - Test helpers: `Test.Fix.Snapshot` (`Take`, `Diff`) for "nothing changed", and `Test.Watch.Case`'s fixtures.
 - **Built by 7.2.**
   - `IncidentManager.Propose`/`Proposed`/`NoFix`. The asynchronous dry-run ask uses key `dryrun` in the incident's trace session. `Raise` runs at `$TLevel` 0. A save that fails after `Raise` cancels the request.
-  - The seams `SendDryRun`, `RaiseRequest`, `CancelRequest` and `AnswerNotice`, plus `Notice.WithFixSlots`.
-  - The new `Ref` is appended to `Incident.RequestRefs`. A rejected or expired outcome sends `answered` in the session where the outcome arrives.
-  - The with-fix notice's `count` is `NoticeCount`, and its `resendCount` is the dry run's `resend`.
-- **What 7.6 must design** (from 7.2's notes):
-  - Today a settle waiter starts only for a new incident, and `Waiting` stops once `NoticeCount` is set.
-  - `RepairResend.DryRun` reads all of the group's `Seen`, so a later dry run must leave out the earlier requests' `FixTargets`.
-  - Recording when the later failures began, and which keys each request covered, needs new stored state on `Incident` or `FailureGroup`. That is a schema veto.
-  - It reuses `Propose`/`Proposed`, with `incident.laterRequest` and kind `approval`.
+  - The seams `SendDryRun`, `RaiseRequest`, `CancelRequest` and `AnswerNotice`, plus `Notice.WithFixSlots`. Each new `Ref` is appended to `Incident.RequestRefs`. A rejected or expired outcome sends `answered` in the session where the outcome arrives.
+- **Built by 7.6.**
+  - The four appended stored properties (`FailureGroup.AskedFrom`/`AskedTo`, `Incident.LaterSince`/`AskingSince`), `Settle.Window`, `FailureGroup.AskedKeys`, and `WithFixSlots(incident, .sc, dryRun, count, time)`.
+  - In `IncidentManager`: `Ask` (shared by `Propose` and the later ask), the later waiter (`StartLater`, `Later`, `AskLater`; completion keys `laterSettle` and `laterDryRun`), `Unask`/`Unlater`, a `later` flag on `Proposed`/`Unproposed`, and `Notification` lifted out of `Deliver`.
+  - Test helpers: `Test.Fix.Later` (two requests in one incident on a real production, the natural base for 7.3's two-`FixRun` pin); `Case` now holds `Raised`, `Noticed`, `Answered` and `NoticeSessionOf`; `IncidentProbe` has the later seams (`FailCancel`, `FailStart`, `Marks`); `Tell.Group` and `Lifecycle.Group` take the `Seen` set and marks.
+- **What 7.3–7.5 take from 7.6.** 7.3: an `Execute` per approved request, each writing its own `FixRun`, and `Recheck` against each row's own `FixTargets`; a copy that fails again must never reach `Record`. 7.4: the result per request. 7.5: one final `FixResult` per run, each request's own.
 - **Built by Epic 6 (merged):** the incident and approval cards, the result band, `AnswerOps`, and the simulated phone's in-place edit by `ApprovalRef`. Epic 6's `Test.Demo.IncidentManagerDouble` does not extend `IncidentManager`.
 - **Open ledger items.**
+  - Story 7.3: DW-347 (`wontfix-accepted`) reopens unless 7.3's Verification includes a mutation that turns `Test.Fix.Raise`'s "OCUORDERS did not change" check red. 7.3 must include one.
   - Story 7.4:
     - DW-272: store the final `FixResult` counts so each request in the payload carries its `Result`.
-    - DW-318: the dry run reads only `Seen`, capped at the newest 1000 keys by `Settle.SEENMAX`. Past 1000 failures, `affected` and `resend` fall below `Count` with nothing saying so. Make the count honest and pin it.
+    - DW-318: the dry run reads only `Seen`, capped at the newest 1000 keys by `Settle.SEENMAX`. Past 1000 failures, `affected` and `resend` fall below `Count` with nothing saying so. The cap now also bounds a window: more than 1000 failures joining during one ask trims `AskedTo` out of `Seen`, and the window reads empty. Make the count honest and pin it.
     - DW-292: `FromRow` fills `groups`, `requests`, `evidence` and `traceTargets` for `/state`.
-  - Story 7.3: DW-347 reopens unless 7.3's verification includes a mutation that turns `Test.Fix.Raise`'s "OCUORDERS did not change" check red.
-  - DW-345 (terminal): Sweep covers `FixRun`s only, not a lost dry-run answer.
+  - DW-365 (`decision-pending`, for the owner): a later request reuses the first diagnosis's `fixSummary`, so a count the model writes there (like "repair and resend all 50") would contradict the later round's own count. It awaits a live check and a choice (a count-free prompt rule or other later text); don't change it ad hoc.
+  - DW-345 (terminal): Sweep covers `FixRun`s only, not a lost dry-run answer. A later ask that is never answered leaves `AskingSince` set.
   - DW-328 is on the owner's decision sheet: Fix's references to `Watch.Reader`, `FailurePoller.Scope`, `ItemNoun` and `Transitions` stay as they are.
 - **Contended paths now** (ask the orchestrator before editing):
   - Epic 9 (live): `Eval/**`, `Test/Eval/**`, `eval/**`, `.github/workflows/lane-a.yml`.
-  - Epic 8 (live): `Schedule/**`, `Core/Commands*.cls`, `Data/{StatusMark,Time,Reminder}.cls`, `Test/Live/**` beyond the shared `Test/Live/Payloads.cls` entries (so new DW-272 and DW-292 tests of `FromRow` go in `Test/Watch/**`, or as entries in `Payloads.cls`), `ci/iris.sh`.
+  - Epic 8 has merged into the feature branch but not yet into this branch. Until the next integrate-forward brings it in, don't edit `Schedule/**`, `Msg/Tick.cls` (the heartbeat), `ci/iris.sh`, or `Test/Live/**` beyond the shared `Test/Live/Payloads.cls` entries. So new DW-272 and DW-292 tests of `FromRow` go in `Test/Watch/**` or as entries in `Payloads.cls`, and 7.5's Sweep call goes in `Checks`.
   - Waiting:
     - Epic 15: every `Install/**` file other than `Install/Step/Fix.cls`.
     - Epic 13: `src/bridge/cls/OcuTalon/BridgeExample/**`, and its own `ci/mock/scenarios/A/bridge-example-*.json` files (a NEW scenario file of Epic 7's under `ci/mock/scenarios/A/` is no collision; the existing `diagnosis` scenario serves 7.4).
     - Epic 10: `ci/mock/**`, `docker/**`, `Core/AnswersIn*`.
-    - Epic 16: `Core/BridgeSink*`, `Test/{Web,Data}/**`. In `Test/Data/Tables.cls`, edit only Lane A's own entry, as 7.2 did.
+    - Epic 16: `Core/BridgeSink*`, `Test/{Web,Data}/**`. In `Test/Data/Tables.cls`, edit only Lane A's own entries, as 7.2 and 7.6 did.
   - Lane A's own and not contended: `Fix/**`, `Test/Fix/**`, `src/bridge/**`, `Watch/**`, `Checks/**`, `Tools/**`, `Msg/Catalog/Watch.cls`, `Test/{Watch,Bridge}/**`, `Install/Step/Fix.cls`, Lane A's Data tables (`Incident`, `FailureGroup`, `FixRun`, `Bridge.Data.*`), and the lane-a entry in `ci/units.sh`.
 - **Later epics.**
   - Epic 30's Story 30.5 adds the still-running and mixed results.
