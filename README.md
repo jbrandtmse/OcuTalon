@@ -7,7 +7,7 @@ Start with the online demo, at https://demo.ocutalon.com (nothing to install, an
 To run OcuTalon on your own machine instead:
 
 1. Load the IRIS for Health AI Hub Early Access build 154 image into Docker ([where to get it](#get-the-image)).
-2. Run `./install.sh` in the OcuTalon folder ([what it does](#start-it-with-the-install-script)).
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 3. Sign in at http://localhost:52773/ocutalon/ with user name `ocutalon` and password `ocutalon` ([more on signing in](#sign-in)).
 4. Follow the demo guide at the top of the page.
 
@@ -21,8 +21,8 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 | --- | --- | --- |
 | An IRIS Interoperability workflow | OcuTalon is an Interoperability production: every item and every decision is a production message you can follow in Visual Trace. Break the feed also sends 50 orders through a second production, Orders, which OcuTalon watches. | Online demo: the trace link under a reply opens Visual Trace. Repository: [src/ocutalon](src/ocutalon). |
 | An IRIS AI Hub agent | Each item gets one attention decision from an AI Hub agent running Claude Haiku 5.5, with its reasons, confidence, tokens and cost. Every model request and tool call is an agent step in Visual Trace. | Online demo: "Decision details" under a reply. Repository: [src/ocutalon/cls/OcuTalon/Agent](src/ocutalon/cls/OcuTalon/Agent). |
-| A decision-making task | The attention decision: Ignore, Digest, Tell now or Act. Anything risky waits for your approval, and content that did not come from you can only look, notify and save. A recorded evaluation set scores the decisions. | Online demo: the outcome on each reply and the Recent decisions list. Repository: [eval](eval). |
-| Complexity | An agent inside a production, a cause worked out from the failed messages, and a repair and resend fixed to exact targets that runs only after an approval. The first answer to an approval request wins. | Online demo: steps 3 to 5 of the demo guide. Repository: [src/ocutalon](src/ocutalon). |
+| A decision-making task | The attention decision: Ignore, Digest, Tell now or Act. Anything risky waits for your approval, and content that did not come from you can only look, notify and save. A recorded evaluation set scores the decisions. | Online demo: the outcome on each reply and the Recent decisions list. Repository: [eval](eval) and [src/bridge](src/bridge). |
+| Complexity | An agent inside a production, a cause worked out from the failed messages, and a repair and resend fixed to exact targets that runs only after an approval. The first answer to an approval request wins. | Online demo: steps 3 to 5 of the demo guide. Repository: [src/ocutalon](src/ocutalon) and [src/bridge](src/bridge). |
 | Clarity of Instructions | This README, one install script, a plain `docker compose up -d`, and the online demo's splash screen and demo guide. | Online demo: the splash screen and the demo guide. Repository: [install.sh](install.sh) and [Install it yourself](#install-it-yourself). |
 | Developer Experience | One script finds the image, starts OcuTalon and says where to sign in, with the exact fix when a check fails. Checks and tests run in CI on pushes and pull requests. | Repository: [install.sh](install.sh), [.github/workflows/ci.yml](.github/workflows/ci.yml) and [ci](ci). |
 | Applicability | Ask OcuTalon in plain words to watch a production. It picks up new failures, groups the ones with one cause into an incident, and never gives a false all-clear. Reminders fire on time and survive restarts. | Online demo: step 1 of the demo guide, which watches the Orders production. A local install can watch any production its service user may read. |
@@ -100,7 +100,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The `cp` step is optional: without `.env`, OcuTalon starts with no model key ([Set a model key](#set-a-model-key)).
+The `cp` step is optional: without `.env`, OcuTalon starts with no model key ([Set a model key](#set-a-model-key)). Skip it when `.env` already exists, because `cp` would replace that file and the key in it.
 
 ### The IRIS (non-Health) image
 
@@ -121,7 +121,7 @@ docker compose ps
 
 OcuTalon is ready when the STATUS of the `iris` service ends in `(healthy)`, for example `Up About a minute (healthy)`. Then open http://localhost:52773/ocutalon/.
 
-The first start took 53 and 78 seconds in two measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
+The first start took 47 to 78 seconds in five measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
 
 ## Set a model key
 
@@ -171,7 +171,7 @@ These are the usual causes and fixes. Most entries are messages that `./install.
 
 **"OcuTalon stopped before it was ready"**: run `docker compose logs iris` to read what happened.
 
-**"OcuTalon was not ready after 15 min 0 s"**: run `docker compose logs iris`. For what the start did, run `docker compose exec iris cat /durable/ocutalon-after-start.log`: the lines that begin with `STEP` name each install step, and a start that went well has a line that begins with `RESULT OK`. A slow machine can take longer than 15 minutes, so run `docker compose ps` again before you give up.
+**"OcuTalon was not ready after 15 min ..."**: run `docker compose logs iris`. For what the start did, run `docker compose exec iris cat /durable/ocutalon-after-start.log`: the lines that begin with `STEP` name each install step, and a start that went well has a line that begins with `RESULT OK`. A slow machine can take longer than 15 minutes, so run `docker compose ps` again before you give up.
 
 **The page says "OcuTalon has no model key"**: see [Set a model key](#set-a-model-key). Until you add one, every decision uses fixed rules.
 
@@ -225,7 +225,7 @@ It prints `1` when the password was changed; if it prints anything else, the pas
 ### Repository layout
 
 - `src/ocutalon`: OcuTalon's classes: the production, its agents, the web service behind the page and the install steps.
-- `src/bridge`: the bridge, the part that calls the AI Hub agents and writes the audit entries.
+- `src/bridge`: the bridge, the part that calls the AI Hub agents, checks each tool call before it runs, handles the approval requests and writes the audit entries.
 - `web`: the web page (Angular) and its browser tests.
 - `docker`: the image's files and the checks and live tests in `docker/tests`.
 - `ci`: the CI scripts and the model mock.
@@ -233,7 +233,7 @@ It prints `1` when the password was changed; if it prints anything else, the pas
 
 ### Tests and CI
 
-`bash ci/checks.sh` runs the checks that need no container, among them the check of this README. The GitHub Actions workflow in `.github/workflows/ci.yml` runs them on pushes and pull requests, with the web build, the browser tests and the IRIS tests.
+`bash ci/checks.sh` runs the checks that need no container, among them the check of this README. The GitHub Actions workflow in `.github/workflows/ci.yml` runs them and the web build on pushes and pull requests, and the browser tests and the IRIS tests on pushes and on pull requests from this repository's own branches.
 
 ## Credits and licences
 

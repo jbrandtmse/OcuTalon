@@ -5,8 +5,8 @@
 # What it pins, one rule each:
 #   top            the README opens with "# OcuTalon", then only blank lines, then the H2 sections "Try it in two minutes",
 #                  "What's interesting" and "Contest task -> where to see it" in this order; the other H2 sections are there
-#   try-it         the online demo link comes before ./install.sh, with "nothing to install", "no Early Access image" and the
-#                  splash screen; the local path is four numbered steps
+#   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
+#                  beside it and the splash screen; the local path is four numbered steps
 #   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
 #                  audit log
 #   contest-table  one row each for the three task parts and the five criteria, with all three cells filled
@@ -15,23 +15,31 @@
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs
 #   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
 #   commands       every `docker compose` command that install.sh prints after "run:" is in the README (DW-134), and the README
-#                  has no `docker compose restart`, "install.sh again", "rerun" or "re-run"
+#                  has no `docker compose restart`, `docker-compose restart`, `docker restart`, "install.sh again", "the install
+#                  script again", "rerun" or "re-run"
 #   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence, the README account and
 #                  "Sign in to Visual Trace"; no key-shaped example
 #   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps (DW-3)
+#   sign-in-address  the README's ready block is the one install.sh prints, with the compose file's default web port, and "Try it
+#                  in two minutes" and "Sign in" give its address ("Try it" its account too)
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
-#   dev-only       no ##class(, class name or error code above "For admins and developers"
+#   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
+#                  look for (the walkthrough ran it)
+#   dev-only       no ##class(, class name or error code outside the section "For admins and developers"
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
 #   readme-links   every link of the README reaches a heading, a file or folder of the repository, or an allow-listed host;
 #                  no two headings share a slug
+#   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md, so the most public file can
+#                  never drop out of that scan
 #
 # What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, install.sh,
 # src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
-# web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls (not /Test/).
+# docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
+# (not /Test/).
 #
 # The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1,
 # the page never shows the link to a README Telegram section. Then the check prints one "SKIP #telegram" line, leaves #telegram
@@ -63,6 +71,9 @@ ADMIN=src/ocutalon/cls/OcuTalon/Core/Admin.cls
 INCLUDED=src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls
 EXPERIENCE=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md
 CHATVIEW=web/src/app/chat/chat-view.ts
+AFTER_START=docker/after-start.sh
+BOUNDARIES=docker/tests/test-boundaries.sh
+COMPOSE=docker-compose.yml
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -82,9 +93,14 @@ admin_p=$(of "$ADMIN")
 included_p=$(of "$INCLUDED")
 experience_p=$(of "$EXPERIENCE")
 chatview_p=$(of "$CHATVIEW")
+after_start_p=$(of "$AFTER_START")
+boundaries_p=$(of "$BOUNDARIES")
+compose_p=$(of "$COMPOSE")
 
-# The files whose README anchors the product can show: the page's sources and the server's classes, none of the tests.
-printf '%s\n' "$listing" | grep -E '^(web/src/app/.*\.ts|src/.*\.cls)$' | grep -v '\.spec\.ts$' | grep -v '/Test/' > "$tmp/product.list"
+# product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
+# and the server's classes, none of the tests.
+product_files() { grep -E '^(web/src/app/.*\.ts|src/.*\.cls)$' | grep -v '\.spec\.ts$' | grep -v '/Test/'; }
+printf '%s\n' "$listing" | product_files > "$tmp/product.list"
 
 ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
@@ -176,6 +192,12 @@ st() {
 # st_append <label> <text> <checker>: the checker must flag the README with the text added as its last line.
 st_append() { st "$1" 1 "$README" "{ print } END { print \"$2\" }" "$3"; }
 
+# st_move <label> <H2 title> <line prefix> <checker>: the checker must flag the README with the lines of that section that start
+# with the prefix moved to the end of the file, where a check of the whole file would still find them.
+st_move() {
+  st "$1" 1 "$README" "/^## / { s = (\$0 == \"## $2\") } s && index(\$0, \"$3\") == 1 { held = held \$0 ORS; next } { print } END { printf \"%s%s\", ORS, held }" "$4"
+}
+
 # st_facts <checker> <facts, one per line>: the checker must flag the README without any one of the facts.
 st_facts() {
   local fact
@@ -243,11 +265,11 @@ chk_top() {
 }
 
 # try-it
-TRY_FACTS='https://demo.ocutalon.com
+DEMO_PHRASE='nothing to install, and no Early Access image needed'
+TRY_FACTS="https://demo.ocutalon.com
 ./install.sh
-nothing to install
-no Early Access image
-splash'
+$DEMO_PHRASE
+splash"
 chk_try_it() {
   local sec="$tmp/sec.try" demo install n
   section "$1" "$H_TRY" > "$sec"
@@ -260,6 +282,9 @@ chk_try_it() {
   install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
   if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
     echo "try-it: ./install.sh comes before https://demo.ocutalon.com"
+  fi
+  if ! grep -F 'https://demo.ocutalon.com' "$sec" | grep -qF -e "$DEMO_PHRASE"; then
+    echo "try-it: '$DEMO_PHRASE' is not beside the demo link"
   fi
   for n in 1 2 3 4; do
     if ! grep -q "^$n\\. " "$sec"; then echo "try-it: the local path has no step $n"; fi
@@ -319,7 +344,7 @@ chk_teaser() {
   at=$(grep -nxF -- "$TEASER" "$sec" | head -n 1 | cut -d: -f1)
   lastrow=$(grep -n '^|' "$sec" | tail -n 1 | cut -d: -f1)
   if [ -z "$lastrow" ] || [ -z "$at" ] || [ "$at" -le "$lastrow" ]; then echo "teaser: it does not come after the table"; fi
-  grep -nE '!\[|<img|<iframe|<video' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image or embed (the teaser is a plain link)|"
+  grep -niE '!\[|<(img|iframe|video|embed|object|picture)' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image or embed (the teaser is a plain link)|"
 }
 
 # outcomes: chk_outcomes <readme> <chat-view.ts>
@@ -351,7 +376,8 @@ iris-community:2026.3.0AI.154.0
 HealthShare
 HSCUSTOM
 ARM64
-15 minutes'
+15 minutes
+(healthy)'
 chk_install() {
   local sec="$tmp/sec.install"
   section "$1" 'Install it yourself' > "$sec"
@@ -382,7 +408,7 @@ chk_commands() {
       if ! grep -qF -e "$cmd" "$1"; then echo "commands: install.sh prints '$cmd', and the README does not"; fi
     done
   fi
-  grep -niE 'docker compose restart|install\.sh`? again|re-?run' "$1" | cut -d: -f1 | sed 's|^|commands: README.md:|; s|$|: wording the README must not use (DW-134)|'
+  grep -niE 'docker[ -]compose restart|docker restart|install(\.sh`?| script) again|re-?run' "$1" | cut -d: -f1 | sed 's|^|commands: README.md:|; s|$|: wording the README must not use (DW-134)|'
 }
 
 # key-account
@@ -412,6 +438,40 @@ chk_lan() {
   chk_facts lan "$sec" "$LAN_FACTS"
 }
 
+# sign-in-address: chk_sign_in_address <readme> <install.sh> <docker-compose.yml>
+# ready_lines <install.sh> <port>: the Open, User and Password lines of install.sh's ready block, with the port filled in.
+ready_lines() {
+  sed -n 's/^[[:space:]]*echo "\(  Open: .*\)"$/\1/p; s/^[[:space:]]*echo "\(  User: .*\)"$/\1/p; s/^[[:space:]]*echo "\(  Password: .*\)"$/\1/p' "$1" |
+    sed "s/\\\$port/$2/"
+}
+chk_sign_in_address() {
+  local port lines line addr user pass t sec="$tmp/sec.address"
+  port=$(sed -n 's/.*OCUTALON_WEB_PORT:-\([0-9][0-9]*\)}.*/\1/p' "$3" | head -n 1)
+  if [ -z "$port" ]; then
+    echo "sign-in-address: $COMPOSE has no default web port (the extraction found none)"
+    return
+  fi
+  lines=$(ready_lines "$2" "$port")
+  if [ "$(printf '%s\n' "$lines" | grep -c '^  ')" -ne 3 ]; then
+    echo "sign-in-address: install.sh prints no ready block with one Open, one User and one Password line (the extraction found none)"
+    return
+  fi
+  printf '%s\n' "$lines" | while IFS= read -r line; do
+    if ! grep -qxF -- "$line" "$1"; then echo "sign-in-address: install.sh prints '$line', and the README's ready block does not"; fi
+  done
+  addr=$(printf '%s\n' "$lines" | sed -n 's/^  Open: *//p')
+  user=$(printf '%s\n' "$lines" | sed -n 's/^  User: *//p')
+  pass=$(printf '%s\n' "$lines" | sed -n 's/^  Password: *//p')
+  for t in "$H_TRY" 'Sign in'; do
+    section "$1" "$t" > "$sec"
+    if ! grep -qF -e "$addr" "$sec"; then echo "sign-in-address: the section '$t' does not give the address $addr"; fi
+  done
+  section "$1" "$H_TRY" > "$sec"
+  if ! grep -qF -e "user name \`$user\` and password \`$pass\`" "$sec"; then
+    echo "sign-in-address: the section '$H_TRY' does not give user name \`$user\` and password \`$pass\`"
+  fi
+}
+
 # demo-mode (DW-45, U-72): chk_demo_mode <readme> <Admin.cls> <EXPERIENCE.md>
 DEMO_FACTS='### Demo mode
 do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)
@@ -439,12 +499,48 @@ chk_admin_commands() {
   chk_facts admin-commands "$sec" "$ADMIN_FACTS"
 }
 
-# dev-only: file:line of each line above "For admins and developers" with a ##class( call, a class name (a dotted name whose parts
-# start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
+# after-start-log: the command that reads the start's log, and the lines to look for in it (Troubleshooting; the walkthrough ran it).
+# log_path <after-start.sh>: the default path of the log that the image writes.
+LOG_FACTS='begin with `STEP`
+begins with `RESULT OK`'
+log_path() {
+  sed -n 's/^log_file="\${OCUTALON_AFTER_START_LOG:-\([^}"]*\)}".*/\1/p' "$1" | head -n 1
+}
+# chk_after_start_log <readme> <after-start.sh>
+chk_after_start_log() {
+  local path
+  path=$(log_path "$2")
+  if [ -z "$path" ]; then
+    echo "after-start-log: docker/after-start.sh has no default log path (the extraction found none)"
+  else
+    chk_facts after-start-log "$1" "docker compose exec iris cat $path"
+  fi
+  chk_facts after-start-log "$1" "$LOG_FACTS"
+}
+
+# must-scan: chk_must_scan <test-boundaries.sh>: the "for f in ..." list that is followed by the message "not scanned for paths and
+# keys" must name README.md.
+chk_must_scan() {
+  awk '
+    /^for f in / { hdr = ""; on = 1 }
+    on { hdr = hdr " " $0; if ($0 ~ /; do[ \t]*$/) { on = 0; last = hdr } }
+    /not scanned for paths and keys/ { found = last; seen = 1 }
+    END {
+      if (!seen) { print "must-scan: test-boundaries.sh has no must-scan list for paths and keys (the extraction found none)"; exit }
+      n = split(found, w, /[ \t\\;]+/)
+      ok = 0
+      for (i = 1; i <= n; i++) if (w[i] == "README.md") ok = 1
+      if (!ok) print "must-scan: the must-scan list for paths and keys in test-boundaries.sh does not name README.md"
+    }
+  ' "$1"
+}
+
+# dev-only: file:line of each line outside the H2 section "For admins and developers" with a ##class( call, a class name (a dotted
+# name whose parts start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
 dev_names() {
   awk '
     FNR == 1 { stop = 0 }
-    /^## For admins and developers$/ { stop = 1 }
+    /^## / { stop = ($0 == "## For admins and developers") }
     stop { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
   ' "$@"
@@ -459,11 +555,11 @@ docker/ipm/LICENSE
 public_text_scan() {
   local f
   awk -v note="$NOTE" '
-    function word(l, w) { return l ~ ("(^|[^a-z0-9])(" w ")([^a-z0-9]|$)") }
+    function word(l, w) { return l ~ ("(^|[^a-z0-9])(" w ")([^a-z]|$)") }
     {
       l = tolower($0)
       if (word(l, "openai|gpt|chatgpt|gemini|mistral|cohere|llama|ollama|bedrock|azure|deepseek|grok")) print FILENAME ":" FNR
-      else if (l ~ /from your phone|per step|find a bug|bonus/) print FILENAME ":" FNR
+      else if (l ~ /from your phone|per[- ]step|find a bug|bonus/) print FILENAME ":" FNR
       else if (l ~ /ocutalon-ci|ocutalon-slot|\.worktrees|\.coordination|digitalocean|droplet|sfo2|contest planner|epic-cycle|self-hosted/) print FILENAME ":" FNR
       else if (l ~ /openclaw/ && $0 != note) print FILENAME ":" FNR
       else {
@@ -541,7 +637,9 @@ ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTal
 URL_RE='https?://[^][:space:])>"<`]+'
 url_allowed() {
   local rest=${1#*://} host entry
+  case $rest in */../* | */..) return 1 ;; esac
   host=${rest%%[/?#]*}
+  host=${host##*@}
   host=${host%%:*}
   for entry in $ALLOWED_HOSTS; do
     case $entry in
@@ -591,11 +689,17 @@ rule_top() {
 }
 
 rule_try_it() {
+  local n
   rule_begin try-it "$README" || return
   st_facts chk_try_it "$TRY_FACTS"
   st 'install.sh before the demo link' 1 "$README" '{ print } /^## Try it in two minutes$/ { print ""; print "Run ./install.sh first." }' chk_try_it
+  for n in 1 2 3; do
+    st "step $n removed" 1 "$README" "!/^$n\\. /" chk_try_it
+  done
   st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
   st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
+  st_move 'step 2 moved out of the section' "$H_TRY" '2. ' chk_try_it
+  st 'the phrase away from the demo link' 1 "$README" "{ i = index(\$0, \"$DEMO_PHRASE\"); if (i && index(\$0, \"https://demo.ocutalon.com\")) { print substr(\$0, 1, i - 1) \"zz\" substr(\$0, i + length(\"$DEMO_PHRASE\")); print \"\"; print \"$DEMO_PHRASE\"; next } print }" chk_try_it
   finish try-it 'the online demo comes first, then four numbered steps for the local path' chk_try_it
 }
 
@@ -641,6 +745,8 @@ rule_teaser() {
   st_append 'an image tag' '<img src=teaser.png>' chk_teaser
   st_append 'a frame' '<iframe src=teaser></iframe>' chk_teaser
   st_append 'a video tag' '<video src=teaser.mp4></video>' chk_teaser
+  st_append 'an image tag in capitals' '<IMG src=teaser.png>' chk_teaser
+  st_append 'a picture tag' '<picture><source srcset=teaser.png></picture>' chk_teaser
   st_append 'the teaser line twice' "$TEASER" chk_teaser
   finish teaser 'the teaser is a plain link, word for word, after the table, as the last line of its section' chk_teaser
 }
@@ -659,6 +765,7 @@ rule_outcomes() {
 rule_install() {
   rule_begin install "$README" || return
   st_facts chk_install "$INSTALL_FACTS"
+  st_move 'the Compose version moved out of the section' 'Install it yourself' '- Docker Compose 2.24' chk_install
   finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
 }
 
@@ -687,6 +794,9 @@ EOF
   st_append 'docker compose restart' 'Run docker compose restart to apply it.' chk_commands
   st_append 'install.sh again' 'Run ./install.sh again to apply it.' chk_commands
   st_append 'install.sh in backticks again' 'Run `./install.sh` again to apply it.' chk_commands
+  st_append 'the install script again' 'Run the install script again to apply it.' chk_commands
+  st_append 'docker restart' 'Run docker restart to apply it.' chk_commands
+  st_append 'docker-compose restart' 'Run docker-compose restart to apply it.' chk_commands
   st_append 'rerun' 'Then rerun the script.' chk_commands
   st_append 're-run' 'Then Re-run the script.' chk_commands
   st 'install.sh prints no command after run:' 2 "$install_p" '{ gsub(/run:/, "go:"); print }' chk_commands
@@ -704,7 +814,23 @@ rule_key_account() {
 rule_lan() {
   rule_begin lan "$README" || return
   st_facts chk_lan "$LAN_FACTS"
+  st_move 'the warning moved out of the section' 'Sign in' '**Change the README account' chk_lan
   finish lan 'Sign in warns about the LAN and the Management Portal and links to the password steps' chk_lan
+}
+
+rule_sign_in_address() {
+  rule_begin sign-in-address "$README" "$install_p" "$compose_p" || return
+  st 'another address in the ready block' 1 "$README" '/^  Open: / { $0 = $0 "zz" } { print }' chk_sign_in_address
+  st 'another user in the ready block' 1 "$README" '/^  User: / { $0 = $0 "zz" } { print }' chk_sign_in_address
+  st 'another password in the ready block' 1 "$README" '/^  Password: / { $0 = $0 "zz" } { print }' chk_sign_in_address
+  st 'another address in Try it' 1 "$README" '/^## / { s = ($0 == "## Try it in two minutes") } s { gsub(/http:\/\/localhost/, "http://zz") } { print }' chk_sign_in_address
+  st 'another address in Sign in' 1 "$README" '/^## / { s = ($0 == "## Sign in") } s { gsub(/http:\/\/localhost/, "http://zz") } { print }' chk_sign_in_address
+  st 'another account in Try it' 1 "$README" '/^## / { s = ($0 == "## Try it in two minutes") } s && /^3\. / { gsub(/`[^`]*`/, "`zz`") } { print }' chk_sign_in_address
+  st 'install.sh prints another address' 2 "$install_p" '/^[[:space:]]*echo "  Open: / { sub(/"$/, "zz\"") } { print }' chk_sign_in_address
+  st 'install.sh prints no ready block' 2 "$install_p" '!/^[[:space:]]*echo "  Open: /' chk_sign_in_address
+  st 'another default port in the compose file' 3 "$compose_p" '{ sub(/OCUTALON_WEB_PORT:-[0-9]+/, "OCUTALON_WEB_PORT:-1"); print }' chk_sign_in_address
+  st 'no default port in the compose file' 3 "$compose_p" '{ sub(/OCUTALON_WEB_PORT:-/, "OCUTALON_WEB_PORT:?"); print }' chk_sign_in_address
+  finish sign-in-address 'the ready block, the address and the account are the ones install.sh prints, with the default web port' chk_sign_in_address
 }
 
 rule_demo_mode() {
@@ -731,11 +857,20 @@ rule_admin_commands() {
   finish admin-commands 'the terminal sessions and the password line are the ones the walkthrough ran' chk_admin_commands
 }
 
+rule_after_start_log() {
+  rule_begin after-start-log "$README" "$after_start_p" || return
+  st_facts chk_after_start_log "docker compose exec iris cat $(log_path "$after_start_p")
+$LOG_FACTS"
+  st 'another log path in docker/after-start.sh' 2 "$after_start_p" '/^log_file=/ { sub(/LOG:-[^}]*/, "LOG:-/durable/zz-other.log") } { print }' chk_after_start_log
+  st 'no default log path in docker/after-start.sh' 2 "$after_start_p" '{ sub(/^log_file=/, "lf="); print }' chk_after_start_log
+  finish after-start-log 'the log command names the path that docker/after-start.sh writes, and the lines to look for' chk_after_start_log
+}
+
 rule_dev_only() {
   local text label
   if ! rule_begin dev-only "$README"; then return; fi
   printf '# T\n\nSee OcuTalon.Core.Admin here.\n\n## For admins and developers\n' > "$tmp/dev.bad"
-  printf '# T\n\n## Plain\n\ntext\n\n## For admins and developers\n\ndo ##class(OcuTalon.Core.Admin).SetDemoMode(1)\nERROR #5001 <UNDEFINED> %%SYS.Namespace\n' > "$tmp/dev.good"
+  printf '# T\n\n## Plain\n\nSee README.md, demo.ocutalon.com and docs.docker.com: they are not class names.\n\n## For admins and developers\n\n### Demo mode\n\ndo ##class(OcuTalon.Core.Admin).SetDemoMode(1)\nERROR #5001 <UNDEFINED> %%SYS.Namespace\n\n## Credits\n\nPlain words again.\n' > "$tmp/dev.good"
   while IFS='|' read -r label text; do
     [ -n "$label" ] || continue
     st "$label above the section" 1 "$README" "NR == 1 { print; print \"$text\"; next } { print }" dev_names_1
@@ -747,20 +882,21 @@ a percent class name|The class %SYS.Namespace holds it.
 an error code|It failed with ERROR #5001 today.
 an error name|It showed <UNDEFINED> there.
 EOF
+  st_append 'a class name after the admin section' '## After\n\nThe class OcuTalon.Core.X does it.' dev_names_1
   if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README")" ]; then
     printf '%s' "$st_msgs"
     echo "FAIL dev-only: a broken copy was not flagged"
     fails=$((fails + 1))
     return
   fi
-  scan_rule 'dev-only: no ##class(, class name or error code above "For admins and developers"' dev_names "$tmp/dev.bad" "$tmp/dev.good" "$README"
+  scan_rule 'dev-only: no ##class(, class name or error code outside "For admins and developers"' dev_names "$tmp/dev.bad" "$tmp/dev.good" "$README"
 }
 
 rule_public_text() {
   local text label
   if ! rule_begin public-text "$README"; then return; fi
   printf 'This runs on OpenAI.\n' > "$tmp/pub.bad"
-  { printf '%s\n' "$NOTE"; printf '%s\n' "$PUBLIC_FACTS"; printf 'Listen on 127.0.0.1 or 0.0.0.0 only.\n'; } > "$tmp/pub.good"
+  { printf '%s\n' "$NOTE"; printf '%s\n' "$PUBLIC_FACTS"; printf 'Listen on 127.0.0.1 or 0.0.0.0 only.\nNot providers, only words that contain one: llamas, grokking, gptx and azurite.\n'; } > "$tmp/pub.good"
   st_facts public_text_1 "$PUBLIC_FACTS"
   st 'the note altered' 1 "$README" '{ sub(/not affiliated with/, "affiliated with"); print }' public_text_1
   st 'OpenClaw outside the note' 1 "$README" '/^# OcuTalon$/ { print; print ""; print "An OpenClaw-style assistant."; next } { print }' public_text_1
@@ -770,12 +906,32 @@ rule_public_text() {
   done <<'EOF'
 a model provider|It also works with Gemini.
 a model provider in capitals|It also works with ChatGPT.
+OpenAI|It also works with OpenAI.
+GPT|It also works with GPT.
+Mistral|It also works with Mistral.
+Cohere|It also works with Cohere.
+Llama|It also works with Llama.
+Ollama|It also works with Ollama.
+Bedrock|It also works with Bedrock.
+Azure|It also works with Azure.
+DeepSeek|It also works with DeepSeek.
+Grok|It also works with Grok.
+a provider with a version|It also works with GPT4 and Llama3.
 from your phone|Approve it from your phone.
 per step|Costs are shown per step.
+per-step|Costs are shown per-step.
 a bug-hunt section|Find a bug in AI Hub and win.
 a bonus section|Bonus: a second prize.
 a private word|Runs on a droplet.
 a CI host name|Runs on ocutalon-ci-b.
+a slot name|Runs on ocutalon-slot-a.
+a worktree folder|Built in .worktrees today.
+a coordination folder|Locks live in .coordination now.
+a cloud host|Runs on DigitalOcean.
+a data centre|Runs in sfo2.
+the planner|The Contest Planner decides.
+the cycle|The epic-cycle runs it.
+a runner kind|It runs on a self-hosted runner.
 an IPv4 address|Open http://192.168.1.10:52773 now.
 EOF
   if [ "$st_bad" -ne 0 ] && [ -z "$(public_text_scan "$README")" ]; then
@@ -801,8 +957,11 @@ rule_no_telegram() {
 }
 
 rule_product_links() {
-  local mode lits
+  local mode lits got
   rule_begin product-links "$README" "$tmp/product.list" "$included_p" || return
+  # Only the product's files are read: a spec file and a class under /Test/ are not.
+  got=$(printf '%s\n' web/src/app/a.ts web/src/app/a.spec.ts src/p/C.cls src/p/Test/T.cls web/e2e/x.ts docs/y.cls | product_files)
+  if [ "$got" != "$(printf '%s\n%s' web/src/app/a.ts src/p/C.cls)" ]; then st_note 'the product files are not exactly the page sources and the classes that are not tests'; fi
   # An anchor with no heading is named.
   mkdir -p "$tmp/inv"
   printf "export const SETUP_ANCHOR = 'nowhere';\n" > "$tmp/inv/Extra.ts"
@@ -844,12 +1003,32 @@ rule_readme_links() {
   st_append 'a link to a host off the list' '[x](https://example.org/a)' chk_readme_links
   st_append 'a bare address off the list' 'See http://example.org/a for more.' chk_readme_links
   st_append 'a repository path off the list' '[x](https://github.com/someone-else/OcuTalon)' chk_readme_links
+  st_append 'a host that only starts with an allowed host' '[x](https://claude.com.example.org/a)' chk_readme_links
+  st_append 'a host that only ends with an allowed host' '[x](https://notclaude.com/a)' chk_readme_links
+  st_append 'an allowed host in front of an at sign' '[x](https://claude.com@example.org/a)' chk_readme_links
+  st_append 'an allowed host and a colon in front of an at sign' '[x](https://claude.com:x@example.org/a)' chk_readme_links
+  st_append 'the allowed repository left by dot segments' '[x](https://github.com/jbrandtmse/OcuTalon/../../someone-else/repo)' chk_readme_links
+  st_append 'a repository that only starts with the allowed one' '[x](https://github.com/jbrandtmse/OcuTalon-fork)' chk_readme_links
   st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
   st_append 'two headings with one slug' '## Sign in' chk_readme_links
+  # A link by the GitHub slug of a heading (Design Note 8) is not flagged: the arrow, the apostrophe and the parentheses are dropped,
+  # the spaces around the arrow stay (two hyphens), and a hyphen of the heading stays.
+  awk '{ print } END { print "[a](#contest-task--where-to-see-it) [b](#whats-interesting) [c](#stop-start-and-update) [d](#the-iris-non-health-image)" }' "$README" > "$tmp/slug.md"
+  if [ -n "$(chk_readme_links "$tmp/slug.md")" ]; then st_note 'a link by the GitHub slug of a heading is flagged'; fi
   finish readme-links 'every link reaches a heading, a file or folder of the repository, or an allow-listed host' chk_readme_links
 }
 
-RULES='top try_it interesting contest_table teaser outcomes install install_pointer commands key_account lan demo_mode admin_commands dev_only public_text no_telegram product_links readme_links'
+rule_must_scan() {
+  rule_begin must-scan "$boundaries_p" || return
+  st 'README.md gone from test-boundaries.sh' 1 "$boundaries_p" '{ gsub(/README\.md/, "ZZ.md"); print }' chk_must_scan
+  st 'the list for paths and keys gone from test-boundaries.sh' 1 "$boundaries_p" '{ gsub(/not scanned for paths and keys/, "not scanned"); print }' chk_must_scan
+  # README.md as the last entry of the list, before "; do", is found.
+  printf 'for f in A.md \\\n  B.md README.md; do\n  echo "  not scanned for paths and keys: $f"\ndone\n' > "$tmp/ms.sh"
+  if [ -n "$(chk_must_scan "$tmp/ms.sh")" ]; then st_note 'README.md as the last entry of the list is not found'; fi
+  finish must-scan "the must-scan list for paths and keys in $BOUNDARIES names $README" chk_must_scan
+}
+
+RULES='top try_it interesting contest_table teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
 
 # With no README.md every rule fails closed: each one, run as if the file were absent, must print a FAIL line that says so.
 for r in $RULES; do
