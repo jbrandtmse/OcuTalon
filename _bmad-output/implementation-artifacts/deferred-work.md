@@ -1835,3 +1835,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-140's ceiling is unverified on a live model; U-118's answer (at=2026-10-27T11:31:36Z#355, placement amended by the Planner 2026-10-27T11:3xZ) gives this live check to 11.6 and the tool change to 11.1
 - 2026-10-28T16:26:29Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=routed by orchestrator at Epic 8's merge, U-118 (kept): 11.6's hands-on pass with real keys runs it; the fix itself is DW-140 in Story 11.1
+
+### DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); recheck every README link and GitHub's heading slugs on the public page before the release
+- source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
+- 2026-10-28T18:29:41Z status=routed owner=11-4-the-release-gets-draft-notes-and-a-checklist by=harvest note=release checklist item: open README_URL and every README anchor on the public repository page; Story 31.3 repeats it for 1.0.0
+
+### DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account
+- source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: README.md ## Sign in: reachable from the LAN until the default IRIS accounts' and the README account's passwords are changed; only the README account has a how-to (DW-3 wording, author's decision 2026-10-18)
+- 2026-10-28T18:29:41Z status=decision-pending owner=burndown by=harvest note=product and security-posture call: add how to change the default IRIS accounts' passwords, or say how to publish the port on 127.0.0.1 only, or keep the wording
