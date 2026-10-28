@@ -9,15 +9,15 @@ import { announcements, recordAnnouncements } from '../support/page';
 /**
  * Story 8.2, the heartbeat-stalled warning that comes from the real heartbeat (FR-32, NFR-9, AD-12, AD-18, AD-33), in a real browser
  * against a real stack. It is the one case that stalls the real heartbeat: it signs in as the banners fixture user that test-sign-in.sh
- * created (OCUTALON_BANNERS_USER), with one seeded production check that is not due at any tick, and calls OcuTalon.Test.Schedule.StallFixture, each step in its own
- * iris session. Hold suspends the real task and sets the tick mark 4 minutes back; StatusMonitor's own job then publishes the condition on the
- * instance stream, and the page, which polls that stream, shows the banner and the "(late)" mark. Tick writes a real tick; /state is clear
- * at once, and StatusMonitor's next run publishes the clear. A step that checks a live update waits until the page has applied the Seq of
- * the event (data-instance-seq) and then asserts within one second, and the announcer within one live update. afterEach runs Release, also
- * after a failure or a timeout: it puts the task back as found and writes a real tick, so that the heartbeat is fresh for the specs after it.
- * The two events it causes stay on the instance stream for the rest of the run. api.spec reads that stream against a baseline that each of
- * its tests takes itself, so it passes whether or not this file ran before it. The browser runs in Asia/Kolkata with the en-GB locale, so a
- * time (instance zone UTC) reads differently.
+ * created (OCUTALON_BANNERS_USER), with one seeded production check that is not due at any tick, and calls
+ * OcuTalon.Test.Schedule.StallFixture, each step in its own iris session. Hold suspends the real task and sets the tick mark 4 minutes
+ * back; StatusMonitor's own job then publishes the condition on the instance stream, and the page, which polls that stream, shows the
+ * banner and the "(late)" mark. Tick writes a real tick; /state is clear at once, and StatusMonitor's next run publishes the clear. A step
+ * that checks a live update waits until the page has applied the Seq of the event (data-instance-seq) and then asserts within one second,
+ * and the announcer within one live update. afterEach runs Release, also after a failure or a timeout: it puts the task back as found and
+ * writes a real tick, so that the heartbeat is fresh for the specs after it. The two events it causes stay on the instance stream for the
+ * rest of the run. api.spec reads that stream against a baseline that each of its tests takes itself, so it passes whether or not this file
+ * ran before it. The browser runs in Asia/Kolkata with the en-GB locale, so a time (instance zone UTC) reads differently.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
@@ -95,7 +95,7 @@ test.afterEach(async () => {
 test('H1: the heartbeat-stalled banner and the late mark follow the real heartbeat, and clear when a real tick is written', async ({ page }) => {
   const { user, password } = fixtureUser('BANNERS');
   const stamp = unique('H1');
-  const ranAt = new Date(Date.now() - 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const ranAt = inMs(-60_000);
   refs.push(await seedCheck(user, { displayName: stamp, lastRunAt: ranAt, result: 'passed', finding: '', nextDueAt: inMs(NEXT_DUE_MS) }));
   await recordAnnouncements(page);
   await signIn(page, user, password);

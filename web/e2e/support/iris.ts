@@ -819,9 +819,9 @@ export interface CheckFields {
   result?: string;
   finding?: string;
   /**
-   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at every
-   * heartbeat tick (Checks runs it and overwrites its last run), so a spec that asserts the row's seeded last run while a real tick may
-   * run, its own or the minute task's, gives it a time after the spec.
+   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at the next
+   * heartbeat tick (Checks runs it, overwrites its last run and makes it due again a minute later), so a spec that asserts the row's seeded
+   * last run while a real tick may run, its own or the minute task's, gives it a time after the spec.
    */
   nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
