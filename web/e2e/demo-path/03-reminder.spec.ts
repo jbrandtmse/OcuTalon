@@ -8,8 +8,9 @@ import { chk, irisScript, quoted } from '../support/iris';
  * UJ-1 step 3 (REL-2, Story 8.6): the reminder. On the first-start stack with the CI mock, the README account presses Send on guide step 2.
  * The page then shows the exact prompt as the guide's own message, the reply "The CI mock set the reminder.", one Reminders row "stretch"
  * with its countdown, and the guide's step 2 done. The runners' keys point at the CI mock for the test and are put back after it; the
- * reminder it set is cancelled through the product's cancel path, so that no reminder fires during the steps that follow and the README
- * session's later steps see it as before. It needs the first-start stack (OCUTALON_URL): without it the group skips as it is declared,
+ * reminder it set is cancelled through the product's cancel path, so that no reminder fires and none shows under Reminders during the
+ * steps that follow. The guide turn and its fallback decision stay in the README session; the steps that follow do not depend on their
+ * absence. It needs the first-start stack (OCUTALON_URL): without it the group skips as it is declared,
  * before any hook or fixture starts, because a run with no stack may have no browser either (the unit tests' demo-path run in the hosted
  * web job), and a skip inside the test would launch one first.
  */

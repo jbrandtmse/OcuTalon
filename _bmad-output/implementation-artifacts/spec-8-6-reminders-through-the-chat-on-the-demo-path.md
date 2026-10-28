@@ -2,15 +2,32 @@
 title: 'Story 8.6: Reminders through the chat on the demo path'
 type: 'feature'
 created: '2026-10-27'
-status: 'in-progress'
-baseline_revision: '36be42418f97800de50ae2711c1bd0c3d9e8557a'
-baseline_commit: '36be42418f97800de50ae2711c1bd0c3d9e8557a'
+status: 'done'
+baseline_revision: '95af1d20fb4f7357803088b73b24709a9e8d5449'
+baseline_commit: '95af1d20fb4f7357803088b73b24709a9e8d5449'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A local `ci/iris.sh live <unit>` or `group` run serves the browser from whatever `src/ocutalon/csp/` holds and never compares it with `web/src`, so after a merge that brings web changes it is served a stale bundle and fails like a product or test fault.
+    evidence: |-
+      Story 8.6 rework 2: the lane-C bundle (main-ZNXMCDT7.js, built before the Epic 6 integrate-forward) held no app-incident-card and no app-approval-request-card component (0 occurrences; a rebuilt bundle holds 3 and 3). `live demo-path` STEP 4 and STEP 5 failed on the missing card until `ci/iris.sh build` rebuilt the bundle, and then passed with no code change.
+      `ensure_web_bundle` rebuilds only when web/node_modules or index.html is missing, or when LIVE_REBUILD_WEB is 1 (which only `cmd_build` sets). A guard should record a stamp of the web sources (for example a hash of the tracked files under web/src, web/package-lock.json and the build config) beside the bundle and rebuild when it differs; file times are not reliable across checkouts, merges and rebases. Until then, run `ci/iris.sh build` after every merge that brings web changes and before any live unit.
+      Out of footprint: shared CI scripts, and local runs only, because CI always builds the bundle fresh.
+    location: >-
+      docker/tests/lib-live.sh (ensure_web_bundle, called by live_start), ci/iris.sh (cmd_group, cmd_build)
+    severity: medium
+  - summary: >-
+      `03-reminder.spec.ts` clicks "Step 2, Reminder, upcoming", a name that exists only while the guide's step 1 (watching) is undone, so it will find nothing once Story 11.1 makes 02's background check real.
+    evidence: |-
+      `Demo/Guide.cls` takes the current step as the first undone one and step 1 as done when the session has an Orders production check row; `guide-view.ts` names the current step "current", not "upcoming". Today 02 is `notBuilt`, so step 1 is undone at 03 and 04's fixture seeds the check row only after 03. Read from the code; not run with a real 02.
+      A fix would accept either name for step 2 (the later "Step 2, Reminder, done" assertion stays), and 11.1's own demo-path run shows it first.
+    location: >-
+      web/e2e/demo-path/03-reminder.spec.ts:33
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -330,7 +347,7 @@ Code review, 2026-10-28 (Epic 8 code-review stage; four layers, no model overrid
 - `false` (Blind): `REMINDERTOOLS` reused the name of `Test.Agent.Runners`' eight-tool parameter. Parameters are class-scoped, so `..#REMINDERTOOLS` never reads the other class's value. ReminderChat's value was exactly the three reminder tools its name says. The eight-tool misnomer is Runners' own (Lane A). The first patch removes the parameter anyway.
 - `false` (Edge): a `/v1/messages` entry with a null `request` makes `ToolNames` throw. This is not new: the code at `36be424` called `ToolNames` on the same entries. A null `request` only follows a body that is not JSON, and no runner sends one. A throw is a loud test error, never a false green.
 
-- [ ] [Smoke] Integrate-forward red, second round (merged tree `af61733` = feature `ce66c6b` + Epic 8): a fresh `ci/iris.sh live demo-path` (lane C, tag `e8if3d`, 2026-10-28) fails STEP 4 and STEP 5, while STEP 3 (this story's `03-reminder.spec.ts`) passes just before them:
+- [x] [Smoke] Integrate-forward red, second round (merged tree `af61733` = feature `ce66c6b` + Epic 8): a fresh `ci/iris.sh live demo-path` (lane C, tag `e8if3d`, 2026-10-28) fails STEP 4 and STEP 5, while STEP 3 (this story's `03-reminder.spec.ts`) passes just before them:
   - `04-incident.spec.ts:105` "the incident card and the phone's notice, on fixtures for Lane A's raise path": `app-chat-panel [data-part="approval"][data-key=<request>]` has count 0 after 15 s (line 138);
   - `05-approval.spec.ts:25` "Approve on the simulated phone, on fixtures": the same, at line 57;
   - `05-approval.spec.ts:74` "Fixing, then ...": timed out (120 s).
@@ -340,6 +357,7 @@ Code review, 2026-10-28 (Epic 8 code-review stage; four layers, no model overrid
   - (b) If it is test state that 03 leaves behind and the real path is unaffected (prove it), make 03 leave the README session as the later steps expect. 03's own doc promises "the README session's later steps see it as before"; `ReminderFixture.RemoveTurns` is the existing helper that `web/e2e/reminder/chat.spec.ts` uses.
   - Never weaken, skip or re-tag any assertion of 04 or 05.
   Acceptance: a fresh `live demo-path` is green, with STEP 3 passed, STEP 4 and STEP 5 back to the feature's results, and the floor 7 of 7. If the fix touches the card or the chat code, `live answers` and `live cards` stay green too. Never edit `src/ocutalon/cls/OcuTalon/{Agent,Tools,Fix,Watch}/**`, `src/bridge/**`, or `web/src/app/{header,session,live,api,banners,guide,mailbox}/**` (other open epics' paths). If the fix needs one of them, HALT `blocked` with an intent gap that names the file and the change. Each changed pinning assertion gets its `mutation:` line.
+  - Resolved (implement, rework 2): the cause is neither (a) nor (b). The lane-C web bundle was stale (Design Notes, Decided 17), and a rebuild made a fresh `live demo-path` green (tag `e8s6i3c`: STEP 3 passed, STEP 4 `partly skipped, 2 passed, 2 skipped`, STEP 5 `partly skipped, 2 passed, 1 skipped`, floor 7 of 7), with 03's turn and decision still in the README session. No assertion changed; 03's header comment now says what 03 leaves behind.
 
 ## Spec Change Log
 
@@ -382,6 +400,26 @@ Code review, 2026-10-28 (Epic 8 code-review stage; four layers, no model overrid
   - `[false]` `[reject]` Blind: the list can drift from Chat's own toolsets -- the rule does not copy Chat's list at all; `REMINDERTOOLS` names only the three tools the tests drive, so Chat's toolsets can change freely, which is what the item asked for.
   - `[low]` `[reject]` Edge: another agent that offers all three reminder tools would count as Chat's -- not reachable: Triage offers none and Diagnosis offers the Watch tools only; a guard (Chat's toolsets as run-time input) is more complexity than a hypothetical agent warrants, and the tests would go red on the count, not pass falsely.
   - `[false]` `[reject]` Edge: "Chat's other toolsets no longer matter" overclaims -- the comment says a request is Chat's when it offers every reminder tool, which is what the code does; it does not claim to exclude other agents.
+
+### 2026-10-28 - Review pass (rework iteration 2, the stale-bundle `[Smoke]` item)
+- verdicts: 16 findings - high 0, medium 4, low 11, false 1, maybe-false 0
+- findings:
+  - `[low]` `patch` (Blind) "(a) is refuted" cites the fresh run for the chat state that only the stale-bundle run observed - Decided 17 now says the state was seen at 04 on `e8s6i3a` and holds on the fresh bundle by inference, since 03 is unchanged.
+  - `[low]` `patch` (Blind) "STEP 4/5 back to the feature's results" has no figures to compare - Decided 17 now cites CI run 40692572200 on the merged tree (STEP 3/4/5 lines and the DEMO-PATH line, identical to the local fresh run) and says the skipped cases are 11.1's `notBuilt` parts.
+  - `[low]` `patch` (Blind) Decided 6 still says steps 4 to 6 "see the README session as before" - reworded to match Decided 17 (turn and decision stay).
+  - `[low]` `patch` (Blind) the rebuild condition omits `LIVE_REBUILD_WEB` and the instruction lives only in this spec - Decided 17 names all three conditions; the instruction to run `ci/iris.sh build` after a web-bringing merge is in the deferred entry and goes to the lead in the stage report (the shared scripts and Rule 21 are not this story's).
+  - `[low]` `patch` (Blind) the deferred guard suggests file times - the entry now recommends a source stamp and says why file times fail.
+  - `[low]` `patch` (Edge) same imprecision as the Blind row on the rebuild condition - same fix.
+  - `[low]` `patch` (Edge) "03 cancels only its reminder" - `CancelPending` cancels every pending reminder of the session, and the code matches the intent ("the README session's pending reminders"); the wording now says so.
+  - `[low]` `patch` (Edge) the deferred location lists `cmd_live`, which calls neither `ensure_web_bundle` nor builds - now `ensure_web_bundle` (called by `live_start`), `cmd_group` and `cmd_build`; checked by grep (`lib-live.sh:87`, `ci/iris.sh:327,472`).
+  - `[medium]` `defer` (Edge, Gap, Intent) the `[x]` rests on a rebuilt, gitignored bundle, so any local `live` run after the next web-bringing merge goes red like a product fault - the guard edits shared CI scripts (Epic 32's), so it is the first `deferred:` item; the item's acceptance holds (fresh local run `e8s6i3p` and CI run 40692572200 both green), so the box stays ticked. Three rows share this root cause.
+  - `[medium]` `defer` (Gap) 03 clicks "Step 2, Reminder, upcoming", which exists only while step 1 is undone, so it passes only before a real 02 and breaks when Story 11.1 builds 02 (verified in `Guide.cls` and `guide-view.ts`; not run with a real 02) - not caused by this diff (a header comment); the second `deferred:` item, for 11.1, whose own demo-path run shows it first.
+  - `[medium]` `defer` (Gap) the same stale-bundle root cause, filed from the gitignored-fix angle - grouped with the row above; no false green is possible, only a false red.
+  - `[medium]` `defer` (Intent) the diff's validation is one local run and CI never saw the stale condition - same root cause, grouped with the stale-bundle entry; the CI run on the merged tree is the second observation.
+  - `[low]` `reject` (Gap) the new header comment's claims are "partly unpinned" - a header comment states the contract; the cancel is pinned by `cancelled >= 1`, the Reminders section is empty because `ReminderSetOrFired` counts pending or fired rows only, and 04 and 05 passing pins the independence. No harm named.
+  - `[low]` `reject` (Intent) "no test covers that 04 and 05 do not depend on 03's leftovers, and 'with or without 03' is an inference" - every full `live demo-path` runs 04 and 05 after 03 in one session (three green runs now); "with or without" follows from the component counts (0 against 3 and 3), which no page can draw around.
+  - `[low]` `reject` (Intent) under the broad reading of "removes what it asserts on", 03 leaves its turn, decision and step 2 - the intent's own 03 bullet asks for the cancel and the keys only, and the README session is the demo path's one shared session; leaving 03's turn is what the real path does.
+  - `[false]` `reject` (Intent) the diff holds none of the intent's deliverables - it is a rework delta on a baseline (`95af1d2`) that carries them; the layer's report is descriptive.
 
 ## Design Notes
 
@@ -438,7 +476,7 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
    - The rail shows the text exactly.
    - Capitalising would edit the contended `web/src/app/rail/**`.
 6. **03 cancels its reminder in `afterAll`** through the product's cancel path, `CancelPending`.
-   - So steps 4 to 6 see the README session as before: no reminder fires during 04, and step 2 is not done again (`Test.Demo.Guide`: a cancelled reminder doesn't count).
+   - So no reminder fires during 04 and the Reminders section is empty again, and step 2 is not done again (`Test.Demo.Guide`: a cancelled reminder doesn't count). The guide turn and its fallback decision stay in the README session (Decided 17).
    - Story 11.1's `notBuilt` in 04 ("the reminder lands ... during the wait") drops this cancel.
 7. **The IRIS chat tests go through `WebChatIn`**, the REST surface's own entry, instead of only Decide as Stories 1.10 and 4.4 do. That covers the real Conversation, its triage request and the turn, as measured above.
 8. **The page surface is `web/e2e/reminder/chat.spec.ts`** in `live:sign-in`, on the rail user. It is a separate file, so the pointed keys and the swapped item cover its two cases only.
@@ -455,6 +493,19 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
 14. **Thursday has an independent oracle.** `FromLocal` is both the product's conversion and the test's, so a fault in it would cancel out. `TestThursdaySetsLocalReminder` also asserts `ToLocal(DueAt)` = `2030-11-07T10:00:00`.
 15. **`chat.spec.ts` C1 reads the Reminders section only** (`li.row[data-section="reminders"]`): the rail's decision rows quote the user's message, so the text alone matches two rows. Its `afterEach` removes the kept Refs only; `Restore()` in `afterAll` clears the stored Ref (`test-boundaries.sh` allows `^OcuTalonTest` in tests, not in specs).
 16. **The 03 mutation and DW-210's evidence.** Moving 03's skip into the test body alone stays red without a stack, because its `beforeAll` (`pointKeys`) fails; that run pins 03's describe-level skip, not `playwrightEnv()`. DW-210's evidence is a separate mutation: a 03 with no hooks whose `page` test skips in its body, which is red with `playwrightEnv()`'s browsers path and green without it, where Chromium is installed.
+17. **The merged-tree STEP 4/5 red was a stale local web bundle (rework 2).** Turning 03 on was not the trigger. The product and 03 stay as they are.
+    - **Root cause.** `ci/iris.sh live` serves the browser from `src/ocutalon/csp/` and rebuilds it only when `index.html` or `web/node_modules` is missing or `LIVE_REBUILD_WEB` is 1 (`ci/iris.sh build` sets it; no live unit does). The lane-C bundle (`main-ZNXMCDT7.js`, 558 KB) was built before the integrate-forward that brought Epic 6's incident card and approval request card into the chat. It held no `app-incident-card` and no `app-approval-request-card` (0 occurrences; the rebuilt `main-3ZZ3NBO7.js`, 618 KB, holds 3 and 3). No page served from it can draw the card that 04's second case and 05 wait for, with or without 03. CI builds the bundle fresh, which is why the feature head passed there.
+    - **Evidence, stale bundle (tag `e8s6i3a`).** Two temporary diagnostic specs (one right after 03, one after 04's first case; both deleted) copied 04's second case and logged the page's console, its `/state` and `/events` answers and its chat DOM:
+      - the page loaded once (`/state`, cursors session 10, instance 0), then applied the `incident` (Seq 11), `approval` (12) and `phone` (13) events one after another: no Seq gap, no reload and no epoch change;
+      - no console message and no page error;
+      - the chat DOM held only the 03 turn (`user:` and `reply:` parts) for the whole 15 s, and no `incident` or `approval` part;
+      - the server's stream held every event; in the earlier error context of the same failure the rail counted the request and the phone showed the notice, so only the chat's card was missing.
+    - **Evidence, fresh bundle.** `ci/iris.sh build` (tag `e8s6i3b`), then a clean `live demo-path` (tag `e8s6i3c`, no diagnostic spec, 43.0 s of Playwright) passed: STEP 3 `passed, 1 passed, 0 skipped`, STEP 4 `partly skipped, 2 passed, 2 skipped`, STEP 5 `partly skipped, 2 passed, 1 skipped`, `DEMO-PATH 5 of 6 steps ran (3 partly skipped), 7 skipped, 0 failed; floor 7 of 7 passed`.
+      - 03's turn and its fallback decision (rail "Recent decisions (1)") were seen in the README session at 04 on the stale-bundle run `e8s6i3a`. 03 is unchanged between that run and `e8s6i3c`, so the same state held at 04 and 05 on the fresh bundle `(inference)`, and the cards drew: (a) is refuted, because the real page draws the incident card when the session already holds a turn and a fallback decision.
+      - **The feature's results.** The CI `browser` group on the merged tree (run 40692572200, commit `af61733`, fresh bundle) printed the same lines: STEP 3 `passed, 1 passed, 0 skipped`, STEP 4 `partly skipped, 2 passed, 2 skipped`, STEP 5 `partly skipped, 2 passed, 1 skipped` and `DEMO-PATH 5 of 6 steps ran (3 partly skipped), 7 skipped, 0 failed; floor 7 of 7 passed`. The skipped cases are Story 11.1's `notBuilt` parts, as on the feature head. That job's one red was `heartbeat.spec.ts` H1 in `live:sign-in`, which this pass leaves alone.
+      - A fresh local run of this tree (tag `e8s6i3p`, after the header edit, 132 s) printed the same lines.
+      - (b) is not needed: 03's leftovers (the turn, the decision) do not matter to 04 and 05. 03 still cancels the README session's pending reminders (at that point only its own), so that none fires during the later steps.
+    - **Choice.** No product code, test body or assertion changed, so no `mutation:` line is owed. The fix is the rebuilt, gitignored bundle in this checkout. 03's header comment is the one source edit: it said the README session's later steps "see it as before", but the guide turn and its fallback decision stay in the session, so it now says that no reminder fires or shows under Reminders afterwards and that the later steps do not depend on the turn's absence. After a merge that brings `web/src` changes, run `ci/iris.sh build` before any `live` unit. The guard that would catch a stale bundle edits shared CI scripts (`docker/tests/lib-live.sh`, `ci/iris.sh`), so it is in `deferred:`.
 
 **Ledger inbox:**
 - DW-210: addressed by the `playwrightEnv()` task, 03's describe-level skip, AC 4 and the matrix row "No stack".
@@ -583,3 +634,11 @@ Blocking condition: none
 - **Follow-up review:** not recommended (`followup_review_recommended: false`); this pass patched no `high`.
 - **Verification:** fresh `ci/iris.sh class OcuTalon.Test.Schedule.ReminderChat` passed (11.05 s); fresh `shard lane-b` passed (71 classes, 579 s); `bash ci/checks.sh` and `bash docker/tests/test-boundaries.sh` passed; tags `e8s6k` and `e8s6kw` torn down. No browser spec changed, so no `live` unit ran.
 - **Residual risks:** none beyond the rejected lows.
+
+**Rework pass 2 (integrate-forward `[Smoke]` item, second round, this pass only).**
+- **Root cause:** the merged-tree STEP 4/5 red was a stale local web bundle, not the product and not 03 (Design Notes, Decided 17). `ci/iris.sh live` rebuilds `src/ocutalon/csp/` only when it is missing, and lane C's bundle predated Epic 6's incident and approval cards. CI builds fresh and was green on the merged tree (run 40692572200: STEP 3 passed, STEP 4 and 5 `2 passed`). The fix is `ci/iris.sh build` in this checkout (gitignored); the guard that would catch it is deferred.
+- **Files changed:** this spec, and the header comment of `web/e2e/demo-path/03-reminder.spec.ts` (what 03 leaves in the README session). No product code, test body or assertion changed, so no `mutation:` line is owed.
+- **Review:** 16 findings, 8 patched (low; wording of the in-stage record and the deferred entry), 4 deferred into 2 `deferred:` items (the stale-bundle guard on shared CI scripts; 03's "Step 2, Reminder, upcoming" selector for Story 11.1), 4 rejected with reasons (see the triage log).
+- **Follow-up review:** not recommended (`followup_review_recommended: false`); this pass patched no `high` (8 low).
+- **Verification:** fresh `ci/iris.sh live demo-path` after the bundle rebuild passed twice (tags `e8s6i3c`, `e8s6i3p`; 132 s; STEP 3 `passed, 1 passed, 0 skipped`, STEP 4 `partly skipped, 2 passed, 2 skipped`, STEP 5 `partly skipped, 2 passed, 1 skipped`, floor 7 of 7); `npm --prefix web run lint`, `node --test web/scripts/demo-path-summary.test.mjs` (28 passed), `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh` passed; the stale-bundle run `e8s6i3a` and both fresh tags are torn down. `live answers` and `live cards` did not run, because no chat or card code changed.
+- **Residual risks:** the bundle is gitignored, so any local `live` run after a merge that brings `web/src` changes needs `ci/iris.sh build` first until the deferred guard lands. CI's `live:sign-in` failed once on the merged tree at `heartbeat.spec.ts` H1 (not this story's).
