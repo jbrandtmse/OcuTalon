@@ -4,13 +4,13 @@
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { parsePart, partOf } from './e2e-part.mjs';
+import { describePart, parsePart, partOf } from './e2e-part.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, '..');
@@ -217,14 +217,26 @@ function bareEnv() {
 
 describe('docker/tests/test-sign-in.sh, given a bad argument', () => {
   const unit = join(here, '..', '..', 'docker', 'tests', 'test-sign-in.sh');
-  const bad = [['--bogus'], ['--part'], ['--part='], ['--part', 'x'], ['--part=0/2'], ['--part', '3/2'], ['--part=19/19'], ['--part', '1/2', '--part', '2/2']];
+  // Each bad argument, with the text its one line names. The n of 999999/999999 is above any listing's file count, so that the
+  // case is refused whatever spec files the project holds.
+  const bad = [
+    [['--bogus'], "'--bogus'"],
+    [['--part'], '--part needs one value'],
+    [['--part='], "''"],
+    [['--part', 'x'], "'x'"],
+    [['--part=0/2'], "'0/2'"],
+    [['--part', '3/2'], "'3/2'"],
+    [['--part=999999/999999'], '999999/999999'],
+    [['--part', '1/2', '--part', '2/2'], "'2/2'"],
+  ];
 
-  for (const args of bad) {
-    it(`exits 2 with one line and no LOCK line for ${args.join(' ')}`, () => {
+  for (const [args, named] of bad) {
+    it(`exits 2 with one line naming the value and no LOCK line for ${args.join(' ')}`, () => {
       const run = spawnSync('bash', [unit, ...args], { env: bareEnv(), encoding: 'utf8' });
       assert.equal(run.status, 2, run.stdout + run.stderr);
       const lines = (run.stdout + run.stderr).split('\n').filter((line) => line !== '');
       assert.equal(lines.length, 1, `one line: ${lines.join(' | ')}`);
+      assert.ok(lines[0].includes(named), `the line names ${named}: ${lines[0]}`);
       assert.ok(!/LOCK/.test(run.stdout + run.stderr));
     });
   }
@@ -256,4 +268,181 @@ describe('the real listing of the chromium project', () => {
       }
     });
   }
+});
+
+// --- the unit's own steps, run without a stack: its listing step on a stub npm, its PART-line parse, its count guard ---
+
+const unitPath = join(here, '..', '..', 'docker', 'tests', 'test-sign-in.sh');
+const unitText = readFileSync(unitPath, 'utf8');
+
+/** The lines of the unit's script from the one that matches `from` up to, not including, the one that matches `before`. */
+function unitLines(from, before) {
+  const lines = unitText.split('\n');
+  const start = lines.findIndex((line) => from.test(line));
+  assert.ok(start >= 0, `test-sign-in.sh holds a line matching ${from}`);
+  const end = lines.findIndex((line, index) => index > start && before.test(line));
+  assert.ok(end > start, `test-sign-in.sh holds a line matching ${before} after it`);
+  return lines.slice(start, end).join('\n');
+}
+
+describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () => {
+  const stubs = join(work, 'stub-bin');
+  const scratch = join(work, 'stub-tmp');
+  mkdirSync(stubs, { recursive: true });
+  mkdirSync(scratch, { recursive: true });
+  writeFileSync(join(stubs, 'npm'), '#!/bin/bash\nprintf \'%s\\n\' "$*" > "$STUB_ARGS"\nif [ -n "${STUB_OUT:-}" ]; then cat "$STUB_OUT"; fi\nexit "${STUB_RC:-0}"\n');
+  chmodSync(join(stubs, 'npm'), 0o755);
+
+  function unit(name, args, { out, rc = 0 }) {
+    const argsFile = join(work, `${name}.args`);
+    const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: argsFile, STUB_RC: String(rc) };
+    if (out !== undefined) env.STUB_OUT = out;
+    rmSync(argsFile, { force: true });
+    const run = spawnSync('bash', [unitPath, ...args], { env, encoding: 'utf8' });
+    return { run, text: run.stdout + run.stderr, argsFile };
+  }
+
+  const leftovers = () => readdirSync(scratch).filter((entry) => entry.startsWith('ocutalon-part.'));
+
+  it('lists the project with Playwright, removes its temporary files, and exits 2 for a part the listing refuses', () => {
+    const out = listingFile('stub-today.json', listing(TODAY));
+    for (const arg of [['--part=19/19'], ['--part', '19/19'], ['--part=3/2']]) {
+      const { run, text, argsFile } = unit('refuse', arg, { out });
+      assert.equal(run.status, 2, text);
+      assert.equal(text.trimEnd().split('\n').length, 1, `one line: ${text}`);
+      assert.ok(!/LOCK/.test(text));
+      assert.equal(readFileSync(argsFile, 'utf8').trim(), '--silent --prefix web run e2e -- --list --reporter=json');
+      assert.deepEqual(leftovers(), [], 'the listing files are removed');
+    }
+  });
+
+  it('exits 1, before any lock, when the listing cannot be made or holds errors', () => {
+    const failing = unit('failing', ['--part', '1/2'], { out: listingFile('stub-text.json', 'Error: a spec failed to load'), rc: 1 });
+    assert.equal(failing.run.status, 1, failing.text);
+    assert.match(failing.text, /FAIL the chromium project's spec files could not be listed/);
+    assert.deepEqual(leftovers(), []);
+    const broken = unit('broken', ['--part', '1/2'], { out: listingFile('stub-errors.json', { ...listing([1, 1]), errors: [{ message: 'SyntaxError in a.spec.ts' }] }) });
+    assert.equal(broken.run.status, 1, broken.text);
+    assert.match(broken.text, /SyntaxError in a\.spec\.ts/);
+    for (const { text } of [failing, broken]) assert.ok(!/LOCK/.test(text));
+    assert.deepEqual(leftovers(), []);
+  });
+
+  it("prints the PART line and names the part in its texts, and with no part prints nothing and keeps the whole unit's texts", () => {
+    // The script's part block (from `part_label=""` to the bundle rebuild) runs on its own, after the arguments were read.
+    const block = unitLines(/^part_label=""$/, /^LIVE_REBUILD_WEB=1$/);
+    const out = listingFile('stub-block.json', listing(TODAY));
+    const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: join(work, 'block.args'), STUB_OUT: out };
+    const run = (given, part) => {
+      const harness = ['set -u', `script_dir=${JSON.stringify(dirname(unitPath))}`, `part=${JSON.stringify(part)}`, `part_given=${given}`, block, 'printf \'specs=%s\\nsummary=%s\\n\' "$chromium_specs" "$summary"'].join('\n');
+      return spawnSync('bash', ['-c', harness], { env, encoding: 'utf8' });
+    };
+    const part = run(1, '2/2');
+    assert.equal(part.status, 0, part.stderr);
+    assert.deepEqual(part.stdout.trimEnd().split('\n'), [
+      describePart(listing(TODAY), 2, 2).split('\n')[0],
+      'specs=of these rows, those in the spec files of part 2/2 of the chromium project',
+      'summary=test-sign-in part 2/2',
+    ]);
+    const whole = run(0, '');
+    assert.equal(whole.status, 0, whole.stderr);
+    assert.equal(whole.stdout, 'specs=the specs of the chromium project\nsummary=test-sign-in\n');
+    assert.deepEqual(leftovers(), []);
+  });
+});
+
+describe('docker/tests/test-sign-in.sh, its PART-line parse and its count guard', () => {
+  it('reads the part and its test count from the line the helper prints', () => {
+    const parse = unitLines(/^ {2}part_label=/, /^ {2}case \$part_label\$part_tests in/);
+    const line = describePart(listing(TODAY), 2, 2).split('\n')[0];
+    const run = spawnSync('bash', ['-c', `set -u\npart_line=$1\n${parse}\nprintf '%s|%s\\n' "$part_label" "$part_tests"`, 'bash', line], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout.trim(), '2/2|96');
+  });
+
+  const green = (text) => `\u001b[32m${text}\u001b[39m`;
+  const dim = (text) => `\u001b[2m${text}\u001b[22m`;
+  const summary = (...parts) => ['Running 20 tests using 1 worker', '  ok 1 a test that 7 passed', '', ...parts, ''].join('\n');
+
+  /** Runs the script's own verdict block (from `part_ran=""` to the failure count) on a browser log, with the helpers stubbed. */
+  function verdict({ log, status = 0, label = '1/2', tests = '126' }) {
+    const block = unitLines(/^part_ran=""$/, /^if \[ "\$fails" -ne 0 \]/);
+    const logPath = join(work, 'e2e.log');
+    writeFileSync(logPath, log);
+    const harness = [
+      'set -u',
+      'fails=0',
+      'show_log() { :; }',
+      'fail() { echo "FAIL $1"; fails=1; }',
+      'pass() { echo "PASS $1"; }',
+      `e2e_log=${JSON.stringify(logPath)}`,
+      `e2e_status=${status}`,
+      `part_label=${JSON.stringify(label)}`,
+      `part_tests=${JSON.stringify(tests)}`,
+      'chromium_specs="the specs"',
+      block,
+    ].join('\n');
+    return spawnSync('bash', ['-c', harness], { encoding: 'utf8' }).stdout.trim();
+  }
+
+  it('passes a part whose passed tests are its count, with colour codes and a duration on the line', () => {
+    const out = verdict({ log: summary(`  ${green('126 passed')}${dim(' (4.1m)')}`) });
+    assert.match(out, /^PASS .*the specs pass \(126 passed\)$/);
+  });
+
+  it('counts skipped tests with the passed ones, and ignores a flaky line', () => {
+    const out = verdict({ log: summary('  1 flaky', '  26 skipped', `  ${green('100 passed')}${dim(' (4.1m)')}`) });
+    assert.match(out, /^PASS /);
+  });
+
+  it('fails a part that ran fewer or more tests than it lists, naming both counts, even with exit 0', () => {
+    assert.equal(verdict({ log: summary('  19 passed (3s)'), tests: '20', label: '1/18' }), 'FAIL part 1/18 ran 19 of its 20 tests');
+    assert.equal(verdict({ log: summary('  21 passed (3s)'), tests: '20', label: '1/18' }), 'FAIL part 1/18 ran 21 of its 20 tests');
+    assert.equal(verdict({ log: 'Running 0 tests\n', tests: '20', label: '1/18' }), 'FAIL part 1/18 ran 0 of its 20 tests');
+    assert.match(verdict({ log: summary('  17 passed', '  3 skipped'), tests: '20', label: '2/2' }), /^PASS /);
+  });
+
+  it('fails a run that exits non-zero, whatever its counts, and leaves a run with no part unguarded', () => {
+    assert.match(verdict({ log: summary('  126 passed'), status: 1 }), /^FAIL .*failed \(exit 1\)$/);
+    assert.match(verdict({ log: 'no summary at all\n', label: '', tests: '' }), /^PASS /);
+  });
+});
+
+// --- ci/iris.sh live hands the arguments after the unit name to the unit's script, and nothing else changes ---
+
+describe('ci/iris.sh live, its pass-through', () => {
+  const irisPath = join(here, '..', '..', 'ci', 'iris.sh');
+  const root = join(work, 'live-root');
+  mkdirSync(join(root, 'docker', 'tests'), { recursive: true });
+  writeFileSync(join(root, 'docker', 'tests', 'test-fake.sh'), '#!/bin/bash\necho "argc=$#"\nfor a in "$@"; do echo "arg=[$a]"; done\n');
+
+  function live(...args) {
+    // The function itself is cut out of ci/iris.sh; the checks around it (lock, docker, Chromium) are stubbed.
+    const harness = [
+      'set -u',
+      'BROWSER_UNITS=""; FIREFOX_WEBKIT_UNITS=""; WARM_MODE=cold',
+      'live_known() { [ "$1" = fake ]; }; warm_check() { :; }; setup_tag() { :; }; preflight() { :; }',
+      `eval "$(sed -n '/^cmd_live() {/,/^}/p' ${JSON.stringify(irisPath)})"`,
+      'cmd_live "$@"',
+    ].join('\n');
+    return spawnSync('bash', ['-c', harness, 'bash', ...args], { cwd: root, env: bareEnv(), encoding: 'utf8' });
+  }
+
+  it('gives the script no argument when there is none after the unit name, as before', () => {
+    const run = live('fake');
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nargc=0\n');
+  });
+
+  it('gives the script the arguments after the unit name, each whole', () => {
+    const run = live('fake', '--part', '1/2', 'two words');
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nargc=3\narg=[--part]\narg=[1/2]\narg=[two words]\n');
+  });
+
+  it('still refuses an unknown unit with exit 2', () => {
+    const run = live('nope', '--part', '1/2');
+    assert.equal(run.status, 2);
+    assert.match(run.stdout, /unknown live unit 'nope'/);
+  });
 });

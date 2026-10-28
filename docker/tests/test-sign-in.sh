@@ -68,7 +68,11 @@ part_given=0
 while [ "$#" -gt 0 ]; do
   case $1 in
     --part)
-      if [ "$#" -lt 2 ] || [ "$part_given" -eq 1 ]; then
+      if [ "$part_given" -eq 1 ]; then
+        echo "test-sign-in: --part is given once, and again as '${2:-}' (usage: test-sign-in.sh [--part k/n])"
+        exit 2
+      fi
+      if [ "$#" -lt 2 ]; then
         echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--part k/n])"
         exit 2
       fi
@@ -78,7 +82,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     --part=*)
       if [ "$part_given" -eq 1 ]; then
-        echo "test-sign-in: --part is given once (usage: test-sign-in.sh [--part k/n])"
+        echo "test-sign-in: --part is given once, and again as '${1#--part=}' (usage: test-sign-in.sh [--part k/n])"
         exit 2
       fi
       part=${1#--part=}
@@ -123,7 +127,7 @@ if [ "$part_given" -eq 1 ]; then
   echo "$part_line"
 fi
 chromium_specs="the specs of the chromium project"
-[ -z "$part_label" ] || chromium_specs="the specs of part $part_label of the chromium project"
+[ -z "$part_label" ] || chromium_specs="of these rows, those in the spec files of part $part_label of the chromium project"
 summary="test-sign-in"
 [ -z "$part_label" ] || summary="test-sign-in part $part_label"
 
