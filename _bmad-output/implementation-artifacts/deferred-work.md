@@ -1628,3 +1628,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci.yml group times on bed6d27: shards 31m52s, browser 23m05s, image 21m32s, install-fresh 14m02s, install-upgrade 12m58s, production 9m20s; production and browser are pinned by test-ci-changes.sh and the demo-path gate
 - 2026-10-28T03:51:21Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=merge_gate note=first change in 9.1: move live:cards to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated; test infrastructure only
 - 2026-10-28T03:54:34Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=orchestrator note=owner via Contest Planner: TRIGGER - if any head's iris (shards) job runs longer than 36 min before Epic 9 merges, pull this forward as a fix-forward in the epic whose head did it (move live:cards to the shorter of install-fresh and install-upgrade, measured); the iris job's hard limit is timeout-minutes 40 (ci.yml:89)
+
+### DW-350: Test.Core.RoutingProduction's TestEvalItemWritesNoDeliveryOrEvent docstring still says the stub EvalSink answers an error status; since 9.1 EvalSink finds no sent row for that Item, logs a warning, stores nothing and answers OK
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Lane B test passed unchanged in 9.1's lane-b shard run (64 classes); only the docstring sentence is stale
+- 2026-10-28T15:22:57Z status=open owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=one-sentence docstring fix: Test/Core/RoutingProduction.cls is no contended epic's path, so 9.1's code review patches it as a reported footprint extension
+
+### DW-351: Spine lint reports ok:false with 8 low 'possible unfilled template token' findings (lines 402, 847, 860, 923, 927), so 9.1's task 11 expectation of ok:true cannot hold
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: same 8 findings on the spine at HEAD and after 9.1's Tables-line edit; they are prose format examples ({time}, {day}, {what happened}, {reason}, {entry}, {finding}, {n}), not template tokens
+- 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=known baseline (Epic 9 start: lint=baseline 8 low placeholder, no AD findings; line 923's HostData row, U-120); the gate for a spine write is no new finding and no ad_id/ad_fields finding
+
+### DW-352: 9.1's task 11 memlog entry (AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's) was not appended: the spine's .memlog.md is gitignored and exists only in the main checkout
+- source: spec-9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: .gitignore:48 ignores .memlog.md; memlog.py append in the worktree raised FileNotFoundError and wrote nothing
+- 2026-10-28T15:22:57Z status=by-design owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=harvest note=runner precedent memlog=absent (27 runner entries): the spine text itself is the durable record of the Tables-line change
