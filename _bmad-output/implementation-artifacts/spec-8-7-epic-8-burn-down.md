@@ -2,7 +2,7 @@
 title: 'Story 8.7: Epic 8 burn-down'
 type: 'chore'
 created: '2026-10-27'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '182f2225f390fc95998cf071f7948b54fbdf646e'
 baseline_commit: '182f2225f390fc95998cf071f7948b54fbdf646e'
 review_loop_iteration: 0
@@ -250,7 +250,11 @@ Code review, 2026-10-27: Tier 1 on this spec, baseline `182f222`, full mode, fou
 - Acceptance 6 (process): QA's tests are uncommitted. The lead commits them.
 - Acceptance 7 (bookkeeping): the Auto Run Result says 24 tests. The fix would edit the spec's result section.
 
+- [ ] [Review] DW-335 (HIGH, AD-22; orchestrator ruling 2026-10-28: option (a) allowed, decide): add exactly one alternation, `|docker/tests/test-sign-in\.sh$`, to `WEB_INPUT_PATTERN` in `ci/units.sh` (line 54; shared by entry, a plain union at integrate-forward), so a push that changes only `docker/tests/test-sign-in.sh` runs the hosted `web` job's unit tests that read and run it; and add a check that pins it (a hermetic test that fails if the pattern stops matching `docker/tests/test-sign-in.sh`, preferably in `web/scripts/e2e-part.test.mjs`), with an observed mutation and its `mutation:` line. Nothing else in `ci/units.sh`.
+
 ## Spec Change Log
+
+- 2026-10-28 (lead): rework iteration 1 opened after code review (HIGH DW-335); the orchestrator allowed the one `WEB_INPUT_PATTERN` alternation (option (a)); one `[Review]` item under Tasks & Acceptance.
 
 ## Review Triage Log
 
