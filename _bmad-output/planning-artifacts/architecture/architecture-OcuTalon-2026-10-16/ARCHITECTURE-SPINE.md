@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: release 1 (0.1.0), the 1.0.0 kit, and build steps 2 to 7'
 status: final
 created: '2026-10-16'
-updated: '2026-10-27'
+updated: '2026-10-28'
 binds: [FR-1..FR-62, NFR-1..NFR-26, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -1095,7 +1095,7 @@ flowchart LR
 | `Checks` | `OcuTalon.Checks.Process` | A |
 | `DigestStore`, and `Digest` from step 2 | `OcuTalon.Digest.Store`, `.Process` | A |
 
-**Tables:** Lane B owns `Session`, `AddressCounter`, `StatusMark`, `GuideState`, `BreakFeedRun`, `Pairing`, `Turn`, `SimMessage`, `Delivery`, `Reminder`, `Setting` and `Live.Event`. Lane A owns `BackgroundCheck` (production watches included), `WatchMark`, `Incident`, `FailureGroup`, `FixRun` and every `OcuTalon.Bridge.Data` class (`Decision`, `ApprovalRequest`, `Usage`, `Price`, `ConversationLink`, `ModelFamily`), `OcuTalon.Digest.Data.Item` (the items `DigestStore` keeps for the digest, from release 1), and from steps 3 and 4 `Memory`, `Document`, `Mcp.Server` and `Mcp.ToolClassification`, and from step 5 `SettingSnapshot` and `SettingChange` (AD-15). A developer's own tool classifications are a bridge setting, not a table.
+**Tables:** Lane B owns `Session`, `AddressCounter`, `StatusMark`, `GuideState`, `BreakFeedRun`, `Pairing`, `Turn`, `SimMessage`, `Delivery`, `Reminder`, `Setting` and `Live.Event`. Lane A owns `BackgroundCheck` (production watches included), `WatchMark`, `Incident`, `FailureGroup`, `FixRun` and every `OcuTalon.Bridge.Data` class (`Decision`, `ApprovalRequest`, `Usage`, `Price`, `ConversationLink`, `ModelFamily`), `OcuTalon.Digest.Data.Item` (the items `DigestStore` keeps for the digest, from release 1), `OcuTalon.Eval.Data.CaseResult` (an evaluation run's result per case, which `EvalIn` opens and `EvalSink` completes, from Story 9.1), and from steps 3 and 4 `Memory`, `Document`, `Mcp.Server` and `Mcp.ToolClassification`, and from step 5 `SettingSnapshot` and `SettingChange` (AD-15). A developer's own tool classifications are a bridge setting, not a table.
 
 **Cross-area classes and APIs** called outside their own area (owning lane, and where it is built; the rest follow AD-29's package split):
 

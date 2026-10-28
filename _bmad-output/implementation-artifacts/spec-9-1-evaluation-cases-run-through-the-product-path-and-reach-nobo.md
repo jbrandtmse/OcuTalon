@@ -2,13 +2,35 @@
 title: 'Story 9.1: Evaluation cases run through the product path and reach nobody'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '55df328685cb1fd558626063f788f1edded54daf'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Test.Core.RoutingProduction's docstring for TestEvalItemWritesNoDeliveryOrEvent says "The stub EvalSink answers an error status, which the route ignores". EvalSink is built now: it finds no sent row for that Item, logs a warning and stores nothing, still answering OK.
+    evidence: |-
+      Lane B's test passed unchanged in the lane-b shard of this change (64 classes). The spec forbids editing Lane B's tests, so the sentence is left for the lead to route to Lane B.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls (docstring of TestEvalItemWritesNoDeliveryOrEvent)
+    severity: low
+  - summary: >-
+      Task 11's lint cannot report "ok": true: lint_spine.py reports "ok": false with 8 low "possible unfilled template token" findings on the spine at HEAD and the same 8 after this change.
+    evidence: |-
+      Run on a copy of the HEAD spine and on the edited spine, both: total_findings 8, all category placeholder, lines 402, 847, 860, 923 and 927 (format-string examples in prose such as {time}, {day}, {what happened}, {reason}, {entry}, {finding} and {n}). The edit of the Tables line adds none. Clearing them means rewording five unrelated lines of the spine, which the task does not name.
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (lines 402, 847, 860, 923, 927)
+    severity: low
+  - summary: >-
+      The memlog entry of Task 11 was not appended: this worktree has no .memlog.md, so memlog.py append failed with FileNotFoundError and wrote nothing.
+    evidence: |-
+      .memlog.md is gitignored (.gitignore:48) and exists only in the main checkout, which this stage must not touch. The lead appends it there: uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "AD-33: OcuTalon.Eval.Data.CaseResult is Lane A's (Story 9.1)".
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/.memlog.md
+    severity: low
 ---
 
 <intent-contract>
@@ -310,6 +332,44 @@ Tests (each asserts on these runs only):
 
 ## Review Triage Log
 
+### 2026-10-28 - Review pass
+- verdicts: 34 findings - high 0, medium 3, low 27, false 2, maybe-false 2
+- findings:
+  - `[low]` `[patch]` Blind Hunter: EvalIn leaves an orphaned `sent` row when `Send` throws after `CaseResult.Open` - real (only the error-status branch removed the row); fixed: `Dispatch` is wrapped so a throw becomes an error status, `ZzIn` can throw, `TestSendFails` covers it (grouped with the Edge Case Hunter's row 13).
+  - `[low]` `[reject]` Blind Hunter: failed SQL reads in `Unanswered`, `Pending` and `CaseNames` look like "nothing to do" - needs the SQL engine itself to fail; the fix adds logging branches to three methods.
+  - `[low]` `[reject]` Blind Hunter: `Start` on a missing or empty folder returns OK with 0 sent - the product keeps `EvalIn` disabled and the throwaway mounts `eval/`, so a caller meets this only after a misconfiguration the run's `sent` of 0 already shows; the fix adds a guard.
+  - `[low]` `[reject]` Blind Hunter: `names` entries are not checked to be plain folder names - `names` comes from test and CI code, not from a user; no reachable harm.
+  - `[low]` `[reject]` Blind Hunter: `TestIsolation` could miss re-sessioned messages, un-listed targets and `Live.Event.Stream` - the test does what the spec's Task 10 lists (the seven targets and `*Out`, the four tables above their marks, the payload refs); no re-sessioning hop is shown to exist.
+  - `[low]` `[reject]` Blind Hunter: `TestRefuses` and `TestRefusals` check only one warning text and count the rest - each case's reason is asserted in the `skipped` list, and the warning count is asserted; cosmetic.
+  - `[low]` `[reject]` Blind Hunter: an Item with blank text, subject and sender counts as sent and Intake refuses it - Design Notes decision 9 chose this (the row stays `sent` and shows in 9.2's "every case completes" check); recorded cases always carry content (grouped with row 12).
+  - `[low]` `[reject]` Blind Hunter: `CaseResult.Remove` with an empty case name deletes the whole run - `Open` rejects an empty case name before any `Remove` call, and the run-wide delete is the spec's `Remove(runRef)`.
+  - `[low]` `[reject]` Blind Hunter: `EvalSink` matches the row by `ItemId` only - the `ItemId` is a fresh 128-bit Ref that `EvalIn` mints, so no other decision can carry it.
+  - `[low]` `[patch]` Blind Hunter: `Test.Eval.In` leaves the `^OcuTalonTest("EvalInTest","n")` counter - real but trivial; fixed: the folder name comes from a `NewRef()` fragment and no global is kept.
+  - `[low]` `[patch]` Blind Hunter: the Rule 21 record mixes two measurements of `lane-a` part 3 (125 s before `Test.Eval.In` existed, 119 s after) - real; fixed in the record (final figures re-measured in the (once) shard runs).
+  - `[low]` `[reject]` Edge Case Hunter: blank sender, subject and text are sent and Intake refuses them - same root as row 7.
+  - `[low]` `[patch]` Edge Case Hunter: `Dispatch` throws after `Open` leaves the case's row - same root as row 1; fixed there.
+  - `[low]` `[reject]` Edge Case Hunter: the status of `Remove` after a failed send is discarded - a `Remove` failure needs the SQL engine to fail; no realistic path.
+  - `[low]` `[reject]` Edge Case Hunter: `Start` with a missing folder or a `names` of commas only returns a run with 0 cases - same root as row 3.
+  - `[low]` `[reject]` Edge Case Hunter: a `names` entry with a separator or `..` - same root as row 4.
+  - `[low]` `[reject]` Edge Case Hunter: `Wait` with an empty run Ref returns 0 - `Start` returns an error status and no Ref in that case, and every caller waits on the Ref it got.
+  - `[low]` `[reject]` Edge Case Hunter: `Test.Eval.Run.Prepare` leaks rows when `Start` throws after minting the Ref - `Start` returns statuses and does not throw on a path shown; the stack is a throwaway destroyed after the run.
+  - `[low]` `[reject]` Edge Case Hunter: the class comment says a case not sent is logged, but a `ProcessInput` error status is only put into `skipped` - the matrix row is about `OnProcessInput`'s reasons, which are logged; the framework error is rare and shown in `skipped`.
+  - `[low]` `[defer]` Edge Case Hunter: the stale "stub EvalSink" comment of `Test.Core.RoutingProduction` and the warning row that its test now leaves in the log - the comment is already in `deferred:`; the warning is by design (Design Notes, shared-surface notes) and no assertion reads the log there.
+  - `[medium]` `[patch]` Verification Gap: no test distinguishes `CostUSD` read from the Usage rows from `Decision.CostUSD` - confirmed (every Sink test set equal costs); fixed: `TestCostFromUsage` and its mutation line.
+  - `[medium]` `[patch]` Verification Gap: `Start` is only run with `sent` 0 or 1 through the production, so `Set sent = 1` and sessions shared between cases ship green - confirmed; fixed: run 2 holds a second sendable case, `TestTwoCases`, and two mutation lines (grouped with row 29).
+  - `[false]` `[reject]` Verification Gap: `Switch.TestStartRefused` runs the refusal only when `OCUTALON_EVAL` is not 1 - spec Task 8 says exactly this ("When the variable is 1: ... the class calls no Start"), and CI starts the stack with it at 0, so the refusal branch runs there.
+  - `[maybe-false]` `[reject]` Verification Gap: the absence checks run once the rows are decided, so a later hop would not be seen - would need a hop after `Intake.Finish`, which none sends; if true it would be low.
+  - `[maybe-false]` `[reject]` Verification Gap: the `Delivery` and `ApprovalRequest` counts are not scoped by owner and could flake on a background writer - the spec's Task 10 says no row above the mark; no writer in a throwaway is shown; if true it would be low.
+  - `[low]` `[reject]` Verification Gap: `Test.Eval.Switch` reds if `Test.Eval.Run`'s teardown fails - a failed teardown is itself reported by `Run`; a second red on the same cause.
+  - `[low]` `[defer]` Verification Gap, other findings: the stale `RoutingProduction` comment - already in `deferred:` (row 20).
+  - `[false]` `[reject]` Intent Alignment 3.1: the live proof enables `EvalIn` with `PutDefault`, not through the install step - AC1 delegates the install-step path to `live production-restart` row 19, which ran green with the built class.
+  - `[medium]` `[patch]` Intent Alignment 3.2: two cases under one SuperSession are never sent through the production and no assertion compares `SessionId` across cases - same root as row 22; fixed there.
+  - `[low]` `[reject]` Intent Alignment 3.3: the incident cause and fix are exercised only on synthetic rows in `Test.Eval.Sink` - the incident path through `IncidentManager` is Story 9.6's (Never list); the spec's Task 9 asks for exactly this.
+  - `[low]` `[reject]` Intent Alignment 3.4: a capped day and `GatewaySpendUSD` are not exercised - the cap and the gateway are the bridge's (Epic 7, contended); the spec asks for the daily spend to be unchanged, which `TestUsage` pins.
+  - `[low]` `[reject]` Intent Alignment 3.5: "reaches nobody" is checked at message and table level, not at the network - the spec's Task 10 lists the checks; the mock is the only configured egress.
+  - `[low]` `[reject]` Intent Alignment 3.6: the case is written by hand, its expectation `ignore` is not compared with the live `digest`, and the default folder holds nothing outside a throwaway - the spec fixes the case and its expectation (Task 5); scoring is Story 9.2's.
+  - `[low]` `[reject]` Intent Alignment 3.7: the `shards` figure predates `Eval` joining `lane-a` - the lead's after-figures are at `98f69be` by the spec; the local cost of `Eval` is in the same record.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6):**
@@ -337,6 +397,27 @@ No AC contradicts an AD.
 5. **Cost.** `CostUSD` is the attention decision's own cost (NFR-4: "per decision"). The untrusted turn's cost is kept apart in `TurnCostUSD`, and `LargestRequestTokens` covers both (NFR-3).
 6. **The act case.** It is a test-only fixture written by the test, through the existing scenario `decide-act-low-confidence`, so no new mock file is needed.
 7. **The shard.** `Test.Eval` joins `lane-a` (AD-22: whole areas aligned with the lanes). It adds about 1 to 2 minutes, measured locally (inference until measured), to the `shards` group that DW-337 just shortened. Rule 21's rule applies: rebalance the groups first if the group nears 35 minutes.
+
+8. **Task 0 (the switch at run time).** `Ens.Director.UpdateProduction()` after `PutDefault("EvalIn","Enabled",1)` is enough, so `Test.Eval.Run` sets up and restores with it, and checks the director's answer after each update (`Apply`). See the Task 0 result in Verification.
+9. **EvalIn, small choices.**
+   - The case's name is its folder name, and a name given twice in `names` is sent once.
+   - A recorded provenance that is absent counts as untrusted; one that is present and not `untrusted` is refused. The Item's provenance is always `untrusted`.
+   - A case whose Item has no text, subject or sender is not refused by EvalIn: Intake refuses it with a warning, and the row stays `sent`, visible to Story 9.2's "every case completes" check.
+   - `CaseResult.Remove(runRef, caseName)` takes an optional case name (the failed send deletes its one row), and `CaseResult.Unanswered(runRef)` counts the `sent` rows for `Wait`. `EvalIn.Scalar` is public because `EvalSink` reads the Decision payload with it.
+   - The one send is a private `Dispatch` seam, as `SimMailbox.In.Send` is, so that `Test.Eval.In` (warm-safe, with the double `Test.Eval.ZzIn`) checks the Item, the open row, the SuperSession, the refusal reasons and the failed send without a production. The matrix row "Send fails" has no other test.
+10. **EvalSink, small choices.**
+   - `TurnCostUSD` is the turn Decision row's own `CostUSD` (Decide writes it from `Usage.Totals`, so it is empty when any of the turn's rows is unpriced).
+   - An empty `Payload` on a diagnose Decision (a fallback) leaves the cause fields empty and logs nothing; a payload that is not a JSON object is logged as an error (`ReadDiagnosis`). The warnings come from `Complete` and the errors from `OnMessage`, `ReadDiagnosis` and `Largest`.
+11. **Test.Eval.Run, small choices.**
+   - A case still undecided after the wait is a failure of `TestItemPath` or `TestActTurn`, not a setup failure, so the other tests still read what the runs wrote. Rule 19's mutation "SessionRef is instance" then fails `TestIsolation` and `TestUsage` on their own assertions, not through the guard.
+   - `TestUsage` finds the Usage rows by the ItemId that EvalIn opened its rows with, so it needs no completed row; it also checks that each recorded decision has a row of owner `eval`.
+   - `OnAfterAllTests` removes the runs' messages itself before the superclass does, because the superclass skips that when `Missing` is set.
+12. **Measured shard cost (replaces decision 7's inference).** `Test.Eval` takes 8.5 s in the `lane-a` shard (`Run` 7.1 s, `Sink` 1.2 s, `In` 0.2 s, `Switch` 0.03 s), not 1 to 2 minutes. Rule 21 holds the record.
+13. **Review patches (2026-10-28).**
+   - `EvalIn.Send` turns an exception from `Dispatch` into an error status, so a send that throws deletes the case's row like one that fails (`ZzIn` throws when `^OcuTalonTest("EvalIn","throw")` holds a text; `TestSendFails` covers it).
+   - `Test.Eval.In` names its folder from a `NewRef()` fragment and keeps no counter global.
+   - `Test.Eval.Sink.TestCostFromUsage` pins that `CostUSD` is the sum of the Usage rows (the Decision's own cost differs there) and that an unpriced row leaves it empty although the Decision holds a cost.
+   - `Test.Eval.Run` run 2 holds a second sendable case, `zz-plain`; `TestTwoCases` pins two trace sessions under the run's one SuperSession, one Item, row and decision each, and `Sent2` is 2.
 
 **Integration and linkage (Rules 1 and 2):**
 - **Consumes:**
@@ -425,6 +506,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (loop) `bash docker/tests/test-ci-config.sh` -- expected: passes, with `Test/Eval` in shard `lane-a`
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s1iw ci/iris.sh class OcuTalon.Test.Eval.Sink` -- expected: `CLASS … passed`
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s1iw ci/iris.sh class OcuTalon.Test.Eval.Switch` -- expected: passed
+- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s1iw ci/iris.sh class OcuTalon.Test.Eval.In` -- expected: passed (the class the implement stage added for the matrix rows "Case not sent" and "Send fails")
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s1iw ci/iris.sh class OcuTalon.Test.Install.Production` -- expected: passed (the stub flags)
 - (loop) `<B> OCUTALON_RUN_TAG=e9s1i ci/iris.sh class OcuTalon.Test.Eval.Run` -- expected: passed. It runs fresh because `EvalSink`'s running job must load the new code; its first run is Task 0
 - (once) `bash ci/checks.sh` -- expected: every block passes
@@ -446,7 +528,26 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | AC3 | `EvalIn` sets `SessionRef` to `instance` | `TestIsolation` and `TestUsage` |
 | AC4 | `EvalSink` reads `elementAtFault` from `cause` | `Test.Eval.Sink`'s incident test |
 
-**Task 0 result:** the implement stage records it here.
+- mutation: `Production.cls` `EvalIn` `Enabled="false"` changed to `Enabled="true"` -> `Test.Eval.Switch` `TestDefinition` went red ("EvalIn is disabled in the definition"); reverted from a backup (sha identical), warm stack.
+- mutation: `Eval/In.cls` `SourceItemId` set to the new `ItemId` -> `Test.Eval.Run` `TestItemPath` went red (the Item's ids, "is not the recorded id", the row's ids and the ItemDecision copy); reverted, warm stack.
+- mutation: `Eval/In.cls` `SessionRef` set to `Ownership.#INSTANCE` -> `Test.Eval.Run` on a fresh stack: `TestIsolation` ("no message of the runs is addressed to a router, notice, conversation, digest, approval, incident or Out item") and `TestUsage` ("every one is owned by eval", "the daily spend is as it was before the runs") went red, as did `TestItemPath` and `TestActTurn` (the cases were never decided within the 120 s waits; 247 s in all); reverted.
+- mutation: `Eval/Sink.cls` `elementAtFault` read from `cause` -> `Test.Eval.Sink` `TestIncident` ("the element at fault is the payload's, not the cause's") and `TestNoFix` went red; reverted, warm stack.
+- mutation: `Eval/In.cls` failed send keeps its row (the `Remove` line deleted) -> `Test.Eval.In` `TestSendFails` went red ("and the row is deleted", "the case is sent when the send works"); reverted, warm stack.
+- mutation (review patch): `Eval/Sink.cls` `CostUSD` read from `decision.CostUSD` instead of `Usage.Totals` -> `Test.Eval.Sink` `TestCostFromUsage` went red ("the cost is the sum of the Usage rows" and "an unpriced Usage row makes the cost empty"), every other Sink test staying green; reverted from backup (sha identical), warm stack.
+- mutation (review patch): `Eval/In.cls` the Try/Catch around `Dispatch` removed -> `Test.Eval.In` `TestSendFails` went red on its throw case ("and the row is deleted", "the case is sent when the send works"); reverted, warm stack.
+- mutation (review patch): `Eval/In.cls` `Start`'s `Set sent = sent + 1` changed to `Set sent = 1` -> `Test.Eval.Run` `TestActTurn` went red ("run 2 sent two cases"); reverted, warm stack.
+- mutation (review patch): `Eval/In.cls` `Send` reuses the first case's trace session (a process variable carries `..%SessionId` from one dispatch to the next) -> `Test.Eval.Run` `TestTwoCases` went red ("each is its own trace session: 74 and 74" and, twice, "holds its own ItemDecision for EvalSink"); reverted, warm stack. A first attempt that set `..%SessionId` to the run Ref (not a number) broke every send and showed nothing about sessions, so it was discarded.
+
+**Task 0 result:** `PutDefault("EvalIn","Enabled",1)` followed by `Ens.Director.UpdateProduction()` makes `CreateBusinessService("EvalIn")` succeed, and `RestoreDefault` followed by `UpdateProduction()` makes it refuse again ("Configuration item 'EvalIn' is disabled"). `RestartProduction()` is not needed, and `Test.Eval.Run` uses `UpdateProduction()` for both.
+- Probed by hand on the warm throwaway's running production: the update took 0.04 s to enable and 0.01 s to restore, and `NotRunning()` was empty after each.
+- Then on fresh throwaways, where `Apply` does exactly this at setup and teardown and asserts the director's answer after each update. The first fresh run passed both steps before it failed on a fixture bug (a `%ConstructClone` call, fixed); the runs after it passed, the last at 7.3 s after an 88 s start.
+
+**Results of the implement stage (2026-10-28; tags `e9s1i` fresh and `e9s1iw` warm; ARM; `LOCK` lines: `LOCK acquired warm-iris project=ocutalon-warm-e9s1iw-1793193441-1212`, and `LOCK acquired` / `LOCK released throwaway-iris` once for every fresh call):**
+- `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/checks.sh` (13 blocks) passed.
+- Warm: `Test.Eval.Sink` (12 tests of 9 methods), `Test.Eval.Switch`, `Test.Eval.In` and `Test.Install.Production` passed, forward and in reverse order, with `Test.Eval.Run` (warm, 7 s): the stack held no case row, no `eval` Decision or Usage row, no header of `EvalIn`, no AI session, no step, no fixture folder, the EvalIn row 0, EvalIn refused and the keys at the placeholder after them.
+- Fresh: `Test.Eval.Run` passed (96 s with the start; 7.3 s of tests). `shard lane-a` parts 1 to 4 passed (346, 149, 125 and 395 s; part 3 again after `Test.Eval.In` was added, 119 s). `shard lane-b` passed (64 classes, 238 s). `live production`, `live production-restart` (row 19 enables and refuses the built `EvalIn`) and `live storage-roundtrip` (80 classes, the compiled `CaseResult` storage equal to the committed one) passed.
+- After the review patches (the parent stage; same tags): `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/checks.sh` passed. Warm: `Test.Eval.Sink`, `In`, `Run`, `Switch` and `Test.Install.Production` passed, the four Eval classes also in reverse name order, and the warm stack held no case row, `eval` Decision or Usage row, `EvalIn` header, AI session or fixture folder afterwards, with `EvalIn` refused. Fresh: `Test.Eval.Run` passed in `shard lane-a` part 3 (7.2 s); `shard lane-a` parts 1 to 4 passed (358, 155, 115 and 394 s, stack starts 93, 81, 81 and 81 s); `shard lane-b` passed (64 classes, 229 s); `live production`, `live production-restart` and `live storage-roundtrip` (80 classes) passed. `LOCK` lines: `LOCK acquired warm-iris project=ocutalon-warm-e9s1iw-1793197664-60217`, and `LOCK acquired` / `LOCK released throwaway-iris` once for every fresh call.
+- Not done: `lint_spine.py` reports `"ok": false` (8 low findings, the same as at HEAD) and the memlog append could not run in this worktree; both are in `deferred:`.
 
 **DW-337 after figures (the lead fills these):** the `iris (shards)` and `iris (install-upgrade)` job times of CI run 40688986518, or of a later full run, against the before figures in Design Notes. Then the lead adds the minutes to the Rule 21 record from task 12(c).
 
@@ -454,5 +555,32 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `EvalIn` and `EvalSink` are built and their stubs are gone. `OcuTalon.Eval.In.Start` creates the disabled-by-default service through the director, mints a run Ref, and sends each recorded item case to `Intake` as an Item owned by `eval` (fresh `ItemId`, `SourceItemId` the recorded id, provenance `untrusted`, the run's Ref as `SuperSession`). `OcuTalon.Eval.Sink` completes one `OcuTalon.Eval.Data.CaseResult` row per case from the `ItemDecision` and the bridge's `Decision` and `Usage` rows, including a diagnose payload's cause and fix. `Test.Eval.Run` proves on the running production, in a throwaway, that two runs reach nobody and leave the daily spend unchanged. DW-337's measured grouping record is in Rule 21 of `_bmad/custom/skill-rules.md`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Eval/In.cls`: `Start`, `Wait`, `OnProcessInput`, the case refusals and the Item builder.
+- `src/ocutalon/cls/OcuTalon/Eval/Sink.cls`: the row completion, the diagnose read, the cost and size reads, the warnings.
+- `src/ocutalon/cls/OcuTalon/Eval/Data/CaseResult.cls` (new): Lane A's result table with its committed storage block.
+- `src/short-names.tsv`: the `EvalCaseResult` registry row.
+- `eval/mail-newsletter/case.json` (new): the first recorded item case.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/{Switch,Sink,Run,In,ZzIn}.cls` (new): the switch, the sink rows, the live runs, `EvalIn`'s per-case handling and its test double.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: the two oracle rows read `"stub": 0` and one docstring sentence.
+- `ci/units.sh`: `Eval` joins the `lane-a` areas.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the Tables line names `CaseResult`; `updated:` is 2026-10-28.
+- `_bmad/custom/skill-rules.md`: the appended DW-337 record under Rule 21's "Groups" notes.
+- This spec: Task 0 result, mutation lines, Design Notes items 8 to 13, the triage log, `deferred:`.
+
+**Review findings (34 from four layers; see the triage log).** Patches applied (4 entries): a send that throws now deletes the case's row (`EvalIn.Send`, `ZzIn`, `TestSendFails`); `Test.Eval.In` keeps no counter global; `TestCostFromUsage` pins that `CostUSD` is read from the Usage rows; run 2 holds a second sendable case and `TestTwoCases` pins two trace sessions under one SuperSession (this also fixed the Rule 21 record's mixed `lane-a` part-3 figure). Patched by verdict: medium 2 entries (3 findings), low 2 entries. Deferred: the stale "stub EvalSink" comment of `Test.Core.RoutingProduction` (already in `deferred:`). Rejected, with reasons in the log: 23 low findings (silent SQL-failure returns, a missing or empty folder, path-shaped `names`, a blank-content case, `Remove` with an empty case name, the `ItemId`-only match, the breadth of `TestIsolation`, the checks of the warning texts, a re-run of the incident and cap paths that other stories own, and similar), 2 false, 2 maybe-false (low if true).
+
+**Follow-up review recommended: true.** Two medium entries were patched. The unverified risk is the patched `Test.Eval.Run` (the `zz-plain` fixture and the order of the `zz-act`, `zz-plain` sends that `TestTwoCases` assumes) and `TestCostFromUsage`: they ran green and went red under their mutations, but no second independent review has read them.
+
+**Verification.** `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/checks.sh` passed. Warm: `Test.Eval.Sink`, `In`, `Run`, `Switch` and `Test.Install.Production` passed, and the Eval classes also in reverse order. Fresh: `shard lane-a` parts 1 to 4 (358, 155, 115 and 394 s), `shard lane-b` (64 classes, 229 s), `live production`, `live production-restart` (row 19) and `live storage-roundtrip` (80 classes) passed. Nine mutations were applied, observed red and reverted from backup with the tree byte-identical (Verification section). Task 0: `UpdateProduction()` after `PutDefault` is enough to enable and to refuse `EvalIn`. Both runtime tags are torn down and the lane's lock folder is empty. The `LOCK` lines are in the Verification results.
+
+**Residual risks and deviations.**
+- `lint_spine.py` reports `"ok": false` (8 low "possible unfilled template token" findings in prose format examples on lines 402, 847, 860, 923 and 927). The spine at `HEAD` gives the same 8, so this change adds none, but Task 11's "must report `"ok": true`" is not met; clearing them rewords five unrelated spine lines, which this stage's footprint does not allow. It is in `deferred:` for the lead.
+- The memlog entry for AD-33 was not appended: the worktree has no `.memlog.md` (it is gitignored and lives in the main checkout). The lead appends it there (command in `deferred:`).
+- The spine edit makes the planning artifacts newer than `epic-9-context.md`: the lead re-runs the pre-warm before Story 9.2's plan.
+- Four class calls of the reverse-order check ran one after another inside one shell command, not one per tool call; they never overlapped.
