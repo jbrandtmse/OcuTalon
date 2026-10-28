@@ -1382,3 +1382,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: LiveWaiter ignores result.%SQLCODE < 0 and answers no waiter; a second waiter of a pending row is harmless (AC 4: the later one finds the row fired and sends nothing)
 - 2026-10-28T00:45:43Z status=wontfix-theoretical owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=real if the ReminderTimer read fails while a waiter lives and the doubled waiter is seen to send a second notification
+
+### DW-334: api.spec's per-test baseline could still see an instance-stream event published between its baseline read and a later read when a publishing spec (heartbeat) ran just before it
+- source: spec-8-7-epic-8-burn-down.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: web/e2e/api/api.spec.ts:103; StatusMonitor publishes only on a change; the one heartbeat-first run passed 21 of 21; standing runs never put heartbeat before api
+- 2026-10-28T02:48:10Z status=open owner=8-7-epic-8-burn-down by=harvest note=unverified (inference); settles with a repeated heartbeat-first run on a fresh stack
