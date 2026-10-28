@@ -2,8 +2,8 @@
 title: 'Story 8.6: Reminders through the chat on the demo path'
 type: 'feature'
 created: '2026-10-27'
-status: 'in-progress'
-baseline_revision: '99931c0368f1974776296c0889c1472cde59886f'
+status: 'done'
+baseline_revision: '36be42418f97800de50ae2711c1bd0c3d9e8557a'
 baseline_commit: '99931c0368f1974776296c0889c1472cde59886f'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -304,7 +304,7 @@ Code review, 2026-10-27 (Epic 8 code-review stage; four layers, no model overrid
 - `false` (Auditor): the spec's `status: done` disagrees with sprint-status `review`. The frontmatter is `bmad-build-auto`'s contract, and this review syncs the sprint status.
 - not this diff (Auditor): a live model on guide step 2 is unproven, and the CI mock's triage ends `invalid`. Both are ledgered for Story 11.1: DW-142 and DW-307 (this story is DW-307's source).
 
-- [ ] [Smoke] Integrate-forward red (merge 8d5f805 of feature 289d47a into OCT-epic8): `OcuTalon.Test.Schedule.ReminderChat` fails all three tests (`Chat made N request(s)`), because Epic 5 added `OcuTalon.Tools.Watching` to `OcuTalon.Agent.Chat`'s `TOOLSETS`, so `CHATTOOLS` ("cancel_reminder,list_reminders,set_reminder") no longer equals Chat's `ToolNames` and no Chat request is selected. Fix the selection so it identifies Chat's requests without pinning Chat's whole tool list (for example: a `/v1/messages` entry whose `ToolNames` includes the reminder tools, since Triage offers none; or derive the expected list from `OcuTalon.Agent.Chat`'s own toolsets, never a copy), keep the counts the tests assert, and check `web/e2e/reminder/chat.spec.ts` and `web/e2e/demo-path/03-reminder.spec.ts` for the same exact-match assumption (fix it the same way if present). Never edit `Agent/**` or `Tools/**`. Each changed pinning assertion gets its `mutation:` line (e.g. a request without the reminder tools counted as Chat's -> red).
+- [x] [Smoke] Integrate-forward red (merge 8d5f805 of feature 289d47a into OCT-epic8): `OcuTalon.Test.Schedule.ReminderChat` fails all three tests (`Chat made N request(s)`), because Epic 5 added `OcuTalon.Tools.Watching` to `OcuTalon.Agent.Chat`'s `TOOLSETS`, so `CHATTOOLS` ("cancel_reminder,list_reminders,set_reminder") no longer equals Chat's `ToolNames` and no Chat request is selected. Fix the selection so it identifies Chat's requests without pinning Chat's whole tool list (for example: a `/v1/messages` entry whose `ToolNames` includes the reminder tools, since Triage offers none; or derive the expected list from `OcuTalon.Agent.Chat`'s own toolsets, never a copy), keep the counts the tests assert, and check `web/e2e/reminder/chat.spec.ts` and `web/e2e/demo-path/03-reminder.spec.ts` for the same exact-match assumption (fix it the same way if present). Never edit `Agent/**` or `Tools/**`. Each changed pinning assertion gets its `mutation:` line (e.g. a request without the reminder tools counted as Chat's -> red).
 
 ## Spec Change Log
 
@@ -336,6 +336,16 @@ Code review, 2026-10-27 (Epic 8 code-review stage; four layers, no model overrid
   - `[false]` `[reject]` Intent: NFR-10 strict reading against the `DueAt` window -- the spec prescribes the window; it is arithmetic, not a wait.
   - `[false]` `[reject]` Intent: the rail and step 2 are read through `StateBody`, and the cancel through the fixture, in `ReminderChat` -- the spec prescribes both; the page specs cover the page surface.
   - `[low]` `[reject]` Gap: C1's countdown shape relies on `page-time.ts` having no day unit -- checked by the passing `live:sign-in` run and the fixed 2030 date; no new work.
+
+### 2026-10-27 — Review pass (rework iteration 1, the integrate-forward `[Smoke]` item)
+- verdicts: 6 findings — high 0, medium 0, low 3, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind/Edge: the Tasks line for the `Turn` helper (about line 179) still says Chat's requests are those whose `ToolNames` equals the three reminder tools -- the fix is to edit the build's spec text, which triage rejects; the code and the new `mutation:` line carry the selection rule.
+  - `[low]` `[reject]` Blind: the Spec Change Log has no resolution note, and `baseline_revision` differs from `baseline_commit` -- fixes edit the spec's bookkeeping; the new baseline is the dispatch's per-pass record and `baseline_commit` stays the story's base.
+  - `[false]` `[reject]` Blind: a request offering only some reminder tools would be accepted, and `OffersReminderTools` has no direct test -- `OffersReminderTools` returns 0 as soon as one tool is missing (`Set all = 0`); removing that line makes every request count, which is the recorded mutation (all three tests red), so the negative side is pinned.
+  - `[false]` `[reject]` Blind: the list can drift from Chat's own toolsets -- the rule does not copy Chat's list at all; `REMINDERTOOLS` names only the three tools the tests drive, so Chat's toolsets can change freely, which is what the item asked for.
+  - `[low]` `[reject]` Edge: another agent that offers all three reminder tools would count as Chat's -- not reachable: Triage offers none and Diagnosis offers the Watch tools only; a guard (Chat's toolsets as run-time input) is more complexity than a hypothetical agent warrants, and the tests would go red on the count, not pass falsely.
+  - `[false]` `[reject]` Edge: "Chat's other toolsets no longer matter" overclaims -- the comment says a request is Chat's when it offers every reminder tool, which is what the code does; it does not claim to exclude other agents.
 
 ## Design Notes
 
@@ -490,6 +500,7 @@ Conventions: "Tests" (`notBuilt`, `@floor`) and "Identifiers" (a 22-character Re
 - mutation: `ReminderOps.List` reads every session's pending rows -> `ReminderChat.TestCancelThroughChat` (the list holds B's Ref) red.
 - mutation: 03's `test.skip` moved into the test body -> `demo-path-summary.test.mjs` 'skip every unbuilt part' red.
 - mutation: 03 reduced to a `page` test that skips in its body, with no hooks -> 'skip every unbuilt part' red (the browser starts and cannot launch); with `playwrightEnv()`'s `PLAYWRIGHT_BROWSERS_PATH` also removed, the same run is green (28 passed), so the fix is what turns a late skip red (DW-210).
+- mutation (rework, integrate-forward): `ReminderChat.Turn` counts every `/v1/messages` request as Chat's (the `OffersReminderTools` check dropped, so Triage's requests count) -> `TestGuidePromptSetsReminder`, `TestThursdaySetsLocalReminder` and `TestCancelThroughChat` red on "Chat made N request(s)"; reverted from a backup, tree byte-identical, warm `ReminderChat` green again (9.6 s). Chat's requests are those that offer every reminder tool (`REMINDERTOOLS`), so Chat's other toolsets no longer matter. `chat.spec.ts` and `03-reminder.spec.ts` read no tool list, so they needed no change.
 
 **QA gap audit (QA).** Every AC and matrix row is pinned by an assertion that can fail, and each AC had an observed mutation from the implement stage. No test file was added. One more bullet of AC 3 had no observed mutation (the waiter ends at once); it was demonstrated on warm `e8s6qw`:
 - mutation (QA): `ReminderOps.Cancel` skips `..EndWaiter(row)` -> `ReminderChat.TestCancelThroughChat` red on "and its waiter has ended, long before its due time" only; reverted from a backup, tree clean (`git status --short` empty), warm `ReminderChat` green again (9.5 s).
@@ -527,3 +538,11 @@ Blocking condition: none
 - **Follow-up review:** not recommended (`followup_review_recommended: false`); every patch was re-verified by the full run below.
 - **Verification (after the last patch):** warm `ReminderChat` passed; `test-mock.sh` 94 passed; web lint exit 0; `demo-path-summary.test.mjs` 28 passed; fresh `build`; `shard lane-b` 65 classes (437 s), `shard lane-b --reverse` 65 (400 s) and `shard lane-a` 47 (425 s), all passed; `live demo-path` passed in 126 s (`STEP 3 reminder: passed, 1 passed, 0 skipped`, floor 7 of 7); `live sign-in` passed, 222 tests, whole call 515 s (limit 570 s) with `OCUTALON_LIVE_DEADLINE=900`; `npm --prefix web test` 691 passed; `ci/checks.sh` and `test-boundaries.sh` passed. The loop classes `Reminders`, `ReminderLogic`, `GuidePrompts` and `ConversationProduction` passed warm in the implement pass, and no code they cover changed after it. Both throwaways are torn down.
 - **Residual risks:** `live:sign-in` is 515 s against the 570 s line (about 500 s before this story), so the next story that adds browser cases to that unit needs the unit split. The fixed-Ref swap can stay behind the `ReminderOps` item after a crash between `Use` and `Restore` on a reused stack (rejected as low).
+
+**Rework pass 1 (integrate-forward `[Smoke]` item, this pass only).**
+- **Implemented:** `ReminderChat` now takes a `/v1/messages` entry as Chat's when it offers every tool of `REMINDERTOOLS` ("cancel_reminder,list_reminders,set_reminder"), through a private `OffersReminderTools(entry)` that reuses `RunnerFixture.ToolNames`. It no longer pins Chat's whole tool list, so Epic 5's Watching tools no longer matter. The asserted counts (2, 2 and 3 requests) are unchanged. `chat.spec.ts` and `03-reminder.spec.ts` read no tool list, so neither changed. The `[Smoke]` item is `[x]`.
+- **Files changed:** `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls` (the selection), this spec (the item, the `mutation:` line, the triage log, this result).
+- **Review:** 6 findings, 0 patched, 0 deferred, 6 rejected with reasons (3 low, 3 false; see the triage log).
+- **Follow-up review:** not recommended (`followup_review_recommended: false`); this pass patched no `high`.
+- **Verification:** fresh `ci/iris.sh class OcuTalon.Test.Schedule.ReminderChat` passed (11.05 s); fresh `shard lane-b` passed (71 classes, 579 s); `bash ci/checks.sh` and `bash docker/tests/test-boundaries.sh` passed; tags `e8s6k` and `e8s6kw` torn down. No browser spec changed, so no `live` unit ran.
+- **Residual risks:** none beyond the rejected lows.
