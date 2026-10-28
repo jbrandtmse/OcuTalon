@@ -10,10 +10,11 @@ Include Ensemble
 ///     exactly one request names it (owner instance, no trace Ref, repair_resend), A and B each have one incident.withFix Notification that carries that request's
 ///     Ref, and C has none;
 ///   - TestRejectChangesNothing (AC 5, AC 7; DW-271): session S's request is rejected through Approval.Answer: the incident is open with the variant rejected, one
-///     answered.rejected Notification (the channel and the time of the answer, the request's Ref and the incident's) lies in the incident's trace session, the incident
+///     answered.rejected Notification (the channel and the time of the answer, the request's Ref and the incident's) lies in the incident's trace session and WebChatOut
+///     recorded its answered Delivery row with the request's Ref, the incident
 ///     event lists the request as rejected and /state does too, no Execute goes to FixExecutor, and a snapshot of OCUORDERS shows no change;
 ///   - TestExpiryChangesNothing (AC 5): the same for the timer: the request is aged, its hold deleted and the holds re-armed (Approval.Reconcile), which expires it:
-///     open with the variant expired, one answered.expired Notification with the request's ExpiresAt, no Execute and no change in OCUORDERS;
+///     open with the variant expired, one answered.expired Notification with the request's ExpiresAt and its answered Delivery row, no Execute and no change in OCUORDERS;
 ///   - TestCancelSendsNoOutcome (AC 6): Approval.Cancel ends the hold and no ApprovalOutcome from ApprovalHold names the request; the incident stays awaiting_approval
 ///     with the same NoticedAt and no new Notification;
 ///   - TestUnscopedOrdersGetTheNoFixNotice (AC 8, V2): the failed orders are untagged (of the instance scope) and the incident is session S's, so the dry run refuses
@@ -88,6 +89,7 @@ Method TestRejectChangesNothing()
 		Do $$$AssertStatusOK(sc, "it renders")
 		Do $$$AssertTrue(($Extract(text, 1, 30) = "Rejected from the web chat at ") && ($Extract(text, $Length(text) - 21, *) = ". Nothing was changed."), "as Rejected from the web chat at the time, Nothing was changed: "_text)
 		Do $$$AssertEquals(..NoticeSessionOf(answered.id), trace, "in the incident's trace session")
+		Do ..AssertDelivered(a, "answered", request.ref)
 	}
 	Set events = ..Stream(a)
 	Set last = ""
@@ -96,15 +98,10 @@ Method TestRejectChangesNothing()
 		If (event.type = "incident") && (event.payload.ref = ref) Set last = event.payload
 	}
 	Do $$$AssertTrue($IsObject(last), "the incident has events on S's stream")
-	If $IsObject(last) Do $$$AssertEquals(last.state_"|"_last.openVariant_"|"_last.requests.%Size()_"|"_last.requests.%Get(0).ref_"|"_last.requests.%Get(0).state, "open|rejected|1|"_request.ref_"|rejected", "the last incident event lists the request as rejected")
-	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(a))
-	Set found = ""
-	Set iterator = body.chat.%GetIterator()
-	While iterator.%GetNext(, .each) {
-		If (each.type = "incident") && (each.payload.ref = ref) Set found = each.payload
-	}
+	If $IsObject(last) Do $$$AssertEquals(last.state_"|"_last.openVariant_"|"_..Listed(last), "open|rejected|1|"_request.ref_"|rejected", "the last incident event lists the request as rejected")
+	Set found = ..StateIncident(a, ref)
 	Do $$$AssertTrue($IsObject(found), "/state lists the incident")
-	If $IsObject(found) Do $$$AssertEquals(found.requests.%Size()_"|"_found.requests.%Get(0).ref_"|"_found.requests.%Get(0).state, "1|"_request.ref_"|rejected", "with the request as rejected")
+	If $IsObject(found) Do $$$AssertEquals(..Listed(found), "1|"_request.ref_"|rejected", "with the request as rejected")
 	Do $$$AssertEquals(..HeadersBetween(trace, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.Execute"), 0, "no Execute went to FixExecutor")
 	Do ..Unchanged(namespaces, before)
 }
@@ -136,6 +133,7 @@ Method TestExpiryChangesNothing()
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(answered.catalogKey, answered.slots.%ToJSON(), "phone", .sc)
 		Do $$$AssertStatusOK(sc, "it renders")
 		Do $$$AssertTrue(($Extract(text, 1, 11) = "Expired at ") && ($Extract(text, $Length(text) - 21, *) = ". Nothing was changed."), "as Expired at the time, Nothing was changed: "_text)
+		Do ..AssertDelivered(a, "answered", request.ref)
 	}
 	Do $$$AssertEquals(..HeadersBetween(trace, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.Execute"), 0, "no Execute went to FixExecutor")
 	Do ..Unchanged(namespaces, before)
@@ -149,7 +147,8 @@ Method TestCancelSendsNoOutcome()
 	Set noticedAt = row.NoticedAt
 	Kill row
 	Set notices = ..Notifications(ref)
-	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size()
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, 5).%Size()
+	Do $$$AssertTrue(events > 0, "S has the notice's incident event")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(request.ref), "the request is cancelled")
 	Set end = $ZHorolog + ..#WAITHOLD
 	While (##class(OcuTalon.Bridge.Approval).LiveHold(request.ref) '= "") && ($ZHorolog < end) {
@@ -257,27 +256,13 @@ Method Answered(ref As %String, count As %Integer) As %DynamicObject [ Private ]
 {
 	Set end = $ZHorolog + ..#WAITHOLD
 	For {
-		Set found = ..AnsweredNotices(ref)
+		Set found = ..NoticeBodies(ref, "answered")
 		If (found.%Size() '< count) || ($ZHorolog > end) Quit
 		Hang 0.5
 	}
 	Do $$$AssertEquals(found.%Size(), count, count_" answered notification(s) carry the incident's Ref")
 	If found.%Size() '= count Quit ""
 	Quit found.%Get(0)
-}
-
-/// The Notifications of kind answered that carry the incident's Ref, oldest first, as {"id", "sessionRef", "kind", "catalogKey", "slots", "approvalRef",
-/// "incidentRef", "decisionRef"}.
-ClassMethod AnsweredNotices(ref As %String) As %DynamicArray [ Private ]
-{
-	Set found = []
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Msg.Notification WHERE IncidentRef = ? AND Kind = 'answered' ORDER BY ID", ref)
-	While rs.%Next() {
-		Set note = ##class(OcuTalon.Msg.Notification).%OpenId(rs.%GetData(1))
-		If '$IsObject(note) Continue
-		Do found.%Push({"id": (note.%Id()), "sessionRef": (note.SessionRef), "kind": (note.Kind), "catalogKey": (note.CatalogKey), "slots": ({}.%FromJSON(note.Slots)), "approvalRef": (note.ApprovalRef), "incidentRef": (note.IncidentRef), "decisionRef": (note.DecisionRef)})
-	}
-	Quit found
 }
 
 /// The trace session of the header that carried the Notification.

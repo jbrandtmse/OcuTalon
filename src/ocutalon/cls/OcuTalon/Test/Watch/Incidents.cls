@@ -27,8 +27,9 @@ Include Ensemble
 ///     come (Story 7.2: NoticedAt, with the fix or without it, as the dry run of the incident's failed orders gives) each session lists its own;
 ///   - TestInstanceShared (rows Instance shared and After the notice): an untagged cause on a production that A and B watch is one instance incident, announced
 ///     on both streams, with an empty SuperSession; the ownership API finds it for nobody while the delayed diagnosis (diagnosis-late) is on its way and, once the
-///     real notice has come, for A and B but not for a session that does not watch, each of the two having one notification; a same-cause batch then moves Count and
-///     LastAt but not NoticeCount, makes one more incident event for each of the two sessions, no second incident and no notification;
+///     real notice has come, for A and B but not for a session that does not watch, each of the two having one with-fix notification that carries the one request's
+///     Ref; a same-cause batch then moves Count and
+///     LastAt but not NoticeCount, makes one more incident event for each of the two sessions, no second incident, no notification and no second request;
 ///   - TestClosedOpensNew: a same-cause failure after the incident is closed (once its waiter has started) makes a new incident with its own Ref;
 ///   - TestWaitersAfterRestart (row Restart while settling): with the item stopped and started during the wait, the settle still ends once, and the waiter of a
 ///     deleted incident completes with no error and writes nothing;
@@ -331,17 +332,19 @@ Method TestInstanceShared()
 	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and is noticed (the real notice)")
 	Do ..WaitNotices(ref, 2)
 	Do $$$AssertEquals(..Finds(ref, a, b, c), "110", "after it, the two watching sessions find it and a session that does not watch the production does not")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size()_"|"_##class(OcuTalon.Test.Core.Observe).Events(b, "incident").%Size(), "1|1", "each watching session got one incident event with the notice")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, 5).%Size()_"|"_##class(OcuTalon.Test.Core.Observe).Events(b, "incident", 1, 5).%Size(), "1|1", "each watching session got one incident event with the notice")
+	Set requests = ..Requests(ref)
+	Do $$$AssertEquals(requests.%Size(), 1, "exactly one request names the incident")
+	Set approval = $Select(requests.%Size() = 1: requests.%Get(0).ref, 1: "")
 	Set notices = ..NoticeBodies(ref)
 	Set sessions = ""
 	Set iterator = notices.%GetIterator()
 	While iterator.%GetNext(, .note) {
 		Set sessions = sessions_","_note.sessionRef_"="_note.catalogKey_"|"_note.approvalRef
+		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "incident.withFix|"_approval, "each is the with-fix notice with the request's Ref")
 	}
 	Do $$$AssertEquals(notices.%Size(), 2, "and A and B each have one notification of the incident: "_sessions)
 	Set noticeCount = notices.%Size()
-	Set requests = ..Requests(ref)
-	Do $$$AssertTrue(requests.%Size() '> 1, "at most one request names the incident")
 	Set later = ..Stamp(0)
 	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, "instance", [{"item": (item), "text": (..#LATE_"Field 'Qty' was empty in order 4"), "at": (later)}])
 	Do $$$AssertEquals(..WaitCount(ref, 4), 4, "Count moves to 4")
@@ -359,6 +362,7 @@ Method TestInstanceShared()
 	Do $$$AssertEquals(row.count_"|"_row.noticeCount, "4|3", "NoticeCount stays")
 	Do $$$AssertEquals(row.lastAt, later, "LastAt moved to the new failure")
 	Do $$$AssertEquals(..Notifications(ref), noticeCount, "and no new notification carries the incident's Ref")
+	Do $$$AssertEquals(..Requests(ref).%Size(), 1, "nor a second request")
 }
 
 Method TestClosedOpensNew()

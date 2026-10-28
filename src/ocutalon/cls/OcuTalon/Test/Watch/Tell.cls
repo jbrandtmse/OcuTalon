@@ -31,7 +31,9 @@
 ///     with one warning;
 ///   - TestGoneBeforeTheDryRun: an incident that is closed, noticed or deleted when the dry run answers gets nothing raised, sent or saved and no error;
 ///   - TestUnbuildableWithFixSlots: a dry run whose slots cannot be built (no field, a resend below 1) raises nothing, sends nothing and leaves the row unnoticed with one
-///     warning.
+///     warning;
+///   - TestAnsweredToEachRecipient (QA; AC 5): a rejected or an expired outcome of an instance incident that two sessions watch sends each watcher one answered
+///     Notification (the key, the slots, the request's Ref and the incident's, no decision) and one incident event, and opens the incident with that variant.
 /// The failed Recipients read has no test: Session.Recipients is called by name, so a probe cannot replace it, and the only way it answers an error is the
 /// privilege check of its watchers' statement, which needs a process without %All (SET $ROLES can only add roles) and so an IRIS user made for the purpose.
 /// The fixture rows are removed after each test, with their streams, and so are the warnings that these tests made.
@@ -301,7 +303,7 @@ Method TestRaisedGetsTheWithFixNotice()
 		Set sessions = sessions_$Select(sessions = "": "", 1: ",")_note.sessionRef
 		Set slots = {}.%FromJSON(note.slots)
 		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.incidentRef_"|"_note.approvalRef, "incident|incident.withFix|"_incident_"|"_$Parameter(..#PROBE, "FIXTUREREF"), "Notification "_(i + 1)_": kind, key, incident and the request's Ref")
-		Do $$$AssertEquals(..SortedKeys(slots), "after,before,cause,count,field,fixSummary,itemNoun,resendCount,time", "its nine slots")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Case).SortedKeys(slots), "after,before,cause,count,field,fixSummary,itemNoun,resendCount,time", "its nine slots")
 		Do $$$AssertEquals(slots.count_"|"_slots.time_"|"_slots.cause_"|"_slots.field_"|"_slots.before_"|"_slots.after_"|"_slots.resendCount_"|"_slots.itemNoun.other, "3|2030-01-01T09:00:00Z|zz cause|OrderDate|10/24/2026|2026-10-24|3|orders", "and their values")
 	}
 	Do $$$AssertEquals(sessions, $ListToString(##class(OcuTalon.Data.Session).Recipients("instance", incident, .sc)), "one to each watcher")
@@ -309,7 +311,7 @@ Method TestRaisedGetsTheWithFixNotice()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= "")_"|"_row.RequestRefs, "awaiting_approval||1|"_$Parameter(..#PROBE, "FIXTUREREF"), "the row is awaiting_approval, noticed and lists the request")
 	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "1|1", "each watcher gets one incident event")
-	Do $$$AssertEquals(..Warned(), 0, "and nothing was logged")
+	Do $$$AssertEquals(..Logged(.text), 0, "and nothing was logged: "_text)
 }
 
 Method TestNoFixRoutes()
@@ -367,6 +369,7 @@ Method TestSaveFailureCancelsTheRequest()
 	If '$IsObject(host) Quit
 	Do ..Group(incident, 1)
 	Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), "the answer is handled")
+	Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, "one dry run is asked")
 	If '$IsObject(host.DryRuns) Quit
 	Set host.FailMove = 1
 	Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -391,6 +394,7 @@ Method TestGoneBeforeTheDryRun()
 		If '$IsObject(host) Quit
 		Do ..Group(incident, 1)
 		Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), case_": the answer is handled")
+		Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, case_": one dry run is asked")
 		If '$IsObject(host.DryRuns) Quit
 		Set ask = ..Ask(host.DryRuns.%Get(0))
 		Kill row
@@ -423,6 +427,7 @@ Method TestUnbuildableWithFixSlots()
 		If '$IsObject(host) Quit
 		Do ..Group(incident, 1)
 		Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), case_": the answer is handled")
+		Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, case_": one dry run is asked")
 		If '$IsObject(host.DryRuns) Quit
 		Set result = ..Result(incident)
 		Set dryRun = {}.%FromJSON(result.DryRun)
@@ -436,6 +441,53 @@ Method TestUnbuildableWithFixSlots()
 		Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.RequestRefs, "open||", case_": the row stays open and unnoticed")
 		Do $$$AssertEquals(..Logged(.text), 1, case_": one Type 3 warning: "_text)
 		Do ..RemoveWarnings()
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+		Do ..DropAll()
+	}
+}
+
+/// The answered Notification goes to every recipient of an instance incident, as the incident event does (Story 7.2; AC 5): a rejected or an expired request of
+/// an instance incident that two sessions watch sends each watcher one answered Notification with the request's Ref and the incident's, and one incident event,
+/// and the row is open with the variant. A session-owned incident has one recipient (Test.Watch.Lifecycle), so only an instance incident shows the copy per recipient.
+Method TestAnsweredToEachRecipient()
+{
+	Set cases = $ListBuild("rejected|answered.rejected|{""channel"":""web"",""time"":""2030-01-01T10:00:00Z""}", "expired|answered.expired|{""time"":""2030-01-02T09:00:00Z""}")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set outcome = $Piece(case, "|", 1)
+		Do ..Setup("answered"_outcome, .a, .b, .incident, .row)
+		If '$IsObject($Get(row)) Quit
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Do ..Group(incident, 1)
+		Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident, outcome, , {"AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"})
+		Set ..Refs = ..Refs_","_request
+		Set row.State = "awaiting_approval"
+		Set row.NoticedAt = "2030-01-01T10:00:00Z"
+		Set row.RequestRefs = request
+		Do $$$AssertStatusOK(row.%Save(), outcome_": the incident is awaiting approval and lists the request")
+		Kill row
+		Set message = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%New()
+		Set message.ApprovalRef = request
+		Set message.IncidentRef = incident
+		Set message.Outcome = outcome
+		Set response = ""
+		Do $$$AssertStatusOK(host.OnRequest(message, .response), outcome_": the outcome is handled")
+		Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 2, outcome_": two Notifications are sent, one for each watcher")
+		If $IsObject(host.Sent) && (host.Sent.%Size() = 2) {
+			Set sessions = ""
+			For i = 0:1:1 {
+				Set note = host.Sent.%Get(i)
+				Set sessions = sessions_$Select(sessions = "": "", 1: ",")_note.sessionRef
+				Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.decisionRef_"|"_note.slots, "answered|"_$Piece(case, "|", 2)_"|"_request_"|"_incident_"||"_$Piece(case, "|", 3), outcome_": Notification "_(i + 1)_": kind, key, the request's Ref, the incident's, no decision and the slots")
+			}
+			Do $$$AssertEquals(sessions, $ListToString(##class(OcuTalon.Data.Session).Recipients("instance", incident, .sc)), outcome_": one to each watcher")
+		}
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+		Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "open|"_outcome, outcome_": the incident is open with that variant")
+		Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "1|1", outcome_": each watcher gets one incident event")
+		Do $$$AssertEquals(..Logged(.text), 0, outcome_": nothing was logged: "_text)
+		Kill row
 		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 		Do ..DropAll()
 	}
@@ -507,29 +559,13 @@ ClassMethod Result(incident As %String) As OcuTalon.Fix.Msg.DryRunResult
 	Quit result
 }
 
-/// The names of the keys of the object, sorted, comma-separated.
-ClassMethod SortedKeys(object As %DynamicObject) As %String
-{
-	Set iterator = object.%GetIterator()
-	While iterator.%GetNext(.key) {
-		Set sorted(key) = ""
-	}
-	Set names = ""
-	Set key = ""
-	For {
-		Set key = $Order(sorted(key))
-		Quit:key=""
-		Set names = names_$Select(names = "": "", 1: ",")_key
-	}
-	Quit names
-}
-
-/// The number of the Type 3 warnings that start "IncidentManager could not" since the test began, whichever method logged them (text is the newest one's).
+/// The number of the Type 3 warnings that start "IncidentManager could not" and that this process (the probe's shadow instance) logged since the test began,
+/// whichever method logged them (text is the newest one's).
 Method Logged(Output text As %String) As %Integer
 {
 	Set text = ""
 	Set count = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ? ORDER BY ID", ..LogMark, "IncidentManager could not")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Job = ? AND Text %STARTSWITH ? ORDER BY ID", ..LogMark, $Job, "IncidentManager could not")
 	While result.%Next() {
 		Set count = count + 1
 		Set text = result.%Get("Text")
@@ -537,7 +573,8 @@ Method Logged(Output text As %String) As %Integer
 	Quit count
 }
 
-/// Removes the events of the sessions of the test and the groups of its incidents, so that a test that sets up more than once starts clean each time.
+/// Deletes the failure groups of the test's incidents and forgets its fixture Refs, so that a test that sets up more than once starts clean each time (the caller
+/// has removed the fixture rows and their streams with Fixture.Clean first).
 Method DropAll()
 {
 	For i = 1:1:$Length(..Refs, ",") {
@@ -596,7 +633,7 @@ Method RemoveWarnings()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tell", "IncidentManager could not")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Notice", $Parameter(..#PROBE, "LOGNOTICE"))
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", ..LogMark, "IncidentManager could not")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Job = ? AND Text %STARTSWITH ?", ..LogMark, $Job, "IncidentManager could not")
 }
 
 /// Another job takes the stream's lock and holds it until ReleaseStream; this returns once the job holds it.

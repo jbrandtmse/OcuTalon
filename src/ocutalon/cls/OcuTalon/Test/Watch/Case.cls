@@ -18,9 +18,9 @@ Include Ensemble
 ///     stopped them.
 ///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
 ///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects; Group also lists every group, Story 5.8), Stream (a session's events
-///     of any type in Seq order) and NoticeBodies (the Notification messages of an incident's Ref as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
-///     sets NoticedAt and NoticeCount as a notice will), Notifications, and (Story 5.4) WaitDiagnosed, which a test calls before Notice so that a whole-row save by
-///     IncidentManager cannot write over the fixture; (Story 5.8) WaitNotices, and WaitAnswered, which returns once IncidentManager has handled Decide's answer,
+///     of any type in Seq order) and NoticeBodies (the Notification messages of an incident's Ref as plain objects, of one kind when given), WaitIncident, WaitCount
+///     and WaitNoticeCount, Notifications, and (Story 5.4) WaitDiagnosed, which returns once the incident holds its diagnosis or its fallback; (Story 5.8) WaitNotices,
+///     and WaitAnswered, which returns once IncidentManager has handled Decide's answer,
 ///     so that the notice step, or its absence, is done. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
 ///     untagged failures of the poller tests make are gone too.
@@ -33,7 +33,9 @@ Include Ensemble
 ///   - for the tests that raise approval requests (Story 7.2): ApprovalReady (the production is ready, the ANSWERER account holds OcuTalonUser and the ApprovalRole
 ///     default of Decide is set aside; OnAfterOneTest puts it back), and DropIncidentRows, which tracks every ApprovalRequest that names a dropped incident
 ///     under ^OcuTalonTest("Approval","refs") and then calls Test.Bridge.Approval.Clean, which ends the holds and tasks and deletes the rows, so that
-///     Test.Bridge.Approval's instance-wide row and hold counts stay its own.
+///     Test.Bridge.Approval's instance-wide row and hold counts stay its own; Requests, HeadersBetween and HoldInSession read the request rows and the trace
+///     session; AssertDelivered waits for WebChatOut's Delivery row of a kind and a request's Ref, StateIncident gives the incident as /state lists it, and Listed
+///     the requests that an incident payload lists.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -1244,37 +1246,67 @@ Method WaitDiagnosed(ref As %String, seconds As %Integer = {..#WAITDIAGNOSIS}) A
 	Quit $IsObject(row) && ((row.DecisionRef '= "") || row.Fallback)
 }
 
-/// The fixture of a notice: sets NoticedAt (now) and NoticeCount (the Count at that moment) of the incident, as a notice will. The caller first waits for the
-/// diagnosis (WaitDiagnosed): the waiter saves the row after the settle rule ends and again when the diagnosis arrives.
-ClassMethod Notice(ref As %String) As %Status
-{
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-	If '$IsObject(row) Quit $SYSTEM.Status.Error(5001, "No incident "_ref)
-	Set row.NoticedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	If row.NoticeCount = "" Set row.NoticeCount = row.Count
-	Quit row.%Save()
-}
-
 /// The events on the session's stream, of any type, in Seq order, as the envelopes {seq, stream, ts, type, payload}.
 ClassMethod Stream(session As %String) As %DynamicArray
 {
 	Quit ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
 }
 
-/// The Notification messages that carry the incident's Ref, oldest first, as a dynamic array of {"sessionRef", "kind", "catalogKey", "slots" (the parsed
-/// object, {} when empty), "approvalRef", "incidentRef", "decisionRef"}.
-ClassMethod NoticeBodies(ref As %String) As %DynamicArray
+/// The Notification messages that carry the incident's Ref (only those of the kind, when one is given), oldest first, as a dynamic array of {"id", "sessionRef",
+/// "kind", "catalogKey", "slots" (the parsed object, {} when empty), "approvalRef", "incidentRef", "decisionRef"}.
+ClassMethod NoticeBodies(ref As %String, kind As %String = "") As %DynamicArray
 {
 	Set bodies = []
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Msg.Notification WHERE IncidentRef = ? ORDER BY ID", ref)
 	While rs.%Next() {
 		Set note = ##class(OcuTalon.Msg.Notification).%OpenId(rs.%GetData(1))
 		If '$IsObject(note) Continue
+		If (kind '= "") && (note.Kind '= kind) Continue
 		Set slots = {}
 		If note.Slots '= "" Set slots = {}.%FromJSON(note.Slots)
-		Do bodies.%Push({"sessionRef": (note.SessionRef), "kind": (note.Kind), "catalogKey": (note.CatalogKey), "slots": (slots), "approvalRef": (note.ApprovalRef), "incidentRef": (note.IncidentRef), "decisionRef": (note.DecisionRef)})
+		Do bodies.%Push({"id": (note.%Id()), "sessionRef": (note.SessionRef), "kind": (note.Kind), "catalogKey": (note.CatalogKey), "slots": (slots), "approvalRef": (note.ApprovalRef), "incidentRef": (note.IncidentRef), "decisionRef": (note.DecisionRef)})
 	}
 	Quit bodies
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every quarter second, for WebChatOut to record the Delivery row of the web chat for the session, the kind and the
+/// request's Ref (Integration AC of Story 7.2), then asserts that there is exactly one.
+Method AssertDelivered(session As %String, kind As %String, approvalRef As %String) [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+		Set count = 0
+		For i = 1:1:deliveries.Count() {
+			Set delivery = deliveries.GetAt(i)
+			If $IsObject(delivery) && (delivery.Channel = ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL) && (delivery.Kind = kind) && (delivery.ApprovalRef = approvalRef) Set count = count + 1
+		}
+		If count || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Do $$$AssertEquals(count, 1, "WebChatOut recorded one "_kind_" Delivery row with the request's Ref")
+}
+
+/// The requests that an incident payload (an incident event's, or /state's) lists, as "<count>|<first Ref>|<first State>" ("0||" when it lists none).
+ClassMethod Listed(payload As %DynamicObject) As %String
+{
+	Set requests = payload.requests
+	If '$IsObject(requests) || (requests.%Size() = 0) Quit "0||"
+	Set first = requests.%Get(0)
+	Quit requests.%Size()_"|"_$Select($IsObject(first): first.ref_"|"_first.state, 1: "|")
+}
+
+/// The incident's payload as /state (Web.Api.StateBody) lists it for the session, or "" when /state does not list it.
+ClassMethod StateIncident(session As %String, ref As %String) As %DynamicObject
+{
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(session))
+	If '$IsObject(body) Quit ""
+	Set found = ""
+	Set iterator = body.chat.%GetIterator()
+	While iterator.%GetNext(, .each) {
+		If (each.type = "incident") && (each.payload.ref = ref) Set found = each.payload
+	}
+	Quit found
 }
 
 /// The number of Notification messages that carry the incident's Ref.

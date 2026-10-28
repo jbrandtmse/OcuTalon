@@ -10,7 +10,7 @@ Include Ensemble
 ///     scenario's diagnosis, the noun order/orders, no fallback and the decision's Ref, the sample's header id (one of the real failed orders) and its error, and once IncidentManager has
 ///     handled the answer (Case.WaitAnswered) the with-fix notice follows (Story 7.2; DW-270, DW-271): the incident is noticed and awaiting_approval with no variant and lists its one
 ///     request; that ApprovalRequest is a pending fix of A (result target IncidentManager, A's trace Ref, repair_resend, its parameters, the 50 failed orders' ids ascending as targets and
-///     the stored dry run), its hold started in the incident's trace session, which also holds the DryRun to FixExecutor, its answer and the send to Notify; A has one incident
+///     the stored dry run, whose resend is the number of those targets and whose field is the words of the parameters' field, so that the request the user sees is built from what the executor runs: U-126), its hold started in the incident's trace session, which also holds the DryRun to FixExecutor, its answer and the send to Notify; A has one incident
 ///     Notification (incident.withFix, the request's Ref, the dry run's slots, which render the UJ-1 dry-run paragraph) and no kind approval; WebChatOut recorded its Delivery row; A's
 ///     stream holds noticed, settling, diagnosing and then the incident event with the request, as /state lists it;
 ///     the first model request holds the pack, the second the result of read_failed_messages built from the real failed orders, and the mock logged only those two requests;
@@ -66,6 +66,7 @@ Method TestDemoDiagnosis()
 	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer, so the notice step has begun")
 	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and the with-fix notice follows: NoticedAt is set")
 	Do ..WaitNotices(ref, 1)
+	Do ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, 5)
 	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 20)
 	Do $$$AssertEquals(progress.%Size(), 3, "A's stream holds three watch.progress events")
 	If progress.%Size() = 3 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(2).payload.stage_"|"_progress.%Get(2).payload.ref, "noticed|settling|diagnosing|"_ref, "noticed, settling and diagnosing, in that order, for the incident")
@@ -142,7 +143,7 @@ Method AssertWithFix(ref As %String, row As OcuTalon.Data.Incident, a As %String
 	Do $$$AssertEquals(parameters.field_"|"_parameters.sourceFormat_"|"_parameters.targetFormat, "OrderDate|MM/DD/YYYY|YYYY-MM-DD", "and its parameters, the exact change")
 	Set ids = ..HeaderIds(failed)
 	For i = 1:1:$Length(ids, ",") {
-		Set sorted($Piece(ids, ",", i)) = ""
+		If $Piece(ids, ",", i) '= "" Set sorted($Piece(ids, ",", i)) = ""
 	}
 	Set expected = ""
 	Set id = ""
@@ -154,8 +155,18 @@ Method AssertWithFix(ref As %String, row As OcuTalon.Data.Incident, a As %String
 	Do $$$AssertEquals(request.fixTargets, expected, "its targets are the 50 failed orders' header ids, ascending")
 	Set dryRun = {}.%FromJSON(request.dryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.field_"|"_dryRun.before_"|"_dryRun.after_"|"_dryRun.itemNoun.one_"|"_dryRun.itemNoun.other, "50|50|0|order date|10/16/2026|2026-10-16|order|orders", "and its stored dry run")
+	Set targetCount = $Length(request.fixTargets, ",")
+	Set fieldWords = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(parameters.field)
+	Set resendCount = +dryRun.resend
+	Do $$$AssertEquals(resendCount, targetCount, "U-126: the dry run's resend is the number of the row's FixTargets, so the request the user sees is what the executor runs")
+	Do $$$AssertEquals(dryRun.field, fieldWords, "U-126: the dry run's field is FieldWords of the row's FixParameters field")
 	Do $$$AssertEquals(row.RequestRefs, request.ref, "the incident lists the request")
 	Do $$$AssertTrue(..HoldInSession(row.TraceHeaderId, request.ref), "its live hold started in the incident's trace session")
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	While (##class(OcuTalon.Bridge.Approval).LiveHold(request.ref) = "") && ($ZHorolog < end) {
+		Hang 0.2
+	}
+	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).LiveHold(request.ref) '= "", "and the hold is live")
 	Do $$$AssertEquals(..HeadersBetween(row.TraceHeaderId, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.DryRun"), 1, "which holds one DryRun to FixExecutor")
 	Do $$$AssertEquals(..HeadersBetween(row.TraceHeaderId, 2, "FixExecutor", "IncidentManager", "OcuTalon.Fix.Msg.DryRunResult"), 1, "and its answer")
 	Do $$$AssertEquals(..HeadersBetween(row.TraceHeaderId, 1, "IncidentManager", "Notify", "OcuTalon.Msg.Notification"), 1, "and the send to Notify")
@@ -168,22 +179,12 @@ Method AssertWithFix(ref As %String, row As OcuTalon.Data.Incident, a As %String
 		Set slots = note.slots
 		Do $$$AssertEquals(slots.count_"|"_slots.time_"|"_slots.itemNoun.one_"|"_slots.itemNoun.other_"|"_slots.cause_"|"_slots.fixSummary, "50|"_row.FirstAt_"|order|orders|"_..#CAUSE_"|"_..#FIXSUMMARY, "its slots: count, the first failure's time, the noun, the cause and the fix summary")
 		Do $$$AssertEquals(slots.field_"|"_slots.before_"|"_slots.after_"|"_slots.resendCount_"|"_slots.%GetTypeOf("resendCount"), "order date|10/16/2026|2026-10-16|50|number", "and the dry run's field, before, after and resendCount")
+		Do $$$AssertEquals(slots.resendCount_"|"_slots.field, targetCount_"|"_fieldWords, "U-126: the notice's resendCount and field are those of the row's targets and parameters")
 		Set text = ##class(OcuTalon.Msg.Catalog).Render("incident.withFix", slots.%ToJSON(), "phone", .sc)
 		Do $$$AssertStatusOK(sc, "the slots render")
 		Do $$$AssertTrue(text [ "Dry run: 50 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.", "to the UJ-1 dry-run paragraph: "_text)
 	}
-	Set end = $ZHorolog + ..#WAITINCIDENT
-	For {
-		Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(a)
-		Set count = 0
-		For i = 1:1:deliveries.Count() {
-			Set delivery = deliveries.GetAt(i)
-			If $IsObject(delivery) && (delivery.Channel = ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL) && (delivery.Kind = "incident") && (delivery.ApprovalRef = request.ref) Set count = count + 1
-		}
-		If count || ($ZHorolog > end) Quit
-		Hang 0.25
-	}
-	Do $$$AssertEquals(count, 1, "WebChatOut recorded one incident Delivery row with the request's Ref: "_$Select($IsObject(deliveries): deliveries.Count(), 1: 0)_" rows of S")
+	Do ..AssertDelivered(a, "incident", request.ref)
 
 	Set events = ..Stream(a)
 	Set types = ""
@@ -198,19 +199,11 @@ Method AssertWithFix(ref As %String, row As OcuTalon.Data.Incident, a As %String
 	}
 	Do $$$AssertEquals(types, "noticed,settling,diagnosing,incident", "S's stream holds noticed, settling, diagnosing, then the incident event, in that order")
 	If $IsObject(last) {
-		Do $$$AssertEquals(last.payload.state_"|"_last.payload.requests.%Size()_"|"_last.payload.requests.%Get(0).ref_"|"_last.payload.requests.%Get(0).state, "awaiting_approval|1|"_request.ref_"|pending", "the event lists the request with its Ref and state")
+		Do $$$AssertEquals(last.payload.state_"|"_..Listed(last.payload), "awaiting_approval|1|"_request.ref_"|pending", "the event lists the request with its Ref and state")
 	}
-	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(a))
-	Do $$$AssertTrue($IsObject(body), "/state is read for S")
-	If $IsObject(body) {
-		Set found = ""
-		Set iterator = body.chat.%GetIterator()
-		While iterator.%GetNext(, .each) {
-			If (each.type = "incident") && (each.payload.ref = ref) Set found = each.payload
-		}
-		Do $$$AssertTrue($IsObject(found), "it lists the incident")
-		If $IsObject(found) Do $$$AssertEquals(found.requests.%Size()_"|"_found.requests.%Get(0).ref_"|"_found.requests.%Get(0).state, "1|"_request.ref_"|pending", "with the request, as the event does")
-	}
+	Set found = ..StateIncident(a, ref)
+	Do $$$AssertTrue($IsObject(found), "/state lists the incident for S")
+	If $IsObject(found) Do $$$AssertEquals(..Listed(found), "1|"_request.ref_"|pending", "with the request, as the event does")
 }
 
 /// The number of POST /v1/messages entries in the mock's log entries.

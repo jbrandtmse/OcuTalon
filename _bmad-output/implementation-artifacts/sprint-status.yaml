@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-28-2026 04:47
+last_updated: 10-28-2026 07:16
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -129,7 +129,7 @@ development_status:
 
   epic-7: in-progress
   7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: done
-  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: review
+  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: done
   7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an: backlog
   7-3-approved-repairs-are-re-checked-and-resent: backlog
   7-4-ocutalon-reports-how-many-orders-went-through: backlog

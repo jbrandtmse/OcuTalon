@@ -21,7 +21,8 @@
 ///   - TestFixResults: a final (or interrupted) run resolves the incident, or returns it to awaiting approval while a request is pending, or starts the earliest
 ///     waiting request; the run's own request never waits for itself, even while its row still reads approved; a progress report changes nothing but the event;
 ///   - TestRefusedEvents: cancelled, a stale or repeated outcome, a request that is not the incident's, an unknown incident, a FixResult outside fixing and any
-///     event on a closed incident change, send (no answered Notification either) and publish nothing and log one info line;
+///     event on a closed incident (a rejected or an expired outcome that the request's row shows included, whose answered Notification is built and then dropped
+///     with the refused move) change, send (no answered Notification either) and publish nothing and log one info line;
 ///   - TestEveryChangePublishes: an accepted move publishes exactly one incident event with the row's state on each recipient's stream, a refused one none;
 ///   - TestRepeatDismiss: the same Dismiss twice closes once and then is not_allowed with state closed;
 ///   - TestExecuteSendFails: a failed send of the Execute leaves the row as saved, the event published, and logs one warning;
@@ -486,8 +487,12 @@ Method TestRefusedEvents()
 	Set closed = ..Incident(a, "closed", {"ClosedAt": "2030-01-01T10:00:00Z"})
 	Set r1 = ..Request(a, closed, "approved")
 	Set r2 = ..Request(a, closed, "executing")
-	Do ..Link(closed, r1_","_r2)
+	Set r3 = ..Request(a, closed, "rejected")
+	Set r4 = ..Request(a, closed, "expired")
+	Do ..Link(closed, r1_","_r2_","_r3_","_r4)
 	Do ..Refuse(host, a, closed, "an approved outcome on a closed incident", "outcome", r1, "approved")
+	Do ..Refuse(host, a, closed, "a rejected outcome that the row shows, on a closed incident", "outcome", r3, "rejected")
+	Do ..Refuse(host, a, closed, "an expired outcome that the row shows, on a closed incident", "outcome", r4, "expired")
 	Do ..Refuse(host, a, closed, "a progress FixResult on a closed incident", "result", r2, 0, 0)
 	Do ..Refuse(host, a, closed, "a final FixResult on a closed incident", "result", r2, 1, 0)
 	Do $$$AssertEquals(..Count(a), 0, "none of these published anything")

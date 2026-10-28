@@ -1353,11 +1353,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R2 a): AD-15 needs a valid dry run and Raise for the with-fix variant, AD-32 the ApprovalRef on every incident notice, and incident.withFix's dry-run slots refuse to render before 7.2; Epic 5 stores the data-format diagnosis and leaves the incident unnoticed; 5.8 builds the delivery and a unit-tested with-fix slot builder
 - 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+- 2026-10-28T14:17:04Z status=resolved-by:7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=adjudication note=IncidentManager.Proposed/Deliver+Notice.WithFixSlots(7f3a310);pinned_by_Test.Watch.Diagnose.TestDemoDiagnosis(50_orders,slots_count/time/itemNoun/cause/fixSummary+dry-run_slots,ApprovalRef,NoticedAt,stream_noticed,settling,diagnosing,incident_in_order;fresh_pass)+Tell.TestRaisedGetsTheWithFixNotice;mutations_AC1/AC3_red
 
 ### DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's Incident.RequestRefs, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13)
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R3): no fix request exists before Epic 7; Story 5.8 adds Incident.RequestRefs and reads it; the writer is the Raise of 7.2
 - 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+- 2026-10-28T14:17:04Z status=resolved-by:7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=adjudication note=IncidentManager.Proposed_appends_the_Ref_to_RequestRefs(L625);event_and_/state_list_{ref,state}_via_FromRow;pinned_by_Diagnose.TestDemoDiagnosis(Listed)+Raise.TestRejectChangesNothing(pending->rejected);AC7_mutation_red
 
 ### DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74)
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1542,3 +1544,43 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: RemoveMessages works by super session and Test/Data/** is Epic 16's (contended), so a per-session entry point cannot be added here
 - 2026-10-28T01:03:01Z status=wontfix-accepted owner=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing by=cr note=reopen_if=a third copy of a per-session message clean-up appears under src/ocutalon/cls/OcuTalon/Test, or Fixture gains a per-session entry point
+
+### DW-341: IncidentManager.Proposed leaves a data-format incident unnoticed when its with-fix slots cannot be built or its dry run is not one JSON object
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Proposed quits with one warning and no NoFix after a refused raised move, a DryRun that is not an object, or a WithFixSlots refusal (3 review layers)
+- 2026-10-28T14:14:26Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=matrix row Slots cannot be built keeps 5.8's unnoticed row; raised is never refused when Open; FixExecutor emits JSON
+
+### DW-342: An error thrown between Approval.Raise and the incident's save leaves a pending request that no incident lists
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Proposed's Catch only logs: a returned save error cancels the request (CancelRequest), a thrown one does not; spec residual risk (2)
+- 2026-10-28T14:14:26Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if Deliver or Move throws before the save commits; Owns then drops its outcome, nothing executes, it expires
+
+### DW-343: Approval.Validate checks only that a fix request's FixTargets is non-empty, not that it holds ascending comma-separated header ids
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Validate refuses only an empty FixTargets; its one writer, IncidentManager.Proposed, copies FixExecutor's ascending header ids
+- 2026-10-28T14:14:26Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real once a second producer writes fix rows, or Story 7.3's executor uses FixTargets without parsing each id
+
+### DW-344: The with-fix notice's count (NoticeCount) and its resendCount (the dry run's resend) differ when failures join during the diagnosis
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Notice.WithFixSlots takes count from NoticeCount and resendCount from DryRun.resend, which reads all of Seen, so a burst can read N affected, resend M
+- 2026-10-28T14:14:35Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=Design Notes: count stays NoticeCount; resendCount is the row's, so what is approved is what runs (U-126 holds)
+
+### DW-345: A dry run that FixExecutor never answers leaves its incident unnoticed: no timeout and no sweep
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Propose sends the DryRun with no timer and only OnResponse or OnError move on; residual risk (1) names 7.5's sweep, which covers FixRuns only
+- 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if FixExecutor is disabled or its queue purged mid-ask; errors take OnError, restarts replay; Decide's ask is alike
+
+### DW-346: After Reconcile re-arms a hold, the answered notification goes out in the re-armed hold's session, not the incident's trace session
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Outcome sends AnswerNotice through Move and Tell in the session the outcome arrives in; Execute switches to TraceHeaderId, the answered notice does not
+- 2026-10-28T14:14:35Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=Design Notes decided-in-stage: answered goes out in the outcome's session; AD-26's Raise-session rule holds
+
+### DW-347: Test.Fix.Raise's OCUORDERS snapshot checks cannot go red until Story 7.3 gives FixExecutor a real Execute
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: FixExecutor refuses Execute today, so a wrongly sent Execute leaves OCUORDERS unchanged; the Execute-header count is the live pin, its mutation recorded
+- 2026-10-28T14:14:35Z status=wontfix-accepted owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=reopen_if=Story 7.3's Verification has no mutation line turning Test.Fix.Raise OCUORDERS did not change red
+
+### DW-348: Test.Watch.Diagnose.TestDemoDiagnosis counts every POST /v1/messages in the stack's mock log since its mark, not only this incident's
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ModelRequests counts all POSTs after LogMark; the spec's pin is exactly 2 (the dry run calls no model); Decide's callers are Conversation, Intake, IncidentManager
+- 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if a class leaves a turn or diagnosis in flight past its teardown, or a model caller runs on a schedule
