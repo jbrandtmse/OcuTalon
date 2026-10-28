@@ -58,3 +58,11 @@
 2026-10-28T04:48:37Z	Epic 7	hold_ordered	reason=owner(quota_91%,ordered_04:47Z_by_the_Contest_Planner_on_the_owner's_instruction) seen_at=2026-10-28T04:48:37Z boundary=after_7.2_implement(dev_complete_logged;QA_not_started)
 2026-10-28T04:48:37Z	Story 7.2	hold_saved	story=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req stage=implement(next:qa) patch=none tree=clean note=implement_committed_7f3a310;no_uncommitted_story_work
 2026-10-28T04:48:37Z	Epic 7	hold_complete	shas=fe66505(head),7f3a310(7.2_implement),0e7aa5a(7.1) throwaways_up=none(e7s2i,e7s2iw_torn_down_by_the_stage) slot_a=7.2's_classes_loaded_by_the_implement_stage next=QA_for_7.2,_then_CR,smoke,fresh_check,commit;then_integrate_forward(Epic_6_merged_6151327)_before_7.6/7.3/7.4
+2026-10-28T12:22:21Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec state=<state> hold_at=none lane=A slot=ocutalon-slot-a dispatch=re-dispatch_after_hold_7 note=re-dispatch_after_hold_7;policy_changed_36abb05->6df0676(Epic11_priority_sentence;not_a_pool_epic:no_effect_on_Epic7);stage_block_re-rendered_from_6df0676
+2026-10-28T12:22:21Z	Epic 7	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-28T12:22:21Z	Epic 7	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh workflows=ci,lane-a
+2026-10-28T12:22:21Z	Epic 7	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-28T12:22:21Z	Epic 7	bootstrap_check	result=ok
+2026-10-28T12:22:21Z	Epic 7	resume_point	head=b11b36c origin=b11b36c tree=clean hold_patch=none ci_head=success(runs=40634404663,40634404762) open_stage_spawned=none next=7.2_qa slot_checked=ocutalon-slot-a(build_154,ApprovalRequest_has_FixKind/FixTargets:7.2's_classes) inbox_verify=ok HOLD=absent
+2026-10-28T12:22:21Z	Story 7.2	ci_resolved	story=7.2 sha=b11b36c runs=40634404663,40634404762 result=success failed=none via=none note=7f3a310(implement)+bookkeeping resolved_at=resume
+2026-10-28T12:22:21Z	Story 7.2	stage_spawned	stage=qa spawn_at=2026-10-28T12:22:21Z model=claude-sonnet-5-5 agent_name=7-2-qa-1 cycle_iteration=1
