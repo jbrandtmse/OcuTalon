@@ -11,6 +11,7 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - Story 9.1: Evaluation cases run through the product path and reach nobody
 - Story 9.2: Each run scores decisions and causes and records cost and size
 - Story 9.3: Decision cases cover every outcome, two injections, the all-clear and a command request
+- Story 9.7: Turn cases measure the all-clear, the command reply and a stop-watching injection (split from 9.3; planned next after 9.3)
 - Story 9.4: Ten incidents are recorded from real failures
 - Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody (split from 9.1, waits for Epic 7; planned before 9.5)
 - Story 9.5: Release candidates pass the evaluation and the demo incident gate
@@ -172,7 +173,8 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - **Order inside the epic:**
   - 9.1 (done) built `EvalIn`'s item path, `EvalSink` and its table, and the isolation test; DW-337 (live:cards to install-upgrade) is done and measured.
   - 9.2 scores 9.1's rows.
-  - 9.3 adds `TurnResult` and `check_status`'s eval branch, and carries DW-110 (each turn request `SessionMode` fresh with no `SeedText`, with a test that two turn cases of one run share no conversation).
+  - 9.3 (split, decide): the 20+ item cases (mailbox and finding-shaped), the three sample emails (newsletter Ignore, partner notice Digest per the UX, suspicious request as the injection case) and the injection rule (nothing acted + key phrases; injections scored apart from SM-1's items).
+  - 9.7 (split from 9.3): the stop-watching injection, the all-clear turn cases and the command case: `TurnResult`, `check_status`'s eval branch, and DW-110 (each turn request `SessionMode` fresh with no `SeedText`, with a test that two turn cases of one run share no conversation). Its plan must settle three findings of 9.3's plan: `OcuTalon.Bridge.Msg.Request` has no `HostData` and `Bridge.Context.Begin` empties it (prefer a Lane A carrier for the recorded check results over a `src/bridge` change, which is Epic 7's and would extend AD-6's request list); `WatchTools.CheckStatus` refuses owner `eval` in `CommandCall.Session` before `CheckResults`; and `WatchOps.OnStart` refuses an owner with no `Session` row, so an eval-owned Orders watch needs a design.
   - 9.4 records the incidents (`EvidencePack.Build` replay only; no `IncidentManager` change).
   - 9.6 adds the incident path through `IncidentManager`, after Epic 7 merges (integrate forward first), and adds the incident cases to the mock job; it carries DW-353 (`EvalSink` must match an incident's row by `RunRef` and `SourceItemId`, because the incident's `ItemDecision` carries the incident's Ref as `ItemId`).
   - 9.5 needs 9.1 to 9.4 and 9.6, and Epic 7 merged for Story 7.1's repair-and-resend validation.
