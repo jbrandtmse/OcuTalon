@@ -353,7 +353,7 @@ Paths under `src/ocutalon/cls/OcuTalon/` unless they start otherwise.
 - `web/src/app/api/api-client.ts`. Add `pairingCode()`, `unpair()` (`this.http.delete<UnpairDone>(…, { body: {} })`) and `breakFeed()`.
 - `web/src/app/feed/break-feed-box.ts`; delete `web/src/app/feed/break-feed-api.ts`. Inject `ApiClient` and call `breakFeed()`; the behaviour is unchanged. This addresses DW-231 and U-84.
 - `web/e2e/demo-path/telegram-page.spec.ts` and `telegram-approval.spec.ts` (new). Each has one `notBuilt(...)` naming `'12.4'` and `'12.7'`, with a header saying Lane A owns the file from Epic 12 (AD-29).
-- `web/package.json`, `web/package-lock.json` (Task F5, separable, needs the orchestrator's ruling). Run `npm --prefix web install --save-exact --ignore-scripts qrcode-generator@2.0.4` (MIT, no runtime dependencies, bundled types, ESM). Nothing in `web/src` imports it yet. The Stack row is the lead's (Design Notes).
+- `web/package.json`, `web/package-lock.json` (Task F5; allowed by the orchestrator's ruling of 2026-10-28T20:05:05Z under the conditions in Design Notes, "Orchestrator ruling"). Run `npm --prefix web install --save-exact --ignore-scripts qrcode-generator@2.0.4` with the project's own npm (the same major CI uses). `package.json` gains exactly one line in `dependencies`, `"qrcode-generator": "2.0.4"`, and nothing else changes; the lockfile diff holds only the new `node_modules/qrcode-generator` entry and the root package's dependencies line. Check both with `git diff`; anything else that moved (lockfileVersion, another package's resolved or integrity field, a dedupe) is reverted and the step redone. `npm --prefix web ci` must pass on the result. Nothing in `web/src` imports it yet. The Stack row is written by the lead (Design Notes).
 - `web/scripts/api-client-sources.test.mjs` (new). Pin the three client methods' verbs, URLs and bodies. Pin that `inject(HttpClient)` appears only in `api/api-client.ts`, that `feed/break-feed-api.ts` is absent and that `break-feed-box.ts` calls `breakFeed()`. Mirror `approval-sources.test.mjs`.
 - `web/scripts/qr-pin.test.mjs` (new, with F5). Pin:
   - `package.json` pins `qrcode-generator` at exactly `2.0.4`;
@@ -552,26 +552,25 @@ Method Unlink(sessionRef As %String, chatRef As %String, reason As %String, chan
 - **Outside the footprint, not contended:** `Live/Payload/Status.cls`, `web/src/app/feed/break-feed-box.ts` and `break-feed-api.ts` (deleted), `web/e2e/api/pairing.spec.ts`, `web/e2e/demo-path/telegram-{page,approval}.spec.ts`, the new `Test/Core/*` classes, and `Test/{Demo/Guide,Live/Status,Contract/Ac,Contract/Mock}.cls`.
 - **New files in contended folders (standing precedent):** `Install/Step/Core.cls` (Epic 15's `Install/**`), `Test/Data/PairingRows.cls`, `Test/Web/PairingApi.cls`, `web/scripts/api-client-sources.test.mjs` and `qr-pin.test.mjs` (Epic 16's `web/scripts/**`).
 - **One self-contained block appended at the end of a contended file:** `Data/Ownership.cls` (Epic 16 changed this file; a merge union at its end).
+- **Contended, by the orchestrator's ruling of 2026-10-28T20:05:05Z (Task F5):** `web/package.json` (one `dependencies` line) and `web/package-lock.json` (the new entry and the root dependencies line).
 - **Shared by entry:** `Web/Api.cls` (Epic 16 also edits `StateBody`, next to the Telegram block; a plain union), `api-client.ts`, `api-types.ts`, `Test/Web/Api.cls`, `Test/Data/Tables.cls` and `Test/Core/ProductionItems.cls`.
 
-**Contention points for the lead (not resolved here):**
-1. **Task F5 (the QR pin) needs the orchestrator's ruling on the contended `web/package.json` and `web/package-lock.json`,** which Epic 16's unmerged branch f41b201 changed.
-   - The pin: `qrcode-generator` 2.0.4, MIT (on the allowed list), exact, no runtime dependencies.
-   - The spine Stack row, written by the lead at the spec gate (Rule 20: memlog and lint): `| QR-code library (Story 10.3; drawn in the browser for the Telegram pairing link, AD-14) | qrcode-generator 2.0.4 (MIT), no runtime dependencies |`.
-   - If the ruling defers the pin, F5, `qr-pin.test.mjs` and the Web AC's last clause move with it, and nothing else changes.
-2. **DW-231's guide half needs no contended edit** (see Ledger).
-3. **`Data/Ownership.cls`'s appended `ApprovalKnown` block** (Epic 16 changed the file).
+**Orchestrator ruling (2026-10-28T20:05:05Z, category decide, policy 6df0676; logged in the parallel cycle log):** option (a), Task F5 may edit the contended `web/package.json` and `web/package-lock.json`. Why: Epic 16 is waiting, not live; its branch changed one `scripts` line of `package.json` and never the lockfile, and no other open epic touches either file, so the edit is at worst a plain union at Epic 16's integrate-forward. Moving the pin to an Epic 16 story (an AC move across epics) and waiting for Epic 16 (16.4 waits on this story's unlink) were rejected. Conditions, binding on the implement stage:
+1. `web/package.json`: exactly one added line in `dependencies`, `"qrcode-generator": "2.0.4"` (exact pin, no `^` or `~`). No other line changes: no script edits, no reformatting, no field reordering.
+2. `web/package-lock.json`: produced by the project's own npm (the same major CI uses). Its diff holds only the new `node_modules/qrcode-generator` entry and the root package's dependencies line; if anything else moves (lockfileVersion, other packages' resolved or integrity fields, a dedupe), revert it and redo the step. `npm --prefix web ci` must pass on the result.
+3. The dependency is a veto item (category 6): ruled by the lead, inbox U-138; reversal: remove the dependency and its Stack row, and render the QR code another way.
+4. The spine's Stack row is written (the lead, at this gate); `web/package.json` and `web/package-lock.json` are footprint extensions.
 
-**Spine rows for the lead (Rule 20, with the ruling):**
-- the Stack row above;
-- the REST row: `409 not_available` (`POST /pairing/code`) and `DELETE /pairing` → 200 `{"result":"done"}`;
-- the Status marks row: `telegramState` holds JSON `{state, botUserName}`, written only by `StatusMark.RecordTelegram`.
+The other contention points are accepted as planned: `Data/Ownership.cls` gets one self-contained `ApprovalKnown(ref)` block appended at the end of the file (Epic 16's hunks there are mid-file); the new files in contended folders are `Install/Step/Core.cls`, `Test/Data/PairingRows.cls`, `Test/Web/PairingApi.cls`, `web/scripts/api-client-sources.test.mjs` and `web/scripts/qr-pin.test.mjs`; nothing under `web/src/app/guide/**` changes. All are footprint extensions.
 
-**Veto-window items (the lead classifies):**
-- (3) Schema: the six `Pairing` columns, two indexes and the `telegramState` mark.
-- (6) The new dependency of F5.
-- (5) New public text: the two 409 messages, unreachable in 0.1.0 because the routes answer 404 first.
-- (1) The CI-only dummy bot token and the `check_no_key` rule (Decided 12).
+**Spine rows (Rule 20), written by the lead at this gate:**
+- the Stack row: `| QR-code library (Story 10.3; drawn in the browser for the Telegram pairing link, AD-14) | qrcode-generator 2.0.4 (MIT), no runtime dependencies |`;
+- the REST row: `409 not_available` (`POST /pairing/code`), the code's 200 body, and `DELETE /pairing` → 200 `{"result":"done"}` (veto U-137);
+- the Status marks row: `telegramState` holds JSON `{state, botUserName}`, written only by `StatusMark.RecordTelegram` (veto U-137).
+
+**Veto-window rulings (the lead, at this gate):**
+- U-137: (3) the six `Pairing` columns, two indexes and the `telegramState` mark; (5) the two 409 messages and the DELETE body, unreachable in 0.1.0 because the routes answer 404 first; (1) the CI-only dummy bot token and the `check_no_key` rule (Decided 12). Kept; reversal: a fix story before 0.1.1 changes the named part.
+- U-138: (6) the new dependency of F5. Kept; reversal: remove the dependency and its Stack row, and render the QR code another way.
 
 **Story 16.3 and 16.9.** Story 16.3 has not merged, so per the AC nothing is turned on: Story 16.3 will check the real row. Story 16.9 owns `TryConsume` refusals, and this story only proves the allowed path with channel `telegram`.
 

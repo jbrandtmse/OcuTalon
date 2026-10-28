@@ -976,6 +976,7 @@ How OcuTalon uses each AI Hub capability on build 154. **As is** means used unch
 | pdfplumber (step 3, through Embedded Python) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "step 6"] | 0.11.10 |
 | python-docx (step 3, through Embedded Python) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "step 6"] | 1.1.2 |
 | fastembed (Python package, memory vectors from step 3; S11) | 0.9.0 |
+| QR-code library (Story 10.3; drawn in the browser for the Telegram pairing link, AD-14) | qrcode-generator 2.0.4 (MIT), no runtime dependencies, exact pin in `web/package.json` [ADDED 2026-10-28, Story 10.3 spec validation, Epic 10 runner, veto U-138; the contended `web/package.json` edit allowed by the orchestrator's ruling] |
 
 ## Structural Seed
 
