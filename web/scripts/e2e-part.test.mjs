@@ -446,3 +446,29 @@ describe('ci/iris.sh live, its pass-through', () => {
     assert.match(run.stdout, /unknown live unit 'nope'/);
   });
 });
+
+// --- the hosted web job runs these tests, so a push that changes only the script they read and cut must start the job ---
+
+describe('WEB_INPUT_PATTERN of ci/units.sh, applied the way ci/changes.sh applies it', () => {
+  const unitsPath = join(here, '..', '..', 'ci', 'units.sh');
+
+  /** Whether the pattern, read from ci/units.sh and applied with LC_ALL=C grep -Eq, matches `path` as a changed path. */
+  function matches(path) {
+    const run = spawnSync('bash', ['-c', '. "$1" && printf "%s\\n" "$2" | LC_ALL=C grep -Eq -- "$WEB_INPUT_PATTERN"', 'bash', unitsPath, path], {
+      env: bareEnv(),
+      encoding: 'utf8',
+    });
+    assert.ok(run.status === 0 || run.status === 1, `the pattern could not be applied (status ${run.status}): ${run.stderr}`);
+    return run.status === 0;
+  }
+
+  it('matches docker/tests/test-sign-in.sh, the script that this file reads and runs', () => {
+    assert.equal(matches('docker/tests/test-sign-in.sh'), true);
+  });
+
+  it('does not match a near miss of that path', () => {
+    for (const path of ['docker/tests/test-sign-in.sh.bak', 'docker/tests/test-signXin.sh', 'docker/tests/test-sign-inXsh', 'docker/tests/test-sign-in-x.sh', 'docker/tests/sub/test-sign-in.sh', 'old/docker/tests/test-sign-in.sh']) {
+      assert.equal(matches(path), false, path);
+    }
+  });
+});

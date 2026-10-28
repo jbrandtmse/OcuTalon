@@ -2,8 +2,8 @@
 title: 'Story 8.7: Epic 8 burn-down'
 type: 'chore'
 created: '2026-10-27'
-status: 'in-progress'
-baseline_revision: '182f2225f390fc95998cf071f7948b54fbdf646e'
+status: 'done'
+baseline_revision: '1d6c98b3a75249e90aa2b81fee6777bac5b0167a'
 baseline_commit: '182f2225f390fc95998cf071f7948b54fbdf646e'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -250,7 +250,7 @@ Code review, 2026-10-27: Tier 1 on this spec, baseline `182f222`, full mode, fou
 - Acceptance 6 (process): QA's tests are uncommitted. The lead commits them.
 - Acceptance 7 (bookkeeping): the Auto Run Result says 24 tests. The fix would edit the spec's result section.
 
-- [ ] [Review] DW-335 (HIGH, AD-22; orchestrator ruling 2026-10-28: option (a) allowed, decide): add exactly one alternation, `|docker/tests/test-sign-in\.sh$`, to `WEB_INPUT_PATTERN` in `ci/units.sh` (line 54; shared by entry, a plain union at integrate-forward), so a push that changes only `docker/tests/test-sign-in.sh` runs the hosted `web` job's unit tests that read and run it; and add a check that pins it (a hermetic test that fails if the pattern stops matching `docker/tests/test-sign-in.sh`, preferably in `web/scripts/e2e-part.test.mjs`), with an observed mutation and its `mutation:` line. Nothing else in `ci/units.sh`.
+- [x] [Review] DW-335 (HIGH, AD-22; orchestrator ruling 2026-10-28: option (a) allowed, decide): add exactly one alternation, `|docker/tests/test-sign-in\.sh$`, to `WEB_INPUT_PATTERN` in `ci/units.sh` (line 54; shared by entry, a plain union at integrate-forward), so a push that changes only `docker/tests/test-sign-in.sh` runs the hosted `web` job's unit tests that read and run it; and add a check that pins it (a hermetic test that fails if the pattern stops matching `docker/tests/test-sign-in.sh`, preferably in `web/scripts/e2e-part.test.mjs`), with an observed mutation and its `mutation:` line. Nothing else in `ci/units.sh`.
 
 ## Spec Change Log
 
@@ -292,6 +292,22 @@ Code review, 2026-10-27: Tier 1 on this spec, baseline `182f222`, full mode, fou
   - `[low]` `[reject]` Intent 3: manual runs, not tests, are the evidence for the short run, the heartbeat-first row and the timings — live stacks cannot run in a hosted test; each has a recorded mutation or measurement.
   - `[low]` `[reject]` Intent 4: the baseline helper relies on `?after=999999999999999` serving instance events only — every live run exercised it, and the cursors test pins that cursor.
   - `[false]` `[reject]` Intent 5: flaky counts are not summed — same as Edge 1.
+
+### 2026-10-28 — Review pass (rework 1, DW-335)
+- verdicts: 12 findings — high 0, medium 0, low 10, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: the comment above `WEB_INPUT_PATTERN` does not name `test-sign-in.sh` — the orchestrator's ruling is one alternation and nothing else in the contended `ci/units.sh`; a comment edit beside line 54 only raises the integrate-forward conflict risk, and the pattern is pinned by a test.
+  - `[low]` `[patch]` Blind 2: the mutation block header names one runner for all three mutations — the header now names `docker/tests/test-ci-changes.sh` for the third.
+  - `[low]` `[reject]` Blind 3: the `live:sign-in` arm of the classifier case would go stale on a rename — the unit's name is also read by `ci/iris.sh` and `e2e-part.test.mjs` reads the script by path, so a rename is not silent.
+  - `[low]` `[reject]` Blind 4: the test pins one path with no completeness scan of the files the web tests read — the item asks to pin this path; a scan is a wider check than the ruling allows.
+  - `[low]` `[reject]` Edge 1: same root as Blind 1.
+  - `[false]` `[reject]` Edge 2: the helper repeats `ci/changes.sh`'s grep call — the classifier case in `test-ci-changes.sh` (`web=true`) is the cross-check, and its mutation was observed red.
+  - `[low]` `[reject]` Edge 3: no upper-case or trailing-space near miss — theoretical; nobody makes the pattern case-insensitive, and the fix adds paths for no named harm.
+  - `[low]` `[patch]` Gap 1: nothing pins the `\.` escape of the alternation — `docker/tests/test-sign-inXsh` joined the near misses; the mutation (escape dropped) was observed red and recorded.
+  - `[low]` `[reject]` Gap other 1: same root as Blind 1.
+  - `[low]` `[reject]` Gap other 2: `matches()` reads status 1 as "no match" even when sourcing fails — the positive case goes red in that situation, so the suite cannot pass; a guard adds branches for no reachable green.
+  - `[false]` `[reject]` Intent 1: the `test-ci-changes.sh` edit is outside "nothing else in `ci/units.sh`" — the item limits that one file; the old `web=false` expectation for the script contradicted the ruling, so the case had to change.
+  - `[low]` `[reject]` Intent 2: nothing tests the workflow's gating on `web=true`, and no scan covers every file the web tests read — both are wider than the item; `ci/changes.sh`'s verdict is pinned by the classifier case.
 
 ## Design Notes
 
@@ -465,6 +481,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - The pass-through harness with `OCUTALON_TEST_WEB_PORT=52803` set: 2 failed before `env: bareEnv()`, 35 of 35 after.
 - Live, lane C, tag `e8s7c`: `ci/iris.sh live sign-in --part 2/2` on a fresh stack, 307 s, 96 passed, ending `test-sign-in part 2/2: all checks passed`. Its PASS line ends "of these rows, those in the spec files of part 2/2 of the chromium project pass (96 passed)". Part 1/2 was not re-run: the patched lines are the same for every k, and the hermetic test runs them.
 
+**Mutation results (rework 1, DW-335).** Each was applied to the patched tree, observed red with the runner named on its line (`node --test web/scripts/e2e-part.test.mjs`, or `bash docker/tests/test-ci-changes.sh` for the third), then reverted from its own backup, sha identical.
+- mutation: `ci/units.sh` without the `|docker/tests/test-sign-in\.sh$` alternation (the file as it was before the rework) -> red: "matches docker/tests/test-sign-in.sh, the script that this file reads and runs" (1 failed of 37).
+- mutation: the alternation's `$` dropped (`test-sign-in\.sh|`) -> red: "does not match a near miss of that path" (`docker/tests/test-sign-in.sh.bak` matches; 1 failed of 37).
+- mutation: `ci/units.sh` without the alternation, run against `docker/tests/test-ci-changes.sh` (whose live-script classifier case for `live:sign-in` now expects `web=true`) -> red: "classifier: the script of live:sign-in runs web and only browser"; reverted, sha identical.
+- mutation: the alternation's `\.` becomes `.` (`test-sign-in.sh$`, the escape dropped) -> red: "does not match a near miss of that path" (`docker/tests/test-sign-inXsh` matches; 1 failed of 37, code review); `ci/units.sh` reverted from backup, sha identical.
+
 ## Auto Run Result
 
 Status: done
@@ -492,3 +514,16 @@ Blocking condition: none
 **Verification performed.** `node --test web/scripts/e2e-part.test.mjs` 24 of 24; `npm --prefix web test` 715 of 715; `npm --prefix web run lint`; `bash ci/checks.sh` (all scripts passed, including test-ci-config and the demo-path gate); `bash docker/tests/test-boundaries.sh`; the bad-argument runs return rc 2 with no LOCK line; every mutation in `## Verification` was applied, observed red and reverted byte-identical; tag e8s7i torn down.
 
 **Residual risks.** The baseline race (deferred). Epic 6's `cards/` specs will lengthen part 1; the recipe says when to move to three parts.
+
+### Rework 1 (DW-335)
+
+Status: done
+Blocking condition: none
+
+**Implemented.** `ci/units.sh`: one alternation, `|docker/tests/test-sign-in\.sh$`, in `WEB_INPUT_PATTERN`, so a push that changes only `docker/tests/test-sign-in.sh` runs the hosted `web` job. `web/scripts/e2e-part.test.mjs`: a describe block that sources `ci/units.sh` and applies the pattern with `LC_ALL=C grep -Eq`, as `ci/changes.sh` does, asserting the path matches and six near misses do not. `docker/tests/test-ci-changes.sh`: the classifier case for the script of `live:sign-in` now expects `web=true` with only `browser` (decided in-stage: the old `web=false` expectation contradicted the ruling).
+
+**Review.** 12 findings: patched 2 (both low: the `\.` escape pin and the mutation block header), rejected 10 with reasons in the triage log, deferred 0. Follow-up review recommended: false (patched counts: high 0, medium 0, low 2).
+
+**Verification performed.** `node --test web/scripts/e2e-part.test.mjs` 37 of 37; `npm --prefix web test` 728 of 728; `bash ci/checks.sh` all scripts passed (it includes `test-ci-changes.sh`); `bash docker/tests/test-boundaries.sh` all rules passed; four mutations observed red and reverted sha-identical. No stack was started.
+
+**Residual risks.** None named.
