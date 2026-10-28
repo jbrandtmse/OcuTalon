@@ -307,6 +307,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 
 ## Spec Change Log
 
+- 2026-10-28, lead, before implement: owner decision U-141 applied: `UNUSABLE`'s reason is "OcuTalon couldn't read the approved fix".
+
 - 2026-10-28, spec gate (lead): V1, V2 and V3 ruled as veto items U-139, U-140 and U-141 (kept as planned; V2 adds the two-results pin to Story 7.4 in `epics.md`); V4 routed to Story 7.4 as DW-368. The FixExecutor row of `Test/Install/Production.cls` (Epic 13's contended file) is asked of the orchestrator.
 - 2026-10-28, spec gate (lead): the orchestrator allowed the `Test/Install/Production.cls` row and doc-clause edit (decide); recorded under Design Notes.
 
@@ -331,7 +333,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - **Rejected:** moving the wait into 7.3. It brings `FailedAgain`, its reason text and the copy recognition with it, which is about half of 7.4.
 
 **V3. Two couldn't-start reasons that UX does not give (public text, in the veto window).** UX gives only the resources reason. These two render as "Nothing was resent: {reason}. Nothing was changed.":
-- `UNUSABLE`, "the approved fix could not be read": an approved row that FixExecutor cannot use (unknown kind, parameters that are not an object, malformed targets, incident gone or closed). `Test.Watch.Closing`'s `zz_fix` row reaches it live.
+- `UNUSABLE`, "OcuTalon couldn't read the approved fix" (owner U-141; it read "the approved fix could not be read"): an approved row that FixExecutor cannot use (unknown kind, parameters that are not an object, malformed targets, incident gone or closed). `Test.Watch.Closing`'s `zz_fix` row reaches it live.
 - `NOREAD`, "OcuTalon couldn't read the failed messages in that production": the re-check cannot read the production.
 - **Rejected:** refusing these silently, which would leave the incident `fixing` with no end.
 
@@ -344,7 +346,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 **Spec gate rulings (lead, 2026-10-28; policy 6df0676):**
 - V1 (`FixRun.Copies`): ruled `veto`, inbox U-139, kept as planned.
 - V2 (the end of a run that resent copies stays 7.4's): ruled `veto`, inbox U-140: Story 7.4 gains the acceptance criterion "two approved requests' results are each their own once copies were resent" in `epics.md`. This story pins the results it sends itself.
-- V3 (the two couldn't-start reasons): ruled `veto`, inbox U-141, kept as planned.
+- V3 (the two couldn't-start reasons): ruled `veto`, inbox U-141; the owner kept it with one wording change (U-141, answer_ref 2026-10-28T22:40:21Z#424): the first reason is "OcuTalon couldn't read the approved fix" (it was "the approved fix could not be read"), so all three couldn't-start reasons begin with OcuTalon like the UX example; the second reason ("OcuTalon couldn't read the failed messages in that production") and the frame "Nothing was resent: {reason}. Nothing was changed." stay. The catalog text and the test that pins it use the new wording.
 - V4 (a stopped production renders as "had changed since the dry run"): routed to Story 7.4, which owns the result texts, as DW-368 (with its `DW-368:` bullet in 7.4's block). This story keeps AD-16 and the convention as written and pins the Skipped counts only; it adds no text.
 - `Test/Install/Production.cls` (contended: Epic 13 lists the file): the orchestrator ruled (a) allowed, as decide (policy 6df0676, 2026-10-28T22:4xZ). Change ONLY Lane A's own `FixExecutor` row (L628, `"stub": 1` to `"stub": 0`) and the `TestStubsAnswer` doc clause (about L13: add "FixExecutor (built in Story 7.3)" next to the other built items). Nothing else in the file changes; the row is shared by row, like `Test/Core/ProductionItems.cls`. Epic 9 (live) also edits that doc line and its own EvalIn/EvalSink rows (L626-627) on its branch; that is a plain union at its integrate-forward, so keep the edit to the row and the clause minimal.
 
