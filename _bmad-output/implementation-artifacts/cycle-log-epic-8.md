@@ -224,3 +224,4 @@
 2026-10-28T04:14:56Z	Epic 8	epic_retro_skipped	reason=policy(gates.retrospective=skip)
 2026-10-28T04:27:37Z	Story 8.6	fresh_check	env=recipe(merged_tree_8d5f805;shard_lane-b_e8if2b) tests=lane-b:71 result=fail order=forward note=ReminderChat_3_tests_failed:CHATTOOLS_exact_ToolNames_vs_Chat_TOOLSETS+Watching(Epic_5);merge-induced model=claude-opus-5-5
 2026-10-28T04:27:45Z	Story 8.6	rework_opened	cycle_iteration=2 iteration=1 trigger=smoke(integrate-forward_red_on_merged_tree) items=ReminderChat_Chat-request_selection scope_baseline=pending note=epic-8_set_back_to_in-progress_for_the_rework
+2026-10-28T04:27:45Z	Story 8.6	stage_spawned	stage=implement spawn_at=2026-10-28T04:27:45Z model=sonnet agent_name=8-6-chat-demo-path-implement-2 cycle_iteration=2 rework=1(integrate-forward)
