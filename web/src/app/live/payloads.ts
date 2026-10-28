@@ -144,6 +144,7 @@ export interface PhonePayload {
   direction?: string;
   text?: string;
   approvalRef?: string;
+  answer?: string;
   createdAt?: string;
 }
 

@@ -915,6 +915,7 @@ XData Contracts [ MimeType = application/json ]
    "Direction": "%String(%JSONFIELDNAME=direction,MAXLEN=32)",
    "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
+   "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
   }
  },

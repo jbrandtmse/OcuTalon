@@ -1,6 +1,8 @@
 // Tests what the chat announces (src/app/chat/chat-announcements.ts): the diff of the entries against the last look, the
-// first sentence of a reply or a card, and what stays silent (the first look, the user's own messages, Deciding, Working, the
-// seconds, a card updated in place, a reply that had already landed). The entries come from the real chatView, and the
+// first sentence of a reply or a card, an incident card (new, state change, count-only change), and what stays silent (the first look, the user's own messages, Deciding, Working, the
+// seconds, a card updated in place, a reply that had already landed). Story 6.4: the record of an incident card holds its state and
+// the text of each request's result band; a known card gives each band text that is new or changed (once), a new card none; the change
+// to closed of an incident that the page dismissed itself is recorded and not spoken. The entries come from the real chatView, and the
 // format from fakes or from the real reply-text.ts. The module is imported as it is: Node strips its types, which holds only
 // while it keeps to erasable syntax and imports only types.
 // Run with: node --test web/scripts/
@@ -12,8 +14,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'chat', 'chat-announcements.ts');
-const { chatAnnouncements, firstSentence } = await import(pathToFileURL(source).href);
+const { chatAnnouncements, firstSentence, landed } = await import(pathToFileURL(source).href);
 const { chatView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
+const { announcementOf, bandTexts } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts')).href);
+const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
+const { renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { parseReply, plainText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'reply-text.ts')).href);
 
 const NOW = 1_000_000;
@@ -24,7 +29,19 @@ const FAKE = {
   announceTellNow: 'Tell now:',
   replyText: (text) => text,
   fallbackText: (key, reason) => `Catalog ${key}: ${reason}. Second sentence.`,
+  // The real texts of an incident card, with a headline that carries the count so that a count change would show.
+  incidentText: (previous, incident) => announcementOf(previous, incident, `H${incident.count ?? ''}`),
+  // The real result bands: the catalog's texts of the Result mapping.
+  bandTexts: (incident) => bandTexts(incident, { result: (request, noun) => resultView(request, noun, renderPageText) }),
+  dismissed: () => false,
 };
+
+/** The format for a page that has dismissed these incidents itself. */
+const dismissing = (...refs) => ({ ...FAKE, dismissed: (ref) => refs.includes(ref) });
+
+/** A request of an incident payload that went through: 50 orders, or `completed` of them. */
+const done = (ref, over = {}) => ({ ref, state: 'done', result: { total: 50, resent: 50, completed: 50, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over } });
+const ALL = 'All 50 orders went through.';
 
 /** A chat.message entry of the store: a done turn with a reply unless the state or the fields say otherwise. */
 const turn = (ref, over = {}) => ({
@@ -35,6 +52,7 @@ const queued = (ref) => turn(ref, { state: 'queued', replyText: '' });
 const running = (ref) => turn(ref, { state: 'running', replyText: '' });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Orders are failing. More.', whyNow: 'Why now: zz first.', ...over });
+const incident = (ref, over = {}) => ({ type: 'incident', payload: { ref, state: 'awaiting_approval', count: 50, noticeCount: 50, ...over } });
 const local = (clientId, status) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status });
 
 /** The entries the chat shows for the store's chat and the page's outbox. */
@@ -138,6 +156,126 @@ describe('a card', () => {
 
   it('is silent when the card was there at the first look', () => {
     assert.deepEqual(next([[tellNow('N1')]], [[tellNow('N1')]]).texts, []);
+  });
+});
+
+describe('an incident card', () => {
+  it('is announced once when it is new: "Incident: {headline}. Approval needed." for an incident awaiting approval', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), incident('I1')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.']);
+  });
+
+  it('is announced as "No fix proposed." when it is new and a fallback or a no-fix variant, and as its state otherwise', () => {
+    const { texts } = next(
+      [[]],
+      [[incident('F', { state: 'open', fallback: true }), incident('N', { state: 'open', openVariant: 'no_fix' }), incident('R', { state: 'open', openVariant: 'rejected' }), incident('X', { state: 'fixing' })]],
+    );
+    assert.deepEqual(texts, ['Incident: H50. No fix proposed.', 'Incident: H50. No fix proposed.', 'Incident: H50. Open.', 'Incident: H50. Fixing.']);
+  });
+
+  it('announces the new state once when a known card\'s state changes, and nothing for a count-only change or an unchanged update', () => {
+    const first = chatAnnouncements(undefined, view([incident('I1')]), FAKE);
+    assert.deepEqual(first.texts, []);
+    assert.deepEqual(first.heard.get('incident:I1'), { state: 'awaiting_approval', bands: {} }, 'the record keeps the card\'s state');
+    const fixing = chatAnnouncements(first.heard, view([incident('I1', { state: 'fixing', count: 52 })]), FAKE);
+    assert.deepEqual(fixing.texts, ['Incident: H52. Fixing.']);
+    const again = chatAnnouncements(fixing.heard, view([incident('I1', { state: 'fixing', count: 53 })]), FAKE);
+    assert.deepEqual(again.texts, [], 'a count-only change');
+    const same = chatAnnouncements(again.heard, view([incident('I1', { state: 'fixing', count: 53 })]), FAKE);
+    assert.deepEqual(same.texts, [], 'an unchanged update');
+    const resolved = chatAnnouncements(same.heard, view([incident('I1', { state: 'resolved', count: 53 })]), FAKE);
+    assert.deepEqual(resolved.texts, ['Incident: H53. Resolved.']);
+    const closed = chatAnnouncements(resolved.heard, view([incident('I1', { state: 'closed', count: 53 })]), FAKE);
+    assert.deepEqual(closed.texts, ['Incident: H53. Closed.']);
+  });
+
+  it('is silent at the first look, whatever the incidents say, and records each one\'s state', () => {
+    const { texts, heard } = chatAnnouncements(undefined, view([incident('I1'), incident('I2', { state: 'closed' }), incident('I3', { state: undefined })]), FAKE);
+    assert.deepEqual(texts, []);
+    assert.deepEqual([...heard], [['incident:I1', { state: 'awaiting_approval', bands: {} }], ['incident:I2', { state: 'closed', bands: {} }], ['incident:I3', { state: '', bands: {} }]]);
+  });
+
+  it('announces a new ref after a closed one, and leaves the closed card alone', () => {
+    const { texts } = next([[incident('I1', { state: 'closed' })]], [[incident('I1', { state: 'closed' }), incident('I2')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.']);
+  });
+
+  it('counts as landed when present, and is read in the chat\'s order with the other entries', () => {
+    assert.equal(landed(view([incident('I1')])[0]), true);
+    const { texts } = next([[turn('A', { state: 'running', replyText: '' })]], [[incident('I1'), turn('A'), notice('N1')]]);
+    assert.deepEqual(texts, ['Incident: H50. Approval needed.', 'OcuTalon replied: Reply A.', 'Reminder: stretch.']);
+  });
+
+  it('is announced again after it was gone from the chat (the record holds the current entries only)', () => {
+    const first = chatAnnouncements(undefined, view([incident('I1')]), FAKE);
+    const dropped = chatAnnouncements(first.heard, view([]), FAKE);
+    const back = chatAnnouncements(dropped.heard, view([incident('I1')]), FAKE);
+    assert.deepEqual(back.texts, ['Incident: H50. Approval needed.']);
+  });
+});
+
+describe('a result band of an incident card (Story 6.4)', () => {
+  const orders = { one: 'order', other: 'orders' };
+  const R = (state, requests, over = {}) => incident('I1', { state, itemNoun: orders, requests, ...over });
+  const look = (format, ...steps) => {
+    let heard;
+    const said = [];
+    for (const entries of steps) {
+      const result = chatAnnouncements(heard, view(entries), format);
+      heard = result.heard;
+      said.push(result.texts);
+    }
+    return { said, heard };
+  };
+
+  it('is announced once when it first appears on a card already shown, after the state\'s text, and not again', () => {
+    const { said, heard } = look(FAKE, [R('fixing', [{ ref: 'A', state: 'executing' }])], [R('resolved', [done('A')])], [R('resolved', [done('A')], { count: 51 })]);
+    assert.deepEqual(said, [[], ['Incident: H50. Resolved.', ALL], []]);
+    assert.deepEqual(heard.get('incident:I1'), { state: 'resolved', bands: { A: ALL } });
+  });
+
+  it('is announced again when its text changes, still resending and then final, each once', () => {
+    const resending = (completed) => R('fixing', [{ ref: 'A', state: 'executing', result: { total: 50, completed } }]);
+    const { said } = look(FAKE, [R('awaiting_approval', [{ ref: 'A', state: 'pending' }])], [resending(30)], [resending(30)], [resending(35)], [R('resolved', [done('A')])]);
+    assert.deepEqual(said, [
+      [],
+      ['Incident: H50. Fixing.', "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done."],
+      [],
+      ["Still resending: 35 of 50 orders have gone through so far. I'll tell you when it's done."],
+      ['Incident: H50. Resolved.', ALL],
+    ]);
+  });
+
+  it('is announced for each request by itself, and one request\'s change never repeats another\'s', () => {
+    const { said } = look(FAKE, [R('awaiting_approval', [done('A'), { ref: 'B', state: 'pending' }])], [R('resolved', [done('A'), done('B', { total: 50, completed: 48, failedAgain: 2, reason: 'zz' })])]);
+    assert.deepEqual(said[1], ['Incident: H50. Resolved.', '48 of 50 orders went through. 2 failed again (zz). I won\'t retry them without a new approval.']);
+  });
+
+  it('is not announced at first sight of a card, beyond 6.1\'s rule, nor at the first look', () => {
+    const first = chatAnnouncements(undefined, view([R('resolved', [done('A')])]), FAKE);
+    assert.deepEqual(first.texts, []);
+    const sight = chatAnnouncements(first.heard, view([R('resolved', [done('A')]), incident('I2', { state: 'resolved', itemNoun: orders, requests: [done('B')] })]), FAKE);
+    assert.deepEqual(sight.texts, ['Incident: H50. Resolved.'], 'the new card says its state and no band');
+  });
+
+  it('announces a closing as the state only when the bands did not change, repeating no band', () => {
+    const { said } = look(FAKE, [R('resolved', [done('A')])], [R('closed', [done('A')])]);
+    assert.deepEqual(said[1], ['Incident: H50. Closed.']);
+  });
+
+  it('does not repeat a closing that the page dismissed itself, and records it, while any other closing is announced', () => {
+    const own = look(dismissing('I1'), [R('open', [{ ref: 'A', state: 'rejected' }], { openVariant: 'rejected' })], [R('closed', [{ ref: 'A', state: 'rejected' }])]);
+    assert.deepEqual(own.said, [[], []]);
+    assert.equal(own.heard.get('incident:I1').state, 'closed');
+    const other = look(dismissing('I2'), [R('open', [])], [R('closed', [])]);
+    assert.deepEqual(other.said[1], ['Incident: H50. Closed.']);
+    const again = look(dismissing('I1'), [R('closed', [])], [R('closed', [])]);
+    assert.deepEqual(again.said, [[], []]);
+  });
+
+  it('announces a state other than closed of an incident that the page dismissed', () => {
+    const { said } = look(dismissing('I1'), [R('open', [])], [R('awaiting_approval', [])]);
+    assert.deepEqual(said[1], ['Incident: H50. Awaiting approval.']);
   });
 });
 

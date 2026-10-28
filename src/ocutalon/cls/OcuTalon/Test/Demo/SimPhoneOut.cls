@@ -1,4 +1,4 @@
-/// Tests of SimPhoneOut (Story 4.5; AD-4, AD-12, AD-14, AD-32, AD-33). The handler tests are safe on a slot: no production runs
+/// Tests of SimPhoneOut (Story 4.5, Story 6.3; AD-4, AD-12, AD-14, AD-32, AD-33). The handler tests are safe on a slot: no production runs
 /// there, so they call the handlers on a shadow instance of OcuTalon.Channel.SimPhone.Out, with fixture sessions from
 /// Test.Data.Fixture. TestThroughNotify needs the running OcuTalon.Production with demo mode on and runs in throwaways and CI only
 /// (Rule 21); where no production runs it is skipped. Every expected text is rendered here through Msg.Catalog.RenderAt, with
@@ -6,8 +6,21 @@
 ///   - TestTellNow, TestReminder: a card-kind Notification becomes one SimMessage (kind phone, direction out, the text of the
 ///     telegram render, which is the phone render), one phone Delivery row (the SimMessage's Ref as ChannelMessageId, the kind and
 ///     the Refs, no text) and one phone event whose payload is the message's;
+///   - TestIncidentNoticeAsksForItsRequest, TestLaterRequestHasItsOwnButtons: a notification of kind incident or approval is a
+///     message that keeps its ApprovalRef, with its Delivery row and event; a later request is a message of its own;
+///   - TestOnlyRequestKindsCarryARequest: tellnow, reminder, answered and an incident with no request give no message with an
+///     ApprovalRef;
+///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
+///     with one more event and its Delivery row, and a later one leaves the first answer (Delivery row only); TestAnsweredWithNoMessageRecordsOnly, TestAnsweredNeverEditsAnotherSessionsMessage
+///     and TestAnsweredRenderErrorChangesNothing are its edges;
 ///   - TestTextIsTheTelegramWording: for a key that words the web differently, the phone carries the telegram wording;
 ///   - TestOnlineDemoTimesNameTheZone: a late reminder's time ends with " ET" on the online demo and has no suffix otherwise;
+///   - TestResultIsAMessage (Story 6.4; AD-32): a result notification is one new SimMessage with the phone render of its key, no ApprovalRef
+///     (so no buttons), its Delivery row and one phone event; the request's earlier message keeps its Ref and its Answer; a count of one
+///     reads as the catalog's count-of-one form;
+///   - TestFallbackAndNoFixWording: incident.fallback, incident.noFix and incident.noFixUnknown, each with two groups (one dated), are one
+///     message of the phone render with no ApprovalRef;
+///   - TestResultRenderError: a result whose key can't be rendered is an error with no message, row or event;
 ///   - TestOtherKindsRecordOnly: any other kind records its phone Delivery row only, with no message and no event;
 ///   - TestNotASession: an owner that is not a session records nothing, publishes nothing and logs one warning, before any
 ///     rendering (the demo-switch stack's control Notification has an unrenderable slot set);
@@ -163,13 +176,105 @@ Method TestOnlineDemoTimesNameTheZone()
 	Do $$$AssertEquals(..Newest(session).Text, row.Text, "and the message keeps that text after the setting is off again")
 }
 
+/// A result notification (kind result, result.allThrough, ApprovalRef of the request and IncidentRef) is one new SimMessage with the
+/// phone render of the key and the slots, and an empty ApprovalRef; its phone Delivery row and one phone event. The request's earlier
+/// message is not edited: it keeps its Ref, Text, ApprovalRef and Answer. With a count of one the text is "The order went through.".
+Method TestResultIsAMessage()
+{
+	Set session = ..Session("result")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set approval = ..NewRef(), incident = ..NewRef()
+	Set request = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set request.ApprovalRef = approval
+	Set request.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(request, .response), "the request's notice is delivered")
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = approval
+	Set answered.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "and answered")
+	Set first = ..Newest(session)
+	Set firstRef = first.Ref, firstText = first.Text, firstAnswer = first.Answer
+	Do $$$AssertTrue(firstAnswer '= "", "the request's message has its answer line")
+	Set slots = {"count": 50, "itemNoun": {"one": "order", "other": "orders"}}
+	Set result = ..Notification(session, "result", "result.allThrough", slots)
+	Set result.ApprovalRef = approval
+	Set result.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(result, .response), "the result is delivered")
+	Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt("result.allThrough", slots.%ToJSON(), "phone", now, 0)
+	Do $$$AssertEquals(expected, "All 50 orders went through.", "the phone text")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 2, "two messages: the request's and the result's")
+	Set newest = ..Newest(session)
+	Do $$$AssertTrue(newest.Ref '= firstRef, "the result is a new message")
+	Do $$$AssertEquals(newest.Text, expected, "with the phone render as its text")
+	Do $$$AssertEquals(newest.ApprovalRef_"|"_newest.Answer, "|", "no ApprovalRef and no Answer, so no buttons")
+	Set earlier = ..Message(firstRef)
+	Do $$$AssertEquals(earlier.Text_"|"_earlier.ApprovalRef_"|"_earlier.Answer, firstText_"|"_approval_"|"_firstAnswer, "the request's message is not edited")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 3, "three Delivery rows")
+	If deliveries.Count() = 3 {
+		Set delivery = deliveries.GetAt(3)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.ApprovalRef_"|"_delivery.Text, "phone|"_newest.Ref_"|result|"_approval_"|", "the result's: channel, the message's Ref, kind and request, no text")
+	}
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 3, "three phone events: the notice, its answer and the result")
+	If events.%Size() = 3 {
+		Set payload = events.%Get(2).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.approvalRef_"|"_payload.answer_"|"_payload.text, newest.Ref_"|||"_expected, "the last carries the result's ref and text, with no approvalRef or answer")
+	}
+	Set one = ..Notification(session, "result", "result.allThrough", {"count": 1, "itemNoun": {"one": "order", "other": "orders"}})
+	Set one.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(one, .response), "a result of one is delivered")
+	Do $$$AssertEquals(..Newest(session).Text, ##class(OcuTalon.Msg.Catalog).RenderAt("result.allThrough", {"count": 1, "itemNoun": {"one": "order", "other": "orders"}}.%ToJSON(), "phone", now, 0), "with the count-of-one form")
+	Do $$$AssertEquals(..Newest(session).Text, "The order went through.", "which is the order went through")
+}
+
+/// The fallback and no-fix notices (kind incident, no ApprovalRef) are one message each, with the phone render and an empty ApprovalRef;
+/// the two groups, one of them dated, are in the text.
+Method TestFallbackAndNoFixWording()
+{
+	Set session = ..Session("notices")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set old = "2020-01-02T10:15:00Z"
+	Set keys = $ListBuild("incident.fallback", "incident.noFix", "incident.noFixUnknown")
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		Set slots = ..FallbackSlots(now)
+		Set slots.count = 9
+		Do slots.groups.%Push({"itemName": "OrdersToWarehouse", "count": 2, "errorSummary": "The warehouse refused the order", "firstAt": (old)})
+		If key = "incident.noFix" Set slots.cause = "Data format change"
+		If key '= "incident.fallback" Do slots.%Remove("fallbackReason")
+		If key = "incident.noFixUnknown" Do slots.%Remove("cause")
+		Set before = ..PhoneCount(session)
+		Set notification = ..Notification(session, "incident", key, slots)
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), key_" is delivered")
+		Do $$$AssertEquals(..PhoneCount(session), before + 1, key_": one message")
+		Set message = ..Newest(session)
+		Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "phone", now, 0)
+		Do $$$AssertEquals(message.Text, expected, key_": the phone render")
+		Do $$$AssertEquals(message.ApprovalRef, "", key_": no ApprovalRef, so no buttons")
+		Do $$$AssertTrue(message.Text [ "OrdersToWarehouse", key_": it lists the groups")
+	}
+	Do $$$AssertEquals(..Phones(session).%Size(), 3, "three events")
+}
+
+/// A result whose key can't be rendered is an error with no message, no Delivery row and no event.
+Method TestResultRenderError()
+{
+	Set session = ..Session("resulterror")
+	Set notification = ..Notification(session, "result", "result.zzNoSuchKey", {"count": 5})
+	Set notification.ApprovalRef = ..NewRef()
+	Do $$$AssertStatusNotOK(..Out().OnNotification(notification, .response), "an unknown key is an error")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), "0|0|0", "with no message, row or event")
+}
+
 /// Any other kind records its phone Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text and no
-/// ChannelMessageId, no SimMessage and no event; the text is not rendered (its key is unknown), and an incident whose text would
-/// render makes no message either.
+/// ChannelMessageId, no SimMessage and no event; the text is not rendered (its key is unknown). An incident notice is not one
+/// of them: with a tell-now key and an ApprovalRef-less notification it is a message with no ApprovalRef.
 Method TestOtherKindsRecordOnly()
 {
 	Set session = ..Session("other")
-	Set kinds = $ListFromString("incident,approval,answered,result,fallback,allowance,pairing,status,digest")
+	Set kinds = $ListFromString("fallback,allowance,pairing,status,digest")
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
 		Set notification = ..Notification(session, kind, "zz.notRendered", {"zz": "slot"})
@@ -183,11 +288,247 @@ Method TestOtherKindsRecordOnly()
 		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "phone|"_kind_"|ZzApproval"_kind_"|ZzDecision"_kind, kind_": its channel, kind, approval and decision")
 		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId_"|"_row.DueAt_"|"_row.FallbackReason, "|||", kind_": no text, no message id, no due time and no reason")
 	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 10).Count(), 0, "none of them makes a phone message")
+	Do $$$AssertEquals(..Phones(session).%Size(), 0, "and none publishes an event")
 	Set before = ##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)
 	Do $$$AssertStatusOK(..Out().OnNotification(..Notification(session, "incident", "notice.tellNow", {"whatHappened": "zz summary", "reason": "zz reason."}), .response), "an incident whose text renders is delivered")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), before + 1, "and records its row")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 10).Count(), 0, "no kind makes a phone message")
-	Do $$$AssertEquals(..Phones(session).%Size(), 0, "and none publishes an event")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10)
+	Do $$$AssertEquals(rows.Count(), 1, "and makes one phone message")
+	If rows.Count() = 1 Do $$$AssertEquals(..Message(rows.GetAt(1).Ref).ApprovalRef, "", "with no ApprovalRef")
+	Do $$$AssertEquals(..Phones(session).%Size(), 1, "and one event")
+}
+
+/// An incident notice with an ApprovalRef (incident.withFix) is one SimMessage that keeps the ApprovalRef and has no Answer, with
+/// the phone render as its text; one phone Delivery row (kind incident, the ApprovalRef, the message's Ref as ChannelMessageId, no
+/// text); and one phone event whose payload carries the approvalRef and no answer. A render error is an error with no row and no
+/// event.
+Method TestIncidentNoticeAsksForItsRequest()
+{
+	Set session = ..Session("incident")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set slots = ..IncidentSlots(now)
+	Set approval = ..NewRef()
+	Set notification = ..Notification(session, "incident", "incident.withFix", slots)
+	Set notification.ApprovalRef = approval
+	Set notification.IncidentRef = ..NewRef()
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the incident notice is delivered")
+	Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.withFix", slots.%ToJSON(), "phone", now, 0)
+	Do $$$AssertTrue(expected [ "Approve?", "the phone text asks Approve?: "_expected)
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "one phone message")
+	If rows.Count() '= 1 Quit
+	Set message = ..Message(rows.GetAt(1).Ref)
+	Do $$$AssertEquals(message.Text, expected, "with the phone render as its text")
+	Do $$$AssertEquals(message.ApprovalRef_"|"_message.Answer, approval_"|", "it keeps the ApprovalRef and has no Answer")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 {
+		Set delivery = deliveries.GetAt(1)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.ApprovalRef_"|"_delivery.Text, "phone|"_message.Ref_"|incident|"_approval_"|", "its channel, the message's Ref, the kind and the request, with no text")
+	}
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.approvalRef_"|"_payload.answer_"|"_payload.text, message.Ref_"|"_approval_"||"_expected, "its ref, approvalRef and text, and an empty answer")
+	}
+	Set broken = ..Notification(session, "incident", "incident.withFix", {})
+	Set broken.ApprovalRef = ..NewRef()
+	Do $$$AssertStatusNotOK(..Out().OnNotification(broken, .response), "a notice that cannot be rendered is an error")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), "1|1|1", "and adds no message, row or event")
+}
+
+/// A later request (kind approval, incident.laterRequest) is a second message with its own ApprovalRef, and the first keeps its own.
+Method TestLaterRequestHasItsOwnButtons()
+{
+	Set session = ..Session("later")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set slots = ..IncidentSlots(now)
+	Set first = ..NewRef(), second = ..NewRef()
+	Set one = ..Notification(session, "incident", "incident.withFix", slots)
+	Set one.ApprovalRef = first
+	Set two = ..Notification(session, "approval", "incident.laterRequest", slots)
+	Set two.ApprovalRef = second
+	Do $$$AssertStatusOK(..Out().OnNotification(one, .response), "the incident notice is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(two, .response), "and so is the later request")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 2, "two messages")
+	If rows.Count() '= 2 Quit
+	Set refs = ""
+	For i = 1:1:2 Set refs = refs_$Select(refs = "": "", 1: ",")_..Message(rows.GetAt(i).Ref).ApprovalRef
+	Do $$$AssertTrue(($ListFind($ListFromString(refs), first) > 0) && ($ListFind($ListFromString(refs), second) > 0), "each keeps its own request: "_refs)
+	Set later = ""
+	For i = 1:1:2 {
+		If ..Message(rows.GetAt(i).Ref).ApprovalRef = second Set later = ..Message(rows.GetAt(i).Ref)
+	}
+	Do $$$AssertEquals(later.Text, ##class(OcuTalon.Msg.Catalog).RenderAt("incident.laterRequest", slots.%ToJSON(), "phone", now, 0), "the later message has the later request's text")
+	Do $$$AssertEquals(..Phones(session).%Size(), 2, "and each has its event")
+}
+
+/// Only the kinds incident and approval keep an ApprovalRef: a tellnow and a reminder that carry one give a message with none,
+/// an answered one gives no message at all, and an incident with no request is a message with none.
+Method TestOnlyRequestKindsCarryARequest()
+{
+	Set session = ..Session("kinds")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set tell = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz summary", "reason": "zz reason."})
+	Set tell.ApprovalRef = ..NewRef()
+	Set reminder = ..Notification(session, "reminder", "reminder.due", {"text": "stretch", "dueAt": (now)})
+	Set reminder.ApprovalRef = ..NewRef()
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = ..NewRef()
+	Set fallback = ..Notification(session, "incident", "incident.fallback", ..FallbackSlots(now))
+	Do $$$AssertStatusOK(..Out().OnNotification(tell, .response), "the tell-now is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(reminder, .response), "the reminder is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the answered notification is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(fallback, .response), "the incident with no request is delivered")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 3, "three messages: the answered notification made none")
+	Set carried = ""
+	For i = 1:1:rows.Count() Set carried = carried_..Message(rows.GetAt(i).Ref).ApprovalRef
+	Do $$$AssertEquals(carried, "", "and none carries an ApprovalRef")
+	Do $$$AssertEquals(..Phones(session).%Size(), 3, "three events")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 4, "and four Delivery rows")
+}
+
+/// An answered notification edits the delivered message in place: its Ref and Text stay (compared with the values read before the
+/// edit, and the row read again after it), its Answer is the phone render of the notification, there is still one message, a second
+/// phone event carries the answer, and a Delivery row (kind answered) names the message's Ref.
+Method TestAnsweredEditsInPlace()
+{
+	Set session = ..Session("edit")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set slots = ..IncidentSlots(now)
+	Set approval = ..NewRef()
+	Set notice = ..Notification(session, "incident", "incident.withFix", slots)
+	Set notice.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "the incident notice is delivered")
+	Set before = ..Newest(session)
+	Set beforeRef = before.Ref, beforeText = before.Text
+	Kill before
+	Set answeredSlots = {"channel": "web", "time": (now)}
+	Set answered = ..Notification(session, "answered", "answered.approved", answeredSlots)
+	Set answered.ApprovalRef = approval
+	Set answered.IncidentRef = ..NewRef()
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the answered notification is delivered")
+	Set expected = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.approved", answeredSlots.%ToJSON(), "phone", now, 0)
+	Do $$$AssertTrue(expected ? 1"Approved from the web chat at "2N1":"2N1".", "the answer line: "_expected)
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "still one message")
+	If rows.Count() '= 1 Quit
+	Set message = ..Message(rows.GetAt(1).Ref)
+	Do $$$AssertEquals(message.Ref_"|"_message.Text_"|"_message.ApprovalRef, beforeRef_"|"_beforeText_"|"_approval, "with the same Ref, Text and request")
+	Do $$$AssertEquals(message.Answer, expected, "and the answer line")
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 2, "two events")
+	If events.%Size() = 2 {
+		Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.answer, message.Ref_"|"_expected, "the second is for the same message, with the answer")
+		Do $$$AssertEquals(events.%Get(0).payload.answer, "", "the first had none")
+	}
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 2, "two Delivery rows")
+	If deliveries.Count() = 2 {
+		Set delivery = deliveries.GetAt(2)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.ApprovalRef_"|"_delivery.Text, "phone|"_message.Ref_"|answered|"_approval_"|", "the second names the message and the answered kind")
+	}
+	Set rejected = {"channel": "telegram", "time": (now)}
+	Set again = ..Notification(session, "answered", "answered.rejected", rejected)
+	Set again.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(again, .response), "a later answered notification is delivered")
+	Do $$$AssertEquals(..Message(message.Ref).Answer, expected, "and the first answer stays")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "1|2", "still one message and no new event")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 3, "with its Delivery row")
+	If deliveries.Count() = 3 Do $$$AssertEquals(deliveries.GetAt(3).ChannelMessageId_"|"_deliveries.GetAt(3).Kind, message.Ref_"|answered", "which names the message")
+}
+
+/// An answered notification for a request whose message was never delivered records its Delivery row only (ChannelMessageId
+/// empty): no message is made or changed and no event is published. So does one with an empty key, also once the request's
+/// message has been delivered: that message keeps its buttons (no Answer) and gets no event.
+Method TestAnsweredWithNoMessageRecordsOnly()
+{
+	Set session = ..Session("nomessage")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = ..NewRef()
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the notification is delivered")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "0|0", "no message and no event")
+	Set notice = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set notice.ApprovalRef = answered.ApprovalRef
+	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "then the request's notice is delivered")
+	Set empty = ..Notification(session, "answered", "", {})
+	Set empty.ApprovalRef = answered.ApprovalRef
+	Do $$$AssertStatusOK(..Out().OnNotification(empty, .response), "so is an answered notification with no key, although the message exists")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 3, "three Delivery rows")
+	If deliveries.Count() = 3 {
+		For i = 1, 3 {
+			Set row = deliveries.GetAt(i)
+			Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ChannelMessageId_"|"_row.ApprovalRef, "phone|answered||"_answered.ApprovalRef, "row "_i_": the kind and the request, no message id")
+		}
+	}
+	Set message = ..Newest(session)
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size()_"|"_$Select($IsObject(message): message.Answer, 1: "none"), "1|1|", "only the notice's message and event, and the message has no answer")
+}
+
+/// An answered notification never edits another session's message: the other session's message for the same request keeps its
+/// Answer, and the notifying session records its Delivery row only.
+Method TestAnsweredNeverEditsAnotherSessionsMessage()
+{
+	Set owner = ..Session("owner")
+	Set other = ..Session("notowner")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set approval = ..NewRef()
+	Set notice = ..Notification(owner, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set notice.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "the owner's message is delivered")
+	Set answered = ..Notification(other, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the other session's answered notification is delivered")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(owner, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "the owner has one message")
+	If rows.Count() = 1 Do $$$AssertEquals(..Message(rows.GetAt(1).Ref).Answer, "", "which is unchanged")
+	Do $$$AssertEquals(..Phones(owner).%Size(), 1, "with no new event")
+	Do $$$AssertEquals(..PhoneCount(other)_"|"_..Phones(other).%Size(), "0|0", "the other session has no message and no event")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(other)
+	Do $$$AssertEquals(deliveries.Count(), 1, "only its Delivery row")
+	If deliveries.Count() = 1 Do $$$AssertEquals(deliveries.GetAt(1).ChannelMessageId, "", "with no message id")
+	// A stray Delivery row of the other session that names the owner's message is not followed either.
+	Set message = ..Message(##class(OcuTalon.Data.Ownership).RecentPhone(owner, 1).GetAt(1).Ref)
+	Set stray = ..NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(other, "phone", message.Ref, stray, "incident"), "a Delivery row of the other session names the owner's message")
+	Set crossed = ..Notification(other, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set crossed.ApprovalRef = stray
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval(stray, "phone", other), message.Ref, "the other session's lookup finds the owner's message")
+	Do $$$AssertStatusOK(..Out().OnNotification(crossed, .response), "the notification is delivered")
+	Do $$$AssertEquals(..Message(message.Ref).Answer, "", "and the owner's message is still unchanged")
+	Do $$$AssertEquals(..Phones(owner).%Size()_"|"_..Phones(other).%Size(), "1|0", "with no new event")
+}
+
+/// An answered notification whose text cannot be rendered, for a message that was delivered, is an error and changes nothing:
+/// the message keeps its empty Answer, and there is no new event and no new Delivery row.
+Method TestAnsweredRenderErrorChangesNothing()
+{
+	Set session = ..Session("brokenedit")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set approval = ..NewRef()
+	Set notice = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set notice.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(notice, .response), "the incident notice is delivered")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "web"})
+	Set answered.ApprovalRef = approval
+	Do $$$AssertStatusNotOK(..Out().OnNotification(answered, .response), "an answered notification with a missing slot is an error")
+	Set unknown = ..Notification(session, "answered", "zz.noSuchKey", {"zz": "slot"})
+	Set unknown.ApprovalRef = approval
+	Do $$$AssertStatusNotOK(..Out().OnNotification(unknown, .response), "so is one with an unknown key")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "still one message")
+	If rows.Count() = 1 Do $$$AssertEquals(..Message(rows.GetAt(1).Ref).Answer, "", "with no answer")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), deliveries, "no Delivery row is added")
+	Do $$$AssertEquals(..Phones(session).%Size(), 1, "and no event")
 }
 
 /// A message for an owner that is not a session (instance, eval, an empty Ref, a Ref with no Session row, the control owner of the
@@ -359,6 +700,35 @@ Method Out() As OcuTalon.Channel.SimPhone.Out [ Private ]
 	Set out = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.SimPhone.Out", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of the operation is made")
 	Quit out
+}
+
+/// A new Ref for an approval request or an incident.
+Method NewRef() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Ids).NewRef()
+}
+
+/// The slots of an incident.withFix and incident.laterRequest notice; every time is the clock, so that the render is the same
+/// on any day.
+Method IncidentSlots(now As %String) As %DynamicObject [ Private ]
+{
+	Quit {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": (now), "cause": "Data format change", "fixSummary": "repair the order date and resend 50 orders", "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 50}
+}
+
+/// The slots of an incident.fallback notice.
+Method FallbackSlots(now As %String) As %DynamicObject [ Private ]
+{
+	Set slots = {"count": 7, "itemNoun": {"one": "order", "other": "orders"}, "time": (now), "fallbackReason": "empty"}
+	Set groups = []
+	Do groups.%Push({"itemName": "OrdersFromPartner", "count": 7, "errorSummary": "The order date was not in the expected format", "firstAt": (now)})
+	Do slots.%Set("groups", groups)
+	Quit slots
+}
+
+/// The SimMessage of the Ref, as the table holds it.
+Method Message(ref As %String) As OcuTalon.Data.SimMessage [ Private ]
+{
+	Quit ##class(OcuTalon.Data.SimMessage).RefIndexOpen(ref)
 }
 
 /// A Notification of the kind with the catalog key and its slots (an object).

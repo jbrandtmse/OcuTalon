@@ -6,9 +6,12 @@ import type { Locator, Page } from '@playwright/test';
  * when), and how often focus moved. None of them needs a stack.
  */
 
-/** A time as the page shows it for the Asia/Kolkata zone and the en-US locale, with the narrow no-break space read as a space. */
-export const clock = (iso: string): string =>
-  new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }).format(new Date(iso)).replace(/\u202F/g, ' ');
+/**
+ * A time as the page shows it for a locale and a zone (en-US and Asia/Kolkata unless given), with the narrow no-break space read as a
+ * space. The page's hour is the locale's numeric hour, so in en-GB a time before ten has no leading zero (9:05, 0:28).
+ */
+export const clock = (iso: string, locale = 'en-US', timeZone = 'Asia/Kolkata'): string =>
+  new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone }).format(new Date(iso)).replace(/\u202F/g, ' ');
 
 /** A text with its whitespace collapsed and the narrow no-break space read as a space. */
 export const plain = (text: string | null): string => (text ?? '').replace(/\u202F/g, ' ').replace(/\s+/g, ' ').trim();

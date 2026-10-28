@@ -108,6 +108,7 @@ describe('the fixed strings', () => {
         repair: 'Repair and resend',
         repairCount: 'Repair and resend {n} {noun}',
         runTool: 'Run {toolName}',
+        showInChat: 'Show in the chat: {action}',
         raised: 'Raised {when}',
         expires: 'expires {when}',
         checkTitle: '{name} production',
@@ -250,6 +251,26 @@ describe('approval requests', () => {
     assert.equal(row.meta.join(CHAT_TEXTS.separator), 'Raised 14:13 \u00B7 expires tomorrow at 14:13');
     assert.equal(row.detail, undefined);
     assert.equal(row.kind, 'approval');
+  });
+
+  it('gives the row of an incident\'s request a jump to its card, named with the action, and no other row one', () => {
+    const view = viewOf({
+      approvals: [
+        approval('a1'),
+        approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } }, raisedAt: '2026-10-22T14:13:10Z' }),
+        approval('t1', { kind: 'tool_call', toolName: 'zz_tool', incidentRef: undefined, dryRun: undefined, raisedAt: '2026-10-22T14:13:20Z' }),
+        approval('n1', { incidentRef: '', raisedAt: '2026-10-22T14:13:30Z' }),
+      ],
+    });
+    const rows = section(view, 'approvals').rows;
+    assert.deepEqual(rows.map((row) => row.jump), ['a1', 'a2', undefined, undefined]);
+    assert.deepEqual(rows.map((row) => row.jumpName), ['Show in the chat: Repair and resend 50 orders', 'Show in the chat: Repair and resend 1 order', undefined, undefined]);
+    for (const row of rows.slice(0, 2)) {
+      assert.ok(row.jumpName.includes(row.lead), 'the name contains the visible text verbatim, with its case and words (WCAG 2.5.3)');
+      assert.equal(row.lead, row.title, 'the visible text of the button is the row\'s title');
+    }
+    assert.equal(rows[0].title, 'Repair and resend 50 orders', 'the visible title is unchanged');
+    assert.equal(Object.hasOwn(rows[2], 'jump'), false, 'a tool call\'s row has no jump key');
   });
 
   it('keeps a part out of the meta line when its time is missing', () => {

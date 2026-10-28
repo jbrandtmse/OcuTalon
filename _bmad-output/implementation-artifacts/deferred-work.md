@@ -395,6 +395,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 1.6 Task 0 (e): cut-off-tool through StepsAgent gives steps model, tool, model and FinishReason end_turn; StepRenderer.OnMessage gets the content only; TestCutOffToolCall pins it
 - 2026-10-22T23:49:35Z status=decision-pending owner=burndown by=harvest note=human=report it to InterSystems (an AI Hub stop reason per response, or no tool run after a max_tokens stop); until then Epic 3's gate governs any risky tool call, and the read-only tools of release 1 are harmless with cut arguments
 - 2026-10-24T12:14:24Z status=dropped by=merge_gate note=action_item:epic-1-retro-item-3-report-to-intersystems-ai-hub-build-154(owner:report_to_InterSystems;outward)
+- 2026-10-28T14:06:03Z status=dropped owner=burndown by=owner note=reported to InterSystems by the owner 2026-10-28T13:46Z as https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/2 (action item epic-1-retro-item-3 closed done); the S5 model finding (the adapter ignores the model in its ProviderConfig; AD-7's design is already the workaround, no build change) filed as https://github.com/intersystems-community/ai-hub-eap-bugreports/issues/3; FOR THE 1.0.0 README: both links belong in the bonus section 'Find a bug in AI Hub', text from the Contest Planner once the owner approves the bonus plan; relayed by the Contest Planner
 
 ### DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured)
 - source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -689,6 +690,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T07:48:19Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 resolves watchers where the read is allowed (a production job) or asks for an AD-13 amendment, and makes a failed read loud
 - 2026-10-22T07:48:35Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 reads watchers where the read is allowed (a production job) or asks for an AD-13 amendment; a failed read is loud
 - 2026-10-23T15:55:30Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=delivered in 2.8 (build 8bb62bd): Watchers and Recipients pass a failed read's status on, BridgeSink logs it loudly and publishes nothing (never nobody-watches), Ownership.ApprovalIncident, TestInstanceApprovalReachesEveryWatcher and R4. Residual for 6.2: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; 6.2 hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113)
+- 2026-10-27T14:04:54Z status=resolved-by:6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=AnswerOps calls Approval.Answer in its production job (Core/AnswerOps.cls), so the instance fan-out runs where the cross-owner reads succeed; Test.Core.AnswersInWebRoles:TestInstanceAnswerReachesBothWatchers (AC9) answers from a web-roles process and both watchers' streams get the answered event
 
 ### DW-69: LiveState prepends every decision event to store.decisions with no cap, while the snapshot carries the 20 newest decide decisions
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: in-story
@@ -725,6 +727,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T10:56:07Z occurrence=2-3-route-every-command-by-verb-with-origin-checks
 - 2026-10-23T16:42:48Z status=routed owner=burndown by=spec_gate note=declined by Story 2.9's plan: the fix belongs in Core/Commands.cls (Commands.Submit's ProcessInput kills the job-local SessionId on exit, irislib Ens/BusinessService.cls:79, read from source), which is contended in this run; the burn-down gate re-checks the contention or overflows it to the epic that owns Commands
 - 2026-10-25T06:36:24Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=Story 5.1's start-watch tool is the first tool job that calls Commands.Submit (origin tool) inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId; if ProcessInput's kill of JobSessionId drops them (irislib Ens/BusinessService.cls:79,100), restore the id after Submit (Core/Commands.cls) with a test
+- 2026-10-27T19:02:03Z occurrence=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher
 - 2026-10-25T21:56:16Z status=resolved-by:5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=adjudication note=no Core/Commands.cls change: Tools.CommandCall.Run saves and restores $$$JobSessionId around Submit; Test.Watch.Tools and Test.Watch.Turns prove the id unchanged and a later warning in the session for start/stop, a failed submit included (mutation: drop the restore -> red)
 
 ### DW-75: AD-1's Submit sub-bullet says role checks stay with the admin-checked endpoints and CommandsIn, but CommandsIn makes none (Story 2.3 Design Notes 6 reads the clause as its origin rules)
@@ -795,6 +798,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-25T06:36:24Z status=routed owner=4-3-break-the-feed-with-a-real-batch-of-50-orders by=burndown note=Lane A's emitter has merged (Epic 1); Story 4.3's real batch makes the real Decide record decisions for a session: assert that a decision.recorded (and a turn.step) the bridge emits reaches that session's stream through BridgeSink, not only OnEvent called directly
 - 2026-10-25T22:42:32Z status=routed owner=burndown by=spec_gate note=declined_by_4.3: the decision.recorded half is met by Story 2.17's RoutingProduction and ConversationProduction (4.3 re-runs their mutation as evidence); residual: a Test/Core test that drives the real gate (Story 3.2, merged into OCT-epic4 at 3d76632) and asserts that its turn.step reaches the session stream through BridgeSink, with no bridge edit
 - 2026-10-27T05:26:00Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=burndown note=overflow (remainder 2 under the cap of 8, no repeats, so no burn-down story): Story 6.2 drives the real gate's approval path; add a Test/Core test that drives the real gate (Story 3.2) and asserts its turn.step reaches the session stream through BridgeSink, with no bridge edit (the decision.recorded half is met by Story 2.17's RoutingProduction/ConversationProduction)
+- 2026-10-27T14:04:54Z status=resolved-by:6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=Test.Core.AnswersInProduction:TestGateStepAndHeldCallReachTheStream (AC12) drives the real gate in a bridge context and asserts its turn.step reaches the session stream through BridgeSink, with no bridge edit
 
 ### DW-99: Story 2.8's real approval.result path for a replayed tool call has no story that turns it on (epics.md:1706); Story 30.3 must turn it on
 - source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -807,6 +811,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-23T11:06:38Z status=routed owner=burndown by=cr note=in-epic MED, owning stories done; fix: remove the probe's log rows in ConversationTurns' teardown (Observe.RemoveWarnings shape)
 - 2026-10-23T20:36:31Z occurrence=2-9-open-anything-in-visual-trace
 - 2026-10-25T06:36:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=burndown note=Story 6.4's fallbacks extend Conversation's turn tests (inference): remove ConversationProbe's Ens log rows (Begin, Ask, Tell, OnResponse) in Test.Core.ConversationTurns' teardown, the Observe.RemoveWarnings shape (Rule 19)
+- 2026-10-28T01:10:14Z status=resolved-by:6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=adjudication note=Test.Core.ConversationTurns removes its probe's event-log rows in teardown (RemoveProbeLog, called from OnBeforeAllTests and OnAfterAllTests); TestTeardownRemovesProbeLogRows pins it; after a real run the probe's rows are 0
 
 ### DW-106: Lane B's production tests assert the Epic 0 stub Decide's fallback unusable, so they need new expectations when Story 1.3's real Decide merges
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
@@ -831,6 +836,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-23T14:14:35Z status=open owner=2-8-show-the-status-rail by=harvest note=implement-stage defer; code review settles it: a statement seam with a pinning test, or a reasoned disposition (Story 6.2 is where the read really fails)
 - 2026-10-23T15:53:16Z status=escalated owner=burndown by=cr note=fix-risk high: every full pin crosses a boundary (product test hook, Session subclass, login fixture); recommend 6-2
 - 2026-10-25T11:58:31Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=merge_gate note=Story_6.2's_privilege-limited_REST_answer_path_is_where_the_checked_reads_really_fail:pin_the_failing_branches_of_Ownership.Watchers/ApprovalIncident_and_Session.Recipients'_pass-through_there;veto_U-71
+- 2026-10-27T14:04:54Z status=resolved-by:6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=Test.Core.AnswersInWebRoles:TestWatcherReadsFailInAWebRequest (AC10) runs Ownership.Watchers, ApprovalIncident and Session.Recipients in a web-roles process: each returns no recipients and an error status; mutation 10 (Recipients drops Watchers' sc) went red
 
 ### DW-120: page-time.ts and rail-view.ts each define the same {name} template filler, because neither Node-run module can import a value from the other
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: low | footprint: in-story
@@ -859,6 +865,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Conversation.Ask sends the retry under RetryItemId (Conversation.cls:406); Bridge.Context.Begin copies request.ItemId (src/bridge Context.cls:52); BridgeSink.Step quits when Context.Current().ItemId '= running.ItemId (BridgeSink.cls:145); no test covers a retried turn's steps; reachable once Stories 1.3/1.5 emit steps
 - 2026-10-23T20:36:21Z status=routed owner=burndown by=cr note=in-epic MED (Core/BridgeSink.cls, Stories 2.6/2.8 done); fix: Step also accepts RetryItemId(running.ItemId), plus a test
 - 2026-10-25T06:36:24Z status=routed owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=burndown note=Story 6.3 makes BridgeSink join the turn's thread through the bridge context; with Epic 1's step emitter merged a SessionBroken retry's turn.step is now reachable: Step also accepts RetryItemId(running.ItemId) (Core/BridgeSink.cls:145), with a test of a retried turn's steps
+- 2026-10-27T19:04:21Z status=resolved-by:6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=adjudication note=BridgeSink.Step also accepts Conversation.RetryItemId(running.ItemId) (L145, the orchestrator's ruling); Test.Core.BridgeSink:TestTurnStepOfARetry pins a retried turn's turn.step; mutation (retry clause removed) went red
 
 ### DW-129: A decision's traceUrl opens page 1 of the day's thread with the first Item selected, not the decision: traceHeaderId is the decision's TraceSessionId (now the thread) and no index is known
 - source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-epic
@@ -1171,6 +1178,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; AnswersIn is a stub on the feature (69c7f06) until Epic 6
 - 2026-10-25T12:10:22Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=owner note=U-69 condition (the Contest Planner for the owner): a test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers not_allowed
+- 2026-10-27T14:04:54Z status=resolved-by:6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=AnswerOps passes the session's 22-character Ref and its IRIS user; Test.Core.AnswersIn:TestMalformedSessionRefNeverReaches and AnswersInProduction:TestMalformedSessionRefIsNotAllowed (AC11)
 
 ### DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live Pairing row, never a ChatRef or chat id: since Story 3.7, Answer answers not_allowed for any other sessionRef
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1501,6 +1509,100 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-103 owner's delegate: route to 29.3
 
+### DW-292: /state's incident entries carry only Live.Payload.Incident.FromRow's row-backed fields (no groups, requests, evidence or traceTargets), so a reloaded or resynced incident card shows no request cards, results, Show details evidence or diagnosis link until the next incident event; /state must build the parts with IncidentManager's builder once Epic 5's tables merge
+- source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Live/Payload/Incident.cls FromRow leaves the four parts for the caller; Web/Api.cls ChatItems calls FromRow alone; the parts' data lives in Lane A tables Story 5.4 (Epic 5, unmerged) defines; Story 0.5 decided one builder for events and the snapshot
+- 2026-10-27T07:44:45Z status=routed owner=burndown by=harvest note=cross-lane: Lane A builder (Epic 5); re-owned at Epic 6's burn-down to the story that can build it
+- 2026-10-27T12:28:21Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat note=after a reload an answered request has no request card until its next approval or incident event: /state rail.approvals holds pending requests only (Web/Api.cls RailBody) and the snapshot's incident has no requests part
+- 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=after a reload an answered request has no request card, so its result band never shows on an open card while the chat announces it
+- 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the snapshot's incident parts (orchestrator ruling 5); the parts need Lane A's builder (Epic 5); recommended: route to Story 11.1 (Epic 11 turns the real path on), /state building the parts with IncidentManager's builder
+- 2026-10-28T03:51:21Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): Lane A's Live.Payload.Incident.FromRow fills groups, requests, evidence and traceTargets for /state, beside DW-271/DW-272; Epic 7 integrates forward before 7.4's plan
+
+### DW-293: Incident.CauseCategory and Incident.Element values are fixed by no contract: the card humanizes a snake_case category (data_format_change -> 'Data format change') and shows Element as published, while the UX evidence line reads 'order date' and eval/orders-date-format records elementAtFault 'OrderDate'
+- source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg.Enum has no cause-category enumeration; eval/orders-date-format/case.json causeCategory data_format_change, elementAtFault OrderDate; EXPERIENCE.md L276 'Data format change · order date'; Story 5.4 (Epic 5) defines DiagnosisPayload
+- 2026-10-27T07:44:45Z status=wontfix-accepted owner=6-1-show-each-incident-as-one-card-in-the-chat by=harvest note=reopen_if=a real incident event (Epic 5/11) publishes Element in code form (e.g. OrderDate) or a category the humanizer misreads, so the card's evidence line differs from the UX's reader form
+
+### DW-294: After a page load an incident card's footer never finds its diagnosis decision: the snapshot seeds the store's decisions from the rail, which holds kind-decide decisions only, so the diagnose decision that decisionRef names reaches the store only as a live decision event
+- source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: live-store.ts fromSnapshot takes decisions from snapshot.rail.decisions; Ownership.cls's decisions query keeps Kind = 'decide' (spine Live events: other kinds reach the store, not the rail); an incident's decisionRef is its diagnosis (kind diagnose); floor I1/I7 seed a decide-kind decision, so they pass
+- 2026-10-27T08:44:01Z status=escalated owner=burndown by=cr note=needs /state (Web.Api, Epic 16) or Lane A's payload to carry the diagnosis decision, or a spine Live events change; sibling of DW-292
+- 2026-10-28T03:51:21Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): /state or the incident payload carries the incident's diagnose decision and the page store reads it after a reload (both lanes)
+
+### DW-298: Test.Bridge.CodeRules (Lane A) lists the approval classes a tool may not reference (Approval API, ApprovalStartIn, AnswersIn) but not Story 6.2's new AnswerOps item; AnswerOps refuses any sender but AnswersIn at run time, so the static rule is a second line only
+- source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md (implement deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Bridge/CodeRules.cls L68 and L549 name AnswersIn; AnswerOps is new in Story 6.2; AnswerOps checks SourceConfigName (Decided 12, AC14)
+- 2026-10-27T12:28:21Z status=wontfix-accepted owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=harvest note=reopen_if=a tool or tool fixture references OcuTalon.Core.AnswerOps, or AnswerOps' sender check is removed
+
+### DW-299: AC3 of Story 6.2 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds only with the demo guide collapsed and no status banner: with the guide open the chat list is 279 px (323 px with no banner) and the card is 466 px to the bottom of Approve, because the guide never reaches DESIGN's 56 px compact form while its Break the feed box (138 px) shows
+- source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md (implement deferred 3) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: measured by Story 6.2 implement on a lane-B throwaway: floor A6 passes only after Hide guide and an empty status; the guide lives in web/src/app/guide/** (Epic 16's contended path; built by Epic 4)
+- 2026-10-27T12:28:21Z status=routed owner=burndown by=harvest note=cross-epic: the guide's compact height is Epic 16's area; re-owned at Epic 6's burn-down to the story that owns web/src/app/guide, then A6 runs without Hide guide
+- 2026-10-27T14:01:37Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat by=cr note=cr confirms routed burndown: card order is UX-fixed; only the guide's compact height (web/src/app/guide) fixes it
+- 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the guide's compact height (orchestrator ruling 5); recommended: a guide-layout fix (the guide reaches DESIGN's 56 px compact form while its Break the feed box shows), routed to Story 11.1's UJ-1 check or a new pool story, then 6.2's A6 runs without Hide guide
+- 2026-10-28T03:51:21Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): the guide reaches DESIGN's 56 px compact form while Break the feed shows, so 6.2's AC3 holds at 1280x600 with the guide open; then 6.2's A6 runs without Hide guide
+
+### DW-301: Story 6.2's design is missing from the spine: AD-11's Rule and AD-31 still say AnswersIn's job calls Approval.Answer (Veto V1, kept by U-113: AnswerOps' production job calls it), and AD-32's render exceptions do not list the answer endpoint's 409 text (Web.Api renders the answered.* late-press and expired texts through Catalog.Render)
+- source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md L323 (AD-11: AnswersIn ... then calls Approval.Answer), L840 (AD-31: the AnswersIn job that calls Approval.Answer), L861 (AD-32: the one exception is TelegramIn); Core/AnswerOps.cls Carry calls Answer; Web/Api.cls L467 calls Catalog.Render; spec validation 0bdd2c6 wrote only the AD-33 row and the REST row
+- 2026-10-27T14:01:29Z status=escalated owner=burndown by=cr note=for the orchestrator now (U7 step 2, U14, Rule 20): record V1/U-113 in AD-11 and AD-31, and the 409 render in AD-32; no code change
+- 2026-10-27T14:44:01Z status=decision-pending owner=burndown by=orchestrator note=inbox=U-120
+- 2026-10-27T14:48:00Z status=resolved-by:6-2-approve-or-reject-a-fix-from-the-web-chat owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=owner note=U-120 applied b185833 (AD-11, AD-31, AD-32 and the two flow lines amended; no code change)
+
+### DW-302: Test.Core.AnswersInWebRoles.CreateUser and Password copy Test.Bridge.WebStatus.CreateUser (Lane A, private) line for line, as the spec's Decided 15 forces; no story unifies the fixture-user helper
+- source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Core/AnswersInWebRoles.cls L383-395 against Test/Bridge/WebStatus.cls L469-476 (same Security.Users.Create call and password shape); unifying needs Lane A's class or Epic 16's Test/Data/Fixture
+- 2026-10-27T14:01:37Z status=wontfix-accepted owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=cr note=reopen_if=a third copy of the fixture-user helper appears, or WebStatus.CreateUser becomes public (Rule 2, spec-forced copy)
+
+### DW-308: The rail jump's fallback (the request's card is not in the chat, so focus goes to the chat list) has no browser case: changing CHAT_LIST to a wrong selector leaves every case green
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md (implement deferred) | severity: low | fix-risk: low | footprint: in-story
+- evidence: X6 covers the card-present path in both viewports and the no-button row; rail-view.test covers the jump fields only (web/src/app/rail/status-rail.ts jump())
+- 2026-10-27T18:05:33Z status=open owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=harvest note=LOW two-way door for code review to patch (one live:answers case)
+- 2026-10-27T19:02:03Z status=resolved-by:6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=X6 case: orphan request's row button focuses app-chat-panel > .list; mutation CHAT_LIST broken -> X6 red
+
+### DW-310: NoticesIn.Join is a copy of CommandsIn.Join (AD-26's join rule for in-process services, about 10 lines); the shared home is contended (Core/Commands*.cls, Epic 8; Core/Trace.cls, Epic 10)
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/NoticesIn.cls Join and Core/CommandsIn.cls Join differ only in the parameter's class; a change to the join rule (DW-74's SessionId restore, an OwnerRef check) must be made twice
+- 2026-10-27T19:02:02Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify both joins in one helper once Core/Commands*.cls or Core/Trace.cls is not contended
+- 2026-10-28T02:25:49Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=burndown note=reopen_if=AD-26's in-process join rule changes, or a third in-process service copies the join; no next-epic story owns the shared home (Core/Commands*.cls is Epic 8's, Core/Trace.cls Epic 10's) without a contended edit
+
+### DW-311: web/e2e/support/approvals.ts and answers/answers.spec.ts copy floor/approval.spec.ts's private fixture helpers (DAY, today, TOMORROW_AT_1413, refOf, DRY_RUN, incidentOf, raise, inOrder) instead of the floor spec importing them
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: about 50 identical lines in floor/approval.spec.ts L40-121; the spec's reason (the floor spec stays unchanged) is about its case budget, not its imports; unifying needs a live floor run
+- 2026-10-27T19:02:02Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=reopen_if=a change to DRY_RUN, incidentOf, raise or inOrder has to be made in both support/approvals.ts and floor/approval.spec.ts
+- 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=the copies moved with A2-A10 into web/e2e/cards/approval-card.spec.ts; support/approvals.ts header now says so
+
+### DW-312: docker/tests/test-demo-path-gate.sh's header (L17-19) still says the browser group runs live:demo-path and live:sign-in and exits 0 when both pass; the group has three units
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the header is outside the orchestrator's ruled lines (stub loop, chmod, browser expectations), so this story may not change it
+- 2026-10-27T19:02:02Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=reopen_if=grep -n 'exits 0 when both pass' docker/tests/test-demo-path-gate.sh still matches when Epics 13/15 next edit the file
+
+### DW-313: SimPhoneOut's answered edit uses Delivery.FindByApproval's newest phone row, which can be a later non-request row of the same ApprovalRef (a tellnow or reminder carrying it, or an empty-key answered), so the request's message keeps its buttons
+- source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Save records the ApprovalRef on every kind's Delivery row while only incident/approval messages keep it; no producer sends a non-request kind with a pending request's ApprovalRef
+- 2026-10-27T19:02:03Z status=wontfix-theoretical owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=real when a producer sends tellnow, reminder or result with the ApprovalRef of a still-pending request before its answered
+
+### DW-315: live floor runs 491-527 s of its 540 s local deadline (OCUTALON_LIVE_DEADLINE, counted from the throwaway lock; 1200 s in CI), because Epic 6's floor specs incident.spec.ts (I1-I11) and approval.spec.ts (A1-A10) added about 130 s; move them into the live:answers unit (where 6.3 and 6.4's cases live), keeping their @browsers cases' cross-engine coverage, so floor regains its margin
+- source: Story 6.3 smoke (lead) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 6.3 smoke on throwaway e6s3s: live floor 124 passed, 527 s call wall against the 540 s deadline (491 s at 6.2's smoke); docker/tests/test-floor.sh L30-31; the incident and approval specs are Epic 6's own files under web/e2e/floor/
+- 2026-10-27T19:44:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=smoke note=6.4 adds its result and dismiss cases to live:answers too; check the CI shards and browser group times after the move
+- 2026-10-28T01:10:14Z status=resolved-by:6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=adjudication note=I2-I11 and A2-A10 moved out of live floor (I1 and A1, the @browsers cases, stay there in three engines) into the new unit live:cards (shards group); measured on fresh stacks: floor 342 s, answers 335 s, cards 227 s, each of 540 s
+
+### DW-331: APPROVAL_TEXTS.nounOne/nounOther ('message', 'messages') copy INCIDENT_TEXTS' noun fallback for resultView, with the reason (the view modules import only types) stated nowhere
+- source: spec-6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and-dismiss.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/approvals/approval-view.ts L52-53 and incidents/incident-view.ts L48-49; one source needs the cards to pass a resolved noun (about 6 files with tests)
+- 2026-10-28T01:06:08Z status=wontfix-accepted owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=cr note=reopen_if=INCIDENT_TEXTS' noun fallback changes and APPROVAL_TEXTS' copy does not (a band and its headline name different nouns)
+
+### DW-332: docker/tests/test-cards.sh repeats test-answers.sh's start, fixture-user and Playwright steps (about 60 lines), as every browser unit script does; the shared home, lib-live.sh, is Epic 10's contended file
+- source: spec-6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and-dismiss.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: test-cards.sh (code review, DW-315 split) modelled on test-answers.sh; test-floor.sh and test-sign-in.sh carry the same steps
+- 2026-10-28T01:06:08Z status=wontfix-accepted owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=cr note=reopen_if=a change to the browser units' start, fixture-user or redaction steps has to be made in more than two test-*.sh files
+
+### DW-333: flake: live:sign-in rail.spec.ts R1 (open(): main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun
+- source: CI run 40616237736 attempt 1, job iris (browser), head 992e99a (Story 6.4) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: R1 is the first case of rail.spec; R2-R19 use the same open() helper and passed in the same run; actions-runner-8; attempt 2 of the same run green
+- 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
+- 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -1518,6 +1620,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI 40525019781 iris(production) live:production row 21 wanted 'CHK|start-fails|1|1', got ''; green on one unchanged rerun and locally on the merged tree
 - 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) the session line timed out or errored while the production stopped and started with the stub WatchOps; route to the story that next edits docker/tests/test-production.sh (Epic 15 owns docker/tests): give row 21 a longer wait or a retry
 - 2026-10-27T21:20:07Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=x0 note=Epic_7_X.0_triage:docker/tests/**_is_Epic_15's(test-production.sh_is_being_edited_by_Epic_8,contended_for_Epic_7);15.3's_restart_tests_are_the_next_planned_docker/tests_owner;residual:give_test-production.sh_row_21('Start(15)_with_a_WatchOps_whose_OnInit_fails')_a_longer_wait_or_one_retry;if_Epic_8_edits_the_file_again_first,the_orchestrator_may_re-route;bullet_is_the_orchestrator's_post-merge
+- 2026-10-28T04:48:55Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=flake occurrence=2: CI run 40629178094 (iris production, row 21 wanted CHK|start-fails|1|1, got '') on feature dc44a8c, a bookkeeping-only commit whose code head 6151327 passed; rerun --failed; owner as Epic 7's X.0 re-own (15-3)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1584,3 +1687,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: ModelRequests counts all POSTs after LogMark; the spec's pin is exactly 2 (the dry run calls no model); Decide's callers are Conversation, Intake, IncidentManager
 - 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if a class leaves a turn or diagnosis in flight past its teardown, or a model caller runs on a schedule
+### DW-337: CI's shards group took 31 min 52 s on Epic 6's head bed6d27, close to REL-4's 35 minutes: Epic 5's lane-a shard grew to 70 classes and Story 6.4 added live:cards (about 230 s locally) to the group
+- source: orchestrator: Epic 6 merge gate (bed6d27, runs 40625489943, 40625489987) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci.yml group times on bed6d27: shards 31m52s, browser 23m05s, image 21m32s, install-fresh 14m02s, install-upgrade 12m58s, production 9m20s; production and browser are pinned by test-ci-changes.sh and the demo-path gate
+- 2026-10-28T03:51:21Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=merge_gate note=first change in 9.1: move live:cards to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated; test infrastructure only
+- 2026-10-28T03:54:34Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=orchestrator note=owner via Contest Planner: TRIGGER - if any head's iris (shards) job runs longer than 36 min before Epic 9 merges, pull this forward as a fix-forward in the epic whose head did it (move live:cards to the shorter of install-fresh and install-upgrade, measured); the iris job's hard limit is timeout-minutes 40 (ci.yml:89)
