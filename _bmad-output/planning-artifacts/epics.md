@@ -3291,9 +3291,7 @@ So that the scores measure the product and a run can never notify a user or chan
 **Then** `EvalIn` mints a fresh `ItemId`, sets the Item's `SourceItemId` to the case's recorded id (only `EvalIn` sets it, and every hop copies it), sets owner `eval` and sends the Item to `Intake`, which renders it with `OcuTalon.Agent.Input`, calls `Decide` (`decide`) and runs the read-only untrusted turn on `act` as it does for any item (FR-62, AD-14, AD-22, AD-30)
 **And** this relies on Epic 2's `Intake`, which builds an `OcuTalon.Msg.ItemDecision` (Epic 0, Story 0.4) for an item owned by `eval` and sends it to `EvalSink` (`OcuTalon.Eval.Sink`), never to `OutcomeRouter` or `Notify` (AD-22, AD-30)
 
-**Given** a recorded incident case (a reader snapshot)
-**When** a run sends it
-**Then** `IncidentManager` builds the evidence pack with `OcuTalon.Watch.EvidencePack.Build` from the snapshot, calls `Decide` (`diagnose`) with owner `eval`, and sends `EvalSink` an `ItemDecision` with the incident's `Ref` as `ItemId`, the diagnosis's `DecisionRef` and the case's `SourceItemId`, with no dry run, approval request or notification (FR-62, AD-15, AD-22)
+[AMENDED 2026-10-28, Epic 9 start (runner B), unattended ruling (a split, veto U-130): the incident-case criterion ("**Given** a recorded incident case (a reader snapshot) **When** a run sends it **Then** `IncidentManager` builds the evidence pack ...") moved verbatim to Story 9.6, which waits for Epic 7, because the new request path it needs is in `Watch/IncidentManager.cls`, which Epic 7 is rewriting. `EvalSink`'s handling of an incident case's `ItemDecision` (the criterion below) stays here.]
 
 **Given** a completed run
 **When** the isolation test checks what it wrote
@@ -3329,6 +3327,7 @@ So that one report tells me whether quality and cost hold.
 **Given** a push to any branch
 **When** the evaluation job in Lane A's `.github/workflows/lane-a.yml` runs the set against the CI mock (not a `%UnitTest` shard in Lane B's `ci.yml`, AD-29)
 **Then** every case completes with a recorded decision, cost and request size and the report is produced, with the mock's scores recorded but not gated, and a test-only case that a scenario under `ci/mock/scenarios/A/` answers wrongly (chosen by its `[[mock:<name>]]` marker) is scored wrong (REL-5, AD-22)
+[AMENDED 2026-10-28, Epic 9 start (runner B), unattended ruling (a split, veto U-130): until Story 9.6 builds the incident path, the job runs the item and turn cases, and the incident cases join it with Story 9.6.]
 
 ### Story 9.3: Decision cases cover every outcome, two injections, the all-clear and a command request
 
@@ -3387,6 +3386,28 @@ So that diagnosis is scored on the same evidence the product reads.
 **Given** a recorded snapshot
 **When** `EvidencePack.Build` reads it in a replay
 **Then** a test finds the pack equal to the one built from the live reader when the incident was recorded (AD-15, AD-22)
+
+### Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody
+
+[AMENDED 2026-10-28, Epic 9 start (runner B), unattended ruling (a split, veto U-130): split from Story 9.1's incident-case criterion, which moved here verbatim, with the incident cases of Story 9.2's evaluation job. It waits for Epic 7 to merge: the request path it adds is in `Watch/IncidentManager.cls`, which Epic 7 is rewriting (its branch changes `OnRequest`, `OnResponse` and `OnError`), and AD-22 and AD-30 name `IncidentManager` as the sender, so the path is not built anywhere else. It is planned before Story 9.5, whose demo incident gate runs through it.]
+
+As the author,
+I want recorded incident cases diagnosed through the same IncidentManager path as real incidents without reaching anyone,
+So that the cause scores measure the product's diagnosis and an incident case can never notify a user or propose a fix.
+
+**Acceptance Criteria:**
+
+**Given** a recorded incident case (a reader snapshot)
+**When** a run sends it
+**Then** `IncidentManager` builds the evidence pack with `OcuTalon.Watch.EvidencePack.Build` from the snapshot, calls `Decide` (`diagnose`) with owner `eval`, and sends `EvalSink` an `ItemDecision` with the incident's `Ref` as `ItemId`, the diagnosis's `DecisionRef` and the case's `SourceItemId`, with no dry run, approval request or notification (FR-62, AD-15, AD-22)
+
+**Given** a completed run that includes incident cases
+**When** the isolation test checks what it wrote
+**Then** the run created no `Notification`, `Delivery`, live event, dry run, approval request, or incident owned by a session or `instance`, and the incident cases' `Usage` rows carry owner `eval` and count toward no session total and no daily cost cap (AD-20, AD-22)
+
+**Given** a push to any branch
+**When** Lane A's evaluation job runs the set against the CI mock
+**Then** the incident cases in `eval/` run with the item and turn cases, and each completes with a recorded diagnosis, cost and request size in the report (REL-5, AD-22)
 
 ### Story 9.5: Release candidates pass the evaluation and the demo incident gate
 
