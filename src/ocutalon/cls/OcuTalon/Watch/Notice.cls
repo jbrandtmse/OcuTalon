@@ -11,10 +11,13 @@
 ///     when it is empty or not a Msg.Enum FALLBACKREASON) and groups. WithFixSlots is the builder of the with-fix notice: count, time, itemNoun, cause and
 ///     fixSummary, and, given the dry run, its field, before, after and resendCount (the dry run's resend as an integer). A key given to Slots replaces Key(incident):
 ///     the incident.noFix notice of a data-format incident whose fix cannot be proposed (the dry run is refused, finds nothing to resend, or its request is not raised).
+///   - The later request (Story 7.6, KEYLATER incident.laterRequest) takes the with-fix slots with its own round's count and time: WithFixSlots given a count and a
+///     time replaces the slots count and time (the failures of the round, and the first of them), and renders "{count} more {itemNoun} failed since {time}, with
+///     the same cause ...". It carries the cause slot too, which the catalog ignores.
 ///   - groups holds one {itemName, count, errorSummary, firstAt} per failure group that has a NoticeCount, in Seq order. A group's count is its
 ///     NoticeCount, so the lines add up to the count slot even when failures joined during the diagnosis. An empty error summary is written as NOERRORTEXT.
 /// Slots and WithFixSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
-/// field, before or after or with a resend below 1).
+/// field, before or after or with a resend below 1, a given count below 1 or not a whole number, a given time that is empty).
 Class OcuTalon.Watch.Notice
 {
 
@@ -26,6 +29,9 @@ Parameter KEYUNKNOWN = "incident.noFixUnknown";
 Parameter KEYNOFIX = "incident.noFix";
 
 Parameter KEYWITHFIX = "incident.withFix";
+
+/// The catalog key of the notice of a later request in the same incident (Story 7.6).
+Parameter KEYLATER = "incident.laterRequest";
 
 /// The open variants (Msg.Enum INCIDENTOPENVARIANT).
 Parameter VARIANTFALLBACK = "fallback";
@@ -90,11 +96,27 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 
 /// The slots of the with-fix notice that the incident's diagnosis gives: count, time, itemNoun, cause and fixSummary. Given the dry run (a dynamic object with the
 /// keys of ApprovalRequest DRYRUNKEYS), it adds field, before, after and resendCount (the dry run's resend as an integer). "" with the reason in sc when the cause
-/// or the fix summary is empty, or when the dry run has no field, before or after, or a resend below 1.
-ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status, dryRun As %DynamicObject = "") As %DynamicObject
+/// or the fix summary is empty, or when the dry run has no field, before or after, or a resend below 1. A count given (a whole number of at least 1) replaces the
+/// count slot and a time given (not empty) replaces the time slot: the failures of a later round and the first of them (an argument that is passed counts as
+/// given, also when it is empty; an argument that is left out does not).
+ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status, dryRun As %DynamicObject = "", count As %Integer, time As %String) As %DynamicObject
 {
 	Set slots = ..Common(incident, .sc)
 	If $$$ISERR(sc) Quit ""
+	If $Data(count) {
+		If (count '? 1.N) || (+count < 1) {
+			Set sc = $SYSTEM.Status.Error(5001, "The count of the later request of incident "_incident.Ref_" is not a whole number of at least one")
+			Quit ""
+		}
+		Do slots.%Set("count", +count)
+	}
+	If $Data(time) {
+		If time = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The later request of incident "_incident.Ref_" has no first failure time")
+			Quit ""
+		}
+		Do slots.%Set("time", time)
+	}
 	Set cause = ..Text(incident.Cause)
 	Set fix = ..Text(incident.FixSummary)
 	If (cause = "") || (fix = "") {

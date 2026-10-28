@@ -29,7 +29,9 @@ Include Ensemble
 ///     on both streams, with an empty SuperSession; the ownership API finds it for nobody while the delayed diagnosis (diagnosis-late) is on its way and, once the
 ///     real notice has come, for A and B but not for a session that does not watch, each of the two having one with-fix notification that carries the one request's
 ///     Ref; a same-cause batch then moves Count and
-///     LastAt but not NoticeCount, makes one more incident event for each of the two sessions, no second incident, no notification and no second request;
+///     LastAt but not NoticeCount, makes one more incident event for each of the two sessions, no second incident and (Story 7.6: a later round gathers for the
+///     settle time, so only until it has settled, 10 seconds) no notification and no second request; the first request's targets stand and LaterSince is the new
+///     failure's time;
 ///   - TestClosedOpensNew: a same-cause failure after the incident is closed (once its waiter has started) makes a new incident with its own Ref;
 ///   - TestWaitersAfterRestart (row Restart while settling): with the item stopped and started during the wait, the settle still ends once, and the waiter of a
 ///     deleted incident completes with no error and writes nothing;
@@ -336,6 +338,7 @@ Method TestInstanceShared()
 	Set requests = ..Requests(ref)
 	Do $$$AssertEquals(requests.%Size(), 1, "exactly one request names the incident")
 	Set approval = $Select(requests.%Size() = 1: requests.%Get(0).ref, 1: "")
+	Set targets = $Select(requests.%Size() = 1: requests.%Get(0).fixTargets, 1: "")
 	Set notices = ..NoticeBodies(ref)
 	Set sessions = ""
 	Set iterator = notices.%GetIterator()
@@ -361,8 +364,11 @@ Method TestInstanceShared()
 	Do $$$AssertEquals(..Incidents("instance", ..#ORDERSPRODUCTION).%Size(), 1, "there is still one incident")
 	Do $$$AssertEquals(row.count_"|"_row.noticeCount, "4|3", "NoticeCount stays")
 	Do $$$AssertEquals(row.lastAt, later, "LastAt moved to the new failure")
-	Do $$$AssertEquals(..Notifications(ref), noticeCount, "and no new notification carries the incident's Ref")
-	Do $$$AssertEquals(..Requests(ref).%Size(), 1, "nor a second request")
+	Do $$$AssertEquals(row.laterSince, later, "and LaterSince is its time: a later round gathers")
+	Do $$$AssertEquals(..Notifications(ref), noticeCount, "and no new notification carries the incident's Ref yet (the round settles after the quiet time)")
+	Set requests = ..Requests(ref)
+	Do $$$AssertEquals(requests.%Size(), 1, "nor a second request")
+	If requests.%Size() = 1 Do $$$AssertEquals(requests.%Get(0).fixTargets, targets, "and the first request's targets stand")
 }
 
 Method TestClosedOpensNew()

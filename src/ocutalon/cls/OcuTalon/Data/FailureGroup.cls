@@ -37,6 +37,14 @@ Property NoticeCount As %Integer;
 /// The error of the group's first failure in one plain sentence of at most 80 characters (OcuTalon.Watch.ErrorText.Summary).
 Property ErrorSummary As %String(MAXLEN = 1000);
 
+/// The key of Seen where the newest dry-run ask before the current one ended; empty before a second ask. The newest ask's window starts after it
+/// (OcuTalon.Watch.Settle.Window). Written by IncidentManager only, before the ask is sent (Story 7.6).
+Property AskedFrom As %String(MAXLEN = 32);
+
+/// The key of Seen where the newest dry-run ask ended: the last key of Seen when the ask was made; empty before the first ask. A failed message is in the
+/// window of one ask only, so a request's targets never overlap those of another (Story 7.6).
+Property AskedTo As %String(MAXLEN = 32);
+
 Index IncidentRefIndex On IncidentRef;
 
 Index SeqIndex On (IncidentRef, Seq) [ Unique ];
@@ -56,6 +64,14 @@ ClassMethod OfIncident(ref As %String) As %ListOfObjects
 		Do list.Insert(group)
 	}
 	Quit list
+}
+
+/// The keys of Seen that the newest dry-run ask covers: its window (Settle.Window of AskedFrom and AskedTo), or the whole Seen while the group has no
+/// mark, as before the first ask was recorded.
+Method AskedKeys() As %String
+{
+	If (..AskedFrom = "") && (..AskedTo = "") Quit ..Seen
+	Quit ##class(OcuTalon.Watch.Settle).Window(..Seen, ..AskedFrom, ..AskedTo)
 }
 
 Storage Default
@@ -93,6 +109,12 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>ErrorSummary</Value>
+</Value>
+<Value name="12">
+<Value>AskedFrom</Value>
+</Value>
+<Value name="13">
+<Value>AskedTo</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FailGroupD</DataLocation>

@@ -2,9 +2,10 @@
 title: 'Later failures in the same incident get their own dry run and approval request'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0be77b16ab1e63aee854fc8a6ed7a06f03471635'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -222,6 +223,42 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 
 ## Review Triage Log
 
+### 2026-10-28 — Review pass
+- verdicts: 32 findings — high 0, medium 7, low 19, false 5, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Marks are never restored when a later round fails (send, raise or save error, error answer, refused or empty dry run), so its failures are in no window (blind, edge) — a refused or empty dry run is V2's specified end state, and the error paths are infrastructure failures that log one warning; restoring needs state beyond a direct correction and changes the pinned end state (Design Notes, residual risks 1 and 2 carry the same shape). reopen_if: a refused or failed later round is seen in a live run leaving failures that no request covers.
+  - `[low]` `[reject]` `AskingSince` can stay set (a non-result answer; a restart between the ask's commit and its send) and the waiter re-checks every quiet seconds (blind, edge) — the answer to a dry run is always a `DryRunResult` (`Fix/Executor.cls` DryRun "Always OK"), and a lost ask is residual risk 1 (DW-345, theoretical; 7.5's sweep). reopen_if: an incident is seen with `AskingSince` older than the ask timeout.
+  - `[low]` `[reject]` Nothing caps the later requests of one incident (blind) — one request per settled round is AC 1; a cap or merge is a product call. reopen_if: a demo run shows a stream of later requests for one incident.
+  - `[low]` `[patch]` `Later` returns the raw `%Save` status of an open incident (blind, intent) — now `Unlater` and `Quit $$$OK`, as every other clear; pinned by `Tell.TestLaterWakeEnds` (open).
+  - `[low]` `[reject]` `AskLater` logs one text for a missing row, a foreign row and an empty kind (blind) — cosmetic: one warning that names the incident, and the tests assert exactly one.
+  - `[medium]` `[patch]` Several new branches have no test (blind) — the open branch and the no-newer-key branch of the wake are now pinned (`Tell.TestLaterWakeEnds`), the marks-before-send order too; the rest (`Windowed` 0, `Unask`'s read failure, the `Begin` routing that `Later` exercises in production) is theoretical or already covered by the production test.
+  - `[low]` `[reject]` `Raised` no longer follows `Raise.ORDERCOUNT` (blind, edge) — the spec makes the count `Raised`'s trailing argument with default 3; `ORDERCOUNT` still drives `Raise`'s own test.
+  - `[false]` `[reject]` `NoticeText.OnAfterOneTest` skips a parent's cleanup (blind) — `%UnitTest.TestCase` defines none, and `Test.Msg.Catalog` restores its zone the same way.
+  - `[low]` `[reject]` (edge) the same root cause as the first row: marks never restored.
+  - `[low]` `[reject]` (edge) the same root cause as the second row: `AskingSince` stuck.
+  - `[low]` `[reject]` A failed `LaterAlarm` or a throwing `Later` leaves `LaterSince` set and no waiter starts again (edge) — an alarm that cannot be set is an infrastructure error with the framework's own log, and the first settle waiter has the same shape. reopen_if: such an error is seen in a log.
+  - `[maybe-false]` `[reject]` The later slots reuse the first diagnosis' `fixSummary`, which may name the first round's count (edge) — `Agent/Diagnosis.cls` defines it as the words that complete "I can ..." and the mock's is count-free; what a live model writes could settle it, and the harm would be low (one sentence).
+  - `[low]` `[reject]` (edge) the same root cause as the `ORDERCOUNT` row.
+  - `[false]` `[reject]` The claim that every early exit of the later route clears `AskingSince` (edge) — the one exit that does not is an answer that is not a `DryRunResult`, which `FixExecutor` never sends.
+  - `[medium]` `[patch]` `Later`'s open branch is never executed by a test (gap) — `Tell.TestLaterWakeEnds` case open (mutation: the branch removed → red).
+  - `[low]` `[patch]` The wake of a deleted incident and a window with no newer key have no test (gap) — `Tell.TestLaterWakeEnds` cases gone and nonewer; the foreign-request guard stays untested (it only widens "missing").
+  - `[low]` `[patch]` The `Later.*` integration tests had no observed red (gap) — three mutations run and recorded under Verification (open, session, count).
+  - `[medium]` `[patch]` `Later.TestOpenIncidentOnlyCounts` takes its baselines before the rejection's side effects are out (gap) — it waits for the answered Notification and the open incident event first.
+  - `[medium]` `[patch]` One later waiter per round is not pinned (gap) — `Tell.TestStillGathering` joins a second batch (mutation: `laterWas` ignored → red).
+  - `[medium]` `[patch]` `TestStillGathering` cannot tell `LastAt` from `LaterSince` (gap) — failures nine and two seconds old; the alarm must be 6 to 8 s (mutation: `LaterSince` for both → red).
+  - `[medium]` `[patch]` The marks-before-send order is not pinned (gap) — the probe records the level and the stored marks at the send; `TestLaterRequestToEachWatcher` asserts them (mutation: send above `TSTART` → red).
+  - `[low]` `[reject]` Some assertions are labelled as window checks but compare a canned result (gap) — the window is pinned by the marks assertions and `DryRun.TestAskedWindow`.
+  - `[medium]` `[patch]` The open-incident `Wake` assertion in `TestLaterRequestStates` is vacuous for `Later`'s open branch (gap) — the same root cause as the open-branch row; pinned by `TestLaterWakeEnds`.
+  - `[low]` `[reject]` The "at once" block of `Later.TestLaterFailuresGetTheirOwnRequest` asserts transient states (gap) — the poller's `CallInterval` is 3 s and the quiet time 10 s, so the block has about 5 s of margin; Task 0 measured 10.6 s to R2. reopen_if: a CI red at "one request" or "the new count has an incident event" in `Later`.
+  - `[low]` `[reject]` `Quit` in the inner `While` loops of `TestLaterRequestStates` leaves only the loop (gap) — error paths of a failed `Setup` or `Host` only.
+  - `[low]` `[reject]` No test joins failures out of time order, so "min" and "first" are the same (gap) — the poller sends ascending stamps; unlikely.
+  - `[false]` `[reject]` The tests assert on the probe, not the production (intent) — the spec puts the matrix rows on the probe and the integration on `Test.Fix.Later`, which runs the real production (mutations: session, open).
+  - `[false]` `[reject]` A non-`DryRunResult` answer leaves `AskingSince` (intent) — the same as the `FixExecutor` row above.
+  - `[low]` `[reject]` Nothing times `AskingSince` out (intent) — residual risk 1 (DW-345; 7.5).
+  - `[low]` `[patch]` `Later` returns the `%Save` status of an open incident (intent) — the same root cause as the fourth row.
+  - `[low]` `[reject]` The first-answer routes that raise nothing and send no notice leave `LaterSince` set on an unnoticed incident (intent) — those routes leave the incident unnoticed (7.2's behaviour), and an unnoticed incident gets no later round.
+  - `[false]` `[reject]` The first request that names another incident is treated as missing (intent) — Design Notes "Decided in-stage": such a row is not the incident's first request.
+
 ## Design Notes
 
 **V1. Where the later rounds live (schema change, veto window; the lead rules it).**
@@ -261,6 +298,14 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - `count` is the number of keys in the round's windows, as the first notice's count is `NoticeCount`. The later notification also carries `cause` (an undeclared slot the catalog ignores), because it reuses `WithFixSlots` (Rule 2). Its `DecisionRef` is the incident's.
 - One ask at a time per incident. A round that settles while another ask is on its way re-checks every `quiet` seconds.
 - A later answer that arrives when `AskingSince` is empty is stale and dropped.
+- Decided in-stage (implement):
+  - `WithFixSlots(incident, .sc, dryRun, count, time)` declares `count` and `time` without defaults and tests `$Data`: an argument that is passed counts as given, also when it is empty (so an empty time is refused, as the matrix asks), and one that is left out does not. With `= ""` defaults the two cases could not be told apart.
+  - `Unask` reads the incident again before it clears `AskingSince`, so that a change the caller made and did not save (the appended request of a failed save) is never saved with it. A failed `Ask` in `AskLater` also clears `LaterSince`: when the marks' transaction rolled back, the stored `LaterSince` would otherwise stay set and no later waiter would start for further failures.
+  - `AskLater` also treats a first-request row that names another incident as missing.
+  - `IncidentProbe` gets `FailStart` (a refused waiter send) so that `StartLater`'s warning and its clearing of `LaterSince` are tested (`TestLaterNoRequestRoutes`, case `start`).
+  - `Case.Incidents` also gives `laterSince` and `askingSince`; `Tell.Group` and `Lifecycle.Group` take the `Seen` set and the marks as optional trailing arguments.
+  - `NoticeText.TestLaterRequest` sets the process zone to America/New_York (as `Test.Msg.Catalog` does) and puts it back in `OnAfterOneTest`, because the UX fixture's "14:20 ET" is the zone's rendering of 18:20Z.
+- Decided in-stage (review): `Later` clears `LaterSince` of an open incident through `Unlater` (a failed save is one warning, never an error status). `IncidentProbe.SendDryRun` records the transaction level and the stored marks at the moment of the send, so the marks-before-send order is pinned. `Tell.TestLaterWakeEnds` pins the wake that ends without an ask (open, gone, no newer key). `Later.TestOpenIncidentOnlyCounts` takes its baselines after the rejection's answered Notification and incident event are out.
 
 **Governing ADs:**
 - AD-1: items by name.
@@ -365,8 +410,52 @@ Conventions: "Incident notice", "Approval requests", "Times", "Messages", "Redac
 | trace | `StartLater` starts the waiter with session "" | `Tell.TestLaterRequestToEachWatcher` (`Started`), `Later` (`HeadersBetween`) |
 | window arithmetic | `Window` includes `from` | `Settle.TestWindow` |
 
+**Task 0 results (implement stage, first fresh throwaway, tag `e7s6i`):**
+- (a) About 10.6 s from the second `Fail` (after it was sent) to R2 listed on the incident (`WaitFailed(5)` included), measured once with a temporary assertion; the approval Notification follows in the same second. Below the inference of 15 s, because the quiet time runs from the failures' own time, not from the poll. `WAITLATER` stays 30.
+- (b) `Test.Fix.Later` on a fresh stack: 52.9 to 54.8 s of class time over five runs (135 to 149 s for the whole call, 82 to 96 s of it the stack start). No split.
+- (c) The incident's `TraceHeaderId` session holds 2 `Settle` request headers (the first waiter's and the later waiter's), 2 `DryRun` headers to `FixExecutor`, and R2's `ApprovalStart` (`HoldInSession`). `Later` asserts all three.
+- (d) The second `Partner.Send` joins the same group: one incident, `Count` 5, `NoticeCount` 3, exactly two requests.
+
+**Loop results (implement stage):**
+- Warm (`e7s6iw`): `Test.Watch.Settle`, `NoticeText`, `Tell` (15.4 s), `Lifecycle`, `Transitions`, `Test.Data.Tables` passed.
+- Fresh (`e7s6i`), class time: `Test.Fix.Later` 52.9 s, `DryRun` 4.5 s, `Raise` 61.2 s, `Test.Watch.Incidents` 106.6 s, `Diagnose` 44.2 s, `Notices` 27.7 s, `Closing` 29.2 s, `Test.Checks.Turns` 8.8 s: all passed.
+- The static `test-class-rules.sh`, `test-storage.sh` and `test-boundaries.sh` pass. The `(once)` lines are the parent's.
+
+**Pinning mutations applied (Rule 19), each observed red and reverted byte-identically (md5 of the file equals its backup):**
+- mutation: `Record` never sets `LaterSince` (`If later && ...` made `If 0 && ...`) → red: `Tell.TestLaterRequestToEachWatcher`, `TestLaterRequestStates`, `TestStragglersOfTheFirstAsk`, `TestStillGathering`, `TestLaterNoRequestRoutes`, `TestOneAskAtATime` and `TestSaveFailureCancelsTheLaterRequest`.
+- mutation: `RepairResend.DryRun` reads `group.Seen` again (fresh stack) → red: `DryRun.TestAskedWindow` (all five of its checks).
+- mutation: `Ask` sets `AskedFrom` to "" instead of `AskedTo` → red: `Tell.TestLaterRequestToEachWatcher` (the marks) and `TestOneAskAtATime`.
+- mutation: the later notice is sent with kind `incident` → red: `Tell.TestLaterRequestToEachWatcher`.
+- mutation: the later notice has an empty `ApprovalRef` → red: `Tell.TestLaterRequestToEachWatcher`.
+- mutation: `AskLater` sets `AskingSince` to the clock instead of `LaterSince` → red: `Tell.TestOneAskAtATime`, `TestLaterRequestToEachWatcher` and `TestLaterNoRequestRoutes`.
+- mutation: `Later` ends for `resolved` → red: `Tell.TestLaterRequestStates`.
+- mutation: `Apply` executes `OWN` for `approved` while fixing → red: `Lifecycle.TestLaterRequestWhileFixing` (and `TestApprovalOutcomes`).
+- mutation: `WithFixSlots` ignores a given count → red: `NoticeText.TestLaterRequest`.
+- mutation: `Record`'s later rule ignores the open-and-noticed check and `Later` does not end on open → red: `Tell.TestLaterRequestStates`.
+- mutation: `Later` ignores `AskingSince` → red: `Tell.TestOneAskAtATime`.
+- mutation: the raise route does not call `StartLater` → red: `Tell.TestStragglersOfTheFirstAsk`.
+- mutation: a later refusal (`Decline`) keeps `AskingSince` → red: `Tell.TestLaterNoRequestRoutes`.
+- mutation: `StartLater` starts the waiter with session "" → red: `Tell.TestLaterRequestToEachWatcher` (`Started`), `TestLaterRequestStates`, `TestOneAskAtATime`, `TestStragglersOfTheFirstAsk` and `TestLaterNoRequestRoutes`.
+- mutation: `Window` includes `from` → red: `Settle.TestWindow`.
+- Every mutated run but the `RepairResend` one was on the warm stack (the probe's shadow instances run in the test process, so a reloaded class takes effect); the `RepairResend` one needed a fresh stack. After the reverts every warm class and a fresh `DryRun` and `Later` passed again. The review pass added the mutations below.
+
+**Review-pass additions (Rule 19), each observed red and reverted byte-identically (md5 of the file equals its backup):**
+- mutation: `Record`'s later rule ignores the open-and-noticed check and `Later` does not end on open (fresh stack) → red: `Later.TestOpenIncidentOnlyCounts` ("the incident stays open and no round gathers", "and the dry run was asked once": the quiet time plus 3 s outlasts the regressed round).
+- mutation: `Start` sets `%SessionId` to "" instead of the session given (fresh stack) → red: `Later.TestLaterFailuresGetTheirOwnRequest` ("two dry runs went to FixExecutor in the incident's trace session", "and the later waiter's Settle lies in it too").
+- mutation: `Windowed` returns `incident.NoticeCount` → red: `Tell.TestLaterRequestToEachWatcher` (the count slot and the rendered text) and `Tell.TestOneAskAtATime`.
+- mutation: the open branch of `Later` is removed (`If 0 {`) → red: `Tell.TestLaterWakeEnds` (case open: an open incident gets a dry run).
+- mutation: `Record`'s `added` ignores `laterWas` (a waiter for every batch of a round) → red: `Tell.TestStillGathering` ("one waiter for the round").
+- mutation: `Later` passes `LaterSince` for both `LastAt` and `LaterSince` to `Settle.Wait` → red: `Tell.TestStillGathering` (the alarm is 1 s, not 6 to 8).
+- mutation: `Ask` sends the dry run before it saves the marks (the send above `TSTART`) → red: `Tell.TestLaterRequestToEachWatcher` ("the marks were saved and the transaction was over when the ask was sent").
+
+**Verification pass after the review patches (implement stage, 2026-10-28):**
+- Warm (`e7s6iw`): `Test.Watch.Settle`, `NoticeText`, `Tell` (15.5 s), `Lifecycle`, `Transitions` and `Test.Data.Tables` passed.
+- Fresh (`e7s6i`), class time: `Test.Fix.Later` 52.9 s (call 135 s), `DryRun` 4.5 s, `Raise` 63.8 s, `Test.Watch.Incidents` 106.6 s (call 188 s), `Diagnose` 45.0 s, `Notices` 27.2 s, `Closing` 29.8 s, `Test.Checks.Turns` 8.7 s: all passed.
+- `shard lane-a --part k/12`, k = 1 to 12, all passed (77 classes): 238, 184, 97, 125, 106, 100, 195, 87, 103, 263, 211 and 110 s per call. `shard lane-b --part k/3`, k = 1 to 3, all passed (64 classes): 134, 172 and 100 s. `live storage-roundtrip` passed (81 classes with a committed Storage block, including the four new properties). `bash ci/checks.sh`: every script passed.
+- Matrix Test Audit: every row of the I/O matrix has a covering test that ran and passed in the output above (live rows: `Later.TestLaterFailuresGetTheirOwnRequest`, `Later.TestOpenIncidentOnlyCounts`; probe rows: `Tell`, `Lifecycle.TestLaterRequestWhileFixing`).
+
 ## Auto Run Result
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-28).** Planned in full against the READY FOR DEVELOPMENT standard. The plan stage made no runtime call: no slot read and no throwaway; Task 0 is the implement stage's. Three items need the lead's ruling at the spec gate. Each is planned as recommended, and none blocks the build:
@@ -375,3 +464,11 @@ Blocking condition: none
 - **V3 (veto, AC move):** the "each approved request gets its own `FixRun`" half of the criterion depends on Story 7.3's `Execute` (`FixExecutor` writes `FixRun` rows; `STUB = 1` until 7.3). This story delivers `IncidentManager`'s half: one `Execute` per approved request, serialized (AC 4). Proposed: add to Story 7.3 the pin "two approved requests of one incident make two `FixRun` rows". Flagged, not decided.
 
 No AD amendment, no NFR tripwire, no contended path. Ledger inbox: none.
+
+**Implement and review stage (2026-10-28).** Status done; HEAD at the start was `0be77b16ab1e63aee854fc8a6ed7a06f03471635`.
+- **Implemented:** the four stored properties (`FailureGroup.AskedFrom`/`AskedTo`, `Incident.LaterSince`/`AskingSince`, Storage Values 12-13 and 27-28), `Settle.Window`, `FailureGroup.AskedKeys`, `RepairResend.DryRun` reading the ask's window, `Notice.KEYLATER` and `WithFixSlots` with a given count and time, and in `IncidentManager` the marks-before-send `Ask`, the later-failure rule in `Record`/`Batch`, `StartLater`, `Later`/`AskLater`/`LaterAlarm`, the `later` flag of `Proposed`/`Unproposed`, and `Notification` lifted out of `Deliver`. Tests: `Test.Fix.Later` (new, two production tests), six `Tell` tests and `TestLaterWakeEnds`, `Lifecycle.TestLaterRequestWhileFixing`, `DryRun.TestAskedWindow`, `Settle.TestWindow`, `NoticeText.TestLaterRequest`; `Case` lifted `Raised`, `Noticed`, `Answered` and `NoticeSessionOf` from `Test.Fix.Raise`; `IncidentProbe` gained the later seams.
+- **Files changed:** `Data/FailureGroup.cls`, `Data/Incident.cls`, `Watch/Settle.cls`, `Watch/Notice.cls`, `Watch/IncidentManager.cls`, `Fix/Kind/RepairResend.cls`, `Test/Data/Tables.cls`, `Test/Fix/{DryRun,Raise}.cls`, `Test/Fix/Later.cls` (new), `Test/Watch/{Case,IncidentProbe,Incidents,Lifecycle,NoticeText,Settle,Tell}.cls` (all under `src/ocutalon/cls/OcuTalon/`).
+- **Review:** 32 findings from four layers (high 0, medium 7, low 19, false 5, maybe-false 1). Patches applied: `Later`'s open branch through `Unlater`; `Tell.TestLaterWakeEnds`; one waiter per round and the alarm basis in `TestStillGathering`; the marks-before-send pin (probe level and marks); the baseline wait in `Later.TestOpenIncidentOnlyCounts`; seven mutation lines. Deferred: none. Rejected, with reasons in the Review Triage Log: marks not restored when a round fails (V2's end state; reopen_if a failed round leaves failures uncovered in a live run), `AskingSince` never timing out (residual risk 1), no cap on later requests (a product call; AC 1), a failed alarm or a throwing wake (infrastructure), cosmetic log text, `Raised`'s default count (spec), transient "at once" assertions (about 5 s of margin), and five claims that do not hold.
+- **Follow-up review recommended: true.** Five medium entries were patched. The unverified risk: the new `Tell` tests and the baseline wait of `Later.TestOpenIncidentOnlyCounts` have one green run each on this tree plus their mutation reds, and have not been run in reverse order or repeated.
+- **Verification:** see `## Verification` (Task 0, the loop classes, 12 lane-a parts, 3 lane-b parts, `storage-roundtrip`, `ci/checks.sh`, 15 mutations plus 7 from the review). Slot A gets the classes after the commit; no test ran on it.
+- **Residual risks:** (1) the failures of a later round that failed after its marks moved sit in no window, so no request covers them (a warning is logged); (2) an ask that is never answered leaves `AskingSince` set (DW-345); (3) `SEENMAX` bounds a window (DW-318); (4) an incident can collect many later requests.

@@ -3,7 +3,9 @@
 /// a field of the sample message that the diagnosis was given. This class checks the parameters (CheckParameters) and works out the dry run (DryRun); the
 /// repair and the resend are Story 7.3's.
 /// The dry run reads the failed messages of the incident's failure groups through OcuTalon.Watch.Reader.Evidence only, changes nothing and calls no model.
-/// A message is a target when it is a header of a group's Seen that is still in the status Error, its scope (OcuTalon.Watch.FailurePoller Scope of its
+/// It reads the keys that each group's newest ask covers (FailureGroup.AskedKeys: the window that IncidentManager marked before it sent the ask, or the whole
+/// Seen of a group with no mark), so that a later request holds only the failures that arrived after the request before it (Story 7.6).
+/// A message is a target when it is a header of the group's window that is still in the status Error, its scope (OcuTalon.Watch.FailurePoller Scope of its
 /// SuperSession) is the incident's owner, and its field reads in the source format. A failed message of the scope whose field does not read (another format,
 /// no value, or no body that can be read) is counted as affected and left out. Lane A.
 Class OcuTalon.Fix.Kind.RepairResend Extends OcuTalon.Fix.Kind
@@ -98,8 +100,9 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	For g = 1:1:groups.Count() {
 		Set group = groups.GetAt(g)
 		Set keys = ""
-		For i = 1:1:$Length(group.Seen, ",") {
-			Set key = $Piece(group.Seen, ",", i)
+		Set asked = group.AskedKeys()
+		For i = 1:1:$Length(asked, ",") {
+			Set key = $Piece(asked, ",", i)
 			If key ? 1"h".N Set keys = keys _ $Select(keys = "": "", 1: ",") _ key
 		}
 		If keys = "" Continue

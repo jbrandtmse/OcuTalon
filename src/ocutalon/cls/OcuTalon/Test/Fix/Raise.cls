@@ -22,11 +22,8 @@ Include Ensemble
 Class OcuTalon.Test.Fix.Raise Extends OcuTalon.Test.Watch.Case
 {
 
-/// The number of orders that a test fails.
+/// The number of orders that TestInstanceWatchers fails (Case.Raised takes its own count, 3 by default).
 Parameter ORDERCOUNT = 3;
-
-/// The longest wait for the end of a hold, and for an outcome to be handled, in seconds (test bounds, not NFR-7).
-Parameter WAITHOLD = 20;
 
 Method TestInstanceWatchers()
 {
@@ -208,71 +205,6 @@ Method TestUnscopedOrdersGetTheNoFixNotice()
 }
 
 /// --- helpers ---
-/// The set-up of a test with a raised request of session S: the production is ready, the mock is pointed to, the approval role is ready, S watches Orders and
-/// ORDERCOUNT failing orders tagged with S's trace Ref become an incident that is noticed with its fix. a is S, ref the incident and request the request, as
-/// Case.Requests gives it. 1 when the set-up is done.
-Method Raised(name As %String, Output a As %String, Output ref As %String, Output request As %DynamicObject) As %Boolean [ Private ]
-{
-	Set (a, ref, request) = ""
-	If '..Ready() Quit 0
-	If '..PointKeys() Quit 0
-	If '..ApprovalReady() Quit 0
-	Set a = ..Session(name)
-	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Do ..ClearMark(..#ORDERS)
-	Do ..Watch(a)
-	If '..Fail(..#ORDERCOUNT, trace) Quit 0
-	Set failed = ..WaitFailed(..#ORDERCOUNT)
-	Set rows = ..WaitIncident(a, ..#ORDERSPRODUCTION)
-	Do $$$AssertEquals(rows.%Size(), 1, "one incident for the burst of S")
-	If rows.%Size() < 1 Quit 0
-	Set ref = rows.%Get(0).ref
-	If '..Noticed(ref, 1) Quit 0
-	Set requests = ..Requests(ref)
-	Do $$$AssertEquals(requests.%Size(), 1, "one request names the incident")
-	If requests.%Size() '= 1 Quit 0
-	Set request = requests.%Get(0)
-	Do $$$AssertEquals(request.state, "pending", "and it is pending")
-	Quit (request.state = "pending")
-}
-
-/// Waits for the diagnosis of the incident to be handled and the notice to be sent: IncidentManager has handled Decide's answer, NoticedAt is set and count
-/// Notifications carry the incident's Ref. 1 when all three are, else 0 with a failed assertion.
-Method Noticed(ref As %String, count As %Integer) As %Boolean [ Private ]
-{
-	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
-	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
-	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer")
-	Set noticed = (..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "")
-	Do $$$AssertTrue(noticed, "the notice follows: NoticedAt is set")
-	If 'noticed Quit 0
-	Do ..WaitNotices(ref, count)
-	Quit 1
-}
-
-/// The answered Notification of the incident once count of them exist: {"id", "sessionRef", "kind", "catalogKey", "slots", "approvalRef", "incidentRef",
-/// "decisionRef"}, or "" with a failed assertion when there are not exactly count.
-Method Answered(ref As %String, count As %Integer) As %DynamicObject [ Private ]
-{
-	Set end = $ZHorolog + ..#WAITHOLD
-	For {
-		Set found = ..NoticeBodies(ref, "answered")
-		If (found.%Size() '< count) || ($ZHorolog > end) Quit
-		Hang 0.5
-	}
-	Do $$$AssertEquals(found.%Size(), count, count_" answered notification(s) carry the incident's Ref")
-	If found.%Size() '= count Quit ""
-	Quit found.%Get(0)
-}
-
-/// The trace session of the header that carried the Notification.
-ClassMethod NoticeSessionOf(id As %String) As %String [ Private ]
-{
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Msg.Notification' AND MessageBodyId = ? ORDER BY ID", id)
-	If rs.%Next() Quit rs.%GetData(1)
-	Quit ""
-}
-
 /// Asserts that OCUORDERS is as the snapshot was: the new snapshot differs in no header, production, state, default setting or queue.
 Method Unchanged(namespaces As %List, before As %DynamicObject) [ Private ]
 {

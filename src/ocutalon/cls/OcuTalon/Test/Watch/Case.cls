@@ -35,7 +35,10 @@ Include Ensemble
 ///     under ^OcuTalonTest("Approval","refs") and then calls Test.Bridge.Approval.Clean, which ends the holds and tasks and deletes the rows, so that
 ///     Test.Bridge.Approval's instance-wide row and hold counts stay its own; Requests, HeadersBetween and HoldInSession read the request rows and the trace
 ///     session; AssertDelivered waits for WebChatOut's Delivery row of a kind and a request's Ref, StateIncident gives the incident as /state lists it, and Listed
-///     the requests that an incident payload lists.
+///     the requests that an incident payload lists (Listed reads the index-th one, the first by default).
+///   - for the tests that start from a raised request (Story 7.2, lifted here by Story 7.6): Raised (S watches Orders and failing orders tagged with S's trace Ref become an
+///     incident that is noticed with its fix and one pending request; its trailing argument is the number of orders, 3 by default), Noticed (waits for the diagnosis, the
+///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -88,6 +91,9 @@ Parameter SYNTHFIRST = 900000000;
 
 /// The longest a test waits for a batch, in seconds (a test bound, not NFR-7), and the pause that proves no further batch comes: two polls.
 Parameter WAITBATCH = 30;
+
+/// The longest a test waits for the end of a hold, and for an outcome to be handled, in seconds (a test bound, not NFR-7).
+Parameter WAITHOLD = 20;
 
 Parameter QUIET = 7;
 
@@ -1154,7 +1160,7 @@ Method SendBatch(namespace As %String, production As %String, ownerRef As %Strin
 
 /// The Incident rows of the owner for the production, by ID, as a dynamic array of {"id", "ref", "ownerRef", "namespace", "production", "state", "openVariant",
 /// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "closedAt", "traceHeaderId", "firstHeaderId", "sampleHeaderId", "sampleError", "requestRefs", "decisionRef",
-/// "fallback", "fallbackReason", "causeCategory"}.
+/// "fallback", "fallbackReason", "causeCategory", "laterSince", "askingSince"}.
 ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArray
 {
 	Set incidents = []
@@ -1162,7 +1168,7 @@ ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArr
 	While rs.%Next() {
 		Set row = ##class(OcuTalon.Data.Incident).%OpenId(rs.%GetData(1))
 		If '$IsObject(row) Continue
-		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "closedAt": (row.ClosedAt), "traceHeaderId": (row.TraceHeaderId), "firstHeaderId": (row.FirstHeaderId), "sampleHeaderId": (row.SampleHeaderId), "sampleError": (row.SampleError), "requestRefs": (row.RequestRefs), "decisionRef": (row.DecisionRef), "fallback": (+row.Fallback), "fallbackReason": (row.FallbackReason), "causeCategory": (row.CauseCategory)})
+		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "closedAt": (row.ClosedAt), "traceHeaderId": (row.TraceHeaderId), "firstHeaderId": (row.FirstHeaderId), "sampleHeaderId": (row.SampleHeaderId), "sampleError": (row.SampleError), "requestRefs": (row.RequestRefs), "decisionRef": (row.DecisionRef), "fallback": (+row.Fallback), "fallbackReason": (row.FallbackReason), "causeCategory": (row.CauseCategory), "laterSince": (row.LaterSince), "askingSince": (row.AskingSince)})
 	}
 	Quit incidents
 }
@@ -1287,13 +1293,14 @@ Method AssertDelivered(session As %String, kind As %String, approvalRef As %Stri
 	Do $$$AssertEquals(count, 1, "WebChatOut recorded one "_kind_" Delivery row with the request's Ref")
 }
 
-/// The requests that an incident payload (an incident event's, or /state's) lists, as "<count>|<first Ref>|<first State>" ("0||" when it lists none).
-ClassMethod Listed(payload As %DynamicObject) As %String
+/// The requests that an incident payload (an incident event's, or /state's) lists, as "<count>|<Ref>|<State>" of the request at the index (the first by default);
+/// "0||" when it lists none.
+ClassMethod Listed(payload As %DynamicObject, index As %Integer = 0) As %String
 {
 	Set requests = payload.requests
 	If '$IsObject(requests) || (requests.%Size() = 0) Quit "0||"
-	Set first = requests.%Get(0)
-	Quit requests.%Size()_"|"_$Select($IsObject(first): first.ref_"|"_first.state, 1: "|")
+	Set entry = requests.%Get(index)
+	Quit requests.%Size()_"|"_$Select($IsObject(entry): entry.ref_"|"_entry.state, 1: "|")
 }
 
 /// The incident's payload as /state (Web.Api.StateBody) lists it for the session, or "" when /state does not list it.
@@ -1351,6 +1358,71 @@ Method WaitAnswered(ref As %String, session As %String = "", seconds As %Integer
 		Hang 0.5
 	}
 	Quit handled
+}
+
+/// The set-up of a test with a raised request of session S: the production is ready, the mock is pointed to, the approval role is ready, S watches Orders and
+/// orders failing orders (3 by default) tagged with S's trace Ref become an incident that is noticed with its fix. a is S, ref the incident and request the request, as
+/// Case.Requests gives it. 1 when the set-up is done.
+Method Raised(name As %String, Output a As %String, Output ref As %String, Output request As %DynamicObject, orders As %Integer = 3) As %Boolean [ Private ]
+{
+	Set (a, ref, request) = ""
+	If '..Ready() Quit 0
+	If '..PointKeys() Quit 0
+	If '..ApprovalReady() Quit 0
+	Set a = ..Session(name)
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
+	Do ..ClearMark(..#ORDERS)
+	Do ..Watch(a)
+	If '..Fail(orders, trace) Quit 0
+	Set failed = ..WaitFailed(orders)
+	Set rows = ..WaitIncident(a, ..#ORDERSPRODUCTION)
+	Do $$$AssertEquals(rows.%Size(), 1, "one incident for the burst of S")
+	If rows.%Size() < 1 Quit 0
+	Set ref = rows.%Get(0).ref
+	If '..Noticed(ref, 1) Quit 0
+	Set requests = ..Requests(ref)
+	Do $$$AssertEquals(requests.%Size(), 1, "one request names the incident")
+	If requests.%Size() '= 1 Quit 0
+	Set request = requests.%Get(0)
+	Do $$$AssertEquals(request.state, "pending", "and it is pending")
+	Quit (request.state = "pending")
+}
+
+/// Waits for the diagnosis of the incident to be handled and the notice to be sent: IncidentManager has handled Decide's answer, NoticedAt is set and count
+/// Notifications carry the incident's Ref. 1 when all three are, else 0 with a failed assertion.
+Method Noticed(ref As %String, count As %Integer) As %Boolean [ Private ]
+{
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
+	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer")
+	Set noticed = (..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "")
+	Do $$$AssertTrue(noticed, "the notice follows: NoticedAt is set")
+	If 'noticed Quit 0
+	Do ..WaitNotices(ref, count)
+	Quit 1
+}
+
+/// The answered Notification of the incident once count of them exist: {"id", "sessionRef", "kind", "catalogKey", "slots", "approvalRef", "incidentRef",
+/// "decisionRef"}, or "" with a failed assertion when there are not exactly count.
+Method Answered(ref As %String, count As %Integer) As %DynamicObject [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITHOLD
+	For {
+		Set found = ..NoticeBodies(ref, "answered")
+		If (found.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertEquals(found.%Size(), count, count_" answered notification(s) carry the incident's Ref")
+	If found.%Size() '= count Quit ""
+	Quit found.%Get(0)
+}
+
+/// The trace session of the header that carried the Notification.
+ClassMethod NoticeSessionOf(id As %String) As %String [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Msg.Notification' AND MessageBodyId = ? ORDER BY ID", id)
+	If rs.%Next() Quit rs.%GetData(1)
+	Quit ""
 }
 
 /// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups and their diagnose

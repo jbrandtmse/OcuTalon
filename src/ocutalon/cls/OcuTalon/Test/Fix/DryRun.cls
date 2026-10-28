@@ -11,6 +11,9 @@
 ///     was delivered are not counted; the example is the lowest target;
 ///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap, and one order is only in the second group: every group is read,
 ///     the targets are still ascending, and an order of two groups is counted once;
+///   - TestAskedWindow (Story 7.6; AC 1): 5 failed orders in one group's Seen with the marks of an ask: a window from the 2nd key to the 4th holds the 3rd and 4th
+///     orders only (2 affected); an empty from mark and the 2nd as the to mark hold the first two; a from mark equal to the to mark holds none, and the dry run is
+///     refused with the reason that the incident has no failed message of its scope;
 ///   - TestNothingReadable: in-scope failed orders, none of which reads in the source format: the dry run is worked out, with no target;
 ///   - TestRefusals: an unknown or closed incident, an unknown kind, parameters that are not a JSON object or that the kind refuses, a production that cannot be read
 ///     or is not current, and no failed message of the scope are each answered OK with no targets and no dry run, and a plain Reason that says why (never the
@@ -262,6 +265,39 @@ Method TestTargetsAscendAcrossGroups()
 	Do $$$AssertEquals(response.Targets, ids, "every group is read, the targets are ascending though the groups hold them descending, and each is listed once")
 	Set dryRun = {}.%FromJSON(response.DryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "4|4|0", "an order of two groups is counted once")
+}
+
+Method TestAskedWindow()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("window")
+	Set super = ..TraceOf(owner)
+	If '..Fail(5, super) Quit
+	Set failed = ..WaitFailed(5)
+	If failed.%Size() < 5 Quit
+	Set ids = ..HeaderIds(failed)
+	Set incident = ..Fixture(owner, ids)
+	Set group = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident.Ref).GetAt(1)
+	Set group.AskedFrom = "h"_$Piece(ids, ",", 2)
+	Set group.AskedTo = "h"_$Piece(ids, ",", 4)
+	Do $$$AssertStatusOK(group.%Save(), "the group's window runs from the 2nd key to the 4th")
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_$Piece(ids, ",", 3)_","_$Piece(ids, ",", 4), "the targets are the 3rd and 4th orders only")
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "2|2|0", "two affected, two resent")
+	Set group.AskedFrom = ""
+	Set group.AskedTo = "h"_$Piece(ids, ",", 2)
+	Do $$$AssertStatusOK(group.%Save(), "the first ask has no from mark and ends at the 2nd key")
+	Set response = ..Ask(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If $IsObject(response) Do $$$AssertEquals(response.Targets, $Piece(ids, ",", 1)_","_$Piece(ids, ",", 2), "the targets are the first two orders")
+	Set group.AskedFrom = "h"_$Piece(ids, ",", 3)
+	Set group.AskedTo = "h"_$Piece(ids, ",", 3)
+	Do $$$AssertStatusOK(group.%Save(), "a window whose marks are one key is empty")
+	Do ..AssertRefused(incident.Ref, "repair_resend", ..Params(), super, "an empty window", "has no failed message of its scope")
 }
 
 Method TestNothingReadable()

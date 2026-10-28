@@ -522,7 +522,9 @@ XData Contracts [ MimeType = application/json ]
    "FirstHeaderId": "%Integer",
    "SampleHeaderId": "%Integer",
    "SampleError": "%String(MAXLEN=1000)",
-   "RequestRefs": "%String(MAXLEN=)"
+   "RequestRefs": "%String(MAXLEN=)",
+   "LaterSince": "%String(MAXLEN=20)",
+   "AskingSince": "%String(MAXLEN=20)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -544,7 +546,9 @@ XData Contracts [ MimeType = application/json ]
    "FirstAt": "%String(MAXLEN=20)",
    "LastAt": "%String(MAXLEN=20)",
    "NoticeCount": "%Integer",
-   "ErrorSummary": "%String(MAXLEN=1000)"
+   "ErrorSummary": "%String(MAXLEN=1000)",
+   "AskedFrom": "%String(MAXLEN=32)",
+   "AskedTo": "%String(MAXLEN=32)"
   },
   "indexes": {
    "IncidentRefIndex": "IncidentRef",

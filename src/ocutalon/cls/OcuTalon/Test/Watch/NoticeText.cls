@@ -8,6 +8,9 @@
 ///     unknown text's first line, the fallback text for each reason (an empty or unknown reason gives unusable) and the UJ-1 text of the with-fix builder's slots
 ///     plus the dry run's (Story 7.2: the builder given a dry run adds field, before, after and resendCount and refuses a dry run without a field, a before or an after or
 ///     with a resend below 1; Slots given the key incident.noFix builds the no-fix slots of a data-format row);
+///   - TestLaterRequest (Story 7.6; AC 5): WithFixSlots given a count and a time (the round's) replaces the count and time slots; the slots of the UX fixture's
+///     values render the text of incident.laterRequest in the fixture exactly (telegram, and the page wording on the web), and a count of 0 or one that is no
+///     whole number and an empty time are refused;
 ///   - TestEveryChannel: every variant renders on web, phone, mailbox and telegram;
 ///   - TestGroupLines: two groups give two lines in order, a group with no NoticeCount is left out, an empty error summary is written as no error text, and each line's
 ///     count is the group's NoticeCount, not its Count that moved on, so the lines add up to the count slot;
@@ -32,6 +35,23 @@ Parameter SECOND = "2026-10-25T12:10:00Z";
 Parameter CAUSE = "The partner now sends the order date as month, day and year with slashes";
 
 Parameter SENTENCE = "The order date was not in the expected format.";
+
+/// The zone of the fixture clock of the UX text of the later request: Friday 2026-10-16 at 14:20 in America/New_York.
+Parameter ZONE = "America/New_York";
+
+/// The TZ of the process before TestLaterRequest set the fixture zone (-1 when it was undefined), with ZoneSaved 1 while it is changed.
+Property SavedZone As %String;
+
+Property ZoneSaved As %Boolean [ InitialExpression = 0 ];
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If ..ZoneSaved {
+		Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
+		Set ..ZoneSaved = 0
+	}
+	Quit $$$OK
+}
 
 /// An incident row (not saved): 52 failures of which 50 settled, the order noun, and the category, fallback and reason given.
 ClassMethod Row(category As %String, fallback As %Boolean = 0, reason As %String = "") As OcuTalon.Data.Incident
@@ -218,6 +238,39 @@ Method TestWithFix()
 	If $IsObject(forced) Do $$$AssertEquals(forced.cause_"|"_forced.groups.%Size()_"|"_forced.count, ..#CAUSE_".|2|50", "with the cause and the groups")
 	Do $ClassMethod(..#NOTICE, "Slots", row, ..Groups(), .sc)
 	Do $$$AssertStatusNotOK(sc, "and are refused without it")
+}
+
+Method TestLaterRequest()
+{
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Set ..ZoneSaved = 1
+	Do $SYSTEM.Process.TimeZone(..#ZONE)
+	Set fixture = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures").Data).%Get("incident.laterRequest")
+	Set row = ..Row("data_format_change")
+	Set row.FixSummary = "repair and resend all 3"
+	Set dryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "order date", "before": "10/16/2026", "after": "2026-10-16"}
+	Set slots = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun, 3, "2026-10-16T18:20:00Z")
+	Do $$$AssertStatusOK(sc, "the later slots are built")
+	If '$IsObject(slots) Quit
+	Do $$$AssertEquals(slots.count_"|"_slots.%GetTypeOf("count")_"|"_slots.time_"|"_slots.resendCount_"|"_slots.fixSummary_"|"_slots.itemNoun.other, "3|number|2026-10-16T18:20:00Z|3|repair and resend all 3|orders", "the given count and time replace the row's, and the dry run adds its slots")
+	Do $$$AssertEquals($Parameter(..#NOTICE, "KEYLATER"), "incident.laterRequest", "the key is the later request's")
+	Set telegram = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.laterRequest", slots.%ToJSON(), "telegram", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertStatusOK(sc, "it renders on telegram")
+	Do $$$AssertEquals(telegram, fixture.text, "the text is the UX fixture's exactly")
+	Do $$$AssertEquals(telegram, "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?"_$Char(10, 10)_"Dry run: 3 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 3 repaired copies; the originals stay unchanged. Nothing has changed yet."_$Char(10, 10)_"Details and trace: on your OcuTalon page.", "as the epics criterion states it")
+	Set web = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.laterRequest", slots.%ToJSON(), "web", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertEquals(web, fixture.web, "and the page wording is the fixture's web text")
+	Set own = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun)
+	Do $$$AssertStatusOK(sc, "the slots without a count and a time are built")
+	If $IsObject(own) Do $$$AssertEquals(own.count_"|"_own.time, "50|"_..#FIRST, "and take the row's NoticeCount and FirstAt")
+	For count = 0, -1, "x", "1.5", "" {
+		Set none = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun, count, "2026-10-16T18:20:00Z")
+		Do $$$AssertStatusNotOK(sc, "a count of '"_count_"' is refused")
+		Do $$$AssertEquals($IsObject(none), 0, "and gives no slots")
+	}
+	Set none = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun, 3, "")
+	Do $$$AssertStatusNotOK(sc, "an empty time is refused")
+	Do $$$AssertEquals($IsObject(none), 0, "and gives no slots")
 }
 
 Method TestEveryChannel()

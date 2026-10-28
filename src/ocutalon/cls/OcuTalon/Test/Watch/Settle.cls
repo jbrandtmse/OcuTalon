@@ -8,6 +8,8 @@
 ///     a longer timer;
 ///   - TestHold: the keys that the set holds are not new, a key twice in one batch is new once, the order is oldest first, and the set is cut to its newest
 ///     1000 keys while the new keys are all given;
+///   - TestWindow (Story 7.6): the keys of a Seen set that one dry-run ask covers: the first ask (no from mark), a later window, an empty window, a from mark
+///     that was cut out of the set (the window starts at the first key), a to mark that was cut out or is empty (no key), and a to mark before the start;
 ///   - TestValues: the settings (given only in the process's own cache of Data.Setting, which the test puts back, so that no setting row is written and no
 ///     production job can read them) give 4 and 12, and the defaults 10 and 30 when they are absent, 0, not a number, negative or fractional;
 ///   - TestKeyOf: h<header id> for a header failure, l<log id> for any other, and Key of the reader's row gives the same.
@@ -106,6 +108,23 @@ Method TestHold()
 	Set seen = $ClassMethod(settle, "Hold", seen, "h1,h1500,h1501", .fresh)
 	Do $$$AssertEquals(fresh, "h1,h1501", "a key that was cut out of the set is new again, and a held one is not")
 	Do $$$AssertEquals($Length(seen, ",")_"|"_$Piece(seen, ",", 1)_"|"_$Piece(seen, ",", 1000), "1000|h503|h1501", "and the set is cut again")
+}
+
+Method TestWindow()
+{
+	Set settle = ..#SETTLE
+	Set seen = "h1,h2,h3,h4,h5"
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "", "h3"), "h1,h2,h3", "the first ask has no from mark: the keys up to and including to")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h3", "h5"), "h4,h5", "a later window starts after from")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h3", "h4"), "h4", "and may hold one key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h3", "h3"), "", "from equal to to: an empty window")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "", "h1"), "h1", "the first ask may end at the first key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", "h3,h4,h5", "h1", "h4"), "h3,h4", "a from mark that is not in the set (cut out of it) starts at the first key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h2", "h9"), "", "a to mark that is not in the set holds no key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h2", ""), "", "an empty to mark holds no key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h4", "h2"), "", "a to mark before the start holds no key")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", "", "", "h1"), "", "an empty set holds none")
+	Do $$$AssertEquals($ClassMethod(settle, "Window", "h1,l2,h3", "h1", "h3"), "l2,h3", "a log key is a key like any other")
 }
 
 Method TestValues()

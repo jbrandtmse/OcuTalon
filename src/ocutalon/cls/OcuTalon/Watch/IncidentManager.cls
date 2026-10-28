@@ -7,7 +7,8 @@
 ///     (OcuTalon.Watch.Mark.KeyOf) in the group's Seen set (the newest OcuTalon.Watch.Settle SEENMAX keys): a key already held adds no count and no
 ///     time. Count is the failures held, FirstAt and LastAt the earliest and latest FailedAt. The batch's rows are saved in one transaction.
 ///   - After the commit, each new incident is announced on its recipients' streams (watch.progress noticed), each new group gets one waiter (a
-///     OcuTalon.Watch.Msg.Settle that IncidentManager sends itself, with the session cleared so that the incident has its own trace session, AD-26),
+///     OcuTalon.Watch.Msg.Settle that IncidentManager sends itself, with the session cleared so that the incident has its own trace session, AD-26; the
+///     waiter of a later round is sent in that trace session),
 ///     and, for an incident that has been noticed (NoticedAt set), the new count goes out as one incident event (Live.Payload.Incident.FromRow) to
 ///     each recipient. The recipients are those of OcuTalon.Data.Session.Recipients. A failed read of them logs one Type 3 warning and publishes
 ///     nothing, and never means that nobody watches; a failed publish to a session leaves the other sessions their event and logs one Type 3 warning
@@ -68,6 +69,22 @@
 ///     an answer that found the incident for its caller carries the state and open variant as stored as Data (a failed save too, read again from the row; a failed
 ///     read of the recipients has no caller to tell, like a dismiss from a session that is not a recipient). closeForReplay and closeQuiet check no session: only
 ///     product code sends them.
+///   - Later requests (Story 7.6; AD-15, AD-16): every dry-run ask first records its window on each failure group (AskedFrom := AskedTo, AskedTo := the last
+///     key of Seen; Ask saves the marks in one transaction and only then sends), and FixExecutor's dry run reads that window only (FailureGroup.AskedKeys), so a
+///     failure is in one request only. A fresh failure that joins a group that has an AskedTo, while the incident is not open-and-noticed, is a later failure:
+///     Record sets LaterSince to the earliest of them. When LaterSince goes from empty to set on a noticed incident, Batch starts a later waiter (StartLater: a
+///     Settle to this item in the incident's trace session); on an unnoticed one (the first ask is on its way) the raise route starts it after the notice and
+///     the no-fix route clears LaterSince. An open, noticed incident only counts. The later waiter (Begin with NoticeCount set, then Later on each alarm,
+///     LATERALARMKEY) ends for an incident that is gone, closed or without LaterSince, clears LaterSince of an open one, waits while Settle.Wait says so, re-checks
+///     every quiet seconds while an ask is on its way (AskingSince set), and otherwise asks (AskLater): the kind and the parameters are those of the incident's
+///     first request, AskingSince takes the round's time from LaterSince and one dry run goes out with LATERDRYRUNKEY. Its answer (Proposed with later 1) acts
+///     only on an incident that exists, is not closed and has AskingSince set, and clears AskingSince on every path. A dry run with a Reason, with no Targets, a
+///     table that refuses raised (an open incident), a dry run or slots that cannot be used, a Raise that fails and an error answer raise nothing and send
+///     nothing (one Type 3 warning with LOGLATER for each error, none for an open incident or an empty Targets). Otherwise one request of the incident is raised
+///     as for the first (the same kind, its own targets and dry run), appended to RequestRefs, and Move saves the row and sends each recipient one Notification of
+///     kind approval with the key incident.laterRequest, the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
+///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
+///     at a time (the table's rows, Apply).
 ///   - Purge deletes the incidents closed before a cutoff, with their groups (AD-27).
 ///   - Any other request class is an error that names the class.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
@@ -111,6 +128,11 @@ Parameter DIAGNOSEKEY = "diagnose";
 /// The completion key of the dry run that FixExecutor answers (AD-16).
 Parameter DRYRUNKEY = "dryrun";
 
+/// The completion keys of the later waiter's alarm and of the dry run that it asks for (Story 7.6).
+Parameter LATERALARMKEY = "laterSettle";
+
+Parameter LATERDRYRUNKEY = "laterDryRun";
+
 /// The item that receives the outcome of an approval request that this class raises (AD-11).
 Parameter RESULTTARGET = "IncidentManager";
 
@@ -133,6 +155,9 @@ Parameter NOTIFY = "Notify";
 
 Parameter NOTICEKIND = "incident";
 
+/// The kind of the notification that carries a later request (Msg.Enum NOTIFICATIONKIND; Story 7.6).
+Parameter APPROVALKIND = "approval";
+
 /// The kind of the notification that answers a request, and the catalog keys of a rejected and an expired one (Msg.Enum NOTIFICATIONKIND; Msg.Catalog.Core).
 Parameter ANSWEREDKIND = "answered";
 
@@ -148,6 +173,8 @@ Parameter LOGDIAGNOSE = "IncidentManager could not diagnose incident ";
 Parameter LOGNOTICE = "IncidentManager could not notice incident ";
 
 Parameter LOGPROPOSE = "IncidentManager could not propose the fix of incident ";
+
+Parameter LOGLATER = "IncidentManager could not raise the later request of incident ";
 
 Parameter LOGSEND = "IncidentManager could not send the notice of incident ";
 
@@ -177,8 +204,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 }
 
 /// An answer by the key of the call: the alarm of the waiter has gone off (look at the rows again and end the settle rule or wait on), Decide has
-/// answered the diagnose request (store the diagnosis or its fallback), or FixExecutor has answered the dry run (Proposed). An error status of Decide or
-/// of FixExecutor was handled by OnError, so no answer comes with it.
+/// answered the diagnose request (store the diagnosis or its fallback), or FixExecutor has answered the dry run (Proposed). The alarm of a later waiter
+/// (LATERALARMKEY) goes to Later and the answer to its dry run (LATERDRYRUNKEY) to Proposed with later 1. An error status of Decide or of FixExecutor was
+/// handled by OnError, so no answer comes with it.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit $$$OK
@@ -190,16 +218,26 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Fix.Msg.DryRunResult") Quit ..Proposed(request.IncidentRef, $Get(callrequest), callresponse)
 		Quit $$$OK
 	}
+	If pCompletionKey = ..#LATERDRYRUNKEY {
+		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Fix.Msg.DryRunResult") Quit ..Proposed(request.IncidentRef, $Get(callrequest), callresponse, 1)
+		Quit $$$OK
+	}
+	If pCompletionKey = ..#LATERALARMKEY Quit ..Later(request.IncidentRef)
 	Quit ..Check(request.IncidentRef)
 }
 
 /// An error answer to the diagnose request: Decide refused it, so the incident is stored with the fallback error (Refused). An error answer to the dry run
-/// takes the no-fix route with one Type 3 warning (Unproposed). An error with any other key stays an error, so that the framework logs it.
+/// takes the no-fix route with one Type 3 warning (Unproposed); an error answer to a later round's dry run raises nothing, with one Type 3 warning
+/// (Unproposed with later 1). An error with any other key stays an error, so that the framework logs it.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit pErrorStatus
 	If pCompletionKey = ..#DRYRUNKEY {
 		Do ..Unproposed(request.IncidentRef, $SYSTEM.Status.GetErrorText(pErrorStatus))
+		Quit $$$OK
+	}
+	If pCompletionKey = ..#LATERDRYRUNKEY {
+		Do ..Unproposed(request.IncidentRef, $SYSTEM.Status.GetErrorText(pErrorStatus), 1)
 		Quit $$$OK
 	}
 	If pCompletionKey '= ..#DIAGNOSEKEY Quit pErrorStatus
@@ -224,13 +262,18 @@ Method Batch(batch As OcuTalon.Watch.Msg.FailureBatch) As %Status [ Private ]
 		If added(i) = "new" Set sc = $SYSTEM.Status.AppendStatus(sc, ..Start(rows(i).Ref))
 	}
 	For i = 1:1:count {
+		If added(i) = "later" Do ..StartLater(rows(i))
+	}
+	For i = 1:1:count {
 		If (added(i) '= "new") && (rows(i).NoticedAt '= "") Do ..Tell(rows(i), "incident", ##class(OcuTalon.Live.Payload.Incident).FromRow(rows(i)))
 	}
 	Quit sc
 }
 
 /// The failures of the batch, grouped by cause, saved as incident and group rows in one transaction. count is the number of causes that gained
-/// failures and rows(i) their saved incidents; added(i) is "new" for an incident that this batch made, "more" for one that gained failures.
+/// failures and rows(i) their saved incidents; added(i) is "new" for an incident that this batch made, "later" for a noticed one whose LaterSince went from
+/// empty to set (its later waiter starts), "more" for any other that gained failures. A fresh failure that joins a group that has an AskedTo, while the
+/// incident is not open and noticed, is a later failure: LaterSince is the earliest FailedAt of them.
 Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer, Output rows, Output added) As %Status [ Private ]
 {
 	Set count = 0
@@ -267,6 +310,7 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 		For cause = 1:1:causes {
 			Set incident = ..Find(batch, itemOf(cause), patternOf(cause), .group)
 			Set new = '$IsObject(incident)
+			Set later = 0
 			If new {
 				Set incident = ##class(OcuTalon.Data.Incident).%New()
 				Set incident.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -284,6 +328,8 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 			}
 			Set group.Seen = ##class(OcuTalon.Watch.Settle).Hold(group.Seen, keysOf(cause), .fresh)
 			If fresh = "" Continue
+			Set laterWas = incident.LaterSince
+			If 'new Set later = (group.AskedTo '= "") && '((incident.State = ..#OPEN) && (incident.NoticedAt '= ""))
 			For i = 1:1:$Length(fresh, ",") {
 				Set key = $Piece(fresh, ",", i)
 				Set at = failedAt(cause, key)
@@ -295,6 +341,7 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 				If (incident.LastAt = "") || (at ] incident.LastAt) Set incident.LastAt = at
 				If (group.FirstAt = "") || (group.FirstAt ] at) Set group.FirstAt = at
 				If (group.LastAt = "") || (at ] group.LastAt) Set group.LastAt = at
+				If later && ((incident.LaterSince = "") || (incident.LaterSince ] at)) Set incident.LaterSince = at
 			}
 			Set group.Count = group.Count + $Length(fresh, ",")
 			Set incident.Count = incident.Count + $Length(fresh, ",")
@@ -302,7 +349,7 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 			$$$ThrowOnError(incident.%Save())
 			Set count = count + 1
 			Set rows(count) = incident
-			Set added(count) = $Select(new: "new", 1: "more")
+			Set added(count) = $Select(new: "new", (laterWas = "") && (incident.LaterSince '= "") && (incident.NoticedAt '= ""): "later", 1: "more")
 		}
 		TCOMMIT
 	} Catch exception {
@@ -343,23 +390,35 @@ ClassMethod Groups(ref As %String) As %ListOfObjects [ Private ]
 	Quit ##class(OcuTalon.Data.FailureGroup).OfIncident(ref)
 }
 
-/// Sends the incident's waiter: a Settle request to this item, started with the session cleared, so that the waiter has a trace session of its own, and
-/// with the batch's SuperSession kept. The batch's session is put back afterwards.
-Method Start(ref As %String) As %Status [ Private ]
+/// Sends a waiter of the incident: a Settle request to this item, started with the session given (none by default: the waiter has a trace session of its
+/// own), and with the batch's SuperSession kept. The batch's session is put back afterwards.
+Method Start(ref As %String, session As %String = "") As %Status [ Private ]
 {
 	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
 	Set request.IncidentRef = ref
-	Set session = ..%SessionId
-	Set ..%SessionId = ""
-	Set sc = ..SendRequestAsync(..%ConfigName, request, 0)
+	Set saved = ..%SessionId
 	Set ..%SessionId = session
+	Set sc = ..SendRequestAsync(..%ConfigName, request, 0)
+	Set ..%SessionId = saved
 	Quit sc
 }
 
-/// The waiter's start: records its own session as the incident's trace session, tells the sessions that the incident is settling and waits.
+/// Starts the later waiter of the noticed incident, in the incident's trace session (AD-26). A send that fails logs one Type 3 warning and clears LaterSince,
+/// so that the failures of the round join the next one.
+Method StartLater(incident As OcuTalon.Data.Incident) [ Private ]
+{
+	Set sc = ..Start(incident.Ref, incident.TraceHeaderId)
+	If $$$ISOK(sc) Quit
+	$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	Do ..Unlater(incident)
+}
+
+/// The waiter's start: records its own session as the incident's trace session, tells the sessions that the incident is settling and waits. The waiter of
+/// an incident whose settle rule has ended (NoticeCount set) is a later waiter (Later).
 Method Begin(request As OcuTalon.Watch.Msg.Settle) As %Status [ Private ]
 {
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
+	If $IsObject(incident) && (incident.NoticeCount '= "") Quit ..Later(request.IncidentRef)
 	If '..Waiting(incident) Quit $$$OK
 	Set incident.TraceHeaderId = ..%SessionId
 	Set sc = incident.%Save()
@@ -399,6 +458,116 @@ Method Check(ref As %String) As %Status [ Private ]
 	If $TLevel > level TROLLBACK 1
 	If $$$ISERR(sc) Quit sc
 	Quit ..Diagnose(incident)
+}
+
+/// The later waiter at this moment, from the rows (the counterpart of Check, ending in a dry run instead of a diagnosis). It ends for an incident that is
+/// gone, closed or without LaterSince, and clears LaterSince of an open incident. While Settle.Wait for LaterSince says so it sets an alarm for the seconds that
+/// are left; while an ask is on its way (AskingSince set) it re-checks after the quiet time; else it asks (AskLater).
+Method Later(ref As %String) As %Status [ Private ]
+{
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If '$IsObject(incident) || (incident.State = ..#CLOSED) || (incident.LaterSince = "") Quit $$$OK
+	If incident.State = ..#OPEN {
+		Do ..Unlater(incident)
+		Quit $$$OK
+	}
+	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
+	Set seconds = ##class(OcuTalon.Watch.Settle).Wait(incident.LaterSince, incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max)
+	If seconds > 0 Quit ..LaterAlarm(seconds)
+	If incident.AskingSince '= "" Quit ..LaterAlarm(quiet)
+	Quit ..AskLater(incident)
+}
+
+/// Sets the later waiter's alarm (a seam for the tests): Settle.Alarm of the seconds, with the completion key LATERALARMKEY.
+Method LaterAlarm(seconds As %Integer) As %Status [ Private ]
+{
+	Quit ..SetTimer(##class(OcuTalon.Watch.Settle).Alarm(seconds), ..#LATERALARMKEY)
+}
+
+/// The ask of a later round: the kind and the parameters are those of the incident's first request. A first request that is missing, is not the incident's or
+/// has no fix kind logs one Type 3 warning and clears LaterSince. A round in which no group holds a key after its AskedTo clears LaterSince. Otherwise
+/// AskingSince takes the round's time from LaterSince, and Ask moves the marks and sends the dry run with the key LATERDRYRUNKEY; an ask that cannot be made
+/// logs one Type 3 warning and clears AskingSince.
+Method AskLater(incident As OcuTalon.Data.Incident) As %Status [ Private ]
+{
+	Set first = $Piece(incident.RequestRefs, ",", 1)
+	Set request = $Select(first = "": "", 1: ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(first))
+	If '$IsObject(request) || (request.IncidentRef '= incident.Ref) || (request.FixKind = "") {
+		$$$LOGWARNING(..#LOGLATER_incident.Ref_": the first request of the incident has no fix kind")
+		Do ..Unlater(incident)
+		Quit $$$OK
+	}
+	If '..Newer(incident) {
+		Do ..Unlater(incident)
+		Quit $$$OK
+	}
+	Set incident.AskingSince = incident.LaterSince
+	Set incident.LaterSince = ""
+	Set sc = ..Ask(incident, request.FixKind, request.FixParameters, ..#LATERDRYRUNKEY)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Do ..Unask(incident)
+		If incident.LaterSince '= "" Do ..Unlater(incident)
+	}
+	Quit $$$OK
+}
+
+/// 1 when a group of the incident holds a key after its AskedTo (a failure that no ask covers yet).
+Method Newer(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Set found = 0
+	Set groups = ..Groups(incident.Ref)
+	For i = 1:1:groups.Count() {
+		Set group = groups.GetAt(i)
+		If ##class(OcuTalon.Watch.Settle).Window(group.Seen, group.AskedTo, $Piece(group.Seen, ",", $Length(group.Seen, ","))) '= "" Set found = 1
+	}
+	Quit found
+}
+
+/// The number of failures that the newest ask of the incident covers: the keys of its groups' windows (FailureGroup.AskedKeys).
+Method Windowed(incident As OcuTalon.Data.Incident) As %Integer [ Private ]
+{
+	Set total = 0
+	Set groups = ..Groups(incident.Ref)
+	For i = 1:1:groups.Count() {
+		Set keys = groups.GetAt(i).AskedKeys()
+		If keys '= "" Set total = total + $Length(keys, ",")
+	}
+	Quit total
+}
+
+/// Clears LaterSince of the incident and saves it; a save that fails logs one Type 3 warning.
+Method Unlater(incident As OcuTalon.Data.Incident) [ Private ]
+{
+	Set incident.LaterSince = ""
+	Set sc = incident.%Save()
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+}
+
+/// Clears AskingSince of the incident, as the row stands (the incident is read again, so that a change the caller made and did not save is not saved with it);
+/// a read or a save that fails logs one Type 3 warning.
+Method Unask(incident As OcuTalon.Data.Incident) [ Private ]
+{
+	Try {
+		Set sc = incident.%Reload()
+		If $$$ISOK(sc) && (incident.AskingSince '= "") {
+			Set incident.AskingSince = ""
+			Set sc = incident.%Save()
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+}
+
+/// 1 when the incident exists, is not closed and has AskingSince set: a later round's answer may be acted on.
+ClassMethod Asking(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Quit $IsObject(incident) && (incident.State '= ..#CLOSED) && (incident.AskingSince '= "")
 }
 
 /// The diagnosis of the incident whose settle rule has just ended (see the class description): the pack, the code noun and the pack's sample on the row, watch.progress
@@ -527,8 +696,8 @@ Method Notice(ref As %String, fix As %DynamicObject = "") [ Private ]
 }
 
 /// Asks FixExecutor for the dry run of the incident's fix: one OcuTalon.Fix.Msg.DryRun with the incident, the fix kind and the parameters as one JSON object,
-/// sent asynchronously with a response required and the completion key DRYRUNKEY (SendDryRun). No fix kind, parameters that are not an object, or a send
-/// that fails takes the no-fix route (NoFix) with one Type 3 warning.
+/// sent asynchronously with a response required and the completion key DRYRUNKEY (Ask records the window first). No fix kind, parameters that are not an
+/// object, or an ask that cannot be made takes the no-fix route (NoFix) with one Type 3 warning.
 Method Propose(incident As OcuTalon.Data.Incident, fix As %DynamicObject = "") [ Private ]
 {
 	Set kind = $Select($IsObject(fix): fix.fixKind, 1: "")
@@ -538,31 +707,64 @@ Method Propose(incident As OcuTalon.Data.Incident, fix As %DynamicObject = "") [
 		Do ..NoFix(incident)
 		Quit
 	}
-	Set ask = ##class(OcuTalon.Fix.Msg.DryRun).%New()
-	Set ask.IncidentRef = incident.Ref
-	Set ask.FixKind = kind
-	Set ask.Parameters = parameters.%ToJSON()
-	Set sc = ..SendDryRun(ask)
+	Set sc = ..Ask(incident, kind, parameters.%ToJSON(), ..#DRYRUNKEY)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGPROPOSE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		Do ..NoFix(incident)
 	}
 }
 
-/// Sends the dry run to the FixExecutor item, asynchronously, with a response required and the completion key DRYRUNKEY (a seam for the tests).
-Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun) As %Status [ Private ]
+/// Asks FixExecutor for the dry run of the fix of the kind and the parameters (JSON text) for the incident, as the first request and each later round do. Every ask
+/// first moves each failure group's marks (AskedFrom := AskedTo, AskedTo := the last key of Seen) and saves them with the incident, which carries the changes that
+/// the caller made, in one transaction; only then is the ask sent (SendDryRun) with the completion key given. The window of the ask is therefore fixed before
+/// FixExecutor reads it, and a failure that joins meanwhile is in the next one. An error is the status of the save or of the send.
+Method Ask(incident As OcuTalon.Data.Incident, kind As %String, parameters As %String, key As %String) As %Status [ Private ]
 {
-	Quit ..SendRequestAsync(..#FIXEXECUTOR, ask, 1, ..#DRYRUNKEY)
+	Set ask = ##class(OcuTalon.Fix.Msg.DryRun).%New()
+	Set ask.IncidentRef = incident.Ref
+	Set ask.FixKind = kind
+	Set ask.Parameters = parameters
+	Set sc = $$$OK
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set groups = ..Groups(incident.Ref)
+		For i = 1:1:groups.Count() {
+			Set group = groups.GetAt(i)
+			Set group.AskedFrom = group.AskedTo
+			Set group.AskedTo = $Piece(group.Seen, ",", $Length(group.Seen, ","))
+			$$$ThrowOnError(group.%Save())
+		}
+		$$$ThrowOnError(incident.%Save())
+		TCOMMIT
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $TLevel > level TROLLBACK 1
+	If $$$ISERR(sc) Quit sc
+	Quit ..SendDryRun(ask, key)
+}
+
+/// Sends the dry run to the FixExecutor item, asynchronously, with a response required and the completion key given (DRYRUNKEY for the first request; a seam
+/// for the tests).
+Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun, key As %String = {..#DRYRUNKEY}) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#FIXEXECUTOR, ask, 1, key)
 }
 
 /// An error answer to the dry run of the incident: one Type 3 warning with the error (through the redactor), then the no-fix route for an incident that is
-/// still open and unnoticed.
-Method Unproposed(ref As %String, error As %String) [ Private ]
+/// still open and unnoticed. The error answer to a later round's dry run (later 1) logs LOGLATER instead, and clears AskingSince of an incident that exists, is
+/// not closed and has it set; nothing is raised or sent.
+Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Private ]
 {
-	$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text(error))
+	$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGPROPOSE)_ref_": "_##class(OcuTalon.Bridge.Redact).Text(error))
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-		If ..Open(incident) Do ..NoFix(incident)
+		If later {
+			If ..Asking(incident) Do ..Unask(incident)
+		} ElseIf ..Open(incident) {
+			Do ..NoFix(incident)
+		}
 	} Catch exception {
 		$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
 	}
@@ -575,22 +777,35 @@ Method Unproposed(ref As %String, error As %String) [ Private ]
 ///   3. the with-fix slots are built from the dry run (Notice.WithFixSlots), else one Type 3 warning and nothing more;
 ///   4. the fix request is built and raised once (RaiseRequest) in the incident's trace session; an error is one Type 3 warning and the no-fix route;
 ///   5. the Ref is appended to RequestRefs and Deliver saves it with NoticedAt and the state, then sends the notice (ApprovalRef = the Ref) and publishes;
+///      the later waiter then starts when failures joined after the ask (LaterSince is set);
 ///   6. a save that fails cancels the request (CancelRequest), so that nothing stays approvable that no incident lists (Deliver logged the warning).
-Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult) As %Status [ Private ]
+/// With later 1 (the answer to a later round's dry run) it acts only on an incident that exists, is not closed and has AskingSince set, and the same steps
+/// run with these differences: a refused answer, a table that refuses raised (the incident is open), unusable slots and a failed Raise raise nothing and
+/// clear AskingSince (the no-fix route does not exist for a noticed incident), with one Type 3 warning with LOGLATER for each error and none for an open
+/// incident or an empty Targets; the slots are those of the round (Notice.WithFixSlots with the number of keys in the windows and AskingSince as the time);
+/// the request is appended and Move saves the row, with AskingSince cleared, and sends each recipient one Notification of kind approval with the key
+/// incident.laterRequest and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
+/// warning, and clears AskingSince.
+Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult, later As %Boolean = 0) As %Status [ Private ]
 {
+	Set incident = ""
+	Set log = $Select(later: ..#LOGLATER, 1: ..#LOGPROPOSE)
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-		If '..Open(incident) Quit
+		If $Select(later: '..Asking(incident), 1: '..Open(incident)) Quit
 		If result.Reason '= "" {
-			$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text(result.Reason))
-			Do ..NoFix(incident)
+			$$$LOGWARNING(log_ref_": "_##class(OcuTalon.Bridge.Redact).Text(result.Reason))
+			Do ..Decline(incident, later)
 			Quit
 		}
 		If result.Targets = "" {
-			Do ..NoFix(incident)
+			Do ..Decline(incident, later)
 			Quit
 		}
-		If '##class(OcuTalon.Watch.Transitions).Next(incident.State, 0, "raised", , .to, .variant) Quit
+		If '##class(OcuTalon.Watch.Transitions).Next(incident.State, later, "raised", , .to, .variant) {
+			If later Do ..Unask(incident)
+			Quit
+		}
 		Set dryRun = ""
 		Try {
 			Set dryRun = {}.%FromJSON(result.DryRun)
@@ -598,12 +813,18 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 			Set dryRun = ""
 		}
 		If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
-			$$$LOGWARNING(..#LOGNOTICE_ref_": the dry run is not one JSON object")
+			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": the dry run is not one JSON object")
+			If later Do ..Unask(incident)
 			Quit
 		}
-		Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun)
+		If later {
+			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun, ..Windowed(incident), incident.AskingSince)
+		} Else {
+			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun)
+		}
 		If $$$ISERR(sc) {
-			$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			If later Do ..Unask(incident)
 			Quit
 		}
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
@@ -618,22 +839,44 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		Set row.FixTargets = result.Targets
 		Set sc = ..RaiseRequest(row, .request, incident.TraceHeaderId, ..%SuperSession)
 		If $$$ISERR(sc) {
-			$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-			Do ..NoFix(incident)
+			$$$LOGWARNING(log_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Do ..Decline(incident, later)
 			Quit
 		}
 		Set incident.RequestRefs = $Select(incident.RequestRefs = "": request, 1: incident.RequestRefs_","_request)
-		Set sc = ..Deliver(incident, to, variant, ##class(OcuTalon.Watch.Notice).#KEYWITHFIX, slots, request)
+		If later {
+			Set incident.AskingSince = ""
+			Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).#KEYLATER, slots, request))
+			If $$$ISERR(sc) {
+				$$$LOGWARNING(..#LOGLATER_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			}
+		} Else {
+			Set sc = ..Deliver(incident, to, variant, ##class(OcuTalon.Watch.Notice).#KEYWITHFIX, slots, request)
+		}
 		If $$$ISERR(sc) {
 			Set cancelled = ..CancelRequest(request)
 			If $$$ISERR(cancelled) {
-				$$$LOGWARNING(..#LOGPROPOSE_ref_": the request "_request_" could not be cancelled: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cancelled)))
+				$$$LOGWARNING(log_ref_": the request "_request_" could not be cancelled: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cancelled)))
 			}
+			If later Do ..Unask(incident)
+		} ElseIf 'later && (incident.LaterSince '= "") {
+			Do ..StartLater(incident)
 		}
 	} Catch exception {
-		$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+		$$$LOGWARNING(log_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+		If later && $IsObject(incident) Do ..Unask(incident)
 	}
 	Quit $$$OK
+}
+
+/// A dry run that raises nothing: the no-fix route for the first request (NoFix), and, for a later round, AskingSince cleared (Unask).
+Method Decline(incident As OcuTalon.Data.Incident, later As %Boolean) [ Private ]
+{
+	If later {
+		Do ..Unask(incident)
+	} Else {
+		Do ..NoFix(incident)
+	}
 }
 
 /// Raises the approval request of the row in the incident's trace session (a seam for the tests): OcuTalon.Bridge.Approval.Raise with the session and the
@@ -650,7 +893,7 @@ Method CancelRequest(ref As %String) As %Status [ Private ]
 }
 
 /// The no-fix notice of a data-format incident whose fix cannot be proposed: incident.noFix with its slots, the open variant no_fix, from the table. Slots that
-/// cannot be built log one Type 3 warning and leave the row unnoticed.
+/// cannot be built log one Type 3 warning and leave the row unnoticed. The notice clears LaterSince: an open, noticed incident only counts later failures.
 Method NoFix(incident As OcuTalon.Data.Incident) [ Private ]
 {
 	Set key = ##class(OcuTalon.Watch.Notice).#KEYNOFIX
@@ -660,6 +903,7 @@ Method NoFix(incident As OcuTalon.Data.Incident) [ Private ]
 		Quit
 	}
 	If '##class(OcuTalon.Watch.Transitions).Next(incident.State, 0, "notice", {"variant": (##class(OcuTalon.Watch.Notice).#VARIANTNOFIX)}, .to, .variant) Quit
+	Set incident.LaterSince = ""
 	Do ..Deliver(incident, to, variant, key, slots)
 }
 
@@ -670,18 +914,25 @@ Method NoFix(incident As OcuTalon.Data.Incident) [ Private ]
 Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") As %Status [ Private ]
 {
 	Set incident.NoticedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = ..Move(incident, state, variant, ..Notification(incident, ..#NOTICEKIND, key, slots, approvalRef))
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+	Quit sc
+}
+
+/// The Notification of the kind with the catalog key, the slots (as JSON), the incident's Ref and DecisionRef and the approval request's Ref (empty for a notice
+/// without one). SessionRef is set per recipient by Tell.
+Method Notification(incident As OcuTalon.Data.Incident, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
+{
 	Set notice = ##class(OcuTalon.Msg.Notification).%New()
-	Set notice.Kind = ..#NOTICEKIND
+	Set notice.Kind = kind
 	Set notice.CatalogKey = key
 	Set notice.Slots = slots.%ToJSON()
 	Set notice.IncidentRef = incident.Ref
 	Set notice.DecisionRef = incident.DecisionRef
 	Set notice.ApprovalRef = approvalRef
-	Set sc = ..Move(incident, state, variant, notice)
-	If $$$ISERR(sc) {
-		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-	}
-	Quit sc
+	Quit notice
 }
 
 /// Moves the incident to the state with the open variant: saves the row when the state, the variant or ClosedAt changes (or the caller has changed it; a

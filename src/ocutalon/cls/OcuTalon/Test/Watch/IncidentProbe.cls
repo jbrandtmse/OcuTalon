@@ -10,7 +10,11 @@
 /// SendRequestAsync, and Raise would really run): SendDryRun records each ask in DryRuns as {incidentRef, fixKind, parameters} and answers OK, or an error when
 /// FailDryRun is set; RaiseRequest records each row in Raised as {kind, incidentRef, ownerRef, resultTarget, traceRef, dryRun, fixKind, fixParameters, fixTargets,
 /// sessionId, superSession} and answers OK with RaiseRef (a fixed fixture Ref unless a test sets one), or an error when FailRaise is set; CancelRequest records
-/// the Ref in Cancelled. Dried(ref, ask, result) is OnResponse and Undried(ref, error) is OnError with the dryrun key, as the framework calls them when FixExecutor answers. It is not an item of any
+/// the Ref in Cancelled. Dried(ref, ask, result) is OnResponse and Undried(ref, error) is OnError with the dryrun key, as the framework calls them when FixExecutor answers.
+/// Since Story 7.6 SendDryRun also records the completion key it was given, the transaction level and the stored marks of the incident's groups at the moment of
+/// the send ({..., key, level, marks}), and the later waiter's seams are overridden for the same reason: Start (a waiter's Settle
+/// request) records {ref, sessionId} in Started and answers OK, or an error when FailStart is set; LaterAlarm records the seconds in Alarms. Wake(ref) is OnResponse with
+/// the later alarm's key, LaterDried(ref, ask, result) and LaterUndried(ref, error) are OnResponse and OnError with the later dry run's key. It is not an item of any
 /// production.
 Class OcuTalon.Test.Watch.IncidentProbe Extends OcuTalon.Watch.IncidentManager
 {
@@ -36,7 +40,7 @@ Property DemoModeIs As %String [ Transient ];
 /// A UTC stamp to fix the time that QuietNow gives; empty for the clock's now.
 Property QuietNowIs As %String [ Transient ];
 
-/// The dry run asks that SendDryRun recorded, in order, each {incidentRef, fixKind, parameters}.
+/// The dry run asks that SendDryRun recorded, in order, each {incidentRef, fixKind, parameters, key, level, marks}.
 Property DryRuns As %DynamicArray [ Transient ];
 
 /// 1 to make SendDryRun answer an error.
@@ -53,6 +57,15 @@ Property RaiseRef As %String(MAXLEN = 22) [ Transient ];
 
 /// The Refs that CancelRequest recorded, in order.
 Property Cancelled As %DynamicArray [ Transient ];
+
+/// The waiters that Start recorded, in order, each {ref, sessionId}: the incident and the session that the waiter's request would go in.
+Property Started As %DynamicArray [ Transient ];
+
+/// 1 to make Start answer an error.
+Property FailStart As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The seconds that LaterAlarm recorded, in order.
+Property Alarms As %DynamicArray [ Transient ];
 
 /// 1 to make Move answer an error instead of saving (the failed save of QA, Story 5.5: a real %Save failure needs a row that another process locks).
 Property FailMove As %Boolean [ InitialExpression = 0, Transient ];
@@ -78,13 +91,25 @@ Method SendExecute(order As OcuTalon.Fix.Msg.Execute) As %Status [ Private ]
 	Quit $$$OK
 }
 
-/// Records the dry run ask instead of sending it.
-Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun) As %Status [ Private ]
+/// Records the dry run ask, with the completion key, instead of sending it.
+Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun, key As %String = {..#DRYRUNKEY}) As %Status [ Private ]
 {
 	If '$IsObject(..DryRuns) Set ..DryRuns = []
-	Do ..DryRuns.%Push({"incidentRef": (ask.IncidentRef), "fixKind": (ask.FixKind), "parameters": (ask.Parameters)})
+	Do ..DryRuns.%Push({"incidentRef": (ask.IncidentRef), "fixKind": (ask.FixKind), "parameters": (ask.Parameters), "key": (key), "level": ($TLevel), "marks": (..Marks(ask.IncidentRef))})
 	If ..FailDryRun Quit $SYSTEM.Status.Error(5001, "The dry run of "_ask.IncidentRef_" is refused")
 	Quit $$$OK
+}
+
+/// The marks of the incident's failure groups as stored when the ask is recorded, "AskedFrom>AskedTo" per group, semicolon-separated in Seq order.
+ClassMethod Marks(ref As %String) As %String [ Private ]
+{
+	Set text = ""
+	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(ref)
+	For i = 1:1:groups.Count() {
+		Set group = groups.GetAt(i)
+		Set text = text_$Select(text = "": "", 1: ";")_group.AskedFrom_">"_group.AskedTo
+	}
+	Quit text
 }
 
 /// Records the row instead of raising it, with the session and the SuperSession that it would be raised in.
@@ -95,6 +120,23 @@ Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %
 	Do ..Raised.%Push({"kind": (row.Kind), "incidentRef": (row.IncidentRef), "ownerRef": (row.OwnerRef), "resultTarget": (row.ResultTarget), "traceRef": (row.TraceRef), "dryRun": (row.DryRun), "fixKind": (row.FixKind), "fixParameters": (row.FixParameters), "fixTargets": (row.FixTargets), "sessionId": (sessionId), "superSession": (superSession)})
 	If ..FailRaise Quit $SYSTEM.Status.Error(5001, "The raise of the request of "_row.IncidentRef_" is refused")
 	Set ref = $Select(..RaiseRef '= "": ..RaiseRef, 1: ..#FIXTUREREF)
+	Quit $$$OK
+}
+
+/// Records the waiter instead of sending its request, with the session that the request would go in.
+Method Start(ref As %String, session As %String = "") As %Status [ Private ]
+{
+	If '$IsObject(..Started) Set ..Started = []
+	Do ..Started.%Push({"ref": (ref), "sessionId": (session)})
+	If ..FailStart Quit $SYSTEM.Status.Error(5001, "The waiter of "_ref_" is refused")
+	Quit $$$OK
+}
+
+/// Records the seconds instead of setting the later waiter's alarm.
+Method LaterAlarm(seconds As %Integer) As %Status [ Private ]
+{
+	If '$IsObject(..Alarms) Set ..Alarms = []
+	Do ..Alarms.%Push(seconds)
 	Quit $$$OK
 }
 
@@ -157,6 +199,30 @@ Method Undried(ref As %String, error As %Status) As %Status
 	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
 	Set request.IncidentRef = ref
 	Quit ..OnError(request, , "", error, ..#DRYRUNKEY)
+}
+
+/// The alarm of the later waiter, as the framework calls it when the timer goes off.
+Method Wake(ref As %String) As %Status
+{
+	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
+	Set request.IncidentRef = ref
+	Quit ..OnResponse(request, , "", "", ..#LATERALARMKEY)
+}
+
+/// The answer handler of a later round's dry run, as the framework calls it when FixExecutor answers: ask is the DryRun that was sent and result the DryRunResult.
+Method LaterDried(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult) As %Status
+{
+	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
+	Set request.IncidentRef = ref
+	Quit ..OnResponse(request, , ask, result, ..#LATERDRYRUNKEY)
+}
+
+/// The error handler of a later round's dry run, as the framework calls it when FixExecutor answers an error.
+Method LaterUndried(ref As %String, error As %Status) As %Status
+{
+	Set request = ##class(OcuTalon.Watch.Msg.Settle).%New()
+	Set request.IncidentRef = ref
+	Quit ..OnError(request, , "", error, ..#LATERDRYRUNKEY)
 }
 
 /// The answer handler of the diagnose request, as the framework calls it when Decide answers: response is the DecisionResponse, or "" for the empty
