@@ -16,8 +16,15 @@
 ///     before anything else, the body is not read, and the session is the CSP session's; BreakFeedIn (Demo.BreakFeedIn, through the
 ///     production) answers 200 {"state":"sent","startedAt"}, or 409 {"error":{"code","message"}} with the code not_watching or
 ///     incident_in_progress and its plain-English hint when the press is not available (nothing is sent then); a session that
-///     can't be read and any other failure are 500 server_error. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
-///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
+///     can't be read and any other failure are 500 server_error. Both routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
+///     answer 404 first for a ref the session can't see.
+///     POST /v1/approvals/:ref/answer takes {action: approve | reject, channel: web | phone} (any other body is 400 bad_answer; the
+///     Telegram channel enters through AnswersIn only) and goes through AnswersIn to AnswerOps (AD-11): 200 {"result":"done","approval"},
+///     409 already_answered or expired (the error beside the request's "approval" payload), 403 not_allowed, 404 not_found and 400 bad_answer.
+///     POST /v1/incidents/:ref/dismiss (AD-1, AD-15) never reads the body and submits a Dismiss command for the CSP session through
+///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (the owner's refusal), 501 not_built for a stub
+///     owner, 404 not_found and 500 server_error.
+///     The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, and, last and only while demo mode is on, the simulated phone, the simulated mailbox
 ///     and the guide that Demo.Guide.Compute derives.
@@ -74,11 +81,19 @@ Parameter MESSAGEINCIDENTINPROGRESS = "Finish the current Orders incident first:
 
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
+Parameter MESSAGENOTAPPROVER = "Only an approver for resends can answer this request.";
+
+Parameter MESSAGENOTAPPROVERTOOL = "Only an approver can answer this request.";
+
+Parameter MESSAGEBADANSWER = "An answer needs an action, approve or reject, and a channel, web or phone.";
+
 Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.";
 
 Parameter MESSAGESERVERERROR = "Something went wrong inside OcuTalon. Try again.";
 
 Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet.";
+
+Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Nothing was changed.";
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -380,28 +395,119 @@ ClassMethod MailBody(Output from As %String, Output subject As %String, Output b
 	Quit 1
 }
 
-/// POST /v1/approvals/:ref/answer: 404 not_found for a request the session can't see (Ownership.Approval), and 501
-/// not_built for one it can see, until the story that answers requests ships.
+/// POST /v1/approvals/:ref/answer: see the class comment. The order is the session (Ownership.SessionRef), the request's visibility
+/// (Ownership.Approval: 404 not_found for a request the session can't see or a cancelled one, whatever the body), the body
+/// (400 bad_answer) and AnswersIn.FromPage, whose AnswerResult is mapped by AnswerResponse. The visibility row is released before
+/// the answer, so that AnswerResponse reads the answered row afresh. An error status of the session, the read or AnswersIn is 500
+/// server_error.
 ClassMethod AnswerApproval(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, sessionRef, .sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
-	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(row) || (row.State = "cancelled") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '..AnswerBody(.action, .channel) Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
+	Set kind = row.Kind
+	Kill row
+	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, action, channel, .result, .answeringRef)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswersIn answered no result"))
+	Quit ..AnswerResponse(ref, kind, sessionRef, result)
 }
 
-/// POST /v1/incidents/:ref/dismiss: 404 not_found for an incident the session can't see (Ownership.Incident), and 501
-/// not_built for one it can see, until the story that dismisses incidents ships.
+/// The action and channel of the request body, and 1 when it is valid: a JSON object whose action is the string approve or reject
+/// and whose channel is the string web or phone (other members are ignored). Otherwise 0, with both empty.
+ClassMethod AnswerBody(Output action As %String, Output channel As %String) As %Boolean [ Private ]
+{
+	Set (action, channel) = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If (body.%GetTypeOf("action") '= "string") || (body.%GetTypeOf("channel") '= "string") Quit 0
+	If '$ListFind($ListBuild("approve", "reject"), body.action) || '$ListFind($ListBuild("web", "phone"), body.channel) Quit 0
+	Set action = body.action
+	Set channel = body.channel
+	Quit 1
+}
+
+/// The answer of the route for AnswersIn's result:
+///   - done: 200 {"result":"done","approval"}, the request re-read through Ownership;
+///   - already_answered: 409 with the catalog's late-press text of the winner and the request's payload, naming the answerer
+///     when the install is local and the row's AnsweredBy is not the signed-in user (compared without case);
+///   - expired: 409 with the catalog's expired text at the row's ExpiresAt and the payload;
+///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind); bad_answer: 400;
+///   - anything else, and any failed read or render: 500 server_error.
+ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %String, result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
+{
+	Set code = result.Result
+	If code = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, 1: ..#MESSAGENOTAPPROVERTOOL))
+	If code = "bad_answer" Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
+	If '$ListFind($ListBuild("done", "already_answered", "expired"), code) {
+		Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswerOps answered a result that the route doesn't know: "_code))
+	}
+	Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(row) Quit ..ServerError($SYSTEM.Status.Error(5001, "The answered request can't be read again"))
+	Set approval = ..PayloadObject(##class(OcuTalon.Live.Payload.Approval).FromRow(row, sessionRef))
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(approval, .viewer)
+	If code = "done" {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done", "approval": (approval)}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	If code = "expired" {
+		Set key = "answered.expired"
+		Set slots = {"time": (row.ExpiresAt)}
+	} Else {
+		Set named = ('+##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")) && (row.AnsweredBy '= "") && ($ZConvert(row.AnsweredBy, "U") '= $ZConvert($Username, "U"))
+		Set key = "answered.already"_$Select(result.WinnerAction = "reject": "Rejected", 1: "Approved")_$Select(named: "By", 1: "")
+		Set slots = {"channel": (result.WinnerChannel), "time": (result.WinnerAt), "user": (row.AnsweredBy)}
+	}
+	Set message = ##class(OcuTalon.Msg.Catalog).Render(key, slots, "web", .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Fail(409, code, message, approval)
+}
+
+/// POST /v1/incidents/:ref/dismiss (Story 6.4; AD-1, AD-4, AD-15): the dismissal of an incident, which the route submits and never
+/// decides. It never reads the body, and the session is the CSP session's. In order:
+///   - the session (Ownership.SessionRef) and the incident's visibility (Ownership.Incident): a failed read is 500 server_error, and an
+///     incident the session can't see is 404 not_found, before anything is submitted;
+///   - Commands.Submit of an OcuTalon.Msg.Command.Dismiss (the incident's Ref, the session's Ref) with origin web_user, which reaches
+///     IncidentManager through CommandsIn, synchronously; an error status is 500 server_error;
+///   - the answer: Ok is 200 {"result":"done"}; not_built is 501 not_built; not_found is 404; failed, unknown_command and not_allowed are
+///     500 server_error; any other outcome is the owner's refusal, 409 not_dismissible with the owner's Message, else MESSAGENOTDISMISSIBLE.
 ClassMethod DismissIncident(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set row = ##class(OcuTalon.Data.Ownership).Incident(ref, sessionRef, .sc)
-	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Set command = ##class(OcuTalon.Msg.Command.Dismiss).%New()
+	Set command.IncidentRef = row.Ref
+	Set command.SessionRef = sessionRef
+	Kill row
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If $ListFind($ListBuild("failed", "unknown_command", "not_allowed"), outcome) {
+		Quit ..ServerError($SYSTEM.Status.Error(5001, "The dismissal was answered "_outcome))
+	}
+	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
 }
 
 /// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is
@@ -688,8 +794,9 @@ ClassMethod EnvelopeError(method As %String, contentType As %String, header As %
 	Quit ""
 }
 
-/// Writes the status line and the error body {"error": {"code", "message"}}. status is the number, 400 to 501.
-ClassMethod Fail(status As %Integer, code As %String, message As %String) As %Status
+/// Writes the status line and the error body {"error": {"code", "message"}}, followed by "approval" when a payload object is given.
+/// status is the number, 400 to 501.
+ClassMethod Fail(status As %Integer, code As %String, message As %String, approval As %DynamicObject = "") As %Status
 {
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = $Case(status,
@@ -702,7 +809,9 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String) As %St
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)
-	Write ..ErrorBody(code, message).%ToJSON()
+	Set body = ..ErrorBody(code, message)
+	If $IsObject(approval) Set body.approval = approval
+	Write body.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 

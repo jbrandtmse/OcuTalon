@@ -3,6 +3,8 @@
 // short date with the year only when it differs) in the zone named, across the date line; and the countdown (seconds rounded up,
 // minutes rounded down, both units from an hour, never below 0 s) with its spoken form. The module is imported as it is: Node
 // strips its types.
+// pageWhenBeside (the dated page time with the zone name) and messageTime (a time in message text, as Data.Time.ForMessage writes it, in
+// the instance's zone, with " ET" on the online demo).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
@@ -10,7 +12,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { WHEN_TEXTS, countdownText, elapsedText, pageTime, pageTimeBeside, pageWhen } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { WHEN_TEXTS, countdownText, elapsedText, messageTime, pageTime, pageTimeBeside, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const INSTANT = '2026-10-22T14:11:00Z';
 
@@ -161,6 +163,85 @@ describe('pageWhen', () => {
     assert.equal(WHEN_TEXTS.tomorrowAt, 'tomorrow at {time}');
     for (const value of Object.values(WHEN_TEXTS).flat()) {
       assert.match(value, /^[\x20-\x7e]+$/);
+    }
+  });
+});
+
+describe('pageWhenBeside', () => {
+  /** Wednesday 7 October 2026. */
+  const NOW = Date.parse('2026-10-07T14:11:00Z');
+
+  it('adds the browser zone\'s short name when its offset differs from the instance\'s: 15:12 CEST in Berlin, with the day when it is not today', () => {
+    assert.equal(pageWhenBeside('2026-10-07T13:12:00Z', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), '15:12 CEST');
+    assert.equal(pageWhenBeside('2026-10-08T13:12:00Z', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), 'tomorrow at 15:12 CEST');
+    assert.equal(pageWhenBeside('2026-10-17T13:12:00Z', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), 'Oct 17 at 15:12 CEST');
+    assert.equal(pageWhenBeside('2026-01-15T13:12:00Z', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), 'Jan 15 at 14:12 CET');
+  });
+
+  it('adds nothing in the instance\'s own offset, and reads as pageWhen', () => {
+    assert.equal(pageWhenBeside('2026-10-07T14:12:00Z', NOW, 'UTC', 'en-GB', 'UTC'), '14:12');
+    assert.equal(pageWhenBeside('2026-10-08T14:12:00Z', NOW, 'Europe/Berlin', 'en-GB', 'Europe/Paris'), 'tomorrow at 16:12', 'two names, one offset');
+    assert.equal(pageWhenBeside('2026-10-07T14:12:00Z', NOW, 'UTC', 'en-GB', 'UTC'), pageWhen('2026-10-07T14:12:00Z', NOW, 'en-GB', 'UTC'));
+  });
+
+  it('shows the name when the instance zone is not a valid zone, and gives "" for an empty or unreadable time', () => {
+    assert.equal(pageWhenBeside('2026-10-07T14:12:00Z', NOW, 'Not/AZone', 'en-GB', 'UTC'), '14:12 UTC');
+    assert.equal(pageWhenBeside('', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), '');
+    assert.equal(pageWhenBeside('not a time', NOW, 'UTC', 'en-GB', 'Europe/Berlin'), '');
+  });
+});
+
+describe('messageTime', () => {
+  /** Wednesday 7 October 2026. */
+  const NOW = Date.parse('2026-10-07T14:11:00Z');
+  const at = (iso, zone = 'UTC', demo = false, now = NOW) => messageTime(iso, now, zone, demo);
+
+  it('writes the four forms of Data.Time.ForMessage: the clock on the same date, "Thursday at 14:12", "Oct 9 at 14:12", "Dec 30, 2025 at 10:00"', () => {
+    assert.equal(at('2026-10-07T14:12:00Z'), '14:12');
+    assert.equal(at('2026-10-08T14:12:00Z'), 'Thursday at 14:12', 'the next date is a weekday, never "tomorrow"');
+    assert.equal(at('2026-10-06T14:12:00Z'), 'Tuesday at 14:12', 'yesterday');
+    assert.equal(at('2026-10-13T14:12:00Z'), 'Tuesday at 14:12', '6 days on');
+    assert.equal(at('2026-10-01T14:12:00Z'), 'Thursday at 14:12', '6 days back');
+    assert.equal(at('2026-10-14T14:12:00Z'), 'Oct 14 at 14:12', '7 days on');
+    assert.equal(at('2026-09-30T14:12:00Z'), 'Sep 30 at 14:12', '7 days back');
+    assert.equal(at('2025-12-30T10:00:00Z'), 'Dec 30, 2025 at 10:00', 'another year');
+    assert.equal(at('2027-01-05T09:05:00Z'), 'Jan 5, 2027 at 09:05');
+  });
+
+  it('writes a 24-hour clock with two digits whatever the browser\'s zone, language and hour format are', () => {
+    assert.equal(at('2026-10-07T00:00:00Z'), '00:00');
+    assert.equal(at('2026-10-07T07:05:00Z'), '07:05');
+    assert.equal(at('2026-10-07T23:59:00Z'), '23:59');
+    const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.equal(at('2026-10-07T13:30:00Z', 'UTC'), '13:30', `the instance zone, not the browser's ${own}`);
+  });
+
+  it('reads the clock and the date in the instance zone: Berlin is two hours ahead of UTC in October', () => {
+    assert.equal(at('2026-10-07T12:12:00Z', 'Europe/Berlin'), '14:12');
+    assert.equal(at('2026-10-07T22:30:00Z', 'Europe/Berlin'), 'Thursday at 00:30', 'past the instance\'s midnight');
+    assert.equal(at('2026-10-07T22:30:00Z', 'UTC'), '22:30');
+    assert.equal(at('2026-10-07T12:12:00Z', 'America/New_York'), '08:12');
+    assert.equal(at('2026-10-08T01:00:00Z', 'America/New_York', false, Date.parse('2026-10-09T03:00:00Z')), 'Wednesday at 21:00', 'the instance\'s date decides, not the distance in hours');
+    assert.equal(at('2026-10-08T01:00:00Z', 'America/New_York', false, Date.parse('2026-10-08T03:00:00Z')), '21:00', 'two hours apart, one instance date');
+  });
+
+  it('ends with " ET" on the online demo, whatever the form, and never otherwise', () => {
+    assert.equal(at('2026-10-07T14:12:00Z', 'UTC', true), '14:12 ET');
+    assert.equal(at('2026-10-08T14:12:00Z', 'UTC', true), 'Thursday at 14:12 ET');
+    assert.equal(at('2025-12-30T10:00:00Z', 'UTC', true), 'Dec 30, 2025 at 10:00 ET');
+    assert.equal(at('2026-10-07T14:12:00Z', 'UTC', false), '14:12');
+    assert.equal(WHEN_TEXTS.onlineDemo, '{time} ET');
+  });
+
+  it('uses UTC when the instance zone is empty or not a zone, like the server without TZ', () => {
+    assert.equal(at('2026-10-07T14:12:00Z', ''), '14:12');
+    assert.equal(at('2026-10-07T14:12:00Z', 'Not/AZone'), '14:12');
+  });
+
+  it('gives "" for an empty or unreadable time, with or without the online demo, and never throws', () => {
+    for (const bad of ['', 'not a time', '2026-13-45T99:99:99Z']) {
+      assert.equal(at(bad), '');
+      assert.equal(at(bad, 'UTC', true), '');
     }
   });
 });

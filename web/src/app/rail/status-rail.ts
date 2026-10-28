@@ -7,6 +7,7 @@ import { countdownText, pageWhen } from '../chat/page-time';
 import type { TelegramState } from '../api/api-types';
 import { LiveState } from '../live/live-state';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { Layout } from '../shared/layout';
 import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
@@ -24,6 +25,10 @@ const TELEGRAM_OFF: TelegramState = { included: false, state: 'off', botUserName
 /** The attribute that marks a row element with its key, and the one that names its section, for the focus rule. */
 const ROW_KEY = 'data-row-key';
 const ROW_SECTION = 'data-section';
+
+/** Where a jump from an approval row lands: the request's card in the chat, else the chat's list. */
+const CHAT_LIST = 'app-chat-panel > .list';
+const requestCard = (ref: string): string => `app-chat-panel [data-part="approval"][data-key="${CSS.escape(ref)}"]`;
 
 /** The id of a section's heading. */
 const headingId = (section: string): string => `rail-heading-${section}`;
@@ -59,11 +64,14 @@ function formatAt(now: number): RailFormat {
  * has an h3 with a live count (the visible "Background checks (1)" is hidden from assistive technology beside the spoken "Background
  * checks, 1"), its rows and, under an empty list, its empty text; the hints sit under the check and reminder lists. The Telegram
  * section comes first, only when the release includes it, with the Telegram card and no count.
- * - Rows are read-only: an approval row with a 3px attention bar, a check row, a reminder row with a ticking countdown in tabular
- *   figures, and a decision row as a disclosure. A row whose payload has a traceUrl ends its meta line with a trace link.
+ * - Rows are read-only, but for the approval row of an incident's request: an approval row with a 3px attention bar, a check row, a
+ *   reminder row with a ticking countdown in tabular figures, and a decision row as a disclosure. A row whose payload has a traceUrl
+ *   ends its meta line with a trace link. The title of an incident's approval row is a button ("Show in the chat: Repair and resend
+ *   50 orders", beside the trace link, never around it): a press moves focus to the request's card in the chat and scrolls it into
+ *   view, through Layout.focusRegion (the drawer in the drawer band stays open), or to the chat's list when the card is not drawn.
  * - A clock ticks every second while a countdown shows and every 60 seconds otherwise.
  * - When an update removes the row that holds focus (or the trace help that a row's link opened), focus moves to that section's
- *   heading without scrolling, through the page's focus rule (shared/focus-rule.ts); nothing else here moves focus. The headings
+ *   heading without scrolling, through the page's focus rule (shared/focus-rule.ts); nothing else here moves focus but that press. The headings
  *   take focus (tabindex -1) but are not in the tab order.
  * - The rail has no live region and announces nothing. Every text is bound by interpolation.
  */
@@ -95,7 +103,11 @@ function formatAt(now: number): RailFormat {
                     <app-decision-row [row]="row" />
                   } @else {
                     <span class="title">
-                      <span class="lead">{{ row.lead }}</span>
+                      @if (row.jump; as ref) {
+                        <button type="button" class="jump" [attr.aria-label]="row.jumpName" (click)="jump(ref)">{{ row.lead }}</button>
+                      } @else {
+                        <span class="lead">{{ row.lead }}</span>
+                      }
                       @if (row.countdown; as countdown) {
                         <span aria-hidden="true">{{ separator }}</span>
                         <span class="countdown" aria-hidden="true">{{ countdown.text }}</span>
@@ -173,6 +185,19 @@ function formatAt(now: number): RailFormat {
       line-height: var(--status-rail-section-row-title-line-height);
       overflow-wrap: anywhere;
     }
+    .jump {
+      display: inline;
+      min-height: var(--space-target-min);
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: var(--rounded-xs);
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
     .countdown {
       font-variant-numeric: tabular-nums;
     }
@@ -213,6 +238,7 @@ export class StatusRail {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
+  private readonly layout = inject(Layout);
 
   protected readonly separator = CHAT_TEXTS.separator;
   protected readonly headingId = headingId;
@@ -245,5 +271,11 @@ export class StatusRail {
       this.view();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
+  }
+
+  /** The press of an approval row's title: the user's own move to the request's card in the chat, or to the chat's list when it is not drawn. */
+  protected jump(ref: string): void {
+    const card = requestCard(ref);
+    this.layout.focusRegion(document.querySelector(card) === null ? CHAT_LIST : card);
   }
 }

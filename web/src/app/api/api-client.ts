@@ -1,9 +1,9 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
 import type { GuideStatePayload } from '../live/payloads';
-import type { EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type { AnswerBody, AnswerChannel, DismissBody, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -50,6 +50,24 @@ export class ApiClient {
   /** Writes one of the guide's UI markers (demo mode only); the answer is the guide view that /state carries, with its trace URL. */
   postGuideMarker(marker: GuideMarker): Observable<GuideStatePayload> {
     return this.http.post<GuideStatePayload>(`${BASE}/guide/markers`, { marker });
+  }
+
+  /**
+   * Answers an approval request: a POST of {action, channel} (the session is the caller's, never in the body); the channel is 'web'
+   * for the chat's request card and 'phone' for the simulated phone's message.
+   * The whole response is observed: 200 is the answered request (AnswerBody); a 4xx or 5xx fails as an HttpErrorResponse whose
+   * `error` is the body, which for a 409 also holds the request's payload (AnswerError).
+   */
+  answerApproval(ref: string, action: 'approve' | 'reject', channel: AnswerChannel = 'web'): Observable<HttpResponse<AnswerBody>> {
+    return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel }, { observe: 'response' });
+  }
+
+  /**
+   * Dismisses an incident: a POST of {} (the incident is in the path and the session is the caller's, never in the body). The whole
+   * response is observed: 200 is {result: 'done'}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
+    return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

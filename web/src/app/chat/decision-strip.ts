@@ -17,15 +17,20 @@ let lastId = 0;
 const NEWEST_LINES = 3;
 
 /**
+ * The raw text of a fallback reason value, from the page's catalog (the generic reason's for a value the catalog does not know):
+ * "the model didn't answer within 60 seconds". The strip's sentence and the incident card's fallback notice both read it.
+ */
+export function fallbackReasonText(reason: string | undefined): string {
+  const suffix = reason !== undefined && Object.hasOwn(REASON_KEYS, reason) ? (REASON_KEYS[reason] ?? 'generic') : 'generic';
+  return PAGE_TEXTS[`fallbackReason.${suffix}`] ?? '';
+}
+
+/**
  * The sentence for a fallback reason value, from the page's catalog (the generic one for a value the catalog does not know);
  * undefined when there is no reason, which is not a fallback.
  */
 export function fallbackSentence(reason: string | undefined): string | undefined {
-  if (reason === undefined) {
-    return undefined;
-  }
-  const suffix = Object.hasOwn(REASON_KEYS, reason) ? (REASON_KEYS[reason] ?? 'generic') : 'generic';
-  return sentenceOf(PAGE_TEXTS[`fallbackReason.${suffix}`] ?? '');
+  return reason === undefined ? undefined : sentenceOf(fallbackReasonText(reason));
 }
 
 /**

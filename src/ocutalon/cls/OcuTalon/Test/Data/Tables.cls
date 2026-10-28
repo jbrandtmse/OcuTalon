@@ -401,7 +401,9 @@ XData Contracts [ MimeType = application/json ]
    "CreatedAt": "%String(MAXLEN=20)",
    "Text": "%String(MAXLEN=)",
    "Sender": "%String(MAXLEN=1000)",
-   "Subject": "%String(MAXLEN=1000)"
+   "Subject": "%String(MAXLEN=1000)",
+   "ApprovalRef": "%String(MAXLEN=22)",
+   "Answer": "%String(MAXLEN=1000)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

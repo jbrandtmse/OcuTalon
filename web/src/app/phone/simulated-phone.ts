@@ -6,9 +6,10 @@ import { SimulatedLabel } from '../devices/simulated-label';
 import { newRefs } from '../devices/device-view';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
-import type { PhonePayload } from '../live/payloads';
+import type { ApprovalPayload, PhonePayload } from '../live/payloads';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { revealRing } from '../shared/reveal-ring';
+import { PhoneRequest } from './phone-request';
 import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './phone-view';
 
 /**
@@ -18,7 +19,10 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  * sunken notification whose text keeps its line breaks (an interpolation, never HTML) and a caption time beside it.
  *
  * The phone decides nothing and renders no text (AD-12, AD-32): its list is the snapshot's `phone` and the store's phone events
- * (phone-view.ts), and each message's text is the server's. Nothing here is a live region: the chat card announces the event once.
+ * (phone-view.ts), and each message's text is the server's. A message that names an approval request (`approvalRef`, which the server
+ * sets for the kinds incident and approval only) is drawn by app-phone-request, with Approve and Reject until it has an answer
+ * (Story 6.3); every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
+ * press (phone-request.ts), and the chat's request card announces an answer once.
  *
  * The feed is a tab stop and the scroller (a region named by its tab). It follows like the chat list: it is at the bottom when within
  * 24 px of it, and a message that arrives while it is at the bottom scrolls into view, with no New messages button. When the feed is
@@ -28,7 +32,7 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  */
 @Component({
   selector: 'app-simulated-phone',
-  imports: [Icon, SimulatedLabel],
+  imports: [Icon, PhoneRequest, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="frame">
@@ -45,8 +49,19 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
               <div class="notifications">
                 @for (one of messages(); track one.ref) {
                   <div class="notification" tabindex="-1" [attr.data-key]="one.ref">
-                    <p class="text">{{ one.text }}</p>
-                    <span class="time">{{ timeOf(one) }}</span>
+                    @if (one.approvalRef) {
+                      <app-phone-request
+                        [message]="one"
+                        [approval]="approvalOf(one)"
+                        [caption]="timeOf(one)"
+                        [instanceZone]="instanceZone()"
+                        [onlineDemo]="onlineDemo()"
+                        [user]="user()"
+                      />
+                    } @else {
+                      <p class="text">{{ one.text }}</p>
+                      <span class="time">{{ timeOf(one) }}</span>
+                    }
                   </div>
                 }
               </div>
@@ -215,7 +230,13 @@ export class SimulatedPhone implements AfterViewInit {
   protected readonly messages = computed<readonly PhonePayload[]>(() => phoneOf(this.live.snapshot() as PhoneSnapshot | undefined, this.live.store()) ?? []);
 
   /** The instance's time zone, from the snapshot; the captions name the browser's zone when its offset differs. */
-  private readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');
+  protected readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');
+
+  /** True on the online demo, from the snapshot. */
+  protected readonly onlineDemo = computed(() => this.live.snapshot()?.onlineDemo === true);
+
+  /** The signed-in user, from the snapshot. */
+  protected readonly user = computed(() => this.live.snapshot()?.user ?? '');
 
   /** True while the New messages button shows. */
   protected readonly unseen = signal(false);
@@ -244,6 +265,11 @@ export class SimulatedPhone implements AfterViewInit {
     return pageTimeBeside(message.createdAt ?? '', this.instanceZone());
   }
 
+  /** The store's `approval` payload for the request that a message names; undefined when the store has none. */
+  protected approvalOf(message: PhonePayload): ApprovalPayload | undefined {
+    return this.live.store()?.approvals?.[message.approvalRef ?? ''];
+  }
+
   /** Focus reached something in the feed: it scrolls just far enough to keep that element's ring inside it. */
   protected reveal(event: Event): void {
     revealRing(this.feed().nativeElement, event.target);
@@ -269,7 +295,7 @@ export class SimulatedPhone implements AfterViewInit {
     this.following = true;
     this.scrollToBottom();
     if (target !== undefined) {
-      const found = Array.from(this.feed().nativeElement.querySelectorAll<HTMLElement>('[data-key]')).find((element) => element.dataset['key'] === target);
+      const found = Array.from(this.feed().nativeElement.querySelectorAll<HTMLElement>('.notification[data-key]')).find((element) => element.dataset['key'] === target);
       found?.focus({ preventScroll: true });
     }
   }
