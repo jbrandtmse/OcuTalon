@@ -3103,6 +3103,7 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
 - DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
+- DW-292: `/state`'s incident entries carry what the incident's live events carry: `Live.Payload.Incident.FromRow` fills its groups, requests, evidence and traceTargets, so a reloaded or resynced incident card shows its request cards, results, Show details evidence and diagnosis link (AD-12) (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 
@@ -3302,6 +3303,7 @@ So that the scores measure the product and a run can never notify a user or chan
 **When** it receives an `OcuTalon.Msg.ItemDecision`
 **Then** it stores one result row per case in a Lane A table under `OcuTalon.Eval` (its `DEFAULTGLOBAL` from the short-name registry, its storage block committed, and the spine's ownership tables updated in the same change): the run, the case, the `SourceItemId`, the `DecisionRef`, the outcome (from the message) or, for an incident case, the cause category and element at fault and the proposed fix kind and parameters (read from the `Decision` row), any fallback reason, and the cost and largest request size from the bridge's `Decision` and `Usage` rows (FR-62, NFR-3, NFR-4, AD-3, AD-5, AD-33)
 - DW-110: Evaluation turn cases (EvalIn, Stories 9.1 to 9.3) would share one linked conversation per (OwnerRef eval, ChatAgent) from Story 1.8 on, so one case's history leaks into the next, unless each case is sent with SessionMode fresh (or its own OwnerRef) (ledger; routed by spec_gate 2026-10-23)
+- DW-337: First change, test infrastructure only: CI's shards group took 31 min 52 s on Epic 6's head (REL-4's budget is 35), so `live:cards` (about 230 s locally) moves to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 9.2: Each run scores decisions and causes and records cost and size
 
@@ -3604,6 +3606,8 @@ So that every README claim happens on the product's real items in about two minu
 **When** it reaches a decision
 **Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
 
+- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+
 ### Story 11.2: Upgrades and restarts keep every record working
 
 As a user,
@@ -3771,6 +3775,8 @@ So that what the automated tests can't see is found and fixed before the first r
 **Given** the real 0.1.0 cut through Story 11.5's sequence
 **When** it is resumed after the recorded pass and it finishes
 **Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
+
+- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
 
 ## Epic 12: Approve from your own phone with Telegram
 
@@ -4452,6 +4458,7 @@ So that other visitors can get in while my session waits for me.
 - DW-285: Closing a trace tab frees nothing: its licence unit is held until sign-out or the session timeout, so leaving the page must sign the trace session out (`?IRISLogout=end`), with the 120-second timeout as the backstop (AD-13, AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
 - DW-291: The sign-out test exercises the real `ReminderOps` cancel path that Story 8.4 delivers (U-65). If Story 8.4 has merged when this story is planned, the test uses the real path from the start, with no double. Otherwise it uses the recording double, and whichever of 8.4 and this story merges second turns the real path on, with a test that asserts a real cancel. Either way, the merged sign-out test runs the real cancel (ledger; routed by orchestrator 2026-10-27, inbox U-107, kept by the Contest Planner under the owner's delegation)
 - DW-290: `Test.Web.Api`'s class doc no longer says that a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue (doc-only) (ledger; routed by merge_gate 2026-10-27)
+- DW-333: flake: `live:sign-in` rail.spec.ts R1 (`open()`: main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun; the shared `open()` helper's sign-in readiness wait is made deterministic (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 
