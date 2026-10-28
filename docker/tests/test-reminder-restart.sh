@@ -4,9 +4,10 @@
 # after-start script active and no model key, seeds one session with reminders, and then
 #   - restart 1, plain: stops the container before the first reminder is due, waits until that reminder is past due, and starts it
 #     again. Then
-#       - R_due (set through the product, due while IRIS was down, its waiter survived the restart) fires once, late: Late 1, one
-#         ReminderTimer to Notify request made at or after the start, with reminder.late and the slots time, text and dueAt, one web
-#         card and one phone message with the catalog's late text, and the card in the chat of /state;
+#       - R_due (set through the product, due while IRIS was down, its waiter survived the restart) fires once, late, from that
+#         waiter: Late 1, one ReminderTimer to Notify request, in the trace session of its waiter from before the stop, made at or
+#         after the start, with reminder.late and the slots time, text and dueAt, one web card and one phone message with the
+#         catalog's late text, and the card in the chat of /state;
 #       - R_lostdue (a pending row with no waiter, due while IRIS was down) fires the same way, through a waiter that the Reconcile
 #         step started from HeartbeatIn;
 #       - R_far (pending, due much later, a waiter) keeps its waiter, its start header and its TraceHeaderId, and the rail lists it
@@ -232,7 +233,7 @@ else
   fail "restart 1: the log has no STEP Reconcile OK, or no WARN Reconcile line naming R_orphan ($R_orphan)"
 fi
 
-await_fired "restart 1: R_due (its waiter survived)" 60 "$R_due" "$S" 1 "$started1" ""
+await_fired "restart 1: R_due (its waiter survived)" 60 "$R_due" "$S" 1 "$started1" "$due_trace"
 await_fired "restart 1: R_lostdue (no waiter)" 60 "$R_lostdue" "$S" 1 "$started1" ""
 lostdue_state=$(rem_state "$R_lostdue")
 expect_eq "restart 1: R_lostdue's waiter was started by HeartbeatIn under the session's TraceRef" "$(field "$lostdue_state" 5)|$(field "$lostdue_state" 6)|$(field "$lostdue_state" 7)|$(field "$lostdue_state" 8)|$(field "$lostdue_state" 9)" "1|HeartbeatIn|$(field "$lostdue_state" 3)|$S_TRACE|ReminderTimer"
@@ -308,7 +309,7 @@ else
   fail "restart 2: the log has no STEP package loaded (dev)"
 fi
 timer_changed_after=$(printf '%s\n' 'Write !,"CHK|changed|",##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Schedule.ReminderTimer").TimeChanged' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|changed|//p')
-if [ -n "$timer_changed_after" ] && [ "$timer_changed_after" \> "$timer_changed_before" ]; then
+if [ -n "$timer_changed_after" ] && [ "$timer_changed_after" != "$timer_changed_before" ]; then
   pass "restart 2: ReminderTimer was recompiled (its compiled time moved)"
 else
   fail "restart 2: ReminderTimer's compiled time did not move ('$timer_changed_before' to '$timer_changed_after')"
@@ -341,10 +342,13 @@ waiter_gone() { [ "$(field "$(rem_state "$1")" 4)" = 0 ]; }
 wait_until 30 waiter_gone "$R_future" || true
 future_after=$(rem_state "$R_future")
 expect_eq "R_future: the one fired state, no waiter left" "$(field "$future_after" 1)|$(field "$future_after" 2)|$(field "$future_after" 4)" "fired|0|0"
-if rail_lines "$S" | grep -q "^$R_future|"; then
-  fail "R_future is still in the rail after it fired"
+rail_after=$(rail_lines "$S")
+if printf '%s\n' "$rail_after" | grep -q "^$R_far|" && printf '%s\n' "$rail_after" | grep -q "^$R_lost|" &&
+  ! printf '%s\n' "$rail_after" | grep -q "^$R_future|"; then
+  pass "R_future has left the rail, which still lists R_far and R_lost"
 else
-  pass "R_future has left the rail"
+  printf '%s\n' "  rail: $(printf '%s' "$rail_after" | tr '\n' ' ')"
+  fail "R_future is still in the rail after it fired, or the rail does not list R_far and R_lost"
 fi
 
 # --- the end ---

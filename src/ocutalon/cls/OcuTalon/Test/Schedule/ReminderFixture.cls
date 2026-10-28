@@ -242,11 +242,7 @@ ClassMethod WaitEnded(ref As %String, seconds As %Integer) As %Boolean
 {
 	Set end = $ZHorolog + seconds
 	For {
-		Set timers = ..Timers(ref)
-		Set waiting = 0
-		For i = 0:1:timers.%Size() - 1 {
-			If ..IsWaiting(timers.%Get(i)) Set waiting = waiting + 1
-		}
+		Set waiting = ..WaitingCount(ref)
 		If 'waiting || ($ZHorolog > end) Quit
 		Hang 0.25
 	}

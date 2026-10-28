@@ -227,6 +227,49 @@ Live tests and CI:
    - `ReminderTimer` still holds only `Ref` in its committed `Storage` block, and `test-storage.sh` passes (`storage`, and `release-diff`: no release tag yet). The full FR-60 harness is Lane A's release work. (NFR-17, AD-5)
 6. **CI.** Given the restart cases, when CI runs the IRIS groups on the IRIS runner, then `live:reminder-restart` in the `production` group restarts IRIS in its own compose project and asserts order and outcome (one notification per channel, late or not), never seconds. (NFR-10, NFR-16, AD-22)
 
+### Review Findings
+
+Code review, 2026-10-28. Tier 1: the diff from `baseline_commit` (65bba95) to the working tree, QA's uncommitted tests included. Four layers ran at full opus: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor. They reported 28 findings, grouped into 24 entries:
+- 12 patched (6 medium, 6 low);
+- 10 deferred to the ledger: DW-319 to DW-327, all terminal, plus one occurrence on DW-80;
+- 2 rejected.
+
+There is no high finding and no AD violation. Rule 3 evidence: `live:reminder-restart`.
+
+After the patches:
+- warm `Test.Schedule.Reminders` passed (84 s) and `Test.Schedule.ReminderChat` passed;
+- fresh `live:reminder-restart` passed 38 checks in 287 s (restart 1 6 s, restart 2 43 s);
+- `bash ci/checks.sh` passed.
+
+The mutation lines in `## Verification` stay valid, because no patch changes what an AC's pinning assertion pins.
+
+- [x] [Review][Patch] (medium) `TestReconcileTriesEveryRowAndNamesFailures` cleaned up as soon as the queue was empty, before `ReminderTimer` had handled the queued starts, and did not assert the cancel's save. It now asserts the save, then waits until both start headers are completed and asserts it (Rule 19). [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:1091]
+- [x] [Review][Patch] (medium) `OnAfterOneTest` started `OcuTalon.Production` wherever none ran, so a mistaken run on a slot would start the production there (Rule 21). Both restores now run only when `Missing` is empty. [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:77]
+- [x] [Review][Patch] (medium) `TestReconcileWithoutProductionDoesNothing` stopped the production without settling `Ens.ScheduleHandler`. By name order it runs right after a test that updates the production (DW-28). It now calls `Heartbeat.SettleScheduler` first. [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:1015]
+- [x] [Review][Patch] (medium) The `0|0` "no start header and no ReminderTimer" check, made while the production is stopped, could not fail, because `HeartbeatIn` cannot be made then. It is removed; "Reconcile is OK" stays the pin. [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:1015]
+- [x] [Review][Patch] (medium) "R_future has left the rail" passed on an empty read. The same read must now also list R_far and R_lost. [docker/tests/test-reminder-restart.sh:345]
+- [x] [Review][Patch] (medium) Rule 2: `ReminderFixture.WaitingCount` copied `WaitEnded`'s counting loop, and `TestTwoWaitersFireOnce` copied `WaitEnded`. `WaitEnded` now calls `WaitingCount`, and the test calls `..WaitEnded`. [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls:245]
+- [x] [Review][Patch] (low) The "ReminderTimer was recompiled" check compared `$Horolog` text with `\>`, which is false when the seconds part gains a digit on the same day. It now uses `!=`, as `test-install-start.sh` does. [docker/tests/test-reminder-restart.sh:312]
+- [x] [Review][Patch] (low) R_due's check, labelled "its waiter survived", did not check the Notify's origin. It now passes R_due's original `TraceHeaderId`. `ReminderTimer` runs one job, so the old waiter always fires first (Design Notes 2). [docker/tests/test-reminder-restart.sh:236]
+- [x] [Review][Patch] (low) In `TestReconcileRearmsOnlyLostWaiters`, `lost` was made 15 s ahead before a `WAIT`-long events wait. It is now made after that wait, just before Reconcile. [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:815]
+- [x] [Review][Patch] (low) `TestRearmWithoutSessionFails` left `HeartbeatIn`'s error row behind with no session id. It now counts that row and deletes it, as `ReminderLogic` does. [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:963]
+- [x] [Review][Patch] (low) After Q1, row 20's header said that `Test.Data.Fixture` seeded the reminder and that all the rows are removed. The phrase now names `ReminderFixture` and says that the reminder goes with the project. This stays within Q1's header phrase. [docker/tests/test-production-restart.sh:16]
+- [x] [Review][Patch] (low) `ReminderStart`'s doc line ran to 178 characters. It is rewrapped (doc only). [src/ocutalon/cls/OcuTalon/Schedule/ReminderStart.cls:1]
+- [x] [Review][Defer] (low) No test pins that `HeartbeatIn` handles a `ReminderStart` before the heartbeat lock and the tick. [src/ocutalon/cls/OcuTalon/Schedule/HeartbeatIn.cls:21] — deferred: DW-319, wontfix-accepted.
+- [x] [Review][Defer] (low) The declaration's pass-through of `Reconcile`'s status is not pinned. [src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls:24] — deferred: DW-320, wontfix-accepted.
+- [x] [Review][Defer] (low) The live unit's length grows with the runner, and nothing checks it against the deadline. [docker/tests/test-reminder-restart.sh:263] — deferred: DW-321, wontfix-accepted.
+- [x] [Review][Defer] (medium) One failed or slow re-arm fails the Reconcile step and so the ready marker. [src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls:24] — deferred: DW-322, by-design (spec Always, AD-23, Design Notes 3).
+- [x] [Review][Defer] (low) Row 20's reminder is no longer removed by `Fixture.Clean`. Q1 does not allow that change, and the project is torn down. [docker/tests/test-production-restart.sh:130] — deferred: DW-323, wontfix-accepted.
+- [x] [Review][Defer] (low) `ReminderFixture.Remove` with two live waiters ends only one of them. [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls:101] — deferred: DW-324, wontfix-theoretical.
+- [x] [Review][Defer] (low) A failed re-arm is logged under `HeartbeatIn`. [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls] — deferred: DW-325, by-design (AD-1).
+- [x] [Review][Defer] (low) A re-arm changes the trace link without a live event. [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls] — deferred: DW-326, by-design (Design Notes 4, AD-33).
+- [x] [Review][Defer] (low) `LiveWaiter` reads a failed SQL read as "no waiter". [src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls] — deferred: DW-327, wontfix-theoretical (AC 4 makes the second waiter harmless).
+- [x] [Review][Defer] (medium) The Schedule declaration runs only from the installer, not when the production starts on its own. — deferred: occurrence on DW-80 (routed to Story 15.3).
+
+**Rejected:**
+- (false) Edge: the sleep before restart 1 is not bounded by the deadline. It lasts at most about 75 s (R_due's 60 s plus 15 s), early in a run with a 540 or 1200 s deadline.
+- (false) Verification gap: AC 3's rail clause and AC 5's pre-upgrade origin have no mutation line of their own. Rule 19 asks for one mutation per AC, and AC 3 and AC 5 each have recorded ones.
+
 ## Spec Change Log
 
 - 2026-10-27 (lead, after the plan's intent-gap HALT): the orchestrator allowed Q1 and Q2; the lead applied Q3 (AC 6 reworded). Recorded under Design Notes; Clarification Needed removed; status set to `ready-for-dev` (the plan was otherwise complete and measured).
@@ -381,6 +424,17 @@ Results:
 - mutation (AC 2, a surviving waiter and a re-armed one, live): `Reminder.IsLate` returns 0 -> red `live:reminder-restart` (`R_due (its waiter survived): not fired once`, `R_lostdue (no waiter): not fired once`).
 - mutation (AC 5, the upgrade, live): the script's `OCUTALON_DEV` override set to `"0"` -> red `live:reminder-restart` (`no STEP package loaded (dev)`, `ReminderTimer's compiled time did not move`).
 - mutation: `live:reminder-restart` removed from the `production` group -> red `bash docker/tests/test-ci-config.sh` (`FAIL units`, `FAIL inputs`).
+
+**QA gap audit (QA).** Every AC and matrix row has a pinning test; the rows below had no observed mutation, or no test, and are closed. Each mutation applied, red observed, restored from a backup byte-identical (`cmp`, `git status --short`).
+- Added (QA): `Test.Schedule.Reminders.TestReconcileOnlyRowsInTheList` (the `only` list limits the pass) and `TestReconcileTriesEveryRowAndNamesFailures` (matrix error handling: with `ReminderTimer` disabled every row is tried, the error names each Ref, none is skipped; the test enables the item again, and `OnAfterOneTest` does too). File: `src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls` (QA).
+- mutation (matrix: fired or cancelled): `Reminder.Reconcile` reads `State IN ('pending','fired','cancelled')` -> red `Reminders.TestReconcileRearmsOnlyLostWaiters` (`and has no waiter and no start header`, twice).
+- mutation (matrix: session gone): `Reminder.Reconcile`'s session check made `If 0` -> red `Reminders.TestReconcileSkipsReminderWithoutSession` (`Reconcile is OK`, `the row is skipped and named`).
+- mutation (`only`): `Reminder.Reconcile` ignores `only` -> red `Reminders.TestReconcileOnlyRowsInTheList` (`the other pending row has no ReminderTimer and no start header`, `and is unchanged`).
+- mutation (matrix: a failed start, the other rows are still tried): `Reminder.Reconcile` quits the loop at the first failed start -> red `Reminders.TestReconcileTriesEveryRowAndNamesFailures` (`and the second Ref, so the second row was still tried`).
+- mutation (AC 1, AD-26): `Reminder.StartFrom` does not set `service.%SuperSession` -> red `Reminders.TestReconcileRearmsOnlyLostWaiters` (`lost` and `ended`: `from HeartbeatIn, the first header of its own session under the session's TraceRef`) and `TestReconcileFiresLateWhenDueWhileDown`.
+- mutation (matrix: session gone, the warning, live): `Install.Step.Schedule.Reconcile` without the `Warn` call -> red `live:reminder-restart` (`restart 1: the log has no STEP Reconcile OK, or no WARN Reconcile line naming R_orphan`; the only failed check of 38, run `e8s5q`: restart 1 13 s, restart 2 42 s, total 312 s).
+- Not pinned, by choice: the 10 s no-answer branch is pinned through the disabled item (its error text is the `StartFrom` one); `service.%SessionId = ""` cannot be observed from a non-production caller (the job has no session id), so no test can fail on it (the Callers rule in the contract).
+- Green after the changes: `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Schedule.Reminders` passed (83 s, 20 test methods, the two QA tests included).
 
 **Shared surfaces:**
 - the Reconcile step at every start, which now re-arms every waiterless pending reminder:

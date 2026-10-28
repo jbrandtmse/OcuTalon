@@ -13,10 +13,11 @@
 #     names OcuTalon.Production (measured on build 154: a clean stop and CleanProduction leave it empty, so a step that
 #     cleans the production instead of recovering it would lose its queued messages and fail this check).
 #     Story 2.2 adds the snapshot: before the kill and again after the next start, the epoch, the chat and the rail that
-#     Web.Api.StateBody builds for a session that Test.Data.Fixture seeded with a turn, a check, a pending reminder set through
-#     ReminderOps and a pending approval are printed, and the two must be equal and hold the four fixture refs. Journaling must be enabled
+#     Web.Api.StateBody builds for a session seeded with a turn, a check and a pending approval (Test.Data.Fixture) and a
+#     pending reminder set through ReminderOps (Test.Schedule.ReminderFixture) are printed, and the two must be equal and hold
+#     the four fixture refs. Journaling must be enabled
 #     (%SYS.Journal.System.GetState() 0), and the journal is synced before the kill, so that the kill cannot lose the seeded
-#     rows. The rows are removed afterwards.
+#     rows. The Test.Data.Fixture rows are removed afterwards; the reminder and its waiter go with the project.
 #     Story 2.4 adds the turn queue: before the kill a second fixture session holds a turn that was left running (Attempt 1)
 #     and a queued turn, each with its text; after the next start, within 60 s, both are done with the fallback reply
 #     conversation.turnFallback (the real Decide has no model key and answers no_key), the running one on its second attempt,

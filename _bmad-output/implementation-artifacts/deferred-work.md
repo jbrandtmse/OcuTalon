@@ -740,6 +740,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-23: on an IPM install Reconcile runs on every production start; only Install.Step.Reconcile calls CallAreas(Reconcile), inside the installer order; no OnStart hook in src (Registry.cls, Production.cls are Lane A)
 - 2026-10-22T13:35:56Z status=routed owner=burndown by=harvest note=a production-start hook calls the Reconcile declarations (AD-23), with a test that restarts the production alone
 - 2026-10-25T06:36:24Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=burndown note=Story 15.3's criterion that every area's Reconcile() runs once the autostarted production's items run is this entry: a production started on its own (IPM autostart, or a stop and start with no installer run) must run the Reconcile declarations (AD-23), so a turn left running is picked up; test a restart of the production alone
+- 2026-10-28T00:45:43Z occurrence=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so
 
 ### DW-81: Conversation's Busy wait and resend run end to end only against a probe replacing SetTimer, never through the real Ens.Alarm and the reopened instance
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: low | footprint: in-story
@@ -1334,3 +1335,48 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 03-reminder.spec.ts afterAll and chat.spec.ts afterAll: the same 4-line restore-and-wait tail; demo-switch/mailbox.spec.ts restores without the wait
 - 2026-10-27T20:11:28Z status=wontfix-accepted owner=8-6-reminders-through-the-chat-on-the-demo-path by=cr note=reopen_if=a third spec repeats restoreKeys plus WaitRecords, or a later sign-in spec fails on keys restored but not yet recorded
+
+### DW-319: No test pins that HeartbeatIn handles a ReminderStart before, and apart from, the heartbeat lock and tick
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: HeartbeatIn.cls:21 puts the branch first; no test re-arms while Heartbeat LOCK is held or checks ticks around Rearm, so moving the line keeps every test green; a pin needs the task suspended and the lock held in a job
+- 2026-10-28T00:45:33Z status=wontfix-accepted owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=reopen_if=the ReminderStart branch of HeartbeatIn.OnProcessInput moves, or a re-arm sends a Tick or waits on Heartbeat LOCK
+
+### DW-320: No test drives Install.Step.Schedule.Reconcile into a failed re-arm, so its pass-through of Reconcile's status is unpinned
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Schedule.cls:24 Quit sc; Quit $$$OK there keeps every unit and live test green (the live unit's only negative row is skipped before any re-arm); the declaration takes no only list, so a unit test would re-arm the shared stack's rows
+- 2026-10-28T00:45:33Z status=wontfix-accepted owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=reopen_if=Install.Step.Schedule.Reconcile changes its return, or a start ends ready while its log shows a failed re-arm
+
+### DW-321: live:reminder-restart's length grows with the runner (R_future is 6 x restart 1 + 60 s ahead) and nothing checks that it fits the run's deadline
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: test-reminder-restart.sh:263; a deadline death would show as a not-fired or not-ready check; measured 287 to 319 s on the developer machine (deadline 540 s), CI unmeasured (1200 s)
+- 2026-10-28T00:45:33Z status=wontfix-accepted owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=reopen_if=a CI run of live:reminder-restart takes over 900 s or ends at OCUTALON_LIVE_DEADLINE
+
+### DW-322: One failed or slow re-arm fails the Reconcile step, so that start writes no ready marker; a start answered after 10 s still makes its waiter
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Install.Step.Schedule.Reconcile returns Reminder.Reconcile's combined status; StartFrom's 10 s no-answer is an error although the queued start still runs later
+- 2026-10-28T00:45:33Z status=by-design owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=spec Always (failures combine; the declaration returns them), AD-23 (a failed step stops the ready marker), Design Notes 3
+
+### DW-323: test-production-restart.sh row 20's reminder, now set through ReminderOps, is not removed by Fixture.Clean
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: test-production-restart.sh:130 seeds it with ReminderFixture.Set (Q1); Fixture.Clean removes only Test.Data.Fixture rows; the throwaway project is torn down at exit
+- 2026-10-28T00:45:34Z status=wontfix-accepted owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=reopen_if=a check after row 20's clean-up in test-production-restart.sh reads reminders, ReminderTimer or Ens.Alarm
+
+### DW-324: ReminderFixture.Remove ends only the TraceHeaderId waiter, so a row with two live waiters loses the other one with its alarm still pending
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Remove cancels through ReminderOps.EndWaiter (the row's TraceHeaderId session only), waits 10 s, then deletes every ReminderTimer of the Ref; no green test reaches it with two live waiters
+- 2026-10-28T00:45:43Z status=wontfix-theoretical owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=real if a test reaches ReminderFixture.Remove with two live waiters of one Ref on a green run
+
+### DW-325: A failed re-arm is logged as a HeartbeatIn error and sets HeartbeatIn's monitor status to Error
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: StartFrom's error returns from HeartbeatIn.OnProcessInput, so Ens.BusinessService.onOutsideErr logs it (irislib/Ens/BusinessService.cls:113-129); nothing in the product reads the monitor status
+- 2026-10-28T00:45:43Z status=by-design owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=AD-1 and the spec: the re-arm enters through HeartbeatIn and a failed start is an error; Reconcile skips no-session rows first
+
+### DW-326: A re-arm changes a reminder's trace link with no live event, so an open page keeps the old link until it reloads /state
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Reminder.Reconcile publishes nothing while the new waiter's Start rewrites TraceHeaderId; Web.Api.StateBody carries the new link
+- 2026-10-28T00:45:43Z status=by-design owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=spec Always (Reconcile publishes no event), Design Notes 4, AD-33's two reminder publishers; AC 1 asks for the link in /state
+
+### DW-327: Reminder.LiveWaiter treats a failed ReminderTimer read as no waiter, so Reconcile would start a second waiter
+- source: spec-8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: LiveWaiter ignores result.%SQLCODE < 0 and answers no waiter; a second waiter of a pending row is harmless (AC 4: the later one finds the row fired and sends nothing)
+- 2026-10-28T00:45:43Z status=wontfix-theoretical owner=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so by=cr note=real if the ReminderTimer read fails while a waiter lives and the doubled waiter is seen to send a second notification
