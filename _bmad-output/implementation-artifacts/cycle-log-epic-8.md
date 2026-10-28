@@ -193,3 +193,5 @@
 2026-10-28T01:12:22Z	Story 8.5	committed	sha=6ff9a61 submodules= ci=pending runs=40613573983,40613573977 amendments=epics.md:Story_8.5_AC6(Schedule_shard->restart_unit,tier-1) spine=none build_sha=55ed73c footprint_extensions=docker/tests/test-reminder-restart.sh(new),docker/tests/test-production-restart.sh(Q1),ci/units.sh(production_group_entry+NO_WEB_BUNDLE_UNITS,Q2) ledger=DW-319..DW-327(terminal),DW-80(occurrence)
 2026-10-28T01:12:22Z	Story 8.5	story_cycle	plan_to_commit_min=280 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=plan_blocked_once(Q1/Q2_contended)
 2026-10-28T01:13:02Z	Epic 8	ledger_routed_planned	story=8-7-epic-8-burn-down entries=2(DW-204,DW-314) excess=0 by=burndown
+2026-10-28T01:18:10Z	Epic 8	epic_context_compiled	sha=73eb0f3 reason=burndown_inserted(8.7) lines=78 model=claude-opus-5-5
+2026-10-28T01:18:14Z	Story 8.7	stage_spawned	stage=plan spawn_at=2026-10-28T01:18:14Z model=opus agent_name=8-7-burndown-plan-1 cycle_iteration=1
