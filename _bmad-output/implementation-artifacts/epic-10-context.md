@@ -4,123 +4,135 @@
 
 ## Goal
 
-A judge with the build 154 image loaded runs one script and gets a running OcuTalon. The script checks the image and the machine, retags the image, starts it, shows progress while it waits, and prints where to sign in. When the image, the CPU architecture, Docker or Compose is wrong, it stops with the exact fix. The release-1 README then tells a judge what to download, how to start, how to sign in and how to set the key, and claims only what the release ships. The epic also builds Lane B's session side of Telegram, switched off until a release includes Telegram, so Lane A's Telegram epic never has to change Lane B's files. Release 1 (Epic 11) depends on this epic. Clarity of Instructions and Developer Experience are judged on it.
+A judge with the build 154 image loaded runs one script and gets a running OcuTalon. A release-1 README then takes them from download to sign-in and claims only what release 1 ships. The epic also builds Lane B's session side of Telegram, switched off until a release includes Telegram, so that Lane A's Telegram epic (Epic 12, shipped as 0.1.1) changes only its own files. Release 1 (Epic 11, cut as 0.1.0) depends on this epic. The Clarity of Instructions and Developer Experience criteria are judged largely on what it produces.
 
 ## Stories
 
-- Story 10.1: One script finds the image, starts OcuTalon and says where to sign in (built now)
-- Story 10.2: The README gets a judge from download to sign-in (planned later, on runner B)
-- Story 10.3: The session side of Telegram is ready and stays off (planned later, on runner B)
+- Story 10.1: One script finds the image, starts OcuTalon and says where to sign in (done)
+- Story 10.2: The README gets a judge from download to sign-in
+- Story 10.3: The session side of Telegram is ready and stays off
 
 ## Requirements & Constraints
 
-**The install script (`install.sh` at the repository root, run from the root)**
-- It runs on macOS and Linux, and on Windows under WSL. It must work in the shell that macOS ships (bash 3.2: no associative arrays, which is already the repository's rule).
-- **Checks before anything changes.** Docker must be running, Compose v2 must be present, and Compose must be at least 2.24, because the compose file uses the long `env_file` form with `required: false` (DW-2). The script also needs a build 154 image whose CPU architecture matches the machine (arm64 or x64). Any failure stops the script before it retags or starts anything, with a plain message that names the problem and the exact fix: the archive to download for this CPU and its `docker load` command, how to start Docker, or how to install or upgrade Compose.
-- **Finding the image.** It looks for repository `irishealth-community` with tag `2026.3.0AI.154.0`, under whatever registry prefix the archive gave it. It prefers that IRIS for Health image. With only the non-Health `iris-community:2026.3.0AI.154.0` loaded, it uses that image through the `IRIS_IMAGE` build argument. Either way, it says which image it used.
-- **Retag and `.env`.** It retags to the name the Dockerfile's `FROM` expects. A retag that already exists stays as it is. With no `.env`, it creates one from `.env.example`. It never overwrites an existing `.env` and never prints a value from it. With no key, OcuTalon still starts, and the page shows the no-model-key banner.
-- **Starting and waiting.** It runs `docker compose up` in the background. At least every 15 seconds, for up to 15 minutes, it prints the elapsed time and the compose health state. Once the container is healthy, it prints:
-  - the page's address, on the host port that compose actually published (`OCUTALON_WEB_PORT` can change it from the default 52773);
-  - the README account's user name and password.
-- **When it fails.** After 15 minutes, or if the container stops, it exits non-zero. Its plain message gives the exact command to read the logs and points to the README's troubleshooting section. It leaves the container and the volume in place.
-- **Safe to run again.** A rerun reuses the same named volume. If OcuTalon is already healthy, it prints the address and sign-in details at once. The script never removes a container, an image or a volume.
-- **Never leak or publish.** It never runs `docker compose config` without `--quiet` and never runs `docker inspect` without `--format`, because both print values from `env_file`. It never pushes an image or signs in to a registry.
-- **Plain English.** Every message is plain English, with no class names, error codes or stack traces.
-- **Without the script.** After a manual load and retag, a plain `docker compose up` must give the same result.
-
-**Tests and CI**
-- **Hosted runners.** ShellCheck plus scripted tests with a stub `docker` cover every branch above, on hosted Linux and on hosted macOS with the macOS shell.
-- **The IRIS runner.** One job runs the real script in a throwaway compose project until it reports healthy. It then removes the retag, retags with the README's manual command, and checks that a plain `docker compose up` reaches healthy on the same volume.
-- **Time and boundaries.** A full CI run takes at most 35 minutes. Fork pull requests never run on the IRIS runner. The AI Hub image never enters a CI cache or artifact. A check fails on any image push or registry sign-in.
-
-**README (10.2)**
-- **The top.** It opens with "Try it in two minutes": the online demo link first, with a note that its sign-in details are on the splash screen, then the local path. Next come "What's interesting" (about 120 words at most), the "Contest task → where to see it" table, and the teaser video's link once the author gives it.
-- **The install sections** state:
-  - the image and build, where to get the image, and which archive to pick for each CPU;
+**README (release-1 sections only; the rest of the README arrives with the 1.0.0 kit)**
+- **The top, in this order:**
+  1. "Try it in two minutes": the online demo link `https://demo.ocutalon.com` first (its sign-in details are on the splash), then the local path: load the image, run `./install.sh`, sign in, follow the demo guide.
+  2. "What's interesting", about 120 words at most.
+  3. A "Contest task → where to see it" table. It maps the three task parts (an IRIS Interoperability workflow, an IRIS AI Hub agent, a decision-making task) and each judging criterion (Complexity, Clarity of Instructions, Developer Experience, Applicability, Usability) to the feature that meets it and where the online demo or the repository shows it.
+  4. The teaser video's link, only once the author gives it. There is no placeholder before then.
+- **Outcomes:** name the attention decision and its four outcomes, exactly Ignore, Digest, Tell now and Act.
+- **Install sections.** They work on macOS, Linux and Windows under WSL, and state:
+  - the image, IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`), where to get it, and which archive to choose for arm64 or x64;
   - the manual load and retag commands, the install script, and the plain `docker compose up` alternative;
-  - how to check that OcuTalon is ready;
-  - the measured first-start time;
-  - the minimum Compose version (2.24);
-  - a troubleshooting section, which the script points to.
-- **Key and accounts.** It covers the key (`ANTHROPIC_API_KEY` in `.env`), the default model (Claude Haiku 5.5), what happens with no key, the README account and how to change it, and how Visual Trace opens.
-- **The non-Health image** is supported, verified on ARM64. CI tests only the IRIS for Health image.
-- **The port.** It warns that the web port is open on the LAN until the default and README-account passwords are changed, and tells the judge to change the README account's password after the first sign-in (DW-3, DW-6).
-- **Demo mode.** It covers demo mode and `SetDemoMode`. Where it explains demo mode off, it quotes the owner's sentence about a kept OCUORDERS word for word (DW-45). Class names and error codes appear only in the admin and developer sections.
-- **The page's README links.** A CI check fails when the page links to a README section that is missing. The Telegram link is left out while `Included()` returns 0.
-- **Public text.** It credits the BMAD Method and Claude Code. It carries the not-affiliated note word for word and points to the third-party licence notices. It contains no key, local path, private infrastructure detail or other entrant's name. It names no other model provider and has no Telegram section yet.
+  - how to check that OcuTalon is ready, and the measured first-start time;
+  - the minimum Docker Compose version, 2.24 (DW-2);
+  - a **Troubleshooting** section.
 
-**Telegram session side (10.3)**, all on fixtures:
-- **Pairing in `SessionOps`.** It pairs and unpairs chats, comparing code hashes only, with one chat per session. Each change is audited with no Telegram identity, and a `pairing` event goes to every session whose state changed.
-- **The `Pairing` helpers.** `Pairing.HashCode` (SHA-256, base64url), `RecordChat`, `TakeReplySlot` (at most one reply a minute to an unpaired chat) and `Purge`.
-- **The pairing endpoints.** `POST /api/v1/pairing/code` (a 10-minute code; only its hash is stored) and `DELETE /api/v1/pairing`. Both answer 404 while `Included()` returns 0.
-- **Routing and records.**
-  - `Notify` routes a `pairing` notification to `TelegramOut`.
-  - `Delivery` accepts channel `telegram`.
-  - `StatusMark` records the pause and the Telegram state.
-  - `/state` carries a `TelegramState` block.
-- **`AnswersIn` result codes.** A Telegram press gets one of `approved`, `rejected`, `already_answered`, `expired`, `not_paired`, `not_visible`, `not_allowed` or `unknown`.
-- **Lane B APIs.** `Allowance.TryConsume` and `Trace.Join` accept channel `telegram`.
-- **The mock.** It serves the Bot API methods with `telegram` scenarios and logs the token by its length only.
-- **In `web/`.** A pinned QR-code library, the API-client methods, and skipped `telegram-*.spec.ts` files.
+  The plain IRIS (non-Health) build 154 image is supported and verified on ARM64. It differs only by the HealthShare libraries and HSCUSTOM. The README says how to start with it by hand. CI tests only the Health image.
+- **Key and account:**
+  - the provider and `ANTHROPIC_API_KEY` in `.env`, copied from `.env.example`;
+  - the default model, Claude Haiku 5.5;
+  - with no key, OcuTalon still starts and every decision uses fixed rules;
+  - the README account, user `ocutalon` with password `ocutalon` and no forced change, and how to change its password;
+  - how Visual Trace opens on a local install (a sign-in popover; the README account holds the trace role).
+- **The commands `install.sh` prints (DW-134).**
+  - After adding a key: `docker compose up -d --force-recreate`.
+  - To apply an update: `docker compose up -d --build`.
+  - Never tell the judge to run `./install.sh` again for either, because a rerun leaves a healthy OcuTalon alone. Never use `docker compose restart`, which does not re-read `.env`.
+- **LAN warning (DW-3).** The web port is published on every host interface, so the Management Portal is reachable from the LAN until the default and README-account passwords are changed. Tell the judge plainly to change the README account's password after the first sign-in.
+- **Admin and developer sections:**
+  - Demo mode is on for the Docker install. An admin switches it with `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)`, which needs the OcuTalon admin role or `%All`.
+  - Where the README explains demo mode off, it quotes the kept-OCUORDERS sentence word for word (DW-45).
+  - Class names and error codes appear only in these sections.
+- **Links.** Every README link the release-1 page can show, such as "How to set a key" and "Install it yourself", must reach an existing section, and a CI check fails when one doesn't. The `#telegram` link is left out of the check while `Included()` returns 0.
+- **Public text.** Plain English throughout, and every sentence and table row claims only what ships and links only to what exists. The README:
+  - credits the BMAD Method and Claude Code;
+  - carries "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation." word for word, and points to the third-party licence notices;
+  - contains no key, local path, private infrastructure detail or other entrant's name;
+  - names no other model provider and has no Telegram setup yet.
+
+**Telegram session side (all on fixtures; nothing switched on in release 1)**
+- **`SessionOps` pairs and unpairs.**
+  - It compares hashes only and checks the code's expiry and single use.
+  - One chat goes with one session, and a chat has one live pairing.
+  - Every outcome is audited, and unknown or used codes link nothing.
+  - A `pairing` event goes to every session whose state changed, the old one too when a chat moves.
+  - `SessionOps` returns the outcome, and `TelegramIn` (Lane A, later) writes the reply.
+  - An unlink the chat didn't start sends a `pairing` `Notification` with the dropped chat's `ChatRef`.
+- **DW-200.** `AnswersIn`'s Telegram entry passes `Approval.Answer` an empty sessionRef or the paired session's 22-character Ref, never a `ChatRef` or a chat id. Its tests pin that an unresolvable one answers `not_allowed`. The entry returns the closed result-code set, with the slots each code needs.
+- **DW-231.** Fold Story 4.4's `break-feed-api.ts` `press()` and Story 4.7's guide-marker calls into `ApiClient`, so the page has one typed API client. Until then, keep the same envelope interceptor and headers (`Content-Type`, `X-OcuTalon-Request`).
+- **Mock.** The CI mock serves the Bot API methods OcuTalon calls, with `match: telegram` scenarios, and logs the token by length only, including inside `/bot<token>/`.
 
 ## Technical Decisions
 
-- **The image recipe, already built.**
-  - `docker/Dockerfile` has `ARG IRIS_IMAGE=ocutalon-iris-base:2026.3.0AI.154.0` and `FROM ${IRIS_IMAGE}`.
-  - `docker-compose.yml` passes `IRIS_IMAGE: ${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}` and uses `pull_policy: build`, `restart: unless-stopped` and `stop_grace_period: 60s`.
-  - It sets `name: ocutalon`, the named volume `durable` mounted at `/durable`, and an optional `.env`.
-  - It publishes only `${OCUTALON_WEB_PORT:-52773}:52773`, on every interface (the author's decision).
-  - Its health check has a 600 s `start_period`.
-  - Open point for the spec: the planning text has the script retag either image to `ocutalon-iris-base`, and the acceptance criterion says the non-Health image goes through `IRIS_IMAGE` (that is how the existing tests run it). The spec decides which, and how a non-Health choice holds for a rerun and for a plain `docker compose up`.
-- **The health check, already built.**
-  - `docker/healthcheck.sh` opens no IRIS session. It passes only when `iris qlist` shows `^running` and `/durable/ocutalon.ready` equals the image's `/opt/ocutalon/version`.
-  - `iris-main --before` deletes the marker at each start.
-  - The after-start script always exits 0, so a failed install shows only as not healthy, never as a stopped container.
-  - It writes `STEP <name> OK|FAILED` lines and `RESULT OK <version>` to `/durable/ocutalon-after-start.log`, rewritten at each start. That log, beside `docker compose logs`, is where a failure shows.
-- **The README account.** The users install step creates user `ocutalon` with password `ocutalon`, non-expiring, with no forced change. The page is the `/ocutalon/` web application.
-- **First-start time.** The measured first start is about 1 minute on Apple silicon and 150 to 177 s on the x64 runner. The README quotes the figure from Epic 0's merge head, recorded in `epic-0-readme-notes.md`. Over about 12 minutes is a decision for the author, not a failure.
-- **State and secrets.**
-  - **Volume:** all state lives on the named volume, and every start replaces only code, so a rerun or a restart never loses data.
-  - **`.env`:** model keys and bot tokens come only from `.env`. It is git-ignored and kept out of the build context by the `.dockerignore` allow-list.
-  - **`.env.example`:** lists `ANTHROPIC_API_KEY` and `TELEGRAM_BOT_TOKEN` with no values, plus a commented `OCUTALON_WEB_PORT`. The CI-only and online-demo variables never belong in it.
-- **The CI recipe.**
-  - `ci/units.sh` defines every list:
-    - `CHECK_SCRIPTS`: the hosted `checks` job runs `docker/tests/test-<name>.sh`.
-    - `WEB_SCRIPTS`.
-    - `IRIS_GROUPS` and `group_units`: the six-group `iris` matrix.
-  - Every `docker/tests/test-*.sh` belongs to exactly one list, and `test-ci-config.sh` pins `.github/workflows/ci.yml` against the recipe.
-  - Hosted jobs today run only on `ubuntu-24.04`. No macOS job and no ShellCheck step exists yet.
-  - `ci/changes.sh` runs a group only when one of its inputs changed. No pattern matches a root `install.sh`, so a new unit or input must be declared in `IRIS_INPUT` or in the unit's list.
-  - `test-boundaries.sh` enforces the push, sign-in, `config --quiet` and `inspect --format` rules. Its file list doesn't include `install.sh` yet.
-- **Throwaways on the shared runner.**
-  - Live units run through `docker/tests/lib-live.sh` in projects named `ocutalon-<label>-<tag>-<epoch>-<pid>`, with `compose.throwaway.yml` (no host port, no `env_file`, no restart) and `ci/compose.ci.yml`. The real-script job needs such a project, not the judges' `ocutalon`.
-  - The runner hosts hold only the Health base, preloaded as `ocutalon-iris-base:2026.3.0AI.154.0`, and concurrent jobs share it. Teardown must never untag it, so the spec must design the "remove the retag and retag by hand" step without disturbing other jobs.
-- **Ownership.** Lane B owns:
-  - the install script and the README (except its Telegram section);
+- **Commands (AD-1).**
+  - State changes enter as production messages through `OcuTalon.Core.Commands.Submit`. A pairing completes only through `SessionOps`, with origin `telegram`.
+  - REST code may write only a pairing code's hash, beside the sign-in session row and the UI markers.
+  - The web layer may call `OcuTalon.Channel.Telegram.In.Included()`, and channel services may call `Core.Allowance` and `Core.Trace`, both as named exceptions to the dependency rules.
+- **Pairing secrecy (AD-4).**
+  - A code never appears in a message, header, log, live event or audit entry. Both lanes hash through `Pairing.HashCode` (SHA-256, base64url), only the hash is stored, and the plaintext appears only in the HTTP response.
+  - Production messages carry `SessionRef` and `ChatRef`, never a chat id or display name. The Telegram identity lives only in the `Pairing` row, and the display name reaches only the session's own page.
+- **The switch (AD-29, AD-23).**
+  - `Included()` returns 0 unless the test-only global `^OcuTalonTest("TelegramIncluded")` is 1, which only `OcuTalon.Test` classes set. The Telegram items stay disabled.
+  - Lane A owns, from Epic 12: `OcuTalon.Channel.Telegram`, `web/src/app/rail/telegram-card/`, `web/e2e/demo-path/telegram-*.spec.ts`, the README's Telegram section and `ci/mock/scenarios/A/`.
+- **Approvals (AD-11).** The `ApprovalRequest` row is the truth. `AnswersIn` resolves the session first: for Telegram, from the press's `ChatRef` through the live `Pairing` row. It then calls `AnswerOps`, which calls `Approval.Answer`, with the IRIS user and `SessionRef` taken from the server side only.
+- **Audit (AD-17).** Write only through `OcuTalon.Bridge.Audit.Record`. A `Pairing` entry has `change` and `reason` plus `irisUser`, `sessionRef` and `channel`, and never a chat id or display name.
+- **Live and status (AD-12, AD-18).**
+  - `Live.Publish` runs after commit, never inside a transaction, and `SessionOps` is the only `pairing` publisher.
+  - `telegramPaused` belongs to the closed status catalog.
+  - `StatusMark` is written only through `Record` and `RecordTelegram`.
+  - `/state`'s `TelegramState` block (`included`, `state` `off`/`on`/`rejected`, `botUserName`, `paired`, `displayName`, `pausedUntil`) is also the source of `Guide.Compute`'s "Telegram is on".
+  - The TypeScript payload interfaces are generated by `web/scripts/payloads.mjs`, whose `--check` runs in the build.
+- **Routing and text (AD-14, AD-32).**
+  - `Notify` sends kind `pairing` with a `ChatRef` to `TelegramOut` alone.
+  - A Telegram `Delivery` id is `<ChatRef>:<message_id>`.
+  - Producers send catalog keys and slots only. The pairing texts are already in `Catalog.Core`, and only `*Out` operations render, through `Catalog.Render`.
+- **Storage (AD-5).** Storage is append-only, with the compiler-generated `Storage` block committed. CI diffs storage against the previous release tag.
+- **REST conventions.**
+  - Paths are `/ocutalon/api/v1/...`, and errors are `{"error":{"code","message"}}` in plain English.
+  - A state change needs JSON, `X-OcuTalon-Request: 1` and a matching `Origin`.
+  - The pairing endpoints answer 404 while `Included()` returns 0. The code endpoint answers 409 when the state isn't `on` or a pause is set.
+  - Refs are 22-character base64url values from `Ids.NewRef()`. Times are UTC ISO 8601.
+- **The web app.**
+  - Standalone components and signals, one typed API client, and the Angular CDK plus custom components with no component kit.
+  - The QR code is drawn in the browser by a library Story 10.3 pins to an exact version and records as a Stack row. Its licence must be MIT, BSD, Apache-2.0 or ISC.
+  - README links use `README_URL` (`https://github.com/jbrandtmse/OcuTalon#readme`, in `web/src/app/links.ts`), with a section's anchor in place of `#readme`. The Telegram section is `#telegram`.
+- **Stack in use.** Angular and the Angular CDK 22.2.x, TypeScript ~6.0.3, Node 24 LTS (build and CI only), Playwright 1.64.x, and the mock on `node:24.15.0-slim`, pinned by digest.
+- **Secrets and CI (AD-19, AD-22).**
+  - Keys and tokens come only from `.env`. `OCUTALON_TELEGRAM_API_BASE` is set only by the CI override and the online demo.
+  - The mock exists only in `ci/compose.ci.yml`.
+  - CI never runs `docker push`, signs in to a registry, runs `compose config` without `--quiet` or runs `inspect` without `--format`.
+  - The AI Hub image never enters a cache or an artifact.
+  - The CI budget is 35 minutes.
+- **Install facts the README quotes (AD-23).**
+  - Either image is retagged to `ocutalon-iris-base:2026.3.0AI.154.0`. The `IRIS_IMAGE` build argument selects the non-Health image.
+  - Only `${OCUTALON_WEB_PORT:-52773}` is published, on every interface.
+  - The health check allows 10 minutes or more, and the script waits 15.
+  - The first start takes about 1 minute on Apple silicon and 150 to 177 s on the x64 runner (`epic-0-readme-notes.md`).
+  - All state is on the named volume.
+- **Ownership (AD-29, AD-33).** Lane B owns:
+  - the README (except its Telegram section) and `install.sh`;
   - `docker/` (except `merge.cpf`) and `ci/` (except `ci/mock/scenarios/A/`);
-  - `.github/workflows/ci.yml`.
+  - `.github/workflows/ci.yml` and `web/`;
+  - `OcuTalon.Core`, `.Web`, `.Live` and `.Msg`;
+  - the `Pairing`, `StatusMark` and `Delivery` tables.
 
-  Epic 10 runs in Lane B's files. Story 10.1 fills runner C's idle window and needs no developer instance: stub `docker` and throwaways only.
-- **Telegram (10.3).**
-  - A pairing code never appears in a message, log, live event or audit entry; only its hash is stored.
-  - Production messages refer to a chat only by `ChatRef`, and the Telegram identity lives only in the `Pairing` row.
-  - The web layer may call `Included()` (an exception to the dependency rules).
-  - The test-only global `^OcuTalonTest("TelegramIncluded")` is set only by `OcuTalon.Test` classes.
+  Epic 10 runs on runner C, in Lane B's files.
 
 ## UX & Interaction Patterns
 
-- **While OcuTalon starts.** A starting local install has no page state. The script's terminal output is the only progress a judge sees, so it must read plainly.
-- **Sign-in.** The sign-in page says "Use the IRIS account your install created; the README lists it." The first sign-in forces no password change.
-- **The page's README links.** The no-model-key banner's "How to set a key" link and "Install it yourself" must reach existing README sections. The outcome terms are exactly Ignore, Digest, Tell now and Act.
-- **Telegram texts.** The pairing replies and notices use the catalog keys from Epic 0 ("unpaired from the page", "other chat paired"). No reply to an unpaired chat reveals a session.
+- **Sign-in page:** "Use the IRIS account your install created; the README lists it." The first sign-in never forces a password change.
+- **No-model-key banner (step 1):** "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.", with the "How to set a key" README link. README and Visual Trace links open in a new tab and say so.
+- **Telegram in the rail:** a release without Telegram (0.1.0) shows no Telegram section at all. "Telegram not set up" with "How to set it up" (`#telegram`) appears only once Telegram is included.
+- **Telegram texts:** plain text with no Markdown or emoji. Groups and channels get no reply, and no reply to an unpaired chat reveals a session, a name or any state.
+- **Terms:** exactly Ignore, Digest, Tell now and Act, plus "Break the feed", "Simulated" and "Approval requests".
 
 ## Cross-Story Dependencies
 
-- **Story 10.1** depends on no other epic. It builds on Epic 0's Dockerfile, compose file, health check, after-start script and CI recipe, as built and amended by Epic 32.
-  - It fixes the manual retag command and the troubleshooting anchor, which Story 10.2's README states.
-- **Story 10.2** waits for Epic 4 to merge, because it quotes Story 4.1's `SetDemoMode`. The links it checks come from Epic 2: the no-key banner and the rail's Telegram link, gated by `Included()`.
-- **Story 10.3** waits for Epic 6 to merge, because it applies Story 6.2's answer rules.
-  - It builds the unlink that Story 16.4's `SessionOps.End` reuses.
-  - Whichever of 10.3 and Story 16.3 merges second settles the `/state` pairing check.
-  - Lane A consumes this work from Epic 12 (Stories 12.1, 12.6, 12.7) and the purge task from Story 30.2. Story 16.9 tests refusals, and Story 25.3 adds `getFile`.
-- **Epic 11** (release 1) depends on Epic 10: its clean-machine rehearsal and end-to-end path use the install script and the README.
+- **Story 10.1 is done.** `install.sh` sends failures to "the Troubleshooting section of README.md" and prints the manual `docker tag`, `--force-recreate` and `--build` commands. Story 10.2's README must match them.
+- **The story waits are met.** Story 10.2's (Epic 4, for `SetDemoMode`) and Story 10.3's (Epic 6, for Story 6.2's answer rules) are satisfied: Epics 4, 6 and 8 have merged.
+- **Story 10.3 and Epic 16.**
+  - Story 10.3 builds the `SessionOps` unlink and its `Pairing` audit entry, which Story 16.4's `SessionOps.End` reuses.
+  - Epic 16 hasn't merged, so Story 16.3 will check the real `Pairing` row, and Story 10.3 turns nothing on.
+  - DW-231's guide half touches `web/src/app/guide/**`, which Epic 16 may also edit. Settle that when Story 10.3 is planned.
+- **Downstream.** Epic 11 depends on Epic 10. Epic 12 builds on Story 10.3 and merges only after `v0.1.0` is tagged. Story 12.7 turns on `Included()` and adds the README's `#telegram` section. Story 16.9 tests the Telegram allowance refusal, Story 30.2 adds the purge task, and Story 25.3 adds `getFile`.
