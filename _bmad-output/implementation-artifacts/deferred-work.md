@@ -1632,6 +1632,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Settle.SEENMAX caps FailureGroup.Seen at 1000; RepairResend.DryRun takes targets only from Seen; 7.1 exercises 50 orders, 7.4 measures 500
 - 2026-10-28T00:12:03Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=harvest note=7.4 owns scale: make the dry run's count honest past the Seen cap (say how many it could not list, or read the targets another way) and pin it
 - 2026-10-28T01:03:01Z occurrence=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing
+- 2026-10-28T21:18:33Z occurrence=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an
 
 ### DW-328: The spine's dependency rule lists only Watch -> Fix.Kind and Checks -> Fix.Run.Sweep inside the domain layer, while the Fix area (RepairResend, Executor) references Watch.Reader, FailurePoller.Scope, ItemNoun and Transitions
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1672,6 +1673,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Propose sends the DryRun with no timer and only OnResponse or OnError move on; residual risk (1) names 7.5's sweep, which covers FixRuns only
 - 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if FixExecutor is disabled or its queue purged mid-ask; errors take OnError, restarts replay; Decide's ask is alike
+- 2026-10-28T21:18:33Z occurrence=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an
 
 ### DW-346: After Reconcile re-arms a hold, the answered notification goes out in the re-armed hold's session, not the incident's trace session
 - source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
@@ -1692,3 +1694,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci.yml group times on bed6d27: shards 31m52s, browser 23m05s, image 21m32s, install-fresh 14m02s, install-upgrade 12m58s, production 9m20s; production and browser are pinned by test-ci-changes.sh and the demo-path gate
 - 2026-10-28T03:51:21Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=merge_gate note=first change in 9.1: move live:cards to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated; test infrastructure only
 - 2026-10-28T03:54:34Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=orchestrator note=owner via Contest Planner: TRIGGER - if any head's iris (shards) job runs longer than 36 min before Epic 9 merges, pull this forward as a fix-forward in the epic whose head did it (move live:cards to the shorter of install-fresh and install-upgrade, measured); the iris job's hard limit is timeout-minutes 40 (ci.yml:89)
+
+### DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend
+- source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Proposed (later) builds its slots with Notice.WithFixSlots(incident, ...), whose fixSummary is Incident.FixSummary; Agent/Diagnosis.cls does not forbid a count; the UX fixtures in Test.Msg.Catalog put counts in it
+- 2026-10-28T21:18:33Z status=decision-pending owner=burndown by=cr note=human=run a live diagnosis to see if fixSummary names a count; then choose a count-free prompt rule or other later text
+
+### DW-366: The spine's Conventions row 'Later requests' does not say that stragglers of the first ask start a round after its raise, or that a failed later round's failures rejoin the next round's window
+- source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: IncidentManager.Record sets LaterSince on an unnoticed incident whose group has an AskedTo, and Unask with unmark puts the marks back on the error routes (7.6 review); the row names only incidents awaiting approval, fixing or resolved
+- 2026-10-28T21:18:33Z status=wontfix-accepted owner=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an by=cr note=reopen_if=a later plan or review reads the Later requests row as covering only awaiting, fixing and resolved incidents
+- 2026-10-28T21:20:52Z status=resolved-by:7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an by=adjudication note=spine_Conventions_row_Later_requests_now_names_the_first_ask's_stragglers_and_the_error-path_mark_restore([AMENDED_2026-10-28,Story_7.6_code_review,DW-366])

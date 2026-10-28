@@ -3,16 +3,22 @@
 /// Test.Watch.Case: real failed orders of OCUORDERS (from the real poller), the CI mock as the model (its diagnosis scenario, a data-format change with the fix
 /// repair_resend), the real FixExecutor dry run, the real Approval.Raise and the real hold. They fail with the reason where the production, OCUORDERS, demo mode
 /// or the ANSWERER account's role is missing. A test waits at most WAITLATER seconds for a later request, and at most 90 seconds for a diagnosis and 20 for the
-/// rest (test bounds, not NFR-7). The incidents, requests, holds and tasks of a test are removed after it (Case.DropIncidentRows).
+/// rest (test bounds, not NFR-7). The incidents, requests, holds and tasks of a test are removed after it (Case.DropIncidentRows). A test waits for the signal of
+/// the system, never for a time it guesses: the count by its row (WaitCount) and by the incident event that carries it (WaitCounted, whichever batch brings it),
+/// a request by its row, a Notification by its row and the incident event that follows it by the stream (WaitLast). The two things that are true only while the
+/// settle rule runs (LaterSince is set and the second request does not exist yet) are asserted only if Settle.Wait still said that it ran after they were read,
+/// so a slow poll cannot fail the test (the waiter asks no earlier); Test.Watch.Tell pins them on the clock-free probe. The one sleep, in
+/// TestOpenIncidentOnlyCounts, waits for something not to happen: the quiet time and three seconds after the count was seen.
 ///   - TestLaterFailuresGetTheirOwnRequest (AC 1, AC 2, AC 3; Integration): session S's incident awaits approval with R1 over three failed orders, and two more
-///     orders of the same cause fail with S's trace Ref. At once the count is 5, NoticeCount stays 3, the last incident event has the count 5 and lists R1 only,
-///     and R1's targets, dry run and state are as they were. After the settle, FixExecutor is asked a second time in the incident's trace session, and a request R2
+///     orders of the same cause fail with S's trace Ref. At once the count is 5, NoticeCount stays 3, the incident event that carries the count 5 lists R1 only,
+///     and R1's targets, dry run and state are as they were (and, while the settle rule runs, LaterSince is set and there is one request). After the settle, FixExecutor is asked a second time in the incident's trace session, and a request R2
 ///     of the same kind and parameters is raised over the two new orders alone, with its own dry run and its hold in the trace session; the incident stays
 ///     awaiting_approval with the same NoticedAt and lists R1 and R2; S gets one approval Notification (incident.laterRequest, R2's Ref, the count and first
 ///     time of the two failures, R2's dry run), which renders as the later request, and WebChatOut records its approval Delivery row with R2's Ref; the incident
-///     event and /state list R1 and R2 pending; the mock logged no request. Rejecting R2 while R1 is pending keeps the incident awaiting_approval, sends one
-///     answered.rejected Notification with R2's Ref, lists R2 as rejected and sends no Execute;
-///   - TestOpenIncidentOnlyCounts (AC 6): S's incident is open (R1 rejected) when two more orders of the cause fail: the count and one more incident event come,
+///     event and /state list R1 and R2 pending; R1's targets and dry run still stand; the mock's log, which holds R1's diagnosis, has no request since the failures. Rejecting R2 while R1 is pending keeps the incident awaiting_approval, sends one
+///     answered.rejected Notification with R2's Ref, lists R2 as rejected and sends no Execute. U-126 per request: R2's targets share no order with R1's, and R2's dry
+///     run resends as many orders as R2 has targets;
+///   - TestOpenIncidentOnlyCounts (AC 6): S's incident is open (R1 rejected) when two more orders of the cause fail: the count and an incident event that carries it come,
 ///     LaterSince stays empty, and after the quiet time and three seconds there is still one request, no approval Notification and one dry run.
 Class OcuTalon.Test.Fix.Later Extends OcuTalon.Test.Watch.Case
 {
@@ -30,28 +36,36 @@ Method TestLaterFailuresGetTheirOwnRequest()
 	Kill row
 	Set traceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
-	Set before = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size()
+	Do $$$AssertTrue(mark > 0, "the mock's request log is read and holds the diagnosis of R1's round, so a log with no later request means something")
 	If '..Fail(2, traceRef) Quit
 	Set started = $ZHorolog
 	Set failed = ..WaitFailed(5)
 	If failed.%Size() '= 5 Quit
 	Set ids = ..HeaderIds(failed)
+	Set newFirst = ##class(OcuTalon.Watch.Mark).FailedAt(failed.%Get(3).at)
 
-	// at once: the count and the event, nothing else
+	// at once: the count and the event, nothing else. What is true whenever it is read is asserted always: the count, NoticeCount, the state and NoticedAt, the
+	// event that carries the count (a snapshot, so it lists R1 only) and R1's own row. What is true only while the settle rule runs (LaterSince is set and no
+	// second request exists) is asserted only if the rule still ran after it was read: the waiter asks no earlier, so a slow poll cannot fail the test
 	Do $$$AssertEquals(..WaitCount(ref, 5), 5, "the count moves to 5")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.NoticeCount_"|"_row.State_"|"_row.NoticedAt, "3|awaiting_approval|"_noticedAt, "NoticeCount, the state and NoticedAt stand")
-	Do $$$AssertTrue(row.LaterSince '= "", "and LaterSince is set: a later round gathers")
+	Set laterSince = row.LaterSince
+	Set lastAt = row.LastAt
 	Kill row
-	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", before + 1, 10)
-	Do $$$AssertTrue(events.%Size() '< (before + 1), "the new count has an incident event")
-	If events.%Size() '< (before + 1) {
-		Set last = events.%Get(events.%Size() - 1).payload
-		Do $$$AssertEquals(last.count_"|"_last.noticeCount_"|"_..Listed(last), "5|3|1|"_first.ref_"|pending", "carrying the count 5 and listing R1 only")
-	}
+	Set counted = ..WaitCounted(a, ref, 5)
+	Do $$$AssertTrue($IsObject(counted), "the new count has an incident event")
+	If $IsObject(counted) Do $$$AssertEquals(counted.count_"|"_counted.noticeCount_"|"_..Listed(counted), "5|3|1|"_first.ref_"|pending", "carrying the count 5 and listing R1 only")
 	Set requests = ..Requests(ref)
-	Do $$$AssertEquals(requests.%Size(), 1, "and there is still one request")
-	If requests.%Size() = 1 Do $$$AssertEquals(requests.%Get(0).fixTargets_"|"_requests.%Get(0).state_"|"_(requests.%Get(0).dryRun = first.dryRun), $Piece(ids, ",", 1, 3)_"|pending|1", "R1's targets, dry run and state are as they were")
+	Do $$$AssertTrue(requests.%Size() '< 1, "R1 is listed")
+	If requests.%Size() '< 1 Do $$$AssertEquals(requests.%Get(0).ref_"|"_requests.%Get(0).fixTargets_"|"_(requests.%Get(0).dryRun = first.dryRun)_"|"_requests.%Get(0).state, first.ref_"|"_$Piece(ids, ",", 1, 3)_"|1|pending", "R1's targets, dry run and state are as they were")
+	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
+	If ##class(OcuTalon.Watch.Settle).Wait(newFirst, lastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max) > 0 {
+		Do $$$AssertTrue(laterSince '= "", "and LaterSince is set: a later round gathers")
+		Do $$$AssertEquals(requests.%Size(), 1, "and there is still one request")
+	} Else {
+		Do $$$LogMessage("the settle rule had ended before the count was read: the gathering round is pinned by Test.Watch.Tell")
+	}
 
 	// after the settle: the later request
 	Set end = $ZHorolog + ..#WAITLATER
@@ -70,6 +84,10 @@ Method TestLaterFailuresGetTheirOwnRequest()
 	Do $$$AssertEquals(second.fixTargets, $Piece(ids, ",", 4, 5), "over the two new orders alone, ascending: "_second.fixTargets_" of "_ids_" in "_..Group(ref).seen)
 	Set dryRun = {}.%FromJSON(second.dryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.field_"|"_dryRun.before_"|"_dryRun.after_"|"_dryRun.itemNoun.other, "2|2|0|order date|10/16/2026|2026-10-16|orders", "with its own dry run: "_second.dryRun)
+	// U-126, per request: R2's row comes from R2's own ask and answer, so its targets share no order with R1's and its dry run resends exactly its own targets
+	Do $$$AssertEquals(..Shared(first.fixTargets, second.fixTargets), "", "R2's targets share no order with R1's: "_first.fixTargets_" and "_second.fixTargets)
+	Do $$$AssertEquals(dryRun.resend, $Length(second.fixTargets, ","), "and R2's dry run resends as many orders as R2 has targets")
+	Do $$$AssertEquals(requests.%Get(0).ref_"|"_requests.%Get(0).fixTargets_"|"_(requests.%Get(0).dryRun = first.dryRun), first.ref_"|"_$Piece(ids, ",", 1, 3)_"|1", "and R1's targets and dry run still stand after R2")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.RequestRefs_"|"_row.NoticedAt_"|"_row.LaterSince_"|"_row.AskingSince_"|"_row.Count_"|"_row.NoticeCount, "awaiting_approval|"_first.ref_","_second.ref_"|"_noticedAt_"|||5|3", "the incident is awaiting approval, lists R1 and R2, was noticed as before and has no round open")
 	Kill row
@@ -89,7 +107,7 @@ Method TestLaterFailuresGetTheirOwnRequest()
 		Do $$$AssertTrue($Find(text, $Char(10, 10)_"Dry run: 2 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 2 repaired copies; the originals stay unchanged. Nothing has changed yet.") > 0, "with its own Dry run paragraph: "_text)
 	}
 	Do ..AssertDelivered(a, "approval", second.ref)
-	Set last = ..LastIncident(a, ref)
+	Set last = ..WaitLast(a, ref, 2, "pending")
 	Do $$$AssertTrue($IsObject(last), "the incident has events on S's stream")
 	If $IsObject(last) Do $$$AssertEquals(last.state_"|"_..Listed(last, 0)_"|"_..Listed(last, 1), "awaiting_approval|2|"_first.ref_"|pending|2|"_second.ref_"|pending", "the last incident event lists R1 and R2 pending")
 	Set found = ..StateIncident(a, ref)
@@ -117,7 +135,8 @@ Method TestLaterFailuresGetTheirOwnRequest()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.RequestRefs, "awaiting_approval|"_first.ref_","_second.ref, "the incident stays awaiting approval, with both requests")
 	Kill row
-	Set last = ..LastIncident(a, ref)
+	Set last = ..WaitLast(a, ref, 2, "rejected")
+	Do $$$AssertTrue($IsObject(last), "the incident has an event that lists both requests")
 	If $IsObject(last) Do $$$AssertEquals(last.state_"|"_..Listed(last, 0)_"|"_..Listed(last, 1), "awaiting_approval|2|"_first.ref_"|pending|2|"_second.ref_"|rejected", "and the event lists R2 as rejected")
 	Do $$$AssertEquals(..HeadersBetween(trace, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.Execute"), 0, "no Execute went to FixExecutor")
 }
@@ -141,13 +160,13 @@ Method TestOpenIncidentOnlyCounts()
 	}
 	Do $$$AssertTrue($IsObject(last) && (last.state = "open"), "and so is the incident event that opens it")
 	Set notices = ..Notifications(ref)
-	Set before = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size()
 	If '..Fail(2, traceRef) Quit
 	Set failed = ..WaitFailed(5)
 	If failed.%Size() '= 5 Quit
 	Do $$$AssertEquals(..WaitCount(ref, 5), 5, "the count moves to 5")
-	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", before + 1, 10)
-	Do $$$AssertTrue(events.%Size() '< (before + 1), "with an incident event")
+	Set counted = ..WaitCounted(a, ref, 5)
+	Do $$$AssertTrue($IsObject(counted), "with an incident event that carries it")
+	If $IsObject(counted) Do $$$AssertEquals(counted.state_"|"_counted.noticeCount_"|"_..Listed(counted), "open|3|1|"_first.ref_"|rejected", "of the open incident, listing R1 rejected")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.LaterSince_"|"_row.AskingSince, "open||", "the incident stays open and no round gathers")
 	Kill row
@@ -172,6 +191,51 @@ ClassMethod LastIncident(session As %String, ref As %String) As %DynamicObject
 		If (event.type = "incident") && (event.payload.ref = ref) Set last = event.payload
 	}
 	Quit last
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every half second, until the newest incident event of the incident on the session's stream lists count requests
+/// and the last of them is in the state; that event's payload, or the newest one there is ("" when there is none) when the time has passed. A Notification is
+/// sent before the incident event is published (Tell), so a test that has seen the Notification waits for the event here instead of reading the stream once.
+Method WaitLast(session As %String, ref As %String, count As %Integer, state As %String) As %DynamicObject
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set last = ..LastIncident(session, ref)
+		If $IsObject(last) && $IsObject(last.requests) && (last.requests.%Size() = count) && (last.requests.%Get(count - 1).state = state) Quit
+		If $ZHorolog > end Quit
+		Hang 0.5
+	}
+	Quit last
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every half second, for an incident event of the incident on the session's stream whose payload carries the count,
+/// and gives the first such payload ("" when there is none). An event is a snapshot of the incident as it was published, so the first one that carries a count
+/// reads the same whenever it is read, which the newest event does not (a later request adds one). The count may come in two batches, so this waits for the
+/// count itself, not for a number of events.
+Method WaitCounted(session As %String, ref As %String, count As %Integer) As %DynamicObject
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set found = ""
+		Set iterator = ..Stream(session).%GetIterator()
+		While iterator.%GetNext(, .event) {
+			If '$IsObject(found) && (event.type = "incident") && (event.payload.ref = ref) && (event.payload.count = count) Set found = event.payload
+		}
+		If $IsObject(found) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit found
+}
+
+/// The ids that both lists (comma-separated) hold, comma-separated, in the order of the first; "" when they share none.
+ClassMethod Shared(one As %String, two As %String) As %String
+{
+	Set shared = ""
+	For i = 1:1:$Length(one, ",") {
+		Set id = $Piece(one, ",", i)
+		If (id '= "") && $ListFind($ListFromString(two), id) Set shared = shared_$Select(shared = "": "", 1: ",")_id
+	}
+	Quit shared
 }
 
 }

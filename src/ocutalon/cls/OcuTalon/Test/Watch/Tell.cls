@@ -42,7 +42,8 @@
 ///     quiet time and then asks only its own window, with its own time), TestStragglersOfTheFirstAsk (failures after the first ask: no waiter until the raise
 ///     route starts one; the no-fix route clears LaterSince), TestStillGathering (one waiter for a round and an alarm of the seconds that are left after the newest
 ///     failure), TestLaterWakeEnds (a wake that ends the waiter: an incident that went open, one that is gone, a window with no new key), TestLaterNoRequestRoutes
-///     (V2: every refused, failed, dropped and gone row) and TestSaveFailureCancelsTheLaterRequest.
+///     (V2: every refused, failed, dropped and gone row), TestSaveFailureCancelsTheLaterRequest and TestFailedLaterRoundRejoinsTheNextRound (a round that fails
+///     after its marks moved sends and raises nothing and puts the marks back, so its failures are in the next round's window; a judged dry run keeps them).
 /// The failed Recipients read has no test: Session.Recipients is called by name, so a probe cannot replace it, and the only way it answers an error is the
 /// privilege check of its watchers' statement, which needs a process without %All (SET $ROLES can only add roles) and so an IRIS user made for the purpose.
 /// The fixture rows are removed after each test, with their streams, and so are the warnings that these tests made.
@@ -575,6 +576,9 @@ Method TestLaterRequestToEachWatcher()
 	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "2|2", "each watcher gets one more incident event")
 	Do $$$AssertEquals(..Logged(.text), 0, "and nothing was logged: "_text)
 	Do $$$AssertEquals(..Started(host), incident_"@4242", "and no further waiter was started")
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(r1)
+	Do $$$AssertEquals(request.FixTargets_"|"_request.State_"|"_(request.DryRun = ..#DRYRUN), "101,102,103|pending|1", "and R1 is still as it was after the round")
+	Kill request
 }
 
 /// A later round in each state (AC 3, AC 6): a resolved incident becomes awaiting_approval and a fixing one stays fixing when the later request is raised, while an
@@ -671,7 +675,7 @@ Method TestOneAskAtATime()
 	Set result = ..LaterResult(incident, "106,107")
 	Do $$$AssertStatusOK(host.LaterDried(incident, ..Ask(host.DryRuns.%Get(1)), result), "round 2's answer is handled")
 	Set raised = host.Raised.%Get(1)
-	Do $$$AssertEquals(raised.fixTargets, "106,107", "R3 holds round 2's targets only")
+	Do $$$AssertEquals(raised.fixTargets, "106,107", "R3 holds the targets of round 2's dry run (the window is pinned by the marks above)")
 	Set slots = {}.%FromJSON(host.Sent.%Get(host.Sent.%Size() - 1).slots)
 	Do $$$AssertEquals(slots.count_"|"_slots.time, "2|"_two, "R3 carries round 2's count and its own first failure's time")
 	Set now = ..Row(incident)
@@ -715,7 +719,7 @@ Method TestStragglersOfTheFirstAsk()
 		If route = "raise" {
 			Do $$$AssertEquals(now.state_"|"_(now.noticedAt '= "")_"|"_now.laterSince_"|"_..Started(host), "awaiting_approval|1|"_at_"|"_incident_"@4242", "raise: the incident is noticed and the later waiter starts, in the trace session")
 			Set raised = host.Raised.%Get(0)
-			Do $$$AssertEquals(raised.fixTargets, "101,102,103", "raise: the first request holds only the failures of its window")
+			Do $$$AssertEquals(raised.fixTargets, "101,102,103", "raise: the first request holds the targets of its dry run (its window is pinned by the marks above)")
 		} Else {
 			Do $$$AssertEquals(now.state_"|"_now.openVariant_"|"_(now.noticedAt '= "")_"|"_now.laterSince_"|"_..Started(host), "open|no_fix|1||", "no fix: the no-fix notice clears LaterSince and no waiter starts")
 		}
@@ -727,7 +731,10 @@ Method TestStragglersOfTheFirstAsk()
 
 /// A wake while the settle rule still runs (the matrix row "Still gathering"): two failures join, nine seconds old, and a third two seconds old in another batch.
 /// The second batch starts no waiter (one waiter for a round) and LaterSince stays the first failure's time. The waiter sets an alarm of the seconds that are left
-/// for the quiet time after the newest failure (Settle.Wait of LaterSince and LastAt), not after the first, and asks nothing.
+/// for the quiet time after the newest failure (Settle.Wait of LaterSince and LastAt), not after the first, and asks nothing. The stamps have whole seconds and the
+/// rule reads the clock when the waiter wakes, so the alarm is the quiet time less two seconds less the whole seconds that passed since the stamps were made: the
+/// test measures the time that passed (a slow machine cannot fail it) and bounds the alarm by it, far above the one second that the alarm would be if it counted
+/// from the first failure.
 Method TestStillGathering()
 {
 	Do ..Setup("gathering", .a, .b, .incident, .row)
@@ -736,6 +743,7 @@ Method TestStillGathering()
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Do ..Noticed(incident)
+	Set began = $ZHorolog
 	Set old = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-9)
 	Set new = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-2)
 	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
@@ -743,10 +751,11 @@ Method TestStillGathering()
 	Do $$$AssertStatusOK(..Join(host, incident, "106", new), "and a third, two seconds old, in another batch")
 	Do $$$AssertEquals(..Started(host)_"|"_..Row(incident).laterSince, incident_"@4242|"_old, "one waiter for the round, and LaterSince is the first failure's time")
 	Do $$$AssertStatusOK(host.Wake(incident), "the waiter wakes")
+	Set elapsed = $ZHorolog - began
 	Do $$$AssertEquals($Select($IsObject(host.Alarms): host.Alarms.%Size(), 1: 0), 1, "it sets one alarm")
 	If $IsObject(host.Alarms) && (host.Alarms.%Size() = 1) {
 		Set seconds = host.Alarms.%Get(0)
-		Do $$$AssertTrue((seconds '< (quiet - 4)) && (seconds '> (quiet - 2)), "of the seconds that are left after the newest failure, "_(quiet - 4)_" to "_(quiet - 2)_": "_seconds)
+		Do $$$AssertTrue(((seconds + elapsed) '< (quiet - 3)) && (seconds '> (quiet - 2)), "of the seconds that are left after the newest failure, "_(quiet - 3)_" less the "_$Justify(elapsed, 0, 2)_" seconds that passed to "_(quiet - 2)_": "_seconds)
 	}
 	Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0)_"|"_..Row(incident).laterSince_"|"_..Row(incident).askingSince, "0|"_old_"|", "nothing is asked and LaterSince stands")
 	Do $$$AssertEquals(..Logged(.text), 0, "nothing was logged: "_text)
@@ -919,6 +928,85 @@ Method TestSaveFailureCancelsTheLaterRequest()
 	Do $$$AssertEquals(now.state_"|"_now.requestRefs_"|"_now.askingSince, "awaiting_approval|"_r1_"|", "the incident stands with only R1, and no ask is on its way")
 	Do $$$AssertEquals(..Logged(.text), 1, "one Type 3 warning: "_text)
 	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "1|1", "and only the batch's incident event was published")
+}
+
+/// A later round whose dry run raises nothing after its marks moved (the matrix rows "Raise fails / ask not sent / error answer / slots unbuildable", "Save fails
+/// after Raise", "Later dry run refused" and "Nothing to resend"; V2): the waiter asks, so the groups' marks move and are saved before the ask goes out (h103>h105).
+/// Then the ask cannot be sent (ask), FixExecutor answers an error while a failure h106 joins (error), the dry run has no field (slots), the request cannot be
+/// raised (raise) or is cancelled after a failed save (save), FixExecutor refuses the dry run (reason) or has nothing to resend (targets), or the save fails and
+/// the raised request cannot be cancelled (uncancelled). Each way sends no Notification, lists no request and clears AskingSince; the state, NoticeCount, the
+/// count and one incident event per batch stand, and each logs one Type 3 warning (two for uncancelled: the save and the cancel) but targets. An error puts the
+/// marks back (AskedTo := AskedFrom, h103), so the next round's ask covers h104 and h105 with h106 (h103>h106), and the round that gathered during the failed
+/// ask takes the failed round's earlier time; a judged dry run keeps them, and so does a request that could not be cancelled, which still holds the window, so
+/// the next round's ask covers h106 only (h105>h106).
+Method TestFailedLaterRoundRejoinsTheNextRound()
+{
+	For case = "ask", "error", "slots", "raise", "save", "reason", "targets", "uncancelled" {
+		Set restored = '((case = "reason") || (case = "targets") || (case = "uncancelled"))
+		Do ..Setup("failedround"_case, .a, .b, .incident, .row)
+		If '$IsObject($Get(row)) Quit
+		Kill row
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Set r1 = ..Noticed(incident)
+		Set first = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-120)
+		Set second = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-118)
+		Set third = ##class(OcuTalon.Test.Watch.Incidents).Stamp(-110)
+		Set host.FailDryRun = (case = "ask")
+		Do $$$AssertStatusOK(..Join(host, incident, "104,105", first_","_second), case_": the two later failures are handled")
+		Set now = ..Row(incident)
+		Do $$$AssertEquals(now.count_"|"_now.noticeCount_"|"_now.laterSince, "5|3|"_first, case_": the count moves to 5 and a round gathers")
+		Do $$$AssertStatusOK(host.Wake(incident), case_": the waiter wakes")
+		Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, case_": the dry run is asked")
+		If '$IsObject(host.DryRuns) || (host.DryRuns.%Size() '= 1) Quit
+		Do $$$AssertEquals(host.DryRuns.%Get(0).marks, "h103>h105", case_": with the round's window saved first")
+		If case = "error" {
+			Do $$$AssertStatusOK(..Join(host, incident, "106", third), case_": a failure joins while the ask is on its way")
+			Set now = ..Row(incident)
+			Do $$$AssertEquals(now.laterSince_"|"_now.askingSince, third_"|"_first, case_": a round gathers beside the ask")
+			Do $$$AssertStatusOK(host.LaterUndried(incident, $SYSTEM.Status.Error(5001, "The executor refused the dry run")), case_": the error answer is handled")
+		}
+		If (case '= "ask") && (case '= "error") {
+			Set result = ..LaterResult(incident, "104,105")
+			If case = "slots" Set result.DryRun = ..WithoutKey(result.DryRun, "field")
+			If case = "reason" Set result.Reason = "The failed orders are of another scope."
+			If case = "targets" Set result.Targets = ""
+			Set host.FailRaise = (case = "raise")
+			Set host.FailMove = (case = "save") || (case = "uncancelled")
+			Set host.FailCancel = (case = "uncancelled")
+			Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Do $$$AssertStatusOK(host.LaterDried(incident, ..Ask(host.DryRuns.%Get(0)), result), case_": the answer is handled")
+		}
+		Set host.FailDryRun = 0
+		Set host.FailRaise = 0
+		Set host.FailMove = 0
+		Set host.FailCancel = 0
+
+		Do $$$AssertEquals(..Logged(.text), $Select(case = "targets": 0, case = "uncancelled": 2, 1: 1), case_": "_$Select(case = "targets": "no warning", case = "uncancelled": "two Type 3 warnings", 1: "one Type 3 warning")_": "_text)
+		Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0)_"|"_$Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0)_"|"_$Select($IsObject(host.Cancelled): host.Cancelled.%Size(), 1: 0), "0|"_((case = "raise") || (case = "save") || (case = "uncancelled"))_"|"_((case = "save") || (case = "uncancelled")), case_": no Notification is sent; a request was raised only for the raise (refused), the save (cancelled) and uncancelled (its cancel refused)")
+		Set now = ..Row(incident)
+		Do $$$AssertEquals(now.state_"|"_now.requestRefs_"|"_now.count_"|"_now.noticeCount_"|"_now.askingSince, "awaiting_approval|"_r1_"|"_$Select(case = "error": 6, 1: 5)_"|3|", case_": the state and R1 stand, the count stays and no ask is on its way")
+		Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), $Select(case = "error": "2|2", 1: "1|1"), case_": one incident event per batch and no other")
+		Set group = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident).GetAt(1)
+		Do $$$AssertEquals(group.AskedFrom_"|"_group.AskedTo, $Select(restored: "h103|h103", 1: "h103|h105"), case_": "_$Select(restored: "an error puts the marks back, so the round's failures are newer than every mark again", 1: "a judged dry run, or a request that could not be cancelled, keeps the marks"))
+		Kill group
+		If case = "error" {
+			Do $$$AssertEquals(..Row(incident).laterSince, first, case_": the round that gathered during the ask takes the failed round's earlier time")
+		} Else {
+			Do $$$AssertEquals(..Row(incident).laterSince, "", case_": no round gathers")
+			Do $$$AssertStatusOK(..Join(host, incident, "106", third), case_": the next round's failure is handled")
+			Do $$$AssertEquals(..Row(incident).laterSince, third, case_": the next round gathers")
+		}
+
+		// the next round asks for the failures that no mark covers
+		Do $$$AssertStatusOK(host.Wake(incident), case_": the next round's waiter wakes")
+		Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 2, case_": and asks")
+		If $IsObject(host.DryRuns) && (host.DryRuns.%Size() = 2) {
+			Set again = host.DryRuns.%Get(1)
+			Do $$$AssertEquals(again.key_"|"_again.marks_"|"_..Row(incident).askingSince, "laterDryRun|"_$Select(restored: "h103>h106", 1: "h105>h106")_"|"_$Select(case = "error": first, 1: third), case_": "_$Select(restored: "its window holds the failed round's h104 and h105 with h106", 1: "its window is h106 only")_", with the round's time")
+		}
+		Do ..Clear()
+	}
 }
 
 /// --- helpers ---

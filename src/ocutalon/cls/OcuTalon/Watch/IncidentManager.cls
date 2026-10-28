@@ -80,7 +80,10 @@
 ///     first request, AskingSince takes the round's time from LaterSince and one dry run goes out with LATERDRYRUNKEY. Its answer (Proposed with later 1) acts
 ///     only on an incident that exists, is not closed and has AskingSince set, and clears AskingSince on every path. A dry run with a Reason, with no Targets, a
 ///     table that refuses raised (an open incident), a dry run or slots that cannot be used, a Raise that fails and an error answer raise nothing and send
-///     nothing (one Type 3 warning with LOGLATER for each error, none for an open incident or an empty Targets). Otherwise one request of the incident is raised
+///     nothing (one Type 3 warning with LOGLATER for each error, none for an open incident or an empty Targets). An error (the ask not sent, an error answer, a
+///     dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save) also puts the groups' marks back (AskedTo := AskedFrom), so
+///     the round's failures join the next round's window, and a round that gathers meanwhile takes their earlier time; a refused dry run, an empty Targets and an
+///     open incident keep the marks, because those failures were judged. Otherwise one request of the incident is raised
 ///     as for the first (the same kind, its own targets and dry run), appended to RequestRefs, and Move saves the row and sends each recipient one Notification of
 ///     kind approval with the key incident.laterRequest, the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
@@ -487,7 +490,7 @@ Method LaterAlarm(seconds As %Integer) As %Status [ Private ]
 /// The ask of a later round: the kind and the parameters are those of the incident's first request. A first request that is missing, is not the incident's or
 /// has no fix kind logs one Type 3 warning and clears LaterSince. A round in which no group holds a key after its AskedTo clears LaterSince. Otherwise
 /// AskingSince takes the round's time from LaterSince, and Ask moves the marks and sends the dry run with the key LATERDRYRUNKEY; an ask that cannot be made
-/// logs one Type 3 warning and clears AskingSince.
+/// logs one Type 3 warning and clears AskingSince, putting the marks back when they were saved (Unask with unmark 1).
 Method AskLater(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 {
 	Set first = $Piece(incident.RequestRefs, ",", 1)
@@ -506,7 +509,7 @@ Method AskLater(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 	Set sc = ..Ask(incident, request.FixKind, request.FixParameters, ..#LATERDRYRUNKEY)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-		Do ..Unask(incident)
+		Do ..Unask(incident, 1)
 		If incident.LaterSince '= "" Do ..Unlater(incident)
 	}
 	Quit $$$OK
@@ -546,19 +549,35 @@ Method Unlater(incident As OcuTalon.Data.Incident) [ Private ]
 	}
 }
 
-/// Clears AskingSince of the incident, as the row stands (the incident is read again, so that a change the caller made and did not save is not saved with it);
-/// a read or a save that fails logs one Type 3 warning.
-Method Unask(incident As OcuTalon.Data.Incident) [ Private ]
+/// Clears AskingSince of the incident, as the row stands (the incident is read again, so that a change the caller made and did not save is not saved with it).
+/// With unmark 1 (a later round that failed: no request holds its window) it also puts each failure group's marks back (AskedTo := AskedFrom), so that the
+/// round's failures are newer than every mark again and the next round's window holds them, and a round that gathers meanwhile takes the earlier time
+/// (LaterSince := AskingSince when that is earlier); all of it in one transaction. Only a stored AskingSince is undone: the ask's marks were saved with it, and
+/// no other ask moves them while it is set. A read or a save that fails logs one Type 3 warning.
+Method Unask(incident As OcuTalon.Data.Incident, unmark As %Boolean = 0) [ Private ]
 {
+	Set level = $TLevel
 	Try {
 		Set sc = incident.%Reload()
 		If $$$ISOK(sc) && (incident.AskingSince '= "") {
+			TSTART
+			If unmark {
+				Set groups = ..Groups(incident.Ref)
+				For i = 1:1:groups.Count() {
+					Set group = groups.GetAt(i)
+					Set group.AskedTo = group.AskedFrom
+					$$$ThrowOnError(group.%Save())
+				}
+				If (incident.LaterSince '= "") && (incident.LaterSince ] incident.AskingSince) Set incident.LaterSince = incident.AskingSince
+			}
 			Set incident.AskingSince = ""
-			Set sc = incident.%Save()
+			$$$ThrowOnError(incident.%Save())
+			TCOMMIT
 		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
+	If $TLevel > level TROLLBACK 1
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGLATER_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
@@ -754,14 +773,14 @@ Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun, key As %String = {..#DRYRUNKEY
 
 /// An error answer to the dry run of the incident: one Type 3 warning with the error (through the redactor), then the no-fix route for an incident that is
 /// still open and unnoticed. The error answer to a later round's dry run (later 1) logs LOGLATER instead, and clears AskingSince of an incident that exists, is
-/// not closed and has it set; nothing is raised or sent.
+/// not closed and has it set, putting the marks back (Unask with unmark 1); nothing is raised or sent.
 Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Private ]
 {
 	$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGPROPOSE)_ref_": "_##class(OcuTalon.Bridge.Redact).Text(error))
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If later {
-			If ..Asking(incident) Do ..Unask(incident)
+			If ..Asking(incident) Do ..Unask(incident, 1)
 		} ElseIf ..Open(incident) {
 			Do ..NoFix(incident)
 		}
@@ -785,7 +804,9 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 /// incident or an empty Targets; the slots are those of the round (Notice.WithFixSlots with the number of keys in the windows and AskingSince as the time);
 /// the request is appended and Move saves the row, with AskingSince cleared, and sends each recipient one Notification of kind approval with the key
 /// incident.laterRequest and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
-/// warning, and clears AskingSince.
+/// warning, and clears AskingSince. An error (a dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save, a thrown error
+/// before any raise) also puts the marks back (Unask with unmark 1), so the round's failures join the next round; a refused dry run, an empty Targets and an
+/// open incident keep them, and so does a request that was raised and could not be cancelled, which still holds the window.
 Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult, later As %Boolean = 0) As %Status [ Private ]
 {
 	Set incident = ""
@@ -814,7 +835,7 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		}
 		If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
 			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": the dry run is not one JSON object")
-			If later Do ..Unask(incident)
+			If later Do ..Unask(incident, 1)
 			Quit
 		}
 		If later {
@@ -824,7 +845,7 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		}
 		If $$$ISERR(sc) {
 			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-			If later Do ..Unask(incident)
+			If later Do ..Unask(incident, 1)
 			Quit
 		}
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
@@ -840,7 +861,7 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		Set sc = ..RaiseRequest(row, .request, incident.TraceHeaderId, ..%SuperSession)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(log_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-			Do ..Decline(incident, later)
+			Do ..Decline(incident, later, 1)
 			Quit
 		}
 		Set incident.RequestRefs = $Select(incident.RequestRefs = "": request, 1: incident.RequestRefs_","_request)
@@ -858,22 +879,23 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 			If $$$ISERR(cancelled) {
 				$$$LOGWARNING(log_ref_": the request "_request_" could not be cancelled: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cancelled)))
 			}
-			If later Do ..Unask(incident)
+			If later Do ..Unask(incident, $$$ISOK(cancelled))
 		} ElseIf 'later && (incident.LaterSince '= "") {
 			Do ..StartLater(incident)
 		}
 	} Catch exception {
 		$$$LOGWARNING(log_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
-		If later && $IsObject(incident) Do ..Unask(incident)
+		If later && $IsObject(incident) Do ..Unask(incident, $Get(request) = "")
 	}
 	Quit $$$OK
 }
 
-/// A dry run that raises nothing: the no-fix route for the first request (NoFix), and, for a later round, AskingSince cleared (Unask).
-Method Decline(incident As OcuTalon.Data.Incident, later As %Boolean) [ Private ]
+/// A dry run that raises nothing: the no-fix route for the first request (NoFix), and, for a later round, AskingSince cleared (Unask), with the marks put back when
+/// unmark is 1 (an error, not a judged dry run).
+Method Decline(incident As OcuTalon.Data.Incident, later As %Boolean, unmark As %Boolean = 0) [ Private ]
 {
 	If later {
-		Do ..Unask(incident)
+		Do ..Unask(incident, unmark)
 	} Else {
 		Do ..NoFix(incident)
 	}

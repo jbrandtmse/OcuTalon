@@ -30,8 +30,8 @@ Include Ensemble
 ///     real notice has come, for A and B but not for a session that does not watch, each of the two having one with-fix notification that carries the one request's
 ///     Ref; a same-cause batch then moves Count and
 ///     LastAt but not NoticeCount, makes one more incident event for each of the two sessions, no second incident and (Story 7.6: a later round gathers for the
-///     settle time, so only until it has settled, 10 seconds) no notification and no second request; the first request's targets stand and LaterSince is the new
-///     failure's time;
+///     settle time, so only until it has settled, 10 seconds) no notification and no second request, and LaterSince is the new failure's time, which three are
+///     asserted only if Settle.Wait still says that the round's rule ran after they were read; the first request's targets stand;
 ///   - TestClosedOpensNew: a same-cause failure after the incident is closed (once its waiter has started) makes a new incident with its own Ref;
 ///   - TestWaitersAfterRestart (row Restart while settling): with the item stopped and started during the wait, the settle still ends once, and the waiter of a
 ///     deleted incident completes with no error and writes nothing;
@@ -364,11 +364,19 @@ Method TestInstanceShared()
 	Do $$$AssertEquals(..Incidents("instance", ..#ORDERSPRODUCTION).%Size(), 1, "there is still one incident")
 	Do $$$AssertEquals(row.count_"|"_row.noticeCount, "4|3", "NoticeCount stays")
 	Do $$$AssertEquals(row.lastAt, later, "LastAt moved to the new failure")
-	Do $$$AssertEquals(row.laterSince, later, "and LaterSince is its time: a later round gathers")
-	Do $$$AssertEquals(..Notifications(ref), noticeCount, "and no new notification carries the incident's Ref yet (the round settles after the quiet time)")
+	Set notified = ..Notifications(ref)
 	Set requests = ..Requests(ref)
-	Do $$$AssertEquals(requests.%Size(), 1, "nor a second request")
-	If requests.%Size() = 1 Do $$$AssertEquals(requests.%Get(0).fixTargets, targets, "and the first request's targets stand")
+	Do $$$AssertTrue(requests.%Size() '< 1, "the first request is still listed")
+	If requests.%Size() '< 1 Do $$$AssertEquals(requests.%Get(0).fixTargets, targets, "and the first request's targets stand")
+	// true only while the later round's settle rule runs: asserted only if it still ran after the reads above (its waiter asks no earlier), so a slow run cannot fail
+	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
+	If ##class(OcuTalon.Watch.Settle).Wait(later, row.lastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max) > 0 {
+		Do $$$AssertEquals(row.laterSince, later, "and LaterSince is its time: a later round gathers")
+		Do $$$AssertEquals(notified, noticeCount, "and no new notification carries the incident's Ref yet (the round settles after the quiet time)")
+		Do $$$AssertEquals(requests.%Size(), 1, "nor a second request")
+	} Else {
+		Do $$$LogMessage("the later round's settle rule had ended before the rows were read: the gathering round is pinned by Test.Watch.Tell")
+	}
 }
 
 Method TestClosedOpensNew()

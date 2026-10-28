@@ -10,7 +10,7 @@
 /// SendRequestAsync, and Raise would really run): SendDryRun records each ask in DryRuns as {incidentRef, fixKind, parameters} and answers OK, or an error when
 /// FailDryRun is set; RaiseRequest records each row in Raised as {kind, incidentRef, ownerRef, resultTarget, traceRef, dryRun, fixKind, fixParameters, fixTargets,
 /// sessionId, superSession} and answers OK with RaiseRef (a fixed fixture Ref unless a test sets one), or an error when FailRaise is set; CancelRequest records
-/// the Ref in Cancelled. Dried(ref, ask, result) is OnResponse and Undried(ref, error) is OnError with the dryrun key, as the framework calls them when FixExecutor answers.
+/// the Ref in Cancelled and answers OK, or an error when FailCancel is set. Dried(ref, ask, result) is OnResponse and Undried(ref, error) is OnError with the dryrun key, as the framework calls them when FixExecutor answers.
 /// Since Story 7.6 SendDryRun also records the completion key it was given, the transaction level and the stored marks of the incident's groups at the moment of
 /// the send ({..., key, level, marks}), and the later waiter's seams are overridden for the same reason: Start (a waiter's Settle
 /// request) records {ref, sessionId} in Started and answers OK, or an error when FailStart is set; LaterAlarm records the seconds in Alarms. Wake(ref) is OnResponse with
@@ -58,6 +58,9 @@ Property RaiseRef As %String(MAXLEN = 22) [ Transient ];
 /// The Refs that CancelRequest recorded, in order.
 Property Cancelled As %DynamicArray [ Transient ];
 
+/// 1 to make CancelRequest answer an error (after it recorded the Ref).
+Property FailCancel As %Boolean [ InitialExpression = 0, Transient ];
+
 /// The waiters that Start recorded, in order, each {ref, sessionId}: the incident and the session that the waiter's request would go in.
 Property Started As %DynamicArray [ Transient ];
 
@@ -100,14 +103,14 @@ Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun, key As %String = {..#DRYRUNKEY
 	Quit $$$OK
 }
 
-/// The marks of the incident's failure groups as stored when the ask is recorded, "AskedFrom>AskedTo" per group, semicolon-separated in Seq order.
+/// The marks of the incident's failure groups as stored when the ask is recorded, "AskedFrom>AskedTo" per group, semicolon-separated in Seq order. They are read
+/// by SQL, not by opening the rows, because an open would hand back the objects that the caller still holds, with marks that may not be saved.
 ClassMethod Marks(ref As %String) As %String [ Private ]
 {
 	Set text = ""
-	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(ref)
-	For i = 1:1:groups.Count() {
-		Set group = groups.GetAt(i)
-		Set text = text_$Select(text = "": "", 1: ";")_group.AskedFrom_">"_group.AskedTo
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT AskedFrom, AskedTo FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY Seq", ref)
+	While result.%Next() {
+		Set text = text_$Select(text = "": "", 1: ";")_result.%Get("AskedFrom")_">"_result.%Get("AskedTo")
 	}
 	Quit text
 }
@@ -145,6 +148,7 @@ Method CancelRequest(ref As %String) As %Status [ Private ]
 {
 	If '$IsObject(..Cancelled) Set ..Cancelled = []
 	Do ..Cancelled.%Push(ref)
+	If ..FailCancel Quit $SYSTEM.Status.Error(5001, "The cancel of "_ref_" is refused")
 	Quit $$$OK
 }
 

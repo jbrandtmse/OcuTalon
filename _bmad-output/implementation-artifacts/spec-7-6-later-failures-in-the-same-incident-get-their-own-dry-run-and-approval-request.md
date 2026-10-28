@@ -218,6 +218,74 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - AC 5: Given the UX fixture slots, when the later-request entry of `OcuTalon.Msg.Catalog.Watch` renders the slots that `Notice.WithFixSlots` builds, then the text is "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?", then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page."
 - AC 6: Given an open incident (fallback, no fix, rejected or expired), when same-cause failures join it, then only its count and its `incident` event change: no waiter, dry run, request or Notification.
 
+### Review Findings
+
+Code review, 2026-10-28. Tier full-opus (no `model-overrides.yaml`). Layers: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all of which ran. 22 raw findings grouped into 11 entries (high 1, med 5, low 5); 8 rejected. Patches applied: 7. Deferred to the ledger: 4. Decision-needed: 0.
+
+**The lead's item (a failed later round's lost window): agreed and patched.** AD-15's Rule reads: "Same-cause failures that arrive after the notice and that no request covers settle by the same rule, then get their own dry run and their own approval request". The spine's "Later requests" row adds that a failure "is never lost". V2 (U-133) rules only what such a round sends.
+- Error routes now put the marks back (`AskedTo := AskedFrom`), so the round's failures are in the next round's window. The error routes are: the ask not sent, an error answer, an unusable dry run or slots, a failed `Raise`, and a request cancelled after a failed save.
+- A refused dry run, an empty `Targets` and an open incident keep their marks, because those failures were judged. So does a request that was raised and could not be cancelled, because it still holds the window.
+- Residual: with no further failure, nothing re-asks. This is the same shape as residual risk 2 (a failed `StartLater`), and V2 accepts that the round sends nothing. A retry needs new state, which V1 rules out.
+
+- [x] [Review][Patch] **HIGH**: a later round that failed after its marks moved left its failures in no window forever; QA's probe pinned it. [`Watch/IncidentManager.cls` `Unask`, `Decline`, `AskLater`, `Unproposed`, `Proposed`] (blind+edge+gap)
+  - Fix: `Unask(incident, unmark)` puts each group's `AskedTo` back to `AskedFrom` in one transaction with clearing `AskingSince`. It acts only while `AskingSince` is stored, which proves the ask's marks were saved and nothing moved them since. A round that gathers meanwhile takes the earlier time (`LaterSince := AskingSince` when that is earlier).
+  - Tests: QA's probe is replaced by `Tell.TestFailedLaterRoundRejoinsTheNextRound`, with eight cases: five restored, two judged, and uncancelled. The probe gained `FailCancel`.
+  - fix-risk med: product error routes only; the first-request route is unchanged. Footprint in-story.
+- [x] [Review][Patch] MED: `Incidents.TestInstanceShared` asserted transient state (`LaterSince`, no notification, one request) with no guard. On a slow run past the 10 s quiet time it fails a correct product. [`Test/Watch/Incidents.cls` `TestInstanceShared`] (edge+gap)
+  - Fix: the three assertions are made only if `Settle.Wait` still says, after the reads, that the round's rule was running, as `Later` does. R1's targets are asserted always.
+  - fix-risk low: test only. In-story (Rule 19 hermeticity).
+- [x] [Review][Patch] MED: AC 1's "R1's `FixTargets` and `DryRun` never change" was checked only before the later round. A later route that rewrote R1 stayed green; M5 showed it. [`Test/Watch/Tell.cls` `TestLaterRequestToEachWatcher`, `Test/Fix/Later.cls`] (gap)
+  - Fix: R1 is read again after R2 in both tests.
+  - fix-risk low. In-story.
+- [x] [Review][Patch] LOW: the probe's `Marks` opened the groups that `Ask` still held in memory, so "the marks were saved before the send" could not catch a set-in-memory, send, then save order. M4 confirmed it: green with the old probe, red with the new one. [`Test/Watch/IncidentProbe.cls` `Marks`] (blind)
+  - Fix: `Marks` reads the marks by SQL.
+  - fix-risk low. In-story.
+- [x] [Review][Patch] LOW: "the mock logged no request" passed when the mock's log was missing. [`Test/Fix/Later.cls` `TestLaterFailuresGetTheirOwnRequest`] (gap)
+  - Fix: the test asserts `LogMark() > 0`, which holds because R1's diagnosis is in the log.
+  - fix-risk low. In-story.
+- [x] [Review][Patch] LOW: two assertion messages claimed a window check while comparing the probe's canned targets. [`Test/Watch/Tell.cls` `TestOneAskAtATime`, `TestStragglersOfTheFirstAsk`] (gap)
+  - Fix: reworded; the window is pinned by the marks assertions.
+  - fix-risk low. In-story.
+- [x] [Review][Patch] LOW: `Watch.Msg.Settle`'s class doc named only the first settle waiter. [`Watch/Msg/Settle.cls`] (blind)
+  - Fix: the doc now names the later waiter too, sent in the incident's trace session.
+  - fix-risk low. In-epic (Watch).
+- [x] [Review][Defer] MED, unverified (maybe-false): a later request reuses the first diagnosis's `fixSummary`. A count that a live model writes into it, like the UX fixture's "repair and resend all 50", would contradict the round's own count and resend. [`Watch/IncidentManager.cls` `Proposed`; `Agent/Diagnosis.cls`] (blind; the implement triage said maybe-false)
+  - Deferred: a live diagnosis would settle it. The mock's summary has no count. The fix is a product or UX call: a count-free prompt rule (which changes the first notice's UX shape) or other later text.
+  - **DW-365** `decision-pending` owner=burndown, note=human. fix-risk med.
+- [x] [Review][Defer] MED, theoretical: a later ask that is never answered leaves `AskingSince` set, and every later round of the incident re-checks every quiet seconds until it closes. [`Watch/IncidentManager.cls` `Later`] (edge)
+  - Same root cause as **DW-345** (a dry run that `FixExecutor` never answers; residual risk 1). An occurrence was appended; DW-345 stays `wontfix-theoretical`.
+- [x] [Review][Defer] MED: more than `SEENMAX` (1000) failures joining during one ask trims `AskedTo` out of `Seen`, so the window reads empty. [`Watch/Settle.cls` `Window`, `Data/FailureGroup.cls` `AskedKeys`] (edge)
+  - The `SEENMAX` cap is **DW-318**'s (routed to 7-4-ocutalon-reports-how-many-orders-went-through). An occurrence was appended.
+- [x] [Review][Defer] LOW: the spine's Conventions row "Later requests" names only incidents awaiting approval, fixing or resolved. It misses the stragglers of the first ask and the failed round's failures rejoining the next window. [`ARCHITECTURE-SPINE.md` Conventions] (auditor)
+  - The spine is the lead's (Rule 20 light path).
+  - **DW-366** `wontfix-accepted`, reopen_if in the note.
+
+**Rejected:**
+- `low` (blind) The first request's window includes failures that joined during the diagnosis, so the first notice's count (`NoticeCount`) can be below its dry run's resend.
+  - The fix edits the spec's Always "Windows" bullet: the first window ends at the ask, a Decided in-stage choice. The count/resend shape is 7.2's first notice (pre-existing), and this story narrowed it. UJ-1's burst settles before the diagnosis.
+- `low` (edge) Incidents noticed before 7.6 have no `AskedTo`, so their later failures only count.
+  - No release has shipped; V1's reversal says "no row has them yet". The fix is a migration.
+- `low` (edge) A failed `StartLater` send whose `Unlater` save also fails strands `LaterSince`.
+  - This needs two infrastructure failures in a row, and the fix adds guards.
+- `low` (edge) An exception between a successful `Raise` and `Move` leaves an unlisted pending request.
+  - Nothing between them throws in practice, and it is 7.2's shape. `IncidentManager` refuses outcomes for unlisted requests, and the patched catch keeps the marks when a request was raised.
+- `low` (edge) After a restore, a round with no gathering round takes its own first failure as `{time}`.
+  - Spec-bound by residual risk 2 ("whose `{time}` is then that round's own"). The patch already gives the earlier time to a round that gathers during the failed ask.
+- `low` (edge) `NoticeText` sets TZ to "" when it was undefined.
+  - This is the same restore as `Test.Msg.Catalog`. `TimeZone` has no unset, and the throwaway's default zone is UTC.
+- `low` (auditor) `Unproposed` logs the warning of an error answer even for a stale or gone later ask.
+  - The warning carries `FixExecutor`'s own error, which is real whatever became of the incident. 7.2's route and `Refused` log the same way. The matrix's "no error" is the handler's status, and it is OK.
+- `low` (auditor) The residual-risk numbering differs between Design Notes, the QA notes and the Auto Run Result.
+  - The fix edits the spec under review.
+
+**Rule checks:**
+- Rule 3: `Test.Fix.Later` runs the deliverable in its real runtime: the production on a throwaway, with the real poller, `FixExecutor`, `Raise`, hold and `WebChatOut`. It asserts the Delivery row and the `/state` body. No web code changed; the card is Epic 6's.
+- Rule 6: AC 1 to AC 6 were checked against AD-1, 5, 11, 12, 13, 15, 16, 22, 26, 29, 32 and 33 and the Conventions row. The one mismatch was AD-15's "that no request covers", which the first patch fixes.
+- Rule 2: no unjustified copy.
+- Rule 1: AC 2 is the Integration AC.
+- Rule 5: no NFR workaround.
+- Rule 14: no non-ASCII bytes in the added lines.
+
 ## Spec Change Log
 
 - 2026-10-28, spec gate (lead): V1, V2 and V3 ruled as veto items U-132, U-133 and U-134 (kept as planned; V3 moves the `FixRun` row pin to Story 7.3 in `epics.md`); the spine gains the Conventions row "Later requests". Nothing else in the plan changed.
@@ -454,6 +522,54 @@ Conventions: "Incident notice", "Approval requests", "Times", "Messages", "Redac
 - Fresh (`e7s6i`), class time: `Test.Fix.Later` 52.9 s (call 135 s), `DryRun` 4.5 s, `Raise` 63.8 s, `Test.Watch.Incidents` 106.6 s (call 188 s), `Diagnose` 45.0 s, `Notices` 27.2 s, `Closing` 29.8 s, `Test.Checks.Turns` 8.7 s: all passed.
 - `shard lane-a --part k/12`, k = 1 to 12, all passed (77 classes): 238, 184, 97, 125, 106, 100, 195, 87, 103, 263, 211 and 110 s per call. `shard lane-b --part k/3`, k = 1 to 3, all passed (64 classes): 134, 172 and 100 s. `live storage-roundtrip` passed (81 classes with a committed Storage block, including the four new properties). `bash ci/checks.sh`: every script passed.
 - Matrix Test Audit: every row of the I/O matrix has a covering test that ran and passed in the output above (live rows: `Later.TestLaterFailuresGetTheirOwnRequest`, `Later.TestOpenIncidentOnlyCounts`; probe rows: `Tell`, `Lifecycle.TestLaterRequestWhileFixing`).
+
+**QA pass (2026-10-28, tags `e7s6qa` fresh and `e7s6qaw` warm; no product code changed, no file added):**
+- Audit: AC 1 to AC 6 and every row of the I/O matrix have a pinning test, and the 22 recorded `mutation:` lines name tests that exist. Four gaps are filled below: the live (`Test.Fix.Later`) halves of AC 2's Integration clause, AC 3's rejection clause and U-126 had no observed red; the changed tests needed their lines refreshed.
+- (QA) `Test/Fix/Later.cls` changed:
+  - `TestLaterFailuresGetTheirOwnRequest` asserts U-126 per request: R2's targets share no order with R1's (`Shared`), and R2's `DryRun.resend` equals the number of R2's `FixTargets`.
+  - It no longer reads transient state by luck. The count is awaited by its row and by the incident event that carries it (`WaitCounted`, whichever batch brings it). The event after R2's Notification is awaited (`WaitLast`: Tell sends the Notification first, then publishes). "`LaterSince` is set" and "one request" are asserted only if `Settle.Wait` still said the rule ran after they were read (the waiter asks no earlier), else a log message says so. The `before` baselines are gone.
+  - `TestOpenIncidentOnlyCounts` takes no baseline of events and checks the event that carries the count 5 (open, `NoticeCount` 3, R1 rejected). The sleep that stays waits for something not to happen.
+  - Evidence that the old test was timing-fragile: with `Hang 14` after `WaitCount` (a late read), the shipped test failed 3 assertions ("LaterSince is set", "carrying the count 5 and listing R1 only", "still one request"), and the new one passed.
+- (QA) `Test/Watch/Tell.cls` changed:
+  - `TestStillGathering` bounds the alarm by the clock time that passed (`seconds + elapsed >= quiet - 3`, `seconds <= quiet - 2`) instead of a fixed two-second slack.
+  - `TestFailedLaterRoundLeavesItsFailuresUncovered` (new, probe, three cases: the ask cannot be sent, FixExecutor answers an error, the raise fails). It pins today's behaviour of a later round that fails after its marks moved (residual risk 1; V2): one `LOGLATER` warning, no Notification, no request, `Count` 5 and the one incident event with it stay, no round open, and the marks stay (`h103>h105`), so the next round's ask covers `h106` only (`h105>h106`) and no ask covers `h104` and `h105`. The marks assertions go red when a fix restores the marks.
+- Order: `Later`'s two tests also passed with the second renamed to run first (one run, test-only rename, restored).
+
+**Pinning mutations added by QA (Rule 19), each observed red and reverted byte-identically (md5 of the file equals its backup, `git status --short` unchanged):**
+- mutation: `Ask` sets `AskedFrom` to "" instead of `AskedTo` (fresh) → red: `Later.TestLaterFailuresGetTheirOwnRequest` ("R2's targets share no order with R1's: 2,3,4 and 2,3,4,5,6", the targets, the dry run, the count and the rendered text). U-126, targets.
+- mutation: R2's row takes R1's `DryRun` (`row.DryRun` from the first request when `later`) (fresh) → red: `Later.TestLaterFailuresGetTheirOwnRequest` ("with its own dry run", "R2's dry run resends as many orders as R2 has targets"). U-126, resend.
+- mutation: the later notice is sent with `NOTICEKIND` instead of `APPROVALKIND` (fresh) → red: `Later.TestLaterFailuresGetTheirOwnRequest` ("S has one approval Notification", "WebChatOut recorded one approval Delivery row with the request's Ref"). AC 2, Integration.
+- mutation: `Facts` ignores a pending request (`If 0 || ...`) (fresh) → red: `Later.TestLaterFailuresGetTheirOwnRequest` ("the incident stays awaiting approval, with both requests", "and the event lists R2 as rejected"). AC 3, R2's rejection while R1 is pending. The last three ran together in one fresh run; each red is its own assertion.
+- mutation: `Record`'s later rule ignores the open-and-noticed check and `Later` does not end on open (fresh, re-run after `TestOpenIncidentOnlyCounts` changed) → red: `Later.TestOpenIncidentOnlyCounts` ("the incident stays open and no round gathers", "and the dry run was asked once"). AC 6.
+- mutation: `Proposed` skips `CancelRequest` after a failed save → red: `Tell.TestSaveFailureCancelsTheLaterRequest` (and `TestSaveFailureCancelsTheRequest`). Matrix row "Save fails after Raise".
+- mutation: `AskLater` puts the marks back (`AskedTo := AskedFrom`) when the ask cannot be sent → red: `Tell.TestFailedLaterRoundLeavesItsFailuresUncovered` (case ask: "the marks stay where the ask put them", "no ask covers h104 and h105"). Residual risk 1. Superseded by the code review: the product now puts the marks back on the error routes, and the test is `Tell.TestFailedLaterRoundRejoinsTheNextRound`; see the code-review lines below.
+- mutation: `Later` passes `LaterSince` for both `LastAt` and `LaterSince` to `Settle.Wait` (re-run after `TestStillGathering` changed) → red: `Tell.TestStillGathering` (the alarm is 1, not 7 to 8).
+
+**QA runs (tags `e7s6qaw` warm, `e7s6qa` fresh; class time, `CLASS ... passed`):**
+- Warm `Test.Watch.Tell`: passed on the unchanged tree (16.0 s) and five times on the edited, unmutated tree (15.5, 15.4, 15.5, 15.5 and, as the final re-run, 15.5 s), among them after each mutation's revert. It failed only in the three mutated runs above.
+- Fresh `Test.Fix.Later`: passed on the unchanged tree (52.3 s; call 134 s) and on the edited, unmutated tree (54.0, 55.1 and, as the final re-run, 53.4 s; calls 131 to 158 s, of which 77 to 104 s is the stack start). Also passed with the second test run first (55.6 s) and, for the edited test, with a late read (`Hang 14`, test-only, 59.4 s). It failed in the three mutated runs above and, for the shipped test, with the late read.
+- `bash ci/checks.sh` after the last run: every script passed (87 s). Both stacks were torn down (`ci/warm.sh down` for `e7s6qaw`, `ci/iris.sh teardown` for `e7s6qa`), and `git rev-parse HEAD` is unchanged.
+
+**Code-review pass (2026-10-28, tags `e7s6crw` warm and `e7s6cr` fresh, lane A).** Patches: the error routes of a later round put the marks back (`Unask` with unmark); the probe reads the marks by SQL and gains `FailCancel`. Tests: `Tell.TestFailedLaterRoundRejoinsTheNextRound` replaces QA's `TestFailedLaterRoundLeavesItsFailuresUncovered`; R1 is read again after the round (`Tell`, `Later`); `Later` checks that the mock log exists; `Incidents.TestInstanceShared` guards its transient assertions with `Settle.Wait`. See `### Review Findings`.
+
+**Pinning mutations added by the code review (Rule 19).** Each was observed red on the warm stack, reverted from the saved patched copy (md5 equal), and followed by a green `Tell` on the same stack:
+- mutation: in `Unask` with unmark, `AskedTo` is left as it is (`Set group.AskedTo = group.AskedTo`) → red: `Tell.TestFailedLaterRoundRejoinsTheNextRound`, cases ask, error, slots, raise and save ("an error puts the marks back", "its window holds the failed round's h104 and h105 with h106"). The lead's item: an error round's failures are not lost.
+- mutation: `Decline` puts the marks back for a judged dry run as well (`Unask(incident, 1)`) → red: `Tell.TestFailedLaterRoundRejoinsTheNextRound`, cases reason and targets ("a judged dry run ... keeps the marks", "its window is h106 only"). V2's judged rounds.
+- mutation: `Unask` does not give the gathering round the earlier time (the `LaterSince := AskingSince` line removed) → red: `Tell.TestFailedLaterRoundRejoinsTheNextRound`, case error ("takes the failed round's earlier time", and the next ask's time).
+- mutation: the failed-save route puts the marks back although the cancel failed (`Unask(incident, 1)`) → red: `Tell.TestFailedLaterRoundRejoinsTheNextRound`, case uncancelled ("keeps the marks", "its window is h106 only").
+- mutation: `Ask` sets the marks on the objects, sends, and only then saves → red: `Tell.TestLaterRequestToEachWatcher` ("the marks were saved and the transaction was over when the ask was sent") and every case of `TestFailedLaterRoundRejoinsTheNextRound` ("with the round's window saved first"). With the probe's old `Marks`, which opened the rows, the same mutation left `Tell` green. Always: marks saved before the send.
+- mutation: `Proposed`'s later route also writes the round's targets into R1 and saves it → red: `Tell.TestLaterRequestToEachWatcher` ("and R1 is still as it was after the round"), and no other test. AC 1, "R1 never changes".
+
+**Code-review runs (class time, `CLASS ... passed`):**
+- Warm `e7s6crw`: `Test.Watch.Tell` passed 16.0 s on the patched tree, then 15.5 s after each revert. It passed 16.1 s and 15.5 s again after the uncancelled case was added (a second `warm up`). `Test.Watch.Lifecycle` passed twice (0.21 s; 19 probe tests).
+- Fresh `e7s6cr`, all passed:
+  - `Test.Fix.Later`: 52.9 s, call 152 s.
+  - `Test.Watch.Incidents`: 106.4 s, call 192 s.
+  - `Test.Watch.Tell`: 16.1 s, call 102 s, before the test-only uncancelled case.
+  - `Test.Fix.Raise`: 61.6 s, call 147 s.
+- `bash ci/checks.sh`: every script passed (92 s, and 88 s after the last test edit).
+- Both stacks were torn down, with no `e7s6cr` container left.
+- Slot A got `Watch.IncidentManager`, `Watch.Msg.Settle`, `Test.Watch.IncidentProbe`, `Test.Watch.Tell`, `Test.Fix.Later` and `Test.Watch.Incidents` (loaded and compiled `ck-d`); no test ran there.
 
 ## Auto Run Result
 Status: done
