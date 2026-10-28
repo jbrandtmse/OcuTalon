@@ -347,6 +347,25 @@ describe('background checks', () => {
     assert.deepEqual(meta(off), [['Last run 14:13', '50 new failures'], []], 'cleared again');
   });
 
+  it('drops a check whose payload has stopped true, from the list and from the heading\'s count, and keeps one with stopped false or none', () => {
+    const noFlag = check('c3');
+    delete noFlag.stopped;
+    const view = viewOf({ checks: [check('c1'), check('c2', { stopped: true }), noFlag] });
+    assert.deepEqual(keys(section(view, 'checks')), ['checks:c1', 'checks:c3']);
+    assert.equal(section(view, 'checks').heading, 'Background checks (2)');
+  });
+
+  it('shows a new watch at once and drops it at the stop event, applied in the order served', () => {
+    const start = { type: 'check', stream: 'session', seq: 6, ts: '', payload: check('c9', { lastRunAt: '', result: '', finding: '' }) };
+    const stop = { type: 'check', stream: 'session', seq: 7, ts: '', payload: { ref: 'c9', kind: 'production', namespace: 'ZZNS', production: 'Zz.Orders', displayName: 'Orders', stopped: true } };
+    const started = applyEvents(fromSnapshot(snapshot()), { epoch: 'e1', events: [start] });
+    assert.deepEqual(keys(section(railView(started.store, format()), 'checks')), ['checks:c9']);
+    const stopped = applyEvents(started.store, { epoch: 'e1', events: [stop] });
+    const one = section(railView(stopped.store, format()), 'checks');
+    assert.deepEqual(keys(one), []);
+    assert.equal(one.heading, 'Background checks (0)');
+  });
+
   it('has no meta line before the first run', () => {
     const row = section(viewOf({ checks: [check('c1', { lastRunAt: '', result: '', finding: '' })] }), 'checks').rows[0];
     assert.deepEqual(row.meta, []);

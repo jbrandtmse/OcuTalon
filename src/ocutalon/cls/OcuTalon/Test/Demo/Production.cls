@@ -9,15 +9,31 @@
 ///   - TestBadBatchSendsNothing: a bad batch is refused with an error that names the value, and no message is sent;
 ///   - TestRepairedCopyGoesThrough: a failed order resent with the date repaired completes, and the original stays errored;
 ///   - TestSnapshotIsReadableAndCurrent: the committed evaluation case and snapshot under /opt/ocutalon/eval are readable, and a
-///     fresh recording has the same projection as the committed one.
+///     fresh recording has the same projection as the committed one;
+///   - TestHoldHidesFailures: while HoldFailures is in force a watcher of Orders makes no incident from failing orders, and its
+///     guide stays at step 3 with Break the feed active;
+///   - TestReleaseHidesLeftovers: the failures that an earlier sender left (its session gone, so they count as instance) are
+///     never read after ReleaseFailures, whatever mark the last reading left;
+///   - TestReleaseKeepsLaterFailures: failing orders sent after ReleaseFailures are read as before and become an incident;
+///   - TestBeforeOneTestHolds and TestAfterAllTestsReleases (QA): the hooks themselves hold the mark ahead after a release and put it
+///     at the release time, so the call sites of HoldFailures and ReleaseFailures in this class are pinned.
+/// The tests that assert that nothing happened wait with AwaitPolls (FailurePoller's own count of runs) and not with a fixed pause.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
 /// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts and Resend; all but Resend
 /// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path step) and Test.Data.Fixture.RemoveMessages, each of
 /// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
 /// values or dynamic objects.
-/// Every test makes its references before it switches, and OnAfterAllTests deletes the headers, bodies and event-log rows of the
-/// references of the run.
+/// Every test makes its references before it switches, and OnAfterAllTests deletes the OCUORDERS headers, bodies and event-log rows of
+/// the references of the run.
+/// The failing orders that a test sends are real failures to the real FailurePoller and IncidentManager of OCUTALON, which would turn
+/// them into Orders incidents that later tests of the stack (the demo guide's, Test.Live.GuideRefresh) would see. So a sender of failing
+/// Orders messages holds the Orders WatchMark ahead while it runs (HoldFailures: MarkAt is HOLDSECONDS ahead, so no reading starts
+/// before the end of the hold) and, when its batches are complete, releases it (ReleaseFailures: MarkAt is the release time, so none of
+/// its failures is ever read, removed or not, and later failures are read as before). This class holds in OnBeforeAllTests and again in
+/// OnBeforeOneTest and releases in OnAfterAllTests; Test.Demo.BreakFeedProduction and the floor specs (web/e2e/support/guide.ts) do the
+/// same, and so should any other test that sends real failing Orders messages. OnAfterOneTest deletes the incidents that a test's
+/// watchers made.
 Class OcuTalon.Test.Demo.Production Extends %UnitTest.TestCase
 {
 
@@ -33,27 +49,83 @@ Parameter EVALFOLDER = "/opt/ocutalon/eval/orders-date-format/";
 /// How long a wait for messages lasts, in seconds.
 Parameter WAITSECONDS = 60;
 
+/// How far ahead of now HoldFailures puts the Orders WatchMark, in seconds.
+Parameter HOLDSECONDS = 600;
+
+/// How many whole polls of FailurePoller a test waits for before it asserts that nothing happened (its CallInterval is 3 s).
+Parameter POLLWAIT = 2;
+
 /// The 22-character references that this run used.
 Property Refs As %DynamicArray;
 
 /// The reason why every test fails, or empty.
 Property Missing As %String(MAXLEN = 200);
 
+/// 1 when OnBeforeAllTests held the Orders failures, so that OnAfterAllTests releases them.
+Property Held As %Boolean;
+
+/// The Refs of the fixture sessions of the running test that watch Orders, comma-separated.
+Property Watchers As %String(MAXLEN = "");
+
+/// The newest Incident id when the running test began, "" before the first test.
+Property IncidentFloor As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Refs = []
 	Set ..Missing = ""
+	Set ..Held = 0
+	Set ..Watchers = ""
+	Set ..IncidentFloor = ""
 	If '##class(%SYS.Namespace).Exists(..#NAMESPACE) {
 		Set ..Missing = "OCUORDERS does not exist: this class runs in throwaways and CI only (Rule 21)"
 	} ElseIf '..Running() {
 		Set ..Missing = "The Orders production does not run in OCUORDERS"
 	}
+	If ..Missing = "" {
+		Set sc = ..HoldFailures()
+		If $$$ISOK(sc) {
+			Set ..Held = 1
+		} Else {
+			Set ..Missing = "The Orders failures could not be held: "_$SYSTEM.Status.GetErrorText(sc)
+		}
+	}
+	Quit $$$OK
+}
+
+/// Holds the failures again (a test that released them in the middle leaves them free) and notes the newest incident, so that
+/// OnAfterOneTest deletes only what the test caused.
+Method OnBeforeOneTest() As %Status
+{
+	Set ..Watchers = ""
+	Set ..IncidentFloor = ""
+	If ..Missing = "" {
+		Set sc = ..HoldFailures()
+		If $$$ISERR(sc) Set ..Missing = "The Orders failures could not be held: "_$SYSTEM.Status.GetErrorText(sc)
+	}
+	If ..Missing = "" Set ..IncidentFloor = ##class(OcuTalon.Test.Watch.Case).Top("OcuTalon_Data.Incident", "OCUTALON")
+	Quit $$$OK
+}
+
+/// Deletes the incidents of the test's watchers and the instance incidents made since it began, with their groups and decisions,
+/// then the fixture rows.
+Method OnAfterOneTest() As %Status
+{
+	If ..Missing = "" {
+		For i = 1:1:$Length(..Watchers, ",") {
+			Set ref = $Piece(..Watchers, ",", i)
+			If ref '= "" Do ##class(OcuTalon.Test.Watch.Case).DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ?", ref)
+		}
+		If ..IncidentFloor '= "" Do ##class(OcuTalon.Test.Watch.Case).DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = 'instance' AND ID > ?", ..IncidentFloor)
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Quit $$$OK
 }
 
 Method OnAfterAllTests() As %Status
 {
 	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Refs, ..#NAMESPACE)
+	If ..Held Do ..ReleaseFailures()
 	Quit $$$OK
 }
 
@@ -216,6 +288,193 @@ Method TestSnapshotIsReadableAndCurrent()
 	Do $$$AssertEquals(..WaitCount(ref, "OrdersFromPartner", 8, 50), 50, "all 50 orders fail")
 	Set fresh = ..Snapshot(ref, {"count": 50, "dateFormat": "MM/DD/YYYY", "orderDate": "2026-10-16"})
 	Do $$$AssertEquals(..Projection(fresh).%ToJSON(), ..Projection(committed).%ToJSON(), "a fresh recording has the committed snapshot's projection")
+}
+
+/// While the failures are held, a watcher of Orders reads none of the failing orders that are sent: no incident comes of them, and its
+/// guide stays at step 3 with Break the feed active.
+Method TestHoldHidesFailures()
+{
+	If '..Guard() Quit
+	Set start = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(..HoldFailures(), "the failures are held")
+	Set watcher = ..FixtureSession(1, .trace)
+	Set other = ..NewRef()
+	Do $$$AssertEquals(..Send(3, "MM/DD/YYYY", trace, "2026-10-16"), "", "3 failing orders are sent with the watcher's trace reference")
+	Do $$$AssertEquals(..Send(1, "MM/DD/YYYY", other, "2026-10-16"), "", "1 failing order is sent with a reference that no session owns")
+	Do $$$AssertEquals(..WaitCount(trace, "OrdersFromPartner", 8, 3), 3, "the 3 orders fail")
+	Do $$$AssertEquals(..WaitCount(other, "OrdersFromPartner", 8, 1), 1, "the other order fails")
+	Do $$$AssertTrue(..AwaitPolls(..#POLLWAIT) >= ..#POLLWAIT, "FailurePoller polled "_..#POLLWAIT_" times after the failures")
+	Do $$$AssertEquals(..IncidentsSince(start), 0, "no Orders incident was made since the test began")
+	Set guide = ##class(OcuTalon.Demo.Guide).Compute(watcher)
+	Do $$$AssertEquals(guide.BreakFeed.Active, 1, "Break the feed is active in the watcher's guide")
+	Do $$$AssertEquals(guide.Steps.GetAt(3).Done, 0, "step 3 is not done in the watcher's guide")
+}
+
+/// Failures that an earlier sender left, whose session is gone (so they count as instance), are never read once the failures are
+/// released, even when the last reading left the mark before them: a new watcher sees no incident and Break the feed active. The
+/// failures stay held (OnBeforeOneTest) while they are sent and age, so no other watch of Orders reads them before the release.
+Method TestReleaseHidesLeftovers()
+{
+	If '..Guard() Quit
+	Set start = ##class(OcuTalon.Data.Time).NowUtc()
+	Set stamp = ##class(OcuTalon.Watch.Mark).Normal($ZDateTime($ZTimeStamp, 3, 1, 3))
+	Set sender = ..FixtureSession(0, .trace)
+	Set other = ..NewRef()
+	Do $$$AssertEquals(..Send(2, "MM/DD/YYYY", trace, "2026-10-16"), "", "2 failing orders are sent with the sender's trace reference")
+	Do $$$AssertEquals(..Send(1, "MM/DD/YYYY", other, "2026-10-16"), "", "1 failing order is sent with a reference that no session owns")
+	Do $$$AssertEquals(..WaitCount(trace, "OrdersFromPartner", 8, 2), 2, "the 2 orders fail")
+	Do $$$AssertEquals(..WaitCount(other, "OrdersFromPartner", 8, 1), 1, "the other order fails")
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(sender)
+	// Longer than the settle quiet time (watch.settleQuietSeconds, 10 by default): the leftovers are older than a reading would wait for.
+	Hang 11
+	Do $$$AssertStatusOK(..PutMark(##class(OcuTalon.Watch.Mark).Shift(stamp, -5)), "the mark is 5 s before the failures, as an earlier reading leaves it")
+	Do $$$AssertStatusOK(..ReleaseFailures(), "the failures are released")
+	Set watcher = ..FixtureSession(1)
+	Do $$$AssertTrue(..AwaitPolls(..#POLLWAIT) >= ..#POLLWAIT, "FailurePoller polled "_..#POLLWAIT_" times after the failures")
+	Do $$$AssertEquals(..IncidentsSince(start), 0, "no Orders incident was made since the test began")
+	Set incident = ##class(OcuTalon.Data.Ownership).NewestIncident(watcher, ..#NAMESPACE, ..#PRODUCTION, "", .sc)
+	Do $$$AssertStatusOK(sc, "the watcher's newest incident is read")
+	Do $$$AssertEquals($Select($IsObject(incident): incident.Ref, 1: ""), "", "the watcher sees no incident of the production")
+	Set busy = ##class(OcuTalon.Data.Ownership).IncidentInProgress(watcher, ..#NAMESPACE, ..#PRODUCTION, .sc)
+	Do $$$AssertStatusOK(sc, "the watcher's incident in progress is read")
+	Do $$$AssertEquals($Select($IsObject(busy): busy.Ref, 1: ""), "", "the watcher sees no incident in progress")
+	Do $$$AssertEquals(##class(OcuTalon.Demo.Guide).Compute(watcher).BreakFeed.Active, 1, "Break the feed is active in the watcher's guide")
+}
+
+/// Failing orders sent after the release are read as before: the watcher gets an incident within 15 s.
+Method TestReleaseKeepsLaterFailures()
+{
+	If '..Guard() Quit
+	Do $$$AssertStatusOK(..ReleaseFailures(), "the failures are released")
+	Set watcher = ..FixtureSession(1, .trace)
+	Do $$$AssertEquals(..Send(2, "MM/DD/YYYY", trace, "2026-10-16"), "", "2 failing orders are sent with the watcher's trace reference")
+	Set deadline = $ZHorolog + 15
+	For {
+		Set found = ..IncidentsOf(watcher)
+		If found || ($ZHorolog > deadline) Quit
+		Hang 0.5
+	}
+	Do $$$AssertTrue(found > 0, "an incident of the watcher appears within 15 s")
+	Do ##class(OcuTalon.Test.Watch.Case).DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = ?", watcher)
+}
+
+/// The hook OnBeforeOneTest holds the failures again after a release: the test releases, runs the hook and finds the mark ahead.
+Method TestBeforeOneTestHolds()
+{
+	If '..Guard() Quit
+	Do $$$AssertStatusOK(..ReleaseFailures(), "the failures are released")
+	Do $$$AssertTrue('..MarkIsAhead(60), "the released mark is not ahead")
+	Do $$$AssertStatusOK(..OnBeforeOneTest(), "the hook runs")
+	Do $$$AssertTrue(..MarkIsAhead(500), "OnBeforeOneTest holds the mark ahead again")
+}
+
+/// The hook OnAfterAllTests releases what OnBeforeAllTests held: the test finds the hold noted, runs the hook and finds the mark at the
+/// release time (not ahead, and not left behind either, as a deleted or restored mark would be).
+Method TestAfterAllTestsReleases()
+{
+	If '..Guard() Quit
+	Do $$$AssertEquals(..Held, 1, "OnBeforeAllTests noted the hold")
+	Do $$$AssertStatusOK(..HoldFailures(), "the failures are held")
+	Do $$$AssertTrue(..MarkIsAhead(500), "the mark is ahead before the hook")
+	Do $$$AssertStatusOK(..OnAfterAllTests(), "the hook runs")
+	Do $$$AssertTrue('..MarkIsAhead(60), "OnAfterAllTests released the mark")
+	Do $$$AssertTrue(..MarkIsAhead(-30), "and the mark is at the release time")
+}
+
+/// Holds the Orders WatchMark HOLDSECONDS ahead of now, with no failure marked as seen, so that FailurePoller reads nothing that the
+/// holder sends. Creates the row when there is none. Runs in OCUTALON and touches no other row.
+ClassMethod HoldFailures() As %Status
+{
+	Quit ..PutMark(##class(OcuTalon.Watch.Mark).Shift(..NowStamp(), ..#HOLDSECONDS))
+}
+
+/// Puts the Orders WatchMark at the release time (now plus the reading's overlap, so that the next reading starts at the release
+/// time), with no failure marked as seen: none of the failures sent before is ever read, and the failures sent later are read as
+/// before. Call it when the holder's batches are complete. Runs in OCUTALON and touches no other row.
+ClassMethod ReleaseFailures() As %Status
+{
+	Quit ..PutMark(##class(OcuTalon.Watch.Mark).Shift(..NowStamp(), ##class(OcuTalon.Watch.Mark).#OVERLAP))
+}
+
+/// 1 when the Orders WatchMark row exists and its MarkAt is later than now plus the seconds (negative: earlier than now). Reads only.
+ClassMethod MarkIsAhead(seconds As %Integer) As %Boolean
+{
+	Set row = ##class(OcuTalon.Data.WatchMark).NamespaceProductionIndexOpen(..#NAMESPACE, ..#PRODUCTION)
+	If '$IsObject(row) Quit 0
+	Quit row.MarkAt ] ##class(OcuTalon.Watch.Mark).Shift(..NowStamp(), seconds)
+}
+
+/// The number of runs that FailurePoller has started in OCUTALON (Ensemble's host counter of the item, raised at the start of every
+/// run, whether it finds failures or none).
+ClassMethod Polls() As %Integer
+{
+	Quit +$Get(^IRIS.Temp.EnsHostMonitor($Namespace, "FailurePoller", "%Count"))
+}
+
+/// Waits until FailurePoller has completed the number of whole polls that began after the call (the item runs one job, so the run that
+/// raises the count to the base plus polls plus one begins after the polls before it ended), for WAITSECONDS at most. Returns the whole
+/// polls seen, so that a test which asserts that nothing happened can assert that the poller had polled.
+ClassMethod AwaitPolls(polls As %Integer) As %Integer
+{
+	Set base = ..Polls()
+	Set deadline = $ZHorolog + ..#WAITSECONDS
+	While (..Polls() < (base + polls + 1)) && ($ZHorolog < deadline) {
+		Hang 0.25
+	}
+	Quit $Select(..Polls() > base: ..Polls() - base - 1, 1: 0)
+}
+
+/// Writes the Orders WatchMark row (namespace and production of this class) with the stamp as MarkAt and no Seen, creating it when it
+/// does not exist.
+ClassMethod PutMark(markAt As %String) As %Status [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.WatchMark).NamespaceProductionIndexOpen(..#NAMESPACE, ..#PRODUCTION)
+	If '$IsObject(row) {
+		Set row = ##class(OcuTalon.Data.WatchMark).%New()
+		Set row.Namespace = ..#NAMESPACE
+		Set row.Production = ..#PRODUCTION
+	}
+	Set row.MarkAt = markAt
+	Set row.Seen = ""
+	Quit row.%Save()
+}
+
+/// Now as a stamp: UTC, YYYY-MM-DD HH:MM:SS.sss.
+ClassMethod NowStamp() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Watch.Mark).Normal($ZDateTime($ZTimeStamp, 3, 1, 3))
+}
+
+/// A fixture session, kept for the clean-up; its Ref is returned and its TraceRef is in trace (and in Refs). With watching, it
+/// watches Orders and is one of the test's Watchers.
+Method FixtureSession(watching As %Boolean, Output trace As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzdemoprod")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef
+	Do ..Refs.%Push(trace)
+	If watching {
+		Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NAMESPACE, ..#PRODUCTION)
+		Set ..Watchers = ..Watchers_$Select(..Watchers = "": "", 1: ",")_ref
+	}
+	Quit ref
+}
+
+/// The number of Orders incidents whose first failure is between the stamp (UTC, YYYY-MM-DDThh:mm:ssZ) and now; -1 when they cannot be read.
+ClassMethod IncidentsSince(start As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Incident WHERE Namespace = ? AND Production = ? AND FirstAt >= ? AND FirstAt <= ?", ..#NAMESPACE, ..#PRODUCTION, start, ##class(OcuTalon.Data.Time).NowUtc())
+	If rs.%SQLCODE < 0 Quit -1
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// The number of Orders incidents that the owner (a session's Ref) has; -1 when they cannot be read.
+ClassMethod IncidentsOf(ownerRef As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Incident WHERE OwnerRef = ? AND Namespace = ? AND Production = ?", ownerRef, ..#NAMESPACE, ..#PRODUCTION)
+	If rs.%SQLCODE < 0 Quit -1
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
 }
 
 /// The reference of a fixture, kept for the clean-up.

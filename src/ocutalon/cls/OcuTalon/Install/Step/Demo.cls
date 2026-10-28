@@ -14,6 +14,10 @@ Include (Ensemble, %sySecurity)
 ///     (OCUTALON_CODE) and the two public packages and the public global (OCUTALON_PUBLIC). Interoperability is enabled with
 ///     EnableNamespace and its install flag, which runs no HealthShare Foundation installer on either image: the namespace
 ///     holds no Foundation artefact, and OcuTalon deletes none.
+///   - With demo mode on the step also gives the service role (OcuTalonServiceRole) Read on the data database resource %DB_OCUORDERS_DATA and
+///     nothing else of OCUORDERS (no code database, no SQL grant, no write), so that OcuTalon.Watch.Reader, which judges a namespace by the
+///     service user's read access, lists the Orders production (veto U-79). The off path and the keep path remove that grant; a missing
+///     service role fails the on path with a plain sentence (ServiceRole, WithOrdersData).
 ///   - Off removes the namespace, both databases with their directories, the mappings, the web applications of the
 ///     namespace, its Interoperability markers and role, its SQL privileges, its resources and the trace role's OCUORDERS
 ///     grants. Each removal runs only when its object exists, so the off path does nothing when nothing is there.
@@ -26,7 +30,7 @@ Include (Ensemble, %sySecurity)
 ///     sentence, the namespace's default databases and the owner's sentence that says what was kept and how to remove the
 ///     namespace by hand (the "how" field), and returns OK, so the start ends ready. A create or a remove that succeeds
 ///     clears the mark, and an error leaves it as it was.
-/// The step switches namespace in two methods, each with New $NAMESPACE: System (to %SYS) and Orders (to OCUORDERS). Neither
+/// The step switches namespace in three methods, each with New $NAMESPACE: System (to %SYS), ServiceRole (to %SYS and back for its one pure call) and Orders (to OCUORDERS). Neither
 /// calls a method of this class while it is in its target namespace, because OcuTalon.* classes resolve in neither; System
 /// returns to the caller's namespace for the one pure call it needs.
 Class OcuTalon.Install.Step.Demo Extends OcuTalon.Install.Step
@@ -166,6 +170,28 @@ ClassMethod WithOrders(resources As %String, on As %Boolean) As %String
 	Quit result
 }
 
+/// A role's resource list ("resource:permission,...") with Read on the OCUORDERS data database alone (%DB_OCUORDERS_DATA:R) added
+/// (on), or removed (off): the grant of the service role (U-79), which never holds the code database. A listed entry keeps its place
+/// and is set to Read; any other entry stays as it was, the code database's included. Pure and idempotent.
+ClassMethod WithOrdersData(resources As %String, on As %Boolean) As %String
+{
+	Set own = "%DB_"_..#DATADB
+	Set result = ""
+	Set seen = 0
+	For i = 1:1:$Length(resources, ",") {
+		Set entry = $Piece(resources, ",", i)
+		If entry = "" Continue
+		If $Piece(entry, ":", 1) = own {
+			Set seen = 1
+			If 'on Continue
+			Set entry = own_":R"
+		}
+		Set result = result _ $Select(result = "": "", 1: ",") _ entry
+	}
+	If on && 'seen Set result = result _ $Select(result = "": "", 1: ",") _ own_":R"
+	Quit result
+}
+
 /// The directory of one of the step's databases: below the manager directory, in lower case, with its closing slash.
 ClassMethod Directory(db As %String) As %String
 {
@@ -288,7 +314,12 @@ ClassMethod System(on As %Boolean, keep As %String = "", what As %String = "", O
 			Kill props
 			Set props("Resources") = wanted
 			Set sc = ##class(Security.Roles).Modify(role, .props)
+			If $$$ISERR(sc) Quit sc
 		}
+		#; The service role: Read on the OCUORDERS data database only, so that Watch.Reader finds the Orders production (U-79).
+		Set $NAMESPACE = home
+		Set sc = ..ServiceRole(1)
+		Set $NAMESPACE = "%SYS"
 		Quit sc
 	}
 	#; Off: applications first, then the grants, the namespace, the markers, the SQL privileges, the databases, the resources.
@@ -330,6 +361,10 @@ ClassMethod System(on As %Boolean, keep As %String = "", what As %String = "", O
 			If $$$ISERR(sc) Quit sc
 		}
 	}
+	Set $NAMESPACE = home
+	Set sc = ..ServiceRole(0)
+	Set $NAMESPACE = "%SYS"
+	If $$$ISERR(sc) Quit sc
 	If keep = "" {
 		If ##class(Config.Namespaces).Exists(ns) {
 			Set sc = ##class(Config.Namespaces).Delete(ns)
@@ -435,6 +470,32 @@ ClassMethod System(on As %Boolean, keep As %String = "", what As %String = "", O
 		}
 	}
 	Quit sc
+}
+
+/// Gives (on) or takes from (off) the service role its Read on the OCUORDERS data database, by WithOrdersData. Runs in the
+/// namespace where OcuTalon classes resolve (System calls it after switching back from %SYS), reads and writes the role in %SYS and
+/// returns in the namespace it was called in. On, a missing role is an error; off, a missing role has nothing to remove.
+ClassMethod ServiceRole(on As %Boolean) As %Status [ Private ]
+{
+	Set home = $Namespace
+	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If '##class(Security.Roles).Exists(role) {
+		If 'on Quit $$$OK
+		Quit $$$ERROR($$$GeneralError, "The role "_role_" does not exist, so the Demo step cannot grant it the OCUORDERS data database.")
+	}
+	Kill props
+	Set sc = ##class(Security.Roles).Get(role, .props)
+	If $$$ISERR(sc) Quit sc
+	Set current = $Get(props("Resources"))
+	Set $NAMESPACE = home
+	Set wanted = ..WithOrdersData(current, on)
+	Set $NAMESPACE = "%SYS"
+	If wanted = current Quit $$$OK
+	Kill props
+	Set props("Resources") = wanted
+	Quit ##class(Security.Roles).Modify(role, .props)
 }
 
 /// Grants the trace role SQL SELECT on Ens.MessageHeader and starts the Orders production (on), or stops the production and

@@ -467,6 +467,7 @@ XData Contracts [ MimeType = application/json ]
    "Production": "%String(MAXLEN=128)",
    "DisplayName": "%String(MAXLEN=128)",
    "AskedBy": "%String(MAXLEN=128)",
+   "CreatedAt": "%String(MAXLEN=20)",
    "NextDueAt": "%String(MAXLEN=20)",
    "LastRunAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
@@ -483,7 +484,9 @@ XData Contracts [ MimeType = application/json ]
   "super": "%Persistent",
   "props": {
    "Namespace": "%String(MAXLEN=128)",
-   "Production": "%String(MAXLEN=128)"
+   "Production": "%String(MAXLEN=128)",
+   "MarkAt": "%String(MAXLEN=23)",
+   "Seen": "%String(MAXLEN=)"
   },
   "indexes": {
    "NamespaceProductionIndex": "Namespace,Production unique"
@@ -512,7 +515,11 @@ XData Contracts [ MimeType = application/json ]
    "FallbackReason": "%String(MAXLEN=32)",
    "DecisionRef": "%String(MAXLEN=22)",
    "TraceHeaderId": "%Integer",
-   "ClosedAt": "%String(MAXLEN=20)"
+   "ClosedAt": "%String(MAXLEN=20)",
+   "FirstHeaderId": "%Integer",
+   "SampleHeaderId": "%Integer",
+   "SampleError": "%String(MAXLEN=1000)",
+   "RequestRefs": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -527,10 +534,21 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "IncidentRef": "%String(MAXLEN=22)",
    "ItemName": "%String(MAXLEN=128)",
-   "ErrorPattern": "%String(MAXLEN=1000)"
+   "ErrorPattern": "%String(MAXLEN=1000)",
+   "Seen": "%String(MAXLEN=)",
+   "Seq": "%Integer",
+   "Count": "%Integer",
+   "FirstAt": "%String(MAXLEN=20)",
+   "LastAt": "%String(MAXLEN=20)",
+   "NoticeCount": "%Integer",
+   "ErrorSummary": "%String(MAXLEN=1000)"
   },
   "indexes": {
-   "IncidentRefIndex": "IncidentRef"
+   "IncidentRefIndex": "IncidentRef",
+   "SeqIndex": "IncidentRef,Seq unique"
+  },
+  "sql": {
+   "Count": "FailureCount"
   }
  },
  "OcuTalon.Data.FixRun": {

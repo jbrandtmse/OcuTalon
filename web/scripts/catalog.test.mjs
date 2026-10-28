@@ -1,10 +1,11 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
-// check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
-// catalog, the 12 banner and action keys with their slot types (Story 2.10), the nine answered keys with their channel and text
-// slots (Story 6.2), the message form of the answered texts (Story 6.3: MESSAGE_TEXTS and renderMessageText, with the dated
-// time's "on"), and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs,
-// the time, cost, count and text slots that take the caller's string, the channel slot that gives a channel's name, and each way
-// the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
+// check, the fallback sentence for each of the 12 reasons and for one that is none, the five check sentences from the Watch
+// catalog (the two that name what failed take a text slot), the 12 banner and action keys with their slot types (Story 2.10), the
+// nine answered keys with their channel and text slots (Story 6.2), the message form of the answered texts (Story 6.3:
+// MESSAGE_TEXTS and renderMessageText, with the dated time's "on"), and fixtures for the output's shape, the web text over the
+// text, the merge of the Core and Watch catalogs, the time, cost, count and text slots that take the caller's string, the channel
+// slot that gives a channel's name, a text slot accepted on the keys of TEXT_SLOT_KEYS only, and each way the generator refuses (a
+// missing listed key, a key in both catalogs, a slot type the page does not render, a text slot on any other key, a broken XData
 // block or CHANNELNAMES parameter, a reason with no text) and a stale file. Story 6.4: the seven result texts and the audit line
 // as Catalog.RenderAt gives them (the Fixtures XData of Test.Msg.Catalog), every count-of-one form of them, the noun slot that
 // the count slot chooses, and the generator's one forms (emitted, and refused when they name no count slot or have no text).
@@ -45,6 +46,9 @@ const BANNER_KEYS = [
   'bannerAction.setUpBot',
 ];
 
+/** The five check sentences that the page renders, in the generator's order. */
+const CHECK_KEYS = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', 'checks.notEverything', 'checks.notEverythingRestPassed'];
+
 /** The nine answered texts that the page renders (Story 6.2), in the generator's order. */
 const ANSWERED_KEYS = [
   'answered.approved',
@@ -83,22 +87,24 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences, the 12 banner and action keys, the nine answered keys and the eight result keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 12 banner and action keys, the nine answered keys and the eight result keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
-    const checks = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 44);
+    assert.equal(CHECK_KEYS.length, 5);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 46);
   });
 
   it('holds the 12 banner and action keys, the nine answered keys and the eight result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 12);
     assert.equal(ANSWERED_KEYS.length, 9);
     assert.equal(RESULT_KEYS.length, 8);
-    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
     const slots = {
+      'checks.notEverything': { whatFailed: 'text' },
+      'checks.notEverythingRestPassed': { whatFailed: 'text' },
       'banner.allowance': { limit: 'count', time: 'time' },
       'banner.dailyCap': { time: 'time' },
       'banner.costCap': { cap: 'cost', time: 'time' },
@@ -313,11 +319,14 @@ describe('the check sentences', () => {
     assert.equal(real.renderPageText('checks.nothingWatched'), "I'm not watching any productions yet, so I can't say. Ask me to watch one.");
   });
 
-  it('are the only check keys the page renders: the two that need a text slot are not listed', () => {
-    for (const key of ['checks.notEverything', 'checks.notEverythingRestPassed']) {
-      assert.ok(!Object.hasOwn(real.PAGE_TEXTS, key), key);
-      assert.throws(() => real.renderPageText(key), /no catalog text/, key);
-    }
+  it('render both whatFailed keys with the value the page built, cleaned like any string slot', () => {
+    assert.equal(real.renderPageText('checks.notEverything', { whatFailed: 'Orders production (3 new failures, at 14:13)' }), 'Not everything: Orders production (3 new failures, at 14:13).');
+    assert.equal(
+      real.renderPageText('checks.notEverythingRestPassed', { whatFailed: ' A (x); B\n' }),
+      'Not everything: A (x); B. Everything else I checked passed.',
+    );
+    assert.deepEqual({ ...real.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
+    assert.deepEqual({ ...real.PAGE_SLOTS['checks.notEverythingRestPassed'] }, { whatFailed: 'text' });
   });
 });
 
@@ -426,12 +435,13 @@ const GOOD = {
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
 };
 
-/** The Watch catalog of the fixtures: the three check sentences the page renders, and a key it does not. */
+/** The Watch catalog of the fixtures: the five check sentences the page renders. */
 const WATCH = {
   'checks.allPassed': { text: 'All fine.', slots: {}, source: 'fixture' },
   'checks.everythingElsePassed': { text: 'The rest was fine.', slots: {}, source: 'fixture' },
   'checks.nothingWatched': { text: "Nothing's watched.", slots: {}, source: 'fixture' },
   'checks.notEverything': { text: 'Not everything: {whatFailed}.', slots: { whatFailed: 'text' }, source: 'fixture' },
+  'checks.notEverythingRestPassed': { text: 'Not everything: {whatFailed}. The rest was fine.', slots: { whatFailed: 'text' }, source: 'fixture' },
 };
 
 /** Writes a fixture trio and returns the arguments that point the generator at it (the --watch pair is last). */
@@ -452,8 +462,10 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
-    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
+    assert.deepEqual({ ...module.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
+    assert.equal(module.renderPageText('checks.notEverythingRestPassed', { whatFailed: 'A (x)' }), 'Not everything: A (x). The rest was fine.');
     assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted']);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
     assert.deepEqual({ ...module.MESSAGE_TEXTS }, { 'answered.approved': 'Yes from {channel} at {time}.' }, 'the text form of the one listed key with a web form');
@@ -522,7 +534,7 @@ describe('the generator on a fixture', () => {
   });
 
   it('fails, naming the Watch file and the key, on a listed key that the Watch catalog lacks', () => {
-    for (const key of ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched']) {
+    for (const key of CHECK_KEYS) {
       const watchEntries = Object.fromEntries(Object.entries(WATCH).filter(([name]) => name !== key));
       const r = run(...fixture(`no-${key}`, { watchEntries }));
       assert.equal(r.status, 1, key);
@@ -549,6 +561,31 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /slot 'what' of type 'sentence'/);
   });
 
+  it('allows a text slot on the two whatFailed check keys only: every other check key, a banner and a reason text still refuse it', () => {
+    for (const key of ['checks.everythingElsePassed', 'checks.nothingWatched']) {
+      const watchEntries = { ...WATCH, [key]: { text: 'Fine: {what}.', slots: { what: 'text' } } };
+      const r = run(...fixture(`text-${key}`, { watchEntries }));
+      assert.equal(r.status, 1, key);
+      assert.ok(r.stderr.includes(`'${key}'`), r.stderr);
+      assert.match(r.stderr, /slot 'what' of type 'text'/, key);
+    }
+    // A noun slot is a type the page renders, so a whatFailed of type noun is refused for the count slot that the entry lacks.
+    for (const [type, refusal] of [['noun', "'checks.notEverything' has a noun slot"], ['sentence', "slot 'whatFailed' of type 'sentence'"]]) {
+      const watchEntries = { ...WATCH, 'checks.notEverything': { text: 'Not everything: {whatFailed}.', slots: { whatFailed: type } } };
+      const r = run(...fixture(`whatfailed-${type}`, { watchEntries }));
+      assert.equal(r.status, 1, type);
+      assert.ok(r.stderr.includes(refusal), r.stderr);
+    }
+    const entries = { ...GOOD, 'banner.unreachable': { text: 'Down {what}.', slots: { what: 'text' } } };
+    const banner = run(...fixture('text-banner', { entries }));
+    assert.equal(banner.status, 1);
+    assert.match(banner.stderr, /banner\.unreachable/);
+    assert.match(banner.stderr, /slot 'what' of type 'text'/);
+    const reason = run(...fixture('text-reason', { entries: { ...GOOD, 'fallbackReason.timeout': { text: 'it {n}', slots: { n: 'text' } } } }));
+    assert.equal(reason.status, 1);
+    assert.match(reason.stderr, /fallbackReason\.timeout/);
+  });
+
   it('reads the Watch catalog from the file that --watch names, and refuses one that is not there', () => {
     const args = fixture('watch-flag');
     const absent = [...args.slice(0, 6), '--watch', join(work, 'absent-watch.cls')];
@@ -571,7 +608,7 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /boom/);
   });
 
-  it('fails on a listed key with a slot of a type that the page does not render, and accepts time, count, cost, channel and text', () => {
+  it('fails on a listed key with a slot of a type that the page does not render, and accepts time, count, cost and channel (text on a key of TEXT_SLOT_KEYS only)', () => {
     for (const type of ['groups', 'sentence']) {
       const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
       const r = run(...fixture(`slot-${type}`, { entries }));
@@ -580,10 +617,38 @@ describe('the generator on a fixture', () => {
       assert.match(r.stderr, /conversation\.turnFallback/, type);
       assert.ok(r.stderr.includes(`slot 'what' of type '${type}'`), `${type}: ${r.stderr}`);
     }
-    for (const type of ['time', 'count', 'cost', 'channel', 'text']) {
+    for (const type of ['time', 'count', 'cost', 'channel']) {
       const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
       const r = run(...fixture(`slot-ok-${type}`, { entries }));
       assert.equal(r.status, 0, `${type}: ${r.stderr}`);
+    }
+  });
+
+  it('accepts a text slot on each key of TEXT_SLOT_KEYS, the listed keys whose entry declares one, and refuses it on every other listed key', async () => {
+    const { LISTED_KEYS, TEXT_SLOT_KEYS } = await import(pathToFileURL(script).href);
+    assert.deepEqual(TEXT_SLOT_KEYS, [
+      'checks.notEverything',
+      'checks.notEverythingRestPassed',
+      'answered.approvedBy',
+      'answered.rejectedBy',
+      'answered.alreadyApprovedBy',
+      'answered.alreadyRejectedBy',
+      'result.failedAgain',
+      'result.failedAndSkipped',
+      'result.couldNotStart',
+    ]);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS).filter((key) => Object.values(real.PAGE_SLOTS[key]).includes('text')), TEXT_SLOT_KEYS, 'the listed keys of the real catalog with a text slot');
+    for (const key of LISTED_KEYS) {
+      const inWatch = Object.hasOwn(WATCH, key);
+      const entry = (inWatch ? WATCH : GOOD)[key];
+      const withText = { ...entry, slots: { ...entry.slots, extra: 'text' } };
+      const r = run(...fixture(`extra-text-${key}`, inWatch ? { watchEntries: { ...WATCH, [key]: withText } } : { entries: { ...GOOD, [key]: withText } }));
+      if (TEXT_SLOT_KEYS.includes(key)) {
+        assert.equal(r.status, 0, `${key}: ${r.stderr}`);
+      } else {
+        assert.equal(r.status, 1, key);
+        assert.ok(r.stderr.includes(`'${key}' has the slot 'extra' of type 'text'`), `${key}: ${r.stderr}`);
+      }
     }
   });
 

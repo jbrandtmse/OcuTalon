@@ -711,7 +711,7 @@ ClassMethod RailBody(sessionRef As %String) As %DynamicObject [ Private ]
 	For i = 1:1:rows.Count() Do rail.approvals.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Approval).FromRow(rows.GetAt(i), sessionRef)))
 	Set rows = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
 	Do ..Check(sc)
-	For i = 1:1:rows.Count() Do rail.checks.%Push(..PayloadObject(..CheckView(rows.GetAt(i))))
+	For i = 1:1:rows.Count() Do rail.checks.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Check).FromRow(rows.GetAt(i))))
 	Set rows = ##class(OcuTalon.Data.Ownership).Reminders(sessionRef, .sc)
 	Do ..Check(sc)
 	For i = 1:1:rows.Count() Do rail.reminders.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Reminder).FromRow(rows.GetAt(i))))
@@ -719,28 +719,6 @@ ClassMethod RailBody(sessionRef As %String) As %DynamicObject [ Private ]
 	Do ..Check(sc)
 	For i = 1:1:rows.Count() Do rail.decisions.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Decision).FromRow(rows.GetAt(i))))
 	Quit rail
-}
-
-/// The check payload of a background check row. Live.Payload.Check is Lane A's, so this builds it without a FromRow
-/// of its own until the story that publishes the check event adds one. stopped has no source in the row, and the
-/// trace is the latest run's, in the watched production's namespace.
-ClassMethod CheckView(row As OcuTalon.Data.BackgroundCheck) As OcuTalon.Live.Payload.Check [ Private ]
-{
-	Set payload = ##class(OcuTalon.Live.Payload.Check).%New()
-	Set payload.Ref = row.Ref
-	Set payload.Kind = row.Kind
-	Set payload.Namespace = row.Namespace
-	Set payload.Production = row.Production
-	Set payload.DisplayName = row.DisplayName
-	Set payload.NextDueAt = row.NextDueAt
-	Set payload.LastRunAt = row.LastRunAt
-	Set payload.Result = row.Result
-	Set payload.Finding = row.Finding
-	If row.LastRunHeaderId '= "" {
-		Set payload.TraceHeaderId = row.LastRunHeaderId
-		Set payload.TraceNamespace = row.Namespace
-	}
-	Quit payload
 }
 
 /// The JSON object a payload object exports, the same shape the live event stores.

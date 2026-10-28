@@ -6,6 +6,8 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'checks.allPassed': 'Everything I checked passed.',
   'checks.everythingElsePassed': 'Everything else I checked passed.',
   'checks.nothingWatched': "I'm not watching any productions yet, so I can't say. Ask me to watch one.",
+  'checks.notEverything': 'Not everything: {whatFailed}.',
+  'checks.notEverythingRestPassed': 'Not everything: {whatFailed}. Everything else I checked passed.',
   'banner.allowance': "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.",
   'banner.dailyCap': "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   'banner.unreachable': "Can't reach OcuTalon. Retrying every 10 seconds.",
@@ -54,12 +56,14 @@ export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {
   'answered.approvedBy': 'Approved by {user} from {channel} at {time}.',
 };
 
-/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, the others take the formatted string the caller passes. */
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, noun the form that the count slot chooses, the others (time, count, cost and text) take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
   'checks.allPassed': {},
   'checks.everythingElsePassed': {},
   'checks.nothingWatched': {},
+  'checks.notEverything': { 'whatFailed': 'text' },
+  'checks.notEverythingRestPassed': { 'whatFailed': 'text' },
   'banner.allowance': { 'limit': 'count', 'time': 'time' },
   'banner.dailyCap': { 'time': 'time' },
   'banner.unreachable': {},
@@ -178,7 +182,8 @@ function pageTemplate(key: string, slots: PageSlots): string | undefined {
  * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
  * itself. A noun slot takes { one, other } and gives the form that the count slot ("1" or not) chooses. A key with a one form uses
  * its text when the form's count slot is "1". Every other slot takes the string the caller formatted (a time, a cost, a count or a
- * text), cleaned like any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * text, such as the whatFailed sentence part that the page built from the check rows), cleaned like any string slot, and an
+ * absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = pageTemplate(key, slots);

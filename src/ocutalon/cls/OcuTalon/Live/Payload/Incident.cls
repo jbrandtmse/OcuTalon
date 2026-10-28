@@ -59,9 +59,17 @@ Property Evidence As OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME 
 /// The trace targets of the incident.
 Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFIELDNAME = "traceTargets");
 
-/// The payload for an incident row, with every row-backed field set. groups, requests, evidence and traceTargets
-/// are left absent for the caller to fill. IncidentManager and /state both build an incident's payload here, so an
-/// event and the snapshot can't drift.
+/// The payload for an incident row, with every row-backed field set. IncidentManager and /state both build an incident's
+/// payload here, so an event and the snapshot can't drift. The Show-details fields come from rows, by object access only,
+/// because /state runs as a user with no SQL grant (AD-13):
+///   - groups: one {itemName, count, errorSummary, firstAt} per failure group (FailureGroup.OfIncident), count being the group's live Count;
+///   - evidence: sampleHeaderId and sampleError from the row, and items, one {itemName, count, firstAt, lastAt} per group; left absent when the
+///     incident has no group and no sample;
+///   - traceTargets: diagnosis (the row's TraceHeaderId in the current namespace), sample (SampleHeaderId) and firstFailure (FirstHeaderId), the
+///     last two in the watched namespace; each is left out when its id is empty;
+///   - requests: one {ref, state} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result stays
+///     empty, as no table keeps a request's counts yet.
+/// A row without any of them gives a payload without the four fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
 {
 	Set payload = ..%New()
@@ -89,7 +97,58 @@ ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Inci
 			Set payload.ItemNoun = ""
 		}
 	}
+	Do ..Details(payload, row)
 	Quit payload
+}
+
+/// Fills groups, evidence, traceTargets and requests of the payload from the rows of the incident (see FromRow).
+ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
+{
+	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(row.Ref)
+	Set evidence = ##class(OcuTalon.Live.Payload.Part.IncidentEvidence).%New()
+	For i = 1:1:groups.Count() {
+		Set group = groups.GetAt(i)
+		Set line = ##class(OcuTalon.Live.Payload.Part.IncidentGroup).%New()
+		Set line.ItemName = group.ItemName
+		Set line.Count = group.Count
+		Set line.ErrorSummary = group.ErrorSummary
+		Set line.FirstAt = group.FirstAt
+		Do payload.Groups.Insert(line)
+		Set item = ##class(OcuTalon.Live.Payload.Part.IncidentEvidenceItem).%New()
+		Set item.ItemName = group.ItemName
+		Set item.Count = group.Count
+		Set item.FirstAt = group.FirstAt
+		Set item.LastAt = group.LastAt
+		Do evidence.Items.Insert(item)
+	}
+	Set evidence.SampleHeaderId = row.SampleHeaderId
+	Set evidence.SampleError = row.SampleError
+	If (evidence.Items.Count() > 0) || (row.SampleHeaderId '= "") || (row.SampleError '= "") Set payload.Evidence = evidence
+	Set targets = ##class(OcuTalon.Live.Payload.Part.IncidentTraceTargets).%New()
+	Set targets.Diagnosis = ..Target(row.TraceHeaderId, $Namespace)
+	Set targets.Sample = ..Target(row.SampleHeaderId, row.Namespace)
+	Set targets.FirstFailure = ..Target(row.FirstHeaderId, row.Namespace)
+	If $IsObject(targets.Diagnosis) || $IsObject(targets.Sample) || $IsObject(targets.FirstFailure) Set payload.TraceTargets = targets
+	For i = 1:1:$Length(row.RequestRefs, ",") {
+		Set ref = $Piece(row.RequestRefs, ",", i)
+		If ref = "" Continue
+		Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If '$IsObject(request) || (request.IncidentRef '= row.Ref) Continue
+		Set part = ##class(OcuTalon.Live.Payload.Part.IncidentRequest).%New()
+		Set part.Ref = request.Ref
+		Set part.State = request.State
+		Do payload.Requests.Insert(part)
+	}
+}
+
+/// The trace target of a header id in a namespace; "" when the id is empty.
+ClassMethod Target(headerId As %Integer, namespace As %String) As OcuTalon.Live.Payload.Part.TraceTarget [ Private ]
+{
+	If headerId = "" Quit ""
+	Set target = ##class(OcuTalon.Live.Payload.Part.TraceTarget).%New()
+	Set target.TraceHeaderId = headerId
+	Set target.TraceNamespace = namespace
+	Quit target
 }
 
 }

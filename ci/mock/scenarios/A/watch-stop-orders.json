@@ -1,0 +1,21 @@
+{
+  "name": "watch-stop-orders",
+  "match": {
+    "marker": "watch-stop-orders"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "stop_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've stopped watching the Orders production."
+    }
+  ]
+}

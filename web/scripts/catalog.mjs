@@ -11,28 +11,31 @@
 // keys with their texts and slot types; the two are merged, and a key in both is refused) and the REASONKEYS parameter of
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key, and CHANNELNAMES, each channel code
 // with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
-// sentences checks.allPassed, checks.everythingElsePassed and checks.nothingWatched, the nine banner.* texts, the three
-// bannerAction.* texts the page renders (installYourself, howToSetKey and setUpBot), the nine answered.* texts (approved,
-// approvedBy, rejected, rejectedBy, expired, alreadyApproved, alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the seven
-// result.* texts (allThrough, failedAgain, skipped, failedAndSkipped, stillResending, interrupted and couldNotStart), audit.recorded
-// and every fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each
-// listed key), MESSAGE_TEXTS (the text form of each listed key that has a web form: the wording of a message, which the phone
-// shows), PAGE_ONE_FORMS (the count-of-one form of each listed key that has one: the slot that decides it and the text),
-// REASON_KEYS, CHANNEL_NAMES, renderPageText and renderMessageText. renderMessageText fills MESSAGE_TEXTS[key], else
-// PAGE_TEXTS[key], as renderPageText does, and applies the renderer's rule for a dated time: where a time slot's value (less a
-// trailing " ET") is not NN:NN, a preceding "at " becomes "on ", as in "Approved from the web chat on Thursday at 14:12.". A key with a
-// one form renders that form's text when its named count slot is "1", as Catalog.Template does. A fallbackReason slot renders as its
-// reason text, a noun slot ({one, other}) as the form that the entry's count slot chooses, as Catalog.Noun does, and a channel slot
-// as the channel's name (a code that is not in CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string
-// the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned like any string slot.
+// sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
+// checks.notEverythingRestPassed, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself,
+// howToSetKey and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
+// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the seven result.* texts (allThrough, failedAgain, skipped,
+// failedAndSkipped, stillResending, interrupted and couldNotStart), audit.recorded and every fallbackReason.*. An entry's web text
+// is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each listed key), MESSAGE_TEXTS (the text
+// form of each listed key that has a web form: the wording of a message, which the phone shows), PAGE_ONE_FORMS (the count-of-one
+// form of each listed key that has one: the slot that decides it and the text), REASON_KEYS, CHANNEL_NAMES, renderPageText and
+// renderMessageText. renderMessageText fills MESSAGE_TEXTS[key], else PAGE_TEXTS[key], as renderPageText does, and applies the
+// renderer's rule for a dated time: where a time slot's value (less a trailing " ET") is not NN:NN, a preceding "at " becomes
+// "on ", as in "Approved from the web chat on Thursday at 14:12.". A key with a one form renders that form's text when its named
+// count slot is "1", as Catalog.Template does. A fallbackReason slot renders as its reason text, a noun slot ({one, other}) as the
+// form that the entry's count slot chooses, as Catalog.Noun does, and a channel slot as the channel's name (a code that is not in
+// CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string the caller formatted (the page formats times,
+// costs and counts itself, AD-32), cleaned like any string slot. A text slot is allowed for the keys of TEXT_SLOT_KEYS only: the
+// whatFailed of checks.notEverything and checks.notEverythingRestPassed (built by the page from the check rows, DW-90), the user of
+// the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped, and the reason of
+// result.couldNotStart.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
-// other than fallbackReason, time, count, cost, channel, noun or text or with a placeholder that is not a declared slot, a
-// fallbackReason.* text with a slot of a type other than fallbackReason, a listed key with a one form that does not name a declared
-// count slot or has no text of its own, a listed key with both a web form and a one form, a noun slot in an entry with no count
-// slot, a reason value whose
-// fallbackReason.* key is missing, a key that both catalogs define, and an XData block, a REASONKEYS parameter or a CHANNELNAMES
-// parameter it cannot read.
+// other than fallbackReason, time, count, cost, channel or noun (text for the keys of TEXT_SLOT_KEYS only) or with a placeholder
+// that is not a declared slot, a fallbackReason.* text with a slot of a type other than fallbackReason, a listed key with a one
+// form that does not name a declared count slot or has no text of its own, a listed key with both a web form and a one form, a
+// noun slot in an entry with no count slot, a reason value whose fallbackReason.* key is missing, a key that both catalogs
+// define, and an XData block, a REASONKEYS parameter or a CHANNELNAMES parameter it cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
@@ -51,6 +54,8 @@ export const LISTED_KEYS = [
   'checks.allPassed',
   'checks.everythingElsePassed',
   'checks.nothingWatched',
+  'checks.notEverything',
+  'checks.notEverythingRestPassed',
   'banner.allowance',
   'banner.dailyCap',
   'banner.unreachable',
@@ -82,8 +87,25 @@ export const LISTED_KEYS = [
   'audit.recorded',
 ];
 export const REASON_PREFIX = 'fallbackReason.';
-/** The slot types the page renders: a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
-const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun', 'text'];
+/** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text): a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
+const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun'];
+/**
+ * The keys that may also declare a text slot, which takes the caller's formatted string: the whatFailed that the page fills from
+ * the check rows (DW-90), the user of the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped,
+ * and the reason of result.couldNotStart. Every other key refuses it.
+ */
+export const TEXT_SLOT_KEYS = [
+  'checks.notEverything',
+  'checks.notEverythingRestPassed',
+  'answered.approvedBy',
+  'answered.rejectedBy',
+  'answered.alreadyApprovedBy',
+  'answered.alreadyRejectedBy',
+  'result.failedAgain',
+  'result.failedAndSkipped',
+  'result.couldNotStart',
+];
+const TEXT_SLOT_TYPE = 'text';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';
 
@@ -164,8 +186,9 @@ function pageText(key, entry, file) {
   const slots = entry.slots;
   if (slots === null || typeof slots !== 'object' || Array.isArray(slots)) throw new CatalogError(file, 0, `the entry '${key}' declares no slots object`);
   for (const [name, type] of Object.entries(slots)) {
-    if (!SLOT_TYPES.includes(type)) {
-      throw new CatalogError(file, 0, `the entry '${key}' has the slot '${name}' of type '${String(type)}', which the page does not render (only ${SLOT_TYPES.join(', ')})`);
+    const allowed = TEXT_SLOT_KEYS.includes(key) ? [...SLOT_TYPES, TEXT_SLOT_TYPE] : SLOT_TYPES;
+    if (!allowed.includes(type)) {
+      throw new CatalogError(file, 0, `the entry '${key}' has the slot '${name}' of type '${String(type)}', which the page does not render (only ${allowed.join(', ')})`);
     }
   }
   if (Object.values(slots).includes('noun') && slots.count !== 'count') {
@@ -270,7 +293,8 @@ function pageTemplate(key: string, slots: PageSlots): string | undefined {
  * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
  * itself. A noun slot takes { one, other } and gives the form that the count slot ("1" or not) chooses. A key with a one form uses
  * its text when the form's count slot is "1". Every other slot takes the string the caller formatted (a time, a cost, a count or a
- * text), cleaned like any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * text, such as the whatFailed sentence part that the page built from the check rows), cleaned like any string slot, and an
+ * absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = pageTemplate(key, slots);
@@ -370,7 +394,7 @@ export function generate(opts) {
     '/** The text form of each listed key that has a web form: the wording of a message, which the phone shows. */',
     `export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {\n${messageLines.join('\n')}\n};`,
     '',
-    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, the others take the formatted string the caller passes. */',
+    '/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel\'s name, noun the form that the count slot chooses, the others (time, count, cost and text) take the formatted string the caller passes. */',
     `export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n${slotLines.join('\n')}\n};`,
     '',
     '/** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */',
