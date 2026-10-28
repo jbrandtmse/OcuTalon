@@ -2,7 +2,7 @@
 title: 'Story 8.2: The heartbeat-stalled warning comes from the real heartbeat'
 type: 'feature'
 created: '2026-10-25'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '018f9b965260178cd117cc7a74ade469d5a4a9e3'
 baseline_commit: '018f9b965260178cd117cc7a74ade469d5a4a9e3'
 review_loop_iteration: 0
@@ -109,6 +109,11 @@ deferred: []
 2. Given the banners user's page open on the sign-in stack with a seeded production check, when the tick mark is set 4 minutes back and `StatusMonitor`'s next run publishes the condition, then within one live update of the page applying that event the heartbeat-stalled banner shows the tick's time, the check row reads "Last run {time} (late)", the announcer reads the banner once, and `GET /ocutalon/api/v1/state` of that session holds `heartbeatStalled` with the tick's time as its slot; and when a real tick is written, then `/state` holds no `heartbeatStalled` at once, and within one live update of the page applying `StatusMonitor`'s clear, the banner and the "(late)" mark are gone. (FR-32, NFR-9, AD-12, UX-DR99, UX-DR132)
 3. Given the demo-path stack (a first start with the CI mock), when step 2's appended Story 8.2 test answers `/state` with a fixture "Orders production" check row, then the row shows "Last run {time} · Passed" with no "(late)" mark and no heartbeat banner, while the real `/state` status holds no `heartbeatStalled`. The existing `notBuilt(..., '8.2')` line stays as it is until the real switch on the integration branch. (FR-33, REL-2, AD-29, UX-DR53)
 
+- [ ] [CI] browser: `live:sign-in` red on `af61733`, the first push of Epic 8's merged tree (merge `8d5f805` brought in Epic 5's Story 5.6, "the production watch runs on every heartbeat"). `web/e2e/heartbeat/heartbeat.spec.ts:89` H1 fails at line 124 ("and so is the late mark"): expected `/^Last run (?:\S.* at )?18:43 · Passed$/`, received "Last run 18:44 · No read access to its namespace · Trace (opens in a new tab)" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40692572200 (job `iris (browser)`). Cause, read from the code: `StallFixture.Tick()` runs the real `HeartbeatTask`, whose tick now goes to `OcuTalon.Checks.Process`. That runs every `BackgroundCheck` row of Kind production whose `NextDueAt` is empty or at most 5 s after the tick (`Due()`). H1's seeded row (`seedCheck`, namespace `ZZNS`) has no `NextDueAt`, so the real tick ran it, recorded a new `LastRunAt` and the namespace finding, and the row no longer reads H1's seeded run. The real minute task can do the same to the row before the stall.
+  The fix keeps H1's intent (the banner and the late mark follow the real heartbeat and clear on a real tick) and makes its fixture row not due for the whole case: seed it with a `NextDueAt` well after the case (for example now plus one hour). Either H1 sets it right after `seedCheck` in the spec itself, or `seedCheck` gains an optional `nextDueAt` field (`web/e2e/support/iris.ts`, additive, with no change for other callers). Never edit `src/ocutalon/cls/OcuTalon/{Checks,Watch,Agent,Tools,Fix}/**` or `src/bridge/**`.
+  Check this story's other test that seeds or asserts a check row's last run (`web/e2e/demo-path/02-watch.spec.ts`, the Story 8.2 block) for the same hazard, and fix it the same way if it applies. Do not change other epics' specs; report the general hazard (any spec that seeds a production check row with no `NextDueAt` can be run by the real minute tick since Story 5.6) under `deferred:`.
+  Prove it on the merged tree, after `ci/iris.sh build`: the part of `live sign-in` that holds `heartbeat.spec.ts` red before the fix (or, if the red does not reproduce, the mutation "H1 seeds no `NextDueAt`" with a `Tick` makes it red) and green after; then the other part, and `live demo-path` if `02-watch.spec.ts` changed. Each changed pinning assertion gets its `mutation:` line.
+
 ### Review Findings
 
 Code review 2026-10-25 (first review; tier full-opus, layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor): 31 rows, 13 entries after grouping, 9 rows rejected. Each entry: severity | fix-risk | footprint | disposition. Rule 3 (H1 is the real-runtime test), Rule 1, Rule 5, Rule 6 (AD-12, AD-18, AD-33 matched) and Rule 14 checked with no finding.
@@ -152,6 +157,7 @@ Rejected (re-review):
 ## Spec Change Log
 
 - 2026-10-25, rework iteration 1 (trigger ci): the lead re-opened the spec for one `[CI]` item (the hosted web job's unit tests, run 40206917294).
+- 2026-10-28, rework iteration 2 (trigger ci): the lead re-opened the spec for one `[CI]` item (H1 red in `live:sign-in` on the merged tree `af61733`, run 40692572200: the real tick now runs H1's due fixture check row, Story 5.6).
 
 ## Review Triage Log
 
