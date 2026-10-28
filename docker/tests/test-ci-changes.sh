@@ -172,10 +172,12 @@ unclassified_case() {
   if [ -z "$unnamed" ]; then pass "classifier: $label: the reason of each group names the unclassified path"; else fail "classifier: $label: the reason of$unnamed does not name $first"; fi
 }
 
-# The script of each live unit runs exactly the group that holds the unit, and no other group.
+# The script of each live unit runs exactly the group that holds the unit, and no other group. The sign-in script also runs the
+# web job, because the web job's e2e-part tests read and run it.
 for grp in $IRIS_GROUPS; do
   for unit in $(group_units "$grp"); do
     case $unit in
+      live:sign-in) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
       live:*) paths_case "the script of $unit runs only $grp" false "$grp" "docker/tests/test-${unit#live:}.sh" ;;
     esac
   done
@@ -189,6 +191,10 @@ paths_case "logo/** runs web and the web groups" true "$web_groups" logo/mark.sv
 paths_case "a web change next to documentation runs the web groups" true "$web_groups" web/src/app/app.ts docs/guide.md
 paths_case "the Live payload classes run web and every group (src/)" true all src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls
 paths_case "the generated sign-in assets run web and every group (src/)" true all src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls
+paths_case "the Core catalog runs web and every group (the page's catalog module is generated from it)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls
+paths_case "the Watch catalog runs web and every group (the page's catalog module renders its check sentences)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+paths_case "the catalog renderer runs web and every group (its REASONKEYS feed the page's catalog module)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog.cls
+paths_case "the message enums run web and every group (the page's catalog tests compare the fallback reasons with the module)" true all src/ocutalon/cls/OcuTalon/Msg/Enum.cls
 paths_case "an agent class runs web and every group (the mock's tests read its MOCKKEY)" true all src/ocutalon/cls/OcuTalon/Agent/Chat.cls
 paths_case "the tool names run web and every group (the mock's tests read them)" true all src/ocutalon/cls/OcuTalon/Tools/Names.cls
 paths_case "the compaction prompt runs web and every group (the mock's tests read its PREFIX)" true all src/bridge/cls/OcuTalon/Bridge/Compaction.cls

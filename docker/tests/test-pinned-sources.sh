@@ -3,8 +3,8 @@
 #   - docker/ipm/: the IPM 0.10.10 release file and its licence are the byte-identical files of the Stack row
 #     (size and sha256), the file says it is 0.10.10, the licence keeps its copyright notice, and the
 #     after-start session names that file and version;
-#   - src/module.xml: the manifest's sources root, and the two resources in the order AD-2 fixes, the bridge
-#     package first, each in a directory that exists below the sources root.
+#   - src/module.xml: the manifest's sources root, and the three resources in the order AD-2 fixes, the bridge
+#     package, the bridge example, then the product, each in a directory that exists below the sources root.
 # The digest and the manifest checkers first run on synthetic inputs (a known digest; manifests that keep and
 # break their rules), so a checker that can no longer fail makes the test fail; the other checks compare a file
 # with a fixed value. Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -59,9 +59,10 @@ resources() {
     print n " " d }' "$1"
 }
 
-# AD-2: the bridge package is the first resource, the product package the second.
+# AD-2: the bridge package is the first resource, the bridge example the second, the product package the third.
 bridge_first() {
-  [ "$(resources "$1" | head -n 2)" = "OcuTalon.Bridge.PKG bridge/cls
+  [ "$(resources "$1" | head -n 3)" = "OcuTalon.Bridge.PKG bridge/cls
+OcuTalon.BridgeExample.PKG bridge/cls
 OcuTalon.PKG ocutalon/cls" ]
 }
 
@@ -80,6 +81,7 @@ cat > "$tmp/manifest.good" <<'EOM'
 <Module>
   <SourcesRoot>.</SourcesRoot>
   <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
+  <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
   <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
   <Resource Name="OcuTalon.Later.PKG" Directory="later/cls"/>
 </Module>
@@ -92,12 +94,21 @@ cat > "$tmp/manifest.reversed" <<'EOM'
 </Module>
 EOM
 printf '<Module>\n  <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>\n</Module>\n' > "$tmp/manifest.single"
+cat > "$tmp/manifest.nobridgeexample" <<'EOM'
+<Module>
+  <SourcesRoot>.</SourcesRoot>
+  <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
+  <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
+  <Resource Name="OcuTalon.Later.PKG" Directory="later/cls"/>
+</Module>
+EOM
 printf '<Parameter name="VERSION">\n<Description>\nVersion</Description>\n<Default>0.10.9</Default>\n</Parameter>\n' > "$tmp/release.old"
 
 if bridge_first "$tmp/manifest.good" && ! bridge_first "$tmp/manifest.reversed" && ! bridge_first "$tmp/manifest.single" \
+  && ! bridge_first "$tmp/manifest.nobridgeexample" \
   && sources_root_is_dot "$tmp/manifest.good" && ! sources_root_is_dot "$tmp/manifest.reversed" \
   && [ "$(release_version "$tmp/release.old")" = 0.10.9 ]; then
-  pass "checkers: they accept the right manifest and reject a reversed one, a single resource and another root"
+  pass "checkers: they accept the right manifest and reject a reversed one, a single resource, the old two-resource one and another root"
 else
   fail "checkers: a manifest checker accepts what it should reject, or rejects what it should accept"
 fi
@@ -122,7 +133,7 @@ check "ipm: the wanted version is the pinned 0.10.10" test "$(session_ipm_versio
 # --- src/module.xml ---
 
 check "manifest: the sources root is the manifest's own directory" sources_root_is_dot src/module.xml
-check "manifest: the first two resources are the bridge package, then the product package" bridge_first src/module.xml
+check "manifest: the first three resources are the bridge package, the bridge example, then the product package" bridge_first src/module.xml
 
 # A resource "A.B.PKG" in directory D holds the classes of package A.B at src/D/A/B/.
 each_resource_has_its_package() {

@@ -241,6 +241,14 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Notifications and reminders / Tell now"
  },
+ "notice.tellNowFallback": {
+  "text": "{whatHappened}\nWhy now: {reason}",
+  "slots": {
+   "whatHappened": "text",
+   "reason": "fallbackReason"
+  },
+  "source": "EXPERIENCE Message Catalog / Notifications and reminders / Tell now; Component Patterns / Fallback flag"
+ },
  "reminder.due": {
   "text": "Reminder: {text}.",
   "slots": {

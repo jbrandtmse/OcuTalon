@@ -3,7 +3,10 @@
 /// subclass in the HostSinkClass setting of the Decide item; the bridge calls OnEvent after commit, in the job that
 /// changed state, for the eight event types of EVENTS, and wraps every call in its own error handling.
 ///   - decision.* and approval.* carry the record's public Ref: RefPayload(ref);
-///   - turn.step carries the step's label and the DecisionRef of the turn, with the session as ownerRef: TurnStepPayload(decisionRef, label);
+///   - turn.step carries the step's label and the DecisionRef of the turn, with the session as ownerRef: TurnStepPayload(decisionRef, label).
+///     The gate fires it for an allowed tool call from inside AI Hub's authorization callback, before the tool runs, not after a commit, so
+///     an OnEvent for turn.step makes no AI Hub call and runs no Python (AD-6), and the classes it calls belong in the
+///     callback helpers (CALLBACKHELPERS) of the code-rules test;
 ///   - budget.capped carries the instance-zone date, with ownerRef "instance": BudgetCappedPayload(day).
 Class OcuTalon.Bridge.Ext.HostSink
 {

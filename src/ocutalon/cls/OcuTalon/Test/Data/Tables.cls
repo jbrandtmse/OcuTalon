@@ -1,7 +1,7 @@
 /// Tests of the cross-lane table contracts (Story 0.4): every OcuTalon.Data and OcuTalon.Bridge.Data table, and the live
 /// event table, has exactly its contract, its default global is its registry row's and resolves to the private
-/// database, no persistent class projects an SQL reserved word, and the Delivery stubs refuse and find nothing. The
-/// tests create no rows, but for the fixture mark of TestStatusMarkRecord, which the test removes.
+/// database, and no persistent class projects an SQL reserved word. The tests create no rows, but for the fixture mark of
+/// TestStatusMarkRecord, which the test removes.
 Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 {
 
@@ -80,15 +80,6 @@ Method TestSqlNames()
 	For process = "OcuTalon.Bridge.Process.Decide", "OcuTalon.Bridge.Process.ApprovalHold", "OcuTalon.Watch.IncidentManager", "OcuTalon.Checks.Process", "OcuTalon.Core.Conversation", "OcuTalon.Core.Intake", "OcuTalon.Schedule.ReminderTimer" {
 		Do $$$AssertTrue($Data(checked(process)), process_" is among the checked classes")
 	}
-}
-
-/// The Delivery stubs: Record is an error that says it is not implemented yet, and FindByApproval finds nothing.
-Method TestDeliveryStubs()
-{
-	Set sc = ##class(OcuTalon.Data.Delivery).Record("zz", "web", "1", "")
-	Do $$$AssertStatusNotOK(sc, "Record returns an error status")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "not implemented yet", "the error says it is not implemented yet")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval("zz", "web", "zz"), "", "FindByApproval returns an empty string")
 }
 
 /// Record creates or replaces the row of a mark with RecordedAt in UTC to the second, Get reads the value ("" with no row),
@@ -285,7 +276,9 @@ XData Contracts [ MimeType = application/json ]
    "TraceRef": "%String(MAXLEN=22)",
    "IrisUser": "%String(MAXLEN=128)",
    "CreatedAt": "%String(MAXLEN=20)",
-   "Epoch": "%String(MAXLEN=22)"
+   "Epoch": "%String(MAXLEN=22)",
+   "ThreadSessionId": "%Integer",
+   "ThreadDay": "%String(MAXLEN=10)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -332,7 +325,8 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "SessionRef": "%String(MAXLEN=22)",
    "RunEpoch": "%Integer",
-   "TraceOpened": "%Boolean"
+   "TraceOpened": "%Boolean",
+   "RunStartedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "SessionRefIndex": "SessionRef unique"
@@ -374,11 +368,26 @@ XData Contracts [ MimeType = application/json ]
    "FromGuide": "%Boolean",
    "TriageDecisionRef": "%String(MAXLEN=22)",
    "TurnDecisionRef": "%String(MAXLEN=22)",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "ItemId": "%String(MAXLEN=22)",
+   "ClientId": "%String(COLLATION=EXACT,MAXLEN=128)",
+   "Text": "%String(MAXLEN=)",
+   "ReplyText": "%String(MAXLEN=)",
+   "ReplyCatalogKey": "%String(MAXLEN=128)",
+   "FallbackReason": "%String(MAXLEN=32)",
+   "TraceHeaderId": "%Integer",
+   "TraceItemIndex": "%Integer",
+   "TraceItemIndexNoEvents": "%Integer",
+   "Tainted": "%Boolean",
+   "Attempt": "%Integer",
+   "CheckKey": "%String(MAXLEN=128)",
+   "CheckRows": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
-   "SessionRefIndex": "SessionRef"
+   "SessionRefIndex": "SessionRef",
+   "ItemIdIndex": "ItemId unique",
+   "ClientIdIndex": "SessionRef,ClientId"
   }
  },
  "OcuTalon.Data.SimMessage": {
@@ -389,7 +398,12 @@ XData Contracts [ MimeType = application/json ]
    "Kind": "%String(MAXLEN=32)",
    "Direction": "%String(MAXLEN=32)",
    "ItemId": "%String(MAXLEN=22)",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "Text": "%String(MAXLEN=)",
+   "Sender": "%String(MAXLEN=1000)",
+   "Subject": "%String(MAXLEN=1000)",
+   "ApprovalRef": "%String(MAXLEN=22)",
+   "Answer": "%String(MAXLEN=1000)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -404,10 +418,16 @@ XData Contracts [ MimeType = application/json ]
    "Channel": "%String(MAXLEN=32)",
    "ChannelMessageId": "%String(MAXLEN=128)",
    "ApprovalRef": "%String(MAXLEN=22)",
-   "RecordedAt": "%String(MAXLEN=20)"
+   "RecordedAt": "%String(MAXLEN=20)",
+   "Kind": "%String(MAXLEN=32)",
+   "Text": "%String(MAXLEN=)",
+   "DecisionRef": "%String(MAXLEN=22)",
+   "DueAt": "%String(MAXLEN=20)",
+   "FallbackReason": "%String(MAXLEN=32)"
   },
   "indexes": {
-   "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef"
+   "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",
+   "OwnerRefChannelIndex": "OwnerRef,Channel"
   }
  },
  "OcuTalon.Data.Reminder": {
@@ -419,7 +439,10 @@ XData Contracts [ MimeType = application/json ]
    "DueAt": "%String(MAXLEN=20)",
    "State": "%String(MAXLEN=32)",
    "Late": "%Boolean",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "TraceHeaderId": "%Integer",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "CancelKey": "%String(MAXLEN=128)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -447,6 +470,7 @@ XData Contracts [ MimeType = application/json ]
    "Production": "%String(MAXLEN=128)",
    "DisplayName": "%String(MAXLEN=128)",
    "AskedBy": "%String(MAXLEN=128)",
+   "CreatedAt": "%String(MAXLEN=20)",
    "NextDueAt": "%String(MAXLEN=20)",
    "LastRunAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
@@ -463,7 +487,9 @@ XData Contracts [ MimeType = application/json ]
   "super": "%Persistent",
   "props": {
    "Namespace": "%String(MAXLEN=128)",
-   "Production": "%String(MAXLEN=128)"
+   "Production": "%String(MAXLEN=128)",
+   "MarkAt": "%String(MAXLEN=23)",
+   "Seen": "%String(MAXLEN=)"
   },
   "indexes": {
    "NamespaceProductionIndex": "Namespace,Production unique"
@@ -492,7 +518,11 @@ XData Contracts [ MimeType = application/json ]
    "FallbackReason": "%String(MAXLEN=32)",
    "DecisionRef": "%String(MAXLEN=22)",
    "TraceHeaderId": "%Integer",
-   "ClosedAt": "%String(MAXLEN=20)"
+   "ClosedAt": "%String(MAXLEN=20)",
+   "FirstHeaderId": "%Integer",
+   "SampleHeaderId": "%Integer",
+   "SampleError": "%String(MAXLEN=1000)",
+   "RequestRefs": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -507,10 +537,21 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "IncidentRef": "%String(MAXLEN=22)",
    "ItemName": "%String(MAXLEN=128)",
-   "ErrorPattern": "%String(MAXLEN=1000)"
+   "ErrorPattern": "%String(MAXLEN=1000)",
+   "Seen": "%String(MAXLEN=)",
+   "Seq": "%Integer",
+   "Count": "%Integer",
+   "FirstAt": "%String(MAXLEN=20)",
+   "LastAt": "%String(MAXLEN=20)",
+   "NoticeCount": "%Integer",
+   "ErrorSummary": "%String(MAXLEN=1000)"
   },
   "indexes": {
-   "IncidentRefIndex": "IncidentRef"
+   "IncidentRefIndex": "IncidentRef",
+   "SeqIndex": "IncidentRef,Seq unique"
+  },
+  "sql": {
+   "Count": "FailureCount"
   }
  },
  "OcuTalon.Data.FixRun": {

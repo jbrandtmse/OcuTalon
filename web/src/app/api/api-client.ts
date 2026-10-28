@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 
-import type { EventsResponse, StateSnapshot } from './api-types';
+import type { GuideStatePayload } from '../live/payloads';
+import type { AnswerBody, AnswerChannel, DismissBody, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -14,6 +15,71 @@ export class ApiClient {
   /** The snapshot of the signed-in user's session. */
   state(): Observable<StateSnapshot> {
     return this.http.get<StateSnapshot>(`${BASE}/state`);
+  }
+
+  /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
+  endSession(): Observable<void> {
+    return this.http.post<void>(`${BASE}/session/end`, {});
+  }
+
+  /**
+   * Posts one message of the chat. Only the answer 202 is a success; any other status, a 2xx included, fails as an error.
+   * A repeat of a clientId is answered 202 too, so a retry never queues a second turn.
+   */
+  postMessage(body: MessagePost): Observable<MessageAccepted> {
+    return this.http.post<MessageAccepted>(`${BASE}/messages`, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/messages` });
+        }
+        return response.body;
+      }),
+    );
+  }
+
+  /** Simulates an incoming email in the simulated mailbox (demo mode only). Only the answer 202 is a success. */
+  postMailboxIncoming(email: MailboxEmail): Observable<MailboxAccepted> {
+    return this.accepted<MailboxAccepted>(`${BASE}/mailbox/incoming`, email);
+  }
+
+  /** Delivers one of the sample emails (newsletter, partner-notice, suspicious-request) into the simulated mailbox (demo mode only). Only the answer 202 is a success. */
+  postMailboxSample(name: string): Observable<MailboxAccepted> {
+    return this.accepted<MailboxAccepted>(`${BASE}/mailbox/samples/${encodeURIComponent(name)}`, {});
+  }
+
+  /** Writes one of the guide's UI markers (demo mode only); the answer is the guide view that /state carries, with its trace URL. */
+  postGuideMarker(marker: GuideMarker): Observable<GuideStatePayload> {
+    return this.http.post<GuideStatePayload>(`${BASE}/guide/markers`, { marker });
+  }
+
+  /**
+   * Answers an approval request: a POST of {action, channel} (the session is the caller's, never in the body); the channel is 'web'
+   * for the chat's request card and 'phone' for the simulated phone's message.
+   * The whole response is observed: 200 is the answered request (AnswerBody); a 4xx or 5xx fails as an HttpErrorResponse whose
+   * `error` is the body, which for a 409 also holds the request's payload (AnswerError).
+   */
+  answerApproval(ref: string, action: 'approve' | 'reject', channel: AnswerChannel = 'web'): Observable<HttpResponse<AnswerBody>> {
+    return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel }, { observe: 'response' });
+  }
+
+  /**
+   * Dismisses an incident: a POST of {} (the incident is in the path and the session is the caller's, never in the body). The whole
+   * response is observed: 200 is {result: 'done'}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
+    return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
+  }
+
+  /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */
+  private accepted<T>(url: string, body: object): Observable<T> {
+    return this.http.post<T>(url, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? url });
+        }
+        return response.body;
+      }),
+    );
   }
 
   /** The events after the two cursors, one for the session's stream and one for the instance's. */

@@ -1,0 +1,17 @@
+{
+  "name": "overloaded-then-held",
+  "match": {
+    "marker": "overloaded-then-held"
+  },
+  "replies": [
+    {
+      "status": 529,
+      "text": "CI mock: overloaded, then held."
+    },
+    {
+      "status": 200,
+      "delayMs": 18000,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers late after an overload.\"],\"confidence\":0.5}"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "name": "steps-loop",
+  "match": {
+    "marker": "steps-loop"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "status"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "uptime"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "queues"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "errors"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "alerts"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "journal"
+        }
+      }
+    }
+  ]
+}

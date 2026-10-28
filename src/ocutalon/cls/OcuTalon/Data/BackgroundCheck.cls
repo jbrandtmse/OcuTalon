@@ -1,4 +1,5 @@
-/// The one table for every background check, a production watch included (AD-18). Lane A.
+/// The one table for every background check, a production watch included (AD-18). Lane A. WatchOps creates and removes a row, and Checks records each
+/// run on it: LastRunAt, Result, Finding, LastRunHeaderId and NextDueAt.
 Class OcuTalon.Data.BackgroundCheck Extends %Persistent
 {
 
@@ -25,6 +26,9 @@ Property DisplayName As %String(MAXLEN = 128);
 
 /// The IRIS user who asked for the check.
 Property AskedBy As %String(MAXLEN = 128);
+
+/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these.
+Property CreatedAt As %String(MAXLEN = 20);
 
 /// When the check is next due.
 Property NextDueAt As %String(MAXLEN = 20);
@@ -88,6 +92,9 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>LastRunHeaderId</Value>
+</Value>
+<Value name="14">
+<Value>CreatedAt</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.CheckD</DataLocation>

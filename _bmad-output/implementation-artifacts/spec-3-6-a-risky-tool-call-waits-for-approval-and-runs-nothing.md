@@ -1,0 +1,445 @@
+---
+title: 'Story 3.6: A risky tool call waits for approval and runs nothing'
+type: 'feature'
+created: '2026-10-25'
+status: 'done'
+baseline_revision: '436a9ad6f20350852310f4975f5ce9d56abd26f1'
+baseline_commit: '436a9ad6f20350852310f4975f5ce9d56abd26f1'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-10 rule 4, the AD-11 Raise bullet, the AD-26 "Commands and notices from inside a turn" bullet, the AD-31 HostSink contract, the AD-6 callback bullet, and the Consistency Conventions rows "Tool classification" and "Approval requests")'
+warnings: ['oversized']
+deferred:
+  - summary: >-
+      A hold whose start times out after STARTSECONDS can still create its Workflow task and timer after Raise has deleted the row.
+    evidence: |-
+      Approval.SaveAndStart deletes the row when StartHold returns an error (including the 10 s timeout of ApprovalStartIn), but nothing cancels an ApprovalHold that answers later. Raised by the edge-case layer; the path is Story 3.4's and this story does not change it. Not reproduced: a probe would hold ApprovalStartIn past STARTSECONDS and then look for a task of a deleted Ref.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Approval.cls SaveAndStart, StartHold
+    severity: medium (unverified)
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** The gate denies every risky or unclassified call in a user's turn with the placeholder `NEEDSAPPROVAL` and raises nothing, so the user's risky tool can never be approved. `Raise` also has two flaws when it runs inside a host job: it would commit the caller's open transaction (DW-187), and it leaves the job without its session and with the wrong current header (DW-191).
+
+**Approach:**
+- In the gate's result branch, a risky or unclassified call raises one `tool_call` request through `Approval.Raise`. It runs from inside `%CanExecute`, in the bridge context, and is then denied with "held for your approval; nothing was run.".
+- `Raise` refuses to run inside an open transaction.
+- `StartHold` puts back the job's session and current header ids after its `ApprovalStartIn` round trip.
+- The NFR-13 tests show that a held, rejected or expired request runs nothing.
+
+## Boundaries & Constraints
+
+**Always:**
+- **The decision order stays as it is** (`Gate.Decision`):
+  1. the call checks (`FAILED`);
+  2. the classification;
+  3. the permissions (`NOPRIVILEGE`);
+  4. provenance and taint (`UNTRUSTED`);
+  5. the result: a safe call is allowed; every other call is held.
+  So an untrusted or tainted turn, a missing privilege and a failed check never raise a request.
+- **The held call.** The gate builds an unsaved `ApprovalRequest` with these fields:
+  - `Kind` `tool_call`;
+  - `ToolName` the call's name;
+  - `ToolArguments` the call's arguments as given. An object is stored as its `%ToJSON()`, a JSON text that is not blank is stored verbatim, and no arguments are stored as `{}`. The call itself is never modified;
+  - `OwnerRef` and `TraceRef` from the context;
+  - no `ResultTarget`, `IncidentRef` or `DryRun`.
+  It calls `Raise(row, .ref, sinkClass)` with the gate's own `sinkClass` (empty: Decide's `HostSinkClass`). Raise takes the trace session and the SuperSession from the bridge context (AD-26), so the gate passes neither.
+  - **Raise OK:** the call is denied with the new parameter `HELD` = `held for your approval; nothing was run.`, which replaces `NEEDSAPPROVAL`. A held call fires no `turn.step` and does not taint the turn. Its only event is Raise's `approval.raised`.
+  - **Raise fails:** the call is denied with `FAILED`, and `Check`'s one redacted warning names the tool, its source and Raise's error. Nothing is held, so the denial never says it is.
+- **DW-187.** `Raise` refuses when `$TLevel` is above 0, before anything is written. The refusal names `$TLevel` and its value, and the caller's transaction is left open and unchanged. Measured at planning: `$TLevel` is 0 inside `%CanExecute` in the runner job.
+- **DW-191.** `StartHold` saves `$$$JobSessionId` and `$$$JobCurrentHeaderId` (`Ensemble.inc` :36-37) before `ProcessInput` and puts them back afterwards: a defined value is set back, an undefined one is killed again. This also happens after an error status or an exception. Every caller benefits: the gate, Reconcile and Epic 5's `IncidentManager`.
+- **`CodeRules` `CALLBACKHELPERS`** gains `OcuTalon.Bridge.Approval`, `OcuTalon.Bridge.Service.ApprovalStart`, `OcuTalon.Bridge.Ids` and `OcuTalon.Bridge.Time`, the classes that `Raise` runs inside the callback. They make no `%AI` call and run no Python (AD-6).
+- The gate keeps no instance property. The bridge names no OcuTalon package (AD-2).
+- **Tests run on throwaway stacks only, through `ci/iris.sh` and `ci/warm.sh`.**
+  - Every OwnerRef a gate test creates is tracked under `^OcuTalonTest("Gate","owners")`.
+  - The cleanup runs before and after each test, so it also covers a failed earlier run. It tracks every approval row of those owners in `Test.Bridge.Approval`'s refs and runs that class's `Clean`. So every held request is ended and deleted, and every lock job is released.
+  - A test that holds a call first checks that the production is ready (`RunnerFixture.ReadyReason`).
+
+**Never:**
+- No change to `Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`, `Hold`, `HoldResponse`, `Reconcile`, `ApprovalHold` or `Service.ApprovalStart`. No new `ApprovalRequest` column, and no new message class or event type.
+- No replay, no live grant and no `tool` request (Story 30.3). No audit entry (Story 3.7). No de-duplication of repeated calls.
+- No edit to a contended path or to `src/ocutalon/cls/OcuTalon/Test/Agent/**`: reuse `RunnerFixture` and `Test.Contract.Mock` as they are.
+- No test run, Workflow change or setting change on `ocutalon-slot-a`. No sleep race: concurrency goes through a held lock. No wait longer than `LOCKSECONDS` is added.
+
+## I/O & Edge-Case Matrix
+
+Terms used in the table:
+- **A user's turn:** a context begun with provenance `user`, untainted, and a tracked OwnerRef.
+- **The sink:** `ProbeSink` passed as the gate's `sinkClass`.
+- **Held** means:
+  - exactly one row for the owner, `pending`, with `RequiredRole` `OcuTalonUser` and the fields named in the row;
+  - its task exists (`WaitTask`) and exactly one hold is live;
+  - the sink got exactly one call, `approval.raised`, with the OwnerRef and `{"ref"}`, at `$TLevel` 0, with the row existing and pending;
+  - no `turn.step` fired, the taint is unchanged and the tool method did not run.
+
+| # | Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|---|----------|--------------|---------------------------|----------------|
+| 1 | Risky call held | A user's turn, with the context's `ThreadSessionId` set to a session the test took from an earlier held call's hold (as 3.4's `TestCallerSession` does) and `SuperSession` set to a new Ref. `zz_gate_held` (risky in code) with `{"value":1,"nested":{"b":2,"a":1}}`. | Denied with `HELD`. Held: `ToolName` `zz_gate_held`, `ToolArguments` the object's `%ToJSON()` exactly, the context's `OwnerRef` and `TraceRef`, and `ResultTarget`, `IncidentRef` and `DryRun` empty. The hold's start is in the context's session with its SuperSession. | -- |
+| 2 | Other held calls | A user's turn: (a) `zz_gate_held` with the arguments as JSON text `{"value":2}`; (b) with no arguments; (c) unclassified `zz_gate_risky`, with no setting; (d) the MCP call `mcp:zzserver`/`zz_mcp_other`; (e) through `%CanExecute`, with Decide's `HostSinkClass` set to ProbeSink | Each is denied with `HELD` and is held. `ToolArguments` is (a) the text verbatim, (b) `{}`, (c) and (d) `{}`. `ToolName` is the call's name. In (e) the setting's sink got `approval.raised`. | -- |
+| 3 | Never held | (a) A safe call in a user's turn; (b) an untrusted turn and a tainted turn calling `zz_gate_held`, `zz_approve_requests` and `zz_mcp_safe`; (c) a risky tool that declares a resource the service user lacks; (d) no context, or a malformed call | (a) Allowed; (b) `UNTRUSTED`; (c) `NOPRIVILEGE`; (d) `FAILED`. No approval row exists for the owner, and the sink got no `approval.raised`. | -- |
+| 4 | Raise fails | A user's turn calling `zz_gate_held`. (a) Another job holds `LOCK ^OcuTalon.Bridge.Approval` (`HoldLockInJob`). (b) DW-187: the test runs `TSTART` first. | Denied with `FAILED` in both cases. One gate warning names `zz_gate_held` and the failure: (a) after about `LOCKSECONDS`, the lock; (b) at once, `$TLevel`. No row or start exists for the owner, and the sink got no call. In (b), `$TLevel` is still 1 afterwards. The test counts the warning and the rows before it rolls back, because the warning row is written inside the open transaction. | Fail closed (AD-10). |
+| 5 | DW-191 | (a) `Raise` of a tool_call row, from the test process with `%Ensemble("SessionId")` and `%Ensemble("CurrentHeaderId")` set to known values, and again with both undefined. (b) The production's `ChatAgent` job running `ZzGateAgent` (`UseAgent`): a user's turn with the marker `gate-held-then-note`, in which the model calls `zz_gate_held` and then `zz_gate_note` in one response. | (a) Raise is OK. Both values are unchanged afterwards, and undefined ones stay undefined. The test kills both afterwards. (b) `zz_gate_held` is held: its row and task exist, its step is denied with `HELD`, and it did not run, since the next request carries no `{"ran":"zz_gate_held"}`. `zz_gate_note` ran. Its event-log row has the `SessionId` of the runner's request header and that header's id as `MessageId`. | -- |
+| 6 | NFR-13: rejected | Shadow runner of `ZzGateAgent` (`Turn`, the scenario `gate-risky`). Decide's `ToolClassification` setting makes `zz_gate_risky` risky. Then `Answer(ref,"reject","web",<ANSWERER>,"",.w)`. | The turn's step is denied with `HELD`, and the model's next request carries `HELD`. The row holds the exact call (`zz_gate_risky`, `{}`, the request's OwnerRef) and is held. Answer gives `done` and the row is `rejected`. Afterwards (`WaitHoldSettled`) the hold has ended, and in its session it sent only its TaskRequest and AlarmRequest. `StartExecution` is refused. The tool never ran (`^\|\|ZzGateRan`). | -- |
+| 7 | NFR-13: expired | A second turn as in row 6. The row is aged to expire 1 minute ago (`Age`), then answered `approve`. | Answer gives `expired` and the row is `expired`. `StartExecution` is refused. The hold sent only its TaskRequest and AlarmRequest. The tool never ran. | -- |
+| 8 | Governance runs | `TestEveryRiskyBuiltInIsDenied` and `TestGovernanceSample` through `RunDenied` | Every tool that is not safe is still denied with one denied step, and its method does not run. Each held call's row is removed by the cleanup. | -- |
+
+</intent-contract>
+
+## Code Map
+
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` -- the change.
+  - Class comment (:3-38): step 5 and "takes no lock" (:36) are rewritten.
+  - `NEEDSAPPROVAL` (:47) becomes `HELD`.
+  - `Check` (:89-103) catches a thrown status as `FAILED` plus `Warn`; a failed Raise reuses that path.
+  - `Decision` (:106-122): the result branch is at :115.
+  - `ArgumentsOf` (:300-312) gives an object, a text or "" (reuse it).
+  - `ReportStep` (:212) is the sink pattern.
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls`:
+  - `Raise` (:65-86). `Validate` (:132-167) and `Refuse` (:170) hold the refusal pattern for the `$TLevel` check.
+  - `SaveAndStart` (:89-115) already takes the session and SuperSession from the context (:101-106).
+  - `StartHold` (:120-129) is where the restore goes.
+  - Class comment (:3-17).
+- `src/bridge/cls/OcuTalon/Bridge/Service/ApprovalStart.cls` and `Context.cls` -- read only (the context's `FIELDS`, and `Put` for the session fields).
+- IRIS (`irislib/`), read only:
+  - `Ens/BusinessService.cls`:
+    - `ProcessInput` (:44-86) commits every open transaction (:62) and kills `$$$JobSessionId` (:79);
+    - `preProcessInput` kills it too (:100);
+    - `SendRequestSync` sets `$$$JobCurrentHeaderId` to the start's header (:167).
+  - `Ens/Util/Log.cls:86-88`: event-log rows read both ids.
+  - `Ens/BusinessOperation.cls:146-158`: the runner's own ids are set per request. Its response is built from the request header, so it was never affected (measured).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls` -- extend it.
+  - Class comment (:1-38); `OnBeforeOneTest` and `OnAfterOneTest` (:106-146).
+  - Risky-call tests asserting `NEEDSAPPROVAL`:
+    - `TestRiskyByCodeAndUnclassified` (:215) is extended for rows 1 and 2;
+    - the same assertion is in `TestDeveloperSetting` (:236), `TestMalformedSettingFailsClosed` (:266), `TestArgumentDependent` (:310), `TestOddValues` (:335), `TestSameNameAnotherClass` (:359), `TestMcpShadow` (:370), `TestExtension` (:395), `TestCallContentCannotClassify` (:434), `TestCanExecute` (:523), `TestAnyRequestKindAndProvenance` (:779) and `TestTaintFollowsTrustedOutput` (:919).
+  - `TestSentences` (:696) checks the sentences.
+  - `TestDeveloperRiskyEndToEnd` (:574) is extended for rows 6 and 7.
+  - `TestSeveralPairsAndPrivilegeBeforeApproval` (:728) covers row 3c.
+  - `TestPrivilegeInProductionRunnerJob` (:814) is extended in place for row 5b.
+  - The live approval-row guards: `AssertSafeReadOnlyOnly` (:1134; the comment at :1164) and `TestSuspiciousRequestActsOnNothing` (:1050; the comment at :1110).
+  - Helpers: `Begin` (:1117), `Verdict` and `Decided` (:1199-1211), `ApprovalRows` (:1227; its comment changes), `Clean` (:1277), `Guard` (:1285), `Turn` (:1297) and `RunDenied` (:1441).
+  - Sink-count assertions (`+$Get(^||ZzProbeSink)`) are at :156-964.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls` -- the helpers to reuse:
+  - `Clean` (:1727), `Remove` (:1762), `TaskIds` (:1443), `WaitTask` (:1467), `WaitHoldSettled` (:1490), `HoldMessages` (:1402), `HoldRequests` (:1934), `Age` (:1607), `HoldLockInJob` (:1263) and `ANSWERER` (:80);
+  - the refs tracking under `^OcuTalonTest("Approval","refs")`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- `CALLBACKHELPERS` (:56) and its comment (:51-55); the class comment (:6).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzGateTool.cls`, `ZzGateInjection.cls` (the toolset of six tools) and `ZzGateAgent.cls` (its comment lists the markers).
+- `ci/mock/scenarios/A/gate-taint-parallel.json` -- the shape of a response with two tool calls.
+- Read only:
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: `NewRequest` (:276, with an `ownerRef`), `Send` (:262), `UseAgent` (:524), `PointKeys` (:456), `ReadyReason` (:306), `HeaderMark` (:437), `EventMark` (:182), `Warnings` (:1037), `WaitFor` (:158), `UseItemSetting` (:617) and `ToolResults` (:969);
+  - `Test.Contract.Mock` `LogMark` and `LogSince`.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] `src/bridge/cls/OcuTalon/Bridge/Approval.cls`:
+  - `Raise` refuses at `$TLevel > 0` through `Refuse`, before anything is written (DW-187);
+  - `StartHold` saves and restores `$$$JobSessionId` and `$$$JobCurrentHeaderId` around `ProcessInput`, as in Boundaries, also after an exception (DW-191);
+  - the comments of `Raise`, `StartHold` and the class state the contract.
+  - Why: rows 4b and 5.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
+  - `HELD` replaces `NEEDSAPPROVAL`;
+  - a private helper builds the row from the context and the call and raises it with `sinkClass`. On error it throws Raise's status, which `Check` turns into `FAILED` and a warning;
+  - the class comment's step 5, its lock sentence and the trace session (AD-26) are rewritten as contracts.
+  - Why: rows 1 to 4, AD-10, AD-11.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzGateTool.cls`: a new tool method `Note` for `zz_gate_note`, declared safe and read-only by its parameters. It records `Ran("zz_gate_note")` and logs one event-log info row (`$$$LOGINFO`). `ZzGateInjection.cls`: add the tool and update the comment ("seven tools"). `ZzGateAgent.cls`: the comment names the new marker. `ci/mock/scenarios/A/gate-held-then-note.json` (new): the first reply calls `zz_gate_held` `{}` and `zz_gate_note` `{}`, and the second reply is text. Why: row 5b.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls`:
+  - make `Clean`, `TaskIds`, `WaitHoldSettled` and `Age` public, and turn `WaitTask`, `HoldMessages` and `HoldRequests` into public class methods (they keep no instance state);
+  - add the public `TrackOwner(owner)`, which tracks every row of the owner under the refs;
+  - add `TestRaiseKeepsTheCallersJobIds` (row 5a);
+  - update the class comment.
+  - Why: Rule 2, row 5a.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls`:
+  - Helpers:
+    - an `Owner()` helper (a new Ref, tracked) used by `Begin`, `RunDenied` and `Turn`;
+    - the cleanup in `OnBeforeOneTest` and `OnAfterOneTest` (Boundaries);
+    - `Guard(production)` that also checks `ReadyReason`;
+    - `SinkCalls(type)`, which counts the private sink's calls of one type.
+  - Existing tests:
+    - every `NEEDSAPPROVAL` becomes `HELD`, and `TestSentences` checks `HELD` exactly;
+    - the sink-count assertions after a held call count `turn.step` and `approval.raised` apart;
+    - the "Cannot fail until Story 3.6" comments go.
+  - Extended tests:
+    - `TestRiskyByCodeAndUnclassified` covers rows 1 and 2, with `TestCanExecute` for 2e;
+    - `TestSeveralPairsAndPrivilegeBeforeApproval` and `AssertSafeReadOnlyOnly` assert no row (row 3);
+    - `TestDeveloperRiskyEndToEnd` covers rows 6 and 7;
+    - `TestPrivilegeInProductionRunnerJob` gets a third turn (row 5b, with a tracked owner through `NewRequest` and `Send`).
+  - New: `TestFailedRaiseIsDeniedWithFailed` (row 4).
+  - The class comment names what each test pins.
+  - Why: rows 1 to 8, Rule 19.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- add the four classes to `CALLBACKHELPERS`, and update its comment and the class comment. Why: AC 5, AD-6.
+
+**Acceptance Criteria:**
+- Given a user's turn calls a risky or unclassified tool (a developer test tool classified risky in the bridge setting), when the gate decides the call, then:
+  - it calls `Approval.Raise` with kind `tool_call` holding the exact call (name, arguments as given, OwnerRef, TraceRef), through the synchronous round trip to `ApprovalStartIn` from inside `%CanExecute`, in the turn's trace session, so the request is pending and held before the call is denied;
+  - the call is denied with "held for your approval; nothing was run.", which the denied step and the model's next request carry after AI Hub's prefix;
+  - the tool does not run, and the HostSink gets `approval.raised` once and no `turn.step`.
+  - Rows 1, 2, 5b and 6 hold (FR-7, FR-8, NFR-13, AD-10, AD-11, AD-26, AD-31).
+- Given a call that is safe, in an untrusted or tainted turn, missing a privilege, or failing the call checks, when the gate decides it, then no approval request exists for its owner afterwards: Story 3.3's row counts can now fail. Row 3 holds (FR-7, NFR-14, AD-10).
+- Given `Raise` fails (a lock timeout, an open transaction), when the gate holds a call, then the call is denied with `FAILED`, never `HELD`. One warning names the tool and the failure, and no row, hold or event is left. A caller's open transaction is never committed. Row 4 holds (AD-10, DW-187).
+- Given `Raise` runs from a host job, when the job logs after it, then the job's session and current header are still its own. Row 5 holds (DW-191, AD-26).
+- Given the classes that `Raise` runs inside AI Hub's callback, when `Test.Bridge.CodeRules` runs, then they are in `CALLBACKHELPERS` and pass the callback rule (AD-6).
+- Given the NFR-13 tests in `OcuTalon.Test.Bridge`, when they run, then the risky test tool never runs without an approved request, and a rejected or expired request runs nothing. Rows 6 to 8 hold (FR-7, NFR-13).
+- Given the fresh `shard lane-a`, `shard lane-b`, `live production`, `live production-restart` and `live demo-path`, when they run, then every class and unit passes.
+- DW-187: Approval.Raise inside an open transaction: its ApprovalStartIn ProcessInput commits every open transaction level of the caller, and the hold's job cannot see an uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25, effect corrected by 3.4's review) -- addressed by row 4b, the `Raise` task and the planning measurement.
+- DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which replaces the job's session and current header ids; from the runner's job the gate's later event-log rows would lose their session; restore them after the call, or start the hold another way (ledger; routed by cr 2026-10-25) -- addressed by row 5, the `StartHold` task and the planning measurement.
+
+### Review Findings
+
+Code review of 2026-10-25 (stage code-review; four layers on the full tier; 30 layer rows plus one Rule 2 check by the reviewer; 9 entries survived: 3 medium, 6 low; no high). Every patch below is applied in this pass. Evidence: on warm `e3s6rw`, `CodeRules`, `Approval` and `Gate` are green, and each of the three new mutations in `## Verification` went red and was green again after a byte-identical revert. After that, `bash ci/checks.sh` passed every block, and the fresh `shard lane-a` (`e3s6r`) passed 44 classes in 392 s.
+
+- [x] [Review][Patch] (medium) `CALLBACKHELPERS` leaves out two classes that `Raise` runs inside `%CanExecute`: the row `OcuTalon.Bridge.Data.ApprovalRequest` (`%New`, `%Save`, `%DeleteId`) and the message `OcuTalon.Bridge.Msg.ApprovalStart`. AC 5 asks for every such class, so a `%AI` or Python line in either would pass the callback rule. Both are added, with one name assertion each in `TestCallbackRule` [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:59]. Fix-risk low: both pass the scan unchanged.
+- [x] [Review][Patch] (medium) Matrix row 8's "each held call's row is removed by the cleanup" had no assertion (Rule 19). `ReleaseApprovals` now returns the owners it released, and `OnAfterOneTest` asserts for every test that none of them still has an approval row [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:144, :1471]. Fix-risk low.
+- [x] [Review][Patch] (medium) Rule 2: `Test.Bridge.Gate` added private copies of `Test.Bridge.Approval`'s `HoldCount` and `StartsSince`, line for line, and QA's `TestRaiseRefusesInATransaction` inlined `StartsSince`'s query in the class that defines it. The spec says the helpers are made public, not copied. Both are now public in `Approval`, the Gate copies are removed and their call sites use the Approval helpers, and the inline query calls `..StartsSince` [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:1722, :1734, :390; Gate.cls:1375, :1540]. Fix-risk low.
+- [x] [Review][Patch] (low) `Hold`'s `null` and absent-arguments branch was never exercised: "(b) no arguments" passes `""`, which is a string. Two cases are added (no `arguments` member, and `"arguments": null`), each held with `{}` [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:295].
+- [x] [Review][Patch] (low) `TestExtension` and `TestCallContentCannotClassify` counted only `turn.step` after their held calls and lost their "no more" check. Each now counts `approval.raised` (3) and the total. Row 10 also checks that `odd_mutate`'s request stores the call's own arguments `{"to":"user"}` [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:525, :550].
+- [x] [Review][Patch] (low) Matrix row 2(e) through `%CanExecute` checked only the sink. It now also runs `AssertHeld` (the row, its task and its one live hold) [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:647].
+- [x] [Review][Patch] (low) `AssertSafeReadOnlyOnly` asserted `+$Get(^||ZzProbeSink) = 0` twice. The first check ("no turn.step fired") now counts `turn.step` [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:1583].
+- [x] [Review][Patch] (low) `Hold`'s warning read "are a array", "a oref" in the event log. It now reads "are of the type <type>" [src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls:143].
+- [x] [Review][Defer] (low) The "both ids still undefined" checks of `TestRaiseKeepsTheCallersJobIds` cannot fail in the unit-test process. Outside a production job, closing `ApprovalStartIn` kills the whole `%Ensemble` array before the restore runs, so `StartHold`'s re-kill arms are unpinned. Row 5b runs with both ids defined [src/bridge/cls/OcuTalon/Bridge/Approval.cls:154, :159] -- deferred: DW-196 `wontfix-accepted`, `reopen_if=` a production job with no session or header id calls Raise or StartHold. Pinning it needs a registered production job with undefined ids (fix-risk med). AC 4's pinning tests stay falsifiable (two demonstrated mutations).
+
+Also noted: DW-177 (`BridgeSink`'s future callees are not scanned by the callback rule) gets an occurrence, because the gate now also fires `approval.raised` to the host sink from inside the callback.
+
+**Rejected** (15 entries, 18 layer rows):
+- `low` `$$$JobSuperSession` is not restored by `StartHold` (blind, edge). Its only reader in IRIS is `Ens.Host.SendDeferredResponse` (`Host.cls:699`), which OcuTalon does not use. New messages take the host's `%SuperSession` property. The fix adds branches for a value nothing reads.
+- `false` No passing run is recorded after QA's changes (blind). The lead records QA's fresh `lane-a` at up to 428 s, and this pass re-ran `Gate`, `Approval` and `CodeRules` warm and the fresh `lane-a` shard, all green.
+- `reject` The implement-stage triage counts do not add up (blind). The fix edits the spec's triage log, not `## Verification`.
+- `low` `TestRaiseKeepsTheCallersJobIds` kills the two `%Ensemble` keys instead of restoring their entry values (blind). In the unit-test process every `StartHold` already kills the whole array. The fix adds save and restore code for no reachable harm.
+- `low` The `$TLevel` guard sits only in `Raise`, so `Reconcile`, which calls `StartHold` directly, bypasses it (edge, gap). No `TSTART` exists in `src/bridge` or `Install`, and `Reconcile` runs from an installer step at level 0 (wontfix-theoretical). It becomes real with a `StartHold` caller inside a transaction. The implement-stage triage reason "Reconcile ... calls Raise" is wrong: `Reconcile` calls `StartHold` (`Approval.cls:598`). The conclusion stands for the reason above.
+- `low` Array, number or boolean arguments reach a code `Classify` hook as `{}` (edge). This is Story 3.2's `ArgumentsOf` path. Anthropic's tool input is always an object and AI Hub documents `call.arguments` as `%DynamicObject` (`%AI/Policy/Authorization.cls:44`), so it is theoretical.
+- `low` The gate's warning would be rolled back with a caller's transaction (edge). `$TLevel` is 0 inside `%CanExecute` (measured at planning), so it is theoretical.
+- `maybe-false` The refusal text says "the hold's job cannot see an uncommitted row" (edge). Whether the hold's `RefIndexOpen` waits on the uncommitted `%Save` lock or reads through it is unmeasured. If true, the defect is wording only (low).
+- `false` "Every risky call raises a request" overstates the commit message (edge). Array, number and boolean arguments deny with `FAILED` by the spec's in-stage decision.
+- `low` `StartHold`'s exception branch is unpinned (gap). This residual risk is already stated, there is no cheap trigger, and the restore is the same straight-line block that the pinned error-status path runs.
+- `false` The `IsCallbackClass` half of the per-class `CodeRules` check is tautological (gap). That every listed class is scanned is asserted by the helpers count, and the check is falsifiable through its `$ListFind` half (mutation M3).
+- `low` Row 7's `HoldRequests` read cannot see a late send (gap). After an expired `Answer` the hold receives nothing (its task is never completed), and "runs nothing" is pinned by the refused `StartExecution` and the run markers.
+- `false` The spine's "Approval requests" row omits the JSON-text case (auditor). Stored `ToolArguments` is a JSON-object text in every case, because `Validate` refuses other text, so no builder diverges.
+- `low` `TestPrivilegeInProductionRunnerJob`'s gate-public and gate-admin turns use `RunnerFixture.Ask` owners that are not tracked (auditor). They hold nothing, and the fix rewrites two turns around a fixture this story may not edit.
+- `false` Row 4(b) "at once" is not timed (auditor). The lock on a fresh Ref is never contended, so a timing check could not fail for any order of the refusal.
+
+## Spec Change Log
+
+- 2026-10-25, lead spec gate: no AD is amended. The plan's Rule 20 points went into the Consistency Conventions row "Approval requests" (light path): the gate's held-call fields, `HELD`, the failed-Raise denial, the transaction refusal and the restored job ids. Nothing to rule in the veto window: `HELD` is the sentence the AC and AD-10 fix, the transaction refusal only tightens, and no stored data, privilege or public text changes. The Cross-epic gap for Story 30.3 (the row stores neither the tool's source class nor the runner) is filed as DW-194, routed to 30-3.
+
+## Review Triage Log
+
+### 2026-10-25 -- Review pass
+- verdicts: 26 findings (blind 8, edge 9, verification-gap 8, intent 1; grouped by root cause into the 20 rows below) -- high 0, medium 4, low 15, false 6, maybe-false 1
+- findings:
+  - `[medium]` `patch` Hold stores `{}` for array, number or boolean arguments, so the approver sees a call that is not the model's (4 members: blind, edge x2, gap) -- Hold now throws for any argument type but object, string, null or unassigned (Check turns it into FAILED plus a warning); `TestFailedRaiseIsDeniedWithFailed` section (c) pins five variants; mutation line written.
+  - `[low]` `patch` No test of StartHold's restore after an error status (2 members: blind, gap) -- failed-start case (`StartHold("")`) added to `TestRaiseKeepsTheCallersJobIds`, mutation line written. The exception branch has no cheap trigger and stays unpinned.
+  - `[low]` `patch` The four new CALLBACKHELPERS classes are not pinned by name (gap, blind) -- one assertion per class in `TestCallbackRule`, mutation line written.
+  - `[low]` `patch` The lock timing bounds are hard-coded to 2 s (2 members: blind, gap) -- derived from `Approval`'s LOCKSECONDS.
+  - `[low]` `patch` `ZzGateAgent` marker list lost a comma and carried a story reference (blind) -- fixed.
+  - `[low]` `patch` Invalid-text arguments ("not json", "[1]") have no gate-level test (gap) -- covered by section (c).
+  - `[false]` `reject` Row 7 reads HoldRequests without WaitHoldSettled (edge) -- tried: WaitHoldSettled fails after an expired Answer because that hold does not settle, so the read is the correct one; patch reverted.
+  - `[false]` `reject` Row 3d's malformed-call and no-context assertions cannot fail (gap) -- moving the call checks after the result branch still gives FAILED, because Raise's Validate refuses an empty or non-string ToolName and Context.Current throws without a context; the order is defence in depth with no observable mutation (wontfix-theoretical).
+  - `[low]` `reject` The expired half of AC 6 has no mutation line and StartExecution's refusal accepts any error (gap) -- Rule 19 asks one mutation per AC, and the row state `expired` is asserted just before the refusal.
+  - `[low]` `reject` Duplicate calls raise a new request each time (2 members: blind, edge) -- by design: the spec says no de-duplication.
+  - `[low]` `reject` ToolArguments is stored unredacted and unbounded (blind) -- by design: the approver must see the exact call; the column and its limit are Story 3.4's.
+  - `[false]` `reject` The `$TLevel` refusal may block other callers (blind) -- Reconcile and the incident manager call Raise at level 0, and `live production-restart` runs Reconcile's start green.
+  - `[low]` `reject` The row stores no source class or runner (edge) -- already ledgered as DW-194, routed to 30-3.
+  - `[false]` `reject` CALLBACKHELPERS misses Data.ApprovalRequest and Msg.ApprovalStart (blind) -- the spec fixes the four classes `Raise` runs in the callback; the two are persistent data classes that name no %AI.
+  - `[low]` `reject` StartHold loses other job-local keys in a job that is not a production job (edge) -- the loss is CreateBusinessService's pre-existing behaviour there; the spec asks for the two ids only.
+  - `[low]` `reject` StartsSince counts every ApprovalStart header after the mark (edge) -- only the gate's own tests run at that time on a throwaway; no concurrent hold exists.
+  - `[false]` `reject` A held call of a turn with no ThreadSessionId starts its own session (edge) -- that is AD-26 and row 1: the session comes from the context.
+  - `[low]` `reject` `TestCanExecute` row 2e asserts less than `AssertHeld` (gap) -- row 2e asks for the sink call only.
+  - `[maybe-false]` `defer` A late hold after a START timeout (edge) -- see the frontmatter `deferred:` item; pre-existing in Story 3.4's path.
+  - `[false]` `reject` Intent-alignment layer: descriptive only, one row for its report (observations on surfaces: DW-187 tested in the test process, warning text not asserting the source, `^||ZzGateRan` process-private) -- covered by row 5b in the production runner job and by the refused StartExecution and the hold's two messages; no action asked.
+
+## Design Notes
+
+**Architecture decisions:**
+- **AD-10:** rule 4. The order before it stays, so an offer never becomes a request. Fail closed: a lock timeout or a failed Raise means `FAILED`.
+- **AD-11:** `Raise` and `ApprovalStartIn` are the one way in, the row is the truth, and the state methods are unchanged.
+- **AD-26:** the hold joins the turn's thread through the context's `ThreadSessionId`, and DW-191 keeps the runner's own session.
+- **AD-31:** `approval.raised` goes to the gate's sink, after the unlock.
+- **AD-6:** no `%AI` call in the callback chain (`CodeRules`). **AD-9:** the denial reaches the step through `%LogDenial`.
+- **AD-5:** `ApprovalHold` is unchanged. **AD-2:** the bridge stays self-contained. **AD-22:** tests run on throwaways. **AD-29 and AD-33:** these files are Lane A's.
+- No AC contradicts an AD's Rule. AD-11 says the hold sends `ApprovalOutcome` on rejection or expiry. A gate row has no `ResultTarget`, so it sends nothing, which the Conventions row "Approval requests" already allows ("an empty ResultTarget sends nothing"). The user learns of the answer through the HostSink events (AD-31).
+
+**Measured at planning** (warm throwaway `e3s6pw`, build 154; torn down afterwards). A probe `ClassificationClass` ran inside the gate's `%CanExecute` in the production `ChatAgent` job (user `_Ensemble`, running `ZzGateAgent`):
+- `$TLevel` was 0 before and after a `Raise` of a tool_call row.
+- `Raise` returned OK in 0.018 s.
+- Before the Raise, `$$$JobSessionId` was 4 and `$$$JobCurrentHeaderId` 4, the runner's request. After it, the session was undefined and the header was 5, the `ApprovalStart` header (DW-191 confirmed).
+- An event-log row written after the Raise had an empty `SessionId` and `MessageId` 5.
+- The runner's `Reply` header kept session 4.
+- Cleanup cost: `Cancel` took 0.048 s, and the hold was gone 0.097 s after the call.
+- A call of a tool the agent does not have (`list_productions`, scenario `usage-turn`) never reaches the gate: it gets "Tool 'list_productions' not found" and no step. So the `chat`, `tool-loop` and `usage-turn` tests raise nothing.
+
+**Decided in-stage:**
+- **The sentence parameter is renamed** from `NEEDSAPPROVAL` to `HELD`. Its text is the AC's sentence plus the period every gate sentence ends with, as `TestSentences` requires.
+- **A failed Raise denies with `FAILED`.** `HELD` would claim a request that does not exist. The denial reuses `Check`'s throw-and-warn path, and no new sentence is needed.
+- **The stored arguments.** An object is stored as its `%ToJSON()`, a JSON text verbatim, and no arguments as `{}`. `Raise`'s validation refuses anything that is not a JSON object, so such a call is denied with `FAILED`.
+- **The row's other fields.** `OwnerRef` and `TraceRef` come from the context. There is no `ResultTarget`, so the hold sends no outcome. The trace session comes through `Raise`'s context fallback.
+- **Arguments of another type are not held** (implement stage, review patch): a call whose `arguments` is an array, a number or a boolean is denied with `FAILED` and one warning, because `{}` would hide what the model sent. `null` is stored as `{}`, like no arguments.
+- **Each held call is its own request**: there is no de-duplication.
+- **Any request kind** with provenance `user` and no taint is held alike, as the gate decides every kind alike. Story 30.3's live grant comes before rule 4 for `tool` replays.
+- **DW-187: refuse, don't work around.** Inside a transaction, `ProcessInput` would commit the caller's work, and the hold could not see an uncommitted row. `Raise` is the guard, so every caller gets it. The measurement shows the gate's own path is at level 0.
+- **DW-191: restore in `StartHold`.** It is the one place every caller passes, including Reconcile and Epic 5's `IncidentManager`.
+- **`CALLBACKHELPERS`** also gets the three classes that `Raise` calls in the callback, not only `Approval`.
+- **Test hygiene:**
+  - Gate tests track owners, because the gate does not return the Ref. The cleanup reuses `Test.Bridge.Approval`'s refs and `Clean`.
+  - `TestPrivilegeInProductionRunnerJob` is extended in place and keeps its name: `PointKeys` and `UseAgent` cost about 8 s once, and the ledger's DW-173 note cites the name.
+  - Row 5b needs a new fixture tool, because nothing in the runner logs after a held call on the normal path.
+  - Row 7 ages the row and answers it, rather than waiting for the timer.
+
+**For the lead (Rule 20; the plan does not write the spine):** extend the Conventions row "Approval requests" with these points:
+- the gate's held call: `ToolName`, `ToolArguments` as given, `OwnerRef` and `TraceRef` from the context, no `ResultTarget`, and the denial `held for your approval; nothing was run.`;
+- a failed Raise denies with `FAILED`;
+- `Raise` refuses at `$TLevel` above 0;
+- `StartHold` keeps the caller's job session and current header.
+No stored data, privilege or public text changes. The sentence is the one AD-10 and the AC fix.
+
+**Cross-epic:**
+- **Epic 13** (`OcuTalon.BridgeExample.*`): from this story, a risky call of its agent is denied with `FAILED` instead of being held, because its production has no `ApprovalStartIn`, `ApprovalHold` or `OcuTalonApprovals` item. Its agent has no tools today. To hold calls it would need three things:
+  - those three items (`OcuTalon.Bridge.Service.ApprovalStart`, `OcuTalon.Bridge.Process.ApprovalHold`, `EnsLib.Workflow.Operation` named `OcuTalonApprovals`);
+  - the Workflow role and user that `Bridge.Installer.SetUpApprovals` sets up;
+  - an `ApprovalRole` value on its Decide.
+- **Lane B's `BridgeSink` (Stories 2.6 and 2.8)** now receives `approval.raised` for user-owned `tool_call` rows with no incident, and turns it into the approval card and notice.
+- **Story 30.3:** the row stores neither the tool's source class nor the runner that made the call. AD-10's replay compares the source and routes to that runner. 30.3 adds them (a stored-data change in its own veto window) or derives them.
+
+**Rule 2 (extend, don't copy):**
+- `Gate.Decision`'s result branch reuses `ArgumentsOf` and `Check`'s failure path.
+- `Raise`'s new refusal uses `Refuse`.
+- The tests extend `Test.Bridge.Gate`'s helpers and tests and its `ZzGate*` fixtures.
+- `Test.Bridge.Approval`'s helpers are made public, not copied.
+
+**Integration ACs:**
+- The production `ChatAgent` job runs the gate, which raises through the real `ApprovalStartIn`, `ApprovalHold` and `OcuTalonApprovals`. The observable effects are the denied step, the model's next request, a held row and the runner's event-log session (row 5b).
+- The shadow runner's turn is answered and expired through 3.5's real `Answer` (rows 6 and 7).
+
+**Consumes:**
+- From Story 3.4: `Raise`, `StartHold` and the hold.
+- From Story 3.5: `Answer` and `StartExecution`.
+- From Story 3.3: `Context`, the provenance step and `ApprovalRows`.
+- From Epic 1: `RunnerFixture` and the mock.
+
+**Consumed-by:**
+- **Lane B, Stories 2.6 and 2.8:** `BridgeSink` publishes `approval.raised` and sends notices.
+- **Stories 6.2 and 12.7:** `AnswersIn` answers gate requests.
+- **Story 3.7:** audits.
+- **Story 30.3:** the replay.
+- **Story 14.1:** lists classifications.
+
+**Footprint:**
+- Every edit is in `src/bridge/**` (not `BridgeExample`), `src/ocutalon/cls/OcuTalon/Test/Bridge/**` and `ci/mock/scenarios/A/` (a new file, not `bridge-example.json`).
+- No footprint extension, and no contended path is edited.
+
+**Ledger inbox:**
+- DW-187 is addressed by row 4b and the `Raise` task.
+- DW-191 is addressed by row 5 and the `StartHold` task.
+- Both Task 0 measurements were taken at planning (above). Row 5b repeats the DW-191 measurement as an assertion.
+
+**Shard time (inference):**
+- **Existing gate tests now hold calls:** about 45 to 50 of them in `Test.Bridge.Gate`, 15 of them in the governance sample's three runs. At about 0.02 to 0.05 s per Raise and about 0.1 to 0.15 s per cleanup (measured: 0.1 s), they add about 6 to 10 s.
+- **New tests:** the lock case adds about 2 s (`LOCKSECONDS`); rows 5 to 7 add about 2 to 4 s.
+- **Total:** about 10 to 16 s, putting the fresh `lane-a` shard at about 430 to 466 s against the 480 s line. No split is planned.
+- **If the measured fresh `lane-a` passes 480 s,** the implement stage stops with a clarification and does not edit `ci/units.sh`. It reports the per-class times and proposes a third Lane A shard holding the `Install` area (`SHARDS`, `shard_areas` and the `shards)` line of `group_units`).
+
+## Verification
+
+**Targets:**
+- `ocutalon-slot-a` (namespace `OCUTALON`) is for `iris_doc_load` compiles only, after `iris_server_info` shows build 154. Pass `server` and `namespace` on every MCP call.
+- Everything else runs through `ci/iris.sh` and `ci/warm.sh`. Never `ocutalon-aihub-test`, `ocupilot*`, `iris-community-edition`, slot B or slot C. No push, and never read `.env`.
+- Run each command from the worktree root, in the foreground with `timeout: 600000`, one per call.
+- The tags: fresh `e3s6i` and warm `e3s6iw` (implement); `e3s6q` and `e3s6qw` (QA); `e3s6r` and `e3s6rw` (review). Each stage puts its own tags and stage name on the line.
+- Create `gate-held-then-note.json` before the first `warm.sh up`. A later change under `ci/mock` refuses warm runs until `down` and `up`.
+
+**Commands:**
+- (loop) `bash ci/checks.sh` -- expected: every block passes, `boundaries` and `class-rules` included. About 20 s.
+- (loop) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6iw bash ci/warm.sh up` -- expected: a ready warm stack (about 60 s). Run it once at the stage's start.
+- (loop) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_WARM=1 OCUTALON_RUN_TAG=e3s6iw bash ci/iris.sh class <Class>`, one call per class -- expected: `CLASS ... passed` after a `WARM reloaded` line. The classes are `OcuTalon.Test.Bridge.Gate`, `OcuTalon.Test.Bridge.Approval`, `OcuTalon.Test.Bridge.CodeRules` and `OcuTalon.Test.Bridge.Conversation` (its agent `ZzGateAgent` gains a tool).
+- (loop) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6iw bash ci/warm.sh down` -- at the stage's end, and after a failure.
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh shard lane-a` -- expected: every class passes. About 430 to 470 s; run it alone in its call and record the time (480 s line).
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh shard lane-b` -- expected: every class passes. About 70 s.
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh live production` -- expected: PASS.
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh live production-restart` -- expected: PASS. Reconcile's `StartHold` runs at every start.
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh live demo-path` -- expected: PASS (UJ-1 is unchanged).
+- (once) `OCUTALON_LOCK_DIR="$(cd ../.coordination/locks/lane-a && pwd)" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=3 stage=implement' OCUTALON_RUN_TAG=e3s6i bash ci/iris.sh teardown` -- expected: nothing tagged `e3s6i` is left.
+
+**Shared surfaces:**
+- **The gate's sentence:** `NEEDSAPPROVAL` becomes `HELD`. Search the trees for `NEEDSAPPROVAL`, `needs an approval` and `risky or not classified`. Every hit is in `Test.Bridge.Gate` (the anchors in the Code Map).
+- **Approval rows, holds and Workflow tasks** are now written by the gate in a user's turn. Only `Test.Bridge.Gate` makes such calls, and its cleanup removes them. Every other mock scenario calls tools that code classifies safe, or a tool the agent lacks, which never reaches the gate (measured). `Test.Bridge.Approval`'s `RowCount` deltas are unaffected.
+- **ProbeSink's private call counts** gain one `approval.raised` per held call, in `Test.Bridge.Gate`.
+- **`CALLBACKHELPERS`** grows by four classes (`TestCallbackRule` counts them).
+- **`Test.Bridge.Approval`'s helpers** become public class methods.
+- **`ZzGateInjection`** gains `zz_gate_note` (seven tools), so `ZzGateAgent` offers one more tool. `Test.Bridge.Conversation` runs that agent; `TestGovernanceSample` reads only `ZzGateTools` and is unaffected.
+- **A new mock scenario.**
+- **`StartHold` no longer leaves a caller's ids killed.**
+- **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
+
+**Pinning tests and the mutations to record** (Rule 19; record each as `mutation: ... -> ...` here):
+
+| AC | Pinning test | Mutation that must turn it red |
+| --- | --- | --- |
+| AC 1 | `TestRiskyByCodeAndUnclassified` | the result branch denies without raising (no row); or `ToolArguments` is always `{}`; or Raise gets no `sinkClass` |
+| AC 1 | `TestDeveloperRiskyEndToEnd` | the gate returns OK after raising (the tool runs) |
+| AC 2 | `TestUntrustedTurnRunsOnlySafeReadOnly` | the result branch moves before the provenance check (an untrusted call raises a row) |
+| AC 2 | `TestSeveralPairsAndPrivilegeBeforeApproval` | the permission check moves after the result branch |
+| AC 3 | `TestFailedRaiseIsDeniedWithFailed` | the gate returns `HELD` whatever Raise returns; or `Raise`'s `$TLevel` refusal is removed (`$TLevel` is 0 afterwards and a row exists) |
+| AC 4 | `TestRaiseKeepsTheCallersJobIds`, `TestPrivilegeInProductionRunnerJob` | `StartHold` does not restore the two ids |
+| AC 5 | `TestCallbackRule` | a `%AI` reference is put on a code line of `Approval` |
+| AC 6 | `TestDeveloperRiskyEndToEnd` | `StartExecution` accepts a rejected or expired row; or the gate allows the call after raising |
+| sentence | `TestSentences` | `HELD`'s text changes |
+
+**Mutations demonstrated (implement stage, warm `e3s6iw`; each reverted byte-identical from a backup and the class green again on the same stack):**
+- mutation: the result branch of `Gate.Decision` denies with `HELD` without calling `Hold` -> `TestRiskyByCodeAndUnclassified` (also `TestAnyRequestKindAndProvenance`, `TestArgumentDependent`, `TestCanExecute`) red
+- mutation: `Hold` stores `{}` as `ToolArguments` whatever the call has -> `TestRiskyByCodeAndUnclassified` red
+- mutation: `Hold` calls `Raise` without `sinkClass` -> `TestRiskyByCodeAndUnclassified` (also `TestAnyRequestKindAndProvenance`, `TestArgumentDependent`, `TestDeveloperSetting`, `TestMcpShadow`) red
+- mutation: `Hold` returns OK after `Raise` (the call is allowed) -> `TestDeveloperRiskyEndToEnd` (also `TestRiskyByCodeAndUnclassified`, `TestGovernanceSample`, `TestPrivilegeInProductionRunnerJob` and others) red
+- mutation: the result branch moves before the provenance check -> `TestUntrustedTurnRunsOnlySafeReadOnly`, `TestTaintedTurnRunsOnlySafeReadOnly` (and `TestSuspiciousRequestActsOnNothing`) red
+- mutation: the permission check moves after the result branch -> `TestSeveralPairsAndPrivilegeBeforeApproval` (and `TestPrivilegeBeforeProvenance`) red
+- mutation: `Hold` ignores Raise's error status and returns `HELD` -> `TestFailedRaiseIsDeniedWithFailed` red
+- mutation: `Raise`'s `$TLevel` refusal removed -> `TestFailedRaiseIsDeniedWithFailed` red (the call is held at level 0 afterwards and a row exists)
+- mutation: `StartHold` does not restore the two job ids -> `TestRaiseKeepsTheCallersJobIds` and `TestPrivilegeInProductionRunnerJob` red
+- mutation: a `%AI` reference on a code line of `Approval` -> `TestCallbackRule` red
+- mutation: `StartExecution` accepts a rejected row (its `from` state `approved` replaced by `rejected`) -> `TestDeveloperRiskyEndToEnd` red
+- mutation: `HELD`'s text changed to `held for approval; nothing was run.` -> `TestSentences` red
+- mutation (review patch): `Hold`'s argument-type check is removed, so an array, number or boolean is stored as `{}` -> `TestFailedRaiseIsDeniedWithFailed` (section c) red
+- mutation (review patch): `StartHold` puts the two ids back only when the start succeeded -> `TestRaiseKeepsTheCallersJobIds` (the failed-start case) red
+- mutation (review patch): `OcuTalon.Bridge.Ids` removed from `CALLBACKHELPERS` -> `TestCallbackRule` (the four-class assertion) red
+
+**Mutations recorded at QA** (warm `e3s6qw`; each reverted byte-identical from a backup the QA stage made, `git status --short` unchanged):
+- mutation: `Raise`'s `$TLevel` refusal commented out -> `TestRaiseRefusesInATransaction` (Test.Bridge.Approval; levels 1 and 2: no refusal, the transaction is committed, the rollback no longer undoes the caller's write) and `TestFailedRaiseIsDeniedWithFailed` (b) (the new caller-write assertion) red
+- mutation: `Hold` returns OK instead of denying with `HELD` (the risky call runs) -> `TestDeveloperRiskyEndToEnd` (rows 6 and 7, the job-independent marker `^OcuTalonTest("Gate","ran",name)`) and `TestPrivilegeInProductionRunnerJob` (row 5b, the marker written in the production runner's job: `zz_gate_held` ran) red
+- mutation: the result branch of `Gate.Decision` moved before the provenance step (an untrusted risky call raises a request) -> the approval-row counts of Story 3.3 now fail: `TestUntrustedTurnRunsOnlySafeReadOnly`, `TestTaintedTurnRunsOnlySafeReadOnly` (`no approval request has the owner`, `the sink got no call`) and `TestSuspiciousRequestActsOnNothing` (`no approval request has the owner`) red
+- mutation: `StartHold` puts neither job id back (`If hadSession` and `If hadHeader` replaced by `If 0`, so both are killed) -> `TestRaiseKeepsTheCallersJobIds` red (both the Raise case and the failed-start case)
+
+**Tests added or strengthened at QA (QA):**
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls` (QA): new `TestRaiseRefusesInATransaction` pins `Raise` itself at `$TLevel` 1 and 2 (the error names `$TLevel` and its value, ref empty, no row, no start, no sink call, the caller's write uncommitted).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls` (QA): row 4b also checks that the caller's own write is untouched before its rollback and undone by it; rows 6 and 7 and row 5b check "never ran" by the job-independent marker as well as `^||ZzGateRan`; row 5b also rejects its held request and checks that `StartExecution` is refused and `zz_gate_held` still never ran; `TestAllowedEndToEnd` has the positive control of the marker; `Clean` kills the marker.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzGateTool.cls` (QA): every tool method also counts its run in `^OcuTalonTest("Gate","ran",<name>)` (a private `Mark`).
+- `StartHold`'s exception branch still has no cheap trigger and stays unpinned (the residual risk above).
+
+**Mutations recorded at code review** (warm `e3s6rw`; each reverted byte-identical from a backup the review stage made, `git status --short` and `git diff --stat` unchanged, and the class green again on the same stack):
+- mutation (M1, AC 1, row 2(b)): `Hold`'s type check drops `null` and `unassigned` (only `object` and `string` pass) -> `TestRiskyByCodeAndUnclassified` red ("(b) no arguments member" and "(b) arguments null": not HELD, no row)
+- mutation (M2, AC 6, row 8): `ReleaseApprovals` never runs `Approval.Clean` (`If 0`) -> the cleanup assertion of `OnAfterOneTest` ("the cleanup removed every approval request of the test's owners") red in every test that holds a call (14 tests), and nothing else red
+- mutation (M3, AC 5): `OcuTalon.Bridge.Data.ApprovalRequest` removed from `CALLBACKHELPERS` -> `TestCallbackRule` red ("Approval.Raise runs OcuTalon.Bridge.Data.ApprovalRequest inside the callback, ...")
+- Shared surface at review: `CALLBACKHELPERS` now holds six of Raise's classes (also `Data.ApprovalRequest` and `Msg.ApprovalStart`); `Test.Bridge.Approval`'s `HoldCount` and `StartsSince` are public and `Test.Bridge.Gate` uses them.
+
+**Implement-stage runs (loop lines):** `ci/checks.sh` passes. On a warm stack brought up again after the last edit (production-job evidence counts from that stack): `OcuTalon.Test.Bridge.Gate`, `Approval`, `CodeRules` and `Conversation` pass (Gate about 23 s, Approval about 25 s). The `(once)` lines are for the spawning agent.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: none
+
+**Plan stage (halted after planning).** The spec passed the READY-FOR-DEVELOPMENT check.
+- **DW-187 and DW-191** were measured in the production runner job on the warm throwaway `e3s6pw` (build 154), which is torn down. Design Notes, "Measured at planning", has the results.
+- **Footprint:** no footprint extension, and no contended path is edited.
+- **Lead items:** one Rule 20 recommendation for the spine's "Approval requests" row (Design Notes).
+- **Shard time:** the estimate keeps the fresh `lane-a` shard under 480 s, with a contingency in Design Notes.
+
+**Implement and review stage (done).**
+- **Change:** the gate raises a `tool_call` request through `Approval.Raise` for every risky or unclassified call of a user's turn and denies it with `HELD`; a failed Raise denies with `FAILED` and one warning. `Raise` refuses at `$TLevel` above 0 (DW-187). `StartHold` puts back the job's session and current header ids, after the service is closed, also after an error or exception (DW-191). `CALLBACKHELPERS` gains four classes.
+- **Files:** `src/bridge/cls/OcuTalon/Bridge/Approval.cls`, `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`; tests and fixtures `Test/Bridge/Gate.cls`, `Approval.cls`, `CodeRules.cls`, `ZzGateTool.cls`, `ZzGateInjection.cls`, `ZzGateAgent.cls`; new `ci/mock/scenarios/A/gate-held-then-note.json`.
+- **Review:** 26 findings from four layers, grouped into 20 rows: 6 rows patched (one medium: array, number and boolean arguments are denied with FAILED instead of stored as `{}`; five low), 1 deferred (late hold after a start timeout, medium unverified), 13 rejected with their reasons in the log. Follow-up review: not recommended (one medium patched, no high).
+- **Decided in-stage:** `StartHold` closes the service (`Set service = ""`) before it restores the ids, because closing a service that `CreateBusinessService` made in a job that is no production job kills the whole job-local array.
+- **Verification:** `bash ci/checks.sh` passes. Warm `Gate`, `Approval`, `CodeRules` and `Conversation` pass; the three review-patch mutations were each red and green again after the revert. After the last patch, on fresh stacks (`e3s6i`): `shard lane-a` passed (44 classes, 405 s against the 480 s line), `shard lane-b` passed (24 classes, 69 s), `live production`, `live production-restart` and `live demo-path` passed; teardown left nothing tagged `e3s6i` or `e3s6iw`.
+- **Residual risks:** `StartHold`'s exception branch has no test (no cheap trigger); the late-hold item above; `lane-a` is 405 s of the 480 s line, with 75 s of headroom for later stories; `BridgeSink` (Lane B) is still a stub, so `approval.raised` has no consumer yet.

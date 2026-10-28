@@ -1,11 +1,25 @@
 /// Tests of the REST skeleton's classes (matrix rows 9 to 12), called with stand-in request and response objects so
 /// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 12 routes,
-/// and the shape of every error. The HTTP rows are test-sign-in.sh's.
+/// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
+/// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
+/// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of
+/// TestStateChatDecision (Story 2.6) and the notice cards of TestStateChatNotices and TestStateChatNoticeCardFields (Story 2.7).
 /// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
-/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. Capture, Collect and Written are shared
-/// with the other web tests that call a class method and read what it wrote.
+/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. The tests of the snapshot's flags write the
+/// public setting onlineDemo and the demo.mode row, which OnBeforeAllTests saves and OnAfterAllTests puts back; the row
+/// goes through Test.Demo.Step's row helpers. Capture, Collect and Written are shared with the other web tests that call
+/// a class method and read what it wrote.
+/// Story 2.9: a turn's chat entry and a decision of the rail carry traceUrl (Web.TraceLink), the turn's with the PAGE of its
+/// position for the user's page size and choice of events, and a check in a namespace with no trace application carries none; the
+/// chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
+/// tests (in a process-private global), unset before each test and put back after them.
+/// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
+/// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
+/// Story 4.2: with demo mode on the snapshot's last key is guide (Demo.Guide.Compute's view), and with it off there is no guide key
+/// (TestStateBody, TestStateFlags); the markers route is GuideMarkers (TestRoutes; Test.Web.GuideApi has the endpoint).
+/// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -17,28 +31,67 @@ Property SavedDefined As %Boolean;
 
 Property SavedValue As %String;
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
+/// 1 when the demo.mode row existed before the tests.
+Property SavedModeFound As %Boolean;
+
+/// The value of the demo.mode row before the tests.
+Property SavedModeValue As %String(MAXLEN = 1000);
+
+/// The UpdatedAt of the demo.mode row before the tests.
+Property SavedModeUpdatedAt As %String(MAXLEN = 20);
+
+/// 1 when the user had Visual Trace settings before the tests.
+Property SavedTraceSettings As %Boolean;
+
 Method OnBeforeAllTests() As %Status
 {
+	Kill ^||OcuTalonTest.WebApi
+	Set ..SavedTraceSettings = $Data(^EnsPortal.Settings($Username, "VisualTrace")) \ 10
+	If ..SavedTraceSettings Merge ^||OcuTalonTest.WebApi = ^EnsPortal.Settings($Username, "VisualTrace")
+	Kill ^OcuTalonTest("ApiProbe")
 	Do ..Clean()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Set ..Number = $Increment(^OcuTalonTest("WebApi", "n"))
 	Set ..SavedDefined = ''$Data(^OcuTalonTest("TelegramIncluded"), value)
 	Set ..SavedValue = $Get(value)
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .modeValue, .modeUpdatedAt)
+	Set ..SavedModeFound = found, ..SavedModeValue = modeValue, ..SavedModeUpdatedAt = modeUpdatedAt
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnBeforeOneTest() As %Status
+{
+	Kill ^EnsPortal.Settings($Username, "VisualTrace")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
+	Kill ^EnsPortal.Settings($Username, "VisualTrace")
+	If ..SavedTraceSettings Merge ^EnsPortal.Settings($Username, "VisualTrace") = ^||OcuTalonTest.WebApi
+	Kill ^||OcuTalonTest.WebApi
+	Kill ^OcuTalonTest("ApiProbe")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
 	Do ..Clean()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Kill ^OcuTalonTest("WebApi", "job")
 	If ..SavedDefined {
 		Set ^OcuTalonTest("TelegramIncluded") = ..SavedValue
 	} Else {
 		Kill ^OcuTalonTest("TelegramIncluded")
 	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedModeFound, ..SavedModeValue, ..SavedModeUpdatedAt)
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, and empty chat and rail.
-/// A fixture session's stream stands in for the instance stream.
+/// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, empty chat and rail for a session
+/// with no rows, the session row's user, the models' display names, the Telegram block and the status conditions, which
+/// are the active ones that Status.Active computes (Story 2.10). A fixture session's stream stands in for the instance stream.
 Method TestStateBody()
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
@@ -47,6 +100,7 @@ Method TestStateBody()
 	Do $$$AssertStatusOK(sc, "the fixture session whose stream stands in for the instance stream")
 	Do ..PublishReminders(session.Ref, 3, "a")
 	Do ..PublishReminders(instance.Ref, 2, "b")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session, instance.Ref)
 	Set expectedVersion = ""
 	If ##class(%Dictionary.ClassDefinition).%ExistsId("%IPM.Storage.Module") {
@@ -67,13 +121,599 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail", "the snapshot's keys")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
+	Do $$$AssertEquals(body.%GetTypeOf("mailbox")_"|"_body.mailbox.%Size(), "array|0", "mailbox is an empty array for a session with no mail")
+	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
+	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
+	Do $$$AssertEquals(body.guide.%ToJSON(), guideJson, "the guide is Demo.Guide.Compute's view")
+	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
+	Do $$$AssertEquals(body.user, "zzapistate"_..Number, "and the fixture session's user")
+	Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", "the two flags are booleans")
+	Set keys = ""
+	Set iterator = body.models.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "triage,diagnosis,chat", "the models' keys")
+	Do $$$AssertEquals(body.models.triage_"|"_body.models.diagnosis_"|"_body.models.chat, "Claude Haiku 5.5|Claude Haiku 5.5|Claude Haiku 5.5", "every agent's model is Claude Haiku 5.5")
 	Set keys = ""
 	Set iterator = body.rail.%GetIterator()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
 	Do $$$AssertEquals(keys, "approvals,checks,reminders,decisions", "the rail's keys")
+	Do $$$AssertEquals(body.%GetTypeOf("status"), "array", "status is an array")
+	Set expected = ##class(OcuTalon.Live.Payload.Status).Active(session.Ref)
+	Do $$$AssertEquals(body.status.%Size(), expected.%Size(), "status holds as many conditions as Status.Active computes")
+	For i = 0:1:expected.%Size() - 1 {
+		Do $$$AssertEquals(body.status.%Get(i).%ToJSON(), expected.%Get(i).%ToJSON(), "status member "_i_" is the computed condition")
+		Do $$$AssertEquals(body.status.%Get(i).active, 1, "and it is active")
+	}
+	Set keys = ""
+	Set iterator = body.telegram.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "included,state,botUserName,paired,displayName,pausedUntil", "the Telegram block's keys")
+	Do $$$AssertEquals(body.telegram.state_"|"_body.telegram.botUserName_"|"_body.telegram.pausedUntil, "off||", "the bot state is off, with no bot name and no pause")
+	Do $$$AssertEquals(body.telegram.%GetTypeOf("included")_body.telegram.%GetTypeOf("paired"), "booleanboolean", "included and paired are booleans")
+	Do $$$AssertEquals(body.telegram.paired_"|"_body.telegram.displayName, "0|", "a session with no pairing is not paired")
+}
+
+/// onlineDemo is true only when the public setting is 1, and demoMode only when the demo.mode row is "1": the four
+/// combinations, and an absent row or setting reads false.
+Method TestStateFlags()
+{
+	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
+	Do $$$AssertStatusOK(sc, "the fixture session")
+	For online = 0, 1 {
+		For mode = 0, 1 {
+			Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+			Do ##class(OcuTalon.Test.Demo.Step).Put(mode, ##class(OcuTalon.Data.Time).NowUtc())
+			Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+			Set label = "onlineDemo "_online_", demo.mode "_mode
+			Do $$$AssertEquals(body.onlineDemo, online, label_": onlineDemo")
+			Do $$$AssertEquals(body.demoMode, mode, label_": demoMode")
+			Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", label_": both are booleans")
+			Do $$$AssertEquals(body.%IsDefined("guide"), mode, label_": guide is present exactly when demoMode is true")
+			Do $$$AssertEquals(body.%IsDefined("phone"), mode, label_": phone is present exactly when demoMode is true")
+			Do $$$AssertEquals(body.%IsDefined("mailbox"), mode, label_": mailbox is present exactly when demoMode is true")
+		}
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do ##class(OcuTalon.Test.Demo.Step).Remove()
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone")_body.%IsDefined("mailbox"), "000", "and the snapshot has no guide, no phone and no mailbox")
+	Do ##class(OcuTalon.Test.Demo.Step).Put("yes", ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone")_body.%IsDefined("mailbox"), "000", "and the snapshot has no guide, no phone and no mailbox for another value")
+}
+
+/// The snapshot's phone holds the session's own simulated-phone messages (Kind phone) as Phone payloads, the newest PHONEMAX,
+/// oldest first; a mailbox message, another session's messages and (with demo mode off) every message are not in it.
+Method TestStatePhone()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapiphone"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapiphoneother"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set m1 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Text": ("zz first"_$Char(10)_"second line")})
+	Set m2 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Text": "zz second"})
+	Set m3 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Text": "zz third"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:09Z", "Kind": "mailbox", "Text": "zz mail"})
+	Do $ClassMethod(fixture, "SimMessage", theirs, {"CreatedAt": "2030-01-01T10:00:09Z", "Text": "zz theirs"})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.phone.%Size(), 3, "the session's three phone messages")
+	Set refs = ""
+	For i = 0:1:body.phone.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_body.phone.%Get(i).ref
+	}
+	Do $$$AssertEquals(refs, m1_","_m2_","_m3, "oldest first, the later ID last at the same second")
+	Set first = body.phone.%Get(0)
+	Set keys = ""
+	Set iterator = first.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "ref,direction,text,createdAt", "a message is a Phone payload, which leaves out its empty approvalRef")
+	Do $$$AssertEquals(first.direction_"|"_first.text_"|"_first.approvalRef_"|"_first.createdAt, "out|zz first"_$Char(10)_"second line||2030-01-01T10:00:01Z", "with its direction, text and time")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.%IsDefined("phone"), 0, "with demo mode off the snapshot has no phone")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	For i = 1:1:##class(OcuTalon.Web.Api).#PHONEMAX {
+		Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T11:00:00Z"})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.phone.%Size(), ##class(OcuTalon.Web.Api).#PHONEMAX, "at most PHONEMAX messages")
+	Do $$$AssertEquals(body.phone.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the three older messages are cut")
+}
+
+/// The snapshot's mailbox holds the session's own simulated-mailbox emails (Kind mailbox, incoming and sent) as Mailbox payloads,
+/// the newest MAILMAX, oldest first, with unread true. An email that the session decided carries the member decision, the
+/// Decision payload of the session's own decide decision of its ItemId; another owner's decision, a decision of kind turn and a
+/// sent email's empty ItemId give none. A phone message and another session's email are not in it, and with demo mode off the
+/// snapshot has no mailbox.
+Method TestStateMailbox()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapimail"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapimailother"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set item1 = ##class(OcuTalon.Bridge.Ids).NewRef(), item2 = ##class(OcuTalon.Bridge.Ids).NewRef(), item3 = ##class(OcuTalon.Bridge.Ids).NewRef(), item4 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set m1 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item1), "Sender": "zz Dana <dana@example.com>", "Subject": "zz Invoice", "Text": ("zz body"_$Char(10)_"second line")})
+	Set m2 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "out", "Sender": "OcuTalon", "Subject": "zz Hello", "Text": "zz Hello"})
+	Set m3 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item2), "Sender": "zz B", "Subject": "zz two", "Text": "zz two"})
+	Set m4 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:03Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item3), "Sender": "zz C", "Subject": "zz three", "Text": "zz three"})
+	Set m5 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:04Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item4), "Sender": "zz D", "Subject": "zz four", "Text": "zz four"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:09Z", "Text": "zz phone"})
+	Do $ClassMethod(fixture, "SimMessage", theirs, {"CreatedAt": "2030-01-01T10:00:09Z", "Kind": "mailbox", "Direction": "in", "Text": "zz theirs"})
+	Set own = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:05Z", {"ItemId": (item1)})
+	Do $ClassMethod(fixture, "Decision", theirs, "decide", "2030-01-01T10:00:05Z", {"ItemId": (item2)})
+	Do $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T10:00:05Z", {"ItemId": (item3)})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Set refs = ""
+	For i = 0:1:body.mailbox.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_body.mailbox.%Get(i).ref
+	}
+	Do $$$AssertEquals(refs, m1_","_m2_","_m3_","_m4_","_m5, "the session's five emails, oldest first, the later ID last at the same second, with no phone message and no one else's email")
+	Set first = body.mailbox.%Get(0)
+	Do $$$AssertEquals(first.direction_"|"_first.itemId_"|"_first.sender_"|"_first.subject_"|"_first.text_"|"_first.unread_"|"_first.createdAt, "in|"_item1_"|zz Dana <dana@example.com>|zz Invoice|zz body"_$Char(10)_"second line|1|2030-01-01T10:00:01Z", "an email is a Mailbox payload")
+	Do $$$AssertEquals(first.%GetTypeOf("unread"), "boolean", "unread is a boolean")
+	Set sent = body.mailbox.%Get(1)
+	Do $$$AssertEquals(sent.direction_"|"_sent.sender_"|"_sent.subject_"|"_sent.itemId, "out|OcuTalon|zz Hello|", "sent mail has its sender and subject and no item")
+	Do $$$AssertEquals(first.%IsDefined("decision"), 1, "the decided email carries a decision")
+	Do $$$AssertEquals(first.decision.ref_"|"_first.decision.itemId_"|"_first.decision.kind, own_"|"_item1_"|decide", "the session's own decide decision of the email's ItemId")
+	Do $$$AssertEquals(sent.%IsDefined("decision")_body.mailbox.%Get(2).%IsDefined("decision")_body.mailbox.%Get(3).%IsDefined("decision")_body.mailbox.%Get(4).%IsDefined("decision"), "0000", "a sent email, one decided by another owner, one with a turn decision and an undecided one carry none")
+	Set payload = ##class(OcuTalon.Live.Payload.Mailbox).FromRow(##class(OcuTalon.Data.SimMessage).RefIndexOpen(m1))
+	Do payload.%JSONExportToString(.json)
+	Set expected = ##class(%DynamicObject).%FromJSON(json)
+	Do first.%Remove("decision")
+	Do $$$AssertEquals(first.%ToJSON(), expected.%ToJSON(), "an entry without its decision is the Mailbox payload")
+	For i = 1:1:21 {
+		Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:10:"_$Select(i < 10: "0", 1: "")_i_"Z", {"ItemId": (##class(OcuTalon.Bridge.Ids).NewRef())})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Set oldest = body.mailbox.%Get(0)
+	Do $$$AssertEquals(oldest.%IsDefined("decision"), 1, "an email keeps its decision when more than 20 newer decide decisions exist")
+	If oldest.%IsDefined("decision") Do $$$AssertEquals(oldest.decision.ref, own, "and it is the email's own")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.%IsDefined("mailbox"), 0, "with demo mode off the snapshot has no mailbox")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	For i = 1:1:##class(OcuTalon.Web.Api).#MAILMAX {
+		Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T11:00:00Z", "Kind": "mailbox", "Direction": "in"})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.mailbox.%Size(), ##class(OcuTalon.Web.Api).#MAILMAX, "at most MAILMAX emails")
+	Do $$$AssertEquals(body.mailbox.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the five older emails are cut")
+}
+
+/// The decision of a snapshot mailbox entry carries its trace like a rail decision does (matrix row 7, "with its traceUrl"): the
+/// header, the namespace and the URL that opens the decision's own trace session, so that the open email's trace link survives a
+/// reload; a decision with no trace carries none.
+Method TestStateMailboxTrace()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapimailtrace"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set traced = ##class(OcuTalon.Bridge.Ids).NewRef(), bare = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in", "ItemId": (traced), "Sender": "zz A", "Subject": "zz traced", "Text": "zz"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "in", "ItemId": (bare), "Sender": "zz B", "Subject": "zz bare", "Text": "zz"})
+	Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:05Z", {"ItemId": (traced)})
+	Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:06Z", {"ItemId": (bare), "TraceSessionId": ""})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.mailbox.%Size(), 2, "two emails")
+	If body.mailbox.%Size() '= 2 Quit
+	Set decision = body.mailbox.%Get(0).decision
+	Do $$$AssertEquals(decision.traceHeaderId_"|"_decision.traceNamespace, "42|"_$Namespace, "a decided email's decision names its trace session and namespace")
+	Do $$$AssertEquals(decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "and carries the URL that opens it, with no PAGE")
+	Set none = body.mailbox.%Get(1).decision
+	Do $$$AssertEquals(none.%IsDefined("traceUrl"), 0, "a decision with no trace carries no URL")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+}
+
+/// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
+/// filters: the chat merges the turns and the visible noticed incidents by time (a turn before an incident of the same
+/// time), the rail holds the pending requests, every check, the pending reminders and the 20 newest decide decisions,
+/// telegram holds the release switch and the pairing. Another session's rows are not in it.
+Method TestStateSections()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapisections"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapisectionsother"_..Number)
+	Set production = "Zz.Api"_..Number_".Watched"
+	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production)
+	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second")
+	Set turn1 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set turnRow = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn1)
+	Set turnRow.TraceHeaderId = 9001, turnRow.TraceItemIndex = 46, turnRow.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(turnRow.%Save(), "the first turn has a trace target at position 46 (30 without events)")
+	Set turn2 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z", "queued")
+	Set own = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:02Z", , , {"TraceHeaderId": 777})
+	Set unnoticed = $ClassMethod(fixture, "Incident", mine, "")
+	Set instance = $ClassMethod(fixture, "Incident", "instance", "2030-01-01T10:00:03Z", "ZZNS", production)
+	Set theirTurn = $ClassMethod(fixture, "Turn", theirs)
+	Set theirIncident = $ClassMethod(fixture, "Incident", theirs)
+	Set approval1 = $ClassMethod(fixture, "Approval", mine, own, "pending", "2030-01-01T12:00:00Z")
+	Set approval2 = $ClassMethod(fixture, "Approval", "instance", instance, "pending", "2030-01-01T11:00:00Z")
+	Set answered = $ClassMethod(fixture, "Approval", mine, own, "answered")
+	Set theirApproval = $ClassMethod(fixture, "Approval", theirs)
+	Set reminder1 = $ClassMethod(fixture, "Reminder", mine, "2030-01-01T12:00:00Z")
+	Set reminder2 = $ClassMethod(fixture, "Reminder", mine, "2030-01-01T11:00:00Z")
+	Set fired = $ClassMethod(fixture, "Reminder", mine, "2030-01-01T10:00:00Z", "fired")
+	Set expectedDecisions = ""
+	For i = 1:1:22 {
+		Set ref = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:"_$Extract(100 + i, 2, 3)_"Z", $Select(i = 21: {"ItemId": (turnRow.ItemId)}, 1: ""))
+		If i > 2 Set expectedDecisions = ref_$Select(expectedDecisions = "": "", 1: ",")_expectedDecisions
+	}
+	Set turnDecision = $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T11:00:00Z")
+	Set pairing = $ClassMethod(fixture, "Pairing", mine, "Zz chat")
+	Set checkRow = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(check1)
+	Set checkRow.DisplayName = "Zz display", checkRow.NextDueAt = "2030-03-01T00:00:00Z", checkRow.LastRunAt = "2030-02-01T00:00:00Z"
+	Set checkRow.Result = "failed", checkRow.Finding = "zz finding", checkRow.LastRunHeaderId = 31
+	Do $$$AssertStatusOK(checkRow.%Save(), "the first check has a run")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Set localJson = body.%ToJSON()
+	Set chat = body.chat
+	Do $$$AssertEquals(chat.%Size(), 4, "the chat holds two turns and two visible incidents")
+	Do $$$AssertEquals(..Items(chat), "chat.message:"_turn1_",incident:"_own_",chat.message:"_turn2_",incident:"_instance, "by time, a turn before an incident of the same time, and no unnoticed or foreign item")
+	Set first = chat.%Get(0).payload
+	Do $$$AssertEquals(first.channel_"|"_first.state_"|"_first.createdAt_"|"_first.fromGuide, "web|done|2030-01-01T10:00:01Z|0", "a turn's payload is ChatMessage.FromRow")
+	Do $$$AssertEquals(chat.%Get(0).payload.%GetTypeOf("fromGuide"), "boolean", "fromGuide is a boolean")
+	Set incident = chat.%Get(1).payload
+	Do $$$AssertEquals(incident.state_"|"_incident.count_"|"_incident.cause, "open|3|zz cause", "an incident's payload is Incident.FromRow")
+
+	Set rail = body.rail
+	Do $$$AssertEquals(..Refs(rail.approvals), approval2_","_approval1, "approvals: pending only, by RaisedAt, with the visible instance incident's")
+	Set request = rail.approvals.%Get(1)
+	Do $$$AssertEquals(request.state_"|"_request.incidentRef_"|"_request.kind, "pending|"_own_"|fix", "an approval's payload is Approval.FromRow")
+	Do $$$AssertEquals(request.dryRun.affected_"|"_request.dryRun.field_"|"_request.dryRun.itemNoun.one_"|"_request.dryRun.itemNoun.other, "4|OrderDate|order|orders", "its dry run is parsed")
+	Do $$$AssertEquals(request.traceHeaderId_"|"_request.traceNamespace, "777|"_$Namespace, "an approval of an incident with a trace carries the incident's TraceHeaderId")
+	Do $$$AssertEquals(request.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=777", "and its trace URL, with no PAGE")
+	Set watched = rail.approvals.%Get(0)
+	Do $$$AssertEquals(watched.%IsDefined("traceHeaderId")_watched.%IsDefined("traceUrl"), "00", "an approval of an incident with no trace carries none")
+	Do $$$AssertEquals(..Refs(rail.checks), check1_","_check2, "checks: all of them, by ID")
+	Set view = rail.checks.%Get(0)
+	Do $$$AssertEquals(view.kind_"|"_view.namespace_"|"_view.production_"|"_view.displayName, "production|ZZNS|"_production_"|Zz display", "a check's payload is Check.FromRow's")
+	Do $$$AssertEquals(view.nextDueAt_"|"_view.lastRunAt_"|"_view.result_"|"_view.finding, "2030-03-01T00:00:00Z|2030-02-01T00:00:00Z|failed|zz finding", "with its run")
+	Do $$$AssertEquals(view.traceHeaderId_"|"_view.traceNamespace, "31|"_$Namespace, "a check with a run carries its trace")
+	Do $$$AssertEquals(view.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=31", "and its trace URL, with no PAGE")
+	Set bare = rail.checks.%Get(1)
+	Do $$$AssertEquals(bare.traceHeaderId_"|"_bare.traceNamespace, "|", "a check with no run carries none")
+	Do $$$AssertEquals(..Refs(rail.reminders), reminder2_","_reminder1, "reminders: pending only, by DueAt")
+	Do $$$AssertEquals(rail.reminders.%Get(0).state_"|"_rail.reminders.%Get(0).dueAt, "pending|2030-01-01T11:00:00Z", "a reminder's payload is Reminder.FromRow")
+	Do $$$AssertEquals(rail.decisions.%Size(), 20, "decisions: the 20 newest of the 22")
+	Do $$$AssertEquals(..Refs(rail.decisions), expectedDecisions, "of kind decide only, newest first")
+	Set decision = rail.decisions.%Get(0)
+	Do $$$AssertEquals(decision.model_"|"_decision.traceHeaderId_"|"_decision.traceNamespace, "Claude Haiku 5.5|42|"_$Namespace, "a decision's payload is Decision.FromRow")
+	Do $$$AssertTrue(decision.itemSummary [ "zz summary", "its summary is the row's")
+	Do $$$AssertEquals(decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "and it carries its trace URL, with no PAGE")
+	Do $$$AssertEquals(decision.%IsDefined("traceItemIndex")_decision.%IsDefined("traceItemIndexNoEvents"), "00", "a decision of an Item that is no turn has no item index")
+	Set ofTurn = rail.decisions.%Get(1)
+	Do $$$AssertEquals(ofTurn.itemId, turnRow.ItemId, "the decision made from the first turn's Item is the second newest")
+	Do $$$AssertEquals(ofTurn.traceHeaderId_"|"_ofTurn.traceItemIndex_"|"_ofTurn.traceItemIndexNoEvents, "9001|46|30", "a rail decision of a chat turn carries the turn's header and positions, not its TraceSessionId")
+	Do $$$AssertEquals(ofTurn.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL opens the day's thread at page 2, where the turn is")
+	Do $$$AssertEquals(ofTurn.traceUrl, chat.%Get(0).payload.traceUrl, "which is the turn's own trace URL")
+
+	Do $$$AssertEquals(body.telegram.included_"|"_body.telegram.paired_"|"_body.telegram.displayName_"|"_body.telegram.state, "1|1|Zz chat|off", "telegram: included, paired, the chat's name")
+	Set ^OcuTalonTest("TelegramIncluded") = 0
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.included, 0, "telegram.included follows the release switch")
+	Do $$$AssertEquals(body.%GetTypeOf("status"), "array", "status is an array")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_turn1_",incident:"_own_",chat.message:"_turn2, "with onlineDemo on, the instance incident leaves the chat")
+	Do $$$AssertEquals(..Refs(body.rail.approvals), approval1, "and its request leaves the rail")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	For json = localJson, body.%ToJSON() {
+		Do $$$AssertTrue(('$Find(json, theirTurn)) && ('$Find(json, theirIncident)) && ('$Find(json, theirApproval)), "no row of the other session is in the snapshot, with or without the instance records")
+	}
+}
+
+/// DW-65: the snapshot's chat holds the newest 100 entries, oldest first, merged as before. A session with 103 done turns
+/// one second apart (10:00:01 to 10:01:43) and two noticed incidents of its own, one older than every turn (10:00:00) and one
+/// at the second of turn 50 (10:00:50), has 105 entries; the chat drops the oldest five (the first incident and turns 1 to
+/// 4) and keeps turns 5 to 50, the second incident, then turns 51 to 103. Another session's rows are not in it.
+Method TestStateChatCapped()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicap"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapicapother"_..Number)
+	Set oldest = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:00Z")
+	Set middle = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:50Z")
+	Set theirTurn = $ClassMethod(fixture, "Turn", theirs, "2030-01-01T10:00:30Z")
+	Set refs = mine_","_theirs_","_oldest_","_middle_","_theirTurn
+	Set expected = ""
+	For i = 1:1:103 {
+		Set turn = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(100 + (i \ 60), 2, 3)_":"_$Extract(100 + (i # 60), 2, 3)_"Z")
+		Set refs = refs_","_turn
+		If i < 5 Continue
+		Set expected = expected_$Select(expected = "": "", 1: ",")_"chat.message:"_turn
+		If i = 50 Set expected = expected_",incident:"_middle
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 105")
+	Do $$$AssertEquals(..Items(body.chat), expected, "turns 5 to 50, the second incident, then turns 51 to 103: the newest 100, oldest first, merged by time")
+	Do $$$AssertTrue(('$Find(..Items(body.chat), oldest)), "the incident older than every turn is dropped")
+	Do $$$AssertTrue(('$Find(body.%ToJSON(), theirTurn)), "the other session's turn is not in the snapshot")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// Story 2.6: the snapshot's chat entry for a turn carries what chat.message carries, so a reload rebuilds every strip: the
+/// shown decision (the triage decision of a reply, the reply decision of a fallback), the turn's cost over both decisions'
+/// usage rows, and the check key and rows. A turn with no decision has none of them, and another session's decision and usage
+/// rows are not read into the entry.
+Method TestStateChatDecision()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapidecision"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapidecisionother"_..Number)
+	Set triage = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz one\nzz two", "Confidence": 0.92, "Model": "claude-haiku-5-5"})
+	Set reply = $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T10:00:05Z", {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "timeout"})
+	Do $ClassMethod(fixture, "Usage", triage, mine, {"InputTokens": 1000, "OutputTokens": 300, "CostUSD": 0.0003})
+	Do $ClassMethod(fixture, "Usage", reply, mine, {"InputTokens": 84, "OutputTokens": 12, "CostUSD": 0.0005})
+	Do $ClassMethod(fixture, "Usage", triage, theirs, {"InputTokens": 7000, "OutputTokens": 7000, "CostUSD": 0.7})
+	Set replied = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(replied)
+	Set decisionRow = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(triage)
+	Set decisionRow.ItemId = row.ItemId
+	Do $$$AssertStatusOK(decisionRow.%Save(), "the triage decision is the decision of the first turn's Item")
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Set row.CheckKey = "checks.allPassed"
+	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz finding"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
+	Set row.TraceHeaderId = 9001
+	Set row.TraceItemIndex = 41
+	Set row.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows and a trace target at position 41 (30 without events)")
+	Set fallback = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(fallback)
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Set row.ReplyCatalogKey = "conversation.turnFallback"
+	Set row.FallbackReason = "timeout"
+	Do $$$AssertStatusOK(row.%Save(), "the second turn is a fallback with the same decisions")
+	Set bare = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z", "queued")
+
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_replied_",chat.message:"_fallback_",chat.message:"_bare, "the chat holds the three turns")
+	Set first = body.chat.%Get(0).payload
+	Do $$$AssertEquals(first.decision.ref_"|"_first.decision.outcome_"|"_first.decision.reasons, triage_"|act|zz one"_$Char(10)_"zz two", "a reply: the triage decision, with its outcome and reasons")
+	Do $$$AssertEquals(+first.turnCost.inputTokens_"|"_+first.turnCost.outputTokens_"|"_+first.turnCost.costUSD, "1084|312|.0008", "and the turn's cost, the sum of both decisions and no other session's")
+	Do $$$AssertEquals(first.checkKey_"|"_first.checks.%Size(), "checks.allPassed|2", "and the check key with its two rows")
+	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
+	Do $$$AssertEquals(first.traceItemIndex_"|"_first.traceItemIndexNoEvents, "41|30", "the entry carries both positions of its trace target")
+	Do $$$AssertEquals(first.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL, at the page of position 41 for 40 items a page")
+	Do $$$AssertEquals(first.decision.traceUrl, first.traceUrl, "the nested decision of the turn's Item opens where the turn does")
+	Do $$$AssertEquals(first.decision.traceHeaderId_"|"_first.decision.traceItemIndex_"|"_first.decision.traceItemIndexNoEvents, "9001|41|30", "with the turn's header and positions")
+	Set second = body.chat.%Get(1).payload
+	Do $$$AssertEquals(second.%IsDefined("traceUrl")_"|"_second.%IsDefined("traceItemIndex"), "0|0", "a turn with no trace target has no traceUrl and no position")
+	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
+	Do $$$AssertEquals(second.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "its decision is of no turn's Item, so it opens its own TraceSessionId, with no PAGE")
+	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
+	Set third = body.chat.%Get(2).payload
+	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
+	Do ##class(EnsPortal.VisualTrace).SetItemsPerPage(10)
+	Do ##class(EnsPortal.VisualTrace).SetShowEvents(0)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Get(0).payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=3", "with 10 items a page and events hidden, position 30 is page 3: the viewer's own settings")
+	Do $$$AssertEquals(body.chat.%Get(0).payload.decision.traceUrl, body.chat.%Get(0).payload.traceUrl, "and the nested decision opens on the same page")
+	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
+}
+
+/// DW-65: where the cut falls inside a group of entries with the same time, the chat keeps the later rows, and the entries
+/// of one time stay in the merge's order: turns before incidents, each by row ID. A session with three turns and two noticed
+/// incidents, all at 10:01:00, and 96 turns after them one second apart (10:02:00 to 10:03:35) has 101 entries; the chat
+/// drops the oldest, the first of the three turns, and keeps the second and third turn, the two incidents in row order, then
+/// the 96 turns.
+Method TestStateChatCappedTies()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicapties"_..Number)
+	Set tied = "2030-01-01T10:01:00Z"
+	Set refs = mine
+	For i = 1:1:3 {
+		Set turn(i) = $ClassMethod(fixture, "Turn", mine, tied)
+		Set refs = refs_","_turn(i)
+	}
+	For i = 1:1:2 {
+		Set incident(i) = $ClassMethod(fixture, "Incident", mine, tied)
+		Set refs = refs_","_incident(i)
+	}
+	Set expected = "chat.message:"_turn(2)_",chat.message:"_turn(3)_",incident:"_incident(1)_",incident:"_incident(2)
+	For i = 0:1:95 {
+		Set later = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(102 + (i \ 60), 2, 3)_":"_$Extract(100 + (i # 60), 2, 3)_"Z")
+		Set refs = refs_","_later
+		Set expected = expected_",chat.message:"_later
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 101")
+	Do $$$AssertEquals(..Items(body.chat), expected, "the first of the tied turns is the one dropped; the rest of the tie stay in row order, turns before incidents")
+	Do $$$AssertTrue(('$Find(body.%ToJSON(), turn(1))), "the dropped turn is not in the snapshot")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// StateBody reads the stream cursors before any section, so that whatever changes after the cursors is an event the page
+/// applies. A job takes the snapshot while the session's stream is locked by this process; once the job waits on that lock,
+/// this process adds a turn, publishes its event and releases the lock. The cursor the job read includes the event, so the
+/// turn must be in the chat; a job that read the sections before the cursors waits on the lock only after them, and misses it.
+Method TestCursorsAreReadBeforeTheSections()
+{
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session("zzapicursor"_..Number)
+	Set key = "cursor"_..Number
+	Kill ^OcuTalonTest("WebApi", "job", key)
+	Lock +^OcuTalonP.LiveEventC(mine)
+	Job ##class(OcuTalon.Test.Web.Api).StateJob(mine, key)
+	Set child = $ZChild
+	Do ..WaitFor($Name(^OcuTalonTest("WebApi", "job", key, "started")), 1, 30)
+	Do $$$AssertTrue(..WaitsOnLock(child, 30), "the job waits on the stream's lock")
+	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(mine)
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(##class(OcuTalon.Data.Turn).RefIndexOpen(turn))
+	Set sc = ##class(OcuTalon.Live.Publish).Publish(mine, "chat.message", payload, .seq)
+	Lock -^OcuTalonP.LiveEventC(mine)
+	Do $$$AssertStatusOK(sc, "the turn's event is published")
+	Do ..WaitFor($Name(^OcuTalonTest("WebApi", "job", key, "done")), 1, 30)
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebApi", "job", key, "error")), "", "the job took the snapshot")
+	Set body = ##class(%DynamicObject).%FromJSON($Get(^OcuTalonTest("WebApi", "job", key, "body"), "{}"))
+	Do $$$AssertEquals(body.streams.session, seq, "the cursor includes the published event")
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_turn, "and so the chat holds its turn")
+	Kill ^OcuTalonTest("WebApi", "job", key)
+}
+
+/// A read that fails is an error, never an empty section: StateBody on a session with no Ref throws, and State with no CSP
+/// session answers an error status (a 500 on the wire).
+Method TestStateFailsLoudly()
+{
+	New %session
+	Set threw = 0
+	Try {
+		Do ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).%New())
+	} Catch exception {
+		Set threw = 1
+	}
+	Do $$$AssertTrue(threw, "StateBody throws when a section can't be read")
+	Set %session = ""
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Web.Api).State(), "State with no CSP session is an error status")
+}
+
+/// DW-15: the caller is resolved from the CSP session, never from the user name. Two OcuTalon sessions of one IRIS user
+/// (the online demo's case) are two CSP sessions bound to two rows of one user name: State and Events through Call each
+/// hold only their own session's epoch, cursors and events.
+Method TestPollsResolveTheCspSession()
+{
+	Set one = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set two = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set rowOne = ##class(OcuTalon.Data.Session).RefIndexOpen(one)
+	Set rowTwo = ##class(OcuTalon.Data.Session).RefIndexOpen(two)
+	Do ..PublishReminders(one, 1, "p")
+	Do ..PublishReminders(two, 2, "q")
+	Set cspOne = ##class(%CSP.Session).%New("ZzApiOne", 0)
+	Set cspTwo = ##class(%CSP.Session).%New("ZzApiTwo", 0)
+	Set cspOne.Data("OcuTalon.SessionRef") = one
+	Set cspTwo.Data("OcuTalon.SessionRef") = two
+	Do $$$AssertTrue(rowOne.Epoch '= rowTwo.Epoch, "the two rows have their own epochs")
+
+	Set body = ##class(%DynamicObject).%FromJSON(..CallSession(cspOne, "State", .response))
+	Do $$$AssertEquals(response.Status, "200 OK", "State answers the first CSP session")
+	Do $$$AssertEquals(body.epoch_"|"_body.streams.session_"|"_body.user, rowOne.Epoch_"|1|"_$Username, "with the first row's epoch and cursor")
+	Set body = ##class(%DynamicObject).%FromJSON(..CallSession(cspTwo, "State", .response))
+	Do $$$AssertEquals(body.epoch_"|"_body.streams.session_"|"_body.user, rowTwo.Epoch_"|2|"_$Username, "State answers the second with the second row's")
+
+	Set first = ##class(%DynamicObject).%FromJSON(..PollSession(cspOne, 0, 999999999999999, .response))
+	Do $$$AssertEquals(first.epoch, rowOne.Epoch, "Events answers the first CSP session with its epoch")
+	Do $$$AssertEquals(first.events.%Size(), 1, "and its one event")
+	Do $$$AssertEquals(first.events.%Get(0).payload.ref, "ZzApi"_..Number_"p1", "which is its own")
+	Set second = ##class(%DynamicObject).%FromJSON(..PollSession(cspTwo, 0, 999999999999999, .response))
+	Do $$$AssertEquals(second.epoch, rowTwo.Epoch, "the second gets the second epoch")
+	Do $$$AssertEquals(second.events.%Size(), 2, "and its two events")
+	Do $$$AssertEquals(second.events.%Get(0).payload.ref_","_second.events.%Get(1).payload.ref, "ZzApi"_..Number_"q1,ZzApi"_..Number_"q2", "which are its own")
+}
+
+/// POST /v1/session/end logs the CSP session out, ends it, and answers 204 with no body.
+Method TestEndSession()
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/api/")
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ##class(%CSP.Session).%New("ZzApiEnd", 0)
+	Set %session.EventClass = "OcuTalon.Test.Web.LogoutProbe"
+	Set %response.ContentType = ""
+	Kill ^||OcuTalonLogoutProbe
+	Do $$$AssertEquals(%session.EndSession, 0, "the session is open")
+	Set body = ..Run("EndSession", .response)
+	Do $$$AssertEquals(response.Status, "204 No Content", "204")
+	Do $$$AssertEquals(body, "", "with no body")
+	Do $$$AssertEquals($Get(^||OcuTalonLogoutProbe), 1, "the CSP session was logged out")
+	Do $$$AssertEquals(%session.EndSession, 1, "and is to end")
+	Kill ^||OcuTalonLogoutProbe
+}
+
+/// The two routes that name a record answer 404 not_found, with the error body, for a ref the session can't see: another
+/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible incident's dismissal
+/// reaches its owner: 501 not_built while IncidentManager is a stub (its STUB parameter), and the owner's answer, never 404, once it is
+/// built. A visible approval answers 400 bad_answer to a call with no body.
+/// The CSP session is bound to the second of two rows of the user name, so a handler that took the session
+/// from the user name would resolve the first row and answer 404 for the visible refs.
+Method TestUnseenRefIs404()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Do $ClassMethod(fixture, "Session", $Username)
+	Set mine = $ClassMethod(fixture, "Session", $Username)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapiunseenother"_..Number)
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set watched = "Zz.Unseen"_..Number_".Watched"
+	Do $ClassMethod(fixture, "Check", mine, "ZZNS", watched)
+	Set ownIncident = $ClassMethod(fixture, "Incident", mine)
+	Set ownApproval = $ClassMethod(fixture, "Approval", mine, ownIncident)
+	Set instanceWatched = $ClassMethod(fixture, "Incident", "instance", now, "ZZNS", watched)
+	Set instanceApproval = $ClassMethod(fixture, "Approval", "instance", instanceWatched)
+	Set unseenIncidents = $ListBuild($ClassMethod(fixture, "Incident", theirs), $ClassMethod(fixture, "Incident", mine, ""), $ClassMethod(fixture, "Incident", "eval"), $ClassMethod(fixture, "Incident", "instance", now, "ZZNS", "Zz.Unseen"_..Number_".Unwatched"), "zzmissing"_..Number)
+	Set unseenApprovals = $ListBuild($ClassMethod(fixture, "Approval", theirs), $ClassMethod(fixture, "Approval", "eval"), $ClassMethod(fixture, "Approval", "instance", $ClassMethod(fixture, "Incident", "instance", now, "ZZNS", "Zz.Unseen"_..Number_".Unwatched")), "zzmissing"_..Number)
+	Set csp = ##class(%CSP.Session).%New("ZzApiUnseen", 0)
+	Set csp.Data("OcuTalon.SessionRef") = mine
+	Set notFound = "{""error"":{""code"":""not_found"",""message"":""OcuTalon has nothing at this address.""}}"
+	Set notBuilt = "{""error"":{""code"":""not_built"",""message"":""This part of OcuTalon isn't built yet.""}}"
+	Set badAnswer = "{""error"":{""code"":""bad_answer"",""message"":""An answer needs an action, approve or reject, and a channel, web or phone.""}}"
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+	Set position = 0
+	While $ListNext(unseenIncidents, position, ref) {
+		Set body = ..CallSession(csp, "DismissIncident", .response, ref)
+		Do $$$AssertEquals(response.Status, "404 Not Found", "dismissing incident "_ref_" is 404")
+		Do $$$AssertEquals(body, notFound, "with the error body")
+	}
+	Set position = 0
+	While $ListNext(unseenApprovals, position, ref) {
+		Set body = ..CallSession(csp, "AnswerApproval", .response, ref)
+		Do $$$AssertEquals(response.Status, "404 Not Found", "answering approval "_ref_" is 404")
+		Do $$$AssertEquals(body, notFound, "with the error body")
+	}
+	Set body = ..CallSession(csp, "AnswerApproval", .response, ownIncident)
+	Do $$$AssertEquals(response.Status, "404 Not Found", "an incident's ref is not an approval's")
+	For ref = ownIncident, instanceWatched {
+		Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Set body = ..CallSession(csp, "DismissIncident", .response, ref)
+		If +$Parameter("OcuTalon.Watch.IncidentManager", "STUB") = 1 {
+			Do $$$AssertEquals(response.Status, "501 Not Implemented", "dismissing the visible incident "_ref_" is 501")
+			Do $$$AssertEquals(body, notBuilt, "not_built")
+		} Else {
+			Do $$$AssertNotEquals(response.Status, "404 Not Found", "dismissing the visible incident "_ref_" is not 404")
+			Do $$$AssertTrue(body '[ "not_found", "and its body is not the not_found body")
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", logMark, "OcuTalon.Watch.IncidentManager")
+	}
+	For ref = ownApproval, instanceApproval {
+		Set body = ..CallSession(csp, "AnswerApproval", .response, ref)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "answering the visible approval "_ref_" with no body is 400")
+		Do $$$AssertEquals(body, badAnswer, "bad_answer")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set body = ..CallSession(csp, "DismissIncident", .response, instanceWatched)
+	Do $$$AssertEquals(response.Status, "404 Not Found", "with onlineDemo on, an instance incident is 404")
+	Set body = ..CallSession(csp, "AnswerApproval", .response, instanceApproval)
+	Do $$$AssertEquals(response.Status, "404 Not Found", "and so is its request")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// The display names of the two known models, an unknown id as it is, and "" as "".
+Method TestModelName()
+{
+	Set api = "OcuTalon.Web.Api"
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-haiku-5-5"), "Claude Haiku 5.5", "claude-haiku-5-5")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-sonnet-5-5"), "Claude Sonnet 5.5", "claude-sonnet-5-5")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-opus-9-9"), "claude-opus-9-9", "an unknown id is returned as it is")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", ""), "", "an empty id stays empty")
 }
 
 /// The poll returns a session's events after its cursor, 200 at most, in order, each in the envelope; another
@@ -138,6 +778,22 @@ Method TestEventsBody()
 	Set events = body.events
 	Do $$$AssertEquals(events.%Size(), 200, "the instance stream's cap counts from its own cursor")
 	Do $$$AssertEquals(events.%Get(0).stream_":"_events.%Get(0).seq_" "_events.%Get(199).stream_":"_events.%Get(199).seq, "instance:4 instance:203", "they are 4 to 203")
+
+	Set tracer = ##class(OcuTalon.Data.Session).ForUser("zzapieventstrace"_..Number, .sc)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(tracer.Ref, , "done", "zz traced")
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+	Set turn.TraceHeaderId = 9002
+	Set turn.TraceItemIndex = 81
+	Set turn.TraceItemIndexNoEvents = 70
+	Do $$$AssertStatusOK(turn.%Save(), "a turn with a trace target at position 81")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(tracer.Ref, "chat.message", ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)), "its chat.message is published")
+	Set empty = ##class(OcuTalon.Data.Session).ForUser("zzapieventsempty"_..Number, .sc).Ref
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(tracer, 0, 0, empty)
+	Do $$$AssertEquals(body.events.%Size(), 1, "the poll holds the event")
+	Set payload = body.events.%Get(0).payload
+	Do $$$AssertEquals(payload.traceItemIndex_"|"_payload.traceItemIndexNoEvents, "81|70", "the chat.message carries both positions")
+	Do $$$AssertEquals(payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9002&PAGE=3", "and its trace URL, at the page of position 81")
+	Do $$$AssertEquals(body.events.%Get(0).%IsDefined("traceUrl"), 0, "while the event envelope itself gets none")
 }
 
 /// The browser envelope: exempt methods, the valid request, and each rule in its order.
@@ -203,6 +859,7 @@ Method TestErrorTexts()
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTJSON"), "OcuTalon refused this request because it wasn't sent as JSON.", "not_json")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOHEADER"), "OcuTalon refused this request because it didn't come from the OcuTalon page.", "no_request_header")
 	Do $$$AssertEquals($Parameter(api, "MESSAGEWRONGORIGIN"), "OcuTalon refused this request because it came from another site.", "wrong_origin")
+	Do $$$AssertEquals($Parameter(api, "MESSAGEBADMESSAGE"), "A message needs a clientId and some text.", "bad_message")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTFOUND"), "OcuTalon has nothing at this address.", "not_found")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTALLOWED"), "This address doesn't accept that kind of request.", "method_not_allowed")
 	Do $$$AssertEquals($Parameter(api, "MESSAGESERVERERROR"), "Something went wrong inside OcuTalon. Try again.", "server_error")
@@ -214,12 +871,148 @@ Method TestErrorTexts()
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages NotBuilt", "POST /v1/approvals/:ref/answer NotBuilt", "POST /v1/incidents/:ref/dismiss NotBuilt", "POST /v1/demo/break-feed NotBuilt", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers NotBuilt", "POST /v1/session/end NotBuilt", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
 	Do $$$AssertEquals($ListLength(found), 12, "12 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HTTP501NOTIMPLEMENTED"), "501 Not Implemented", "the 501 status line")
+}
+
+/// POST /v1/messages with a valid body answers 202 {"clientId"} and hands WebChatIn a Post for the CSP session's own session
+/// (a sessionRef in the body is ignored), with the clientId, the text and fromGuide, which is true only for the JSON true.
+/// The call goes to Test.Web.ApiProbe, whose Post makes a shadow WebChatIn that records what it sends.
+Method TestMessagesAccepted()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiMessages", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set cases = $ListBuild($ListBuild("true", "{""clientId"":""zzc1"",""text"":""zz hello"",""fromGuide"":true,""sessionRef"":""zzsomeoneelse""}", "zz hello", 1), $ListBuild("false", "{""clientId"":""zzc2"",""text"":""zz second"",""fromGuide"":false}", "zz second", 0), $ListBuild("absent", "{""clientId"":""zzc3"",""text"":""zz third""}", "zz third", 0), $ListBuild("the string true", "{""clientId"":""zzc4"",""text"":""zz fourth"",""fromGuide"":""true""}", "zz fourth", 0), $ListBuild("the number 1", "{""clientId"":""zzc5"",""text"":"" zz fifth\n"",""fromGuide"":1}", " zz fifth"_$Char(10), 0))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^OcuTalonTest("WebChatIn", ..Number)
+		Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+		Set json = $List(case, 2)
+		Set body = ..PostMessage(csp, json, .response)
+		Set label = "fromGuide "_$List(case, 1)
+		Do $$$AssertEquals(response.Status, "202 Accepted", label_": 202")
+		Do $$$AssertEquals(response.ContentType, "application/json", label_": the content type")
+		Do $$$AssertEquals(body, "{""clientId"":"""_##class(%DynamicObject).%FromJSON(json).clientId_"""}", label_": the body is the clientId")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 2, label_": the allowance is asked and one request is sent")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "target"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "class")), "Conversation|OcuTalon.Msg.Item", label_": an Item goes to Conversation")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "sessionRef")), session, label_": for the CSP session's own session, never the body's")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "clientId"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "text"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "fromGuide")), ##class(%DynamicObject).%FromJSON(json).clientId_"|"_$List(case, 3)_"|"_$List(case, 4), label_": the clientId, the text and fromGuide")
+	}
+}
+
+/// A body arrives as the UTF-8 bytes that the page sent, and text outside ASCII reaches WebChatIn as the characters that were
+/// typed: an accented letter, a dash, a curly apostrophe and an emoji (a surrogate pair). A clientId's length is counted in
+/// characters, so 127 ASCII characters and one accented letter are accepted.
+Method TestMessagesUtf8Body()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiUtf8", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set text = "zz caf"_$Char(233)_" "_$Char(8212)_" it"_$Char(8217)_"s "_$Char(55357, 56832)
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set body = ..PostMessage(csp, "{""clientId"":""zzutf8"_..Number_""",""text"":"""_text_""",""fromGuide"":false}", .response, , 1)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a UTF-8 body: 202")
+	Do $$$AssertEquals(body, "{""clientId"":""zzutf8"_..Number_"""}", "with the clientId")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "text")), text, "the text reaches WebChatIn as it was typed")
+	Set long = $Translate($Justify("", 127), " ", "c")_$Char(233)
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set body = ..PostMessage(csp, "{""clientId"":"""_long_""",""text"":""zz""}", .response, , 1)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a clientId of 128 characters, one of them outside ASCII, is accepted")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "clientId")), long, "and reaches WebChatIn as it was sent")
+}
+
+/// A clientId that the session already has a turn for answers 202 again with its clientId, and nothing is sent.
+Method TestMessagesRepeat()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, , "done", "zz first", "zzrepeat"_..Number)
+	Set csp = ##class(%CSP.Session).%New("ZzApiRepeat", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set body = ..PostMessage(csp, "{""clientId"":""zzrepeat"_..Number_""",""text"":""zz again"",""fromGuide"":false}", .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a repeat answers 202")
+	Do $$$AssertEquals(body, "{""clientId"":""zzrepeat"_..Number_"""}", "with the clientId")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, "and nothing is sent")
+}
+
+/// Any other body is 400 bad_message with the plain-English text, and nothing is sent: not JSON, no body, an array, an object
+/// without a clientId or text, a clientId that is not a string, empty or over 128 characters, a text that is not a string,
+/// empty or only white space.
+Method TestMessagesBadBody()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiBad", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set long = $Translate($Justify("", 129), " ", "c")
+	Set bodies = $ListBuild("not json", "", "[]", "[{""clientId"":""a"",""text"":""b""}]", "{}", "{""text"":""zz""}", "{""clientId"":""zz""}", "{""clientId"":123,""text"":""zz""}", "{""clientId"":"""",""text"":""zz""}", "{""clientId"":"""_long_""",""text"":""zz""}", "{""clientId"":""zz"",""text"":5}", "{""clientId"":""zz"",""text"":""""}", "{""clientId"":""zz"",""text"":""   ""}", "{""clientId"":""zz"",""text"":"" \t\n ""}", "{""clientId"":null,""text"":""zz""}", "{""clientId"":""zz"",""text"":null}", "{""clientId"":[""zz""],""text"":""zz""}", "{""clientId"":""zz"",""text"":{""a"":1}}")
+	Set position = 0
+	While $ListNext(bodies, position, json) {
+		Kill ^OcuTalonTest("WebChatIn", ..Number)
+		Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+		Set body = ..PostMessage(csp, json, .response)
+		Set label = "'"_$Extract(json, 1, 40)_"'"
+		Do $$$AssertEquals(response.Status, "400 Bad Request", label_": 400")
+		Do $$$AssertEquals(body, "{""error"":{""code"":""bad_message"",""message"":""A message needs a clientId and some text.""}}", label_": bad_message with its text")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, label_": nothing is sent")
+	}
+	Set ok = ..PostMessage(csp, "{""clientId"":"""_$Extract(long, 1, 128)_""",""text"":""zz""}", .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a clientId of 128 characters is accepted")
+}
+
+/// A session that can't be resolved, a production that can't take the message and an error of WebChatIn answer 500
+/// server_error with the plain-English text, and the cause is not in the body.
+Method TestMessagesServerError()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiError", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set wanted = "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}"
+	Set valid = "{""clientId"":""zzc"",""text"":""zz hello"",""fromGuide"":false}"
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set ^OcuTalonTest("ApiProbe", "mode") = "fail"
+	Set body = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a production that can't take the message: 500")
+	Do $$$AssertEquals(body, wanted, "with server_error and no cause")
+	Kill ^OcuTalonTest("ApiProbe", "mode")
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", valid)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ""
+	Set %response.ContentType = ""
+	Set body = ..Written(.sc, "OcuTalon.Test.Web.ApiProbe", "Messages")
+	Do $$$AssertStatusOK(sc, "Messages returns OK")
+	Do $$$AssertEquals(%response.Status, "500 Internal Server Error", "no CSP session to take the session from: 500")
+	Do $$$AssertEquals(body, wanted, "with server_error")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, "and nothing is sent")
+	Set ^OcuTalonTest("ApiProbe", "mode") = ""
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set refused = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "the same message is accepted once the production takes it")
+}
+
+/// With no production running, the real Post cannot create WebChatIn and the message is not taken: 500 server_error with the
+/// plain-English text and no cause in the body. Skipped where a production runs, because the real Post would then take the
+/// message (the API spec and ConversationProduction cover that path).
+Method TestMessagesNoProductionIs500()
+{
+	If ##class(Ens.Director).IsProductionRunning() {
+		Do $$$AssertSkipped("A production runs in "_$Namespace_": the real Post would queue a turn, which the API spec tests")
+		Quit
+	}
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiNoProduction", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set body = ..PostMessage(csp, "{""clientId"":""zznoproduction"_..Number_""",""text"":""zz hello"",""fromGuide"":false}", .response, "OcuTalon.Web.Api")
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a message that cannot reach WebChatIn: 500")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}", "with server_error and no cause")
 }
 
 /// A request without a session is answered 401 signed_out in the API's error shape, by the public superclass, with
@@ -315,10 +1108,16 @@ ClassMethod Routes(class As %String) As %List
 /// Calls a class method of Api with a stand-in request and response, and returns the body that it wrote.
 Method Call(method As %String, Output response, args...) As %String [ Private ]
 {
+	Quit ..CallSession(##class(%CSP.Session).%New("ZzApiTest", 0), method, .response, args...)
+}
+
+/// Calls a class method of Api as Call does, with the given CSP session as %session.
+Method CallSession(session As %CSP.Session, method As %String, Output response, args...) As %String [ Private ]
+{
 	New %request, %response, %session
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/api/")
 	Set %response = ##class(%CSP.Response).%New()
-	Set %session = ##class(%CSP.Session).%New("ZzApiTest", 0)
+	Set %session = session
 	Set %response.ContentType = ""
 	Quit ..Run(method, .response, args...)
 }
@@ -354,6 +1153,21 @@ Method PreDispatch(method As %String, contentType As %String, header As %String,
 	Set response = %response
 	Set ended = %session.EndSession
 	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Quit body
+}
+
+/// Calls Messages of Test.Web.ApiProbe (or of the class given) with a stand-in request whose body is json (with binary 1, its
+/// UTF-8 bytes, as the CSP server hands a body over) and the given CSP session, and returns the body that it wrote.
+Method PostMessage(session As %CSP.Session, json As %String, Output response, class As %String = "OcuTalon.Test.Web.ApiProbe", binary As %Boolean = 0) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", json, binary)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = session
+	Set %response.ContentType = ""
+	Set body = ..Written(.sc, class, "Messages")
+	Set response = %response
+	Do $$$AssertStatusOK(sc, "Messages returns OK")
 	Quit body
 }
 
@@ -405,9 +1219,16 @@ ClassMethod Collect(ByRef capture) As %String
 /// Calls Events with the given cursors and a stand-in request, and returns the body that it wrote.
 Method Poll(after As %String, afterInstance As %String, Output response) As %String [ Private ]
 {
-	New %request, %response
+	Quit ..PollSession(##class(%CSP.Session).%New("ZzApiTest", 0), after, afterInstance, .response)
+}
+
+/// Calls Events as Poll does, with the given CSP session as %session.
+Method PollSession(session As %CSP.Session, after As %String, afterInstance As %String, Output response) As %String [ Private ]
+{
+	New %request, %response, %session
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/api/")
 	Set %response = ##class(%CSP.Response).%New()
+	Set %session = session
 	Set %request.Data("after", 1) = after
 	Set %request.Data("afterInstance", 1) = afterInstance
 	Quit ..Run("Events", .response)
@@ -423,6 +1244,153 @@ Method PublishReminders(stream As %String, count As %Integer, prefix As %String)
 		If $SYSTEM.Status.IsError(sc) Quit
 	}
 	Do $$$AssertStatusOK(sc, count_" events are published")
+}
+
+/// The job body of TestCursorsAreReadBeforeTheSections: takes the snapshot of the session and records its JSON.
+ClassMethod StateJob(ref As %String, key As %String)
+{
+	Set run = $Name(^OcuTalonTest("WebApi", "job", key))
+	Try {
+		Set @run@("started") = 1
+		Set @run@("body") = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(ref)).%ToJSON()
+	} Catch exception {
+		Set @run@("error") = exception.DisplayString()
+	}
+	Set @run@("done") = 1
+}
+
+/// 1 once the process waits on a lock (its state is LOCK in five samples 20 ms apart), 0 if it does not within seconds.
+ClassMethod WaitsOnLock(pid As %Integer, seconds As %Integer) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	Set run = 0
+	While (run < 5) && ($ZHorolog < deadline) {
+		Set run = $Select($Extract($SYSTEM.Process.State(pid), 1, 4) = "LOCK": run + 1, 1: 0)
+		Hang 0.02
+	}
+	Quit run = 5
+}
+
+/// DW-62: the snapshot's chat holds the web notice cards that WebChatOut kept (the tell-now and reminder Delivery rows of the
+/// session) among its turns and incidents, so a reload shows them where they arrived.
+///   - A session with a turn of 2024, a card now and a turn of 2099 has the chat turn, card, turn; the card's entry is the
+///     notification payload of its row. Another session's card, a card of another channel, a row of another kind and a reply's
+///     row (kind empty) are not in it;
+///   - at the same second a turn comes first, then an incident, then a card, whatever the order they were made in;
+///   - the cap of 100 counts all three: 40 turns, 40 incidents and 40 cards one second apart in turn, incident, card order have
+///     120 entries, and the chat keeps the newest 100, from the 7th card to the last.
+Method TestStateChatNotices()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapinotice"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapinoticeother"_..Number)
+	Set before = $ClassMethod(fixture, "Turn", mine, "2024-01-01T10:00:00Z")
+	Set card = $ClassMethod(fixture, "Delivery", mine, {"Text": ("zz card text"_$Char(10)_"Why now: zz why."), "Kind": "tellnow"})
+	Set after = $ClassMethod(fixture, "Turn", mine, "2099-01-01T10:00:00Z")
+	Set refs = mine_","_theirs_","_before_","_card_","_after
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", theirs)
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Channel": "telegram"})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Kind": "incident"})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Kind": "", "ChannelMessageId": ""})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", "instance")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_before_",notification:"_card_",chat.message:"_after, "the card sits between the turn of 2024 and the turn of 2099, and no other row is in the chat")
+	Set entry = body.chat.%Get(1).payload
+	Do $$$AssertEquals(entry.kind_"|"_entry.text_"|"_entry.whyNow, "tellnow|zz card text|Why now: zz why.", "the card's entry is its notification payload, split at the Why now line")
+	Do $$$AssertTrue(entry.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "with its time: "_entry.createdAt)
+	Do $ClassMethod(fixture, "Clean", refs)
+
+	Set tied = "2030-01-01T10:00:00Z"
+	Set mine = $ClassMethod(fixture, "Session", "zzapinoticeties"_..Number)
+	Set card = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": (tied)})
+	Set incident = $ClassMethod(fixture, "Incident", mine, tied)
+	Set turn = $ClassMethod(fixture, "Turn", mine, tied)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_turn_",incident:"_incident_",notification:"_card, "at the same second: the turn, the incident, then the card, whatever the order they were made in")
+	Do $ClassMethod(fixture, "Clean", mine_","_card_","_incident_","_turn)
+
+	Set mine = $ClassMethod(fixture, "Session", "zzapinoticecap"_..Number)
+	Set refs = mine
+	Set expected = ""
+	For i = 1:1:40 {
+		Set second = 3 * i
+		Set turn = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(100 + (second \ 60), 2, 3)_":"_$Extract(100 + (second # 60), 2, 3)_"Z")
+		Set incident = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:"_$Extract(100 + ((second + 1) \ 60), 2, 3)_":"_$Extract(100 + ((second + 1) # 60), 2, 3)_"Z")
+		Set card = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": ("2030-01-01T10:"_$Extract(100 + ((second + 2) \ 60), 2, 3)_":"_$Extract(100 + ((second + 2) # 60), 2, 3)_"Z")})
+		Set refs = refs_","_turn_","_incident_","_card
+		If i > 7 Set expected = expected_",chat.message:"_turn_",incident:"_incident
+		If i >= 7 Set expected = expected_",notification:"_card
+		If i = 7 Set expected = $Piece(expected, ",", 2, *)
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 120")
+	Do $$$AssertEquals(..Items(body.chat), expected, "the newest 100 across turns, incidents and cards, from the 7th card to the last")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// DW-62: after a reload the snapshot draws each card as it was sent. A card of the chat carries what its strip and caption need:
+///   - a tell-now card with a decision of the session's own embeds that decision with its cost, and has no fallback reason;
+///   - a fallback card carries its fallback reason and embeds no decision;
+///   - a reminder card carries its due time and no Why now line;
+///   - a card whose DecisionRef is another session's decision keeps the Ref and embeds nothing.
+Method TestStateChatNoticeCardFields()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicardfields"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapicardfieldsother"_..Number)
+	Set decision = $ClassMethod(fixture, "Decision", mine, "decide", , {"Outcome": "tellnow", "Reasons": "zz first.", "Confidence": 0.9, "CostUSD": 0.0003})
+	Set foreign = $ClassMethod(fixture, "Decision", theirs, "decide")
+	Set shown = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:01Z", "DecisionRef": (decision), "Text": ("zz shown"_$Char(10)_"Why now: zz first.")})
+	Set fallback = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:02Z", "FallbackReason": "refusal", "Text": ("zz fallback"_$Char(10)_"Why now: the model declined to answer")})
+	Set reminder = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:03Z", "Kind": "reminder", "DueAt": "2030-01-01T09:30:00Z", "Text": "Reminder: stretch."})
+	Set stranger = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:04Z", "DecisionRef": (foreign), "Text": ("zz stranger"_$Char(10)_"Why now: zz why.")})
+	Set refs = mine_","_theirs_","_decision_","_foreign_","_shown_","_fallback_","_reminder_","_stranger
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "notification:"_shown_",notification:"_fallback_",notification:"_reminder_",notification:"_stranger, "the four cards, in time order")
+	If body.chat.%Size() = 4 {
+		Set card = body.chat.%Get(0).payload
+		Do $$$AssertEquals(card.kind_"|"_card.text_"|"_card.whyNow_"|"_card.decisionRef, "tellnow|zz shown|Why now: zz first.|"_decision, "the tell-now card: its text, its Why now line and its decision's Ref")
+		Do $$$AssertEquals(card.decision.ref_"|"_card.decision.outcome_"|"_card.decision.reasons_"|"_card.decision.costUSD, decision_"|tellnow|zz first.|.0003", "with the decision embedded, and its own cost")
+		Do $$$AssertEquals(card.%IsDefined("fallbackReason"), 0, "and no fallback reason")
+		Set card = body.chat.%Get(1).payload
+		Do $$$AssertEquals(card.fallbackReason_"|"_card.whyNow, "refusal|Why now: the model declined to answer", "the fallback card: its fallback reason and its Why now line")
+		Do $$$AssertEquals(card.%IsDefined("decision"), 0, "and no decision")
+		Set card = body.chat.%Get(2).payload
+		Do $$$AssertEquals(card.kind_"|"_card.text_"|"_card.dueAt_"|"_card.whyNow, "reminder|Reminder: stretch.|2030-01-01T09:30:00Z|", "the reminder card: its due time, its whole text and no Why now line")
+		Set card = body.chat.%Get(3).payload
+		Do $$$AssertEquals(card.decisionRef, foreign, "the card of another session's decision keeps the Ref")
+		Do $$$AssertEquals(card.%IsDefined("decision"), 0, "and embeds nothing of it")
+	}
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// Waits up to seconds for the global node named by ref to reach count.
+ClassMethod WaitFor(ref As %String, count As %Integer, seconds As %Integer) [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	While (+$Get(@ref) < count) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+}
+
+/// The Refs of an array of payload objects, comma-separated, in order.
+ClassMethod Refs(array As %DynamicArray) As %String [ Private ]
+{
+	Set refs = ""
+	For i = 0:1:array.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_array.%Get(i).ref
+	}
+	Quit refs
+}
+
+/// The type and Ref of each live item of the chat, as type:ref, comma-separated, in order.
+ClassMethod Items(chat As %DynamicArray) As %String [ Private ]
+{
+	Set items = ""
+	For i = 0:1:chat.%Size() - 1 {
+		Set items = items_$Select(items = "": "", 1: ",")_chat.%Get(i).type_":"_chat.%Get(i).payload.ref
+	}
+	Quit items
 }
 
 /// Deletes the fixture sessions with their events and counters.

@@ -1,4 +1,8 @@
-/// A message on the simulated phone or mailbox (AD-14). Lane B.
+/// A message on the simulated phone or mailbox (AD-14). Lane B. A phone message (Kind phone) is recorded by SimPhoneOut with the
+/// text as the device shows it; the mailbox's rows (Kind mailbox) carry the email's Sender and Subject. An incoming email (by
+/// SimMailboxIn) carries an ItemId; sent mail (by SimMailboxOut) has none. A phone message of kind incident or approval carries
+/// the ApprovalRef of the request it asks for, and the Answer line that replaced its Approve and Reject once the request was
+/// answered. A row written before Sender, Subject, ApprovalRef and Answer existed reads them as empty.
 Class OcuTalon.Data.SimMessage Extends %Persistent
 {
 
@@ -22,6 +26,21 @@ Property ItemId As %String(MAXLEN = 22);
 
 /// When the row was created, UTC to the second.
 Property CreatedAt As %String(MAXLEN = 20);
+
+/// The message's text as the device shows it; empty for a row that has none.
+Property Text As %String(MAXLEN = "");
+
+/// The email's sender, as the From line gives it; empty for a phone row.
+Property Sender As %String(MAXLEN = 1000);
+
+/// The email's subject; empty for a phone row.
+Property Subject As %String(MAXLEN = 1000);
+
+/// The approval request that a phone message asks for; empty for any other message.
+Property ApprovalRef As %String(MAXLEN = 22);
+
+/// The answered line, in message form, that replaced the phone message's Approve and Reject; empty while it has them.
+Property Answer As %String(MAXLEN = 1000);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -52,6 +71,21 @@ Storage Default
 </Value>
 <Value name="7">
 <Value>CreatedAt</Value>
+</Value>
+<Value name="8">
+<Value>Text</Value>
+</Value>
+<Value name="9">
+<Value>Sender</Value>
+</Value>
+<Value name="10">
+<Value>Subject</Value>
+</Value>
+<Value name="11">
+<Value>ApprovalRef</Value>
+</Value>
+<Value name="12">
+<Value>Answer</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SimMsgD</DataLocation>

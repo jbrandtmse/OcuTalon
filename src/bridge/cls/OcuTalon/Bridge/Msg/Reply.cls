@@ -2,26 +2,53 @@
 Class OcuTalon.Bridge.Msg.Reply Extends OcuTalon.Bridge.Msg.Result
 {
 
+/// The longest FailureText, in characters: the one limit that the runner and Decide cut a failure text to.
+Parameter MAXFAILURE = 2000;
+
 /// The reply text.
 Property Text As %String(MAXLEN = "");
 
-/// True when untrusted content reached the turn (AD-10).
+/// True when a tool result that is not trusted output reached the turn (AD-10): the gate sets the context's taint when it allows such a
+/// call, or a tool sets it, and the runner copies it here. An untrusted turn starts untainted, so this says nothing about the item's
+/// provenance. A tainted turn is never saved to the user's conversation.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
-/// True when the runner moved the conversation to a fresh AI session.
+/// True when the runner moved the conversation to a fresh AI session: the turn was fresh, and after its Chat completed untainted the
+/// link names the new session (the link was created or moved). Always false for a continue turn, and when the save failed. Only the
+/// runner sets it, and a fallback that Decide builds from the runner's reply carries it (AD-6).
 Property SessionRotated As %Boolean [ InitialExpression = 0 ];
 
-/// True when any tool ran.
+/// True when a tool call was made in the call this reply answers, or when that could not be told: AI Hub's tool-call counter went up
+/// or a tool step was recorded, or the counter could not be read (OcuTalon.Bridge.Adapter.Agent.ToolsRan). False means that no tool
+/// ran, and only then does Decide send a rate-limited request again (AD-8). A fallback reply carries the runner's value; one that Decide
+/// builds with no runner reply (a precheck, or the timer of a call still in flight) leaves it false, which then says nothing about a tool.
 Property ToolsRun As %Boolean [ InitialExpression = 0 ];
 
-/// True when the provider rejected the stored history (AD-8).
+/// True when the provider rejected the stored history (AD-8). Decide sets it, on the fallback Reply of a user's turn whose failure text
+/// holds "Invalid input" (Process.Decide Broken); the fallback reason stays error. The runner saves nothing for that turn, so the stored
+/// history and the link stay as they were, and the caller can retry once in a fresh, seeded session.
 Property SessionBroken As %Boolean [ InitialExpression = 0 ];
 
-/// True when Decide refused a turn because its conversation lock was still held after 2 seconds; such a reply has no text and no decision (AD-6).
+/// True when a turn was refused because its conversation lock was still held after 2 seconds; such a reply has no text and no decision
+/// (AD-6). Decide sets it when it cannot take the lock, and relays the runner's Busy reply the same way (NewBusy). It is never an error
+/// status and never a fallback.
 Property Busy As %Boolean [ InitialExpression = 0 ];
 
 /// JSON a tool may fill, such as check rows (AD-6).
 Property HostData As %String(MAXLEN = "");
+
+/// The provider's stop reason from Response.Extra, such as refusal or max_tokens; empty when it reports none (AD-8).
+Property FinishReason As %String(MAXLEN = 32);
+
+/// The agent steps of the call as a JSON array of {"kind","label","summary","durationMs","status","estimatedTokens"} records, in order,
+/// redacted and cut (OcuTalon.Bridge.Redact); the runner fills it and Decide sends each record to AgentSteps as an AgentStep (AD-9).
+/// Decide's own answer to a turn leaves it empty.
+Property Steps As %String(MAXLEN = "");
+
+/// The failure of a call whose Chat threw, as the runner's reply to Decide (AD-6, AD-9): the text of AI Hub's error, redacted and cut to
+/// MAXFAILURE (OcuTalon.Bridge.Adapter.StepBuffer.Part). Only the runner fills it, and only on such a failure reply, which also carries the
+/// steps, the usage, the host data and the taint of the call; Text and FinishReason are empty then. Every answer of Decide leaves it empty.
+Property FailureText As %String(MAXLEN = 2000);
 
 /// A reply that says the conversation was busy: Busy is true and nothing else is set (AD-6).
 /// Decide answers a refused turn with it and never signals busy with an error status.
@@ -56,6 +83,15 @@ Storage Default
 </Value>
 <Value name="7">
 <Value>HostData</Value>
+</Value>
+<Value name="8">
+<Value>FinishReason</Value>
+</Value>
+<Value name="9">
+<Value>Steps</Value>
+</Value>
+<Value name="10">
+<Value>FailureText</Value>
 </Value>
 </Data>
 <DefaultData>ReplyDefaultData</DefaultData>

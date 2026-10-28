@@ -5,7 +5,8 @@
 ///     origin that is not in the enumeration is refused naming it, whatever the payload said;
 ///   - TestRefusals: an object that is not a command is refused naming the problem;
 ///   - TestOmittedArguments: a left-out origin or command is an error status, not a thrown error;
-///   - TestStubs: Recipients gives "", and TurnCost and RunCost give {}.
+///   - TestStubs: Recipients gives "", and TurnCost of an unknown turn gives {} with an error (the totals are tested by
+///     Test.Data.Ownership).
 /// The run's number is n from ^OcuTalonTest("Commands","n") (never reset); the context of the test process is ended before
 /// and after the tests.
 Class OcuTalon.Test.Core.Commands Extends %UnitTest.TestCase
@@ -96,13 +97,17 @@ Method TestRefusals()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "no context is left behind")
 }
 
-/// Row 9 for Lane B: Recipients gives "", with and without an incident; TurnCost and RunCost give {}.
+/// Row 9 for Lane B: Recipients gives "", with and without an incident; TurnCost of a turn that does not exist gives {} with an
+/// error status, and so does RunCost for a session that is not one.
 Method TestStubs()
 {
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("zzowner"_..Number), "", "Recipients gives an empty list")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("zzowner"_..Number, "zzincident"), "", "also for an incident")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnCost("zzturn"_..Number).%ToJSON(), "{}", "TurnCost gives an empty object")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RunCost("zzsession"_..Number, "2026-10-19T00:00:00Z").%ToJSON(), "{}", "RunCost gives an empty object")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnCost("zzturn"_..Number, .sc).%ToJSON(), "{}", "TurnCost of an unknown turn gives an empty object")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnCost("zzturn"_..Number).%ToJSON(), "{}", "also when the caller passes no status")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RunCost("", "2026-10-19T00:00:00Z", .sc).%ToJSON(), "{}", "RunCost with no session gives an empty object")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
 }
 
 /// --- helpers ---

@@ -2,13 +2,16 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   expectSignInPage,
+  fillSignIn,
   noRoleAccount,
   README_ACCOUNT,
   SIGN_IN_IMAGES,
   signIn,
   signInReadme,
+  submitSignIn,
   watchViolations,
 } from './helpers';
+import { signOutTrace } from '../support/trace';
 
 const TITLE = 'Sign in \u00b7 OcuTalon';
 const WRONG_CREDENTIALS = "That user name and password didn't work.";
@@ -71,6 +74,7 @@ test.describe('without a session', () => {
     expect(body).toContain('name="IRISUsername"');
     expect(body).toContain('name="IRISPassword"');
     expect(body).not.toContain('Message Viewer');
+    await signOutTrace(request);
   });
 });
 
@@ -91,6 +95,7 @@ test.describe('the sign-in page', () => {
       await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
       const source = await logo.evaluate((img: HTMLImageElement) => img.currentSrc);
       expect(source).toContain(scheme === 'dark' ? 'OcuTalon-Logo-dark-' : 'OcuTalon-Logo-light-');
+      expect((await logo.boundingBox())!.width, 'the logo renders 320px wide').toBe(320);
 
       const user = page.getByLabel('User name');
       const password = page.getByLabel('Password', { exact: true });
@@ -117,6 +122,15 @@ test.describe('the sign-in page', () => {
       await context.close();
     });
   }
+
+  test('row 5: Enter in the Password field submits the form', async ({ page }) => {
+    await fillSignIn(page, README_ACCOUNT.user, README_ACCOUNT.password);
+    const answered = page.waitForResponse((response) => response.request().method() === 'POST');
+    await page.getByLabel('Password', { exact: true }).press('Enter');
+    expect((await answered).status(), 'Enter posts the form and the server redirects').toBe(303);
+    await expect(page).toHaveTitle('OcuTalon');
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  });
 
   test('row 6: a wrong password keeps the user name, clears the password and focuses the error', async ({ page }) => {
     await signIn(page, README_ACCOUNT.user, 'wrong');
@@ -202,4 +216,77 @@ test('row 13: sign-in at a deep link redirects to that URL, which serves the she
   expect(shell.status(), 'the redirect target answers 200').toBe(200);
   expect(await shell.text(), 'the redirect target serves the shell').toContain('<app-root');
   await expect(page).toHaveTitle('OcuTalon');
+});
+
+/**
+ * DW-4: a deep link survives sign-in. The form is posted to the address with its fragment, the server's 303 names no
+ * fragment, so the browser gives the page it lands on the fragment of the address that was posted to. The 303's
+ * Location is the original address with no fragment (the server never sees one), and the page lands on #/x.
+ */
+test.describe('DW-4: a deep link survives sign-in', () => {
+  for (const target of ['/ocutalon/', '/ocutalon/index.html?q=1']) {
+    test(`DW-4: signing in at ${target}#/x lands on #/x with the main page`, async ({ page }) => {
+      await fillSignIn(page, README_ACCOUNT.user, README_ACCOUNT.password, `${target}#/x`);
+      // Registered after the sign-in page has loaded, so that only the redirect's navigation can answer it.
+      const landed = page.waitForResponse(
+        (r) => r.request().method() === 'GET' && r.request().isNavigationRequest() && new URL(r.url()).pathname + new URL(r.url()).search === target,
+      );
+      landed.catch(() => undefined);
+      const response = await submitSignIn(page);
+      expect(response.status()).toBe(303);
+      const location = new URL((await response.headerValue('location'))!, page.url());
+      expect(location.pathname + location.search, 'the 303 names the address as it was, query included').toBe(target);
+      expect(location.hash, 'and no fragment').toBe('');
+      expect((await landed).status(), 'the redirect target answers 200').toBe(200);
+      await expect(page).toHaveTitle('OcuTalon');
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+      // Read once the page has booted: before that the address is still the redirect's. The router settles on the hash
+      // route under the base href, so the fragment stays and a query is dropped (as in row 13).
+      await expect(page, 'the page lands on #/x').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/x');
+    });
+  }
+
+  test('DW-4: a second submit before the page leaves adds the fragment to the action once', async ({ page }) => {
+    await fillSignIn(page, README_ACCOUNT.user, README_ACCOUNT.password, '/ocutalon/#/x');
+    const action = await page.evaluate(() => {
+      const form = document.forms.namedItem('Login')!;
+      form.addEventListener('submit', (event) => event.preventDefault());
+      form.requestSubmit();
+      form.requestSubmit();
+      return form.getAttribute('action') ?? '';
+    });
+    expect(action.endsWith('#/x'), 'the action ends in the fragment').toBe(true);
+    expect(action.split('#').length - 1, 'and holds it once').toBe(1);
+  });
+
+  test('DW-4: a wrong password first shows the error at the same address, and the next sign-in lands on #/x', async ({ page }) => {
+    await fillSignIn(page, README_ACCOUNT.user, 'wrong', '/ocutalon/#/x');
+    const refused = await submitSignIn(page);
+    expect(refused.status(), 'a wrong password answers the sign-in page').toBe(200);
+    await expect(page.locator('#ocu-error')).toHaveText(WRONG_CREDENTIALS);
+    expect(new URL(page.url()).hash, 'the error shows at the same address').toBe('#/x');
+
+    await page.getByLabel('Password', { exact: true }).fill(README_ACCOUNT.password);
+    const accepted = await submitSignIn(page);
+    expect(accepted.status()).toBe(303);
+    await expect(page).toHaveTitle('OcuTalon');
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page, 'the page lands on #/x once it has booted').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/x');
+  });
+
+  // No fragment to carry: the 303 names the address as it was, and the page's router then rewrites the address to the
+  // hash route under the base href, /ocutalon/#/ (row 13).
+  for (const target of ['/ocutalon/', '/ocutalon/index.html?x=1']) {
+    test(`DW-4: signing in at ${target} with no fragment lands on #/`, async ({ page }) => {
+      await fillSignIn(page, README_ACCOUNT.user, README_ACCOUNT.password, target);
+      const response = await submitSignIn(page);
+      expect(response.status()).toBe(303);
+      const location = new URL((await response.headerValue('location'))!, page.url());
+      expect(location.pathname + location.search, 'the 303 names the address as it was').toBe(target);
+      expect(location.hash, 'and no fragment').toBe('');
+      await expect(page).toHaveTitle('OcuTalon');
+      await expect(page, 'the page lands on the hash route #/').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/');
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    });
+  }
 });

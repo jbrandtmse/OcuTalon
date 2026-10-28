@@ -1746,3 +1746,78 @@ if [ -n "$skipped" ]; then
 else
   echo "test-ci-config: all rules passed"
 fi
+
+# --- ci/iris.sh shard --part k/n: the k-th of n contiguous parts of the ordered class list ---
+
+# shard_part_run <arguments of cmd_shard...>: the title, then the classes, that cmd_shard hands to the run_classes stub; the exit status
+# of cmd_shard is kept.
+shard_part_run() {
+  (
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM
+    . ci/iris.sh
+    run_classes() { printf '%s\n' "LABEL $1" "TITLE $2"; shift 2; printf '%s\n' "$@"; }
+    cmd_shard "$@"
+  )
+}
+part_ok=1
+part_all=$(bash ci/iris.sh classes lane-a)
+part_all_rev=$(printf '%s\n' "$part_all" | LC_ALL=C sort -r)
+for part_n in 1 2 3; do
+  for part_dir in "" "--reverse"; do
+    part_joined=""
+    part_min=999999
+    part_max=0
+    part_k=1
+    while [ "$part_k" -le "$part_n" ]; do
+      # shellcheck disable=SC2086
+      part_out=$(shard_part_run lane-a $part_dir --part "$part_k/$part_n")
+      part_label=$(printf '%s\n' "$part_out" | sed -n '1s/^LABEL //p')
+      part_title=$(printf '%s\n' "$part_out" | sed -n '2s/^TITLE //p')
+      part_list=$(printf '%s\n' "$part_out" | sed 1,2d)
+      if [ "$part_label" != "shard-lane-a" ]; then part_ok=0; fi
+      part_size=$(printf '%s\n' "$part_list" | grep -c .)
+      case $part_title in
+        *" part $part_k/$part_n") ;;
+        *) part_ok=0 ;;
+      esac
+      if [ -n "$part_dir" ]; then
+        case $part_title in "lane-a (reversed) part "*) ;; *) part_ok=0 ;; esac
+      else
+        case $part_title in "lane-a part "*) ;; *) part_ok=0 ;; esac
+      fi
+      if [ "$part_size" -lt 1 ]; then part_ok=0; fi
+      if [ "$part_k" -eq 1 ]; then part_first=$part_size; fi
+      if [ "$part_size" -lt "$part_min" ]; then part_min=$part_size; fi
+      if [ "$part_size" -gt "$part_max" ]; then part_max=$part_size; fi
+      part_joined=$(printf '%s\n%s' "$part_joined" "$part_list")
+      part_k=$((part_k + 1))
+    done
+    part_joined=$(printf '%s\n' "$part_joined" | sed 1d)
+    if [ -n "$part_dir" ]; then part_want=$part_all_rev; else part_want=$part_all; fi
+    if [ "$part_joined" != "$part_want" ] || [ $((part_max - part_min)) -gt 1 ]; then part_ok=0; fi
+    if [ "$part_size" -gt "$part_first" ]; then part_ok=0; fi
+  done
+done
+part_eq=$(shard_part_run lane-a --part=2/3)
+if [ "$part_eq" != "$(shard_part_run lane-a --part 2/3)" ]; then part_ok=0; fi
+if [ "$part_eq" != "$(shard_part_run --part 2/3 lane-a)" ]; then part_ok=0; fi
+part_none=$(shard_part_run lane-a)
+if [ "$(printf '%s\n' "$part_none" | sed -n 2p)" != "TITLE lane-a" ] || [ "$(printf '%s\n' "$part_none" | sed 1,2d)" != "$part_all" ]; then part_ok=0; fi
+for part_bad in 0/2 3/2 2 a/b 1/0 1/999 1/1000000 ""; do
+  part_status=0
+  part_msg=$(shard_part_run lane-a --part "$part_bad" 2>&1) || part_status=$?
+  if [ "$part_status" -ne 2 ]; then part_ok=0; fi
+  case $part_msg in *--part*) ;; *) part_ok=0 ;; esac
+done
+for part_form in "--part=" "--part"; do
+  part_status=0
+  part_msg=$(shard_part_run lane-a "$part_form" 2>&1) || part_status=$?
+  if [ "$part_status" -ne 2 ]; then part_ok=0; fi
+  case $part_msg in *--part*) ;; *) part_ok=0 ;; esac
+done
+if [ "$part_ok" -eq 1 ]; then
+  echo "PASS shard part"
+else
+  echo "FAIL shard part"
+  exit 1
+fi

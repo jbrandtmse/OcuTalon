@@ -1,13 +1,16 @@
 /// The per-call context (AD-6): the runner sets it before a model call, and the gate and the tools read it. It holds
 /// the request's fields, including the caller's thread session id and the SuperSession, the taint of the turn and the
-/// host data that a tool fills. It lives in the process-private global ^||OcuTalonBP.Context, not in a local variable,
+/// host data that a tool fills, the characters that the tool results of the current model step have used (ToolResultChars, AD-10) and the
+/// number of commands that the tools of the call have submitted (CommandCount, AD-1): a host's tools number the commands that they submit in
+/// one call with it, and Begin starts it at 0, so a call that runs again numbers its commands from 1 again.
+/// It lives in the process-private global ^||OcuTalonBP.Context, not in a local variable,
 /// because a callback of AI Hub may New local variables; it ends with the process, and a job that did not call Begin
 /// sees no context.
 Class OcuTalon.Bridge.Context Extends %RegisteredObject
 {
 
 /// The names that Begin copies from the request and that Put may set, comma-separated.
-Parameter FIELDS = "Kind,Provenance,ItemId,DecisionRef,OwnerRef,TraceRef,Channel,ThreadSessionId,SuperSession,Tainted,HostData";
+Parameter FIELDS = "Kind,Provenance,ItemId,DecisionRef,OwnerRef,TraceRef,Channel,ThreadSessionId,SuperSession,Tainted,HostData,ToolResultChars,CommandCount";
 
 /// One of Msg.Enum REQUESTKIND.
 Property Kind As %String(MAXLEN = 32);
@@ -34,14 +37,25 @@ Property ThreadSessionId As %Integer;
 /// The SuperSession that the messages of the call carry.
 Property SuperSession As %String(MAXLEN = 64);
 
-/// True when untrusted content reached the turn.
+/// True when a tool result that is not trusted output has reached the turn (AD-10). The gate sets it when it allows a call whose tool is
+/// not trusted output, and a tool may set it itself. Begin starts every turn at 0, an untrusted turn included: the provenance says whether
+/// the item came from the user, and this says whether such a result reached the model.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
 /// JSON a tool may fill, such as check rows.
 Property HostData As %String(MAXLEN = "");
 
+/// The characters that the results of the tools of the current model step have used (the shared base of the built-in tools keeps the total, AD-10). Begin
+/// sets it to 0, and the step renderer sets it to 0 at every model response, so the results of one model step share one room.
+Property ToolResultChars As %Integer [ InitialExpression = 0 ];
+
+/// The number of commands that the tools of the call have submitted so far. A host's tools number the commands that they submit in one call
+/// with it: the next command is number CommandCount plus 1, which the tool writes back with Put. Begin sets it to 0, so a call that runs again
+/// numbers its commands from 1 again.
+Property CommandCount As %Integer [ InitialExpression = 0 ];
+
 /// Starts the context of this process from the request, with the SuperSession of the call, and replaces a context
-/// that is already set. The taint starts at 0 and the host data empty.
+/// that is already set. The taint starts at 0, the host data empty, and the tool result characters and the command count at 0.
 ClassMethod Begin(request As OcuTalon.Bridge.Msg.Request, superSession As %String = "") As %Status
 {
 	If '$IsObject(request) || '$ClassMethod($ClassName(request), "%Extends", "OcuTalon.Bridge.Msg.Request") {
@@ -55,6 +69,8 @@ ClassMethod Begin(request As OcuTalon.Bridge.Msg.Request, superSession As %Strin
 	Set ^||OcuTalonBP.Context("SuperSession") = superSession
 	Set ^||OcuTalonBP.Context("Tainted") = 0
 	Set ^||OcuTalonBP.Context("HostData") = ""
+	Set ^||OcuTalonBP.Context("ToolResultChars") = 0
+	Set ^||OcuTalonBP.Context("CommandCount") = 0
 	Quit $SYSTEM.Status.OK()
 }
 

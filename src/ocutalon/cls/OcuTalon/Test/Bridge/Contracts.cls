@@ -1,6 +1,8 @@
-/// Tests of the bridge's message contracts and shared helpers (Story 0.4): every OcuTalon.Bridge.Msg class has
+/// Tests of the bridge's message contracts and shared helpers (Story 0.4; Story 1.2 adds Reply.FinishReason and the ToolInventory
+/// request; Story 3.4 adds the ApprovalStart request and Story 3.5 the ApprovalOutcome message; Story 1.5 adds Reply.Steps, and Story 1.6 Reply.FailureText, which a busy reply leaves empty; Story 1.9 adds Request.Compact): every OcuTalon.Bridge.Msg class has
 /// exactly its contract, a busy reply is only busy, NewRef gives 22-character base64url references, and the audit
-/// writer's API names the six events and refuses any other type. Nothing is written to the audit log.
+/// writer's API names the six events and refuses any other type, and Shape gives each type's data members, which the other lanes write by (Story 3.7).
+/// Nothing is written to the audit log.
 Class OcuTalon.Test.Bridge.Contracts Extends OcuTalon.Test.Contract
 {
 
@@ -24,7 +26,7 @@ Method TestNewBusy()
 	For name = "Tainted", "SessionRotated", "ToolsRun", "SessionBroken" {
 		Do $$$AssertEquals($Property(reply, name), 0, name_" is 0")
 	}
-	For name = "HostData", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
+	For name = "HostData", "Steps", "FailureText", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
 		Do $$$AssertEquals($Property(reply, name), "", name_" is empty")
 	}
 	Set sc = reply.%Save()
@@ -66,11 +68,31 @@ Method TestNewRef()
 	Do $$$AssertEquals(valid, 10000, "10,000 references match ^[A-Za-z0-9_-]{22}$")
 }
 
-/// Events() names the six events in order. Write refuses a type that is not one of them, naming it, matching the case
-/// exactly, and refuses data that is not a dynamic object before it writes anything.
+/// Events() names the six events in order. Shape(type) is the type's members followed by the three that every entry has, and "" for a type that is
+/// not one of the six. Write and Record refuse a type that is not one of them, naming it, matching the case exactly, and refuse data that is not a
+/// dynamic object before they write anything.
 Method TestAuditApi()
 {
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Bridge.Audit).Events(), ","), "OcuTalon/Action/Action,OcuTalon/Approval/Approval,OcuTalon/Pairing/Pairing,OcuTalon/Settings/Settings,OcuTalon/MCP/MCP,OcuTalon/Tool/Tool", "the six events, in order")
+	Set shapes("Action") = "action,target,result,counts,approvalRef,irisUser,sessionRef,channel"
+	Set shapes("Approval") = "ref,kind,change,from,to,outcome,target,ownerRef,irisUser,sessionRef,channel"
+	Set shapes("Pairing") = "change,reason,irisUser,sessionRef,channel"
+	Set shapes("Settings") = "setting,from,to,irisUser,sessionRef,channel"
+	Set shapes("MCP") = "change,server,irisUser,sessionRef,channel"
+	Set shapes("Tool") = "source,tool,classification,readOnly,irisUser,sessionRef,channel"
+	Set type = ""
+	For {
+		Set type = $Order(shapes(type))
+		Quit:type=""
+		Do $$$AssertEquals($ListToString(##class(OcuTalon.Bridge.Audit).Shape(type), ","), shapes(type), "the shape of "_type_": its members, then irisUser, sessionRef and channel")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Audit).Shape("Zz"), "", "an unknown type has no shape")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Audit).Shape("action"), "", "and the type is matched exactly")
+	Set sc = ##class(OcuTalon.Bridge.Audit).Record("Zz", {})
+	Do $$$AssertStatusNotOK(sc, "Record refuses an unknown type")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Zz", "the error names the type")
+	Set sc = ##class(OcuTalon.Bridge.Audit).Record("action", {})
+	Do $$$AssertStatusNotOK(sc, "Record matches a type exactly")
 	Set sc = ##class(OcuTalon.Bridge.Audit).Write("Zz", {})
 	Do $$$AssertStatusNotOK(sc, "Write refuses an unknown type")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Zz", "the error names the type")
@@ -108,7 +130,8 @@ XData Contracts [ MimeType = application/json ]
    "ThreadSessionId": "%Integer",
    "SessionMode": "%String(MAXLEN=32)",
    "SeedText": "%String(MAXLEN=)",
-   "SystemNote": "%String(MAXLEN=)"
+   "SystemNote": "%String(MAXLEN=)",
+   "Compact": "%Boolean"
   },
   "sql": {
    "Input": "InputText"
@@ -177,7 +200,30 @@ XData Contracts [ MimeType = application/json ]
    "ToolsRun": "%Boolean",
    "SessionBroken": "%Boolean",
    "Busy": "%Boolean",
-   "HostData": "%String(MAXLEN=)"
+   "HostData": "%String(MAXLEN=)",
+   "FinishReason": "%String(MAXLEN=32)",
+   "Steps": "%String(MAXLEN=)",
+   "FailureText": "%String(MAXLEN=2000)"
+  }
+ },
+ "OcuTalon.Bridge.Msg.ToolInventory": {
+  "super": "Ens.Request",
+  "props": {}
+ },
+ "OcuTalon.Bridge.Msg.ApprovalStart": {
+  "super": "Ens.Request",
+  "props": {
+   "Ref": "%String(MAXLEN=22)",
+   "SessionId": "%Integer",
+   "SuperSession": "%String(MAXLEN=64)"
+  }
+ },
+ "OcuTalon.Bridge.Msg.ApprovalOutcome": {
+  "super": "Ens.Request",
+  "props": {
+   "ApprovalRef": "%String(MAXLEN=22)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "Outcome": "%String(MAXLEN=32)"
   }
  },
  "OcuTalon.Bridge.Msg.DecisionPayload": {
