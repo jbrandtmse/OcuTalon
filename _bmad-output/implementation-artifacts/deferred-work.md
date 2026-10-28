@@ -1884,3 +1884,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: eval/run.sh:173-174; GITHUB_STEP_SUMMARY appears in no test; run-guard stops at preflight, so only a CI run of the evaluation job shows it
 - 2026-10-28T19:52:15Z status=wontfix-accepted owner=9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si by=cr note=reopen_if=the first lane-a evaluation run's summary page lacks the set or the mock-wrong report
+
+### DW-369: eval/run.sh checks only that the set run has no problem and prints only the items and incidents scores, so nothing at the evaluation job asserts the injection score, the Injection cases section or the number of sent cases
+- source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: eval/run.sh:77,130-137 read CHK lines for items/incidents and the case count with no comparison; the section and the injection case are pinned only by Test.Eval.Report.TestInjectionText and Test.Eval.Cases.TestRecordedCases
+- 2026-10-28T22:49:28Z status=open owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=harvest note=two-way door in this epic's eval/run.sh: 9.3's code review patches it (assert the injection score line, the section and sent=23 or at least the injection case's presence)
