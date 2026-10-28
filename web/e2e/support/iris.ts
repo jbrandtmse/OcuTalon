@@ -818,6 +818,12 @@ export interface CheckFields {
   lastRunAt?: string;
   result?: string;
   finding?: string;
+  /**
+   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at every
+   * heartbeat tick (Checks runs it and overwrites its last run), so a spec that asserts the row's seeded last run while a real tick may
+   * run, its own or the minute task's, gives it a time after the spec.
+   */
+  nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
   lastRunHeaderId?: number;
 }
@@ -830,6 +836,7 @@ export async function seedCheck(user: string, fields: CheckFields = {}): Promise
     LastRunAt: fields.lastRunAt,
     Result: fields.result,
     Finding: fields.finding,
+    NextDueAt: fields.nextDueAt,
     LastRunHeaderId: fields.lastRunHeaderId === undefined ? undefined : numeric(fields.lastRunHeaderId, 'lastRunHeaderId'),
   });
   const lines = await irisScript(

@@ -2,14 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
 import { STATE } from '../support/api';
-import { banner, mainOf, rowOf, unique } from '../support/floor';
+import { banner, inMs, mainOf, rowOf, unique } from '../support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, seedCheck } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
 
 /**
  * Story 8.2, the heartbeat-stalled warning that comes from the real heartbeat (FR-32, NFR-9, AD-12, AD-18, AD-33), in a real browser
  * against a real stack. It is the one case that stalls the real heartbeat: it signs in as the banners fixture user that test-sign-in.sh
- * created (OCUTALON_BANNERS_USER), with one seeded production check, and calls OcuTalon.Test.Schedule.StallFixture, each step in its own
+ * created (OCUTALON_BANNERS_USER), with one seeded production check that is not due at any tick, and calls OcuTalon.Test.Schedule.StallFixture, each step in its own
  * iris session. Hold suspends the real task and sets the tick mark 4 minutes back; StatusMonitor's own job then publishes the condition on the
  * instance stream, and the page, which polls that stream, shows the banner and the "(late)" mark. Tick writes a real tick; /state is clear
  * at once, and StatusMonitor's next run publishes the clear. A step that checks a live update waits until the page has applied the Seq of
@@ -37,6 +37,12 @@ const ONE_UPDATE_MS = 1000;
 const ANNOUNCED_MS = 2000;
 
 const FIXTURE = 'OcuTalon.Test.Schedule.StallFixture';
+
+/**
+ * How far ahead the seeded check is next due. Every real tick, the fixture's Tick and the minute task alike, runs the production checks
+ * that are due and overwrites their last run, so the row is due an hour from now: not at any tick of this case, whatever the clock.
+ */
+const NEXT_DUE_MS = 3_600_000;
 
 /** The fixture rows that the case seeded, which afterEach removes. */
 const refs: string[] = [];
@@ -90,7 +96,7 @@ test('H1: the heartbeat-stalled banner and the late mark follow the real heartbe
   const { user, password } = fixtureUser('BANNERS');
   const stamp = unique('H1');
   const ranAt = new Date(Date.now() - 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  refs.push(await seedCheck(user, { displayName: stamp, lastRunAt: ranAt, result: 'passed', finding: '' }));
+  refs.push(await seedCheck(user, { displayName: stamp, lastRunAt: ranAt, result: 'passed', finding: '', nextDueAt: inMs(NEXT_DUE_MS) }));
   await recordAnnouncements(page);
   await signIn(page, user, password);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
