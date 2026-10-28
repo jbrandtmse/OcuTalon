@@ -308,6 +308,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 ## Spec Change Log
 
 - 2026-10-28, spec gate (lead): V1, V2 and V3 ruled as veto items U-139, U-140 and U-141 (kept as planned; V2 adds the two-results pin to Story 7.4 in `epics.md`); V4 routed to Story 7.4 as DW-368. The FixExecutor row of `Test/Install/Production.cls` (Epic 13's contended file) is asked of the orchestrator.
+- 2026-10-28, spec gate (lead): the orchestrator allowed the `Test/Install/Production.cls` row and doc-clause edit (decide); recorded under Design Notes.
 
 ## Review Triage Log
 
@@ -345,7 +346,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - V2 (the end of a run that resent copies stays 7.4's): ruled `veto`, inbox U-140: Story 7.4 gains the acceptance criterion "two approved requests' results are each their own once copies were resent" in `epics.md`. This story pins the results it sends itself.
 - V3 (the two couldn't-start reasons): ruled `veto`, inbox U-141, kept as planned.
 - V4 (a stopped production renders as "had changed since the dry run"): routed to Story 7.4, which owns the result texts, as DW-368 (with its `DW-368:` bullet in 7.4's block). This story keeps AD-16 and the convention as written and pins the Skipped counts only; it adds no text.
-- The `Test/Install/Production.cls` row change (contended: Epic 13 lists the file) went to the orchestrator for a ruling; see `## Spec Change Log`.
+- `Test/Install/Production.cls` (contended: Epic 13 lists the file): the orchestrator ruled (a) allowed, as decide (policy 6df0676, 2026-10-28T22:4xZ). Change ONLY Lane A's own `FixExecutor` row (L628, `"stub": 1` to `"stub": 0`) and the `TestStubsAnswer` doc clause (about L13: add "FixExecutor (built in Story 7.3)" next to the other built items). Nothing else in the file changes; the row is shared by row, like `Test/Core/ProductionItems.cls`. Epic 9 (live) also edits that doc line and its own EvalIn/EvalSink rows (L626-627) on its branch; that is a plain union at its integrate-forward, so keep the edit to the row and the clause minimal.
 
 **Decided in-stage (small, reversible, within the intent):**
 - **The order of the checks** is FixExecutor's order above. A refused `Execute` is one info line and OK. A `FixRun` is written for each approved request that FixExecutor takes up, couldn't start included ("one per approved request" in the data model), so that 7.4 can store that request's result there.
