@@ -21,7 +21,7 @@
 ///     target and never dropped;
 ///   - TestOtherRequest: a request that is not a DryRun gets error 5003 from FixExecutor;
 ///   - TestServiceUserMayResend (AC 1): the service user may use %Ens_MessageResend and not %Ens_MessageEditResend;
-///   - TestInvalidRepairTakesTheFallbackRoute (AC 2): a repair that the kind refuses ends in Epic 5's fallback notice of reason invalid; a valid one is stored.
+///   - TestInvalidRepairTakesTheFallbackRoute (AC 2): a repair that the kind refuses ends in Epic 5's fallback notice of reason invalid; a valid one is stored and its dry run is asked (Story 7.2).
 Class OcuTalon.Test.Fix.DryRun Extends OcuTalon.Test.Watch.Case
 {
 
@@ -484,7 +484,13 @@ Method TestInvalidRepairTakesTheFallbackRoute()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(good.Ref)
 	Do $$$AssertEquals(row.Fallback_"|"_row.CauseCategory_"|"_row.Element, "0|data_format_change|OrderDate", "the diagnosis is stored")
 	Kill row
-	Do $$$AssertEquals(host.Sent.%Size(), 1, "and it sends no notice yet")
+	Do $$$AssertEquals(host.Sent.%Size(), 1, "and it sends no notice yet: its notice waits for the dry run")
+	Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, "one dry run is asked, for the valid repair only")
+	If $IsObject(host.DryRuns) && (host.DryRuns.%Size() = 1) {
+		Set ask = host.DryRuns.%Get(0)
+		Set parameters = {}.%FromJSON(ask.parameters)
+		Do $$$AssertEquals(ask.incidentRef_"|"_ask.fixKind_"|"_parameters.field_"|"_parameters.sourceFormat_"|"_parameters.targetFormat, good.Ref_"|repair_resend|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "the ask names the incident, repair_resend and the parameters")
+	}
 }
 
 /// Gives the incident's group what a notice reads from it: the error summary and the counts and times of the incident.

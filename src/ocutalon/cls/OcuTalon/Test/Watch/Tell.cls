@@ -20,6 +20,18 @@
 ///   - TestUnbuildableNoticeLeavesTheRowUnnoticed (QA): an answer whose notice cannot be built (an incident with no group, and one whose cause is empty, both of a
 ///     production that two sessions watch) is stored and then not noticed: NoticedAt stays empty, the state and open variant stay as they were, nothing is sent or published, and one Type 3 warning with
 ///     LOGNOTICE names the incident.
+///   - TestRaisedGetsTheWithFixNotice (Story 7.2; AC 1, AC 3): a usable data-format answer with a fix records one dry run ask (the incident, repair_resend and the
+///     parameters) and sends nothing; the dry run's answer (the probe's Dried) raises one request with the recorded row (kind fix, the incident, its owner,
+///     IncidentManager, the dry run, the kind, the parameters and the targets as given) in the incident's trace session and sends the two watchers each one
+///     incident.withFix Notification with the request's Ref and the nine slots; the row is awaiting_approval, noticed, and lists the Ref;
+///   - TestNoFixRoutes (V2): a dry run with a Reason (one warning naming the incident and the reason), with no Targets (no warning), a Raise that fails, an ask
+///     that cannot be sent, an error answer to the ask and a payload with no fix kind each give the two watchers incident.noFix, the row open and no_fix and noticed
+///     and no RequestRefs, with the warnings of the matrix;
+///   - TestSaveFailureCancelsTheRequest: when the save of the noticed row fails after Raise, the request is cancelled, nothing is sent and the row stays unnoticed,
+///     with one warning;
+///   - TestGoneBeforeTheDryRun: an incident that is closed, noticed or deleted when the dry run answers gets nothing raised, sent or saved and no error;
+///   - TestUnbuildableWithFixSlots: a dry run whose slots cannot be built (no field, a resend below 1) raises nothing, sends nothing and leaves the row unnoticed with one
+///     warning.
 /// The failed Recipients read has no test: Session.Recipients is called by name, so a probe cannot replace it, and the only way it answers an error is the
 /// privilege check of its watchers' statement, which needs a process without %All (SET $ROLES can only add roles) and so an IRIS user made for the purpose.
 /// The fixture rows are removed after each test, with their streams, and so are the warnings that these tests made.
@@ -27,6 +39,11 @@ Class OcuTalon.Test.Watch.Tell Extends %UnitTest.TestCase
 {
 
 Parameter PROBE = "OcuTalon.Test.Watch.IncidentProbe";
+
+/// The parameters of the fix in the diagnosis that Diagnosis makes, and the dry run that Result gives.
+Parameter PARAMETERS = "{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""}";
+
+Parameter DRYRUN = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""OrderDate"",""before"":""10/24/2026"",""after"":""2026-10-24"",""itemNoun"":{""one"":""order"",""other"":""orders""}}";
 
 /// The run's number.
 Property Number As %Integer;
@@ -250,6 +267,180 @@ Method TestUnbuildableNoticeLeavesTheRowUnnoticed()
 	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "0|0", "nor published")
 }
 
+Method TestRaisedGetsTheWithFixNotice()
+{
+	Do ..Setup("raised", .a, .b, .incident, .row)
+	If '$IsObject($Get(row)) Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..Group(incident, 1)
+	Set row.TraceHeaderId = 4242
+	Do $$$AssertStatusOK(row.%Save(), "the incident has a trace session")
+	Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), "the answer is handled")
+	Do $$$AssertEquals($Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0), 1, "one dry run is asked")
+	If '$IsObject(host.DryRuns) Quit
+	Set ask = host.DryRuns.%Get(0)
+	Do $$$AssertEquals(ask.incidentRef_"|"_ask.fixKind_"|"_ask.parameters, incident_"|repair_resend|"_..#PARAMETERS, "for the incident, the kind and the parameters of the diagnosis")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0)_"|"_$Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), "0|0", "and nothing is sent or raised before the answer")
+	Kill row
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.RequestRefs, "open||", "the incident is still open and unnoticed")
+	Do $$$AssertStatusOK(host.Dried(incident, ..Ask(ask), ..Result(incident)), "the answer to the dry run is handled")
+	Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), 1, "one request is raised")
+	If '$IsObject(host.Raised) Quit
+	Set raised = host.Raised.%Get(0)
+	Do $$$AssertEquals(raised.kind_"|"_raised.incidentRef_"|"_raised.ownerRef_"|"_raised.resultTarget_"|"_raised.traceRef, "fix|"_incident_"|instance|IncidentManager|", "its kind, incident, owner, result target and no trace Ref (the waiter has no SuperSession)")
+	Do $$$AssertEquals(raised.fixKind_"|"_raised.fixParameters_"|"_raised.fixTargets, "repair_resend|"_..#PARAMETERS_"|101,102,103", "the kind, the parameters and the targets as given")
+	Do $$$AssertEquals(raised.dryRun, ..#DRYRUN, "and the dry run as given")
+	Do $$$AssertEquals(raised.sessionId, 4242, "in the incident's trace session")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 2, "two Notifications are sent")
+	If '$IsObject(host.Sent) Quit
+	Set sessions = ""
+	For i = 0:1:host.Sent.%Size() - 1 {
+		Set note = host.Sent.%Get(i)
+		Set sessions = sessions_$Select(sessions = "": "", 1: ",")_note.sessionRef
+		Set slots = {}.%FromJSON(note.slots)
+		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.incidentRef_"|"_note.approvalRef, "incident|incident.withFix|"_incident_"|"_$Parameter(..#PROBE, "FIXTUREREF"), "Notification "_(i + 1)_": kind, key, incident and the request's Ref")
+		Do $$$AssertEquals(..SortedKeys(slots), "after,before,cause,count,field,fixSummary,itemNoun,resendCount,time", "its nine slots")
+		Do $$$AssertEquals(slots.count_"|"_slots.time_"|"_slots.cause_"|"_slots.field_"|"_slots.before_"|"_slots.after_"|"_slots.resendCount_"|"_slots.itemNoun.other, "3|2030-01-01T09:00:00Z|zz cause|OrderDate|10/24/2026|2026-10-24|3|orders", "and their values")
+	}
+	Do $$$AssertEquals(sessions, $ListToString(##class(OcuTalon.Data.Session).Recipients("instance", incident, .sc)), "one to each watcher")
+	Kill row
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= "")_"|"_row.RequestRefs, "awaiting_approval||1|"_$Parameter(..#PROBE, "FIXTUREREF"), "the row is awaiting_approval, noticed and lists the request")
+	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "1|1", "each watcher gets one incident event")
+	Do $$$AssertEquals(..Warned(), 0, "and nothing was logged")
+}
+
+Method TestNoFixRoutes()
+{
+	Set cases = $ListBuild("reason", "targets", "raise", "ask", "error", "kind")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Setup("nofix"_case, .a, .b, .incident, .row)
+		If '$IsObject($Get(row)) Quit
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Do ..Group(incident, 1)
+		Set host.FailDryRun = (case = "ask")
+		Set host.FailRaise = (case = "raise")
+		Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", $Select(case = "kind": 2, 1: 1))), case_": the answer is handled")
+		Set asked = $Select($IsObject(host.DryRuns): host.DryRuns.%Size(), 1: 0)
+		Do $$$AssertEquals(asked, $Select(case = "kind": 0, 1: 1), case_": the dry run is asked once, unless the diagnosis names no kind")
+		Set result = ..Result(incident)
+		If case = "reason" {
+			Set result.Reason = "The failed orders are of another scope."
+			Set result.Targets = ""
+			Set result.DryRun = ""
+		}
+		If case = "targets" Set result.Targets = ""
+		If (case = "reason") || (case = "targets") || (case = "raise") {
+			Do $$$AssertStatusOK(host.Dried(incident, ..Ask(host.DryRuns.%Get(0)), result), case_": the answer is handled")
+		} ElseIf case = "error" {
+			Do $$$AssertStatusOK(host.Undried(incident, $SYSTEM.Status.Error(5001, "The executor refused the dry run")), case_": the error answer is handled")
+		}
+		Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), $Select(case = "raise": 1, 1: 0), case_": a request is only attempted when the dry run was usable")
+		Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 2, case_": two Notifications are sent")
+		If $IsObject(host.Sent) && (host.Sent.%Size() = 2) {
+			Set note = host.Sent.%Get(0)
+			Set slots = {}.%FromJSON(note.slots)
+			Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_slots.cause_"|"_slots.groups.%Size(), "incident|incident.noFix||zz cause|1", case_": the no-fix notice, with no request")
+		}
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+		Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= "")_"|"_row.RequestRefs, "open|no_fix|1|", case_": the row is open, no_fix and noticed, with no request")
+		Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "1|1", case_": each watcher gets one incident event")
+		Set warned = ..Logged(.text)
+		Do $$$AssertEquals(warned, $Select(case = "targets": 0, 1: 1), case_": the Type 3 warnings: "_text)
+		If case = "reason" Do $$$AssertTrue($Find(text, incident) && $Find(text, "another scope"), "which names the incident and the reason: "_text)
+		Do ..RemoveWarnings()
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+		Do ..DropAll()
+	}
+}
+
+Method TestSaveFailureCancelsTheRequest()
+{
+	Do ..Setup("cancel", .a, .b, .incident, .row)
+	If '$IsObject($Get(row)) Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..Group(incident, 1)
+	Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), "the answer is handled")
+	If '$IsObject(host.DryRuns) Quit
+	Set host.FailMove = 1
+	Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(host.Dried(incident, ..Ask(host.DryRuns.%Get(0)), ..Result(incident)), "the answer to the dry run is handled")
+	Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0), 1, "the request was raised")
+	Do $$$AssertEquals($Select($IsObject(host.Cancelled): host.Cancelled.%Size(), 1: 0), 1, "and one request is cancelled")
+	If $IsObject(host.Cancelled) && (host.Cancelled.%Size() = 1) Do $$$AssertEquals(host.Cancelled.%Get(0), host.RaiseRef, "the one that was raised")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "nothing is sent")
+	Kill row
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.RequestRefs, "open||", "the incident stays open and unnoticed, with no request listed")
+	Do $$$AssertEquals(..Logged(.text), 1, "one Type 3 warning: "_text)
+	Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "0|0", "nothing was published")
+}
+
+Method TestGoneBeforeTheDryRun()
+{
+	For case = "closed", "noticed", "deleted" {
+		Do ..Setup("gone"_case, .a, .b, .incident, .row)
+		If '$IsObject($Get(row)) Quit
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Do ..Group(incident, 1)
+		Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), case_": the answer is handled")
+		If '$IsObject(host.DryRuns) Quit
+		Set ask = ..Ask(host.DryRuns.%Get(0))
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+		If case = "closed" Set row.State = "closed"
+		If case = "noticed" Set row.NoticedAt = "2030-01-01T10:00:00Z"
+		If case '= "deleted" Do $$$AssertStatusOK(row.%Save(), case_": the row is changed")
+		If case = "deleted" {
+			Do ..DropGroups(incident)
+			Do $$$AssertStatusOK(##class(OcuTalon.Data.Incident).%DeleteId(row.%Id()), case_": the row is deleted")
+		}
+		Do $$$AssertStatusOK(host.Dried(incident, ask, ..Result(incident)), case_": the answer to the dry run is handled without an error")
+		Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0)_"|"_$Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0)_"|"_$Select($IsObject(host.Cancelled): host.Cancelled.%Size(), 1: 0), "0|0|0", case_": nothing is raised, sent or cancelled")
+		Do $$$AssertEquals(..Events(a, "incident")_"|"_..Events(b, "incident"), "0|0", case_": nothing was published")
+		Do $$$AssertEquals(..Logged(.text), 0, case_": nothing was logged")
+		Kill row
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+		Do ..DropAll()
+	}
+}
+
+Method TestUnbuildableWithFixSlots()
+{
+	Set cases = $ListBuild("field", "resend")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Setup("slots"_case, .a, .b, .incident, .row)
+		If '$IsObject($Get(row)) Quit
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Do ..Group(incident, 1)
+		Do $$$AssertStatusOK(host.Answer(incident, ..Diagnosis("data_format_change", "zz cause", 1)), case_": the answer is handled")
+		If '$IsObject(host.DryRuns) Quit
+		Set result = ..Result(incident)
+		Set dryRun = {}.%FromJSON(result.DryRun)
+		If case = "field" Do dryRun.%Remove("field")
+		If case = "resend" Do dryRun.%Set("resend", 0, "number")
+		Set result.DryRun = dryRun.%ToJSON()
+		Do $$$AssertStatusOK(host.Dried(incident, ..Ask(host.DryRuns.%Get(0)), result), case_": the answer to the dry run is handled")
+		Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0)_"|"_$Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), "0|0", case_": nothing is raised or sent")
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+		Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.RequestRefs, "open||", case_": the row stays open and unnoticed")
+		Do $$$AssertEquals(..Logged(.text), 1, case_": one Type 3 warning: "_text)
+		Do ..RemoveWarnings()
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+		Do ..DropAll()
+	}
+}
+
 /// --- helpers ---
 /// A failure group (Seq, one failure group that settled with the incident's NoticeCount) of the incident, saved. The tests delete it in OnAfterOneTest.
 Method Group(incident As %String, seq As %Integer)
@@ -276,14 +467,83 @@ ClassMethod DropGroups(incident As %String)
 	}
 }
 
-/// A usable answer of Decide with a diagnosis of the category and cause, and no fix.
-ClassMethod Diagnosis(category As %String, cause As %String) As OcuTalon.Bridge.Msg.DecisionResponse
+/// A usable answer of Decide with a diagnosis of the category and cause, and no fix, or, with fix 1, the repair_resend fix of ..#PARAMETERS and a fix summary, or,
+/// with fix 2, a data-format diagnosis whose fix kind is empty.
+ClassMethod Diagnosis(category As %String, cause As %String, fix As %Integer = 0) As OcuTalon.Bridge.Msg.DecisionResponse
 {
 	Set answer = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
 	Set answer.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set answer.Fallback = 0
-	Set answer.Payload = {"outcome": "act", "causeCategory": (category), "cause": (cause), "reasons": ["zz"], "confidence": 0.5}.%ToJSON()
+	Set payload = {"outcome": "act", "causeCategory": (category), "cause": (cause), "reasons": ["zz"], "confidence": 0.5}
+	If fix {
+		Do payload.%Set("fixSummary", "rewrite the order date")
+		Do payload.%Set("itemNoun", {"one": "order", "other": "orders"})
+		If fix = 1 {
+			Do payload.%Set("fixKind", "repair_resend")
+			Do payload.%Set("fixParameters", {}.%FromJSON(..#PARAMETERS))
+		}
+	}
+	Set answer.Payload = payload.%ToJSON()
 	Quit answer
+}
+
+/// The DryRun that the probe recorded (a dynamic object {incidentRef, fixKind, parameters}), as the request message that the framework hands back.
+ClassMethod Ask(recorded As %DynamicObject) As OcuTalon.Fix.Msg.DryRun
+{
+	Set ask = ##class(OcuTalon.Fix.Msg.DryRun).%New()
+	Set ask.IncidentRef = recorded.incidentRef
+	Set ask.FixKind = recorded.fixKind
+	Set ask.Parameters = recorded.parameters
+	Quit ask
+}
+
+/// A usable answer of FixExecutor for the incident: three targets and the dry run of ..#DRYRUN.
+ClassMethod Result(incident As %String) As OcuTalon.Fix.Msg.DryRunResult
+{
+	Set result = ##class(OcuTalon.Fix.Msg.DryRunResult).%New()
+	Set result.IncidentRef = incident
+	Set result.Targets = "101,102,103"
+	Set result.DryRun = ..#DRYRUN
+	Quit result
+}
+
+/// The names of the keys of the object, sorted, comma-separated.
+ClassMethod SortedKeys(object As %DynamicObject) As %String
+{
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set sorted(key) = ""
+	}
+	Set names = ""
+	Set key = ""
+	For {
+		Set key = $Order(sorted(key))
+		Quit:key=""
+		Set names = names_$Select(names = "": "", 1: ",")_key
+	}
+	Quit names
+}
+
+/// The number of the Type 3 warnings that start "IncidentManager could not" since the test began, whichever method logged them (text is the newest one's).
+Method Logged(Output text As %String) As %Integer
+{
+	Set text = ""
+	Set count = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ? ORDER BY ID", ..LogMark, "IncidentManager could not")
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
+/// Removes the events of the sessions of the test and the groups of its incidents, so that a test that sets up more than once starts clean each time.
+Method DropAll()
+{
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Do ..DropGroups($Piece(..Refs, ",", i))
+	}
+	Set ..Refs = ""
 }
 
 /// Two fixture sessions a and b that watch a production of this test, and an unnoticed instance incident of the production (its Ref, and the row as an
@@ -336,6 +596,7 @@ Method RemoveWarnings()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tell", "IncidentManager could not")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Notice", $Parameter(..#PROBE, "LOGNOTICE"))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", ..LogMark, "IncidentManager could not")
 }
 
 /// Another job takes the stream's lock and holds it until ReleaseStream; this returns once the job holds it.

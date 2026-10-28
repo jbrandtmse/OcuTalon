@@ -23,9 +23,6 @@ Parameter SYNTHNS = "ZZNS";
 
 Parameter SYNTH = "Zz.Closing";
 
-/// The README account that answers (Install.Step.Users USER), the local install's real approver.
-Parameter ANSWERER = "ocutalon";
-
 /// The item that carries out an approved fix (a stub until Story 7.3: the header of the order is what the test reads).
 Parameter FIXEXECUTOR = "FixExecutor";
 
@@ -37,22 +34,6 @@ Parameter NOANSWERSECONDS = 2;
 
 /// The sink of the host events in this process.
 Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
-
-/// The ApprovalRole row of Decide before the test touched it (RunnerFixture.RememberDefault), "" when the test did not.
-Property SavedRole As %List;
-
-Property RoleSaved As %Boolean [ InitialExpression = 0 ];
-
-Method OnAfterOneTest(testname As %String) As %Status
-{
-	If ..RoleSaved {
-		Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRole)
-		Set ..RoleSaved = 0
-		Set ..SavedRole = ""
-	}
-	Quit ##super(testname)
-}
 
 Method TestDismissThroughCommandsIn()
 {
@@ -169,27 +150,14 @@ Method TestApproveSendsExecuteToFixExecutor()
 }
 
 /// --- helpers ---
-/// The set-up of the hold tests: the production is ready and the answerer holds OcuTalonUser (else the test fails with the reason, and this gives 0); the
-/// ApprovalRole default of Decide is set aside (OnAfterOneTest puts it back); a fixture incident of the session, awaiting approval, with the fields after the
+/// The set-up of the hold tests: Case.ApprovalReady (the production is ready, the answerer holds OcuTalonUser, the ApprovalRole default of Decide is set aside
+/// and put back after the test; else this gives 0); a fixture incident of the session, awaiting approval, with the fields after the
 /// defaults, in a production of the name; and a real fix request for it (Approval.Raise with the probe sink and ResultTarget IncidentManager), listed in the
 /// incident's RequestRefs and held (its task exists). incident and approval are their Refs; 1 when the set-up is done.
 Method HeldRequest(session As %String, name As %String, fields As %DynamicObject, Output incident As %String, Output approval As %String) As %Boolean [ Private ]
 {
 	Set (incident, approval) = ""
-	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
-	If reason '= "" {
-		Do $$$AssertEquals(reason, "", "the production is ready")
-		Quit 0
-	}
-	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(..#ANSWERER, .roles)
-	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
-	Do $$$AssertTrue(holds, "the answerer "_..#ANSWERER_" holds OcuTalonUser")
-	If 'holds Quit 0
-	Set rows = ""
-	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", "ApprovalRole")
-	Set ..SavedRole = rows
-	Set ..RoleSaved = 1
-	Do ##class(Ens.Config.DefaultSettings).%DeleteId(##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", "ApprovalRole"))
+	If '..ApprovalReady() Quit 0
 
 	Set all = {"State": "awaiting_approval", "OpenVariant": ""}
 	If $IsObject(fields) {
@@ -206,6 +174,9 @@ Method HeldRequest(session As %String, name As %String, fields As %DynamicObject
 	Set request.IncidentRef = incident
 	Set request.ResultTarget = ..#MANAGER
 	Set request.DryRun = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""OrderDate"",""before"":""10/24/2026"",""after"":""2026-10-24"",""itemNoun"":""orders""}"
+	Set request.FixKind = "zz_fix"
+	Set request.FixParameters = "{""field"":""OrderDate""}"
+	Set request.FixTargets = "101,102,103"
 	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .approval, ..#SINK)
 	If approval '= "" Set ^OcuTalonTest("Approval", "refs", approval) = ""
 	Do $$$AssertStatusOK(sc, "a fix request is raised for the incident")

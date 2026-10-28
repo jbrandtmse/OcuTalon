@@ -197,7 +197,10 @@ XData Contracts [ MimeType = application/json ]
    "AnsweredBy": "%String(MAXLEN=128)",
    "AnsweredAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
-   "FinishedAt": "%String(MAXLEN=20)"
+   "FinishedAt": "%String(MAXLEN=20)",
+   "FixKind": "%String(MAXLEN=32)",
+   "FixParameters": "%String(MAXLEN=)",
+   "FixTargets": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

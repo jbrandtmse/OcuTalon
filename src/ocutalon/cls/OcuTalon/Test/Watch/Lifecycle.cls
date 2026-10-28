@@ -15,11 +15,13 @@
 ///     incident 14 minutes before the clock's now, with the time not fixed, is not_quiet, which shows that the item reads the clock when nothing is fixed;
 ///   - TestApprovalOutcomes: approved starts the fix (fixing, one Execute for the request in the incident's trace session, the probe's own session kept);
 ///     rejected and expired reopen the incident with that variant when nothing else is pending, and keep it awaiting approval while another request is pending
-///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event;
+///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event. Since Story 7.2 an accepted rejected or expired outcome
+///     also Sends one answered Notification per recipient (answered.rejected {channel, time}, answered.expired {time}, with the request's Ref and the incident's),
+///     whether the state moves or stays awaiting_approval or fixing; an approved outcome sends none here;
 ///   - TestFixResults: a final (or interrupted) run resolves the incident, or returns it to awaiting approval while a request is pending, or starts the earliest
 ///     waiting request; the run's own request never waits for itself, even while its row still reads approved; a progress report changes nothing but the event;
 ///   - TestRefusedEvents: cancelled, a stale or repeated outcome, a request that is not the incident's, an unknown incident, a FixResult outside fixing and any
-///     event on a closed incident change, send and publish nothing and log one info line;
+///     event on a closed incident change, send (no answered Notification either) and publish nothing and log one info line;
 ///   - TestEveryChangePublishes: an accepted move publishes exactly one incident event with the row's state on each recipient's stream, a refused one none;
 ///   - TestRepeatDismiss: the same Dismiss twice closes once and then is not_allowed with state closed;
 ///   - TestExecuteSendFails: a failed send of the Execute leaves the row as saved, the event published, and logs one warning;
@@ -261,8 +263,10 @@ Method TestApprovalOutcomes()
 	Do $$$AssertEquals(host.%SessionId, 7, "and the handler's own session is put back")
 	Do $$$AssertEquals(..Count(a), 1, "one incident event")
 	Do $$$AssertEquals(..Newest(a), "fixing", "with the state fixing")
+	Do $$$AssertEquals(..Answers(host).%Size(), 0, "and no answered notification: the approved answer is Story 7.3's")
 
 	// rejected and expired with nothing else pending
+	Set asked = 0
 	For outcome = "rejected", "expired" {
 		Set incident = ..Incident(a, "awaiting_approval")
 		Set r1 = ..Request(a, incident, outcome)
@@ -274,6 +278,10 @@ Method TestApprovalOutcomes()
 		Do $$$AssertEquals(row.state_"|"_row.variant, "open|"_outcome, outcome_": the incident is open with that variant")
 		Do $$$AssertEquals(..Orders(host), orders, outcome_": no Execute")
 		Do $$$AssertEquals(..Count(a) - before, 1, outcome_": one event")
+		Set answers = ..Answers(host)
+		Do $$$AssertEquals(answers.%Size(), asked + 1, outcome_": one answered notification for the one recipient")
+		If answers.%Size() = (asked + 1) Do ..AssertAnswered(answers.%Get(asked), a, outcome, r1, incident)
+		Set asked = asked + 1
 	}
 
 	// overlap, pending: R2 pending
@@ -286,6 +294,10 @@ Method TestApprovalOutcomes()
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "awaiting_approval|", "R1 rejected while R2 is pending: the incident stays awaiting_approval")
 	Do $$$AssertEquals(..Orders(host), orders, "with no Execute")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and the answered notification still goes out")
+	If answers.%Size() = (asked + 1) Do ..AssertAnswered(answers.%Get(asked), a, "rejected", r1, incident)
+	Set asked = asked + 1
 	Do ..SetRequest(r2, "approved")
 	Do ..Outcome(host, r2, incident, "approved")
 	Set row = ..Row(incident)
@@ -302,6 +314,9 @@ Method TestApprovalOutcomes()
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "awaiting_approval|", "R1 rejected while R2 is approved with its outcome on its way: the incident stays awaiting_approval")
 	Do $$$AssertEquals(..Orders(host), orders, "with no Execute")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and the answered notification still goes out")
+	Set asked = asked + 1
 	Do ..Outcome(host, r2, incident, "approved")
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", "then R2's approval arrives: the incident is fixing")
@@ -322,6 +337,10 @@ Method TestApprovalOutcomes()
 		Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", $Piece(pair, "|", 2)_" while fixing: the incident stays fixing")
 		Do $$$AssertEquals(..Orders(host), orders, $Piece(pair, "|", 2)_" while fixing: no Execute")
 		Do $$$AssertEquals(..Count(a) - before, 1, $Piece(pair, "|", 2)_" while fixing: one event")
+		Set answers = ..Answers(host)
+		Set answered = $Select($Piece(pair, "|", 2) = "approved": 0, 1: 1)
+		Do $$$AssertEquals(answers.%Size() - asked, answered, $Piece(pair, "|", 2)_" while fixing: "_$Select(answered: "the answered notification still goes out", 1: "no answered notification"))
+		Set asked = answers.%Size()
 	}
 }
 
@@ -472,6 +491,7 @@ Method TestRefusedEvents()
 	Do ..Refuse(host, a, closed, "a progress FixResult on a closed incident", "result", r2, 0, 0)
 	Do ..Refuse(host, a, closed, "a final FixResult on a closed incident", "result", r2, 1, 0)
 	Do $$$AssertEquals(..Count(a), 0, "none of these published anything")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "and none sent a notification")
 }
 
 Method TestEveryChangePublishes()
@@ -841,9 +861,35 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 /// A fixture approval request of the owner for the incident in the state; its Ref.
 Method Request(owner As %String, incident As %String, state As %String) As %String
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state)
+	Set fields = $Select(state = "pending": "", 1: {"AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"})
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state, , fields)
 	Set ..Refs = ..Refs_","_ref
 	Quit ref
+}
+
+/// The answered Notifications that the probe recorded, in order, as a dynamic array of the recorded objects.
+ClassMethod Answers(host As OcuTalon.Test.Watch.IncidentProbe) As %DynamicArray
+{
+	Set answers = []
+	If '$IsObject(host.Sent) Quit answers
+	For i = 0:1:host.Sent.%Size() - 1 {
+		If host.Sent.%Get(i).kind = "answered" Do answers.%Push(host.Sent.%Get(i))
+	}
+	Quit answers
+}
+
+/// Asserts that the recorded Notification is the answered notice of the outcome (rejected or expired) of the request, for the session: key, slots, Refs and no decision.
+Method AssertAnswered(note As %DynamicObject, session As %String, outcome As %String, approval As %String, incident As %String)
+{
+	Set slots = {}.%FromJSON(note.slots)
+	Set expected = $Select(outcome = "rejected": "answered.rejected|channel=web,time=2030-01-01T10:00:00Z", 1: "answered.expired|time=2030-01-02T09:00:00Z")
+	Set actual = note.catalogKey_"|"
+	Set iterator = slots.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set actual = actual_$Select($Extract(actual, *) = "|": "", 1: ",")_key_"="_value
+	}
+	Do $$$AssertEquals(actual, expected, outcome_": the key and the slots")
+	Do $$$AssertEquals(note.sessionRef_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.decisionRef, session_"|"_approval_"|"_incident_"|", outcome_": the session, the request's Ref, the incident's Ref and no decision")
 }
 
 /// Sets the incident's RequestRefs (comma-separated); a save that fails is thrown, so the test fails there.

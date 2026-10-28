@@ -31,10 +31,22 @@
 ///     (OcuTalon.Watch.ErrorText.Summary of its first failure's text); the Incident has FirstHeaderId (the header id of the earliest failure, empty when
 ///     that is a log row), SampleHeaderId and SampleError (the live pack's sample, stored at the settle end with the code noun) and RequestRefs (written
 ///     by the story that raises the requests). The groups of an incident are read only through OcuTalon.Data.FailureGroup.OfIncident.
-///   - The notice (Story 5.8; AD-15, AD-32): as soon as Answered or Refused has stored the outcome, Notice acts on the row if it exists, is not closed and
+///   - The notice (Story 5.8, Story 7.2; AD-15, AD-32): as soon as Answered or Refused has stored the outcome, Notice acts on the row if it exists, is not closed and
 ///     has no NoticedAt. OcuTalon.Watch.Notice gives the catalog key, the open variant and the slots (producers never render): a fallback, an unknown cause
-///     or a cause with no fix gets a notice; a usable data-format diagnosis (a fix) gets none and no row change, because its notice goes out with the dry
-///     run and the approval request. Deliver sets NoticedAt (UTC now), the state and the open variant in one save and, after the commit, sends one
+///     or a cause with no fix gets a notice. A usable data-format diagnosis (a fix) is proposed (Propose): the waiter sends one OcuTalon.Fix.Msg.DryRun
+///     (the incident, the fix kind and the parameters of the checked payload) to FixExecutor, asynchronously, with a response required and the completion
+///     key dryrun, in the incident's trace session; the kind and the parameters travel in that ask and are read back from it, no column holds them. The
+///     answer (Proposed) acts only on an open, unnoticed incident: a refused dry run (a Reason, with one Type 3 warning) or one with nothing to resend
+///     (no Targets) gets the no-fix notice (NoFix: incident.noFix, open variant no_fix), and so does a dry run that cannot be asked for (a failed send, an
+///     error answer, no fix kind: one Type 3 warning). Otherwise the table accepts raised, the with-fix slots are built (Notice.WithFixSlots with the dry
+///     run) and OcuTalon.Bridge.Approval.Raise is called exactly once (RaiseRequest), outside any transaction, with a fix request that holds the incident,
+///     its owner, the result target IncidentManager, the waiter's SuperSession as TraceRef when that is a Ref, the dry run's JSON, the fix kind, its
+///     parameters and the fixed targets as the dry run gave them; the incident's TraceHeaderId and SuperSession are passed so that the hold joins the
+///     incident's trace session. A failed Raise logs one Type 3 warning and takes the no-fix route; slots that cannot be built log one and leave the row
+///     unnoticed. The Ref is appended to RequestRefs and Deliver saves it with NoticedAt and the state awaiting_approval in one save; a save that fails
+///     cancels the request (CancelRequest), so that nothing stays approvable that no incident lists. The with-fix notice carries the request's Ref as
+///     ApprovalRef, and no notification of kind approval is sent for the first request.
+///     Deliver sets NoticedAt (UTC now), the state and the open variant in one save and, after the commit, sends one
 ///     OcuTalon.Msg.Notification of kind incident to the Notify item, asynchronously and from the waiter, so that it lies in the incident's trace
 ///     session (AD-26), and publishes the incident event (Live.Payload.Incident.FromRow) on the stream of each session that Session.Recipients gives; the
 ///     one read of the recipients serves both (Tell). Nobody to tell (owner eval, or instance on the online demo) sends and publishes nothing, with no
@@ -46,7 +58,9 @@
 ///     incident. An accepted move saves the new state (Move: state, open variant and, for a close, ClosedAt, in one save) and then, for a noticed incident,
 ///     publishes the incident event through Tell, even when the state stays the same, because the payload's requests may have changed; when the table says so
 ///     it then sends one OcuTalon.Fix.Msg.Execute (only the request's Ref) to FixExecutor, asynchronously and in the incident's trace session (AD-26). A failed
-///     send logs one Type 3 warning and the row stays as saved. A refused ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
+///     send logs one Type 3 warning and the row stays as saved. An accepted rejected or expired outcome also sends one Notification of kind answered
+///     (answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the incident's) to each
+///     recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing. A refused ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
 ///     line; a repeat of an outcome is refused because the request's row does not show it any more.
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
 ///     recipient of the incident), not_quiet (a closeQuiet within QUIETSECONDS of LastAt, by the clock that QuietNow gives), not_allowed (the table refuses), failed (the recipients or the save could not be read or made;
@@ -94,6 +108,12 @@ Parameter ALARMKEY = "settle";
 /// The completion key of the diagnose request.
 Parameter DIAGNOSEKEY = "diagnose";
 
+/// The completion key of the dry run that FixExecutor answers (AD-16).
+Parameter DRYRUNKEY = "dryrun";
+
+/// The item that receives the outcome of an approval request that this class raises (AD-11).
+Parameter RESULTTARGET = "IncidentManager";
+
 /// The configuration item that diagnoses (AD-6).
 Parameter DECIDE = "Decide";
 
@@ -113,12 +133,21 @@ Parameter NOTIFY = "Notify";
 
 Parameter NOTICEKIND = "incident";
 
+/// The kind of the notification that answers a request, and the catalog keys of a rejected and an expired one (Msg.Enum NOTIFICATIONKIND; Msg.Catalog.Core).
+Parameter ANSWEREDKIND = "answered";
+
+Parameter KEYREJECTED = "answered.rejected";
+
+Parameter KEYEXPIRED = "answered.expired";
+
 /// The live event type of an incident's public view.
 Parameter INCIDENTEVENT = "incident";
 
 Parameter LOGDIAGNOSE = "IncidentManager could not diagnose incident ";
 
 Parameter LOGNOTICE = "IncidentManager could not notice incident ";
+
+Parameter LOGPROPOSE = "IncidentManager could not propose the fix of incident ";
 
 Parameter LOGSEND = "IncidentManager could not send the notice of incident ";
 
@@ -147,8 +176,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Quit $SYSTEM.Status.Error(5001, "IncidentManager does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
 
-/// An answer by the key of the call: the alarm of the waiter has gone off (look at the rows again and end the settle rule or wait on), or Decide has
-/// answered the diagnose request (store the diagnosis or its fallback). An error status of Decide was stored by OnError, so no answer comes with it.
+/// An answer by the key of the call: the alarm of the waiter has gone off (look at the rows again and end the settle rule or wait on), Decide has
+/// answered the diagnose request (store the diagnosis or its fallback), or FixExecutor has answered the dry run (Proposed). An error status of Decide or
+/// of FixExecutor was handled by OnError, so no answer comes with it.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit $$$OK
@@ -156,14 +186,23 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") Quit ..Answered(request.IncidentRef, callresponse)
 		Quit $$$OK
 	}
+	If pCompletionKey = ..#DRYRUNKEY {
+		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Fix.Msg.DryRunResult") Quit ..Proposed(request.IncidentRef, $Get(callrequest), callresponse)
+		Quit $$$OK
+	}
 	Quit ..Check(request.IncidentRef)
 }
 
-/// An error answer to the diagnose request: Decide refused it, so the incident is stored with the fallback error (Refused). An error with any other
-/// key stays an error, so that the framework logs it.
+/// An error answer to the diagnose request: Decide refused it, so the incident is stored with the fallback error (Refused). An error answer to the dry run
+/// takes the no-fix route with one Type 3 warning (Unproposed). An error with any other key stays an error, so that the framework logs it.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
-	If (pCompletionKey '= ..#DIAGNOSEKEY) || '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit pErrorStatus
+	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit pErrorStatus
+	If pCompletionKey = ..#DRYRUNKEY {
+		Do ..Unproposed(request.IncidentRef, $SYSTEM.Status.GetErrorText(pErrorStatus))
+		Quit $$$OK
+	}
+	If pCompletionKey '= ..#DIAGNOSEKEY Quit pErrorStatus
 	Do ..Refused(request.IncidentRef, pErrorStatus)
 	Quit $$$OK
 }
@@ -411,6 +450,7 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 	Set incident.CauseCategory = ""
 	Set incident.Element = ""
 	Set incident.FixSummary = ""
+	Set fix = ""
 	If 'answer.Fallback {
 		Set sc = $$$OK
 		Try {
@@ -419,6 +459,7 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 			Set incident.CauseCategory = diagnosis.causeCategory
 			Set incident.Element = diagnosis.elementAtFault
 			Set incident.FixSummary = diagnosis.fixSummary
+			Set fix = {"fixKind": (diagnosis.fixKind), "fixParameters": (diagnosis.fixParameters)}
 			If $IsObject(diagnosis.itemNoun) && (diagnosis.itemNoun.one '= "") && (diagnosis.itemNoun.other '= "") {
 				Set incident.ItemNoun = {"one": (diagnosis.itemNoun.one), "other": (diagnosis.itemNoun.other)}.%ToJSON()
 			}
@@ -434,7 +475,7 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 	Set incident.Fallback = +answer.Fallback
 	Set incident.FallbackReason = answer.FallbackReason
 	Set sc = incident.%Save()
-	If $$$ISOK(sc) Do ..Notice(ref)
+	If $$$ISOK(sc) Do ..Notice(ref, fix)
 	Quit sc
 }
 
@@ -460,16 +501,19 @@ Method Refused(ref As %String, error As %Status) [ Private ]
 }
 
 /// The notice step after the outcome of the diagnosis is stored: acts only on a row that exists, is not closed and has no NoticedAt. The key, the open
-/// variant and the slots come from OcuTalon.Watch.Notice. A usable diagnosis with a fix gets nothing here (Notice.Key is empty): the row stays open and
-/// unnoticed. Slots that cannot be built, or an error thrown in the step, log one Type 3 warning (the row stays as it was saved: a thrown error after the
-/// notice's save leaves it noticed).
-Method Notice(ref As %String) [ Private ]
+/// variant and the slots come from OcuTalon.Watch.Notice. A usable diagnosis with a fix (Notice.Key is empty) is proposed (Propose) with fix, the
+/// {fixKind, fixParameters} of the checked payload: the row stays open and unnoticed until the dry run answers. Slots that cannot be built, or an error
+/// thrown in the step, log one Type 3 warning (the row stays as it was saved: a thrown error after the notice's save leaves it noticed).
+Method Notice(ref As %String, fix As %DynamicObject = "") [ Private ]
 {
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If '..Open(incident) Quit
 		Set key = ##class(OcuTalon.Watch.Notice).Key(incident)
-		If key = "" Quit
+		If key = "" {
+			Do ..Propose(incident, fix)
+			Quit
+		}
 		Set slots = ##class(OcuTalon.Watch.Notice).Slots(incident, , .sc)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -482,11 +526,148 @@ Method Notice(ref As %String) [ Private ]
 	}
 }
 
+/// Asks FixExecutor for the dry run of the incident's fix: one OcuTalon.Fix.Msg.DryRun with the incident, the fix kind and the parameters as one JSON object,
+/// sent asynchronously with a response required and the completion key DRYRUNKEY (SendDryRun). No fix kind, parameters that are not an object, or a send
+/// that fails takes the no-fix route (NoFix) with one Type 3 warning.
+Method Propose(incident As OcuTalon.Data.Incident, fix As %DynamicObject = "") [ Private ]
+{
+	Set kind = $Select($IsObject(fix): fix.fixKind, 1: "")
+	Set parameters = $Select($IsObject(fix): fix.fixParameters, 1: "")
+	If (kind = "") || '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") {
+		$$$LOGWARNING(..#LOGPROPOSE_incident.Ref_": the diagnosis has no usable fix kind or parameters")
+		Do ..NoFix(incident)
+		Quit
+	}
+	Set ask = ##class(OcuTalon.Fix.Msg.DryRun).%New()
+	Set ask.IncidentRef = incident.Ref
+	Set ask.FixKind = kind
+	Set ask.Parameters = parameters.%ToJSON()
+	Set sc = ..SendDryRun(ask)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGPROPOSE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Do ..NoFix(incident)
+	}
+}
+
+/// Sends the dry run to the FixExecutor item, asynchronously, with a response required and the completion key DRYRUNKEY (a seam for the tests).
+Method SendDryRun(ask As OcuTalon.Fix.Msg.DryRun) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#FIXEXECUTOR, ask, 1, ..#DRYRUNKEY)
+}
+
+/// An error answer to the dry run of the incident: one Type 3 warning with the error (through the redactor), then the no-fix route for an incident that is
+/// still open and unnoticed.
+Method Unproposed(ref As %String, error As %String) [ Private ]
+{
+	$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text(error))
+	Try {
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If ..Open(incident) Do ..NoFix(incident)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+	}
+}
+
+/// The answer of FixExecutor to the dry run (ask is the DryRun that was sent, read back for the fix kind and the parameters): acts only on an incident that
+/// is open and unnoticed, else drops it without an error. In this order:
+///   1. a Reason takes the no-fix route with one Type 3 warning, and an empty Targets takes it with no warning (NoFix);
+///   2. the table must accept raised, else nothing is raised;
+///   3. the with-fix slots are built from the dry run (Notice.WithFixSlots), else one Type 3 warning and nothing more;
+///   4. the fix request is built and raised once (RaiseRequest) in the incident's trace session; an error is one Type 3 warning and the no-fix route;
+///   5. the Ref is appended to RequestRefs and Deliver saves it with NoticedAt and the state, then sends the notice (ApprovalRef = the Ref) and publishes;
+///   6. a save that fails cancels the request (CancelRequest), so that nothing stays approvable that no incident lists (Deliver logged the warning).
+Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult) As %Status [ Private ]
+{
+	Try {
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '..Open(incident) Quit
+		If result.Reason '= "" {
+			$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text(result.Reason))
+			Do ..NoFix(incident)
+			Quit
+		}
+		If result.Targets = "" {
+			Do ..NoFix(incident)
+			Quit
+		}
+		If '##class(OcuTalon.Watch.Transitions).Next(incident.State, 0, "raised", , .to, .variant) Quit
+		Set dryRun = ""
+		Try {
+			Set dryRun = {}.%FromJSON(result.DryRun)
+		} Catch {
+			Set dryRun = ""
+		}
+		If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
+			$$$LOGWARNING(..#LOGNOTICE_ref_": the dry run is not one JSON object")
+			Quit
+		}
+		Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Quit
+		}
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+		Set row.Kind = "fix"
+		Set row.IncidentRef = incident.Ref
+		Set row.OwnerRef = incident.OwnerRef
+		Set row.ResultTarget = ..#RESULTTARGET
+		Set row.TraceRef = $Select(##class(OcuTalon.Bridge.Approval).IsRef(..%SuperSession): ..%SuperSession, 1: "")
+		Set row.DryRun = result.DryRun
+		Set row.FixKind = ask.FixKind
+		Set row.FixParameters = ask.Parameters
+		Set row.FixTargets = result.Targets
+		Set sc = ..RaiseRequest(row, .request, incident.TraceHeaderId, ..%SuperSession)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Do ..NoFix(incident)
+			Quit
+		}
+		Set incident.RequestRefs = $Select(incident.RequestRefs = "": request, 1: incident.RequestRefs_","_request)
+		Set sc = ..Deliver(incident, to, variant, ##class(OcuTalon.Watch.Notice).#KEYWITHFIX, slots, request)
+		If $$$ISERR(sc) {
+			Set cancelled = ..CancelRequest(request)
+			If $$$ISERR(cancelled) {
+				$$$LOGWARNING(..#LOGPROPOSE_ref_": the request "_request_" could not be cancelled: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cancelled)))
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGPROPOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+	}
+	Quit $$$OK
+}
+
+/// Raises the approval request of the row in the incident's trace session (a seam for the tests): OcuTalon.Bridge.Approval.Raise with the session and the
+/// SuperSession given. It runs outside any transaction. ref is the new request's Ref.
+Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String, sessionId As %String, superSession As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Approval).Raise(row, .ref, , sessionId, superSession)
+}
+
+/// Cancels the request so that nothing stays approvable that no incident lists (a seam for the tests): channel system.
+Method CancelRequest(ref As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Approval).Cancel(ref, , "system")
+}
+
+/// The no-fix notice of a data-format incident whose fix cannot be proposed: incident.noFix with its slots, the open variant no_fix, from the table. Slots that
+/// cannot be built log one Type 3 warning and leave the row unnoticed.
+Method NoFix(incident As OcuTalon.Data.Incident) [ Private ]
+{
+	Set key = ##class(OcuTalon.Watch.Notice).#KEYNOFIX
+	Set slots = ##class(OcuTalon.Watch.Notice).Slots(incident, , .sc, key)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit
+	}
+	If '##class(OcuTalon.Watch.Transitions).Next(incident.State, 0, "notice", {"variant": (##class(OcuTalon.Watch.Notice).#VARIANTNOFIX)}, .to, .variant) Quit
+	Do ..Deliver(incident, to, variant, key, slots)
+}
+
 /// Notices the incident: sets NoticedAt (UTC now) and, with Move, the state and the open variant in one save and, after the commit, sends one Notification of
 /// kind incident with the catalog key, the slots, the row's DecisionRef and the approval request's Ref (empty for a notice without one) to each recipient
 /// session, then publishes the incident event on that session's stream (Tell). The row stays noticed whatever happens to the sends. A save that fails logs one
-/// Type 3 warning and sends nothing.
-Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") [ Private ]
+/// Type 3 warning and sends nothing; the result is Move's status.
+Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") As %Status [ Private ]
 {
 	Set incident.NoticedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set notice = ##class(OcuTalon.Msg.Notification).%New()
@@ -500,6 +681,7 @@ Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As 
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
+	Quit sc
 }
 
 /// Moves the incident to the state with the open variant: saves the row when the state, the variant or ClosedAt changes (or the caller has changed it; a
@@ -524,13 +706,14 @@ Method Move(incident As OcuTalon.Data.Incident, to As %String, variant As %Strin
 
 /// The event on the incident: the table (OcuTalon.Watch.Transitions) with the facts of the rows (Facts) decides; an accepted move is made (Move) and, when the
 /// table says so, the fix of the request goes out (Execute). own is the event's own request (its Ref), "" for an event without one. accepted is 1 for a move
-/// that was made, 0 for a refused one (the status is then OK) and for a move that could not be saved (the status is then the error).
-Method Apply(incident As OcuTalon.Data.Incident, event As %String, own As %String = "", Output accepted As %Boolean) As %Status [ Private ]
+/// that was made, 0 for a refused one (the status is then OK) and for a move that could not be saved (the status is then the error). A notification given
+/// goes out with the incident event of an accepted move (Move) and is dropped with a refused one.
+Method Apply(incident As OcuTalon.Data.Incident, event As %String, own As %String = "", Output accepted As %Boolean, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
 	Set accepted = 0
 	Set facts = ..Facts(incident, event, own, .earliest)
 	If '##class(OcuTalon.Watch.Transitions).Next(incident.State, incident.NoticedAt '= "", event, facts, .to, .variant, .execute) Quit $$$OK
-	Set sc = ..Move(incident, to, variant)
+	Set sc = ..Move(incident, to, variant, notification)
 	If $$$ISERR(sc) Quit sc
 	Set accepted = 1
 	If execute '= "" Do ..Execute(incident, $Select(execute = ##class(OcuTalon.Watch.Transitions).#OWN: own, 1: earliest))
@@ -654,7 +837,30 @@ Method Outcome(outcome As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Priv
 		Do ..Drop(outcome.IncidentRef, event, $Select($IsObject(incident): incident.State, 1: "none"))
 		Quit $$$OK
 	}
-	Quit ..Event(incident, event, outcome.ApprovalRef)
+	Quit ..Event(incident, event, outcome.ApprovalRef, ..AnswerNotice(incident, event, row))
+}
+
+/// The notification that answers a rejected or an expired request (kind answered): answered.rejected with the channel and time of the answer, or
+/// answered.expired with the request's ExpiresAt, the request's Ref and the incident's, no DecisionRef; "" for any other event (an approved request is
+/// answered by the story that carries it out). SessionRef is set per recipient by Tell.
+Method AnswerNotice(incident As OcuTalon.Data.Incident, event As %String, row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Msg.Notification [ Private ]
+{
+	If event = "rejected" {
+		Set key = ..#KEYREJECTED
+		Set slots = {"channel": (row.AnsweredChannel), "time": (row.AnsweredAt)}
+	} ElseIf event = "expired" {
+		Set key = ..#KEYEXPIRED
+		Set slots = {"time": (row.ExpiresAt)}
+	} Else {
+		Quit ""
+	}
+	Set notice = ##class(OcuTalon.Msg.Notification).%New()
+	Set notice.Kind = ..#ANSWEREDKIND
+	Set notice.CatalogKey = key
+	Set notice.Slots = slots.%ToJSON()
+	Set notice.IncidentRef = incident.Ref
+	Set notice.ApprovalRef = row.Ref
+	Quit notice
 }
 
 /// A FixResult from FixExecutor: finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests.
@@ -669,11 +875,12 @@ Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 	Quit ..Event(incident, event, result.ApprovalRef)
 }
 
-/// An event of a request of the incident: made when the table accepts it, else refused (Drop). A move that cannot be saved is the error status.
-Method Event(incident As OcuTalon.Data.Incident, event As %String, own As %String) As %Status [ Private ]
+/// An event of a request of the incident: made when the table accepts it, else refused (Drop). A move that cannot be saved is the error status. The
+/// notification given goes out with the accepted move only.
+Method Event(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
 	Set state = incident.State
-	Set sc = ..Apply(incident, event, own, .accepted)
+	Set sc = ..Apply(incident, event, own, .accepted, notification)
 	If $$$ISERR(sc) Quit sc
 	If 'accepted Do ..Drop(incident.Ref, event, state)
 	Quit $$$OK

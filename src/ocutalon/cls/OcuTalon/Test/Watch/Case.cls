@@ -30,6 +30,10 @@ Include Ensemble
 ///     the row's NextDueAt runs it; SendTick is the one sender (synchronously, or asynchronously as HeartbeatIn sends it, waiting for the Tick's request to
 ///     complete), Tick asserts on the synchronous send and RealTick on an asynchronous one at the clock's now, which a test or a one-off run uses to prove that
 ///     a real Tick leaves a test's rows as they are; and Rows leaves out, on request, the fields that Checks owns.
+///   - for the tests that raise approval requests (Story 7.2): ApprovalReady (the production is ready, the ANSWERER account holds OcuTalonUser and the ApprovalRole
+///     default of Decide is set aside; OnAfterOneTest puts it back), and DropIncidentRows, which tracks every ApprovalRequest that names a dropped incident
+///     under ^OcuTalonTest("Approval","refs") and then calls Test.Bridge.Approval.Clean, which ends the holds and tasks and deletes the rows, so that
+///     Test.Bridge.Approval's instance-wide row and hold counts stay its own.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -56,6 +60,9 @@ Parameter ORDERSDATA = {"%DB_"_##class(OcuTalon.Install.Step.Demo).#DATADB};
 Parameter ORDERSCODE = {"%DB_"_##class(OcuTalon.Install.Step.Demo).#CODEDB};
 
 Parameter HOMEDATA = "%DB_OCUTALON_DATA";
+
+/// The README account that answers an approval request (Install.Step.Users USER), the local install's real approver.
+Parameter ANSWERER = "ocutalon";
 
 /// The sentence of a failing order of Fail, as ErrorText.Sentence gives it.
 Parameter ORDERDATETEXT = "The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.";
@@ -92,6 +99,11 @@ Parameter TICKWAIT = 60;
 
 /// How far ahead of now a row is due, in seconds (see Ahead).
 Parameter AHEADSECONDS = 86400;
+
+/// The ApprovalRole rows of Decide before ApprovalReady set them aside (RunnerFixture.RememberDefault), with ApprovalRoleSaved 1 while they are set aside.
+Property ApprovalRoleRows As %List;
+
+Property ApprovalRoleSaved As %Boolean [ InitialExpression = 0 ];
 
 /// What the CommandsIn item had before the double was put behind it, as JSON text, or "" while the double is not behind it.
 Property Swap As %String(MAXLEN = "");
@@ -165,6 +177,12 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
+	If ..ApprovalRoleSaved {
+		Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..ApprovalRoleRows)
+		Set ..ApprovalRoleSaved = 0
+		Set ..ApprovalRoleRows = ""
+	}
 	Set sc = ..PutBack()
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
@@ -220,6 +238,70 @@ Method Ready() As %Boolean [ Private ]
 		Quit 0
 	}
 	Quit 1
+}
+
+/// The set-up of the tests that raise approval requests: 1 when the production is ready and the ANSWERER account holds OcuTalonUser (else the test fails with
+/// the reason, and this gives 0), with the ApprovalRole default of Decide set aside so that the role setting is the product's own (OnAfterOneTest puts it back).
+Method ApprovalReady() As %Boolean [ Private ]
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
+	If reason '= "" {
+		Do $$$AssertEquals(reason, "", "the production is ready")
+		Quit 0
+	}
+	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(..#ANSWERER, .roles)
+	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
+	Do $$$AssertTrue(holds, "the answerer "_..#ANSWERER_" holds OcuTalonUser")
+	If 'holds Quit 0
+	If '..ApprovalRoleSaved {
+		Set rows = ""
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", "ApprovalRole")
+		Set ..ApprovalRoleRows = rows
+		Set ..ApprovalRoleSaved = 1
+	}
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", "ApprovalRole"))
+	Quit 1
+}
+
+/// The ApprovalRequest rows that name the incident, by ID, as a dynamic array of {"ref", "kind", "incidentRef", "ownerRef", "state", "resultTarget", "traceRef", "fixKind",
+/// "fixParameters", "fixTargets", "dryRun", "answeredChannel", "answeredAt", "expiresAt"}.
+ClassMethod Requests(incidentRef As %String) As %DynamicArray
+{
+	Set requests = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef = ? ORDER BY ID", incidentRef)
+	While rs.%Next() {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%OpenId(rs.%GetData(1))
+		If '$IsObject(row) Continue
+		Do requests.%Push({"ref": (row.Ref), "kind": (row.Kind), "incidentRef": (row.IncidentRef), "ownerRef": (row.OwnerRef), "state": (row.State), "resultTarget": (row.ResultTarget), "traceRef": (row.TraceRef), "fixKind": (row.FixKind), "fixParameters": (row.FixParameters), "fixTargets": (row.FixTargets), "dryRun": (row.DryRun), "answeredChannel": (row.AnsweredChannel), "answeredAt": (row.AnsweredAt), "expiresAt": (row.ExpiresAt)})
+	}
+	Quit requests
+}
+
+/// The number of headers in the trace session of the type (1 request, 2 response) from the source item to the target item whose body class is bodyClass
+/// ("" for any class).
+ClassMethod HeadersBetween(session As %String, type As %Integer, source As %String, target As %String, bodyClass As %String = "") As %Integer
+{
+	If session = "" Quit 0
+	Set found = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session), type, source, target)
+	Set count = 0
+	For i = 0:1:found.%Size() - 1 {
+		If (bodyClass = "") || (found.%Get(i).bodyClass = bodyClass) Set count = count + 1
+	}
+	Quit count
+}
+
+/// 1 when the hold of the request started in the trace session: one ApprovalStart for the Ref went from ApprovalStartIn to ApprovalHold in it.
+ClassMethod HoldInSession(session As %String, ref As %String) As %Boolean
+{
+	If session = "" Quit 0
+	Set found = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session), 1, "ApprovalStartIn", "ApprovalHold")
+	Set held = 0
+	For i = 0:1:found.%Size() - 1 {
+		If found.%Get(i).bodyClass '= "OcuTalon.Bridge.Msg.ApprovalStart" Continue
+		Set body = ##class(OcuTalon.Bridge.Msg.ApprovalStart).%OpenId(found.%Get(i).bodyId)
+		If $IsObject(body) && (body.Ref = ref) Set held = 1
+	}
+	Quit held
 }
 
 /// Sets the public flag onlineDemo for the test; OnAfterOneTest puts it back.
@@ -1251,6 +1333,8 @@ Method DropIncidents(floor As %Integer) [ Private ]
 }
 
 /// Deletes the Incident rows that the select (one bound value, an ID column) gives, with their failure groups, diagnose decisions, usage and steps.
+/// Every ApprovalRequest that names a deleted incident is tracked under ^OcuTalonTest("Approval","refs") first, and Test.Bridge.Approval.Clean then ends the
+/// holds and tasks and deletes the rows (Story 7.2).
 /// Public: the Demo tests that cause real incidents (Test.Demo.Production) call it too.
 ClassMethod DropIncidentRows(select As %String, value As %String)
 {
@@ -1265,11 +1349,17 @@ ClassMethod DropIncidentRows(select As %String, value As %String)
 		Set row = ##class(OcuTalon.Data.Incident).%OpenId(id)
 		If '$IsObject(row) Continue
 		If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(row.Ref)
+		Set requests = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef = ?", row.Ref)
+		While requests.%Next() {
+			Set ^OcuTalonTest("Approval", "refs", requests.%Get("Ref")) = ""
+			Set tracked = 1
+		}
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", row.Ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", row.Ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", row.Ref)
 		Do ##class(OcuTalon.Data.Incident).%DeleteId(id)
 	}
+	If $Get(tracked) Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
 }
 
 /// The names of the keys of the object, sorted, comma-separated.

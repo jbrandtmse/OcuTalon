@@ -6,7 +6,8 @@
 ///     diagnosis has no key and no variant (its notice is the with-fix notice of Story 7.2); any other category is incident.noFix and no_fix;
 ///   - TestNoFix, TestUnknown, TestFallback and TestWithFix: each variant's slots rendered: the no-fix text exactly as the epics criterion states it, then the
 ///     unknown text's first line, the fallback text for each reason (an empty or unknown reason gives unusable) and the UJ-1 text of the with-fix builder's slots
-///     plus the dry run's;
+///     plus the dry run's (Story 7.2: the builder given a dry run adds field, before, after and resendCount and refuses a dry run without a field, a before or an after or
+///     with a resend below 1; Slots given the key incident.noFix builds the no-fix slots of a data-format row);
 ///   - TestEveryChannel: every variant renders on web, phone, mailbox and telegram;
 ///   - TestGroupLines: two groups give two lines in order, a group with no NoticeCount is left out, an empty error summary is written as no error text, and each line's
 ///     count is the group's NoticeCount, not its Count that moved on, so the lines add up to the count slot;
@@ -185,6 +186,38 @@ Method TestWithFix()
 	Set dry = $Char(10, 10)_"Dry run: 50 orders affected. Example: OrderDate 10/16/2026 becomes 2026-10-16. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet."_$Char(10, 10)_"Details and trace: on your OcuTalon page."
 	Do $$$AssertEquals(..Render("incident.withFix", slots, "phone"), head_". Approve?"_dry, "the UJ-1 notice text")
 	Do $$$AssertEquals(..Render("incident.withFix", slots, "web"), head_"."_dry, "and its page wording, which has no question")
+	Set dryRun = {"affected": 50, "resend": 50, "leftOut": 0, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16", "itemNoun": {"one": "order", "other": "orders"}}
+	Set built = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun)
+	Do $$$AssertStatusOK(sc, "the slots are built from a dry run")
+	If $IsObject(built) {
+		Do $$$AssertEquals(built.field_"|"_built.before_"|"_built.after_"|"_built.resendCount_"|"_built.%GetTypeOf("resendCount"), "OrderDate|10/16/2026|2026-10-16|50|number", "which adds field, before, after and resendCount as an integer")
+		Do $$$AssertEquals(built.%ToJSON(), slots.%ToJSON(), "and they are the slots of the UJ-1 text")
+		Do $$$AssertEquals(..Render("incident.withFix", built, "phone"), head_". Approve?"_dry, "which renders as the UJ-1 notice text")
+	}
+	Set odd = {"affected": 50, "resend": 1, "leftOut": 0, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}
+	Set built = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, odd)
+	Do $$$AssertStatusOK(sc, "a resend of 1 is built")
+	If $IsObject(built) Do $$$AssertEquals(built.resendCount, 1, "as a count of 1")
+	Set bad = {"affected": 50, "resend": 50, "leftOut": 0, "before": "10/16/2026", "after": "2026-10-16"}
+	Set built = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, bad)
+	Do $$$AssertStatusNotOK(sc, "a dry run without a field is refused")
+	Do $$$AssertEquals($IsObject(built), 0, "and gives no slots")
+	For key = "before", "after" {
+		Set bad = {"resend": 50, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}
+		Do bad.%Remove(key)
+		Do $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, bad)
+		Do $$$AssertStatusNotOK(sc, "a dry run without "_key_" is refused")
+	}
+	For resend = 0, -1, "x", "" {
+		Set bad = {"resend": (resend), "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}
+		Do $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, bad)
+		Do $$$AssertStatusNotOK(sc, "a dry run that resends '"_resend_"' is refused")
+	}
+	Set forced = $ClassMethod(..#NOTICE, "Slots", row, ..Groups(), .sc, $Parameter(..#NOTICE, "KEYNOFIX"))
+	Do $$$AssertStatusOK(sc, "the no-fix slots of a data-format row are built when the key is given")
+	If $IsObject(forced) Do $$$AssertEquals(forced.cause_"|"_forced.groups.%Size()_"|"_forced.count, ..#CAUSE_".|2|50", "with the cause and the groups")
+	Do $ClassMethod(..#NOTICE, "Slots", row, ..Groups(), .sc)
+	Do $$$AssertStatusNotOK(sc, "and are refused without it")
 }
 
 Method TestEveryChannel()

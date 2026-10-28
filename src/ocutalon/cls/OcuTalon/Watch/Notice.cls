@@ -8,11 +8,13 @@
 ///       usable, any other category                  incident.noFix          open variant no_fix
 ///   - Slots, by key: count is the incident's NoticeCount (its Count while that is empty), time its FirstAt and itemNoun its ItemNoun, else the code noun
 ///     of an empty body class. incident.noFix adds cause and groups, incident.noFixUnknown groups, incident.fallback fallbackReason (the row's reason, unusable
-///     when it is empty or not a Msg.Enum FALLBACKREASON) and groups. WithFixSlots is the builder that the with-fix notice extends with the dry run's
-///     field, before, after and resendCount: count, time, itemNoun, cause and fixSummary.
+///     when it is empty or not a Msg.Enum FALLBACKREASON) and groups. WithFixSlots is the builder of the with-fix notice: count, time, itemNoun, cause and
+///     fixSummary, and, given the dry run, its field, before, after and resendCount (the dry run's resend as an integer). A key given to Slots replaces Key(incident):
+///     the incident.noFix notice of a data-format incident whose fix cannot be proposed (the dry run is refused, finds nothing to resend, or its request is not raised).
 ///   - groups holds one {itemName, count, errorSummary, firstAt} per failure group that has a NoticeCount, in Seq order. A group's count is its
 ///     NoticeCount, so the lines add up to the count slot even when failures joined during the diagnosis. An empty error summary is written as NOERRORTEXT.
-/// Slots and WithFixSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time).
+/// Slots and WithFixSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
+/// field, before or after or with a resend below 1).
 Class OcuTalon.Watch.Notice
 {
 
@@ -60,11 +62,11 @@ ClassMethod Variant(incident As OcuTalon.Data.Incident) As %String
 }
 
 /// The slots of the notice of Key(incident) as a dynamic object, or "" with the reason in sc. groups is the list of the incident's FailureGroup objects in
-/// Seq order, or "" for the incident's own (FailureGroup.OfIncident).
-ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects = "", Output sc As %Status) As %DynamicObject
+/// Seq order, or "" for the incident's own (FailureGroup.OfIncident). A key given replaces Key(incident).
+ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects = "", Output sc As %Status, key As %String = "") As %DynamicObject
 {
 	Set sc = $$$OK
-	Set key = ..Key(incident)
+	If key = "" Set key = ..Key(incident)
 	If key = "" {
 		Set sc = $SYSTEM.Status.Error(5001, "The incident has no notice of its own: it has a fix")
 		Quit ""
@@ -86,9 +88,10 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 	Quit slots
 }
 
-/// The slots of the with-fix notice that the incident's diagnosis gives: count, time, itemNoun, cause and fixSummary. The notice that carries the dry run
-/// adds field, before, after and resendCount. "" with the reason in sc when the cause or the fix summary is empty.
-ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status) As %DynamicObject
+/// The slots of the with-fix notice that the incident's diagnosis gives: count, time, itemNoun, cause and fixSummary. Given the dry run (a dynamic object with the
+/// keys of ApprovalRequest DRYRUNKEYS), it adds field, before, after and resendCount (the dry run's resend as an integer). "" with the reason in sc when the cause
+/// or the fix summary is empty, or when the dry run has no field, before or after, or a resend below 1.
+ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status, dryRun As %DynamicObject = "") As %DynamicObject
 {
 	Set slots = ..Common(incident, .sc)
 	If $$$ISERR(sc) Quit ""
@@ -100,6 +103,20 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 	}
 	Do slots.%Set("cause", cause)
 	Do slots.%Set("fixSummary", fix)
+	If $IsObject(dryRun) {
+		Set field = ..Text(dryRun.field)
+		Set before = ..Text(dryRun.before)
+		Set after = ..Text(dryRun.after)
+		Set resend = dryRun.resend
+		If (field = "") || (before = "") || (after = "") || (resend '? 1.N) || (+resend < 1) {
+			Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no field, before or after, or resends fewer than one")
+			Quit ""
+		}
+		Do slots.%Set("field", field)
+		Do slots.%Set("before", before)
+		Do slots.%Set("after", after)
+		Do slots.%Set("resendCount", +resend)
+	}
 	Quit slots
 }
 
