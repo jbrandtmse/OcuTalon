@@ -2,7 +2,7 @@
 title: 'Story 8.6: Reminders through the chat on the demo path'
 type: 'feature'
 created: '2026-10-27'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '99931c0368f1974776296c0889c1472cde59886f'
 baseline_commit: '99931c0368f1974776296c0889c1472cde59886f'
 review_loop_iteration: 0
@@ -304,7 +304,11 @@ Code review, 2026-10-27 (Epic 8 code-review stage; four layers, no model overrid
 - `false` (Auditor): the spec's `status: done` disagrees with sprint-status `review`. The frontmatter is `bmad-build-auto`'s contract, and this review syncs the sprint status.
 - not this diff (Auditor): a live model on guide step 2 is unproven, and the CI mock's triage ends `invalid`. Both are ledgered for Story 11.1: DW-142 and DW-307 (this story is DW-307's source).
 
+- [ ] [Smoke] Integrate-forward red (merge 8d5f805 of feature 289d47a into OCT-epic8): `OcuTalon.Test.Schedule.ReminderChat` fails all three tests (`Chat made N request(s)`), because Epic 5 added `OcuTalon.Tools.Watching` to `OcuTalon.Agent.Chat`'s `TOOLSETS`, so `CHATTOOLS` ("cancel_reminder,list_reminders,set_reminder") no longer equals Chat's `ToolNames` and no Chat request is selected. Fix the selection so it identifies Chat's requests without pinning Chat's whole tool list (for example: a `/v1/messages` entry whose `ToolNames` includes the reminder tools, since Triage offers none; or derive the expected list from `OcuTalon.Agent.Chat`'s own toolsets, never a copy), keep the counts the tests assert, and check `web/e2e/reminder/chat.spec.ts` and `web/e2e/demo-path/03-reminder.spec.ts` for the same exact-match assumption (fix it the same way if present). Never edit `Agent/**` or `Tools/**`. Each changed pinning assertion gets its `mutation:` line (e.g. a request without the reminder tools counted as Chat's -> red).
+
 ## Spec Change Log
+
+- 2026-10-28 (lead): rework iteration 1 opened at Epic 8's integrate-forward: ReminderChat red on the merged tree (Chat's toolset grew with Epic 5's Watching tools); one `[Smoke]` item.
 
 ## Review Triage Log
 
