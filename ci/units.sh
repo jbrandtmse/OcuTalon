@@ -28,10 +28,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder" ;;
-    install-upgrade) echo "live:install-upgrade live:audit" ;;
+    install-upgrade) echo "live:install-upgrade live:audit live:cards" ;;
     production) echo "live:production live:production-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a live:floor live:cards" ;;
+    shards) echo "shard:lane-a live:floor" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b" ;;
     *) return 1 ;;
   esac
