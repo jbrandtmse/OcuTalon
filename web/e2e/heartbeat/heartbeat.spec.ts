@@ -15,8 +15,9 @@ import { announcements, recordAnnouncements } from '../support/page';
  * at once, and StatusMonitor's next run publishes the clear. A step that checks a live update waits until the page has applied the Seq of
  * the event (data-instance-seq) and then asserts within one second, and the announcer within one live update. afterEach runs Release, also
  * after a failure or a timeout: it puts the task back as found and writes a real tick, so that the heartbeat is fresh for the specs after it.
- * The two events it causes on the instance stream come after api.spec, which pins that stream at one event (Playwright runs the files in
- * path order, with one worker). The browser runs in Asia/Kolkata with the en-GB locale, so a time (instance zone UTC) reads differently.
+ * The two events it causes stay on the instance stream for the rest of the run. api.spec reads that stream against a baseline that each of
+ * its tests takes itself, so it passes whether or not this file ran before it. The browser runs in Asia/Kolkata with the en-GB locale, so a
+ * time (instance zone UTC) reads differently.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 

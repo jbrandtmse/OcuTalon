@@ -2,13 +2,22 @@
 title: 'Story 8.7: Epic 8 burn-down'
 type: 'chore'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '182f2225f390fc95998cf071f7948b54fbdf646e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      api.spec's per-test baseline could still see an instance event published between its baseline read and a later read, when a spec that publishes (heartbeat) ran just before it.
+    evidence: |-
+      The spec lists it as residual risk (inference): StatusMonitor publishes only on a change, and nothing changes while api.spec runs. The one heartbeat-first run (0-heartbeat, 21 of 21) passed. Standing runs never put heartbeat before api.spec, so the window is not exercised.
+      Would settle it: a heartbeat-first run repeated several times on a fresh stack, or a StatusMonitor check that its clear event lands before heartbeat.spec ends.
+    location: >-
+      web/e2e/api/api.spec.ts:103
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -210,6 +219,41 @@ No product code changes.
 
 ## Review Triage Log
 
+### 2026-10-27 — Review pass
+- verdicts: 31 findings — high 0, medium 1, low 19, false 7, maybe-false 4
+- findings:
+  - `[low]` `[reject]` Blind 1: a bad `--part` through `ci/iris.sh live` is refused only after preflight and the Chromium install — the contract says before the lock, the bundle build or any stack, and that holds; a pre-check in `cmd_live` would grow the allowed two-line pass-through (Decided 2).
+  - `[low]` `[reject]` Blind 2: other live units ignore arguments, so `live floor --part 1/2` runs whole — Decided 2 states it, and a guard edits more of the contended ci/iris.sh.
+  - `[maybe-false]` `[defer]` Blind 3: an instance event between a test's baseline read and a later read fails it when heartbeat ran just before — deferred as medium (unverified); the spec names it residual risk (inference) and the one heartbeat-first run passed.
+  - `[false]` `[reject]` Blind 4: the listing is made in a different environment from the run — playwright.config.ts reads OCUTALON_URL, the JSON path and the timeout only, its testIgnore and file set do not depend on any variable, and every live part run passed the guard against the listing's counts.
+  - `[false]` `[reject]` Blind 5: the guard ignores flaky counts and no mutation exercises it — `retries: 0` in playwright.config.ts, and the AC 3 mutation ran red on `FAIL part 1/18 ran 0 of its 20 tests`.
+  - `[low]` `[patch]` Blind 6: no shell-level test of the argument parser, and `cd "$(dirname "$0")/../.."` before the source breaks for a relative path from another directory — a node:test now runs the script with eight bad arguments (rc 2, one line, no LOCK), and the script takes its own absolute directory first and uses it for the cd and the source.
+  - `[low]` `[reject]` Blind 7: the spec's Auto Run Result is stale and the recipe has no advice for a red part — the result is written at finalize, and a red part is re-run alone by the same recipe.
+  - `[false]` `[reject]` Edge 1: a flaky test makes a green part read as short — `retries: 0`, so none can occur.
+  - `[false]` `[reject]` Edge 2: no summary line gives part_ran 0 with an unclear message — it fails closed with "ran 0 of its N tests"; the real exposure is the PART-line drift (Gap 3).
+  - `[false]` `[reject]` Edge 3: the listing's environment differs from the run's — same refutation as Blind 4.
+  - `[low]` `[reject]` Edge 4: an interrupt during the listing leaves two temp files — negligible.
+  - `[low]` `[reject]` Edge 5: arguments to a unit that reads none — same as Blind 2.
+  - `[low]` `[reject]` Edge 6: bad values are refused late through `ci/iris.sh live` — same as Blind 1.
+  - `[maybe-false]` `[defer]` Edge 7: the api.spec.ts:121-133 baseline race — same root as Blind 3.
+  - `[maybe-false]` `[defer]` Edge 8: the api.spec.ts:166-180 baseline race — same root as Blind 3.
+  - `[low]` `[reject]` Edge 9: `partOf` called with k outside 1 to n — its only caller is the CLI behind parsePart.
+  - `[low]` `[reject]` Edge 10: a part whose files hold no test — Playwright runs the files, the guard reads 0 of 0, and no real file has none.
+  - `[low]` `[reject]` Edge 11: file names with a space or newline — no such spec file exists, and Playwright's test list uses the same line format.
+  - `[false]` `[reject]` Edge 12 (claim): part 1 might pass 540 s before the 8-minute advice — measured 307 to 318 s, about 220 s of headroom, and the bullet says to move to `--part k/3` as it grows.
+  - `[low]` `[patch]` Gap 1: `|| k === n` (trailing files with no test) is pinned by no test — `[3,3,0]`, `[3,0,0]` and `[2,4,0,0]` joined the every-n list, a direct test was added, and a mutation line records red.
+  - `[low]` `[patch]` Gap 2: the shell side of AC 2 has no standing test — covered by the bad-argument node:test and its mutation line (same root as Blind 6).
+  - `[medium]` `[patch]` Gap 3: the guard fails open if the PART line drifts (a non-numeric part_tests makes `[ -ne ]` error out and the script passes) — the script now exits 1 unless the part label and its count are numeric; the mutation line records the live check (exit 1 in seconds).
+  - `[low]` `[reject]` Gap 4: the DW-204 fix is verified only by the one-off order run — Decided 9 makes that run the agreed evidence, and a standing check needs a second order or another seeded event (not allowed).
+  - `[maybe-false]` `[defer]` Gap other 1: the baseline-to-later-read race — same root as Blind 3.
+  - `[low]` `[reject]` Gap other 2: the real-listing test takes its total from the same function — the 222 total is pinned by the synthetic `TODAY` case and by every live guard.
+  - `[low]` `[reject]` Gap other 3: the real-listing suite lists at collection time and needs web/node_modules — the hosted web job installs them, as playwright-projects.test.mjs also assumes.
+  - `[low]` `[patch]` Intent 1: no committed test at the script surface — same root as Blind 6 and Gap 2.
+  - `[low]` `[reject]` Intent 2: preflight and the Chromium install run before a bad value is refused — same as Blind 1.
+  - `[low]` `[reject]` Intent 3: manual runs, not tests, are the evidence for the short run, the heartbeat-first row and the timings — live stacks cannot run in a hosted test; each has a recorded mutation or measurement.
+  - `[low]` `[reject]` Intent 4: the baseline helper relies on `?after=999999999999999` serving instance events only — every live run exercised it, and the cursors test pins that cursor.
+  - `[false]` `[reject]` Intent 5: flaky counts are not summed — same as Edge 1.
+
 ## Design Notes
 
 **Rulings in force (dispatch, 2026-10-27):**
@@ -353,14 +397,39 @@ No product code changes.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Mutation results (implement stage).**
+- mutation: in `partOf` of `web/scripts/e2e-part.mjs`, the range end `first < end` becomes `first <= end` -> red: `e2e-part.test.mjs` "gives file 1 to part 1 and file 2 to part 2 for two files of two tests", "puts the parts together into the listing, each file once, for every n from 1 to the file count" and "sizes the ranges to differ by at most one, the first T mod n being the larger" (3 failed; the real-listing cases stayed green, as predicted); reverted from backup, file byte-identical.
+- mutation: `partOf` drops the check for n above the file count (`if (n > all.length)` becomes `if (false)`) -> red: `e2e-part.test.mjs` "refuses part 2 of [1,100] as empty, and n above the file count" and the CLI case "exits 2 with one line naming the value, for every bad value of the matrix" (19/19 no longer exits 2); reverted from backup, file byte-identical.
+- mutation: in `partOf` of `web/scripts/e2e-part.mjs`, `(first < end || k === n)` becomes `(first < end)` -> red: `e2e-part.test.mjs` "gives the files with no test after the last test to the last part" and "puts the parts together into the listing, each file once, for every n from 1 to the file count" (the `[3,3,0]` family). Reverted from backup, sha identical.
+- mutation: in `docker/tests/test-sign-in.sh`, the unknown-argument branch exits 0 instead of 2 -> red: `e2e-part.test.mjs` "docker/tests/test-sign-in.sh, given a bad argument": `--part` and `--part 1/2 --part 2/2` (the branch they reach). Reverted from backup, sha identical.
+- mutation: in `describePart` of `web/scripts/e2e-part.mjs`, "spec files" becomes "specs" in the PART line -> red: `bash docker/tests/test-sign-in.sh --part 1/2` exits 1 in seconds with "cannot read the part and its test count", before the lock, where the guard would otherwise have been silently off. Reverted from backup, sha identical.
+- mutation: `docker/tests/test-sign-in.sh` writes each test-list line with an `e2e/` prefix (`printf 'e2e/%s\n' "$part_files" > "$tmp/part.list"`) -> red: `ci/iris.sh live sign-in --part 1/18` (api/ alone, 20 tests) printed `FAIL part 1/18 ran 0 of its 20 tests` and exited 1 after 83 s (implement stage, lane C); reverted from backup, sha identical.
+- mutation: `web/e2e/api/api.spec.ts` as it was before this story, with `heartbeat/` moved to `0-heartbeat/` so that it runs first -> red: `ci/iris.sh live sign-in --part 1/18` (`0-heartbeat/heartbeat.spec.ts` then `api/api.spec.ts`, 21 tests) failed 4 tests: row 13, rows 13-14, row 14 `/events` by cursor and row 14 cursors; with the new api.spec the same run passed 21 of 21. The folder was moved back.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (bmad-build-auto, halted after planning).** The plan was measured on lane C throwaways, which were torn down and left the tree clean.
-- **The whole unit** took 521 s (Playwright 427.9 s, 222 tests, 18 files), with the time of each file recorded.
-- **Part 2 alone** (the 11 files from `heartbeat/` on) took 305 s on a fresh stack with the default deadline, and passed. Part 1 should take about 318 s (inference).
-- **The cut.** `shard --part`'s rule counted in files would give about 400 s and 216 s. Counted in tests it gives about 318 s and 305 s, so the split counts tests (Decided 1).
-- **Ledger:** DW-204 and DW-314 are addressed.
-- **Footprint extensions:** `ci/iris.sh` (`cmd_live` pass-through), and the new `web/scripts/e2e-part.mjs` and `web/scripts/e2e-part.test.mjs`.
+**Implemented.** `live sign-in` takes `--part k/n` and runs part k of n of the chromium project's spec files on its own fresh stack; without an argument it runs the whole unit as before. api.spec reads the instance stream against a baseline that each test takes itself (DW-204).
+
+**Files changed.**
+- `web/scripts/e2e-part.mjs` (new): the split helper, cutting Playwright's own listing by tests, with a CLI.
+- `web/scripts/e2e-part.test.mjs` (new): 24 tests: synthetic listings, the CLI, the script's bad arguments, and the real listing for n = 2 and 3.
+- `docker/tests/test-sign-in.sh`: argument parsing, the listing and PART line before the lock, `--test-list`, the passed-plus-skipped guard, and the `--part` header.
+- `ci/iris.sh`: `cmd_live` forwards the arguments after the unit name, plus one header line.
+- `web/e2e/api/api.spec.ts`: `instanceBaseline` and relative instance-stream expectations.
+- `web/e2e/heartbeat/heartbeat.spec.ts`: header comment only.
+- `_bmad/custom/skill-rules.md`: one Rule 21 bullet appended, the two-part recipe with the measured times.
+
+**Review.** 31 findings, one pass. Patches applied (5 rows, 3 fixes): a bad-argument test of the script, an absolute script directory, a numeric check on the PART line before the guard, and trailing-file tests. Deferred: 1 (the baseline race, medium unverified). Rejected: 22 with their reasons in the triage log. Follow-up review recommended: false (one medium patched).
+
+**Measured (developer machine, lane C, fresh stacks).**
+- Part 1/2 (7 files, 126 tests): 318 s before the review patches, 307 s after.
+- Part 2/2 (11 files, 96 tests): 301 s both times.
+- The whole unit with `OCUTALON_LIVE_DEADLINE=900`: 513 s, 222 passed, no PART line (run once, before the review patches; the patches touch only the `--part` block and the library path, which parts re-ran).
+- DW-204 order run: old api.spec red in 4 tests with heartbeat first, new api.spec green (21 of 21).
+
+**Verification performed.** `node --test web/scripts/e2e-part.test.mjs` 24 of 24; `npm --prefix web test` 715 of 715; `npm --prefix web run lint`; `bash ci/checks.sh` (all scripts passed, including test-ci-config and the demo-path gate); `bash docker/tests/test-boundaries.sh`; the bad-argument runs return rc 2 with no LOCK line; every mutation in `## Verification` was applied, observed red and reverted byte-identical; tag e8s7i torn down.
+
+**Residual risks.** The baseline race (deferred). Epic 6's `cards/` specs will lengthen part 1; the recipe says when to move to three parts.

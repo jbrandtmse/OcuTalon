@@ -48,12 +48,87 @@
 # Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
 # throwaway lock is held), so even a failing run ends within it; the browser run's global timeout is what is left of it minus 20 s.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
+# With --part k/n (or --part=k/n) it runs part k of n of the chromium project's spec files on its own fresh stack, with the whole
+# setup above, so that a stage can run the unit in calls that each fit the foreground cap. A part is a run of whole spec files, in
+# path order, cut by the project's tests the way ci/iris.sh shard --part cuts its classes (web/scripts/e2e-part.mjs, which reads
+# Playwright's own listing, so a new spec file joins a part with no change); the parts taken in order run every spec file once. It
+# prints "PART k/n: <f> of <F> spec files, <t> of <T> tests: <files>" before anything starts, runs only those files
+# (--test-list), and passes only when the run's passed and skipped tests add up to the part's <t>. A bad value (not k/n with
+# 1 <= k <= n, n above the number of spec files, a part that holds no file) or an unknown argument exits 2, and a listing that
+# cannot be made exits 1, both before the lock, the bundle build or any stack. Without an argument it runs the whole unit.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or
 # later, and the browser: npx --prefix web playwright install chromium.
 set -u
+script_dir=$(cd "$(dirname "$0")" && pwd)
+
+# --- the arguments, and the part's spec files ---
+
+part=""
+part_given=0
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --part)
+      if [ "$#" -lt 2 ] || [ "$part_given" -eq 1 ]; then
+        echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--part k/n])"
+        exit 2
+      fi
+      part=$2
+      part_given=1
+      shift 2
+      ;;
+    --part=*)
+      if [ "$part_given" -eq 1 ]; then
+        echo "test-sign-in: --part is given once (usage: test-sign-in.sh [--part k/n])"
+        exit 2
+      fi
+      part=${1#--part=}
+      part_given=1
+      shift
+      ;;
+    *)
+      echo "test-sign-in: unknown argument '$1' (usage: test-sign-in.sh [--part k/n])"
+      exit 2
+      ;;
+  esac
+done
+
+part_label=""
+part_tests=""
+part_files=""
+if [ "$part_given" -eq 1 ]; then
+  cd "$script_dir/../.." || exit 1
+  part_listing=$(mktemp "${TMPDIR:-/tmp}/ocutalon-part.XXXXXX") || exit 1
+  part_errors="$part_listing.err"
+  if ! npm --silent --prefix web run e2e -- --list --reporter=json > "$part_listing" 2> "$part_errors"; then
+    tail -n 30 "$part_listing" | cut -c1-300
+    tail -n 30 "$part_errors" | cut -c1-300
+    rm -f "$part_listing" "$part_errors"
+    echo "FAIL the chromium project's spec files could not be listed"
+    exit 1
+  fi
+  part_out=$(node web/scripts/e2e-part.mjs "$part" "$part_listing")
+  part_status=$?
+  rm -f "$part_listing" "$part_errors"
+  [ "$part_status" -eq 0 ] || exit "$part_status"
+  part_line=$(printf '%s\n' "$part_out" | sed -n 1p)
+  part_files=$(printf '%s\n' "$part_out" | sed 1d)
+  part_label=$(printf '%s\n' "$part_line" | sed -E 's/^PART ([0-9]+\/[0-9]+):.*/\1/')
+  part_tests=$(printf '%s\n' "$part_line" | sed -E 's/^PART [0-9]+\/[0-9]+: [0-9]+ of [0-9]+ spec files, ([0-9]+) of [0-9]+ tests.*/\1/')
+  case $part_label$part_tests in
+    *[!0-9/]* | "")
+      echo "test-sign-in: cannot read the part and its test count from '$part_line'"
+      exit 1
+      ;;
+  esac
+  echo "$part_line"
+fi
+chromium_specs="the specs of the chromium project"
+[ -z "$part_label" ] || chromium_specs="the specs of part $part_label of the chromium project"
+summary="test-sign-in"
+[ -z "$part_label" ] || summary="test-sign-in part $part_label"
 
 LIVE_REBUILD_WEB=1
-. "$(dirname "$0")/lib-live.sh"
+. "$script_dir/lib-live.sh"
 live_start t03
 live_web_port || exit 1
 
@@ -186,6 +261,11 @@ if [ "$remaining" -lt 60 ]; then
   die "only $remaining s are left of the deadline: too little for the browser run"
 fi
 e2e_log="$tmp/e2e.log"
+part_args=()
+if [ -n "$part_label" ]; then
+  printf '%s\n' "$part_files" > "$tmp/part.list"
+  part_args=(-- --test-list "$tmp/part.list")
+fi
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
 show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/^/  /"; }
@@ -224,23 +304,34 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_E2E_EPOCH="$seeded_epoch" \
   OCUTALON_E2E_MARKER="$marker" \
   OCUTALON_E2E_TIMEOUT_MS=$(((remaining - 20) * 1000)) \
-  npm --prefix web run e2e > "$e2e_log" 2>&1
+  npm --prefix web run e2e ${part_args[@]+"${part_args[@]}"} > "$e2e_log" 2>&1
 e2e_status=$?
-if [ "$e2e_status" -eq 0 ]; then
+# A test list that matches nothing exits 0, so a part passes only when its passed and skipped tests are the part's.
+part_ran=""
+if [ "$e2e_status" -eq 0 ] && [ -n "$part_label" ]; then
+  plain=$(LC_ALL=C sed $'s/\033\\[[0-9;]*m//g' "$e2e_log")
+  part_passed=$(printf '%s\n' "$plain" | sed -n -E 's/^ *([0-9]+) passed( \(.*\))?$/\1/p' | tail -n 1)
+  part_skipped=$(printf '%s\n' "$plain" | sed -n -E 's/^ *([0-9]+) skipped$/\1/p' | tail -n 1)
+  part_ran=$(( ${part_passed:-0} + ${part_skipped:-0} ))
+fi
+if [ "$e2e_status" -eq 0 ] && [ -n "$part_ran" ] && [ "$part_ran" -ne "$part_tests" ]; then
+  show_log 30
+  fail "part $part_label ran $part_ran of its $part_tests tests"
+elif [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: $chromium_specs pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: $chromium_specs failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then
-  echo "test-sign-in: $fails check(s) failed (project $P)"
+  echo "$summary: $fails check(s) failed (project $P)"
   exit 1
 fi
-echo "test-sign-in: all checks passed"
+echo "$summary: all checks passed"
