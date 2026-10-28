@@ -9,8 +9,12 @@
 #   ci/iris.sh classes [shard]            the test classes of a shard (of every shard), one per line, in name order
 #   ci/iris.sh port                       the web port that the browser units would publish: 52810 + n (runners 0 to 9), 52819 - n (10 to 19), or auto
 #   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout
-#   ci/iris.sh shard <name> [--reverse]   one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
-#                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
+#   ci/iris.sh shard <name> [--reverse] [--part k/n]
+#                                         one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
+#                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each.
+#                                         --part k/n runs only the k-th of n contiguous parts of that ordered list (sizes differ
+#                                         by at most one, the first count-mod-n parts are the larger) and titles the run
+#                                         "<name> part k/n"; k from 1 to n, n at most the shard's class count, else exit 2
 #   ci/iris.sh class <Class>              the same for one test class
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
@@ -246,15 +250,18 @@ stack_start() {
   live_start "$1"
 }
 
-# stack_ready <title> <start second>: the STACK line, the build and start of the project, and the READY line.
+# stack_ready <title> <start second> [<check>]: the STACK line, the build and start of the project, and the READY line. The optional
+# check is a command that runs once the project is up and before the READY line: it prints its own FAIL line and returns non-zero
+# to end the run (exit 1, so the caller's exit trap tears the project down). A fresh run passes none.
 stack_ready() {
-  local title=$1 started=$2 ready
+  local title=$1 started=$2 check=${3:-} ready
   echo "STACK $title: project $P"
   if ! dc up -d --build --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>&1; then
     tail -n 30 "$tmp/up.log"
     echo "FAIL $title: the stack did not become ready"
     exit 1
   fi
+  if [ -n "$check" ] && ! "$check" "$title"; then exit 1; fi
   live_track_image
   ready=$((SECONDS - started))
   echo "READY $title ${ready}s"
@@ -321,11 +328,43 @@ cmd_build() {
   echo "BUILD the web bundle is built from this checkout"
 }
 
+# shard_part <k> <n> <classes>: the k-th of n contiguous parts of the class list (one name per line); the first count-mod-n
+# parts hold one class more than the others.
+shard_part() {
+  local k=$1 n=$2 classes=$3 count size extra start len
+  count=$(printf '%s\n' "$classes" | grep -c .)
+  size=$((count / n))
+  extra=$((count % n))
+  if [ "$k" -le "$extra" ]; then
+    len=$((size + 1))
+    start=$(((k - 1) * len + 1))
+  else
+    len=$size
+    start=$((extra * (size + 1) + (k - extra - 1) * size + 1))
+  fi
+  printf '%s\n' "$classes" | sed -n "${start},$((start + len - 1))p"
+}
+
 cmd_shard() {
-  local name="" reverse=0 arg classes
-  for arg in "$@"; do
+  local name="" reverse=0 part="" part_given=0 arg classes part_k part_n count
+  while [ $# -gt 0 ]; do
+    arg=$1
+    shift
     case $arg in
       --reverse) reverse=1 ;;
+      --part)
+        if [ $# -eq 0 ]; then
+          echo "--part needs k/n"
+          exit 2
+        fi
+        part=$1
+        part_given=1
+        shift
+        ;;
+      --part=*)
+        part=${arg#--part=}
+        part_given=1
+        ;;
       -*)
         usage
         exit 2
@@ -337,6 +376,18 @@ cmd_shard() {
     echo "unknown shard '$name'; shards: $SHARDS"
     exit 2
   fi
+  if [ "$part_given" -eq 1 ]; then
+    if ! printf '%s\n' "$part" | grep -Eq '^[0-9]{1,6}/[0-9]{1,6}$'; then
+      echo "bad --part '$part': expected k/n with whole numbers"
+      exit 2
+    fi
+    part_k=$((10#${part%/*}))
+    part_n=$((10#${part#*/}))
+    if [ "$part_k" -lt 1 ] || [ "$part_n" -lt 1 ] || [ "$part_k" -gt "$part_n" ]; then
+      echo "bad --part '$part': k must be from 1 to n"
+      exit 2
+    fi
+  fi
   setup_tag
   classes=$(test_classes $(shard_areas "$name"))
   if [ -z "$classes" ]; then
@@ -344,8 +395,18 @@ cmd_shard() {
     exit 1
   fi
   if [ "$reverse" -eq 1 ]; then classes=$(printf '%s\n' "$classes" | LC_ALL=C sort -r); fi
+  local title="$name$([ "$reverse" -eq 1 ] && echo ' (reversed)')"
+  if [ "$part_given" -eq 1 ]; then
+    count=$(printf '%s\n' "$classes" | grep -c .)
+    if [ "$part_n" -gt "$count" ]; then
+      echo "bad --part '$part': n is above the $count class(es) of shard $name"
+      exit 2
+    fi
+    classes=$(shard_part "$part_k" "$part_n" "$classes")
+    title="$title part $part_k/$part_n"
+  fi
   # shellcheck disable=SC2086
-  run_classes "shard-$name" "$name$([ "$reverse" -eq 1 ] && echo ' (reversed)')" $classes
+  run_classes "shard-$name" "$title" $classes
 }
 
 cmd_class() {

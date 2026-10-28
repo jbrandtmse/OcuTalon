@@ -7,8 +7,11 @@
 ///     declares as type fallbackReason). After the save it publishes one notification event on the session's stream, with
 ///     Live.Payload.Notification.FromRow of the row: it is the only publisher of that event (AD-33). A render error is returned
 ///     with no row and no event, and a failed publish is logged and leaves the row. A reload shows the card from the row (DW-62);
-///   - Notification of any other kind: only its Delivery row (the kind, the decision and the approval Ref), with no text and no
-///     event, until the story that designs that kind's web form;
+///   - Notification of an incident kind (INCIDENTKINDS: incident, approval, answered, result): only its Delivery row (the kind, the
+///     decision and the approval Ref), with no text and no event, because the web form of these kinds is the incident card, which
+///     the page draws from the incident event (Story 6.1);
+///   - Notification of any other kind: only its Delivery row, with no text and no event, until the story that designs that kind's
+///     web form;
 ///   - Outbound (a reply): only its Delivery row for channel web, with the DecisionRef and no ChannelMessageId, because the page
 ///     shows the turn itself.
 Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
@@ -19,6 +22,9 @@ Parameter CHANNEL = "web";
 
 /// The notification kinds that the web chat shows as cards.
 Parameter CARDKINDS = "tellnow,reminder";
+
+/// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
+Parameter INCIDENTKINDS = "incident,approval,answered,result";
 
 /// The channel of the catalog text.
 Parameter TEXTCHANNEL = "web";
@@ -39,7 +45,7 @@ XData MessageMap
 </MapItems>
 }
 
-/// A notification: a card kind is rendered, recorded and published; any other kind is recorded only.
+/// A notification: a card kind is rendered, recorded and published; an incident kind or any other kind is recorded only.
 Method OnNotification(request As OcuTalon.Msg.Notification, Output response As Ens.Response) As %Status
 {
 	Set response = ""

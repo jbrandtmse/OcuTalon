@@ -13,8 +13,17 @@ import { DeviceTabs } from './device-tabs';
 import { DEVICE_TEXTS, type DeviceTab, baseName, newRefs, otherTab, tabName } from './device-view';
 import { SimulatedLabel } from './simulated-label';
 
-/** Where focus goes when an update removes the element that holds it inside the panel (UX-DR131): the main region. */
-const FOCUS_RULE: FocusRule = {};
+/**
+ * Where focus goes when an update removes the element that holds it inside the panel (UX-DR131): an item that is still there takes
+ * it (a request message's Approve and Reject replaced by the answer line, which shares their part and key), and one that is gone
+ * leaves it to the main region. The panel's rule runs on every store change before a request message's own, so without the item
+ * rule it would send a replaced button's focus to the main region first. The items are the elements with a part and a key; the
+ * mailbox's rows carry a key and no part.
+ */
+const FOCUS_RULE: FocusRule = {
+  item: '[data-part][data-key]',
+  keyOf: (item) => `${item.getAttribute('data-part') ?? ''}:${item.getAttribute('data-key') ?? ''}`,
+};
 
 /** The tabs, in order. */
 const TABS: readonly DeviceTab[] = ['phone', 'mailbox'];

@@ -341,12 +341,13 @@ function playwrightEnv() {
   return env;
 }
 
-describe('the real specs, run without their floor test', () => {
+describe('the real specs, run without their floor test and their fixture tests', () => {
+  // The fixture tests (tag @fixtures, Story 6.3) need a stack: they stand in for Lane A's raise and answer paths of steps 4 and 5 until Epic 11.
   it('skip every unbuilt part with a story, so that each step reads skipped', () => {
     const json = join(work, 'real-specs.json');
     const run = spawnSync(
       process.execPath,
-      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, 'real-specs-results')],
+      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor|@fixtures', '--output', join(work, 'real-specs-results')],
       {
         cwd: webDir,
         env: { ...playwrightEnv(), OCUTALON_E2E_JSON: json },

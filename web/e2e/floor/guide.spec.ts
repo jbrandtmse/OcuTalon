@@ -4,7 +4,7 @@ import { post, STATE } from '../support/api';
 import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
 import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
 import { publishFixtureEvent } from '../support/devices';
-import { dropBreakFeed, dropUsage, GUIDE_MARKERS, ORDERS, publishWatchProgress, refreshGuide, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
+import { awaitOrdersPolls, dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, ordersFailuresHeld, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
 import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
 
@@ -16,6 +16,8 @@ import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
  * press runs from step 3 to its sent line. M5 reads the layout at 1280x600, 1100x720 and 1000x800 and the collapsed bar.
  * A case removes the check and the reminder it seeds with cleanFixtureRows, and M4 the run and the batch of 50 orders as well (the FLOOR
  * session is no fixture session, so Fixture.Clean keeps its run rows, and a run under 180 s old would show in the next case's guide).
+ * M4 holds the Orders failures before it seeds anything and releases them after its batch is complete, so that the real failure poller
+ * makes no incident of the batch: an incident would open M7 at step 4, make M9's box inactive and replace M4's own progress lines.
  * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 Go to Break the feed and the waiting line, M8 Show me
  * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 and M13 (QA) the cells of those rows that need an odd state: Show me with no phone message, Go to Break the feed on an inactive box, a failed marker write and a finish with no turn. Their trace tabs
  * are stand-ins (stubTraces), so they hold no licence connection, and M9 and M10 start from a run_again, so that the run window is clean.
@@ -244,13 +246,21 @@ test('M6: focus in the composer stays through an advance, and a removed prompt b
   }
 });
 
-/** M4: a real press from step 3: busy, the sending line, the sent line announced once with the elapsed time ticking, and a watch.progress line. */
+/**
+ * M4: a real press from step 3: busy, the sending line, the sent line announced once with the elapsed time ticking, and a watch.progress line.
+ * The Orders failures are held while it runs, so that the press's batch makes no incident, group or progress line of its own.
+ */
 test('M4: a real press is busy, then sent (announced once, the elapsed time ticking), and a watch.progress line replaces it', async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   let pressed = false;
+  let held = false;
+  const since = inMs(0);
   try {
+    await holdOrdersFailures();
+    held = true;
+    expect(await ordersFailuresHeld(), 'the Orders failures are held before the case seeds anything').toBe(true);
     const check = await seedWatch(user, refs);
     const reminder = await seedStretch(user, refs);
     await publishCheck(user, { ref: check, ...ORDERS, displayName: 'zz M Orders' });
@@ -301,10 +311,22 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
       .evaluate((node) => [...node.childNodes].filter((child) => child.nodeType === Node.TEXT_NODE).map((child) => child.textContent ?? '').join(''));
     expect(words, 'and the line, read without its elapsed time, shows no count').not.toMatch(/\b50\b/);
     expect((await announcedTexts(page)).length, 'the progress line is not announced').toBe(1);
+    await awaitOrdersPolls(2);
+    expect(await pressIncidents(user, since), 'the press made no incident and no failure group').toEqual({ incidents: 0, groups: 0 });
   } finally {
-    if (pressed) await settleBatch(user);
-    await cleanFixtureRows(refs);
-    await dropBreakFeed(user);
+    try {
+      if (pressed) await settleBatch(user);
+    } finally {
+      try {
+        if (held) {
+          await releaseOrdersFailures();
+          expect(await ordersFailuresHeld(), 'the finally released the Orders failures').toBe(false);
+        }
+      } finally {
+        await cleanFixtureRows(refs);
+        await dropBreakFeed(user);
+      }
+    }
   }
 });
 

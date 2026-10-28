@@ -14,7 +14,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Install Tools Digest" ;;
+    lane-a) echo "Agent Bridge Checks Install Tools Digest Watch" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
@@ -30,15 +30,15 @@ group_units() {
     install-fresh) echo "live:install-start live:bundle-folder" ;;
     install-upgrade) echo "live:install-upgrade live:audit" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
-    browser) echo "live:demo-path live:sign-in" ;;
-    shards) echo "shard:lane-a live:floor" ;;
+    browser) echo "live:demo-path live:sign-in live:answers" ;;
+    shards) echo "shard:lane-a live:floor live:cards" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b" ;;
     *) return 1 ;;
   esac
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor demo-switch"
+BROWSER_UNITS="demo-path sign-in floor demo-switch answers cards"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

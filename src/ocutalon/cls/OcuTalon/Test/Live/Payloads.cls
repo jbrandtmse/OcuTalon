@@ -183,9 +183,9 @@ Method TestIncidentPayload()
 	Do $$$AssertEquals(object.traceTargets.sample.traceHeaderId, 6, "traceTargets.sample.traceHeaderId")
 }
 
-/// FromRow copies every row-backed field of a Data.Incident row, reads the item noun from its JSON, and leaves
-/// groups, requests, evidence and traceTargets absent. A row without an item noun, or with a broken one, gives
-/// no itemNoun.
+/// FromRow copies every row-backed field of a Data.Incident row, reads the item noun from its JSON, gives the
+/// diagnosis trace target of its TraceHeaderId, and leaves groups, requests and evidence absent for a row without
+/// them. A row without an item noun, or with a broken one, gives no itemNoun.
 Method TestFromRow()
 {
 	Set row = ##class(OcuTalon.Data.Incident).%New()
@@ -230,14 +230,89 @@ Method TestFromRow()
 	Do $$$AssertEquals(object.decisionRef, row.DecisionRef, "decisionRef")
 	Do $$$AssertEquals(object.itemNoun.one, "claim", "itemNoun.one")
 	Do $$$AssertEquals(object.itemNoun.other, "claims", "itemNoun.other")
-	For key = "groups", "requests", "evidence", "traceTargets" {
+	For key = "groups", "requests", "evidence" {
 		Do $$$AssertEquals(object.%IsDefined(key), 0, key_" is not in the payload")
 	}
+	Do $$$AssertEquals(object.traceTargets.diagnosis.traceHeaderId_"|"_object.traceTargets.diagnosis.traceNamespace, "99|"_$Namespace, "the row's TraceHeaderId is the diagnosis trace target, in this namespace")
+	Do $$$AssertEquals(object.traceTargets.%IsDefined("sample")_"|"_object.traceTargets.%IsDefined("firstFailure"), "0|0", "and the sample and the first failure, which the row does not have, are left out")
 
 	Set row.ItemNoun = ""
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "no item noun in the row gives none")
 	Set row.ItemNoun = "not json"
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "a broken item noun gives none")
+}
+
+/// The Show-details fields of FromRow come from rows (Story 5.8): the incident's groups as groups and as evidence items, the sample and the three trace
+/// targets, and its approval requests. The fixture is an incident row of the owner with two groups, a sample, a first failure and a trace session in OCUORDERS,
+/// and a RequestRefs naming its own pending request, a Ref with no row and a request of another incident (the last two are skipped). A row with no sample leaves
+/// the sample and its trace target out and keeps the items; a row with no groups, no sample and no requests gives none of the four fields.
+Method TestFromRowEvidence()
+{
+	Set owner = "ZzPay"_..Number_"ev"
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set row = ..Incident(owner)
+	Set other = ..Incident(owner)
+	Set mine = $ClassMethod(fixture, "Approval", owner, row.Ref, "pending")
+	Set theirs = $ClassMethod(fixture, "Approval", owner, other.Ref, "done")
+	Set row.RequestRefs = mine_","_##class(OcuTalon.Bridge.Ids).NewRef()_","_theirs
+	Set row.SampleHeaderId = 77
+	Set row.SampleError = "The order date was not in the expected format."
+	Set row.FirstHeaderId = 55
+	Set row.TraceHeaderId = 99
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row is saved")
+	Do ..Group(row.Ref, 1, "OrdersFromPartner", 30, "The order date was not in the expected format.", "2026-10-19T09:00:00Z", "2026-10-19T09:00:30Z")
+	Do ..Group(row.Ref, 2, "OrdersToWarehouse", 4, "", "2026-10-19T09:00:10Z", "2026-10-19T09:01:00Z")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.groups.%Size(), 2, "two groups")
+	If object.groups.%Size() = 2 {
+		Do $$$AssertEquals(object.groups.%Get(0).itemName_"|"_object.groups.%Get(0).count_"|"_object.groups.%Get(0).errorSummary_"|"_object.groups.%Get(0).firstAt, "OrdersFromPartner|30|The order date was not in the expected format.|2026-10-19T09:00:00Z", "group 1 in Seq order, with the group's live Count")
+		Do $$$AssertEquals(object.groups.%Get(1).itemName_"|"_object.groups.%Get(1).count_"|"_object.groups.%Get(1).firstAt, "OrdersToWarehouse|4|2026-10-19T09:00:10Z", "group 2")
+	}
+	Do $$$AssertEquals(object.evidence.sampleHeaderId_"|"_object.evidence.sampleError, "77|The order date was not in the expected format.", "the evidence has the sample")
+	Do $$$AssertEquals(object.evidence.items.%Size(), 2, "and an item for each group")
+	If object.evidence.items.%Size() = 2 Do $$$AssertEquals(object.evidence.items.%Get(1).itemName_"|"_object.evidence.items.%Get(1).count_"|"_object.evidence.items.%Get(1).firstAt_"|"_object.evidence.items.%Get(1).lastAt, "OrdersToWarehouse|4|2026-10-19T09:00:10Z|2026-10-19T09:01:00Z", "with its count and times")
+	Do $$$AssertEquals(object.traceTargets.diagnosis.traceHeaderId_"|"_object.traceTargets.diagnosis.traceNamespace, "99|"_$Namespace, "the diagnosis trace is in the namespace of OcuTalon")
+	Do $$$AssertEquals(object.traceTargets.sample.traceHeaderId_"|"_object.traceTargets.sample.traceNamespace, "77|OCUORDERS", "the sample's trace is in the watched namespace")
+	Do $$$AssertEquals(object.traceTargets.firstFailure.traceHeaderId_"|"_object.traceTargets.firstFailure.traceNamespace, "55|OCUORDERS", "and so is the first failure's")
+	Do $$$AssertEquals(object.requests.%Size(), 1, "one request: the Ref with no row and the request of another incident are skipped")
+	If object.requests.%Size() = 1 {
+		Do $$$AssertEquals(object.requests.%Get(0).ref_"|"_object.requests.%Get(0).state, mine_"|pending", "its Ref and its state")
+		Do $$$AssertEquals(object.requests.%Get(0).%IsDefined("result"), 0, "and no result")
+	}
+
+	Set row.SampleHeaderId = ""
+	Set row.SampleError = ""
+	Set row.FirstHeaderId = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "a row with no sample exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.evidence.%IsDefined("sampleHeaderId")_"|"_object.evidence.%IsDefined("sampleError")_"|"_object.evidence.items.%Size(), "0|0|2", "the sample is left out of the evidence and the items stay")
+	Do $$$AssertEquals(object.traceTargets.%IsDefined("sample")_"|"_object.traceTargets.%IsDefined("firstFailure")_"|"_object.traceTargets.%IsDefined("diagnosis"), "0|0|1", "and so are the sample's and the first failure's trace targets")
+
+	Set bare = ..Incident(owner)
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(bare).%JSONExportToString(.json), "a row with no groups exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.%IsDefined("groups")_"|"_object.%IsDefined("evidence")_"|"_object.%IsDefined("requests")_"|"_object.%IsDefined("traceTargets"), "0|0|0|0", "it has none of the four fields")
+	Do $ClassMethod(fixture, "Clean", mine_","_theirs)
+}
+
+/// FromRow runs in /state as a user with no SQL grant, so the method code of Live.Payload.Incident holds no SQL at all (AD-13): no %SQL class, %ExecDirect,
+/// %Prepare, embedded &sql( or ##sql(.
+Method TestIncidentFromRowReadsNoSql()
+{
+	Set classes = $ListBuild("OcuTalon.Live.Payload.Incident", "OcuTalon.Data.FailureGroup")
+	For c = 1:1:$ListLength(classes) {
+		Set class = $List(classes, c)
+		Kill text
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), "the source of "_class_" is read")
+		Do $$$AssertTrue($Length(text) > 0, "and is not empty")
+		For needle = "%SQL", "%ExecDirect", "%Prepare", "&sql(", "##sql(" {
+			Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Source).Matches(text, needle, 1), 0, class_": no code line holds "_needle)
+		}
+		If c = 1 Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, "FailureGroup).OfIncident", 1), "the scan sees the groups read by object access")
+	}
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set rs = ##class(%SQL.Statement).%ExecDirect(, ""x"")", "%ExecDirect", 1), "the scan flags a line that runs SQL")
 }
 
 /// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
@@ -326,6 +401,39 @@ Method TestShownDecisionRef()
 	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzTriage", "a fallback with only the triage decision shows it")
 	Set turn.TriageDecisionRef = ""
 	Do $$$AssertEquals(turn.ShownDecisionRef(), "", "a fallback with none shows none")
+}
+
+/// Check.FromRow (Story 5.6, DW-66) builds the payload of an unsaved check row: every row-backed field is the row's own (the values differ, so a field copied
+/// from the wrong property is caught), stopped is false, and the trace target is the row's LastRunHeaderId in the running namespace, OcuTalon's own, never the
+/// watched production's. A row with no run has neither trace field, in the object or in the JSON.
+Method TestCheckFromRow()
+{
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
+	Set row.Ref = "ZzCheckRef"_..Number
+	Set row.SessionRef = "ZzCheckOwner"
+	Set row.Kind = "production"
+	Set row.Namespace = "ZzWatchedNs"
+	Set row.Production = "Zz.Watched.Production"
+	Set row.DisplayName = "Zz watched"
+	Set row.NextDueAt = "2030-02-03T04:06:06Z"
+	Set row.Result = "failed"
+	Set payload = ##class(OcuTalon.Live.Payload.Check).FromRow(row)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.Namespace_"|"_payload.Production_"|"_payload.DisplayName, "ZzCheckRef"_..Number_"|production|ZzWatchedNs|Zz.Watched.Production|Zz watched", "a check: ref, kind, namespace, production, displayName")
+	Do $$$AssertEquals(payload.NextDueAt_"|"_payload.Result_"|"_payload.Stopped, "2030-02-03T04:06:06Z|failed|0", "nextDueAt, result and stopped false")
+	Do $$$AssertEquals(payload.LastRunAt_"|"_payload.Finding_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "|||", "a row with no run has no run time, finding or trace")
+	Do payload.%JSONExportToString(.bareJson)
+	Set bare = ##class(%DynamicObject).%FromJSON(bareJson)
+	Do $$$AssertEquals(bare.%IsDefined("traceHeaderId")_bare.%IsDefined("traceNamespace"), "00", "and the JSON has neither trace field")
+	Set row.LastRunAt = "2030-02-03T04:05:06Z"
+	Set row.Finding = "ZzFinding"
+	Set row.LastRunHeaderId = 31337
+	Set payload = ##class(OcuTalon.Live.Payload.Check).FromRow(row)
+	Do $$$AssertEquals(payload.LastRunAt_"|"_payload.Finding_"|"_payload.Stopped, "2030-02-03T04:05:06Z|ZzFinding|0", "a check with a run: lastRunAt and finding")
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "the trace target is the row's LastRunHeaderId in the running namespace, not the watched production's")
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.Namespace_"|"_payload.Production_"|"_payload.DisplayName_"|"_payload.NextDueAt_"|"_payload.Result, "ZzCheckRef"_..Number_"|production|ZzWatchedNs|Zz.Watched.Production|Zz watched|2030-02-03T04:06:06Z|failed", "and the other fields are as before")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceNamespace_"|"_exported.stopped, "31337|"_$Namespace_"|0", "with the trace under traceHeaderId and traceNamespace, and stopped false")
 }
 
 /// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
@@ -613,11 +721,44 @@ Method TestNotificationFromRow()
 }
 
 /// --- helpers ---
-/// Deletes every fixture incident row.
+/// An open incident row of the owner on OCUORDERS, saved, with a Ref of its own.
+Method Incident(owner As %String) As OcuTalon.Data.Incident
+{
+	Set row = ##class(OcuTalon.Data.Incident).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = owner
+	Set row.Namespace = "OCUORDERS"
+	Set row.Production = "Zz.Production"
+	Set row.State = "open"
+	Do $$$AssertStatusOK(row.%Save(), "a fixture incident is saved")
+	Quit row
+}
+
+/// A saved failure group of the incident.
+Method Group(incident As %String, seq As %Integer, item As %String, count As %Integer, summary As %String, firstAt As %String, lastAt As %String)
+{
+	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set group.IncidentRef = incident
+	Set group.Seq = seq
+	Set group.ItemName = item
+	Set group.Count = count
+	Set group.ErrorSummary = summary
+	Set group.FirstAt = firstAt
+	Set group.LastAt = lastAt
+	Do $$$AssertStatusOK(group.%Save(), "a fixture group is saved")
+}
+
+/// Deletes every fixture incident row, with its groups, and the fixture approval requests of the same owners.
 ClassMethod Clean() [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef IN (SELECT Ref FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay')")
+	Do statement.%Execute()
+	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay'")
+	Do statement.%Execute()
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef %STARTSWITH 'ZzPay'")
 	Do statement.%Execute()
 }
 
@@ -774,6 +915,7 @@ XData Contracts [ MimeType = application/json ]
    "Direction": "%String(%JSONFIELDNAME=direction,MAXLEN=32)",
    "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
+   "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
   }
  },

@@ -11,7 +11,9 @@ export type IconName =
   | 'circle-alert'
   | 'circle-check'
   | 'circle-dashed'
+  | 'circle-slash'
   | 'circle-x'
+  | 'clock'
   | 'contrast'
   | 'external-link'
   | 'eye'
@@ -88,10 +90,18 @@ export type IconName =
           <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
           <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
         }
+        @case ('circle-slash') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="m9 15 6-6" />
+        }
         @case ('circle-x') {
           <circle cx="12" cy="12" r="10" />
           <path d="m15 9-6 6" />
           <path d="m9 9 6 6" />
+        }
+        @case ('clock') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
         }
         @case ('contrast') {
           <circle cx="12" cy="12" r="10" />

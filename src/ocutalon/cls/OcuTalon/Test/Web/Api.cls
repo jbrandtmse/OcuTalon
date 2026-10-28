@@ -384,10 +384,10 @@ Method TestStateSections()
 	Do $$$AssertEquals(watched.%IsDefined("traceHeaderId")_watched.%IsDefined("traceUrl"), "00", "an approval of an incident with no trace carries none")
 	Do $$$AssertEquals(..Refs(rail.checks), check1_","_check2, "checks: all of them, by ID")
 	Set view = rail.checks.%Get(0)
-	Do $$$AssertEquals(view.kind_"|"_view.namespace_"|"_view.production_"|"_view.displayName, "production|ZZNS|"_production_"|Zz display", "a check's payload is CheckView's")
+	Do $$$AssertEquals(view.kind_"|"_view.namespace_"|"_view.production_"|"_view.displayName, "production|ZZNS|"_production_"|Zz display", "a check's payload is Check.FromRow's")
 	Do $$$AssertEquals(view.nextDueAt_"|"_view.lastRunAt_"|"_view.result_"|"_view.finding, "2030-03-01T00:00:00Z|2030-02-01T00:00:00Z|failed|zz finding", "with its run")
-	Do $$$AssertEquals(view.traceHeaderId_"|"_view.traceNamespace, "31|ZZNS", "a check with a run carries its trace")
-	Do $$$AssertEquals(view.%IsDefined("traceUrl"), 0, "but a namespace with no trace application gives it no traceUrl")
+	Do $$$AssertEquals(view.traceHeaderId_"|"_view.traceNamespace, "31|"_$Namespace, "a check with a run carries its trace")
+	Do $$$AssertEquals(view.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=31", "and its trace URL, with no PAGE")
 	Set bare = rail.checks.%Get(1)
 	Do $$$AssertEquals(bare.traceHeaderId_"|"_bare.traceNamespace, "|", "a check with no run carries none")
 	Do $$$AssertEquals(..Refs(rail.reminders), reminder2_","_reminder1, "reminders: pending only, by DueAt")
@@ -640,8 +640,10 @@ Method TestEndSession()
 }
 
 /// The two routes that name a record answer 404 not_found, with the error body, for a ref the session can't see: another
-/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible ref answers
-/// 501 not_built. The CSP session is bound to the second of two rows of the user name, so a handler that took the session
+/// session's, an unnoticed incident, an eval record, an unwatched instance incident, a missing ref. A visible incident's dismissal
+/// reaches its owner: 501 not_built while IncidentManager is a stub (its STUB parameter), and the owner's answer, never 404, once it is
+/// built. A visible approval answers 400 bad_answer to a call with no body.
+/// The CSP session is bound to the second of two rows of the user name, so a handler that took the session
 /// from the user name would resolve the first row and answer 404 for the visible refs.
 Method TestUnseenRefIs404()
 {
@@ -662,6 +664,7 @@ Method TestUnseenRefIs404()
 	Set csp.Data("OcuTalon.SessionRef") = mine
 	Set notFound = "{""error"":{""code"":""not_found"",""message"":""OcuTalon has nothing at this address.""}}"
 	Set notBuilt = "{""error"":{""code"":""not_built"",""message"":""This part of OcuTalon isn't built yet.""}}"
+	Set badAnswer = "{""error"":{""code"":""bad_answer"",""message"":""An answer needs an action, approve or reject, and a channel, web or phone.""}}"
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 
 	Set position = 0
@@ -679,14 +682,21 @@ Method TestUnseenRefIs404()
 	Set body = ..CallSession(csp, "AnswerApproval", .response, ownIncident)
 	Do $$$AssertEquals(response.Status, "404 Not Found", "an incident's ref is not an approval's")
 	For ref = ownIncident, instanceWatched {
+		Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 		Set body = ..CallSession(csp, "DismissIncident", .response, ref)
-		Do $$$AssertEquals(response.Status, "501 Not Implemented", "dismissing the visible incident "_ref_" is 501")
-		Do $$$AssertEquals(body, notBuilt, "not_built")
+		If +$Parameter("OcuTalon.Watch.IncidentManager", "STUB") = 1 {
+			Do $$$AssertEquals(response.Status, "501 Not Implemented", "dismissing the visible incident "_ref_" is 501")
+			Do $$$AssertEquals(body, notBuilt, "not_built")
+		} Else {
+			Do $$$AssertNotEquals(response.Status, "404 Not Found", "dismissing the visible incident "_ref_" is not 404")
+			Do $$$AssertTrue(body '[ "not_found", "and its body is not the not_found body")
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", logMark, "OcuTalon.Watch.IncidentManager")
 	}
 	For ref = ownApproval, instanceApproval {
 		Set body = ..CallSession(csp, "AnswerApproval", .response, ref)
-		Do $$$AssertEquals(response.Status, "501 Not Implemented", "answering the visible approval "_ref_" is 501")
-		Do $$$AssertEquals(body, notBuilt, "not_built")
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "answering the visible approval "_ref_" with no body is 400")
+		Do $$$AssertEquals(body, badAnswer, "bad_answer")
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set body = ..CallSession(csp, "DismissIncident", .response, instanceWatched)

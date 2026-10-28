@@ -292,7 +292,7 @@ test('D6: the turn indicator shows the current step\'s label', async ({ page }) 
   await expect(replyOf(page, refs[0]!).locator('.text'), 'once the turn is done its reply replaces the indicator').toHaveText('zz finished');
 });
 
-/** D7: check rows under a reply: the sentence only from the key, one row per result, and Not checked for what is not known. */
+/** D7: check rows under a reply: the sentence only from the key (naming what failed from the rows that did not pass), one row per result, and Not checked for what is not known. */
 test('D7: check rows show under a reply, never an all-clear from the rows', async ({ page }) => {
   const passed = [
     { result: 'passed', entry: 'Orders production', finding: '', checkedAt: '2025-03-01T10:00:00Z' },
@@ -303,11 +303,16 @@ test('D7: check rows show under a reply, never an all-clear from the rows', asyn
     { result: 'failed', entry: 'Warehouse queue', finding: '12 messages are waiting', checkedAt: '2025-03-01T10:01:00Z' },
     { result: 'zz_unknown', entry: 'Partner feed', finding: 'The check did not run', checkedAt: '2025-03-01T10:02:00Z' },
   ];
+  const failing = [
+    { result: 'failed', entry: 'Warehouse queue', finding: '12 messages are waiting', checkedAt: '2025-03-01T10:01:00Z' },
+    { result: 'not_checked', entry: 'Partner feed', finding: 'Not run yet', checkedAt: '' },
+  ];
   const { refs } = await seed([
     turn('D7 all', { createdAt: '2025-03-01T10:00:00Z', checkKey: 'checks.allPassed', checks: passed }),
-    turn('D7 mixed', { createdAt: '2025-03-01T10:05:00Z', checkKey: 'checks.notEverything', checks: mixed }),
+    turn('D7 mixed', { createdAt: '2025-03-01T10:05:00Z', checkKey: 'checks.notEverythingRestPassed', checks: mixed }),
     turn('D7 bare', { createdAt: '2025-03-01T10:10:00Z', checks: passed }),
     turn('D7 key only', { createdAt: '2025-03-01T10:15:00Z', checkKey: 'checks.nothingWatched' }),
+    turn('D7 failing', { createdAt: '2025-03-01T10:20:00Z', checkKey: 'checks.notEverything', checks: failing }),
   ]);
   await open(page);
 
@@ -328,7 +333,9 @@ test('D7: check rows show under a reply, never an all-clear from the rows', asyn
   expect(stripBox.y, 'and before the strip').toBeGreaterThanOrEqual(rowsBox.y + rowsBox.height - 1);
 
   const some = replyOf(page, refs[1]!).locator('app-check-rows');
-  await expect(some.locator('.sentence'), 'a key the page has no sentence for shows none').toHaveCount(0);
+  await expect(some.locator('.sentence'), 'what failed comes from the rows that did not pass, and the passed row is not named').toHaveText(
+    `Not everything: Warehouse queue (12 messages are waiting, at ${clock('2025-03-01T10:01:00Z')}); Partner feed (the check did not run, at ${clock('2025-03-01T10:02:00Z')}). Everything else I checked passed.`,
+  );
   const results = some.locator('li.row');
   await expect(results.locator('.word')).toHaveText(['Passed', 'Failed', 'Not checked']);
   await expect(results.nth(1).locator(ICON.circleX), 'failed has the circle-x icon').toHaveCount(1);
@@ -348,6 +355,12 @@ test('D7: check rows show under a reply, never an all-clear from the rows', asyn
   const keyOnly = replyOf(page, refs[3]!).locator('app-check-rows');
   await expect(keyOnly.locator('.sentence'), 'a key with no rows shows its sentence').toHaveText("I'm not watching any productions yet, so I can't say. Ask me to watch one.");
   await expect(keyOnly.locator('li.row'), 'and no row').toHaveCount(0);
+
+  const failingRows = replyOf(page, refs[4]!).locator('app-check-rows');
+  await expect(failingRows.locator('.sentence'), 'a row that was not run has no time in the sentence').toHaveText(
+    `Not everything: Warehouse queue (12 messages are waiting, at ${clock('2025-03-01T10:01:00Z')}); Partner feed (not run yet).`,
+  );
+  await expect(failingRows.locator('li.row')).toHaveCount(2);
 });
 
 /** What D8 reads of a turn. */

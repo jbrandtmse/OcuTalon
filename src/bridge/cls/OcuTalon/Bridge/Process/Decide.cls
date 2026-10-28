@@ -40,7 +40,9 @@ Include Ensemble
 ///   - The runner's reply goes to Conclude, with the text of the runner's failure when it failed (OnError keeps a runner's error status,
 ///     and a call whose Chat threw is answered with a failure Reply that holds FailureText). Conclude works out the facts and calls
 ///     Classify once. A reply that is usable is checked (CheckReply: one JSON object that the ReplyClass setting of the runner accepts,
-///     for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the ReplyFilterClass, the user
+///     for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the ReplyFilterClass (the reasons, and the
+///     properties that the reply class names in a FILTERED parameter, a dotted name for a property of an object property and a list item by item,
+///     which are then checked again), the user
 ///     rule is applied, one Decision row is recorded, the event decision.recorded is fired after the commit (FireEvent) and the answer
 ///     is built. For a user's decide request an ignore or digest becomes tellnow.
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
@@ -717,7 +719,9 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
 ///      turn, the text itself;
 ///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below);
-///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; a turn's reply text),
+///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
+///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
+///      turn's reply text),
 ///      never the code-written line; each reason is one line of the row: its line breaks (CR LF, CR, LF, vertical tab, form feed, NEL and
 ///      the Unicode line and paragraph separators) become spaces, and a reason that is blank once trimmed of white space and control
 ///      characters is dropped; a decision with no reason left, and a turn with no text left, once filtered, are invalid;
@@ -793,10 +797,13 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Quit ..ResponseFromRow(row, .response)
 }
 
-/// Checks the text of a decide or diagnose reply against the replyClass (CheckReply) and filters each reason once with filterClass. 1
+/// Checks the text of a decide or diagnose reply against the replyClass (CheckReply) and filters each reason once with filterClass, and
+/// then each string property that the reply class names in its FILTERED parameter (comma-separated; none when the parameter is absent; a dotted
+/// name such as ItemNoun.One is a property of an object property, skipped when that object is absent; a list of strings is filtered item by item;
+/// an empty text is left as it is), once, before the payload is validated again. 1
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
-/// outcome), confidence (two decimals) and json (the payload as JSON) are set. 0 when it fails the check or no reason is left of it once
-/// filtered (invalid). sc is an error only when the payload cannot be exported.
+/// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
+/// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
 ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
@@ -813,6 +820,26 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 		If line '= "" Set lines = lines _ $ListBuild(line)
 	}
 	If lines = "" Quit 0
+	Set named = $Parameter(payload, "FILTERED")
+	For i = 1:1:$Length(named, ",") {
+		Set name = $ZStrip($Piece(named, ",", i), "<>W")
+		If name = "" Continue
+		Set holder = payload
+		For j = 1:1:$Length(name, ".") - 1 {
+			Set holder = $Select($IsObject(holder): $Property(holder, $Piece(name, ".", j)), 1: "")
+		}
+		If '$IsObject(holder) Continue
+		Set leaf = $Piece(name, ".", *)
+		Set value = $Property(holder, leaf)
+		If $IsObject(value) {
+			For k = 1:1:value.Count() {
+				If value.GetAt(k) '= "" Do value.SetAt($ClassMethod(filterClass, "Filter", value.GetAt(k)), k)
+			}
+		} ElseIf value '= "" {
+			Set $Property(holder, leaf) = $ClassMethod(filterClass, "Filter", value)
+		}
+	}
+	If (named '= "") && $$$ISERR(payload.%ValidateObject()) Quit 0
 	Set outcome = payload.Outcome
 	If (request.Kind = "decide") && (request.Provenance = "user") && ((outcome = "ignore") || (outcome = "digest")) {
 		Set outcome = "tellnow"

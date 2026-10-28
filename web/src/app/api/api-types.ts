@@ -82,6 +82,26 @@ export interface MailboxAccepted {
 /** POST /ocutalon/api/v1/guide/markers: the guide's two UI markers (Story 4.7). The session is the caller's; the body never names one. */
 export type GuideMarker = 'trace_opened' | 'run_again';
 
+/** The channels a page answers an approval request from: the chat's request card, and the simulated phone's message. */
+export type AnswerChannel = 'web' | 'phone';
+
+/** POST /ocutalon/api/v1/approvals/:ref/answer: the body of the 200 answer, the answered request. The session is the caller's; the body never names one. */
+export interface AnswerBody {
+  result: 'done';
+  approval: ApprovalPayload;
+}
+
+/** POST /ocutalon/api/v1/incidents/:ref/dismiss: the body of the 200 answer. The request body is {} and the session is the caller's. */
+export interface DismissBody {
+  result: 'done';
+}
+
+/** The body of an error answer to an answer: the error, and the request's payload beside it for a 409 (already answered, expired). */
+export interface AnswerError {
+  error: { code: string; message: string };
+  approval?: ApprovalPayload;
+}
+
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };

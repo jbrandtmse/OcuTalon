@@ -55,6 +55,10 @@ Property RolesBefore As %List;
 /// The resources of the trace role before any test runs, or "<none>" when it did not exist.
 Property TraceResources As %String;
 
+/// The resources of the service role before any test ran: the Roles step rebuilds the role, and the Demo step's Read on the OCUORDERS data database
+/// (Story 5.1, U-79) is not in what the Roles step composes, so OnAfterAllTests puts the saved resources back, as it does for the trace role.
+Property ServiceResources As %String(MAXLEN = "");
+
 /// 1 when the service user existed before any test ran.
 Property ServiceUserBefore As %Boolean;
 
@@ -63,6 +67,7 @@ Method OnBeforeAllTests() As %Status
 	Do ..Clean()
 	Set ..RolesBefore = ..OcuTalonRoles()
 	Set ..TraceResources = ..ReadRole(..#TRACEROLE)
+	Set ..ServiceResources = ..ReadRole(..#SERVICEROLE)
 	Set ..ServiceUserBefore = ..UserExists(..#SERVICEUSER)
 	Set ..Number = $Increment(^OcuTalonTest("Registry", "n"))
 	Set ..Area = "OcuTalon.Install.Step.ZzFixture"_..Number
@@ -87,6 +92,7 @@ Method OnAfterAllTests() As %Status
 	Do ..Clean()
 	Do ##class(OcuTalon.Install.Step.Roles).Run()
 	Do ..WriteRole(..#TRACEROLE, ..TraceResources)
+	Do ..WriteRole(..#SERVICEROLE, ..ServiceResources)
 	If '..ServiceUserBefore Do ..RemoveUser(..#SERVICEUSER)
 	Do ..RemoveNewRoles()
 	Do ..RemoveProbe()
