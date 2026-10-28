@@ -51,3 +51,11 @@
 2026-10-23T22:31:11Z	Story 10.1	ci_resolved	story=10.1 sha=1fe84b2 runs=40032757987,40032757979 result=success failed=none via=none resolved_at=story_close first_ci=story(rework_green) evidence=iris(image)_on_ocutalon-ci-9(ci-c):live:install-script-live_passed_203s,second_run_already_running_and_healthy,same_container;install-macos_and_ShellCheck_green
 2026-10-23T22:31:11Z	Story 10.1	ledger_resolved	entry=DW-127 status=resolved-by:10-1 by=ci_resolution evidence=image_job_673s_vs_mean_583s(1.15x),earlier_run_1.22x;within_Story_32.3s_1.25_rule bullet=removed_from_10.2(epics.md)
 2026-10-23T22:31:11Z	Epic 10	epic_runner_ended	reason=waiting waiting_on=4(10.2),6(10.3) stories_done=1(10.1) stories_waiting=10-2-the-readme-gets-a-judge-from-download-to-sign-in(on_4),10-3-the-session-side-of-telegram-is-ready-and-stays-off(on_6) inbox=U-45,U-46(veto) ledger=total57_routed17_terminal40;10.2_owns_DW-2,DW-3,DW-45,DW-134 next_runner=B(slot_B) note=epic_context_is_older_than_epics.md(10.2_bullets):re-warm_before_10.2s_plan
+2026-10-28T16:36:15Z	Epic 10	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec lane=C slot=ocutalon-slot-c note=re-dispatch_after_epic_8_merge(owner_decision:C_takes_10_before_16)
+2026-10-28T16:36:15Z	Epic 10	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-28T16:36:15Z	Epic 10	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-28T16:36:15Z	Epic 10	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-28T16:36:15Z	Epic 10	telemetry_gate	pending=0 action=none note=all_checkpoints_result=hold
+2026-10-28T16:36:15Z	Epic 10	epic_branch_checked_out	repos=. head=691d20e mode=RESUME(asserted:OCT-epic10,local=origin) lane=C slot=ocutalon-slot-c lock_dir=locks/lane-c port=52803 bootstrap_check=0
+2026-10-28T16:36:15Z	Story 10.1	ci_resolved	story=10-1 sha=691d20e runs=40034149932,40034149985 result=success failed=none via=none resolved_at=re-dispatch note=resolved_by_the_earlier_runner,never_logged;orchestrator_verified
+2026-10-28T16:36:15Z	Epic 10	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
