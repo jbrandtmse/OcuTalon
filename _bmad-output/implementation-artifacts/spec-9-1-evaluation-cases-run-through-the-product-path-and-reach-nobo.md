@@ -450,6 +450,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 **DW-337 after figures (the lead fills these):** the `iris (shards)` and `iris (install-upgrade)` job times of CI run 40688986518, or of a later full run, against the before figures in Design Notes. Then the lead adds the minutes to the Rule 21 record from task 12(c).
 
+**DW-337 after figures (lead, 2026-10-28):** CI run 40688986518 on `98f69be` (every group ran: the push changed `ci/`), all six IRIS jobs started 12:34:59Z: `iris (shards)` 26 min 23 s (before: 32 min 36 s to 34 min 15 s), `iris (install-upgrade)` 18 min 27 s (before: 13 min 25 s to 14 min 50 s), `install-fresh` 13 min 35 s, `browser` 23 min 1 s, `image` 21 min 39 s, `production` 9 min 36 s. The longest job is now `shards` at 26 min 23 s, under REL-4's 35 minutes and the 40-minute job limit. The implement stage writes these minutes into the Rule 21 record of task 12(c) with the grouping line.
+
 ## Auto Run Result
 
 Status: ready-for-dev
