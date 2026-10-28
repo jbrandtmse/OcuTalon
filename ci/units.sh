@@ -15,7 +15,7 @@ SHARDS="lane-a lane-b"
 shard_areas() {
   case $1 in
     lane-a) echo "Agent Bridge Checks Install Tools Digest Watch Eval" ;;
-    lane-b) echo "Contract Core Data Demo Live Msg Web" ;;
+    lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
 }
@@ -29,7 +29,7 @@ group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder" ;;
     install-upgrade) echo "live:install-upgrade live:audit live:cards" ;;
-    production) echo "live:production live:production-restart" ;;
+    production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a live:floor" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b" ;;
@@ -51,7 +51,7 @@ FIREFOX_WEBKIT_UNITS="floor"
 # the files that the mock's tests read (the agent classes' MOCKKEY, the tool names, the compaction prefix and the example
 # agent of the bridge), the workflow itself, and the root .gitignore and .gitattributes, which decide whether the build
 # leaves the checkout clean and how git checks out the files it reads.
-WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
+WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|docker/tests/test-sign-in\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
 
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'
@@ -70,7 +70,7 @@ WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
 # The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
 # web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
 # leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
-NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip"
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart"
 
 # The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is
