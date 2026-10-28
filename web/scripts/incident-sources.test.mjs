@@ -3,11 +3,11 @@
 // evidence panel opens directly below the Show details row and only while it is open; the footer hands the strip the inputs of the
 // design (reasons on, newest off, the decision's own cost, the served diagnosis URL); every text of the view is bound by interpolation;
 // the page builds no trace URL; and each chip and bar class that the view can return has a rule that reads its own state tokens. The
-// browser cases (floor/incident.spec.ts I1 and answers/incident-card.spec.ts I2 to I11) pin what the running page does for the states they reach; this reads the sources,
+// browser cases (floor/incident.spec.ts I1 and cards/incident-card.spec.ts I2 to I11) pin what the running page does for the states they reach; this reads the sources,
 // so a chip, a bar or an attribute that no case reaches cannot be wired to the wrong token or lose its attribute without a test turning red.
 // Story 6.4: the notice and the failure groups, the compact card's result bands, Dismiss in the actions row after Show details, and
-// Dismiss itself (a ghost ServerButton that posts through the client, records a 200 in Dismissals, announces an error's message once and
-// moves no focus; the chat's focus rule does).
+// Dismiss itself (a ghost ServerButton that posts through the client, records a 200 in Dismissals, holds the press as the page's own until
+// its reply, announces an error's message once while it is shown and moves no focus; the chat's focus rule does).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -224,6 +224,18 @@ describe('the ending of the card (Story 6.4)', () => {
     const method = /dismissIncident\([\s\S]*?\n  \}/.exec(client)?.[0] ?? '';
     assert.match(method, /\/incidents\/\$\{encodeURIComponent\(ref\)\}\/dismiss`, \{\}, \{ observe: 'response' \}/, 'the client posts {} only');
     assert.doesNotMatch(method, /session|user/i);
+  });
+
+  it('holds a press as the page\'s own from the press to its reply, so that a closed event that comes before the 200 is not spoken either', () => {
+    assert.match(dismiss.code, /const ref = this\.target\(\)\.ref;\s*this\.dismissals\.pressed\(ref\);\s*return this\.api\.dismissIncident\(ref\)\.pipe\(/);
+    assert.match(dismiss.code, /finalize\(\(\) => this\.dismissals\.settled\(ref\)\),\s*\);/);
+    assert.match(dismissals.code, /owns\(ref: string\): boolean \{\s*return this\.closed\(\)\.has\(ref\) \|\| this\.waiting\.has\(ref\);\s*\}/);
+    assert.match(sourceFilesOf('chat', 'chat-panel.ts'), /dismissed: \(ref\) => this\.dismissals\.owns\(ref\),/, 'the chat asks owns(), not the closed set alone');
+  });
+
+  it('shows and announces nothing for a reply that comes after the Dismiss is gone', () => {
+    assert.match(dismiss.code, /inject\(DestroyRef\)\.onDestroy\(\(\) => \(this\.shown = false\)\);/);
+    assert.match(dismiss.code, /catchError\(\(error: unknown\) => \{\s*if \(this\.shown\) \{\s*const text = messageOf\(error\)/);
   });
 
   it('keeps the dismissed set to one signal that only add() grows', () => {

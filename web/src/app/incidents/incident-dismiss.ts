@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
-import { catchError, type Observable, of, tap } from 'rxjs';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, signal } from '@angular/core';
+import { catchError, finalize, type Observable, of, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import { Announcer } from '../shared/announcer';
@@ -34,10 +34,13 @@ function messageOf(error: unknown): string {
  * press is one call under the busy rule (a spinner, aria-busy, aria-disabled and never `disabled`; a repeat press sends nothing; with
  * no answer in 10 s the button is restored and the busy notice is shown and announced, and a later answer still counts). The call is
  * the dismiss route with an empty body: the incident is in the path and the session is the caller's.
+ * - The press is recorded in Dismissals until its reply comes, so that the owner's closed event, which can reach the page before the
+ *   200, is not announced either.
  * - A 200 records the incident as closed by this page (Dismissals); the chat then compacts the card in place and moves focus to its
  *   headline (the chat panel's focus rule keeps the focus: this component moves none), and nothing is announced.
  * - An error reply shows its `error.message` in a warning notice beside the button, announced once, and the card stays as it is; a
- *   reply that never came (status 0) shows the busy notice at once. A new press clears the notice.
+ *   reply that never came (status 0) shows the busy notice at once. A new press clears the notice. A reply that comes after the
+ *   Dismiss is gone shows and announces nothing.
  * The host carries `data-part="dismiss"` and the card's view key, so that the chat's focus rule finds the button's item.
  */
 @Component({
@@ -84,18 +87,32 @@ export class IncidentDismiss {
   private readonly dismissals = inject(Dismissals);
   private readonly announcer = inject(Announcer);
 
-  /** The press: one POST. A 200 closes the card; an error reply sets the notice, which is announced once. */
+  /** False once the Dismiss is gone (its card compacted or left the chat): a reply that comes later shows and announces nothing. */
+  private shown = true;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => (this.shown = false));
+  }
+
+  /**
+   * The press: one POST, recorded in Dismissals from the press until its reply. A 200 closes the card; an error reply sets the
+   * notice, which is announced once, while the Dismiss is still shown.
+   */
   protected readonly press = (): Observable<unknown> => {
     this.notice.set('');
     const ref = this.target().ref;
+    this.dismissals.pressed(ref);
     return this.api.dismissIncident(ref).pipe(
       tap(() => this.dismissals.add(ref)),
       catchError((error: unknown) => {
-        const text = messageOf(error) || BUSY_NOTICE;
-        this.notice.set(text);
-        this.announcer.announce(text);
+        if (this.shown) {
+          const text = messageOf(error) || BUSY_NOTICE;
+          this.notice.set(text);
+          this.announcer.announce(text);
+        }
         return of(undefined);
       }),
+      finalize(() => this.dismissals.settled(ref)),
     );
   };
 }

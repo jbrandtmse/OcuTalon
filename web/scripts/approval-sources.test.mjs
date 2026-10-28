@@ -5,7 +5,7 @@
 // the dry run's Before and After and each status tone read their own tokens; the call posts only {action, channel} to the answer
 // route; and the incident card hands the first request card its panel. Story 6.4: the result band (result-band.ts) follows the answer
 // row on the tokens of the result bands and holds the audit line and Dismiss; Dismiss ends the answer row of a request card with no band; and
-// the incident card hands each request card its request, the item noun and, to the last, Dismiss. The browser cases (floor/approval.spec.ts A1 and answers/approval-card.spec.ts A2 to A10) pin
+// the incident card hands each request card its request, the item noun and, to the last, Dismiss. The browser cases (floor/approval.spec.ts A1 and cards/approval-card.spec.ts A2 to A10) pin
 // what the running page does; this reads the sources, so a state no case reaches cannot lose an attribute or read the wrong token
 // without a test turning red.
 // Run with: node --test web/scripts/

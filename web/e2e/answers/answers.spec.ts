@@ -5,7 +5,7 @@ import { DRY_RUN, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique } from '../support/floor';
 import { answerHeaders, answerQuietly, cleanFixtureRows, fixtureUser, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
-import { announcedTexts, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
+import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
  * Story 6.3, answering on the simulated phone and every copy of an answer (X1 to X10; NFR-9, FR-8, FR-13), in a real browser against a
@@ -43,8 +43,11 @@ const ONE_UPDATE_MS = 3000;
 const APPROVE = 'Approve: repair and resend 50 orders';
 const REJECT = 'Reject: repair and resend 50 orders';
 
-/** The HH:MM of a UTC ISO time. */
+/** The HH:MM of a UTC ISO time as the server writes it: the phone's lines and the server's notices. */
 const hhmm = (iso: string): string => iso.slice(11, 16);
+
+/** The HH:MM of a UTC ISO time as the page writes it (en-GB, UTC): the card's statuses and the phone's caption, whose hour has no leading zero before ten. */
+const pageHhmm = (iso: string): string => clock(iso, 'en-GB', 'UTC');
 
 /** The incident card and the request card of a ref, in the chat. */
 const requestCard = (page: Page, ref: string): Locator => page.locator(`app-chat-panel [data-part="approval"][data-key="${ref}"]`);
@@ -180,7 +183,7 @@ test('X1: the incident notice is a phone message with the dry run inset and Appr
     expect(approveBox!.height, 'Approve is 40 px tall').toBeCloseTo(40, 0);
     expect(rejectBox!.height, 'and so is Reject').toBeCloseTo(40, 0);
     expect(Math.abs(approveBox!.y - rejectBox!.y), 'on one line').toBeLessThanOrEqual(1);
-    await expect(message.locator('.time'), 'the caption time').toHaveText(/^\d\d:\d\d$/);
+    await expect(message.locator('.time'), 'the caption time').toHaveText(/^\d{1,2}:\d\d$/);
     await inOrder([paragraphs.nth(0), paragraphs.nth(1), paragraphs.nth(2), approve, message.locator('.time')], 'top to bottom');
     expect(await notices.count(), 'the web chat gets no notice card').toBe(noticesBefore);
 
@@ -273,7 +276,7 @@ test('X2: Approve on the phone is busy, then the answer replaces the buttons, an
     await expect(line).toHaveCSS('color', await tokenColor(page, '--answered-status-approved'));
 
     const status = card.locator('p.status');
-    await expect(status, "the card shows the answer within 2 s of the reply").toHaveText(`Approved from the simulated phone at ${hhmm(answeredAt)}`, { timeout: PAGE_MS });
+    await expect(status, "the card shows the answer within 2 s of the reply").toHaveText(`Approved from the simulated phone at ${pageHhmm(answeredAt)}`, { timeout: PAGE_MS });
     const cardMs = Date.now() - repliedAt;
     console.log(`ANSWERS X2 the card showed the answer ${cardMs} ms after the reply (bound ${PAGE_MS} ms)`);
     expect(cardMs, 'counted from the reply, the card showed it within 2 s (NFR-9)').toBeLessThanOrEqual(PAGE_MS);
@@ -622,7 +625,7 @@ test('X8: an answer from elsewhere is announced once by the card', async ({ page
     const answered = await readApproval(request);
     await sinkEvent(user, 'approval.answered', { ref: request });
     const sentAt = Date.now();
-    const text = `Approved from the simulated phone at ${hhmm(answered.at)}`;
+    const text = `Approved from the simulated phone at ${pageHhmm(answered.at)}`;
     await expect(card.locator('p.status'), 'the card shows the answer within 2 s of the event being sent').toHaveText(text, { timeout: PAGE_MS });
     console.log(`ANSWERS X8 the card showed the answer ${Date.now() - sentAt} ms after the event was sent (bound ${PAGE_MS} ms)`);
     await expect.poll(() => announcedTexts(page).then((texts) => texts.filter((one) => one.includes(text)).length), { message: 'the card announces it' }).toBe(1);
@@ -636,7 +639,7 @@ test('X8: an answer from elsewhere is announced once by the card', async ({ page
     await expect(secondCard).toHaveCount(1, { timeout: CARD_MS });
     await secondCard.getByRole('button', { name: APPROVE, exact: true }).focus();
     expect(await answerQuietly(user, second, 'approve', 'phone'), 'the phone answers the second').toBe('done');
-    const secondText = `Approved from the simulated phone at ${hhmm((await readApproval(second)).at)}`;
+    const secondText = `Approved from the simulated phone at ${pageHhmm((await readApproval(second)).at)}`;
     const announcedBefore = (await announcedTexts(page)).filter((one) => one.includes(secondText)).length;
     await sinkEvent(user, 'approval.answered', { ref: second });
     const secondStatus = secondCard.locator('p.status');
@@ -681,7 +684,7 @@ test('X9: Reject on the phone sends reject from the phone and nothing is changed
     await expect(message.locator('.buttons')).toHaveCount(0);
     await expect(line, 'focus is on the line').toBeFocused();
     await expect(line, 'in the rejected tone').toHaveCSS('color', await tokenColor(page, '--answered-status-rejected'));
-    await expect(card.locator('p.status'), 'the card follows within 2 s of the reply').toContainText(`Rejected from the simulated phone at ${hhmm(answeredAt)}`, { timeout: PAGE_MS });
+    await expect(card.locator('p.status'), 'the card follows within 2 s of the reply').toContainText(`Rejected from the simulated phone at ${pageHhmm(answeredAt)}`, { timeout: PAGE_MS });
     const cardMs = Date.now() - repliedAt;
     console.log(`ANSWERS X9 the card showed the rejection ${cardMs} ms after the reply (bound ${PAGE_MS} ms)`);
     expect(cardMs, 'counted from the reply, the card showed it within 2 s (NFR-9)').toBeLessThanOrEqual(PAGE_MS);

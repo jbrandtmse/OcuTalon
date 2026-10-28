@@ -1,10 +1,11 @@
 // Tests of the Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14, 2.16, 4.1, 6.3 and 6.4), listed through the npm scripts that
 // the unit scripts call: which spec files each project runs (chromium runs every spec outside the directories that have a project of
-// their own, demo-path/, demo-switch/, floor/ and answers/; each of those projects runs exactly its own directory; and every spec on disk is
-// listed by at least one of the scripts), that every demo-path spec maps to a step of demo-path-summary.mjs, the
+// their own, demo-path/, demo-switch/, floor/, answers/ and cards/; each of those projects runs exactly its own directory; and every spec on
+// disk is listed by at least one of the scripts), that every demo-path spec maps to a step of demo-path-summary.mjs, the
 // form in which the report gives the floor test's tag, and that the floor script runs every floor case in Chromium and the cases tagged
-// @browsers in Firefox and WebKit, and which cases each of the floor and answers projects holds (Story 6.4, DW-315: the floor keeps I1 and A1,
-// the two incident and request cases tagged @browsers, and the answers project holds the 19 cases that moved with 6.3's and 6.4's own). Then one run of an API spec with none of the sign-in unit's variables.
+// @browsers in Firefox and WebKit, and which cases each of the floor, answers and cards projects holds (Story 6.4, DW-315: the floor keeps I1
+// and A1, the two incident and request cases tagged @browsers, the cards project holds the 19 cases that moved, and the answers project 6.3's
+// and 6.4's own). Then one run of an API spec with none of the sign-in unit's variables.
 // No browser starts and no stack is needed, none of the sign-in unit's OCUTALON_ variables is set, and the run writes its
 // results to a scratch folder of its own, never to web/test-results.
 // Run with: node --test web/scripts/
@@ -65,22 +66,23 @@ const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).s
  * The directories of web/e2e/ that have a project of their own; chromium runs everything else. A new directory goes here together
  * with its project in the config, its script in the list of the "every spec file on disk" case and an exact-listing case of its own.
  */
-const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor', 'answers'];
+const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor', 'answers', 'cards'];
 const inOwnProjectDir = (name) => OWN_PROJECT_DIRS.some((dir) => name.startsWith(`${dir}/`));
 
 describe('the projects, listed with no OCUTALON_ variable set', () => {
   const onDisk = specFilesOnDisk();
 
-  it('finds the sign-in, API, demo-path, demo-switch and floor specs on disk', () => {
+  it('finds the sign-in, API, demo-path, demo-switch, floor, answers and cards specs on disk', () => {
     assert.ok(onDisk.some((name) => name.startsWith('sign-in/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('api/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('demo-path/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('demo-switch/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('floor/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('answers/')), onDisk.join(' '));
+    assert.ok(onDisk.some((name) => name.startsWith('cards/')), onDisk.join(' '));
   });
 
-  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/, floor/ and answers/', () => {
+  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/, floor/, answers/ and cards/', () => {
     assert.deepEqual(
       filesOf('e2e'),
       onDisk.filter((name) => !inOwnProjectDir(name)),
@@ -105,8 +107,19 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.equal(script, 'playwright test --project=answers');
   });
 
-  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch, floor and answers scripts', () => {
-    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers'].flatMap((script) => filesOf(script)));
+  it('cards (the e2e:cards script) lists exactly the spec files inside cards/, and the chromium script none of them', () => {
+    assert.deepEqual(
+      filesOf('e2e:cards'),
+      onDisk.filter((name) => name.startsWith('cards/')),
+    );
+    assert.ok(filesOf('e2e:cards').length > 0, 'the cards project has a spec');
+    assert.deepEqual(filesOf('e2e').filter((name) => name.startsWith('cards/')), []);
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:cards'];
+    assert.equal(script, 'playwright test --project=cards');
+  });
+
+  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch, floor, answers and cards scripts', () => {
+    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers', 'e2e:cards'].flatMap((script) => filesOf(script)));
     assert.deepEqual(onDisk.filter((name) => !listedByAny.has(name)), []);
   });
 
@@ -212,10 +225,11 @@ describe('the floor script runs the floor in three engines (Story 2.16)', () => 
   });
 });
 
-describe('the case lists of the floor and answers projects (Story 6.4; DW-315)', () => {
+describe('the case lists of the floor, answers and cards projects (Story 6.4; DW-315)', () => {
   const idOf = (title) => /^([A-Z]\d+):/.exec(title)?.[1];
   const floor = specsOf(reportOf('e2e:floor')).filter((one) => one.projects.includes('floor'));
   const answers = specsOf(reportOf('e2e:answers'));
+  const cards = specsOf(reportOf('e2e:cards'));
   const range = (letter, from, to) => Array.from({ length: to - from + 1 }, (_, i) => `${letter}${from + i}`);
 
   it('keeps I1 and A1 in the floor, and none of the cases that moved', () => {
@@ -238,13 +252,19 @@ describe('the case lists of the floor and answers projects (Story 6.4; DW-315)',
     }
   });
 
-  it('holds I2 to I11, A2 to A10, X1 to X10 and C1 to C10 in the answers project, each once and in its own spec', () => {
+  it('holds I2 to I11 and A2 to A10 in the cards project, each once and in its own spec', () => {
+    const where = (id) => cards.filter((one) => idOf(one.title) === id).map((one) => one.file);
+    for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['cards/incident-card.spec.ts'], id);
+    for (const id of range('A', 2, 10)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
+    assert.equal(cards.length, 19, 'and no other case');
+    assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
+  });
+
+  it('holds X1 to X10 and C1 to C10 in the answers project, each once and in its own spec', () => {
     const where = (id) => answers.filter((one) => idOf(one.title) === id).map((one) => one.file);
-    for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['answers/incident-card.spec.ts'], id);
-    for (const id of range('A', 2, 10)) assert.deepEqual(where(id), ['answers/approval-card.spec.ts'], id);
     for (const id of range('X', 1, 10)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
     for (const id of range('C', 1, 10)) assert.deepEqual(where(id), ['answers/close-loop.spec.ts'], id);
-    assert.equal(answers.length, 39, 'and no other case');
+    assert.equal(answers.length, 20, 'and no other case');
     assert.deepEqual([...new Set(answers.flatMap((one) => one.projects))], ['answers'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 });

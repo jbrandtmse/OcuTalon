@@ -138,7 +138,8 @@ ClassMethod Use() As %Status
 	Quit sc
 }
 
-/// Puts the item's class back as Use saved it and kills both nodes. With nothing saved it does nothing and is OK.
+/// Puts the item's class back as Use saved it and kills both nodes. With nothing saved it does nothing and is OK. When the restore
+/// fails, the saved class stays under ^OcuTalonTest("IncidentManagerDoubleUse"), so that a later Restore can still put it back.
 ClassMethod Restore() As %Status
 {
 	Set json = $Get(^OcuTalonTest("IncidentManagerDoubleUse"))
@@ -147,7 +148,8 @@ ClassMethod Restore() As %Status
 		Quit $SYSTEM.Status.OK()
 	}
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemClass("IncidentManager", ##class(%DynamicObject).%FromJSON(json))
-	Kill ^OcuTalonTest("IncidentManagerDoubleUse"), ^OcuTalonTest("IncidentManagerDouble")
+	If $SYSTEM.Status.IsOK(sc) Kill ^OcuTalonTest("IncidentManagerDoubleUse")
+	Kill ^OcuTalonTest("IncidentManagerDouble")
 	Quit sc
 }
 

@@ -4,6 +4,7 @@ import { incidentOf, raise, refOf } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, applied, inMs } from '../support/floor';
 import { cleanFixtureRows, publishIncident, readApproval, sendNotification } from '../support/iris';
+import { clock } from '../support/page';
 import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
 import { notBuilt } from './not-built';
 
@@ -58,9 +59,10 @@ test('Approve on the simulated phone, on fixtures: the phone, the card and the r
     await message.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }).click();
     await expect.poll(async () => readApproval(request).then((one) => one.at), { message: 'the request is answered', timeout: 30_000 }).not.toBe('');
     const answered = await readApproval(request);
+    // The phone's line is the server's text (HH:MM); the card writes the page's time, whose en-GB hour has no leading zero before ten.
     const time = answered.at.slice(11, 16);
     await expect(message.locator('p[data-part="answer"]'), 'the phone says so').toHaveText(`Approved from the simulated phone at ${time}.`, { timeout: CARD_MS });
-    await expect(card.locator('p.status'), 'so does the card').toHaveText(`Approved from the simulated phone at ${time}`, { timeout: CARD_MS });
+    await expect(card.locator('p.status'), 'so does the card').toHaveText(`Approved from the simulated phone at ${clock(answered.at, 'en-GB', 'UTC')}`, { timeout: CARD_MS });
     expect(answered.state, 'the row is approved').toBe('approved');
     expect(answered.channel, 'from the simulated phone').toBe('phone');
   } finally {

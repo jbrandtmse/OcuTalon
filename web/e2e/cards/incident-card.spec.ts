@@ -9,7 +9,7 @@ import { announcedTexts, fromBottom, recordAnnouncements, scrollListTo, tokenCol
 
 /**
  * Story 6.1, the incident card in the chat (I2 to I11; I1 is in floor/incident.spec.ts, which runs it in three engines), moved here by
- * Story 6.4 (DW-315), in a real browser against a real stack, as the answers user ANSWERS (OCUTALON_ANSWERS_USER; the stack is in demo
+ * Story 6.4 (DW-315), in a real browser against a real stack, as the cards unit's user CARDS (OCUTALON_CARDS_USER; the stack is in demo
  * mode, its instance zone is UTC and the browser's is UTC and en-GB unless a case says otherwise; the page's clock is fixed at 14:30 UTC
  * on the run's date, the date of every time the spec writes). A card is made as IncidentManager will make it, an `incident` event
  * published through Live.Publish (publishIncident), or, for the snapshot, as a row (seedIncident); a case's refs, markers and decisions
@@ -25,7 +25,7 @@ import { announcedTexts, fromBottom, recordAnnouncements, scrollListTo, tokenCol
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
-const KIND = 'ANSWERS';
+const KIND = 'CARDS';
 
 /** How long a case looks on after the announcements it expects: longer than the 1 s between two texts, so a second one would show. */
 const SETTLE_MS = 3000;
@@ -90,7 +90,7 @@ const cardOf = (page: Page, ref: string): Locator => page.locator(`app-chat-pane
 const cards = (page: Page): Locator => page.locator('app-chat-panel [data-part="incident"]');
 
 /**
- * Signs the answers user in, having recorded what the live region receives, and checks the stack: demo mode on (the Orders trace
+ * Signs the cards user in, having recorded what the live region receives, and checks the stack: demo mode on (the Orders trace
  * application is served) and the instance in UTC (the headline's times are written for it), so that a changed stack fails loudly.
  */
 async function open(page: Page): Promise<void> {
@@ -104,7 +104,7 @@ async function open(page: Page): Promise<void> {
   expect(state.instanceZone, 'and its instance zone is UTC').toMatch(/^(UTC|Etc\/UTC)$/);
 }
 
-/** Seeds an act decision of the answers user (what the card's footer strip shows) and records its row; returns its ref. */
+/** Seeds an act decision of the cards user (what the card's footer strip shows) and records its row; returns its ref. */
 async function seedStrip(user: string, rows: string[], label: string): Promise<string> {
   const ref = await seedDecision(user, { outcome: 'act', summary: unique(label), reasons: 'zz first reason.\nzz second reason.', confidence: 0.94, costUSD: 0.0006 });
   rows.push(ref);

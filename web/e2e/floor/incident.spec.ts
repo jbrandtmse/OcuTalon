@@ -6,14 +6,14 @@ import { cleanFixtureRows, fixtureUser, publishIncident, seedDecision } from '..
 import { announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 6.1, the incident card in the chat (I1; the other ten cases, I2 to I11, are in answers/incident-card.spec.ts since Story 6.4), in a
+ * Story 6.1, the incident card in the chat (I1; the other ten cases, I2 to I11, are in cards/incident-card.spec.ts since Story 6.4), in a
  * real browser against a real stack, as the FLOOR user (the floor stack is in demo mode, its instance zone is UTC and the browser's is UTC
  * and en-GB; the page's clock is fixed at 14:30 UTC on the run's date, the date of every time the spec writes). A card is made as
  * IncidentManager will make it, an `incident` event published through Live.Publish (publishIncident); a case's refs, markers and decisions
  * are its own. The decision a card's footer names is seeded before the page opens, because the page reads decisions from the snapshot. A
  * case that makes rows removes them with cleanFixtureRows in finally.
  * I1 is the full card, and it stays in the floor because it runs in Chromium, Firefox and WebKit (tag @browsers): the floor is the unit that
- * runs a case in all three engines. I2 to I11 moved to the answers unit (DW-315): they run in Chromium only, and the floor unit had
+ * runs a case in all three engines. I2 to I11 moved to the cards unit (DW-315): they run in Chromium only, and the floor unit had
  * come within 13 s of its 540 s deadline.
  */
 test.describe.configure({ timeout: 90_000 });

@@ -13,6 +13,9 @@
 ///     inactive (incident_in_progress) until its dismissal, and a guide.state event follows the closed incident event;
 ///   - TestRefusedIs409: an awaiting_approval incident and a fixing one answer 409 not_dismissible with the double's message, and the
 ///     rows stay; with the "refuse" setting (no Message) the message is MESSAGENOTDISMISSIBLE;
+///   - TestDoubleAppliesAD15DismissRows (QA): through Commands.Submit, the double refuses an open incident that is not noticed and a
+///     closed one (Ok 0, Outcome refused, its message, nothing published) and closes a resolved one (Ok 1, Outcome closed, the Ref,
+///     ClosedAt, one closed view published);
 ///   - TestOwnerErrorIs500: the "error" setting answers 500 server_error, and the row stays;
 ///   - TestOtherSessionsIncidentIs404 (AC7, a required CI check): with onlineDemo off and on, another session's noticed incident, an
 ///     unnoticed own one, an eval one, an unwatched instance one (and with the flag on a watched instance one) and an unknown ref
@@ -26,9 +29,6 @@ Property Number As %Integer;
 
 /// The reason why every test fails, or empty.
 Property Missing As %String(MAXLEN = 200);
-
-/// 1 when the double is behind the IncidentManager item.
-Property Swapped As %Boolean;
 
 /// The TraceRefs of the fixture sessions, for the clean-up of the messages.
 Property Traces As %DynamicArray;
@@ -48,7 +48,6 @@ Method OnBeforeAllTests() As %Status
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Set ..Number = $Increment(^OcuTalonTest("DismissApi", "n"))
 	Set ..Traces = []
-	Set ..Swapped = 0
 	Set ..Missing = ""
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
@@ -62,7 +61,6 @@ Method OnBeforeAllTests() As %Status
 		Set ..Missing = "The IncidentManager item could not take the double: "_$SYSTEM.Status.GetErrorText(sc)
 		Quit $SYSTEM.Status.OK()
 	}
-	Set ..Swapped = 1
 	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
 	Quit $SYSTEM.Status.OK()
 }
@@ -76,10 +74,9 @@ Method OnBeforeOneTest() As %Status
 
 Method OnAfterAllTests() As %Status
 {
-	If ..Swapped {
-		Set sc = ##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()
-		If $SYSTEM.Status.IsError(sc) Write !, "The IncidentManager item was not restored: ", $SYSTEM.Status.GetErrorText(sc), !
-	}
+	// Also when Use failed: it may have changed the item before it failed, and Restore does nothing when nothing was saved.
+	Set sc = ##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()
+	If $SYSTEM.Status.IsError(sc) Write !, "The IncidentManager item was not restored: ", $SYSTEM.Status.GetErrorText(sc), !
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedModeFound, ..SavedModeValue, ..SavedModeUpdatedAt)
 	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, "OCUTALON")
@@ -177,6 +174,43 @@ Method TestRefusedIs409()
 	Do $$$AssertEquals(response.Status, "409 Conflict", "a refusal with no Message is 409")
 	Do $$$AssertEquals(body, ..ErrorBody("not_dismissible", ##class(OcuTalon.Web.Api).#MESSAGENOTDISMISSIBLE), "with MESSAGENOTDISMISSIBLE")
 	Do $$$AssertEquals(..StateOf(incident), "open", "the row is unchanged")
+}
+
+/// The double's own dismiss rows (AC9; AD-15), which the route's visibility check hides from the route tests: through Commands.Submit
+/// (the route's call), an open incident that is not noticed and a closed one are refused (Ok 0, Outcome refused, the double's
+/// message) and left as they are with nothing published; a resolved one closes (Ok 1, Outcome closed, the Ref, ClosedAt set) and
+/// its closed view is published once.
+Method TestDoubleAppliesAD15DismissRows()
+{
+	If '..Guard() Quit
+	Set session = ..Session()
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set cases = $ListBuild($ListBuild("open and not noticed", $ClassMethod(fixture, "Incident", session, ""), "open", 0))
+	Set cases = cases_$ListBuild($ListBuild("closed", $ClassMethod(fixture, "Incident", session, , , , {"State": "closed", "OpenVariant": ""}), "closed", 0))
+	Set cases = cases_$ListBuild($ListBuild("resolved", $ClassMethod(fixture, "Incident", session, , , , {"State": "resolved", "OpenVariant": ""}), "resolved", 1))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1), ref = $List(case, 2), state = $List(case, 3)
+		Kill ^OcuTalonTest("IncidentManagerDouble", "commands")
+		Set eventsBefore = ..IncidentEvents(session)
+		Set command = ##class(OcuTalon.Msg.Command.Dismiss).%New()
+		Set command.IncidentRef = ref
+		Set command.SessionRef = session
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+		Do $$$AssertStatusOK(sc, label_": Submit returns OK")
+		Do $$$AssertEquals(..Commands(), 1, label_": the double got the command")
+		If $List(case, 4) {
+			Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Ref, "1|closed|"_ref, label_": Ok 1, Outcome closed, the Ref")
+			Do $$$AssertEquals(..StateOf(ref), "closed", label_": the row is closed")
+			Do $$$AssertTrue(##class(OcuTalon.Data.Incident).RefIndexOpen(ref).ClosedAt '= "", label_": with ClosedAt")
+			Do $$$AssertEquals(..ClosedEvents(session, ref).%Size(), 1, label_": and its closed view is published once")
+		} Else {
+			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", label_": Ok 0, Outcome refused")
+			Do $$$AssertEquals(result.Message, "zz the double refuses to dismiss an incident that is "_state, label_": with the double's message")
+			Do $$$AssertEquals(..StateOf(ref), state, label_": the row is unchanged")
+			Do $$$AssertEquals(..IncidentEvents(session), eventsBefore, label_": and nothing is published")
+		}
+	}
 }
 
 /// An owner that fails is 500 server_error.

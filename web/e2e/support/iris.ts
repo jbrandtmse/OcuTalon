@@ -40,8 +40,8 @@ function irisContainer(): string {
   return foundContainer;
 }
 
-/** The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, and ANSWERS, the answers unit's. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR' | 'ANSWERS';
+/** The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, ANSWERS, the answers unit's, and CARDS, the cards unit's. */
+export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR' | 'ANSWERS' | 'CARDS';
 
 /** A fixture user of the sign-in or the floor unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {

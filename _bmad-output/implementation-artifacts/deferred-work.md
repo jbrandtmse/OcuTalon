@@ -805,6 +805,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-23T11:06:38Z status=routed owner=burndown by=cr note=in-epic MED, owning stories done; fix: remove the probe's log rows in ConversationTurns' teardown (Observe.RemoveWarnings shape)
 - 2026-10-23T20:36:31Z occurrence=2-9-open-anything-in-visual-trace
 - 2026-10-25T06:36:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=burndown note=Story 6.4's fallbacks extend Conversation's turn tests (inference): remove ConversationProbe's Ens log rows (Begin, Ask, Tell, OnResponse) in Test.Core.ConversationTurns' teardown, the Observe.RemoveWarnings shape (Rule 19)
+- 2026-10-28T01:10:14Z status=resolved-by:6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=adjudication note=Test.Core.ConversationTurns removes its probe's event-log rows in teardown (RemoveProbeLog, called from OnBeforeAllTests and OnAfterAllTests); TestTeardownRemovesProbeLogRows pins it; after a real run the probe's rows are 0
 
 ### DW-106: Lane B's production tests assert the Epic 0 stub Decide's fallback unusable, so they need new expectations when Story 1.3's real Decide merges
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1244,6 +1245,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Live/Payload/Incident.cls FromRow leaves the four parts for the caller; Web/Api.cls ChatItems calls FromRow alone; the parts' data lives in Lane A tables Story 5.4 (Epic 5, unmerged) defines; Story 0.5 decided one builder for events and the snapshot
 - 2026-10-27T07:44:45Z status=routed owner=burndown by=harvest note=cross-lane: Lane A builder (Epic 5); re-owned at Epic 6's burn-down to the story that can build it
 - 2026-10-27T12:28:21Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat note=after a reload an answered request has no request card until its next approval or incident event: /state rail.approvals holds pending requests only (Web/Api.cls RailBody) and the snapshot's incident has no requests part
+- 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=after a reload an answered request has no request card, so its result band never shows on an open card while the chat announces it
 
 ### DW-293: Incident.CauseCategory and Incident.Element values are fixed by no contract: the card humanizes a snake_case category (data_format_change -> 'Data format change') and shows Element as published, while the UX evidence line reads 'order date' and eval/orders-date-format records elementAtFault 'OrderDate'
 - source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1293,6 +1295,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: about 50 identical lines in floor/approval.spec.ts L40-121; the spec's reason (the floor spec stays unchanged) is about its case budget, not its imports; unifying needs a live floor run
 - 2026-10-27T19:02:02Z status=wontfix-accepted owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=cr note=reopen_if=a change to DRY_RUN, incidentOf, raise or inOrder has to be made in both support/approvals.ts and floor/approval.spec.ts
+- 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=the copies moved with A2-A10 into web/e2e/cards/approval-card.spec.ts; support/approvals.ts header now says so
 
 ### DW-312: docker/tests/test-demo-path-gate.sh's header (L17-19) still says the browser group runs live:demo-path and live:sign-in and exits 0 when both pass; the group has three units
 - source: spec-6-3-answer-on-the-simulated-phone-and-see-every-answer-everywhere.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1308,3 +1311,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Story 6.3 smoke (lead) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 6.3 smoke on throwaway e6s3s: live floor 124 passed, 527 s call wall against the 540 s deadline (491 s at 6.2's smoke); docker/tests/test-floor.sh L30-31; the incident and approval specs are Epic 6's own files under web/e2e/floor/
 - 2026-10-27T19:44:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=smoke note=6.4 adds its result and dismiss cases to live:answers too; check the CI shards and browser group times after the move
+- 2026-10-28T01:10:14Z status=resolved-by:6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=adjudication note=I2-I11 and A2-A10 moved out of live floor (I1 and A1, the @browsers cases, stay there in three engines) into the new unit live:cards (shards group); measured on fresh stacks: floor 342 s, answers 335 s, cards 227 s, each of 540 s
+
+### DW-331: APPROVAL_TEXTS.nounOne/nounOther ('message', 'messages') copy INCIDENT_TEXTS' noun fallback for resultView, with the reason (the view modules import only types) stated nowhere
+- source: spec-6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and-dismiss.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/approvals/approval-view.ts L52-53 and incidents/incident-view.ts L48-49; one source needs the cards to pass a resolved noun (about 6 files with tests)
+- 2026-10-28T01:06:08Z status=wontfix-accepted owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=cr note=reopen_if=INCIDENT_TEXTS' noun fallback changes and APPROVAL_TEXTS' copy does not (a band and its headline name different nouns)
+
+### DW-332: docker/tests/test-cards.sh repeats test-answers.sh's start, fixture-user and Playwright steps (about 60 lines), as every browser unit script does; the shared home, lib-live.sh, is Epic 10's contended file
+- source: spec-6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and-dismiss.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: test-cards.sh (code review, DW-315 split) modelled on test-answers.sh; test-floor.sh and test-sign-in.sh carry the same steps
+- 2026-10-28T01:06:08Z status=wontfix-accepted owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=cr note=reopen_if=a change to the browser units' start, fixture-user or redaction steps has to be made in more than two test-*.sh files

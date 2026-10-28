@@ -55,7 +55,9 @@
 ///     and the events, and two such messages with no ClientId are two turns;
 ///   - TestTaintedFallbackNextFresh: a fallback reply keeps the Tainted flag of the reply, so the next turn is fresh;
 ///   - TestPublishFailureNeverStopsTurn: a chat.message that cannot be published never stops the turn;
-///   - TestDroppedItemIsLogged: each dropped Item is logged as one warning, and a re-delivery is dropped silently.
+///   - TestDroppedItemIsLogged: each dropped Item is logged as one warning, and a re-delivery is dropped silently;
+///   - TestTeardownRemovesProbeLogRows (QA, Story 6.4; DW-105): the teardown's delete (RemoveProbeLog) removes the probe's event log rows
+///     written after the mark, and keeps the rows of another class and the probe's row written before the mark.
 /// The fixture sessions come from Test.Data.Fixture, and the turns that Conversation makes are adopted after each test, so
 /// Fixture.Clean removes them with the events of the streams. The run's number is n from ^OcuTalonTest("ConversationTurns",
 /// "n") (never reset); the probe records the calls of the run under ^OcuTalonTest("ConversationProbe", n), and the double's
@@ -122,8 +124,60 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("ConversationProbe", ..Number)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", ..LogMark, "OcuTalon.Test.Core.ConversationProbe")
+	Do ..RemoveProbeLog(..LogMark)
 	Quit $SYSTEM.Status.OK()
+}
+
+/// The teardown's delete (DW-105): the event log rows after the row mark whose SourceClass is the probe's. Rows of any other class,
+/// and rows up to the mark, stay. Returns the number of rows deleted.
+Method RemoveProbeLog(mark As %Integer) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", mark, "OcuTalon.Test.Core.ConversationProbe")
+	Quit result.%ROWCOUNT
+}
+
+/// The teardown removes the probe's event log rows (DW-105; AC11): of the rows written after a mark, the two of the probe's class
+/// are deleted by RemoveProbeLog and the one of another class stays; a row of the probe's class written before the mark stays. The
+/// test counts only the rows that it wrote (this method's, after the log's newest row at its start) and removes them itself (Rule 19).
+Method TestTeardownRemovesProbeLogRows()
+{
+	Set probe = "OcuTalon.Test.Core.ConversationProbe", other = "OcuTalon.Test.Core.ConversationTurns", method = "TestTeardownRemovesProbeLogRows"
+	Set start = ..LastLog()
+	Do ##class(Ens.Util.Log).LogWarning(probe, method, "zz before the mark")
+	Set mark = ..LastLog()
+	Do ##class(Ens.Util.Log).LogWarning(probe, method, "zz after the mark 1")
+	Do ##class(Ens.Util.Log).LogWarning(probe, method, "zz after the mark 2")
+	Do ##class(Ens.Util.Log).LogWarning(other, method, "zz after the mark, another class")
+	Do $$$AssertEquals(..CountLog(mark, probe, method), 2, "two probe rows are written after the mark")
+	Do $$$AssertTrue(..RemoveProbeLog(mark) >= 2, "the teardown's delete removes them")
+	Do $$$AssertEquals(..CountLog(mark, probe, method), 0, "no probe row after the mark remains")
+	Do $$$AssertEquals(..CountLog(mark, other, method), 1, "the row of another class after the mark stays")
+	Do $$$AssertEquals(..CountLog(start, probe, method), 1, "the probe's row written before the mark stays")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SourceMethod = ? AND SourceClass IN (?, ?)", method, probe, other)
+	// A test can't watch its own teardown, so the two hooks are read: the mark is taken at the start, and the delete runs at the end.
+	Do $$$AssertTrue(..ImplementationOf("OnBeforeAllTests") [ "..LogMark = ..LastLog()", "OnBeforeAllTests takes the log mark")
+	Do $$$AssertTrue(..ImplementationOf("OnAfterAllTests") [ "..RemoveProbeLog(..LogMark)", "OnAfterAllTests deletes the probe's rows after that mark")
+}
+
+/// The code of a method of this class, as its class definition holds it ("" for none).
+Method ImplementationOf(name As %String) As %String [ Private ]
+{
+	Set definition = ##class(%Dictionary.MethodDefinition).%OpenId($ClassName()_"||"_name)
+	If '$IsObject(definition) Quit ""
+	Do definition.Implementation.Rewind()
+	Set code = ""
+	While 'definition.Implementation.AtEnd {
+		Set code = code_definition.Implementation.Read(30000)
+	}
+	Quit code
+}
+
+/// The number of event log rows after the mark of the source class and method.
+Method CountLog(mark As %Integer, class As %String, method As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND SourceMethod = ?", mark, class, method)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// A message becomes a Turn that is queued, started at once (running, Attempt 1) and, when Decide has answered both requests,

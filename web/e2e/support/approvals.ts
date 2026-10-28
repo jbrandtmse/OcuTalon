@@ -4,10 +4,10 @@ import { applied, HEADER } from './floor';
 import { publishIncident, seedApproval, sinkEvent } from './iris';
 
 /**
- * What the answers unit (e2e/answers/, Story 6.3) and the demo path's steps 4 and 5 share to raise an incident and its approval
+ * What the answers unit's specs (e2e/answers/, Stories 6.3 and 6.4) and the demo path's steps 4 and 5 share to raise an incident and its approval
  * request on fixtures, as Lane A's raise path will until Epic 11 turns it on end to end: the incident as IncidentManager will publish
  * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise are
- * the shared home of the two for the answers unit and the demo path. A request of the payload is `{ref, state?, result?}`: pending with
+ * the shared home of the two for those specs (cards/approval-card.spec.ts keeps its own copies). A request of the payload is `{ref, state?, result?}`: pending with
  * no result unless given, so that a case can publish the same incident again with a request answered, executing or finished (Story 6.4).
  */
 
@@ -59,11 +59,12 @@ export function incidentOf(ref: string, requests: ReadonlyArray<RequestFields>, 
 }
 
 /**
- * Seeds a pending request of the incident (required role OcuTalonUser, expiring tomorrow at 14:13), publishes the incident with all
- * the requests named so far and the request's `approval` event, and waits until the page, which must be open and loaded, applied both.
- * The request's Ref is added to `rows` (for cleanFixtureRows) and to `requests`, and returned.
+ * Seeds a request of the incident (pending, required role OcuTalonUser, raised today at 14:13 and expiring tomorrow at 14:13, unless
+ * `over` gives other fields), publishes the incident with all the requests named so far (unless `publish` is false, for a case that
+ * publishes the incident's view itself) and the request's `approval` event, and waits until the page, which must be open and loaded,
+ * applied each. The request's Ref is added to `rows` (for cleanFixtureRows) and to `requests`, and returned.
  */
-export async function raise(page: Page, user: string, rows: string[], incident: string, requests: string[], over: Record<string, unknown> = {}): Promise<string> {
+export async function raise(page: Page, user: string, rows: string[], incident: string, requests: string[], over: Record<string, unknown> = {}, publish = true): Promise<string> {
   const request = await seedApproval(user, {
     incidentRef: incident,
     requiredRole: 'OcuTalonUser',
@@ -74,7 +75,7 @@ export async function raise(page: Page, user: string, rows: string[], incident: 
   });
   rows.push(request);
   requests.push(request);
-  await applied(page, await publishIncident(user, incidentOf(incident, requests.map((one) => ({ ref: one })))));
+  if (publish) await applied(page, await publishIncident(user, incidentOf(incident, requests.map((one) => ({ ref: one })))));
   await applied(page, await sinkEvent(user, 'approval.raised', { ref: request }));
   return request;
 }

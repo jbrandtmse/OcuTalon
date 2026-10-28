@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import { signIn } from '../sign-in/helpers';
 import { post } from '../support/api';
-import { DRY_RUN, TOMORROW_AT_1413, incidentOf, refOf, today, type RequestFields } from '../support/approvals';
+import { TOMORROW_AT_1413, incidentOf, raise, refOf, today, type RequestFields } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, applied, composerOf, inMs, mainOf } from '../support/floor';
 import {
@@ -15,16 +15,13 @@ import {
   incidentState,
   publishIncident,
   restoreIncidentManager,
-  seedApproval,
   seedCheck,
   seedIncident,
   seedOtherSession,
   sendNotification,
-  sinkEvent,
   useIncidentManagerDouble,
-  type ApprovalFields,
 } from '../support/iris';
-import { announcedTexts, announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
+import { announcedTexts, announcements, clock, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
  * Story 6.4, the endings of an incident (C1 to C10; FR-8, FR-24, AD-1, AD-4, AD-15, AD-16), in a real browser against a real stack, as
@@ -33,13 +30,13 @@ import { announcedTexts, announcements, plain, recordAnnouncements, tokenColor }
  * (Test.Demo.IncidentManagerDouble, put there by useIncidentManagerDouble for the spec's run and put back after it): it answers the
  * dismissal that the page posts, as the real item will, by closing the incident's row and publishing its closed view. An incident card
  * is made as IncidentManager will make it (an `incident` event, publishIncident), with a row (seedIncident) where the case presses
- * Dismiss, because the route checks the row's visibility first; a request is a fixture row (seedApproval) whose `approval` event reaches
- * the page through BridgeSink (sinkEvent). A case's rows and phone messages are its own and are removed in finally.
+ * Dismiss, because the route checks the row's visibility first; a request is a fixture row (support/approvals.ts raise, which seeds it)
+ * whose `approval` event reaches the page through BridgeSink. A case's rows and phone messages are its own and are removed in finally.
  * C1 is a finished fix: the result band, the phone's result message and Dismiss; C2 the partial results in one band; C3 the band while
  * the fix still runs and then final; C4 two requests, a Reject and Dismiss at the end of the rejected request's row; C5 a rejection, then
  * Dismiss through the real route, with Break the feed active again; C6 an expiry; C7 a fallback incident; C8 a no-fix incident, with a
  * known and an unknown cause; C9 an incident closed by IncidentManager; C10 the failures of Dismiss (a refusal, a server error, a held
- * reply) and the cross-session dismissal (404, AD-4).
+ * reply, a reply that never came) and the cross-session dismissal (404, AD-4).
  */
 test.describe.configure({ timeout: 150_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -68,8 +65,11 @@ const ALL_TEXT = 'All 50 orders went through.';
 const REASON = "the order date still wasn't accepted";
 const AUDIT = 'Recorded in the IRIS audit log.';
 
-/** The HH:MM of a UTC ISO time. */
+/** The HH:MM of a UTC ISO time as the server writes it: the phone's lines and the server's notices. */
 const hhmm = (iso: string): string => iso.slice(11, 16);
+
+/** The HH:MM of a UTC ISO time as the page writes it (en-GB, UTC): the card's statuses, whose hour has no leading zero before ten. */
+const pageHhmm = (iso: string): string => clock(iso, 'en-GB', 'UTC');
 
 /** Once per run, the IncidentManager item takes the double; afterwards it gets its class back. */
 test.beforeAll(async () => {
@@ -128,18 +128,13 @@ async function publish(page: Page, user: string, payload: Record<string, unknown
 async function request(page: Page, user: string, rows: string[], incident: string, state: 'done' | 'executing' | 'rejected' | 'expired' | 'pending'): Promise<{ ref: string; at: string }> {
   const answered = state === 'done' || state === 'executing' || state === 'rejected';
   const at = state === 'expired' ? inMs(-120_000) : inMs(-60_000);
-  const fields: ApprovalFields = {
-    incidentRef: incident,
-    requiredRole: 'OcuTalonUser',
+  const over = {
     state,
     raisedAt: inMs(-600_000),
     expiresAt: state === 'expired' ? at : TOMORROW_AT_1413,
-    dryRun: DRY_RUN,
     ...(answered ? { answeredAction: state === 'rejected' ? 'reject' : 'approve', answeredChannel: 'web', answeredBy: user, answeredAt: at } : {}),
   };
-  const ref = await seedApproval(user, fields);
-  rows.push(ref);
-  await applied(page, await sinkEvent(user, 'approval.raised', { ref }));
+  const ref = await raise(page, user, rows, incident, [], over, false);
   return { ref, at };
 }
 
@@ -193,7 +188,7 @@ test('C1: a finished fix shows its result band with Dismiss, the phone gets the 
     const band = bandsOf(aCard);
     await expect(band, 'A\'s card has one band').toHaveCount(1, { timeout: CARD_MS });
     await expectBand(page, band, 'success', 'circle-check', ALL_TEXT, 'the band');
-    await expect(aCard.locator('p.status'), 'under its answered status').toHaveText(`Approved from the web chat at ${hhmm(a.at)}`);
+    await expect(aCard.locator('p.status'), 'under its answered status').toHaveText(`Approved from the web chat at ${pageHhmm(a.at)}`);
     await expect(aCard.locator('p.audit'), 'with the audit line').toHaveText(AUDIT);
     const [bandBox, auditBox, statusBox] = await Promise.all([band.boundingBox(), aCard.locator('p.audit').boundingBox(), aCard.locator('p.status').boundingBox()]);
     expect(bandBox!.y, 'the band stands below the status').toBeGreaterThan(statusBox!.y);
@@ -352,8 +347,8 @@ test('C4: two requests keep their own bands, and after a rejection Dismiss is at
 
     await reject.click();
     const status = requestCard(page, b.ref).locator('p.status');
-    await expect(status, "B's status after the real answer").toHaveText(/^Rejected from the web chat at \d\d:\d\d\. Nothing was changed\.$/, { timeout: 30_000 });
-    const at = ((await status.textContent()) ?? '').match(/at (\d\d:\d\d)\./)?.[1] ?? '';
+    await expect(status, "B's status after the real answer").toHaveText(/^Rejected from the web chat at \d{1,2}:\d\d\. Nothing was changed\.$/, { timeout: 30_000 });
+    const at = ((await status.textContent()) ?? '').match(/at (\d{1,2}:\d\d)\./)?.[1] ?? '';
     await publish(page, user, payloadOf(incident, [{ ref: a.ref, state: 'done', result: failed }, { ref: b.ref, state: 'rejected' }], 'open', { openVariant: 'rejected' }));
     await expect(card.locator('.chip-row .chip')).toHaveText('Open', { timeout: CARD_MS });
     await expect(status).toHaveText(`Rejected from the web chat at ${at}. Nothing was changed.`);
@@ -374,8 +369,9 @@ test('C4: two requests keep their own bands, and after a rejection Dismiss is at
  * C5: a rejection, then Dismiss through the real route and the double. S watches Orders and R is an Orders incident, open and
  * rejected: the Break the feed button is aria-disabled. Focus on Dismiss and Enter: Dismiss goes busy (a spinner, aria-busy and
  * aria-disabled, never disabled), then the card compacts (chip Closed, the border-strong bar, no request card, no Dismiss) with focus
- * on the headline and no announcement of the closing. The double got one dismiss from the web user, R's row is closed, Break the feed
- * is active within one live update, and after a reload R is still compact.
+ * on the headline and no announcement of the closing. The route holds the server's 200 until the page has applied the owner's closed
+ * event, so this is the order in which the event comes first. The double got one dismiss from the web user, R's row is closed, Break
+ * the feed is active within one live update, and after a reload R is still compact.
  */
 test('C5: Dismiss of a rejected Orders incident closes it through the route, and Break the feed is active again', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -389,12 +385,17 @@ test('C5: Dismiss of a rejected Orders incident closes it through the route, and
     await publish(page, user, payloadOf(incident, [{ ref: a.ref, state: 'rejected' }], 'open', { openVariant: 'rejected' }));
     const card = cardOf(page, incident);
     await expect(card.locator('.chip-row .chip')).toHaveText('Open', { timeout: CARD_MS });
-    await expect(requestCard(page, a.ref).locator('p.status'), "A's status").toHaveText(`Rejected from the web chat at ${hhmm(a.at)}. Nothing was changed.`);
+    await expect(requestCard(page, a.ref).locator('p.status'), "A's status").toHaveText(`Rejected from the web chat at ${pageHhmm(a.at)}. Nothing was changed.`);
     await expect(feedButton(page), 'Break the feed waits for the dismissal').toHaveAttribute('aria-disabled', 'true', { timeout: CARD_MS });
 
+    let replied!: (closedFirst: boolean) => void;
+    const order = new Promise<boolean>((done) => (replied = done));
     await page.route(DISMISS, async (route) => {
       await new Promise((done) => setTimeout(done, 800));
-      await route.continue();
+      const response = await route.fetch();
+      const closedFirst = await card.locator('.chip-row .chip', { hasText: 'Closed' }).waitFor({ timeout: CARD_MS }).then(() => true, () => false);
+      await route.fulfill({ response });
+      replied(closedFirst);
     });
     const dismiss = dismissOf(card);
     await dismiss.focus();
@@ -410,6 +411,7 @@ test('C5: Dismiss of a rejected Orders incident closes it through the route, and
     await expect(requestCard(page, a.ref), 'no request card').toHaveCount(0);
     await expect(dismissOf(card), 'no Dismiss').toHaveCount(0);
     await expect(card.getByRole('heading', { level: 3 }), 'focus is on the headline').toBeFocused();
+    expect(await order, "the owner's closed event reached the page before the 200").toBe(true);
     await page.waitForTimeout(SETTLE_MS);
     expect((await announcedTexts(page)).filter((text) => text.includes('Closed')), 'the closing is not announced').toEqual([]);
 
@@ -444,7 +446,7 @@ test('C6: an expired request shows its status with clock, and Show details then 
     await expect(card.locator('.chip-row .chip')).toHaveText('Open', { timeout: CARD_MS });
     const aCard = requestCard(page, a.ref);
     const status = aCard.locator('p.status');
-    await expect(status).toHaveText(`Expired at ${hhmm(a.at)}. Nothing was changed.`, { timeout: CARD_MS });
+    await expect(status).toHaveText(`Expired at ${pageHhmm(a.at)}. Nothing was changed.`, { timeout: CARD_MS });
     expect(await drawn(status), 'with clock').toEqual(iconPaths('clock'));
     await expect(aCard.getByRole('button', { name: /^(Approve|Reject)/ }), 'no Approve or Reject').toHaveCount(0);
     await expect(card, 'the attention bar').toHaveCSS('border-left-color', await tokenColor(page, '--attention'));
@@ -591,8 +593,9 @@ test('C9: an incident closed by IncidentManager compacts in place to the headlin
  * C10: the failures of Dismiss, and the cross-session dismissal (AC7, AD-4). The dismissal of another session's incident is 404 with the
  * not_found body, nothing is submitted (the double records nothing) and the row is unchanged. Then, through page.route: a 200 that the
  * route fulfills itself (so no event follows) compacts the card and focuses its headline, the page's own path; a 409 shows its message
- * beside Dismiss, announced once, and leaves the card; a 500 shows its message; and a held reply restores Dismiss after 10 s with the
- * busy notice shown and announced, and a later 200 still compacts the card.
+ * beside Dismiss, announced once, and leaves the card; a 500 shows its message; a held reply restores Dismiss after 10 s with the
+ * busy notice shown and announced, and a later 200 still compacts the card; and a reply that never came (the request fails, status 0)
+ * shows and announces the busy notice at once and leaves the card.
  */
 test('C10: another session\'s incident is 404, and Dismiss shows a refusal, an error and a held reply, and a 200 still compacts the card', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -609,12 +612,13 @@ test('C10: another session\'s incident is 404, and Dismiss shows a refusal, an e
     expect(await incidentState(theirs), 'the row is unchanged').toBe('open');
     expect(await doubleCommands(theirs), 'and IncidentManager got nothing').toEqual([]);
 
-    let mode: 'done' | '409' | '500' | 'held' = 'done';
+    let mode: 'done' | '409' | '500' | 'abort' | 'held' = 'done';
     let held: Route | undefined;
     await page.route(DISMISS, async (route) => {
       if (mode === 'done') await route.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"done"}' });
       else if (mode === '409') await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_dismissible', message: 'zz refused' } }) });
       else if (mode === '500') await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'zz server error' } }) });
+      else if (mode === 'abort') await route.abort('failed');
       else held = route;
     });
 
@@ -655,13 +659,19 @@ test('C10: another session\'s incident is 404, and Dismiss shows a refusal, an e
     await expect(card.getByRole('heading', { level: 3 }), 'with focus on the headline').toBeFocused();
     await expect(dismissOf(card)).toHaveCount(0);
 
-    mode = 'done';
     const second = refOf('C10b');
     await publish(page, user, payloadOf(second, [], 'open', { openVariant: 'no_fix', fixSummary: '', groups: [GROUP] }));
-    await dismissOf(cardOf(page, second)).click();
-    await expect(cardOf(page, second).locator('.chip-row .chip'), 'a 200 that the route fulfilled itself compacts the card with no event').toHaveText('Closed', { timeout: CARD_MS });
-    await expect(cardOf(page, second).getByRole('heading', { level: 3 }), 'and focuses its headline').toBeFocused();
-    expect(await doubleCommands(second), 'the server never saw it').toEqual([]);
+    const secondCard = cardOf(page, second);
+    mode = 'abort';
+    await dismissOf(secondCard).click();
+    await expect(secondCard.locator('app-incident-dismiss > app-inline-notice'), 'a reply that never came shows the busy notice at once').toHaveText(busy, { timeout: CARD_MS });
+    await expectAnnounced(page, busy, 2, 'the busy notice of a reply that never came');
+    await expect(secondCard.locator('.chip-row .chip'), 'and the card is unchanged').toHaveText('Open');
+
+    mode = 'done';
+    await dismissOf(secondCard).click();
+    await expect(secondCard.locator('.chip-row .chip'), 'a 200 that the route fulfilled itself compacts the card with no event').toHaveText('Closed', { timeout: CARD_MS });
+    await expect(secondCard.getByRole('heading', { level: 3 }), 'and focuses its headline').toBeFocused();
   } finally {
     await cleanFixtureRows(rows);
   }

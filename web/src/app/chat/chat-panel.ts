@@ -89,8 +89,9 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  * as tall as its content up to 70vh and scrolls on its own beyond that, with the composer under it.
  *
  * An incident that this page closed with its own Dismiss (Dismissals, set by the 200 of the dismiss route) shows as closed at once, before
- * the owner's incident event agrees; its change to closed is not announced, and the page's focus rule puts focus on the compacted
- * card's headline when the update removes the Dismiss that held it.
+ * the owner's incident event agrees; its change to closed is not announced, also when that event comes before the 200 (Dismissals.owns
+ * holds from the press on), and the page's focus rule puts focus on the compacted card's headline when the update removes the Dismiss
+ * that held it.
  *
  * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
  * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
@@ -381,7 +382,7 @@ export class ChatPanel {
       ...ANNOUNCE_FORMAT,
       incidentText: (previousState, incident) => announcementOf(previousState, incident, incidentView(incident, context).headline),
       bandTexts: (incident) => bandTexts(incident, context),
-      dismissed: (ref) => this.dismissals.refs().has(ref),
+      dismissed: (ref) => this.dismissals.owns(ref),
     };
     const { texts, heard } = chatAnnouncements(this.heard, entries, format);
     this.heard = heard;

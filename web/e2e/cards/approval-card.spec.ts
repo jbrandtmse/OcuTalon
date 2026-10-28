@@ -14,11 +14,11 @@ import {
   seedOtherSession,
   sinkEvent,
 } from '../support/iris';
-import { announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
+import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
  * Story 6.2, the approval request card inside the incident card (A2 to A10; A1 is in floor/approval.spec.ts, which runs it in three
- * engines), moved here by Story 6.4 (DW-315), in a real browser against a real stack, as the answers user ANSWERS (OCUTALON_ANSWERS_USER,
+ * engines), moved here by Story 6.4 (DW-315), in a real browser against a real stack, as the cards unit's user CARDS (OCUTALON_CARDS_USER,
  * with the role OcuTalonUser; the stack is in demo mode, its instance zone is UTC and the browser's is UTC and en-GB; the page's clock is
  * fixed at 14:30 UTC on the run's date). An incident card is made as IncidentManager will make it (an `incident` event, publishIncident); a
  * request is a fixture row (seedApproval) whose `approval` event reaches the page through BridgeSink (sinkEvent), with the required role
@@ -32,7 +32,7 @@ import { announcedTexts, recordAnnouncements, tokenColor } from '../support/page
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
-const KIND = 'ANSWERS';
+const KIND = 'CARDS';
 
 /** The route that answers a request. */
 const ANSWER = '**/ocutalon/api/v1/approvals/*/answer';
@@ -85,14 +85,14 @@ function incidentOf(ref: string, requests: string[]): Record<string, unknown> {
 const incidentCard = (page: Page, ref: string): Locator => page.locator(`app-chat-panel [data-part="incident"][data-key="incident:${ref}"]`);
 const requestCard = (page: Page, ref: string): Locator => page.locator(`app-chat-panel [data-part="approval"][data-key="${ref}"]`);
 
-/** The HH:MM of a UTC ISO time. */
-const hhmm = (iso: string): string => iso.slice(11, 16);
+/** The HH:MM of a UTC ISO time as the page writes it (en-GB, UTC): the card's statuses and late-press notice, whose hour has no leading zero before ten. */
+const pageHhmm = (iso: string): string => clock(iso, 'en-GB', 'UTC');
 
 /** The two buttons of a pending card, by their names. */
 const approveOf = (card: Locator): Locator => card.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true });
 const rejectOf = (card: Locator): Locator => card.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true });
 
-/** Signs the answers user in with the announcements recorded, and waits for the loaded page with its composer. */
+/** Signs the cards user in with the announcements recorded, and waits for the loaded page with its composer. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
   await recordAnnouncements(page);
@@ -126,7 +126,7 @@ async function raise(page: Page, user: string, rows: string[], incident: string,
 /**
  * A2: Approve. Both buttons are busy while the answer is out; then "Approved from the web chat at HH:MM" replaces them in the same row
  * with focus on it, the label reads "Approval request", the fixed-targets line, the expiry and "Nothing has changed yet." go and the
- * dry run stays. The row is approved by ANSWERS on the web, and one AnswersIn to AnswerOps header carries ANSWERS' TraceRef.
+ * dry run stays. The row is approved by CARDS on the web, and one AnswersIn to AnswerOps header carries CARDS' TraceRef.
  */
 test('A2: Approve is busy, then the status replaces the buttons with focus on it, and the request is answered from the web', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -152,7 +152,7 @@ test('A2: Approve is busy, then the status replaces the buttons with focus on it
     const status = card.locator('p.status');
     await expect.poll(async () => readApproval(request).then((one) => one.at), { message: 'the request is answered', timeout: 30_000 }).not.toBe('');
     const answered = await readApproval(request);
-    await expect(status, 'the status replaces the buttons').toHaveText(`Approved from the web chat at ${hhmm(answered.at)}`, { timeout: CARD_MS });
+    await expect(status, 'the status replaces the buttons').toHaveText(`Approved from the web chat at ${pageHhmm(answered.at)}`, { timeout: CARD_MS });
     await expect(card.locator('.buttons'), 'and the two buttons are gone').toHaveCount(0);
     await expect(status, 'focus is on the status line').toBeFocused();
     await expect(status).toHaveCSS('color', await tokenColor(page, '--answered-status-approved'));
@@ -210,7 +210,7 @@ test('A3: two requests stand in the order raised, the second names who approved 
     await rejectOf(cards.nth(0)).click();
     await expect.poll(async () => readApproval(first).then((one) => one.state), { message: 'the first request is rejected', timeout: 30_000 }).toBe('rejected');
     const answered = await readApproval(first);
-    await expect(cards.nth(0).locator('p.status'), 'the rejection reads with its second sentence').toHaveText(`Rejected from the web chat at ${hhmm(answered.at)}. Nothing was changed.`, { timeout: CARD_MS });
+    await expect(cards.nth(0).locator('p.status'), 'the rejection reads with its second sentence').toHaveText(`Rejected from the web chat at ${pageHhmm(answered.at)}. Nothing was changed.`, { timeout: CARD_MS });
     await expect(cards.nth(0).locator('p.status')).toBeFocused();
     await expect(cards.nth(0).locator('p.status')).toHaveCSS('color', await tokenColor(page, '--answered-status-rejected'));
   } finally {
@@ -295,9 +295,9 @@ test('A5: a press that lost the race to the phone shows the late-press notice, a
 
     await approveOf(card).click();
     const answered = await readApproval(request);
-    const text = `Already answered: approved from the simulated phone at ${hhmm(answered.at)}.`;
+    const text = `Already answered: approved from the simulated phone at ${pageHhmm(answered.at)}.`;
     await expect(card.getByText(text, { exact: true }), 'the page form of the late press shows under the row').toBeVisible({ timeout: 30_000 });
-    await expect(card.locator('p.status'), 'and the status replaces the buttons').toHaveText(`Approved from the simulated phone at ${hhmm(answered.at)}`);
+    await expect(card.locator('p.status'), 'and the status replaces the buttons').toHaveText(`Approved from the simulated phone at ${pageHhmm(answered.at)}`);
     await expect(card.locator('.buttons')).toHaveCount(0);
     await expect.poll(() => announcedTexts(page).then((texts) => texts.filter((one) => one === text).length), { message: 'the notice is announced once' }).toBe(1);
     expect(answered.channel, 'the phone\'s answer stands').toBe('phone');

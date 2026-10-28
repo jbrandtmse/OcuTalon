@@ -5,14 +5,14 @@ import { cleanFixtureRows, fixtureUser, publishIncident, seedApproval, sinkEvent
 import { recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 6.2, the approval request card inside the incident card (A1; the other nine cases, A2 to A10, are in answers/approval-card.spec.ts
+ * Story 6.2, the approval request card inside the incident card (A1; the other nine cases, A2 to A10, are in cards/approval-card.spec.ts
  * since Story 6.4), in a real browser against a real stack, as the FLOOR user (the floor stack is in demo mode, its instance zone is UTC and
  * the browser's is UTC and en-GB; the page's clock is fixed at 14:30 UTC on the run's date). An incident card is made as IncidentManager
  * will make it (an `incident` event, publishIncident); a request is a fixture row (seedApproval) whose `approval` event reaches the page
  * through BridgeSink (sinkEvent), with the required role OcuTalonUser that the floor user holds. HH:MM is the row's AnsweredAt, read back
  * through iris, so that the expected text is exact. A case's rows are its own and are removed in finally.
  * A1 is the pending card, and it stays in the floor because it runs in Chromium, Firefox and WebKit (tag @browsers): the floor is the unit
- * that runs a case in all three engines. A2 to A10 moved to the answers unit (DW-315): they run in Chromium only, and the floor unit had
+ * that runs a case in all three engines. A2 to A10 moved to the cards unit (DW-315): they run in Chromium only, and the floor unit had
  * come within 13 s of its 540 s deadline.
  */
 test.describe.configure({ timeout: 120_000 });
