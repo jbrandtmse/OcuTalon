@@ -3118,9 +3118,14 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **When** one approval request covers them and is approved
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
+**Given** two approved requests of one incident whose runs resent copies (Story 7.6's later request)
+**When** each run's copies have completed or failed again within `FixExecutor`'s wait
+**Then** each request's final `FixResult`, its `FixRun` and its result notice carry its own counts and its own `ApprovalRef`, and neither run's copies count in the other's result (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.3 spec gate, Epic 7 runner, unattended ruling (veto U-140): moved from Story 7.3, which pins the results it sends itself]
+
 - DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
 - DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so (ledger; routed by harvest 2026-10-27)
 - DW-292: `/state`'s incident entries carry what the incident's live events carry: `Live.Payload.Incident.FromRow` fills its groups, requests, evidence and traceTargets, so a reloaded or resynced incident card shows its request cards, results, Show details evidence and diagnosis link (AD-12) (ledger; routed by merge_gate 2026-10-28)
+- DW-368: A stopped target production renders as 'had changed since the dry run' (AD-16 counts its refused copies as Skipped and the Result texts convention picks result.skipped); give it an honest result: its plain reason, or a key of its own (new wording is a veto-window item) (ledger; routed by spec_gate 2026-10-28)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 
