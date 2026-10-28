@@ -1521,3 +1521,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 5.11 Task 0: a fast local batch fell between two polls and was never read; CI's slower batch was read
 - 2026-10-27T18:08:35Z status=wontfix-accepted owner=5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=harvest note=reopen_if=a test that seeds a watch with Test.Data.Fixture.Check and expects its own failures noticed flakes; Test/Data/Fixture.cls is contended (Epic 16): give Check a CreatedAt there
+
+### DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Settle.SEENMAX caps FailureGroup.Seen at 1000; RepairResend.DryRun takes targets only from Seen; 7.1 exercises 50 orders, 7.4 measures 500
+- 2026-10-28T00:12:03Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=harvest note=7.4 owns scale: make the dry run's count honest past the Seen cap (say how many it could not list, or read the targets another way) and pin it

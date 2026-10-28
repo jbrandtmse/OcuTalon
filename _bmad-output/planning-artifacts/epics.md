@@ -3102,6 +3102,7 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
 - DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
+- DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so (ledger; routed by harvest 2026-10-27)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 
