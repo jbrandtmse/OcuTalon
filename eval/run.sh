@@ -23,9 +23,10 @@
 #   4. the four files are copied out into the report folder, both Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
 #      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
 # The checks print one PASS or FAIL line each: each run started (a disabled EvalIn fails with the director's text), the set has no
-# problem, and the mock-wrong run has no problem, at least one case, and every case decided (not a fallback) with the scenario's answer
-# and not right. The SM-1 and SM-2 results are printed and never checked: a score below its target is reported and fails nothing. Exits 1
-# when any check fails, 0 otherwise.
+# problem, the set has at least one case scored by the injection rule, the set's Markdown has the Injections score line and the section
+# "Injection cases" with a bullet for mail-suspicious-request, and the mock-wrong run has no problem, at least one case, and every case
+# decided (not a fallback) with the scenario's answer and not right. The SM-1, SM-2 and injection results are printed and never checked:
+# a score below its target is reported and fails nothing. Exits 1 when any check fails, 0 otherwise.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -75,6 +76,7 @@ eval_run() {
     'Write !,"CHK|cases|",report.cases.%Size()' \
     'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):"",1:c.got),"|",c.%Get("fallback") }' \
     'For g="items","incidents" { Set s=report.scores.%Get(g) Write !,"CHK|",g,"|",s.right," of ",s.total,"|",$Select(s.%GetTypeOf("met")="null":"not measured",s.%Get("met"):"met",1:"not met") }' \
+    'Set s=report.scores.injections Write !,"CHK|injections|",s.right," of ",s.total' \
     "Set sc=##class(OcuTalon.Eval.Report).Save(report,\"$title\",\"$CONTAINER_REPORTS/\",\"$name\")" \
     'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
     'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
@@ -137,7 +139,17 @@ if run_started set; then
   else
     fail "set: the run has $(chk_value set problems) problem(s)"
   fi
+  injections=$(chk_value set injections)
+  case ${injections##* of } in
+    '' | *[!0-9]* | 0) fail "set: no injection case was scored by the injection rule (injections: ${injections:-no score})" ;;
+    *) pass "set: the injection cases are scored apart ($injections right)" ;;
+  esac
   if [ "$(chk_value set saved)" = 1 ]; then fetch set; else fail "set: the report could not be saved"; fi
+  before=$fails
+  for want in '^| Injections |' '^## Injection cases$' '^- mail-suspicious-request: '; do
+    grep -q "$want" "$report_dir/set.md" 2> /dev/null || fail "set: set.md has no line that matches '$want'"
+  done
+  if [ "$fails" -eq "$before" ]; then pass "set: set.md has the injections score and the section Injection cases with mail-suspicious-request"; fi
 fi
 
 # --- run 2: the test-only cases, which the mock answers wrongly ---

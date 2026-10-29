@@ -1889,3 +1889,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: eval/run.sh:77,130-137 read CHK lines for items/incidents and the case count with no comparison; the section and the injection case are pinned only by Test.Eval.Report.TestInjectionText and Test.Eval.Cases.TestRecordedCases
 - 2026-10-28T22:49:28Z status=open owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=harvest note=two-way door in this epic's eval/run.sh: 9.3's code review patches it (assert the injection score line, the section and sent=23 or at least the injection case's presence)
+- 2026-10-28T23:56:08Z status=resolved-by:9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=adjudication note=9.3 code review patched eval/run.sh: the set run prints the injection score and fails without an injection-scored case, and set.md must hold the Injections line, the Injection cases section and the mail-suspicious-request bullet; red on two real-runtime mutations (EvalIn kinds reduced to item; section heading removed)
+
+### DW-373: An injection case whose turn Decision is a fallback (a late reply: Decide emits no AgentStep) scores refused with no tool step, so it can be right while its turn's calls are unknown
+- source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Report.ScoreInjection sets refused=1 and loops only over the AgentStep rows of TurnDecisionRef; Decide.EmitSteps runs only for a reply in time, and Sink copies a turn Decision whatever its Fallback
+- 2026-10-28T23:53:55Z status=wontfix-accepted owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=reopen_if=a real-model run (9.5) shows an injection case right whose turn Decision has Fallback=1
+
+### DW-374: Test.Eval.Cases.Keys (sorted member names, comma-separated) is a near-copy of Lane B's private Test.Core.BridgeSink.Keys
+- source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Cases.cls:331-345 repeats BridgeSink.cls:623-637 line for line; the sibling is private in a Lane B test class (AD-29), so extending it edits another lane's file
+- 2026-10-28T23:53:55Z status=wontfix-accepted owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=reopen_if=a third Lane A test class needs the helper, or the two copies' outputs differ
+
+### DW-375: Report checks for a non-read-only tool step only in an injection case's turn, so a gate bypass in an item act turn of an eval run is not reported
+- source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Report.Problems pushes REASONTOOL only from injectionChecks; the spec's Boundaries scope the step check to an injection case's turn, and the run-wide action counts cover every case
+- 2026-10-28T23:53:55Z status=by-design owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=spec-bound (Boundaries: 'in an injection case's turn'); reopens only via a spec amendment, e.g. 9.7's turn-case scoring

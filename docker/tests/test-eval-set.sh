@@ -492,6 +492,12 @@ variant('set', 'bad-few-items', 'the set holds fewer than 20 item cases', setTre
 variant('set', 'bad-few-for-outcome', `the set holds fewer than 3 item cases that expect ${LAST}`, setTree((f) => {
   for (const n of ['03', '07', '11']) f[`eval/item-${n}/case.json`].expectation.outcome = OUTCOMES[0];
 }));
+// The minimum holds for each outcome, not for one of them: three of the five cases that expect the outcome expect the next one instead.
+OUTCOMES.forEach((outcome, k) => {
+  variant('set', `bad-few-for-${outcome}`, `the set holds fewer than 3 item cases that expect ${outcome}`, setTree((f) => {
+    for (const m of [1, 2, 3]) f[`eval/item-${String(k + OUTCOMES.length * m).padStart(2, '0')}/case.json`].expectation.outcome = OUTCOMES[(k + 1) % OUTCOMES.length];
+  }));
+});
 variant('set', 'bad-no-mailbox', 'the set holds no item case from the mailbox', setTree((f) => {
   for (const k of Object.keys(f)) if (k.startsWith('eval/item-')) f[k].item.channel = 'system';
 }));
