@@ -1692,11 +1692,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-103 owner's delegate: route to 16.4
+- 2026-10-29T04:27:46Z by=spec_gate note=addressed by 16.4's spec: every leave the page can see (idle cap, epoch change, Sign out) signs the group out at once; a trace tab closed while the page stays open is IRIS's own page, which no OcuTalon code observes, and falls to AD-25's own 120 s backstop (AD-25 Rule: 'with the 120-second timeout as the backstop (Story 16.4)'); the units after that case are measured with DW-286 (29.4)
 
 ### DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-4-sessions-stay-isolated-under-load by=orchestrator note=U-103 owner's delegate: route to 29.4
+- 2026-10-29T04:27:46Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=spec_gate note=also measure the units of a trace tab closed while the OcuTalon page stays open (AD-25's backstop case, Story 16.4 spec gate)
 
 ### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
