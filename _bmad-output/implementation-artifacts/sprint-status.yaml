@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-29-2026 13:48
+last_updated: 10-29-2026 16:31
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -152,7 +152,7 @@ development_status:
   9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: done
   9-8-a-stop-watching-injection-leaves-the-watch-unchanged: done
   9-4-ten-incidents-are-recorded-from-real-failures: done
-  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: in-progress
+  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: review
   9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: backlog
   9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
   epic-9-retrospective: optional
