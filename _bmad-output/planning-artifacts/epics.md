@@ -3431,14 +3431,26 @@ So that diagnosis is scored on the same evidence the product reads.
 **When** it is recorded from the Orders production in OCUORDERS after the partner sends 50 orders in the changed date format
 **Then** its expected cause is a data-format change with the order date as the element at fault and repair and resend as the fix, and it is the case the demo incident gate runs (FR-24, FR-25, FR-62)
 
-**Given** the other incidents, at least nine
-**When** they are recorded
-**Then** each comes from a real failure induced in a test feed production, `OcuTalon.Test.Eval.Feed`, that only the throwaway test stack installs and the judges' compose file never contains, and no cause category accounts for more than 8 of the first 10 incidents, so a diagnosis that always gives the same answer can't reach SM-2, AD-22's evaluation-set rule (FR-62, CON-3, AD-22)
-**And** at least two of them are marked as held out from prompt work (FR-62)
+[AMENDED 2026-10-29, Story 9.4 plan (runner B), unattended ruling (a split, decide): the criterion for the other nine incidents (the test feed `OcuTalon.Test.Eval.Feed`, CON-3, the cause-category spread and the two held-out incidents) moved verbatim to Story 9.9, planned next, because the feed needs its own namespace in the throwaway stack and its own plan. This story keeps the recorder, the redaction and public-text checks, the demo incident and the replay.]
 
 **Given** a recorded snapshot
 **When** `EvidencePack.Build` reads it in a replay
 **Then** a test finds the pack equal to the one built from the live reader when the incident was recorded (AD-15, AD-22)
+
+### Story 9.9: The other nine incidents come from real failures in a test feed
+
+[AMENDED 2026-10-29, Story 9.4 plan (runner B), unattended ruling (a split, decide): split from Story 9.4, whose third criterion moved here verbatim. It is planned next after Story 9.4 and before Story 9.5, whose release-candidate run covers the whole set.]
+
+As the author,
+I want at least nine more incidents recorded from real failures induced in a test feed only the throwaway stack installs,
+So that diagnosis is scored on varied real evidence and a diagnosis that always gives the same answer can't reach SM-2.
+
+**Acceptance Criteria:**
+
+**Given** the other incidents, at least nine
+**When** they are recorded
+**Then** each comes from a real failure induced in a test feed production, `OcuTalon.Test.Eval.Feed`, that only the throwaway test stack installs and the judges' compose file never contains, and no cause category accounts for more than 8 of the first 10 incidents, so a diagnosis that always gives the same answer can't reach SM-2, AD-22's evaluation-set rule (FR-62, CON-3, AD-22)
+**And** at least two of them are marked as held out from prompt work (FR-62)
 
 ### Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody
 

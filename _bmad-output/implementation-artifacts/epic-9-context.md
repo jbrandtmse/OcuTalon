@@ -12,7 +12,9 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - Story 9.2: Each run scores decisions and causes and records cost and size
 - Story 9.3: Decision cases cover every outcome, two injections, the all-clear and a command request
 - Story 9.7: Turn cases measure the all-clear, the command reply and a stop-watching injection (split from 9.3; planned next after 9.3)
+- Story 9.8: A stop-watching injection leaves the watch unchanged (split from 9.7; Lane A design first)
 - Story 9.4: Ten incidents are recorded from real failures
+- Story 9.9: The other nine incidents come from real failures in a test feed (split from 9.4: the feed, CON-3, the cause spread, two held out)
 - Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody (split from 9.1, waits for Epic 7; planned before 9.5)
 - Story 9.5: Release candidates pass the evaluation and the demo incident gate
 
