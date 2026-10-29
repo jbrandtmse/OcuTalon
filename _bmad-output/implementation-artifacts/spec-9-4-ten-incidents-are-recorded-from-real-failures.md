@@ -282,6 +282,40 @@ Line anchors are from HEAD `0259a1f`. Story 9.7 is implemented first and edits `
   - no OCUORDERS message of its batch is left, and its folder under `/tmp/zz-eval-record/` is removed;
   - `Test.Demo.Production` and `Test.Watch.Evidence` still pass afterwards on the same stack.
 
+### Review Findings
+
+Code review 2026-10-29 (bmad-code-review, review_mode full; layers blind-hunter BH, edge-case-hunter EC, verification-gap VG, acceptance-auditor AA, all on the full tier). 28 findings: 13 survive triage as 7 entries (high 0, medium 2, low 5), 15 are rejected. Each line: severity, fix-risk, footprint, spec-status, disposition.
+Rule checks: Rule 6, every AC against AD-22, AD-15, AD-6, AD-29, AD-33 and AD-16, with no mismatch (`Eval.Record` writes no row, the recordings run only in throwaways, and no ObjectScript names `FIXKINDS`); Rule 1, the Integration AC is pinned by `TestReplayEqualsLive` on a real throwaway; Rule 3, a non-user-facing author tool, and in any case it is exercised by real `Capture` calls against the Orders production with produced-file assertions; Rule 5, no NFR is worked around; Rule 2, the one unstated copy is DW-385 below (the `LOCALPATH` regex is a cross-language mirror that the spec names, with `test-boundaries.sh` kept as the authority, so it is not a helper copy); Rule 14, the changed sources are ASCII.
+
+- [x] [Review][Patch] The clean-up hides its own failures: `Clean` drops the statuses of `ReleaseFailures` and `RemoveMessages`, `OnAfterAllTests` drops the status of `FixtureSettings(0)` and always returns `$$$OK`, so `TestCleanRemovesBatch`'s `AssertStatusOK(closing.OnAfterAllTests())` cannot fail; and the mark is released only after the messages are removed, so a throw there leaves the WatchMark held for 600 s (BH1+VG3+EC2) [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:116] -- medium; fix-risk low (test class only; release-before-delete is what `ReleaseFailures` documents as safe once the batches are complete); in-story; clear; patch now.
+- [x] [Review][Patch] `TestCaptureDropsCredentialSettings` clears `SettingsAdded` before its restore has succeeded, so `OnAfterAllTests`' restore never retries a failed one, and no test runs that backstop (VG1+EC3) [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:566] -- low; fix-risk low (two lines and one pin in `TestCleanRemovesBatch`); in-story; clear; patch now (mechanical, Rule 15 two-way door). Verified as the lead asked: the restore is complete for the current definition (all five names out, nothing else touched, the running production untouched) and also runs after a failed assertion or an error inside the test's `Try`; only a failed restore itself was not retried.
+- [x] [Review][Patch] The restore check "the definition holds the settings it held before" has no `mutation:` line (VG2a) [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:568] -- low; fix-risk low; in-story; clear; Rule 19: close in this pass (mutation line under `## Verification`).
+- [x] [Review][Patch] `Eval.Record`'s class description says "Both refuse ... when the reader's outcome is not read" (only `Capture` reads), leaves out the refusals of Decided in-stage 13 and the blank folder, and its validity parenthetical reads as the refusal; `Capture`'s doc says "nothing is written" on any error, which holds for a refusal, not for an I/O error after the first file (BH8+AA1+EC7) [src/ocutalon/cls/OcuTalon/Eval/Record.cls:10] -- low; fix-risk low (comments only); in-story; clear; patch now (Rule 14).
+- [x] [Review][Patch] `Test.Eval.Record`'s class description puts `TestCaptureRefuses` among the tests "on synthetic snapshots", but it calls `Capture` against the Orders production (AA2) [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:14] -- low; fix-risk low (comment); in-story; clear; patch now (Rule 14).
+- [x] [Review][Patch] `record-eval.sh`'s header names only `TestSnapshotIsReadableAndCurrent` as the reason to rerun it, though `Test.Eval.Record` `TestCommittedIsCurrent` now catches the same drift (BH6, part a) [docker/tests/record-eval.sh:9] -- low; fix-risk low (header comment, in the story's footprint); in-story; clear; patch now.
+- [x] [Review][Defer] `FixtureSettings` and `DefinedSettings` (QA) are near-copies of Epic 7's private `Test.Watch.Evidence` helpers of the same names (BH3+AA3) [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:683] -- deferred: medium (Rule 2); fix-risk low; out-of-footprint (the sibling is `Private` in `Test/Watch/Evidence.cls`, Epic 7's read-only file, so extending it is not open to this story: that is the copy's reason); routed as DW-385, owner 9-6 (the first story of this epic after Epic 7's merge), to make the Orders-definition fixture one public helper that both classes call.
+
+**Applied** (all six patches, with option 1 of the patch menu):
+- `Test/Eval/Record.cls`: `Clean` returns a status (it releases the mark first, then deletes the folder and the messages) and `OnAfterAllTests` returns it together with its restore's status; `SettingsAdded` is cleared only after a restore that succeeded, in `TestCaptureDropsCredentialSettings` and in `OnAfterAllTests`; `TestCleanRemovesBatch` also puts the fixture settings in and has the closing instance take them out (its own `SettingsAdded` covers a failure halfway); the class description and the `SettingsAdded`, `OnAfterAllTests` and `Clean` doc comments say so.
+- `Eval/Record.cls`: the class description lists `Write`'s refusals and `Capture`'s own, and `Capture`'s doc says that nothing is written when it refuses (comments only).
+- `docker/tests/record-eval.sh`: the header's rerun sentence also names `Test.Eval.Record` `TestCommittedIsCurrent` (header comment only).
+- Run evidence (lane B; tags `e9s4cw` warm and `e9s4c` fresh): warm, `Test.Eval.Record` passed after the patches (14.2 s), each of the three mutations under `## Verification` went red and was green again after its revert, then `Test.Demo.Production` (34.8 s), `Test.Watch.Evidence` (2.4 s) and `Test.Eval.Cases` (4.4 s) passed on the same stack; fresh, `Test.Eval.Record` passed (14.2 s, ready after 82 s), `lane-a` part 5/8 passed forward (10 classes, every `Test.Eval` class among them, ready after 91 s) and part 4/8 passed reversed (10 classes, every `Test.Eval` class among them); `bash ci/checks.sh` passed (exit 0), `test-boundaries.sh` included. Both stacks are torn down and the lane-b lock folder is empty. Slot B was not used.
+
+**Rejected** (verdict and reason, one line each):
+- BH2 / AA4 / VG (killed run): the saved Orders definition is not on `Shared surfaces:`, and a killed run's fixture settings are not cleaned by `OnBeforeAllTests` -- low: the list is a spec edit (for the lead: QA's test adds the saved Orders definition to the shared surfaces, already shared with `Test.Watch.Evidence`); a killed run is not an everyday event, its leftovers fail loudly (`TestCommittedIsCurrent`, the restore check) and the next run removes them; a cleaner adds a guard.
+- BH4 / EC8: the spec's counts are stale after QA (seven tests, 19 mutations, the follow-up note, the slot-B list, Decided in-stage 18's reason) -- low: a spec edit, in `## Auto Run Result`, build-auto's section.
+- BH5: AD-22's as-built line still forecasts that `Eval.Record` replaces `record-eval.sh` -- the lead's ruling: no spine edit in this story (left for an attended update).
+- BH6, parts b and c: the header does not warn that a rerun changes the pinned times, and "records the other incidents" is still future work -- (b) covered by the header's sentence that `Test.Watch.Evidence` and `Test.Demo.Production` pin the recording; (c) spec-bound, Task 6's text.
+- BH7: `Write` refuses local paths but not the `key_like` shapes that `Redact.Text` does not replace (`dop_v1_` tokens, PEM private-key headers) -- low: no recording source of this release can hold them (the demo and 9.9's own test feed); `test-boundaries.sh` `key_like` still fails such a file; a new refusal adds a guard. It becomes real when a recording is made from a real production (FR-62, Story 17.7), whose author should then mirror `key_like` as `LOCALPATH` mirrors `local_path`.
+- EC1: `Make`'s read and `Capture`'s read may differ -- false: `Ens.Actor` logs the error (`irislib/Ens/Actor.cls:482`) before it sets the Error status (`:483`) that `WaitCount` waits for, `AlertOnError` is off, and the partner sends asynchronously (no response header), so both reads see the same rows.
+- EC4: keys of another item's headers are accepted -- low, spec-bound: the spec's refusals are the outcome and at least one failure; the keys are the author's.
+- EC5: a relative folder is written below the process's directory -- low: the only callers pass `/tmp/...`; a check adds a guard.
+- EC6: `check-cases.mjs` skips the credential rule when `items` is not an array or a `settings` is not an object -- low: the IRIS-side `CaseProblems` throws on such a file and flags it ("could not be read").
+- EC9: the header's "on every CI run" is not true when `ci/changes.sh` skips the shards group -- false: every input of the comparison (`src/`, `eval/`, the image) is a declared input of that group, so a run that skips it has nothing that could change its result.
+- VG2b: `DefinedSettings` compares names only, and a pre-existing setting with a fixture name would be lost -- low, theoretical: `OrdersFromPartner` holds only `TargetConfigName`, which `Test.Demo.Production` pins; real if the Orders item ever gains a setting with one of the five fixture names.
+- VG4: `Capture` returning `pack = ""` when `Write` refuses is untested -- false: the layer's demonstration (swap `Write` and `Set pack = built`) still returns `""`, because the `Catch` resets `pack`.
+- VG (shared surfaces): the same spec edit as BH2.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -464,7 +498,8 @@ QA and review use their own stage names and tags: `e9s4q`/`e9s4qw` and `e9s4c`/`
 - `test-eval-set.sh`'s rules and samples (`incident-good`'s snapshot, the new variants, the rule `demo`, the `enumerations` messages);
 - `Eval.Report`'s parameters (`DEMOCASE`);
 - the `lane-a` shard's class list (`Test.Eval.Record`) and its CI time;
-- `eval/` does not change.
+- `eval/` does not change;
+- the saved Orders production definition in OCUORDERS, whose item settings `TestCaptureDropsCredentialSettings` adds and removes (restored in-test and by `OnAfterAllTests` as a backstop; added by the lead after code review).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
@@ -529,6 +564,46 @@ Each mutation was reverted from a backup, and the checksums of every changed fil
 - warm (`e9s4iw`, a new stack): `Test.Eval.Record` passed (12 to 15 s), `Test.Eval.Cases` passed (3.6 s), then `Test.Demo.Production` (33 s) and `Test.Watch.Evidence` (2 s) passed on the same stack, so the pins and the WatchMark are intact; the six review-pass mutations above ran there, each followed by a green run of the class before the next one (the hold mutation after a green run, so no leftover mark could explain its red);
 - fresh (`e9s4i`): `Test.Eval.Record` passed (13.4 s, ready after 89 s); `lane-a` part 5/8 passed forward (10 classes, 143 s, all nine `Test.Eval` classes among them: `Record` 13.7 s, `Run` 7.4 s, `Cases` 3.7 s); part 4/8 passed reversed (10 classes, 130 s, `Record` 14.8 s) -- the same part reversed (5/8) holds no `Test.Eval` class (Decided in-stage 17);
 - both stacks were torn down and the lane-b lock folder is empty.
+
+**QA stage (tags `e9s4qw` warm, `e9s4q` fresh; no new file, tests added to the two existing classes):**
+- Test files changed (QA):
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` (QA): `TestWriteKeepsCaseFields`, `TestWriteRefusesMore`, `TestCaptureRefusesBadCaseFirst` and `TestCaptureDropsCredentialSettings` are new; `TestCleanRemovesBatch` now ends the batch with the `OnAfterAllTests` of a second instance, so that the wiring of `Clean` is pinned too.
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` (QA): `TestIncidentChecksFlagViolations` is new; the checks of `TestIncidentFiles` moved into `IncidentProblems` (same checks), so that the same code runs on incident cases that the new test writes below `/tmp/zz-eval-cases/` and removes.
+- Gaps the QA tests close (each was green before, with the mutation applied): `heldOut` passed through as true; `Capture` refusing a bad case before it reads the production; a local path or a non-ASCII character in the case's own text; the temporary-folder alternatives of `LOCALPATH`; a snapshot that is not an object or whose failures are text; a blank folder; the replacement of existing files; `OnAfterAllTests` calling `Clean` with the run's folder and hold; credential-named settings in the definition of the failing item (the Orders item has only `TargetConfigName`, so the earlier assertion could not see the reader drop anything); and the ASCII, redaction, path, host and credential-name rules of `TestIncidentFiles`, which only ran on a clean tree.
+- Hermeticity of the new tests: `TestCaptureDropsCredentialSettings` adds four credential settings and one plain one to the saved Orders definition and takes them out again (also from `OnAfterAllTests` through `SettingsAdded`), as `Test.Watch.Evidence` does; `TestIncidentChecksFlagViolations` and the other new tests make their folders below `/tmp` and remove them; none depends on another test's state or on the order.
+
+mutation: (QA, AC1) `Write` always writes `heldOut` false -> `TestWriteKeepsCaseFields` went red (the only test; every earlier test stayed green)
+mutation: (QA, AC1) `Capture` skips its own check of the case -> `TestCaptureRefusesBadCaseFirst` went red (the reasons became "nothing to record: not_current" and "nothing to record: no failure"); no earlier test went red
+mutation: (QA, AC1) `Write` checks the snapshot for a local path but not the case -> `TestWriteRefusesMore` went red (the description and elementAtFault rows)
+mutation: (QA, AC1) `Write` drops the non-ASCII check -> `TestWriteRefuses` (body, description) and `TestWriteRefusesMore` (elementAtFault) went red
+mutation: (QA, AC1) `CaseRecord` accepts a fixKind for a category with no fix -> `TestWriteRefuses` went red
+mutation: (QA, AC1) `Capture` drops its no-failure refusal -> `TestCaptureRefuses` went red (the reason text; `Write` still refused, with another reason)
+mutation: (QA, AC1) `WriteFile` leaves an existing file as it is -> `TestWriteKeepsCaseFields` went red (the second Write's case.json and snapshot.json). Removing only the `Delete` is an equivalent mutation (the stream truncates the file), which stayed green and is not counted
+mutation: (QA, AC1) `LOCALPATH` loses the `var` and `etc` alternatives of its private-folder pattern -> `TestWriteRefusesMore` went red
+mutation: (QA, AC1) `LOCALPATH` loses the look-behind of its var/folders pattern -> `TestWriteRefusesMore` went red (a folder below another one named var/folders is refused)
+mutation: (QA, AC1) `Capture` puts a credential-named setting back into the reader's answer -> `TestCaptureDropsCredentialSettings` went red (the item's settings, and the names in the file and the pack), with `TestCaptureWritesCase` ("with no credential-type setting" and the exact snapshot)
+mutation: (QA, Hermeticity) `OnAfterAllTests` does not call `Clean` -> `TestCleanRemovesBatch` went red (headers, folder and mark); the earlier test called `Clean` directly and did not reach `OnAfterAllTests`
+mutation: (QA, Hermeticity) `OnAfterAllTests` passes no folder to `Clean` -> `TestCleanRemovesBatch` went red ("and the folder")
+mutation: (QA, AC1 "And") the check of `TestIncidentFiles` skips the local-path rule -> `TestIncidentChecksFlagViolations` went red (snapshot and case rows)
+mutation: (QA, AC1 "And") it skips the ASCII rule -> `TestIncidentChecksFlagViolations` went red (snapshot and case rows)
+mutation: (QA, AC1 "And") it skips the fixed-point rule -> `TestIncidentChecksFlagViolations` went red (the password row)
+mutation: (QA, AC1 "And") it skips the host rule -> `TestIncidentChecksFlagViolations` went red
+mutation: (QA, AC1 "And") it skips the credential-name rule -> `TestIncidentChecksFlagViolations` went red (ApiKey and BOTTOKEN rows)
+mutation: (QA, AC1 "And") it does not flag a snapshot file that is missing -> `TestIncidentChecksFlagViolations` went red
+mutation: (QA, AC2) the `demo` rule of `test-eval-set.sh` compares only the cause category -> `test-eval-set.sh` `demo` went red (`bad-demo-element`, `bad-demo-extra-field` and `bad-demo-fixkind` not flagged)
+mutation: (QA, AC1 "And") the `cases` rule of `test-eval-set.sh` no longer checks each failure's targetConfigName and error -> `test-eval-set.sh` `cases` went red (`bad-snapshot-failure-no-error` and `bad-snapshot-failure-no-target` not flagged)
+Each QA mutation was applied from a script with a backup, reverted from the backup, and the checksums of every file under `Eval/`, `Test/Eval/`, `test-eval-set.sh` and `eval/orders-date-format/*`, `git status --short` and `git diff --stat` matched the baseline taken before the first mutation (the baseline was taken again once, after `TestCaptureDropsCredentialSettings` was added). `mutations_demonstrated=20`.
+
+mutation: (code review, Hermeticity) `Clean` returns an error status -> `TestCleanRemovesBatch` went red ("the end of a run that held the failures, sent a batch and left the fixture settings"), and the run's own `OnAfterAllTests` status was reported as an error of the class
+mutation: (code review, Hermeticity) `OnAfterAllTests` skips its restore of the fixture settings -> `TestCleanRemovesBatch` went red ("and took the fixture settings out of the definition")
+mutation: (code review, Hermeticity) the restore at the end of `TestCaptureDropsCredentialSettings` fails -> `TestCaptureDropsCredentialSettings` went red ("the settings are taken out of the definition again" and "the definition holds the settings it held before"), with `TestCleanRemovesBatch`, whose `before` held the leftover settings
+Each code-review mutation ran on the warm stack `e9s4cw`, was reverted from a backup, and the class was green again on the same stack before the next one; the checksums of every file under `Eval/`, `Test/Eval/`, `test-eval-set.sh`, `record-eval.sh` and `eval/orders-date-format/*` matched the manifest taken before the first mutation.
+
+**Run record (QA):**
+- compile check on `ocutalon-slot-b` (`OCUTALON`, build 154U): `Test/Eval/Record` and `Test/Eval/Cases` compile; no test ran there. The load also put the unchanged `Test/Eval/*` classes on the slot;
+- warm (`e9s4qw`): `Test.Eval.Cases` (4.4 s) and `Test.Eval.Record` (13 to 16 s) pass, then `Test.Demo.Production` (34 s) and `Test.Watch.Evidence` (2.5 s) on the same stack, so the Orders definition and the pins are intact after `TestCaptureDropsCredentialSettings`; every mutation above ran there;
+- fresh (`e9s4q`): `lane-a` part 5/8 forward passed (10 classes, 138 s, `Record` 14.3 s, `Cases` 4.5 s) and part 4/8 `--reverse` passed (10 classes, 119 s, `Record` 13.0 s, `Cases` 4.3 s);
+- `bash docker/tests/test-eval-set.sh`, `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh` pass; both stacks are down and the lane-b lock folder is empty.
 
 ## Auto Run Result
 

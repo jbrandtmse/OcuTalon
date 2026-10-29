@@ -34,7 +34,10 @@
 ///   - (QA) TestFindingKeys: the keys that a finding case may use are production state changes of the Watch catalog;
 ///   - TestIncidentFiles (Story 9.4): every incident case's case.json and snapshot are plain ASCII and fixed points of Bridge.Redact.Text, hold no local
 ///     machine path (Eval.Record LOCALPATH) and no host but example.com and .example hosts, and no item of a snapshot has a setting that
-///     Reader.CredentialName flags; at least one incident case is checked.
+///     Reader.CredentialName flags; at least one incident case is checked;
+///   - (QA) TestIncidentChecksFlagViolations: the check of TestIncidentFiles flags each violation it names (a character that is not ASCII, a value that
+///     Redact.Text changes, a local machine path, a host that is not an example host, a credential-named item setting, a missing or unreadable
+///     snapshot) on incident cases that the test writes below /tmp and removes, and passes a good case.
 /// Read and Plain are public for Test.Eval.Record.
 Class OcuTalon.Test.Eval.Cases Extends %UnitTest.TestCase
 {
@@ -415,46 +418,179 @@ Method TestIncidentFiles()
 	Set folder = ..Folder()
 	Set names = ..Names(folder)
 	If names = "" Quit
-	Set checked = 0, position = 0
-	While $ListNext(names, position, name) {
-		Set case = ..Read(folder, name)
-		If '$IsObject(case) || (case.kind '= ##class(OcuTalon.Eval.Report).#INCIDENTKIND) Continue
-		Set checked = checked + 1
-		Do $$$AssertEquals(case.%GetTypeOf("snapshot"), "string", name_": the case names its snapshot file")
-		If case.%GetTypeOf("snapshot") '= "string" Continue
-		Set directory = ##class(%File).SubDirectoryName(folder, name)
-		Set files = $ListBuild(##class(%File).NormalizeFilename("case.json", directory), ##class(%File).NormalizeFilename(case.snapshot, directory))
-		Set at = 0
-		While $ListNext(files, at, file) {
-			Set label = name_"/"_##class(%File).GetFilename(file)
-			Do $$$AssertTrue(##class(%File).Exists(file), label_": the file exists")
-			If '##class(%File).Exists(file) Continue
-			Do $$$AssertTrue(..Plain(file), label_": it is plain ASCII")
-			Set compact = ##class(%DynamicAbstractObject).%FromJSONFile(file).%ToJSON()
-			Do $$$AssertTrue(##class(OcuTalon.Bridge.Redact).Text(compact) = compact, label_": it is a fixed point of Bridge.Redact.Text")
-			Do $$$AssertNotTrue($Locate(compact, ##class(OcuTalon.Eval.Record).#LOCALPATH), label_": it holds no local machine path")
-			Set others = ""
-			Set hosts = ..Hosts(compact), spot = 0
-			While $ListNext(hosts, spot, host) {
-				If (host '= "example.com") && ($Piece(host, ".", $Length(host, ".")) '= "example") Set others = others_" "_host
-			}
-			Do $$$AssertEquals(others, "", label_": every host is example.com or a .example host")
-		}
-		Set snapshot = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename(case.snapshot, directory))
-		Set flagged = ""
-		Set iterator = snapshot.items.%GetIterator()
-		While iterator.%GetNext(, .entry) {
-			Set settings = entry.settings.%GetIterator()
-			While settings.%GetNext(.setting) {
-				If ##class(OcuTalon.Watch.Reader).CredentialName(setting) Set flagged = flagged_" "_setting
-			}
-		}
-		Do $$$AssertEquals(flagged, "", name_": no item of the snapshot has a setting with a credential name")
-	}
+	Set problems = ..IncidentProblems(folder, names, .checked)
+	Do $$$AssertEquals(problems, "", "no file of an incident case has a problem")
 	Do $$$AssertTrue(checked >= 1, "at least one incident case was checked: "_checked)
 }
 
+/// (QA) The check of TestIncidentFiles flags each violation it names, on a folder of the test's own: a good incident case has no problem and counts as
+/// checked, and a case with a character that is not ASCII (in the case or the snapshot), a value that Bridge.Redact.Text changes, a local machine
+/// path (in the case or the snapshot), a host that is not example.com or a .example host, an item setting with a credential name, a missing snapshot
+/// file, no snapshot name or a snapshot that is not JSON is flagged with its rule. A case of another kind is not checked. The folder is removed.
+Method TestIncidentChecksFlagViolations()
+{
+	Set root = "/tmp/zz-eval-cases/"_..Run_"/"
+	Set path = "/Use"_"rs/zzname/x"
+	Try {
+		Do ..Probe("a good incident case", root, ..GoodCase(), ..GoodSnapshot(), "")
+		Set case = ..GoodCase()
+		Do case.%Set("kind", "item")
+		Set case.description = "Recorded at "_path
+		Do ..Probe("a case of another kind is not checked", root, case, ..GoodSnapshot(), "", 0)
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "caf"_$Char(233)
+		Do ..Probe("a snapshot with a character that is not ASCII", root, ..GoodCase(), snapshot, "snapshot.json: it is not plain ASCII")
+		Set case = ..GoodCase()
+		Set case.description = "caf"_$Char(233)
+		Do ..Probe("a case with a character that is not ASCII", root, case, ..GoodSnapshot(), "case.json: it is not plain ASCII")
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.body.Password = "zz-secret-1"
+		Do ..Probe("a snapshot with a password in a body", root, ..GoodCase(), snapshot, "snapshot.json: it is not a fixed point of Bridge.Redact.Text")
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "ERROR #5001: Cannot open "_path
+		Do ..Probe("a snapshot with a local machine path", root, ..GoodCase(), snapshot, "snapshot.json: it holds a local machine path")
+		Set case = ..GoodCase()
+		Set case.description = "Recorded at "_path
+		Do ..Probe("a case with a local machine path", root, case, ..GoodSnapshot(), "case.json: it holds a local machine path")
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "ERROR #5001: Cannot reach https://api.zzhost.org/x"
+		Do ..Probe("a snapshot with a host that is not an example host", root, ..GoodCase(), snapshot, "snapshot.json: it holds the host api.zzhost.org")
+		Set snapshot = ..GoodSnapshot()
+		Set settings = snapshot.items.%Get(0).settings
+		Set settings.ApiKey = ##class(OcuTalon.Bridge.Redact).#REDACTED
+		Do ..Probe("an item setting with a credential name", root, ..GoodCase(), snapshot, "the setting ApiKey")
+		Set snapshot = ..GoodSnapshot()
+		Set settings = snapshot.items.%Get(0).settings
+		Set settings.BOTTOKEN = ##class(OcuTalon.Bridge.Redact).#REDACTED
+		Do ..Probe("an item setting with a credential name in capitals", root, ..GoodCase(), snapshot, "the setting BOTTOKEN")
+		Set case = ..GoodCase()
+		Set case.snapshot = "zz-missing.json"
+		Do ..Probe("a snapshot file that does not exist", root, case, "", "zz-missing.json: the file does not exist")
+		Set case = ..GoodCase()
+		Do case.%Remove("snapshot")
+		Do ..Probe("a case that names no snapshot", root, case, ..GoodSnapshot(), "case.json: it names no snapshot file")
+		Do ..Probe("a snapshot that is not JSON", root, ..GoodCase(), "{", "could not be read")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the check of the incident files threw: "_exception.DisplayString())
+	}
+	Do ##class(%File).RemoveDirectoryTree(root)
+	Do $$$AssertNotTrue(##class(%File).DirectoryExists(root), "the test's folder is removed")
+}
+
 /// --- helpers ---
+/// The problems of the incident cases among the named case folders of the folder, as text: "" when there are none, else one " <case>/<file>: <rule>;"
+/// for each. checked is the number of cases of kind incident.
+ClassMethod IncidentProblems(folder As %String, names As %List, Output checked As %Integer) As %String
+{
+	Set problems = "", checked = 0, position = 0
+	While $ListNext(names, position, name) {
+		Set problems = problems_..CaseProblems(folder, name, .incident)
+		Set checked = checked + incident
+	}
+	Quit problems
+}
+
+/// The problems of the case folder (see IncidentProblems); incident is 1 when the case is of kind incident. A file that cannot be read is a problem.
+ClassMethod CaseProblems(folder As %String, name As %String, Output incident As %Boolean) As %String [ Private ]
+{
+	Set problems = "", incident = 0
+	Try {
+		Set case = ..Read(folder, name)
+		Set incident = $IsObject(case) && (case.kind = ##class(OcuTalon.Eval.Report).#INCIDENTKIND)
+		If incident {
+			If case.%GetTypeOf("snapshot") '= "string" {
+				Set problems = " "_name_"/case.json: it names no snapshot file;"
+			} Else {
+				Set directory = ##class(%File).SubDirectoryName(folder, name)
+				Set snapshotFile = ##class(%File).NormalizeFilename(case.snapshot, directory)
+				Set files = $ListBuild(##class(%File).NormalizeFilename("case.json", directory), snapshotFile), at = 0
+				While $ListNext(files, at, file) {
+					Set label = " "_name_"/"_##class(%File).GetFilename(file)_": "
+					Set problems = problems_$Select(##class(%File).Exists(file): ..FileProblems(file, label), 1: label_"the file does not exist;")
+				}
+				If ##class(%File).Exists(snapshotFile) {
+					Set snapshot = ##class(%DynamicAbstractObject).%FromJSONFile(snapshotFile)
+					Set iterator = snapshot.items.%GetIterator()
+					While iterator.%GetNext(, .entry) {
+						Set settings = entry.settings.%GetIterator()
+						While settings.%GetNext(.setting) {
+							If ##class(OcuTalon.Watch.Reader).CredentialName(setting) Set problems = problems_" "_name_"/"_case.snapshot_": the item "_entry.name_" has the setting "_setting_", which has a credential name;"
+						}
+					}
+				}
+			}
+		}
+	} Catch exception {
+		Set problems = problems_" "_name_": a file could not be read ("_exception.DisplayString()_");"
+	}
+	Quit problems
+}
+
+/// The problems of one JSON file of a case, each as the label and the rule: not plain ASCII, not a fixed point of Bridge.Redact.Text (as compact JSON), a
+/// local machine path, or a host that is not example.com or a .example host.
+ClassMethod FileProblems(file As %String, label As %String) As %String [ Private ]
+{
+	Set problems = ""
+	If '..Plain(file) Set problems = problems_label_"it is not plain ASCII;"
+	Set compact = ##class(%DynamicAbstractObject).%FromJSONFile(file).%ToJSON()
+	If ##class(OcuTalon.Bridge.Redact).Text(compact) '= compact Set problems = problems_label_"it is not a fixed point of Bridge.Redact.Text;"
+	If $Locate(compact, ##class(OcuTalon.Eval.Record).#LOCALPATH) Set problems = problems_label_"it holds a local machine path;"
+	Set hosts = ..Hosts(compact), position = 0
+	While $ListNext(hosts, position, host) {
+		If (host '= "example.com") && ($Piece(host, ".", $Length(host, ".")) '= "example") Set problems = problems_label_"it holds the host "_host_";"
+	}
+	Quit problems
+}
+
+/// Writes the case (a dynamic object) and the snapshot (a dynamic object, the text of the file, or "" for no file) as snapshot.json, each with a line
+/// feed, into the folder zz-incident of root, checks that IncidentProblems gives the problems of expected (empty: none; else a part of them) and the number
+/// of incident cases (checked, 1 unless given), and removes root.
+Method Probe(label As %String, root As %String, case As %DynamicObject, snapshot, expected As %String, checked As %Integer = 1) [ Private ]
+{
+	Set directory = root_"zz-incident/"
+	Do ##class(%File).RemoveDirectoryTree(root)
+	Do $$$AssertTrue(##class(%File).CreateDirectoryChain(directory), label_": the folder is made")
+	Do ..Put(directory_"case.json", case.%ToJSON())
+	If $IsObject(snapshot) {
+		Do ..Put(directory_"snapshot.json", snapshot.%ToJSON())
+	} ElseIf snapshot '= "" {
+		Do ..Put(directory_"snapshot.json", snapshot)
+	}
+	Set problems = ..IncidentProblems(root, $ListBuild("zz-incident"), .counted)
+	If expected = "" {
+		Do $$$AssertEquals(problems, "", label_": no problem")
+	} Else {
+		Do $$$AssertTrue(problems [ expected, label_": flagged with '"_expected_"': "_problems)
+	}
+	Do $$$AssertEquals(counted, checked, label_": incident cases checked: "_counted)
+	Do ##class(%File).RemoveDirectoryTree(root)
+}
+
+/// Writes the text and a line feed to the file, as UTF-8.
+ClassMethod Put(file As %String, text As %String) [ Private ]
+{
+	Set stream = ##class(%Stream.FileBinary).%New()
+	$$$ThrowOnError(stream.LinkToFile(file))
+	$$$ThrowOnError(stream.Write($ZConvert(text, "O", "UTF8")_$Char(10)))
+	$$$ThrowOnError(stream.%Save())
+}
+
+/// A good incident case: the Orders date-format expectation, with a snapshot named snapshot.json.
+ClassMethod GoodCase() As %DynamicObject [ Private ]
+{
+	Quit {"name": "zz-incident", "kind": "incident", "heldOut": false, "description": "A synthetic incident case.", "snapshot": "snapshot.json", "expectation": {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "repair_resend"}, "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"}
+}
+
+/// A good reader snapshot: one failure with an error that names an example host and address, one item with a setting that is not a credential.
+ClassMethod GoodSnapshot() As %DynamicObject [ Private ]
+{
+	Quit {"format": "ocutalon.readerSnapshot/1", "source": {"namespace": "ZZNS", "production": "Zz.Production", "item": "ZzItem"}, "failures": [{"targetConfigName": "ZzItem", "status": "Error", "error": "ERROR #5001: Cannot reach https://example.com/x or write to user@partner.example", "body": {"OrderNumber": "PO-1"}}], "eventLog": [], "items": [{"name": "ZzItem", "settings": {"TargetConfigName": "ZzTarget"}}], "trace": []}
+}
+
 /// The case of the folder as a dynamic object, or "" when it has no case.json.
 ClassMethod Read(folder As %String, name As %String) As %DynamicObject
 {

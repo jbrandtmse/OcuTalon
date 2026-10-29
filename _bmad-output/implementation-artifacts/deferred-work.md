@@ -1921,3 +1921,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Eval/In.cls Render (12 lines) vs src/ocutalon/cls/OcuTalon/Core/Conversation.cls:449 Checked, identical but for the target fields; Design Notes 10 records the reason (a private method of a Lane B process); unlike the Busy numbers and the Input, no test pins the two equal; Story 20.2 extends Conversation's HostData handling
 - 2026-10-29T05:55:13Z status=routed owner=20-2-see-citations-and-memories-in-answers by=cr note=Rule 2 forced copy: make the check-rows glue one public Lane A helper that Conversation and EvalIn both call
+
+### DW-385: Test.Eval.Record FixtureSettings and DefinedSettings (QA, Story 9.4) are near-copies of Epic 7's private Test.Watch.Evidence helpers of the same names (same five fixture names, same open/remove/insert loop), forced by Epic 7's read-only Test/Watch/**; the two Orders-definition fixtures drift when the definition handling changes
+- source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls FixtureSettings/DefinedSettings vs src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls:60 and :90 (Private, Epic 7's file); the reason is recorded in the 9.4 spec's Review Findings
+- 2026-10-29T08:35:14Z status=routed owner=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=Rule 2 forced copy: after Epic 7's merge, make the Orders-definition fixture one public helper both classes call
+
+### DW-386: The product redactor OcuTalon.Bridge.Redact does not replace two key shapes that docker/tests/test-boundaries.sh key_like flags: DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY)
+- source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: found by 9.4's code review comparing Redact.Text with key_like; Bridge.Redact is src/bridge (Lane A, Epic 7's contended path while Epic 7 is open); no release-1 recording source contains these shapes
+- 2026-10-29T08:51:48Z status=escalated owner=burndown by=cr note=for the decision sheet: extend Bridge.Redact's key patterns to every key_like shape (security posture; a story of the bridge's owner once Epic 7 merges), or accept with reopen_if a recording or trace shows one

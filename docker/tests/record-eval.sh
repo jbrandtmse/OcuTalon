@@ -6,8 +6,8 @@
 # reader snapshot of them. The file is passed through jq, so it is written pretty-printed, and replaced only when it holds the
 # 50 failures, is ASCII and names no home folder (test-boundaries.sh scans the committed file for every local machine path).
 # An EXIT trap removes the project with its volume and images.
-# Rerun it whenever TestSnapshotIsReadableAndCurrent reports that a fresh recording differs from the committed one because the
-# production changed, then commit the file.
+# Rerun it whenever TestSnapshotIsReadableAndCurrent or Test.Eval.Record's TestCommittedIsCurrent reports that a fresh recording
+# differs from the committed one because the production changed, then commit the file.
 # OcuTalon.Eval.Record records the other incidents of eval/. This script stays the recorder of eval/orders-date-format/snapshot.json
 # while Test.Watch.Evidence and Test.Demo.Production pin that recording, and Test.Eval.Record compares the evidence pack of the
 # committed file with a fresh recording's on every CI run.

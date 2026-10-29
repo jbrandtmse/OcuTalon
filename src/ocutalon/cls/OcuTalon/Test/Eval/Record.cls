@@ -3,16 +3,29 @@
 /// Where either is missing, every test fails with that reason, so that a broken stack can never give a green shard.
 /// OnBeforeAllTests holds the Orders WatchMark, then re-induces each incident of RECIPES (the demo's: a batch of 50 orders in MM/DD/YYYY), builds the live
 /// pack itself from Reader.Evidence and EvidencePack.Build, independently of Eval.Record, and captures the same failures with Eval.Record into a folder
-/// of its own below TMP. OnAfterAllTests runs Clean: it deletes its messages and its folder and releases the mark. The tests then read what was kept:
+/// of its own below TMP. OnAfterAllTests takes out fixture settings that a test left in the Orders definition and runs Clean, which releases the mark
+/// and deletes its folder and its messages, and returns their status. The tests then read what was kept:
 ///   - TestCaptureWritesCase: the demo capture's two files, field by field; snapshot.json is the reader's own answer after Redact.Text, with nothing
 ///     added and nothing dropped; case.json is the committed case except recordedBy; the committed expectation; Eval.Report DEMOCASE names the case;
 ///   - TestReplayEqualsLive: the pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly;
 ///   - TestCommittedIsCurrent: the incident cases of eval/ and RECIPES are the same set, and the pack of each committed snapshot equals the live pack
 ///     once VOLATILE (row ids and times, which a re-induced incident cannot repeat) is removed from both;
 ///   - TestNoIncidentMade: the Orders WatchMark was held while the failures were sent, and the recordings made no Orders incident;
-///   - TestCleanRemovesBatch: Clean removes the messages of a batch of one order, its folder and the hold;
-///   - TestWriteRedacts, TestWriteRefuses and TestCaptureRefuses: the redaction and the refusals of the recorder on synthetic snapshots (no failure is
-///     induced), each leaving no folder behind.
+///   - TestCleanRemovesBatch: the OnAfterAllTests of a run removes the messages of a batch of one order, its folder, the hold and the fixture settings
+///     left in the Orders definition, with an OK status;
+///   - TestWriteRedacts and TestWriteRefuses: the redaction and the refusals of Write on synthetic snapshots (no failure is induced), each leaving no
+///     folder behind;
+///   - TestCaptureRefuses: the refusals of Capture against the Orders production (a production that is not the namespace's own, keys that give no
+///     failure, a case that is not valid), each with no pack and no folder;
+///   - (QA) TestWriteKeepsCaseFields: Write puts the case in case.json as the recorder's record (heldOut as a JSON boolean, an empty fixKind for a
+///     category with no fix, compact JSON and one line feed), leaves the caller's case unchanged, and replaces both files when it writes again;
+///   - (QA) TestWriteRefusesMore: Write also refuses a local machine path or a character that is not ASCII in the case's own text, the remaining
+///     home and temporary folder patterns, a snapshot that is not an object or whose failures are not a list, and a blank folder, and does not
+///     refuse a folder that only looks like a temporary one;
+///   - (QA) TestCaptureRefusesBadCaseFirst: Capture refuses a case that is not valid for that reason before it reads the production;
+///   - (QA) TestCaptureDropsCredentialSettings: with credential-named settings (and one plain setting) in the definition of the failing Orders item,
+///     the snapshot that Capture writes and the pack it returns hold the plain setting and none of the others, by name or by value. The test adds
+///     the settings to the saved definition in OCUORDERS and takes them out again.
 Class OcuTalon.Test.Eval.Record Extends %UnitTest.TestCase
 {
 
@@ -29,6 +42,16 @@ Parameter TMP = "/tmp/zz-eval-record/";
 /// The item of the Orders production that the demo failures are at.
 Parameter ORDERSITEM = "OrdersFromPartner";
 
+/// The settings that TestCaptureDropsCredentialSettings adds to the definition of the Orders item: four with a credential name (CREDENTIALS) and one plain
+/// (NOTE), each with a value of its own.
+Parameter CREDENTIALS = "Credentials,SMTPPassword,BotToken,ApiKey";
+
+Parameter NOTE = "ZzFixtureNote";
+
+Parameter SECRET = "zz-fixture-secret-1";
+
+Parameter NOTEVALUE = "zz-fixture-note";
+
 /// The reason why every test fails, or empty.
 Property Missing As %String(MAXLEN = 400);
 
@@ -37,6 +60,10 @@ Property Held As %Boolean;
 
 /// 1 when the Orders WatchMark was ahead of now by more than 300 seconds right after OnBeforeAllTests held the failures, before the first order was sent.
 Property HoldChecked As %Boolean;
+
+/// 1 from the moment a test puts the fixture settings into the Orders definition until it has taken them out again, so that OnAfterAllTests takes
+/// out what a test left.
+Property SettingsAdded As %Boolean;
 
 /// The references that the batches of this run used.
 Property Refs As %DynamicArray;
@@ -57,6 +84,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Recorded = {}
 	Set ..Missing = ""
 	Set ..Held = 0
+	Set ..SettingsAdded = 0
 	Set ..HoldChecked = 0
 	Set ..Start = ""
 	Set ..Folder = ##class(%File).NormalizeDirectory(##class(%File).SubDirectoryName(..#TMP, ##class(OcuTalon.Bridge.Ids).NewRef()))
@@ -90,20 +118,28 @@ Method OnBeforeAllTests() As %Status
 	Quit $$$OK
 }
 
+/// Takes the fixture settings out of the Orders definition while SettingsAdded is 1, then runs Clean. The status is theirs, so that a clean-up that
+/// fails is reported.
 Method OnAfterAllTests() As %Status
 {
-	Do ..Clean(..Refs, ..Folder, ..Held)
-	Quit $$$OK
+	Set sc = $$$OK
+	If ..SettingsAdded {
+		Set sc = ..FixtureSettings(0)
+		If $$$ISOK(sc) Set ..SettingsAdded = 0
+	}
+	Quit $SYSTEM.Status.AppendStatus(sc, ..Clean(..Refs, ..Folder, ..Held))
 }
 
-/// Deletes the Orders messages of the batches (the SuperSession references in the array), releases the Orders WatchMark when held is 1, and deletes
-/// the folder with everything in it.
-ClassMethod Clean(refs As %DynamicArray, folder As %String, held As %Boolean)
+/// Releases the Orders WatchMark when held is 1, deletes the folder with everything in it, and deletes the Orders messages of the batches (the
+/// SuperSession references in the array). The status is the release's and the deletion's.
+ClassMethod Clean(refs As %DynamicArray, folder As %String, held As %Boolean) As %Status
 {
 	Set demo = "OcuTalon.Test.Demo.Production"
-	If $IsObject(refs) && (refs.%Size() > 0) Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(refs, $Parameter(demo, "NAMESPACE"))
-	If held Do $ClassMethod(demo, "ReleaseFailures")
+	Set sc = $$$OK
+	If held Set sc = $ClassMethod(demo, "ReleaseFailures")
 	If folder '= "" Do ##class(%File).RemoveDirectoryTree(folder)
+	If $IsObject(refs) && (refs.%Size() > 0) Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(refs, $Parameter(demo, "NAMESPACE")))
+	Quit sc
 }
 
 /// Induces the incident, builds the live pack and captures the same failures with Eval.Record; keeps the three in Recorded. A fault ends the
@@ -281,10 +317,12 @@ Method TestNoIncidentMade()
 	Do $$$AssertEquals($ClassMethod(demo, "IncidentsSince", ..Start), 0, "no Orders incident was made by the recordings")
 }
 
-/// Clean, which OnAfterAllTests runs, deletes the Orders messages of a batch, its folder and the hold: a batch of one order of the test's own fails at
-/// the item, a folder of the run is made, and after Clean(refs, folder, 1) the batch has no header, the folder is gone and the mark is at the release
-/// time. The test then holds the failures again for the tests after it. Its reference is also kept in Refs, so that OnAfterAllTests deletes the batch
-/// should the test fail halfway.
+/// The OnAfterAllTests of a run deletes the Orders messages of its batches, its folder, the hold and fixture settings that a test left, and returns
+/// their status: a batch of one order of the test's own fails at the item, a folder is made, the fixture settings are put into the Orders definition,
+/// and after the OnAfterAllTests of another instance of this class that holds that batch, folder, hold and SettingsAdded, the batch has no header, the
+/// folder is gone, the mark is at the release time and the definition holds the settings it held before. The test then holds the failures again for
+/// the tests after it. Its reference is also kept in Refs, and its own SettingsAdded is 1 until the settings are out, so that this run's
+/// OnAfterAllTests cleans up should the test fail halfway.
 Method TestCleanRemovesBatch()
 {
 	If '..Guard() Quit
@@ -297,11 +335,22 @@ Method TestCleanRemovesBatch()
 	Set folder = ..Folder_"clean/"
 	Do $$$AssertTrue(##class(%File).CreateDirectoryChain(folder), "a folder of the run exists")
 	Do $$$AssertTrue($ClassMethod(demo, "Headers", ref).%Size() > 0, "and the batch has headers")
-	Do ..Clean([(ref)], folder, 1)
-	Do $$$AssertEquals($ClassMethod(demo, "Headers", ref).%Size(), 0, "Clean deleted the headers of the batch")
+	Set settings = ..DefinedSettings()
+	Set ..SettingsAdded = 1
+	Do $$$AssertStatusOK(..FixtureSettings(1), "the fixture settings are put into the definition of "_..#ORDERSITEM)
+	Set closing = ##class(OcuTalon.Test.Eval.Record).%New("")
+	Set closing.Refs = [(ref)]
+	Set closing.Folder = folder
+	Set closing.Held = 1
+	Set closing.SettingsAdded = 1
+	Do $$$AssertStatusOK(closing.OnAfterAllTests(), "the end of a run that held the failures, sent a batch and left the fixture settings")
+	Do $$$AssertEquals($ClassMethod(demo, "Headers", ref).%Size(), 0, "deleted the headers of the batch")
 	Do $$$AssertNotTrue(##class(%File).DirectoryExists(folder), "and the folder")
 	Do $$$AssertTrue('$ClassMethod(demo, "MarkIsAhead", 60), "and released the Orders WatchMark")
 	Do $$$AssertTrue($ClassMethod(demo, "MarkIsAhead", -30), "to the release time, not left behind")
+	Do $$$AssertEquals(..DefinedSettings(), settings, "and took the fixture settings out of the definition")
+	Set sc = $Select(..DefinedSettings() = settings: $$$OK, 1: ..FixtureSettings(0))
+	If $$$ISOK(sc) Set ..SettingsAdded = 0
 	Do $$$AssertStatusOK($ClassMethod(demo, "HoldFailures"), "the failures are held again for the other tests")
 }
 
@@ -413,6 +462,157 @@ Method TestCaptureRefuses()
 	Do $$$AssertNotTrue(##class(%File).DirectoryExists(base), "nothing was written")
 }
 
+/// (QA) Write puts the case in case.json as the recorder's record and nothing else: a held-out case keeps heldOut true as a JSON boolean, a case with no
+/// heldOut gets false, a category with no fix keeps an empty fixKind, case.json is exactly the record's compact JSON and one line feed, and the case
+/// the caller holds is unchanged. A second Write of the case replaces case.json and snapshot.json with the new text instead of adding to them.
+Method TestWriteKeepsCaseFields()
+{
+	If '..Guard() Quit
+	Set base = ..Folder_"fields/"
+	Set recordedBy = ##class(OcuTalon.Eval.Record).#RECORDEDBY
+	Set case = ..SyntheticCase("zz-fields")
+	Do case.%Set("heldOut", 1, "boolean")
+	Set case.description = "A held-out failure of the connection."
+	Set case.expectation.causeCategory = "connection_failure"
+	Set case.expectation.elementAtFault = "ZzItem"
+	Set case.expectation.fixKind = ""
+	Set before = case.%ToJSON()
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(case, ..Synthetic(), base), "Write accepts a held-out case whose category has no fix")
+	Set directory = ##class(%File).SubDirectoryName(base, "zz-fields")
+	Set caseFile = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#CASEFILE, directory)
+	Set snapshotFile = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, directory)
+	Set expected = {"name": "zz-fields", "kind": "incident", "heldOut": true, "description": "A held-out failure of the connection.", "snapshot": "snapshot.json", "expectation": {"causeCategory": "connection_failure", "elementAtFault": "ZzItem", "fixKind": ""}, "recordedBy": (recordedBy)}
+	Do $$$AssertEquals(..ReadText(caseFile), expected.%ToJSON()_$Char(10), "case.json is the record as compact JSON and one line feed, with heldOut true and an empty fixKind")
+	Do $$$AssertEquals(case.%ToJSON(), before, "the case that the caller holds is unchanged")
+	Set second = ..SyntheticCase("zz-fields")
+	Do second.%Remove("heldOut")
+	Set second.description = "The second recording."
+	Set snapshot = ..Synthetic(, "ERROR #5001: The second failure.")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(second, snapshot, base), "a second Write of the same case")
+	Set expected = {"name": "zz-fields", "kind": "incident", "heldOut": false, "description": "The second recording.", "snapshot": "snapshot.json", "expectation": {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "repair_resend"}, "recordedBy": (recordedBy)}
+	Do $$$AssertEquals(..ReadText(caseFile), expected.%ToJSON()_$Char(10), "replaced case.json with the record of the second case, heldOut false by default")
+	Do $$$AssertEquals(..ReadText(snapshotFile), ##class(OcuTalon.Bridge.Redact).Text(snapshot.%ToJSON())_$Char(10), "and replaced snapshot.json with the second snapshot")
+}
+
+/// (QA) Write refuses, with the reason and no file, a local machine path or a character that is not ASCII in the text of the case itself (its description
+/// and its elementAtFault), the temporary-folder patterns that TestWriteRefuses leaves out, a snapshot that is not a JSON object, a snapshot whose
+/// failures are text and a blank folder; and it does not refuse a folder that only looks like a temporary one.
+Method TestWriteRefusesMore()
+{
+	If '..Guard() Quit
+	Set base = ..Folder_"refusesmore/"
+	Set notLocal = ##class(OcuTalon.Eval.Record).#NOTLOCAL, notAscii = ##class(OcuTalon.Eval.Record).#NOTASCII
+	Set valid = ..SyntheticCase("zz-refused")
+	Set case = ..SyntheticCase("zz-refused")
+	Set case.description = "Recorded at /Use"_"rs/zzname/x"
+	Do ..AssertRefused("a description holding a home folder", case, ..Synthetic(), base, "the case holds "_notLocal)
+	Set case = ..SyntheticCase("zz-refused")
+	Set case.expectation.elementAtFault = "/hom"_"e/zzname/x"
+	Do ..AssertRefused("an elementAtFault holding a home folder", case, ..Synthetic(), base, "the case holds "_notLocal)
+	Set case = ..SyntheticCase("zz-refused")
+	Set case.expectation.elementAtFault = "Or"_$Char(233)
+	Do ..AssertRefused("an elementAtFault holding a character that is not ASCII", case, ..Synthetic(), base, "the case holds "_notAscii)
+	For path = "/privat"_"e/var/x", "/privat"_"e/etc/x" {
+		Do ..AssertRefused("a body holding "_path, valid, ..Synthetic({"OrderNumber": (path)}), base, "the snapshot holds "_notLocal)
+	}
+	Set snapshot = ..Synthetic()
+	Set snapshot.failures = "none"
+	Do ..AssertRefused("a snapshot whose failures are text", valid, snapshot, base, "holds no failure")
+	Do ..AssertRefused("a snapshot that is a list", valid, [], base, "not of the format")
+	Do ..AssertRefused("a snapshot that is text", valid, "text", base, "not of the format")
+	Do ..AssertRefused("a blank folder", valid, ..Synthetic(), " ", "the folder is blank")
+	Do $$$AssertNotTrue(##class(%File).DirectoryExists(base), "nothing was written: no folder was made for any refused case")
+	Set lookalike = ..Folder_"lookalike/"
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(valid, ..Synthetic({"OrderNumber": ("/opt/va"_"r/folders/zz")}), lookalike), "a folder below another one that is named var/folders is not refused")
+}
+
+/// (QA) The snapshot that Capture writes has no setting with a credential name: four credential settings and one plain setting are added to the saved
+/// definition of the failing Orders item, Capture records the first failure of the batch, and the written file and the returned pack hold the plain
+/// setting with its value and none of the others, by name or by value. The settings are taken out again.
+Method TestCaptureDropsCredentialSettings()
+{
+	If '..Guard() Quit
+	Set entry = ..Entry("orders-date-format")
+	If '$IsObject(entry) Quit
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set namespace = $Parameter(demo, "NAMESPACE"), production = $Parameter(demo, "PRODUCTION")
+	Set key = "h"_entry.answer.failures.%Get(0).headerId
+	Set base = ..Folder_"credentials/"
+	Set before = ..DefinedSettings()
+	Set ..SettingsAdded = 1
+	Try {
+		Do $$$AssertStatusOK(..FixtureSettings(1), "the credential settings and a plain one are added to the definition of "_..#ORDERSITEM)
+		Set held = ..DefinedSettings()
+		Set missing = ""
+		Set names = $ListFromString(..#CREDENTIALS_","_..#NOTE), position = 0
+		While $ListNext(names, position, name) {
+			If $ListFind($ListFromString(held), name) = 0 Set missing = missing_" "_name
+		}
+		Do $$$AssertEquals(missing, "", "the definition holds all five, so that there is something to leave out: "_held)
+		Set sc = ##class(OcuTalon.Eval.Record).Capture(..SyntheticCase("zz-credentials"), namespace, production, ..#ORDERSITEM, key, base, .pack)
+		Do $$$AssertStatusOK(sc, "Capture records the failure of an item whose definition holds credential settings")
+		Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(base, "zz-credentials"))
+		Set text = ..ReadText(file)
+		Do $$$AssertTrue(text '= "", "snapshot.json was written")
+		Set snapshot = ##class(%DynamicAbstractObject).%FromJSON(text)
+		Do $$$AssertEquals(snapshot.items.%Size(), 1, "it holds the one item")
+		If snapshot.items.%Size() = 1 {
+			Set settings = snapshot.items.%Get(0).settings
+			Kill sorted
+			Set iterator = settings.%GetIterator()
+			While iterator.%GetNext(.setting) {
+				Set sorted(setting) = ""
+			}
+			Set kept = "", setting = ""
+			For {
+				Set setting = $Order(sorted(setting))
+				If setting = "" Quit
+				Set kept = kept_$Select(kept = "": "", 1: ",")_setting
+			}
+			Do $$$AssertEquals(kept, "TargetConfigName,"_..#NOTE, "its settings are the item's plain ones, with no credential setting")
+			Do $$$AssertEquals(settings.%Get(..#NOTE), ..#NOTEVALUE, "and the plain one keeps its value")
+		}
+		Set packText = $Select($IsObject(pack): pack.%ToJSON(), 1: "")
+		Do $$$AssertTrue(packText '= "", "Capture returned a pack")
+		Set names = $ListFromString(..#CREDENTIALS), position = 0
+		Set leaked = ""
+		While $ListNext(names, position, name) {
+			If (text [ (""""_name_"""")) || (packText [ (""""_name_"""")) Set leaked = leaked_" "_name
+		}
+		Do $$$AssertEquals(leaked, "", "no credential setting is named in the file or the pack")
+		Do $$$AssertTrue((text '[ ..#SECRET) && (packText '[ ..#SECRET), "and no credential value is in the file or the pack")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the credential test threw: "_exception.DisplayString())
+	}
+	Set sc = ..FixtureSettings(0)
+	If $$$ISOK(sc) Set ..SettingsAdded = 0
+	Do $$$AssertStatusOK(sc, "the settings are taken out of the definition again")
+	Do $$$AssertEquals(..DefinedSettings(), before, "the definition holds the settings it held before")
+}
+
+/// (QA) Capture refuses a case that is not valid for that reason before it reads the production: the reason names the case's field also where the
+/// production is not the namespace's own and where the keys give no failure, which would be refused for another reason if the production were read first.
+Method TestCaptureRefusesBadCaseFirst()
+{
+	If '..Guard() Quit
+	Set base = ..Folder_"badcase/"
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set namespace = $Parameter(demo, "NAMESPACE"), production = $Parameter(demo, "PRODUCTION")
+	Set sc = ##class(OcuTalon.Eval.Record).Capture(..SyntheticCase("Bad_Name"), namespace, "Zz.NoProduction", ..#ORDERSITEM, "h1", base, .pack)
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertStatusNotOK(sc, "a case whose name is not valid is refused")
+	Do $$$AssertTrue((text [ "lower-case kebab") && (text '[ "not_current"), "for its name, and the production was not read: "_text)
+	Do $$$AssertEquals(pack, "", "and no pack is returned")
+	Set case = ..SyntheticCase("zz-captured")
+	Set case.expectation.causeCategory = "weather"
+	Set sc = ##class(OcuTalon.Eval.Record).Capture(case, namespace, production, ..#ORDERSITEM, "", base, .pack)
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertStatusNotOK(sc, "a case whose causeCategory is not valid is refused")
+	Do $$$AssertTrue((text [ "causeCategory") && (text '[ ##class(OcuTalon.Eval.Record).#NOFAILURE), "for its causeCategory, not for the keys: "_text)
+	Do $$$AssertEquals(pack, "", "and no pack is returned")
+	Do $$$AssertNotTrue(##class(%File).DirectoryExists(base), "nothing was written")
+}
+
 /// --- helpers ---
 /// The recording of the recipe, or "" with a failed assertion.
 Method Entry(name As %String) As %DynamicObject [ Private ]
@@ -497,6 +697,68 @@ ClassMethod Drop(node As %DynamicAbstractObject, path As %String) [ Private ]
 	} ElseIf $IsObject(node.%Get(head)) {
 		Do ..Drop(node.%Get(head), rest)
 	}
+}
+
+/// Puts the fixture settings into (on) or takes them out of (off) the Orders item in the saved Orders definition of OCUORDERS, and saves it. It first
+/// takes out any of them that are there, so that it can be called twice. It calls only Ens classes while it is in OCUORDERS and does not update the
+/// running production.
+ClassMethod FixtureSettings(on As %Boolean) As %Status [ Private ]
+{
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set namespace = $Parameter(demo, "NAMESPACE"), productionName = $Parameter(demo, "PRODUCTION"), itemName = ..#ORDERSITEM
+	Set names = $ListFromString(..#CREDENTIALS_","_..#NOTE)
+	Set secret = ..#SECRET, noteName = ..#NOTE, noteValue = ..#NOTEVALUE
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set production = ##class(Ens.Config.Production).%OpenId(productionName)
+	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no definition of "_productionName)
+	Set found = 0
+	For i = 1:1:production.Items.Count() {
+		Set item = production.Items.GetAt(i)
+		If item.Name '= itemName Continue
+		Set found = 1
+		For j = item.Settings.Count():-1:1 {
+			If $ListFind(names, item.Settings.GetAt(j).Name) Do item.Settings.RemoveAt(j)
+		}
+		If on {
+			Set position = 0
+			While $ListNext(names, position, name) {
+				Set setting = ##class(Ens.Config.Setting).%New()
+				Set setting.Target = "Host"
+				Set setting.Name = name
+				Set setting.Value = $Select(name = noteName: noteValue, 1: secret)
+				Do item.Settings.Insert(setting)
+			}
+		}
+		Quit
+	}
+	If 'found Quit $SYSTEM.Status.Error(5001, "The definition has no item "_itemName)
+	Quit production.%Save()
+}
+
+/// The names of the settings of the Orders item in the saved Orders definition of OCUORDERS, comma-separated and sorted, read from the definition itself.
+ClassMethod DefinedSettings() As %String [ Private ]
+{
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set namespace = $Parameter(demo, "NAMESPACE"), productionName = $Parameter(demo, "PRODUCTION"), itemName = ..#ORDERSITEM
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set production = ##class(Ens.Config.Production).%OpenId(productionName)
+	If '$IsObject(production) Quit "<no definition>"
+	Kill names
+	For i = 1:1:production.Items.Count() {
+		Set item = production.Items.GetAt(i)
+		If item.Name '= itemName Continue
+		For j = 1:1:item.Settings.Count() Set names(item.Settings.GetAt(j).Name) = ""
+		Quit
+	}
+	Set list = "", name = ""
+	For {
+		Set name = $Order(names(name))
+		If name = "" Quit
+		Set list = list_$Select(list = "": "", 1: ",")_name
+	}
+	Quit list
 }
 
 /// The text of the file.

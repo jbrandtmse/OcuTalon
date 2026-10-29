@@ -7,11 +7,14 @@
 ///     ocutalon.readerSnapshot/1) after OcuTalon.Bridge.Redact.Text, with nothing added and nothing dropped, and case.json, the case format of Story 9.1:
 ///     {name, kind "incident", heldOut, description, snapshot "snapshot.json", expectation {causeCategory, elementAtFault, fixKind}, recordedBy}.
 ///     Each file is compact JSON followed by one line feed. A pack is never written.
-///   - Both refuse with an error status that names the reason, and write nothing, when: the case is not valid (the name is lower-case kebab, the
-///     description and elementAtFault are not blank, causeCategory is one of DiagnosisPayload CAUSECATEGORIES, and fixKind is not empty exactly
-///     when the category is DiagnosisPayload FIXCATEGORY); the snapshot is not of the format SNAPSHOTFORMAT or holds no failure; the reader's outcome
-///     is not read; the redactor cannot check the text; or the redacted snapshot or the case holds a character that is not ASCII or a local
-///     machine path (LOCALPATH). A value is refused, never stripped: the author fixes the case.
+///   - Write refuses with an error status that names the reason, and makes no folder or file, when: the case is not valid (a valid case is a JSON
+///     object whose name is lower-case kebab, whose heldOut is a boolean or absent, whose description is not blank, and whose expectation is an
+///     object with a causeCategory of DiagnosisPayload CAUSECATEGORIES, an elementAtFault that is not blank and a fixKind that is a string or absent
+///     and is not empty exactly when the category is DiagnosisPayload FIXCATEGORY); the folder is blank; the snapshot is not of the format
+///     SNAPSHOTFORMAT or holds no failure; the redactor cannot check the text; or the redacted snapshot or the case holds a character that is not
+///     ASCII or a local machine path (LOCALPATH).
+///   - Capture refuses a case that is not valid before it reads the production, and refuses when the reader's outcome is not read or its answer holds
+///     no failure; then Write's refusals apply. A value is refused, never stripped: the author fixes the case.
 Class OcuTalon.Eval.Record
 {
 
@@ -46,7 +49,8 @@ Parameter NOTLOCAL = "a local machine path";
 
 /// Reads the failures with the keys (comma-separated, h<header id> or l<log id>) of the production's item in the namespace through
 /// Reader.Evidence, writes them into the folder as Write does, and gives in pack the evidence pack of the reader's answer (EvidencePack.Build, before
-/// any redaction of the file). On any error, pack is "" and nothing is written. The reader's outcome must be read and its answer must hold a failure.
+/// any redaction of the file). The reader's outcome must be read and its answer must hold a failure. On any error pack is "", and when it refuses (the
+/// refusals of the class description) nothing is written.
 ClassMethod Capture(case As %DynamicObject, namespace As %String, production As %String, item As %String, keys As %String, folder As %String, Output pack As %DynamicObject) As %Status
 {
 	Set pack = ""
