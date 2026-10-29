@@ -3529,6 +3529,8 @@ So that I can try it without help and trust that it claims only what the release
 - The README says OcuTalon runs on the plain IRIS (non-Health) AI Hub build 154 image, supported and verified on ARM64; CI tests only the IRIS for Health image (NFR-21, P15 wording) [AMENDED 2026-10-20, owner decision 3]
 
 - DW-45: Where the README explains demo mode off, it quotes the owner's sentence for a kept OCUORDERS: "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
+- DW-2: The README's install sections state Docker Compose 2.24 or later as the minimum (the judges' compose file uses `env_file` with `required: false`); `install.sh` already refuses an older Compose with the exact fix (Story 10.1) (ledger; routed by adjudication 2026-10-23)
+- DW-134: The README's key and update steps give the commands `install.sh` prints: after adding a key to `.env`, `docker compose up -d --force-recreate`; to apply an update, `docker compose up -d --build`; never "run ./install.sh again" for either, because a rerun leaves a healthy OcuTalon alone (Story 10.1, ruling U-45), and never `docker compose restart`, which does not re-read `.env` (ledger; routed by cr 2026-10-23)
 
 ### Story 10.3: The session side of Telegram is ready and stays off
 

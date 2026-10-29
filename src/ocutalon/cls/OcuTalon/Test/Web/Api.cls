@@ -321,7 +321,8 @@ Method TestStateMailboxTrace()
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
 /// filters: the chat merges the turns and the visible noticed incidents by time (a turn before an incident of the same
 /// time), the rail holds the pending requests, every check, the pending reminders and the 20 newest decide decisions,
-/// telegram holds the release switch and the pairing. Another session's rows are not in it.
+/// telegram holds the release switch, the pairing and the two Telegram marks, which the test clears first and puts back. Another
+/// session's rows are not in it.
 Method TestStateSections()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
@@ -360,6 +361,10 @@ Method TestStateSections()
 	Do $$$AssertStatusOK(checkRow.%Save(), "the first check has a run")
 	Set ^OcuTalonTest("TelegramIncluded") = 1
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set savedState = ##class(OcuTalon.Data.StatusMark).Get("telegramState")
+	Set savedPause = ##class(OcuTalon.Data.StatusMark).Get("telegramPaused")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", "")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", "")
 
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
@@ -406,6 +411,25 @@ Method TestStateSections()
 	Do $$$AssertEquals(ofTurn.traceUrl, chat.%Get(0).payload.traceUrl, "which is the turn's own trace URL")
 
 	Do $$$AssertEquals(body.telegram.included_"|"_body.telegram.paired_"|"_body.telegram.displayName_"|"_body.telegram.state, "1|1|Zz chat|off", "telegram: included, paired, the chat's name")
+	Do $$$AssertEquals(body.telegram.%ToJSON(), "{""included"":true,""state"":""off"",""botUserName"":"""",""paired"":true,""displayName"":""Zz chat"",""pausedUntil"":""""}", "telegram: the whole block with no recorded state and no pause")
+	Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.%ToJSON(), "{""included"":true,""state"":""on"",""botUserName"":""ocutalon_ci_bot"",""paired"":true,""displayName"":""Zz chat"",""pausedUntil"":""""}", "telegram: the state and bot from the telegramState mark, the pairing from the Pairing row")
+	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", until)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.pausedUntil, until, "telegram: pausedUntil is the telegramPaused mark while it is in the future")
+	Set listed = 0
+	Set iterator = body.status.%GetIterator()
+	While iterator.%GetNext(, .condition) {
+		If condition.condition = "telegramPaused" Set listed = (condition.slots.time = until)
+	}
+	Do $$$AssertEquals(listed, 1, "and status lists telegramPaused with that time")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -5))
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.pausedUntil, "", "pausedUntil is empty once the time has passed")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", savedPause)
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", savedState)
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.telegram.included, 0, "telegram.included follows the release switch")
@@ -1070,17 +1094,37 @@ Method TestBadCursors()
 	}
 }
 
-/// The pairing routes answer 404 while Telegram is not included, and 501 once it is.
+/// The pairing routes answer 404 while Telegram is not included (Story 10.3: the real routes are tested over the production by
+/// Test.Web.PairingApi). Once it is included, a POST to the code route with the recorded state off answers 409 not_available with the
+/// text of MESSAGETELEGRAMOFF, reads no session (the CSP session stays unattached) and writes nothing. The telegramState mark is put back.
 Method TestPairing()
 {
+	Set saved = ##class(OcuTalon.Data.StatusMark).Get("telegramState")
+	Set rows = ..PairingRows()
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Set body = ..Call("Pairing", .response)
 	Do $$$AssertEquals(response.Status, "404 Not Found", "404 while Telegram is not included")
 	Do $$$AssertTrue(body [ "not_found", "with not_found")
-	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
 	Set body = ..Call("Pairing", .response)
-	Do $$$AssertEquals(response.Status, "501 Not Implemented", "501 when Telegram is included")
-	Do $$$AssertTrue(body [ "not_built", "with not_built")
+	Do $$$AssertEquals(response.Status, "404 Not Found", "404 while Telegram is not included, whatever the state")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", "")
+	Set csp = ##class(%CSP.Session).%New("ZzApiTest", 0)
+	Set body = ..CallSession(csp, "Pairing", .response)
+	Do $$$AssertEquals(response.Status, "409 Conflict", "409 when Telegram is included and the state is off")
+	Do $$$AssertEquals($Get(csp.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "the 409 read no session: the CSP session was not attached")
+	Do $$$AssertEquals(body, {"error": {"code": "not_available", "message": (##class(OcuTalon.Web.Api).#MESSAGETELEGRAMOFF)}}.%ToJSON(), "with not_available and the text of MESSAGETELEGRAMOFF")
+	Do $$$AssertEquals(..PairingRows(), rows, "and no Pairing row was made")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", saved)
+}
+
+/// The number of Pairing rows.
+Method PairingRows() As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Pairing")
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
 }
 
 /// --- helpers ---

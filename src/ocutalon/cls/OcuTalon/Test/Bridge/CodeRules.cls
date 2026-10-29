@@ -104,8 +104,9 @@ Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$
 Parameter PYTHON = "language\s*=\s*python|%sys\.python|\$system\.python";
 
 /// The calls of the chat family of AI Hub's agent, adapter and provider, and Run of an agent, which calls Chat. Run is matched only
-/// on an object named agent, because many classes have a method Run.
-Parameter CHATCALLS = "\.(chat|chatwithcontent|streamchat|streamchatwithcontent|sendchat|sendchatwithcontent|runagent|chatcomplete|streamchatcomplete)\(|agent\.run\(";
+/// on an object named agent, because many classes have a method Run. The one other class with a method of that name,
+/// OcuTalon.Data.Pairing (Chat finds a Telegram chat's row, Story 10.3), is not a call of the family.
+Parameter CHATCALLS = "(?<!ocutalon\.data\.pairing\))\.(chat|chatwithcontent|streamchat|streamchatwithcontent|sendchat|sendchatwithcontent|runagent|chatcomplete|streamchatcomplete)\(|agent\.run\(";
 
 /// A job started by a command, or the work manager. The command Job (or J) starts a line or follows a brace or a semicolon.
 Parameter JOBS = "(^\s*|[{;]\s*)(job|j)(:[^ ]*)?\s+(\^|\.\.|##|\$|%|[a-z])|workmgr";
@@ -341,6 +342,8 @@ Method TestOnlyRunnersChat()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = provider.StreamChatComplete(m, c)", pattern), "and StreamChatComplete")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = ..Agent.Run(session, goal)", pattern), "and Run of an agent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"SET R = AGENT.CHAT(S, I)", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set row = ##class(OcuTalon.Data.Pairing).Chat(chatRef)", pattern), "passes Data.Pairing's Chat, the lookup of a Telegram chat's row")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = ##class(OcuTalon.Data.Other).Chat(chatRef)", pattern), "but flags a Chat of any other class")
 	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set channel = msg.ChatRef"_$Char(10)_"/// Calls agent.Chat( in a comment"_$Char(10)_$Char(9)_"; agent.Chat("_$Char(10)_$Char(9)_"Set sc = ##class(OcuTalon.Install.Step.Production).Run()", pattern), "and passes a property that starts with Chat, comment lines and Run of another class")
 
 	Set offending = ..Offenders(pattern, ..#CHATTERS, .scanned, .unreadable)

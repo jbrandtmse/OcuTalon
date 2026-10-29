@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm install-script readme"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -32,7 +32,7 @@ group_units() {
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a live:floor live:cards" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
 }
@@ -76,6 +76,8 @@ NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:sto
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is
 # not bookkeeping makes ci/changes.sh run every group, so a story that adds a unit, or gives one a new input, declares that input
 # in IRIS_INPUT or in the unit's list, and a story whose unit starts to read one of these paths removes it from here.
+# The one input that stays unclassified on purpose is install.sh, which live:install-script-live runs: docker/tests/test-ci-changes.sh
+# pins it so, and a change to it runs every group.
 NOT_IRIS_INPUT_PATTERN='^(\.claude/|[^/]+\.md$|LICENSE[^/]*$|NOTICE[^/]*$|docs/|release/|\.github/workflows/lane-a\.yml$|\.env\.example$|docker/tests/record-eval\.sh$|docker/tests/test-[^/]+\.sh$)'
 
 # group_input_pattern <group>: the anchored ERE of the paths whose change makes the group run: IRIS_INPUT, WEB_BUNDLE_INPUT unless
