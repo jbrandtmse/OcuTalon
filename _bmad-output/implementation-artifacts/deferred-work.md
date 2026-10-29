@@ -2051,3 +2051,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 40893085769 attempt 1 (8a89586): FAIL missing /^LOCK waiting: warm-iris is held by /; green on the unchanged rerun (attempt 2)
 - 2026-10-29T15:14:20Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; the test's 1 s wait leaves no room for the waiting line on a slow host
+
+### DW-398: Core/NoticesIn.cls's class comment still calls Story 16.9's daily-cap message a sender to come; BridgeSink sends it now (comment only)
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 16.9 implement deferred: Task 0 (a) found NoticesIn's two branches already give each notice its own session's TraceRef; only the comment is stale
+- 2026-10-29T18:56:14Z status=open owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=harvest note=a two-way-door LOW for 16.9's review to patch
