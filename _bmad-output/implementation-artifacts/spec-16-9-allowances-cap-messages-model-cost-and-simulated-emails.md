@@ -402,7 +402,13 @@ All class paths are under `src/ocutalon/cls/OcuTalon/`.
 - **AC 9, DW-300.** **Given** a real heartbeat tick during `Test.Core.BridgeSink`'s four methods or `Test.Web.Api.TestStateSections`, **when** it runs, **then** no seeded check row is due, and the counts take only the named event type. Each method asserts that its seeded rows' `NextDueAt` is more than 23 h after now.
 - **AC 10, DW-361.** **Given** any banner with "Install it yourself" or "How to set a key", **when** it renders, **then** its href is `https://github.com/jbrandtmse/OcuTalon#install-it-yourself` or `#set-a-model-key`, and `test-readme.sh` passes.
 
+### Lead addition at the spec gate (DW-220 residual, 2026-10-29)
+
+- [ ] DW-220 (residual, routed to this story by 16.4's re-review): with `live:online-demo` in `install-upgrade` (Story 16.4's CI rework, 0d98165), the `image` job still sums to about 2047 s on CI (run 40866408272: storage-roundtrip about 257, build-inputs 9, compose-start 200, demo-switch 467, shard:lane-b 866, install-script-live about 213), about 34.6 minutes against REL-4's 35-minute run budget, and DW-220's reopen_if (30 minutes) is still met. Rebalance in `ci/units.sh`, moving only Lane B's own units (this epic keeps Lane B's files: `shard:lane-b`, `live:demo-switch`, `live:online-demo`, `live:online-session`, and this story's `live:online-allowance`; never Lane A's or Epic 10's `install-script-live`), so that no IRIS job is expected to pass about 1800 s, using the CI times above and install-fresh 1339 s (with online-session), install-upgrade about 1355 s (with online-demo), production 942 s, browser 1464 s, shards 1896 s. `production` must stay web-bundle-free: a unit that needs the web bundle or a browser cannot go there (check what `shard:lane-b`'s classes need before considering it). Record the expected job times in `## Design Notes`, update every expectation that pins the groups, and cite DW-220; if no arrangement keeps every job near 30 minutes, keep the best one and say so (owner-fixed value 9: after the rebalance, CI capacity is the owner's action). — `ci/units.sh`, `docker/tests/test-ci-config.sh`, `test-ci-changes.sh` — `bash ci/checks.sh` passes.
+
 ## Spec Change Log
+
+- 2026-10-29, lead (after Story 16.4's CI re-review): DW-220's residual (the image job about 2047 s) added as a Tasks item; owned_ledger now DW-220, DW-300, DW-361.
 
 - 2026-10-29, lead spec gate: `live:online-allowance` goes to `install-fresh`, not `install-upgrade`, because Story 16.4's CI rework (DW-220) moves `live:online-demo` into `install-upgrade`. V1 and V2 ruled keep as veto items U-151 and U-152; V3 written as spine Conventions rows (the REST row, the Notice cards row, a new Allowances row), AD-20's Rule unchanged.
 

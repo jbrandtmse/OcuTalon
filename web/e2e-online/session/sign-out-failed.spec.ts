@@ -74,6 +74,7 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
   const epochs: string[] = [];
   let rows: Populated | undefined;
   let held = '';
+  let release = (): void => undefined;
   try {
     const log = recordRequests(context);
     await signInFromSplash(page);
@@ -87,13 +88,24 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
     expect(await holdReminder(rows.reminder), 'another process holds the reminder row').toBe(true);
 
     const mark = log.mark();
+    // The page leaves once its group sign-out has answered, and leaving drops the 500's body: the sign-out waits until the body is read.
+    const reading = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(/IRISLogout=end/, async (route) => {
+      await reading;
+      await route.continue().catch(() => undefined);
+    });
     const failed = page.waitForResponse((response) => response.url().includes('/ocutalon/api/v1/session/end'), { timeout: 120_000 });
     await pressSignOut(page);
     await confirmSignOut(page);
     const response = await failed;
     expect(response.status(), '/session/end answers 500').toBe(500);
-    expect(((await response.json()) as { error: { code: string } }).error.code, 'server_error').toBe('server_error');
-    expect(await resumeCookieLines(response), 'and sets no cookie').toEqual([]);
+    const body = (await response.json()) as { error: { code: string } };
+    const failedCookies = await resumeCookieLines(response);
+    release();
+    expect(body.error.code, 'server_error').toBe('server_error');
+    expect(failedCookies, 'and sets no cookie').toEqual([]);
 
     await expect(page.getByRole('button', { name: 'Sign in and start', exact: true }), 'the plain splash shows').toBeVisible({ timeout: 60_000 });
     const landed = new URL(page.url());
@@ -134,6 +146,7 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
     epochs.push(next);
     expect(next, 'the next sign-in gives a new epoch').not.toBe(epoch);
   } finally {
+    release();
     if (held) await releaseReminder(held);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await signOutGroup(page);

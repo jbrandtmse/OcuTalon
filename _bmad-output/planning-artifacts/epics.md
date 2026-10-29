@@ -4638,6 +4638,7 @@ So that the demo stays affordable and available, and I always know what still wo
 **And** the Telegram cases use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off, like the approval's real Lane A path, until Story 31.3 (was Story 16.10) turns them on (FR-20, AD-29)
 - DW-300: Test.Core.BridgeSink (four methods) and Test.Web.Api.TestStateSections make check rows due at once or count untyped stream events, so a real HeartbeatIn Tick can run their rows or add check events mid-test (DW-289's root cause): seed those check rows a day ahead or count typed events when this story edits BridgeSink's budget.capped path and /state's status (ledger; routed by merge_gate 2026-10-29)
 - DW-361: The page's How to set a key and Install it yourself actions open the README's top (#readme); point them at the README's #set-a-model-key and #install-it-yourself sections when this story edits web/src/app/banners/** (Epic 10's decision sheet) (ledger; routed by merge_gate 2026-10-29)
+- DW-220 (residual): after Story 16.4 moved `live:online-demo` into `install-upgrade`, the `image` group still sums to about 2047 s on CI (34.6 minutes, `shard:lane-b` 866 s): rebalance Lane B's own units so that no IRIS job passes about 30 minutes, with this story's new unit placed too (ledger; routed by cr 2026-10-29)
 
 
 **Story 16.10 moved to Story 31.3**, whole and verbatim, in Lane B's Epic 31 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].
