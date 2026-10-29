@@ -163,3 +163,5 @@
 2026-10-29T03:38:28Z	Epic 16	sprint_planning_complete	gate=PASS when=re-dispatch_readiness_recheck in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,Epic_List;expected) remaining=16.4,16.9(deps_Epics_5,6,8,10_merged) model=claude-opus-5-5
 2026-10-29T03:38:28Z	Epic 16	retro_review_skipped	reason=handled_by_epic_7(batch_owner)
 2026-10-29T03:45:27Z	Epic 16	epic_context_compiled	reason=planning_artifact_newer(re-dispatch;epics.md,PRD,UX,spine_moved_since_10-25) lines=101 model=claude-opus-5-5 note=focused_on_16.4,16.9;over_1500_token_target(~2500)
+2026-10-29T03:46:11Z	Story 16.4	ruling	question=Install/Step/Web.cls_is_in_this_epics_paths_hint_and_inside_Epic_15s_contended_Install/** choice=edit_as_own_footprint rejected=clarification(the_dispatch_names_the_file_in_this_epics_paths_hint;no_unmerged_branch_(7,9,13,15)_changed_it) why=no_collision_possible;as_the_docker/tests_precedent category=decide policy=6df0676
+2026-10-29T03:46:11Z	Story 16.4	stage_spawned	stage=plan spawn_at=2026-10-29T03:46:11Z model=claude-opus-5-5 agent_name=16-4-plan-1 cycle_iteration=1
