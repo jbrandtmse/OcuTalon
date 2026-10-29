@@ -1,15 +1,26 @@
 /// Tests of the incident recorder OcuTalon.Eval.Record against a real failure (Story 9.4; AD-22, AD-15). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI
 /// ONLY (Rule 21): it needs the Orders production in OCUORDERS, which a slot never has, and the repository's eval/ folder mounted at Eval.In FOLDER.
 /// Where either is missing, every test fails with that reason, so that a broken stack can never give a green shard.
-/// OnBeforeAllTests holds the Orders WatchMark, then re-induces each incident of RECIPES (the demo's: a batch of 50 orders in MM/DD/YYYY), builds the live
-/// pack itself from Reader.Evidence and EvidencePack.Build, independently of Eval.Record, and captures the same failures with Eval.Record into a folder
-/// of its own below TMP. OnAfterAllTests takes out fixture settings that a test left in the Orders definition and runs Clean, which releases the mark
-/// and deletes its folder and its messages, and returns their status. The tests then read what was kept:
+/// OnBeforeAllTests holds the Orders WatchMark, installs the evaluation set's test feed (Story 9.9; Test.Eval.Feed.Fixture: the production
+/// OcuTalon.Test.Eval.Feed in the namespace EVALFEED) and sends its nine cases, then re-induces each incident of Recipes() (the demo's: a batch of 50
+/// orders in MM/DD/YYYY, and the feed's nine), builds the live pack itself from Reader.Evidence and EvidencePack.Build, independently of Eval.Record,
+/// and captures the same failures with Eval.Record into a folder of its own below TMP. OnAfterAllTests takes out fixture settings that a test left in
+/// the Orders definition, removes the feed, and runs Clean, which releases the mark and deletes its folder and its messages, and returns their status.
+/// The tests then read what was kept:
 ///   - TestCaptureWritesCase: the demo capture's two files, field by field; snapshot.json is the reader's own answer after Redact.Text, with nothing
 ///     added and nothing dropped; case.json is the committed case except recordedBy; the committed expectation; Eval.Report DEMOCASE names the case;
-///   - TestReplayEqualsLive: the pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly;
-///   - TestCommittedIsCurrent: the incident cases of eval/ and RECIPES are the same set, and the pack of each committed snapshot equals the live pack
+///   - TestReplayEqualsLive: the pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly, for the
+///     demo and for each case of the feed;
+///   - TestCommittedIsCurrent: the incident cases of eval/ and Recipes() are the same set, and the pack of each committed snapshot equals the live pack
 ///     once VOLATILE (row ids and times, which a re-induced incident cannot repeat) is removed from both;
+///   - TestFeedCasesRecorded (Story 9.9): the feed has at least 9 cases with unique names, at items of its production, and at least 2 held out; for
+///     each, in this run's recording and in the committed snapshot, the source is the feed's, every failure is at the case's item with all the markers
+///     of the case in its error, the item's host setting is a loopback address or an example host, and the committed case.json is the case;
+///   - TestFeedOnlyInThrowaway: Install of a folder that does not exist is refused and changes nothing, the product's production names no test class,
+///     and the feed's production has its testing switch off and no EnsLib.Testing.Service;
+///   - TestFeedRemoved: Install over the running feed succeeds and runs, and after the OnAfterAllTests of another instance that holds only the feed no
+///     namespace, database, folder, resource, grant, marker, role or web application of the feed is left, the service role's Resources are what they
+///     were before the feed, and Reader.Productions lists no feed;
 ///   - TestNoIncidentMade: the Orders WatchMark was held while the failures were sent, and the recordings made no Orders incident;
 ///   - TestCleanRemovesBatch: the OnAfterAllTests of a run removes the messages of a batch of one order, its folder, the hold and the fixture settings
 ///     left in the Orders definition, with an OK status;
@@ -29,7 +40,8 @@
 Class OcuTalon.Test.Eval.Record Extends %UnitTest.TestCase
 {
 
-/// The incident cases that this class re-induces, comma-separated: one recipe in Induce for each.
+/// The incident cases of the Orders demo that this class re-induces, comma-separated: one recipe in Induce for each. Recipes() adds the cases of the
+/// test feed.
 Parameter RECIPES = "orders-date-format";
 
 /// The fields of an evidence pack that a re-induced incident cannot repeat (row ids and times), comma-separated. A dotted name is a field of an object
@@ -65,6 +77,15 @@ Property HoldChecked As %Boolean;
 /// out what a test left.
 Property SettingsAdded As %Boolean;
 
+/// 1 from the moment OnBeforeAllTests begins to install the test feed until OnAfterAllTests (or a test) has removed it.
+Property FeedInstalled As %Boolean;
+
+/// By the name of each case of the feed, the reference that is the SuperSession of the case's messages.
+Property FeedRefs As %DynamicObject;
+
+/// The Resources of the service role before the feed was installed (after a leftover was removed), as the security database holds them.
+Property RoleBefore As %String(MAXLEN = 4000);
+
 /// The references that the batches of this run used.
 Property Refs As %DynamicArray;
 
@@ -86,6 +107,9 @@ Method OnBeforeAllTests() As %Status
 	Set ..Held = 0
 	Set ..SettingsAdded = 0
 	Set ..HoldChecked = 0
+	Set ..FeedInstalled = 0
+	Set ..FeedRefs = {}
+	Set ..RoleBefore = ""
 	Set ..Start = ""
 	Set ..Folder = ##class(%File).NormalizeDirectory(##class(%File).SubDirectoryName(..#TMP, ##class(OcuTalon.Bridge.Ids).NewRef()))
 	Try {
@@ -108,7 +132,8 @@ Method OnBeforeAllTests() As %Status
 				Set ..Start = ##class(OcuTalon.Data.Time).NowUtc()
 			}
 		}
-		Set recipes = $ListFromString(..#RECIPES), position = 0
+		If ..Missing = "" Do ..InstallFeed()
+		Set recipes = $ListFromString(..Recipes()), position = 0
 		While (..Missing = "") && $ListNext(recipes, position, name) {
 			Do ..Make(name)
 		}
@@ -118,8 +143,8 @@ Method OnBeforeAllTests() As %Status
 	Quit $$$OK
 }
 
-/// Takes the fixture settings out of the Orders definition while SettingsAdded is 1, then runs Clean. The status is theirs, so that a clean-up that
-/// fails is reported.
+/// Takes the fixture settings out of the Orders definition while SettingsAdded is 1, removes the test feed while FeedInstalled is 1, then runs Clean. The
+/// status is theirs, so that a clean-up that fails is reported.
 Method OnAfterAllTests() As %Status
 {
 	Set sc = $$$OK
@@ -127,7 +152,38 @@ Method OnAfterAllTests() As %Status
 		Set sc = ..FixtureSettings(0)
 		If $$$ISOK(sc) Set ..SettingsAdded = 0
 	}
+	If ..FeedInstalled {
+		Set feed = ##class(OcuTalon.Test.Eval.Feed.Fixture).Remove()
+		If $$$ISOK(feed) Set ..FeedInstalled = 0
+		Set sc = $SYSTEM.Status.AppendStatus(sc, feed)
+	}
 	Quit $SYSTEM.Status.AppendStatus(sc, ..Clean(..Refs, ..Folder, ..Held))
+}
+
+/// The incident cases that this class re-induces, comma-separated: RECIPES (the demo's) and the cases of the test feed.
+ClassMethod Recipes() As %String
+{
+	Quit ..#RECIPES_","_##class(OcuTalon.Test.Eval.Feed.Fixture).Names()
+}
+
+/// Removes a leftover of the test feed (and so its grant), notes the Resources of the service role, installs the feed and sends its cases. FeedInstalled is 1
+/// before the install begins, so that OnAfterAllTests removes what a failed install made. A failure is the reason in Missing.
+Method InstallFeed() [ Private ]
+{
+	Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Remove()
+	If $$$ISERR(sc) {
+		Set ..Missing = "A leftover of the test feed could not be removed: "_$SYSTEM.Status.GetErrorText(sc)
+		Quit
+	}
+	Set ..RoleBefore = ##class(OcuTalon.Test.Eval.Feed.Fixture).RoleResources()
+	Set ..FeedInstalled = 1
+	Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Install()
+	If $$$ISOK(sc) Set sc = ##class(OcuTalon.Test.Eval.Feed.Fixture).Start(.refs)
+	If $$$ISERR(sc) {
+		Set ..Missing = "The test feed could not be installed and started: "_$SYSTEM.Status.GetErrorText(sc)
+		Quit
+	}
+	Set ..FeedRefs = refs
 }
 
 /// Releases the Orders WatchMark when held is 1, deletes the folder with everything in it, and deletes the Orders messages of the batches (the
@@ -172,11 +228,17 @@ Method Make(name As %String) [ Private ]
 	Do ..Recorded.%Set(name, {"error": ($Select($$$ISOK(sc): "", 1: $SYSTEM.Status.GetErrorText(sc))), "live": (live), "captured": ($Select($IsObject(captured): captured, 1: "")), "answer": (snapshot)})
 }
 
-/// Sends the failures of the incident into the Orders production and gives where and which they are: the namespace, production and item they are at and
-/// the keys of their failed headers (h<id>, ascending). The batch's reference is kept in Refs. An unknown name is an error.
+/// Gives where and which the failures of the incident are: the namespace, production and item they are at and the keys of their failed headers (h<id>,
+/// ascending). For the demo it sends the failures into the Orders production and keeps the batch's reference in Refs; for a case of the test feed it
+/// waits for the failures that OnBeforeAllTests sent. An unknown name is an error.
 Method Induce(name As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String) As %Status
 {
 	Set keys = ""
+	If $IsObject(##class(OcuTalon.Test.Eval.Feed.Fixture).Definition(name)) {
+		Set ref = ..FeedRefs.%Get(name)
+		If ref = "" Quit $$$ERROR($$$GeneralError, "The test feed sent no batch for the case "_name)
+		Quit ##class(OcuTalon.Test.Eval.Feed.Fixture).Keys(name, ref, .namespace, .production, .item, .keys)
+	}
 	If name '= "orders-date-format" Quit $$$ERROR($$$GeneralError, "No recipe induces the incident "_name)
 	Set demo = "OcuTalon.Test.Demo.Production"
 	Set namespace = $Parameter(demo, "NAMESPACE")
@@ -254,7 +316,7 @@ Method TestCaptureWritesCase()
 Method TestReplayEqualsLive()
 {
 	If '..Guard() Quit
-	Set recipes = $ListFromString(..#RECIPES), position = 0
+	Set recipes = $ListFromString(..Recipes()), position = 0
 	While $ListNext(recipes, position, name) {
 		Set entry = ..Entry(name)
 		If '$IsObject(entry) Continue
@@ -273,13 +335,13 @@ Method TestReplayEqualsLive()
 	}
 }
 
-/// The incident cases of eval/ and RECIPES are the same set, in both directions, so a case with no recipe fails; and for each recipe the pack that Build
+/// The incident cases of eval/ and Recipes() are the same set, in both directions, so a case with no recipe fails; and for each recipe the pack that Build
 /// gives the committed snapshot equals the live pack once VOLATILE is removed from both.
 Method TestCommittedIsCurrent()
 {
 	If '..Guard() Quit
 	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
-	Set recipes = $ListFromString(..#RECIPES), cases = ""
+	Set recipes = $ListFromString(..Recipes()), cases = ""
 	Set names = ##class(OcuTalon.Eval.In).CaseNames(folder, ""), position = 0
 	While $ListNext(names, position, name) {
 		Set case = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
@@ -287,7 +349,7 @@ Method TestCommittedIsCurrent()
 	}
 	Set position = 0
 	While $ListNext(cases, position, name) {
-		Do $$$AssertTrue($ListFind(recipes, name), name_": the incident case has a recipe in RECIPES")
+		Do $$$AssertTrue($ListFind(recipes, name), name_": the incident case has a recipe in Recipes()")
 	}
 	Set position = 0
 	While $ListNext(recipes, position, name) {
@@ -304,6 +366,115 @@ Method TestCommittedIsCurrent()
 		Do $$$AssertTrue($IsObject(stable.sample) && (stable.count > 0) && (stable.item '= "") && (stable.errorPattern '= ""), name_": what VOLATILE leaves of the committed pack is not empty")
 		Do ..AssertSamePack(name_": the committed snapshot's pack equals the live pack apart from VOLATILE", stable, ..Stable(entry.live))
 	}
+}
+
+/// The cases of the test feed (Story 9.9): the feed has at least 9 cases with unique names, none of them the demo's, each at an item of the feed's
+/// production, and at least 2 held out. For each case, in this run's recording (the reader's answer) and in the committed snapshot.json: the source is the
+/// feed's namespace, production and the case's item; it holds as many failures as the case has messages, every one at the case's item with every marker
+/// of the case in its error; and the item's HTTPServer setting, where it has one, is a loopback address or an example host. The committed case.json is
+/// the case of the definition: name, kind incident, heldOut, description, snapshot.json, expectation and recorder.
+Method TestFeedCasesRecorded()
+{
+	If '..Guard() Quit
+	Set fixture = "OcuTalon.Test.Eval.Feed.Fixture"
+	Set definitions = $ClassMethod(fixture, "Definitions")
+	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
+	Set items = ..XDataValues($Parameter(fixture, "PRODUCTION"), "<Item Name=""([^""]*)""")
+	Do $$$AssertTrue(definitions.%Size() >= 9, "the feed has at least 9 cases: "_definitions.%Size())
+	Kill seen
+	Set heldOut = 0, repeated = "", strays = "", demo = ""
+	Set iterator = definitions.%GetIterator()
+	While iterator.%GetNext(, .definition) {
+		If $Data(seen(definition.name)) Set repeated = repeated_" "_definition.name
+		Set seen(definition.name) = ""
+		If definition.name = ##class(OcuTalon.Eval.Report).#DEMOCASE Set demo = demo_" "_definition.name
+		If '$ListFind(items, definition.item) Set strays = strays_" "_definition.name
+		Set heldOut = heldOut + +definition.heldOut
+	}
+	Do $$$AssertEquals(repeated, "", "the names of the cases are unique")
+	Do $$$AssertEquals(demo, "", "no case is the demo's")
+	Do $$$AssertEquals(strays, "", "every case is at an item of the production "_$Parameter(fixture, "PRODUCTION"))
+	Do $$$AssertTrue(heldOut >= 2, "at least 2 cases are held out: "_heldOut)
+	Set iterator = definitions.%GetIterator()
+	While iterator.%GetNext(, .definition) {
+		Set name = definition.name
+		Set entry = ..Entry(name)
+		If $IsObject(entry) {
+			Do $$$AssertEquals(entry.error, "", name_": Capture succeeded")
+			Do ..AssertFeedSnapshot(name_" (this run)", definition, entry.answer)
+		}
+		Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(folder, name))
+		Do $$$AssertTrue(##class(%File).Exists(file), name_": the committed snapshot exists")
+		If ##class(%File).Exists(file) {
+			Set snapshot = ""
+			Do $$$AssertStatusOK(##class(OcuTalon.Watch.EvidencePack).Load(file, .snapshot), name_": the committed snapshot is a reader snapshot")
+			If $IsObject(snapshot) Do ..AssertFeedSnapshot(name_" (committed)", definition, snapshot)
+		}
+		Set committed = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
+		Do $$$AssertTrue($IsObject(committed), name_": eval/"_name_"/case.json exists")
+		If $IsObject(committed) {
+			Set expected = {"name": (name), "kind": (##class(OcuTalon.Eval.Report).#INCIDENTKIND)}
+			Do expected.%Set("heldOut", +definition.heldOut, "boolean")
+			Set expected.description = definition.description
+			Set expected.snapshot = ##class(OcuTalon.Eval.Record).#SNAPSHOTFILE
+			Set expected.expectation = {"causeCategory": (definition.expectation.causeCategory), "elementAtFault": (definition.expectation.elementAtFault), "fixKind": (definition.expectation.fixKind)}
+			Set expected.recordedBy = ##class(OcuTalon.Eval.Record).#RECORDEDBY
+			Do $$$AssertEquals(committed.%ToJSON(), expected.%ToJSON(), name_": the committed case.json is the case of the definition")
+		}
+	}
+}
+
+/// The test feed lives only in throwaways (Story 9.9; CON-3): Install of a folder that does not exist (the throwaway's mount of the evaluation set
+/// stands in for it) returns the refusal and changes nothing; the compiled definition of the product's production OcuTalon.Production names no class of
+/// OcuTalon.Test; and the feed's own production has its testing switch off and no EnsLib.Testing.Service item.
+Method TestFeedOnlyInThrowaway()
+{
+	If '..Guard() Quit
+	Set fixture = "OcuTalon.Test.Eval.Feed.Fixture"
+	Set before = $ClassMethod(fixture, "Leftovers")
+	Set sc = $ClassMethod(fixture, "Install", ..Folder_"not-a-throwaway/")
+	Do $$$AssertStatusNotOK(sc, "Install of a folder that does not exist is refused")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ $Parameter(fixture, "REFUSAL"), "with the reason: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($ClassMethod(fixture, "Leftovers"), before, "and nothing changed: the namespace, database, folder, resource and grant of the feed are as before")
+	Set classes = ..XDataValues("OcuTalon.Production", "ClassName=""([^""]*)""")
+	Set position = 0, tests = ""
+	While $ListNext(classes, position, class) {
+		If $Extract(class, 1, $Length("OcuTalon.Test.")) = "OcuTalon.Test." Set tests = tests_" "_class
+	}
+	Do $$$AssertTrue($ListLength(classes) > 0, "the production of the product names classes: "_$ListLength(classes))
+	Do $$$AssertEquals(tests, "", "and none of them is a test class")
+	Set feed = $Parameter(fixture, "PRODUCTION")
+	Set text = ##class(%Dictionary.XDataDefinition).%OpenId(feed_"||ProductionDefinition").Data.Read(1000000)
+	Do $$$AssertTrue(text [ "TestingEnabled=""false""", "the feed's testing switch is off")
+	Do $$$AssertNotTrue(text [ "EnsLib.Testing.Service", "and the feed has no EnsLib.Testing.Service")
+}
+
+/// Remove leaves nothing (Story 9.9): Install succeeds over the running feed (it removes the leftover first) and the feed runs in its namespace and is
+/// listed by Reader.Productions; then the OnAfterAllTests of a second instance of this class that holds only the feed returns OK, and after it no
+/// namespace, database, folder, resource, grant, Interoperability marker, Interoperability role or web application of the feed is left, the Resources of
+/// the service role are what they were before the feed, Reader.Productions lists no feed, and a further Remove returns OK. The OnAfterAllTests of this
+/// instance then has nothing left to remove (FeedInstalled is 0).
+Method TestFeedRemoved()
+{
+	If '..Guard() Quit
+	Set fixture = "OcuTalon.Test.Eval.Feed.Fixture"
+	Set namespace = $Parameter(fixture, "NAMESPACE")
+	Set ..FeedInstalled = 1
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Install"), "Install succeeds over the running feed")
+	Do $$$AssertTrue($ClassMethod(fixture, "Running"), "and the feed runs in "_namespace)
+	Do $$$AssertTrue(..Listed(namespace), "and Reader.Productions lists it while it exists")
+	Set closing = ##class(OcuTalon.Test.Eval.Record).%New("")
+	Set closing.Refs = []
+	Set closing.Folder = ""
+	Set closing.Held = 0
+	Set closing.SettingsAdded = 0
+	Set closing.FeedInstalled = 1
+	Do $$$AssertStatusOK(closing.OnAfterAllTests(), "the end of a run that installed the feed")
+	Do $$$AssertEquals($ClassMethod(fixture, "Leftovers"), "", "no namespace, database, folder, resource, grant, marker, role or web application of the feed is left")
+	Do $$$AssertEquals($ClassMethod(fixture, "RoleResources"), ..RoleBefore, "the Resources of the service role are what they were before the feed")
+	Do $$$AssertNotTrue(..Listed(namespace), "Reader.Productions lists no feed")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Remove"), "a further Remove returns OK")
+	If $ClassMethod(fixture, "Leftovers") = "" Set ..FeedInstalled = 0
 }
 
 /// Re-inducing the incidents made no Orders incident: the Orders WatchMark was held ahead before the first order was sent (HoldChecked), FailurePoller
@@ -630,6 +801,60 @@ Method Guard() As %Boolean [ Private ]
 		Quit 0
 	}
 	Quit 1
+}
+
+/// Asserts the evidence of one case of the test feed in a reader snapshot (this run's answer or the committed file): the source, the failures and
+/// their errors, and the host setting of the item (see TestFeedCasesRecorded).
+Method AssertFeedSnapshot(label As %String, definition As %DynamicObject, snapshot As %DynamicObject) [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Eval.Feed.Fixture"
+	Set item = definition.item
+	Set source = {"namespace": ($Parameter(fixture, "NAMESPACE")), "production": ($Parameter(fixture, "PRODUCTION")), "item": (item)}
+	Do $$$AssertEquals(snapshot.source.%ToJSON(), source.%ToJSON(), label_": the source is the feed's item")
+	Do $$$AssertEquals(snapshot.failures.%Size(), definition.messages.%Size(), label_": it holds the failures of all the messages")
+	Set wrong = ""
+	Set iterator = snapshot.failures.%GetIterator()
+	While iterator.%GetNext(.i, .failure) {
+		If failure.targetConfigName '= item Set wrong = wrong_" "_i_"(item)"
+		Set markers = definition.errorHas.%GetIterator()
+		While markers.%GetNext(, .marker) {
+			If failure.error '[ marker Set wrong = wrong_" "_i_"("_marker_")"
+		}
+	}
+	Do $$$AssertEquals(wrong, "", label_": every failure is at "_item_" and its error holds every marker of the case")
+	Set host = "", found = 0
+	Set entries = snapshot.items.%GetIterator()
+	While entries.%GetNext(, .entry) {
+		If entry.name '= item Continue
+		Set found = 1
+		If entry.settings.%GetTypeOf("HTTPServer") = "string" Set host = entry.settings.HTTPServer
+	}
+	Do $$$AssertTrue(found, label_": the snapshot holds the item "_item)
+	Do $$$AssertTrue((host = "") || (host = "127.0.0.1") || (host = "example.com") || ($Piece(host, ".", $Length(host, ".")) = "example"), label_": the host setting of the item is a loopback address or an example host: "_host)
+}
+
+/// The values (the first group of the regular expression) in the saved definition of the production class's ProductionDefinition XData, as a list. It
+/// reads the class definition (%Dictionary.XDataDefinition), so that no edit of a saved production definition can sway it.
+ClassMethod XDataValues(class As %String, pattern As %String) As %List [ Private ]
+{
+	Set text = ##class(%Dictionary.XDataDefinition).%OpenId(class_"||ProductionDefinition").Data.Read(1000000)
+	Set matcher = ##class(%Regex.Matcher).%New(pattern, text)
+	Set values = ""
+	While matcher.Locate() {
+		Set values = values_$ListBuild(matcher.Group(1))
+	}
+	Quit values
+}
+
+/// 1 when Reader.Productions lists an entry in the namespace.
+ClassMethod Listed(namespace As %String) As %Boolean [ Private ]
+{
+	Set found = 0
+	Set iterator = ##class(OcuTalon.Watch.Reader).Productions().%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.namespace = namespace Set found = 1
+	}
+	Quit found
 }
 
 /// Asserts that Write refuses the case and snapshot with a status whose text holds the reason.

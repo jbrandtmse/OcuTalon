@@ -540,6 +540,18 @@ Method TestIncidentChecksFlagViolations()
 		Set failure.error = "ERROR #5001: Cannot reach https://api.zzhost.org/x"
 		Do ..Probe("a snapshot with a host that is not an example host", root, ..GoodCase(), snapshot, "snapshot.json: it holds the host api.zzhost.org")
 		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "ERROR #5659: Property 'Zz.Record::Member(6@Zz.Record)' required"
+		Do ..Probe("an object reference in an error text is not an address", root, ..GoodCase(), snapshot, "")
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "ERROR #5001: Cannot reach (12@api.zzhost.org)"
+		Do ..Probe("an address in parentheses is still an address", root, ..GoodCase(), snapshot, "snapshot.json: it holds the host api.zzhost.org")
+		Set snapshot = ..GoodSnapshot()
+		Set failure = snapshot.failures.%Get(0)
+		Set failure.error = "ERROR #5001: Cannot reach contact(5@api.zzhost.org)"
+		Do ..Probe("an address after a word, with no property reference before it, is still an address", root, ..GoodCase(), snapshot, "snapshot.json: it holds the host api.zzhost.org")
+		Set snapshot = ..GoodSnapshot()
 		Set settings = snapshot.items.%Get(0).settings
 		Set settings.ApiKey = ##class(OcuTalon.Bridge.Redact).#REDACTED
 		Do ..Probe("an item setting with a credential name", root, ..GoodCase(), snapshot, "the setting ApiKey")
@@ -694,10 +706,12 @@ ClassMethod Plain(file As %String) As %Boolean
 	Quit plain
 }
 
-/// The hosts (lower case) of the email addresses and links in the text, as a list.
+/// The hosts (lower case) of the email addresses and links in the text, as a list. The object reference that IRIS prints after a property in an error
+/// text (the shape ::MemberId(6@Pkg.Class)) is not an address: it is left out before the text is read.
 ClassMethod Hosts(text As %String) As %List [ Private ]
 {
 	Set hosts = "", start = 1
+	Set text = ##class(%Regex.Matcher).%New("::[A-Za-z0-9_]+\(\d+@%?[A-Za-z][A-Za-z0-9_.]*\)", text).ReplaceAll("")
 	For {
 		Set found = ""
 		If '$Locate(text, "(?:@|://)[A-Za-z0-9.-]+", start, end, found) Quit

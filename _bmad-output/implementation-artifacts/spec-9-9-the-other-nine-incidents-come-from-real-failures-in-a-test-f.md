@@ -2,7 +2,8 @@
 title: 'Story 9.9: The other nine incidents come from real failures in a test feed'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'bf6e4ef7f43c660af1131208757dc93ee50e9bbe'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -184,7 +185,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
 - **(e)** The DNS case: the seconds each message takes to fail, and whether its error text is the same in two inductions. If either message takes more than 10 s, or the texts differ, apply the fallback of Decided in-stage 11.
 - **(f)** Confirm that `Remove` leaves the service role's `Resources` exactly as they were before `Install` (`TestFeedRemoved`).
 
-1. **The feed's message and record classes (new; `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/`).**
+1. [x] **The feed's message and record classes (new; `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/`).**
    - `LabResult`, `Shipment` and `Claim`:
      - each `Extends (Ens.Request, %JSON.Adaptor)`;
      - every property is a `%String`, so that a body always saves;
@@ -198,7 +199,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
      - Each has `ClassMethod From(request)` that copies its own properties from the request's properties of the same names.
    - `Batch` (`%RegisteredObject`): `Target`, `TraceRef`, `Messages` (a list of `Ens.Request`).
    - **Why:** AC1.
-2. **The feed's items (new; same folder).**
+2. [x] **The feed's items (new; same folder).**
    - `Sender` (`Ens.BusinessService`, no adapter): `OnProcessInput(batch)` sends each message with `SendRequestAsync(batch.Target, message)`, after `%SessionId = ""` and `%SuperSession = batch.TraceRef`, as `Demo.Orders.Partner` does.
    - `Partner` (`Ens.BusinessService`, `ADAPTER = EnsLib.HTTP.InboundAdapter`): the feed's stand-in partner.
      - It answers with `Attributes("ResponseCode")` = `503 Service Unavailable` for a URL under `/payer/`, `500 Internal Server Error` under `/reference-lab/`, else `200 OK`.
@@ -207,7 +208,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
    - `PartnerOut` (`Ens.BusinessOperation`, `ADAPTER = EnsLib.HTTP.OutboundAdapter`, `INVOCATION = Queue`): POSTs the request's `%JSONExportToString` text to the adapter's URL and quits with the adapter's status. The adapter's own Retry rules apply.
    - `Archive` (`Ens.BusinessOperation`): `OnMessage` reads an internal local variable that is never set, so it fails with `<UNDEFINED>` (Ens traps it as `<Ens>ErrException`). No message field or setting is involved.
    - **Why:** AC1, the Matrix's mechanism rows.
-3. **`src/ocutalon/cls/OcuTalon/Test/Eval/Feed.cls` (new; `Ens.Production`).**
+3. [x] **`src/ocutalon/cls/OcuTalon/Test/Eval/Feed.cls` (new; `Ens.Production`).**
    - The XData `ProductionDefinition` has `Name="OcuTalon.Test.Eval.Feed"`, `TestingEnabled="false"` and a description saying it is the evaluation set's test feed (throwaways only). Its items:
      - `FeedIn` (`Sender`, PoolSize 0);
      - `PartnerSite` (`Partner`, adapter `Port` 9381);
@@ -219,7 +220,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
      - `ClaimsToArchive` (`Archive`).
    - Every case item has PoolSize 1.
    - **Why:** AC1, AC2.
-4. **`src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls` (new; no `Method Test`, so it is not a test case: `ci/iris.sh:130-147`).**
+4. [x] **`src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls` (new; no `Method Test`, so it is not a test case: `ci/iris.sh:130-147`).**
    - **Parameters:** `NAMESPACE = "EVALFEED"`, `DATABASE = "EVALFEED_DATA"`, `RESOURCE = "%DB_EVALFEED_DATA"`, `PRODUCTION = "OcuTalon.Test.Eval.Feed"`, `CODEPACKAGE = "OcuTalon.Test.Eval"`, `CODEDATABASE = "OCUTALON_CODE"`, `WAITSECONDS = 60`, and the refusal text.
    - **`XData Cases` (JSON):** one entry per case of the table under Design Notes. Each entry holds:
      - `name`, `heldOut`, `description`, `expectation{causeCategory, elementAtFault, fixKind}`;
@@ -252,7 +253,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
        - It always ends with `Remove`, whose status is appended.
    - The class description states the contract: throwaways only, the grant, and what `Remove` removes.
    - **Why:** AC1, AC2, Hermeticity.
-5. **`src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` (extend).**
+5. [x] **`src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` (extend).**
    - **`Recipes()`** = `RECIPES` (the Orders recipe; the parameter keeps its value) plus `Feed.Fixture.Names()`. `OnBeforeAllTests`, `TestReplayEqualsLive` and `TestCommittedIsCurrent` loop over `Recipes()`.
    - **`OnBeforeAllTests`:** after the hold, it runs `Fixture.Remove()`, which clears a killed run's leftover and its grant. Only then does it record the service role's `Resources` in `RoleBefore`. It then runs `Fixture.Install()`, sets `FeedInstalled`, runs `Fixture.Start(.refs)` into `FeedRefs`, and then `Make`s every recipe. A failure sets `Missing`, as today.
    - **`Induce`:** a feed name gives `Fixture.Keys(name, FeedRefs.<name>, ...)`.
@@ -277,7 +278,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
        - this instance's `FeedInstalled` becomes 0.
    - The class description lists the new tests and the feed.
    - **Why:** AC1, AC2, AC4, the Integration and Hermeticity criteria.
-6. **`docker/tests/record-eval.sh` (extend; a reported footprint extension).**
+6. [x] **`docker/tests/record-eval.sh` (extend; a reported footprint extension).**
    - With no argument it does exactly what it does today. With the argument `feed` it starts one throwaway the same way (label `r99f`).
    - It runs, through `session_value OCUTALON`, a script that prints an early CHK line (`eval/run.sh`'s guard against a re-run) and then calls `##class(OcuTalon.Test.Eval.Feed.Fixture).Record("/tmp/zz-eval-feed/", .names)`. It prints `ok <names>` or the error.
    - It copies each case's two files out with `dc exec -T iris cat`, `tr -d '\r'` and `jq .`.
@@ -286,8 +287,8 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
    - Any other argument exits 2.
    - The header documents both modes. It says that `Test.Eval.Record` re-induces every committed incident on every CI run, and that this script is rerun when `TestCommittedIsCurrent` reports drift.
    - **Why:** AC1 (how the committed files are made).
-7. **`eval/<name>/` (new, nine folders; written only by Task 6's run).** Commit what the driver wrote, unchanged. `eval/orders-date-format/*` stays byte-identical. **Why:** AC1, AC3, AC4.
-8. **`docker/tests/test-eval-set.sh` (extend).**
+7. [x] **`eval/<name>/` (new, nine folders; written only by Task 6's run).** Commit what the driver wrote, unchanged. `eval/orders-date-format/*` stays byte-identical. **Why:** AC1, AC3, AC4.
+8. [x] **`docker/tests/test-eval-set.sh` (extend).**
    - **`enumerations`** also reads `PRODUCTION` and `NAMESPACE` from `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls` (`FIXTURE_FILE`), with missing messages, and hands them and `CAUSECATEGORIES` to the programs and to `mksamples`.
    - **New rule `incidents`** (a program `check-incidents.mjs` on the `demo` pattern). It reads the top-level incident cases of `eval/` (not `mock-wrong`), in byte order of name, and fails when any of these holds:
      - there are fewer than 10 incident cases;
@@ -303,7 +304,7 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
      - Samples run on a sample tree with `find` (never `expect.txt`): a good tree (the feed named in a test class and an eval snapshot) and the variants `bad-feed-compose`, `bad-feed-production` (an item of class `OcuTalon.Test.Eval.Feed.Sender`) and `bad-feed-install`.
    - The header documents both rules.
    - **Why:** AC2, AC3, AC4.
-9. **`src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` (only under Decided in-stage 12).** `IncidentProblems`' host rule also accepts exactly `127.0.0.1`, for incident files only. **Why:** AC1's public-text rule, with the feed's own loopback partner.
+9. [x] **`src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` (only under Decided in-stage 12).** `IncidentProblems`' host rule also accepts exactly `127.0.0.1`, for incident files only. Not triggered for `127.0.0.1` (no recording names it after `://` or `@`); the file changed for the object reference of Decided in-stage 17 instead. **Why:** AC1's public-text rule, with the feed's own loopback partner.
 
 **Acceptance Criteria:**
 - **AC1, nine real feed incidents.**
@@ -340,6 +341,46 @@ Line anchors are from HEAD `f2cf277`. Story 9.8 is planned but not built; if it 
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-29 - Review pass
+- verdicts: 36 findings - high 0, medium 1, low 32, false 2, maybe-false 1
+- findings:
+  - `[low]` `[patch]` (blind) `Fixture.Record` empties the caller's folder before `Install` can refuse - `Record` now calls `Install` first and empties the folder once it has not refused.
+  - `[low]` `[patch]` (blind) the CON-3 rule is case-sensitive, so the folder `evalfeed_data` passes - the rule uses `grep -i`; sample `bad-feed-lowercase`.
+  - `[low]` `[patch]` (blind) `Cases.Hosts` exemption also hides `word(N@host)` - the exemption is now only the shape `::Property(N@Class)`; probe for `contact(5@api.zzhost.org)`.
+  - `[low]` `[patch]` (blind) nothing checks the pin directly - the markers of `claims-member-missing` are `#5659` and `MemberId(128@`; `TypedRecord` says so.
+  - `[low]` `[reject]` (blind) the held-out `carrier-host-not-found` has the evidence shape of the visible `lab-results-refused` - AC4 names these two cases, so changing them alters specified behavior (by-design).
+  - `[low]` `[reject]` (blind) the argument contract of `record-eval.sh` has no test - a stub-based rule is about 25 lines for a 5-line guard of a manual script; unlikely to be met (wontfix-accepted, reopen_if the guard is edited).
+  - `[low]` `[patch]` (edge) the `feed` rule misses the lowercase folder and the class written as a path - same root as the second row: `grep -i`, the class pattern `[./]`, samples `bad-feed-lowercase` and `bad-feed-class-path`.
+  - `[low]` `[patch]` (edge) `Record` removes the caller's folder before the throwaway guard - same root as the first row.
+  - `[low]` `[patch]` (edge) a failed pin is silent - same root as the fourth row; the marker makes it loud for the one case that prints the number, where a throw in `NewPinned` would also break the cases that do not.
+  - `[low]` `[patch]` (edge) the `Hosts` exemption hides `contact(5@evil.org)` - same root as the third row.
+  - `[low]` `[reject]` (edge) `Keys` waits 60 s for a case with 3 sequential messages - the slowest case takes about 15 s (measured); a resolver slower than that also exceeds FailureTimeout first (wontfix-theoretical).
+  - `[low]` `[patch]` (edge) the host assertion passes when the item is missing from the snapshot - `AssertFeedSnapshot` asserts that the snapshot holds the item.
+  - `[low]` `[reject]` (edge) `record-eval.sh` overwrites a non-feed folder of the same name - the nine names are fixed in the fixture and the script refuses the demo's; a collision needs a deliberate choice of name (wontfix-theoretical).
+  - `[false]` `[reject]` (edge) `carrier.example` may resolve - `.example` is a reserved name (RFC 2606) and `#6059` was recorded in every induction.
+  - `[low]` `[reject]` (edge) the `feed` pattern has no trailing word boundary - a shipped file would need a word such as `EVALFEEDBACK`; the failure is a loud false positive that a rename removes (wontfix-theoretical).
+  - `[low]` `[reject]` (edge) `Install` tests only that the folder exists - that is the guard as the spec defines it (the folder only `compose.throwaway.yml` mounts); by-design.
+  - `[false]` `[reject]` (edge) `FeedInstalled` is set before `Install` - intended and stated in `InstallFeed`: `OnAfterAllTests` removes what a half-made install left.
+  - `[low]` `[patch]` (edge) the header of `record-eval.sh` lost `TestSnapshotIsReadableAndCurrent` - restored.
+  - `[medium]` `[patch]` (verification-gap) the first-ten window of `incidents` is pinned by no sample - the good tree holds eight later incidents of one category, so a check over the whole set is flagged; mutation line written. The explicit name sort is redundant with the byte-ordered file list and is not pinned separately.
+  - `[low]` `[patch]` (verification-gap) the underscore form of the namespace and the `_bmad/*` exemption are pinned by no sample - samples `bad-feed-resource-name` and `_bmad/custom/rules.md` in the good tree.
+  - `[low]` `[reject]` (verification-gap) `Fixture.Record` and `record-eval.sh feed` have no per-push test - a manual recorder whose output is re-checked on every CI run by `TestCommittedIsCurrent`; a test needs a second feed install (about a minute a run) (wontfix-accepted, reopen_if `Record` changes or a re-recording is refused).
+  - `[low]` `[patch]` (verification-gap) the `MIN_FEED` clause cannot fail on its own - sample `bad-incidents-feed-count`; mutation line written.
+  - `[low]` `[patch]` (verification-gap) `bad-incidents-category-window` cannot tell the window from the whole set - same root as the medium row.
+  - `[low]` `[patch]` (verification-gap) the host assertion passes vacuously - same root as the twelfth row.
+  - `[maybe-false]` `[reject]` (verification-gap) `StartProduction` treats a registered job as alive, so a send may precede the listener on 9381 - not reproduced; if true, a refused first attempt adds an event-log row and the retry reaches the 503, and the pack holds no event log (low).
+  - `[low]` `[patch]` (verification-gap) the pin needs fewer than 128 held object references - same root as the fourth row.
+  - `[low]` `[reject]` (verification-gap) `TestFeedRemoved` does not assert the feed ran before its own `Install`, and relies on later tests reading only `Recorded` - the mutation "`Install` skips removing a leftover" pins the precondition, and no later test reads the live feed.
+  - `[low]` `[reject]` (verification-gap) parts of AC2 and AC3 have no mutation line of their own - Rule 19 asks for one demonstrated mutation per AC; AC2 has four and AC3 five.
+  - `[low]` `[reject]` (verification-gap) the second `Hosts` probe has no mutation for an over-wide exclusion - the exclusion is now tight and a third probe pins the unspaced form (same root as the third row).
+  - `[low]` `[reject]` (verification-gap) the `feed` rule has no "files were scanned" guard - an empty scan makes every other rule of the script fail too.
+  - `[low]` `[patch]` (verification-gap) the exclusion hides `contact(5@real-host.com)` - same root as the third row.
+  - `[low]` `[reject]` (intent-alignment) `returns-negative-weight` sends -2.5, -1.0 and -0.5 where the matrix names -2.5 - every message is negative, and the observable (`#7204` for `Weight`) is the matrix's.
+  - `[low]` `[reject]` (intent-alignment) the connection failures end about 5 s apart, the matrix says about 2 s - measured and recorded under Task 0 (c) and (e); inside the 10 s limit of Task 0 (e).
+  - `[low]` `[reject]` (intent-alignment) the `incidents` source check also tests the namespace - stricter than the matrix, no harm.
+  - `[low]` `[reject]` (intent-alignment) `Test/Eval/Cases.cls` changed though the intent does not name it - inside the footprint `Test/Eval/**`; the change is needed for the object reference in the required-property text (Decided in-stage 17).
+  - `[low]` `[reject]` (intent-alignment) no test asserts "no Incident row" or distinct sessions - met by omission (nothing watches the feed) and by construction (`Sender` sends each message in a session of its own); the snapshots show the sessions.
 
 ## Design Notes
 
@@ -382,6 +423,27 @@ No AC contradicts an AD, and no NFR is unmeasurable as worded (Rules 5 and 6). T
     - the runtime refusal and the clean `Remove` (`Test.Eval.Record`);
     - the throwaway's eval mount as the guard. The judges' image compiles every `OcuTalon.Test.*` class (`src/module.xml`, the Dockerfile copies `src/`), as it already does for `ZzStoppedProduction`, but nothing there installs or starts the feed.
 16. **`Eval.Record` is unchanged.** `Capture` takes any namespace, production and item.
+17. **An object reference is not a host (implement stage).** The IRIS text of a required property is `Property 'Pkg.Class::MemberId(6@Pkg.Class)' required`, so `claims-member-missing` has an `@` followed by a class name, which 9.4's `Hosts` read as the host `ocutalon.test.eval.feed.billingclaim` and `TestIncidentFiles` flagged. `Test.Eval.Cases.Hosts` now drops an object reference, `(<digits>@<ClassName>)` right after an identifier character, before it looks for `@` and `://`; `TestIncidentChecksFlagViolations` pins both sides (the reference is no address, an address in parentheses after a space is still one). This is the only change to `Cases.cls`; Decided in-stage 12's `127.0.0.1` rule was not needed.
+18. **The object-reference number is pinned (implement stage).** The number in that text (`MemberId(6@...)`) is the job's object-reference number of the typed record. It was 6 in a fresh job and changed in some inductions under CPU load (12, 16 and 21 were seen), so `TestCommittedIsCurrent` could report `claims-member-missing` at `.sample.error` for one run in a few dozen. A fixed record per job (made in `OnInit`) did not remove it. `TypedRecord.NewPinned` now gives every typed record the object-reference number `REFNUMBER` (128): it takes instances until one has the number, releases the others and then that one, and the next `%New()` gets the number again (released numbers are reused last in, first out; measured in a throwaway: 3 released numbers came back in reverse order). The error text is IRIS's own and the same on every run: `...::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)`. The case, its marker `#5659` and Matrix row are unchanged; only the recording of `claims-member-missing` was redone (`record-eval.sh feed`). If a job ever holds numbers above 128, the record gets the number IRIS gives it and `TestCommittedIsCurrent` reports the drift.
+
+**Measured in-stage (Task 0; lane B, build 154U; warm stack `e9s9iw`, fresh stacks `e9s9i`):**
+- **(a) Packs.** With `VOLATILE` emptied for one warm run, the committed pack and a fresh induction's pack of each feed case differ at `.firstAt .lastAt .sample.at .trace.0.timeCreated` only, all within `VOLATILE`'s six (`sample.headerId` and `trace.0.headerId` do not differ: every `Install` makes a new database, so the ids repeat). The demo differs at those and `.sample.headerId(type) .trace.0.headerId`, as in 9.4. No HALT.
+- **(b) Mapping.** After `Install`, in `EVALFEED` the classes `OcuTalon.Test.Eval.Feed`, `.Feed.Sender`, `.Feed.Fixture`, `.Feed.LabResult` and `OcuTalon.Test.Eval.Record` exist, and `OcuTalon.Eval.Record` does not: the mapping of the package `OcuTalon.Test.Eval` covers the class of that name below it and the sub-package. No HALT.
+- **(c) Times.** Warm: `Install` 1.6 to 1.8 s, the sends until every case had failed 15.25 s, `Remove` 2.1 s, the whole of `Fixture.Record` 23.8 s. `Test.Eval.Record` as a class: warm 43.1 to 45.1 s (58 s under load from another stack), fresh stack 42.38 s as one class and 41.75 s (forward, part 5/8) and 44.02 s (reversed, part 4/8) in the lane-a shard (9.4: 11 to 15 s), so the feed adds about 30 s: the three retrying items take about 5 s a message one after another (15 s of the 30), then two installs and two removals (`TestFeedRemoved` installs again). The fresh stack takes 84 to 99 s to be ready. At 1 to 3.9 times, the CI cost is 0.5 to 2 min on the 27 min 24 s `shards` job (REL-4: 35 min). The 75 s guard did not fire.
+- **(d) Texts, one for each mechanism.**
+  - `%ValidateObject`, datatype: `ERROR #7207: Datatype value '7,5' is not a valid number`, then a line `> ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to "7,5"`; the same for `#7208` (`'1792138500' is not a valid timestamp format`) and `#7204` (`'-2.5' less than MINVAL allowed of 0`);
+  - `%ValidateObject`, required: `ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required` (6 before Decided in-stage 18);
+  - `EnsLib.HTTP.OutboundAdapter`, connect: `ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382` (and `carrier.example:80`); the event log also holds `ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; ...` after it, and the reader picks the first row;
+  - `EnsLib.HTTP.OutboundAdapter`, status: `ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'` (and 500);
+  - ObjectScript: `ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'`.
+
+  Every plan marker holds, so no `errorHas` value changed. The only `@` in a recording is the object reference of Decided in-stage 17; no recording has `://`, so Task 9's `127.0.0.1` rule was not needed.
+- **(e) DNS.** `carrier.example` fails like the refused port: each message takes about 5 s (the three end 5 s apart), well under 10 s, and its text is the same in every induction (the committed text and the fresh text are equal in all runs of `TestCommittedIsCurrent`). The fallback of Decided in-stage 11 was not needed. On a CI host with no resolver the time may differ; the text does not carry the cause.
+- **(f) The grant.** The service role's Resources are `%DB_OCUORDERS_DATA:R` before `Install`, `%DB_EVALFEED_DATA:R,%DB_OCUORDERS_DATA:R` while the feed exists and `%DB_OCUORDERS_DATA:R` after `Remove`; `TestFeedRemoved` pins it.
+- **Final timings (after the review patches; same machine, other lanes busy).** `Test.Eval.Record`: warm 40.8 to 44.6 s (55.8 to 73.4 s under 40 busy loops on 16 cores); fresh stack as one class 58.49 s; in the lane-a shard 43.06 s (forward, part 5/8, 139 s for 10 classes) and 57.80 s (reversed, part 4/8, 162 s for 10 classes); `Test.Eval.Cases` 7.2 to 7.7 s (forward in part 4/8: 123 s for 10 classes). The 75 s guard did not fire (the slowest fresh figure is 58.49 s). `record-eval.sh feed` took about 2 min each time.
+- **Recording.** `record-eval.sh feed` (fresh stack `e9s9i`): `record-eval: 9 feed cases written`, 1 min 59 s, exit 0. `eval/orders-date-format/*` is byte-identical.
+- **Object-reference number.** Before the pin: 15 warm inductions with no load gave 6 in every failure; under 48 busy loops on 16 cores 40 inductions gave one with 12 12 12 and one with 6 6 21; a fixed record per job gave 12 in one of 14. After the pin (Decided in-stage 18): the recording on a fresh stack has 128 in all three failures, the other eight cases differ from the earlier recording in `VOLATILE` fields only, and `Test.Eval.Record` passed on 5 further warm runs, 3 of them under 40 busy loops on 16 cores (55 to 73 s).
+- **Other checks on fresh stacks.** Lane-a shard parts 5/8 (146 s, 10 classes) and reversed 4/8 (148 s, 10 classes) pass; `eval/run.sh` (1 min 31 s) prints `eval/run: all checks passed` and lists the ten incident cases as skipped; `ci/iris.sh live storage-roundtrip` passes for all 88 stored classes (the three message classes included); the warm run of `Test.Watch.Tools`, `Test.Watch.Grant`, `Test.Demo.Production` and `Test.Watch.Evidence` right after a green `Test.Eval.Record` passes.
 
 **The cases (Fixture `XData Cases`; `recordedBy` is `Eval.Record.#RECORDEDBY`; three messages each):**
 
@@ -513,16 +575,67 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | Hermeticity | `OnAfterAllTests` skips `Fixture.Remove()` | `TestFeedRemoved` (the namespace and the grant remain after the second instance's `OnAfterAllTests`) |
 | Hermeticity | `Install` skips removing a leftover | `TestFeedRemoved` (`Install()` over the running feed fails) |
 
+mutation: `Intake` quits with `$$$ERROR($$$GeneralError, "ResultValue is not a valid number")` instead of `%ValidateObject()` -> `TestFeedCasesRecorded` (the four Intake cases lack their markers) and `TestCommittedIsCurrent` (`.errorPattern .sample.error`) went red
+mutation: `Partner` answers `200 OK` under `/payer/` (the prefix changed) -> the class went red: `payer-unavailable` was not induced (0 failed headers after 60 s), `Missing` was set, and every test failed with that reason
+mutation: committed `results-decimal-comma/snapshot.json` first `ResultValue` `7,5` -> `7.5` -> `TestCommittedIsCurrent` went red (`differs at .sample.body.ResultValue`); the file was restored byte-identical
+mutation: definition of `claims-member-missing` has `elementAtFault` `ClaimId` -> `TestFeedCasesRecorded` went red ("the committed case.json is the case of the definition")
+mutation: `payer-unavailable` removed from `XData Cases` -> `TestCommittedIsCurrent` ("the incident case has a recipe in Recipes()") and `TestFeedCasesRecorded` (8 cases, not 9) went red
+mutation: `Eval.Record.Write` sets `trace` to `[]` before it writes -> `TestReplayEqualsLive` went red for every recipe (`differs at .trace.0(missing)`, the demo and the nine feed cases) and `TestCaptureWritesCase` too; `Eval/Record.cls` was restored (`git status` shows it unchanged)
+mutation: `Install` skips its throwaway check -> `TestFeedOnlyInThrowaway` went red (the refusal is missing)
+mutation: the `feed` rule of `test-eval-set.sh` skips `docker-compose.yml` -> `feed` went red: "the rule does not flag the sample bad-feed-compose"
+mutation: `Remove` skips deleting the resource -> `TestFeedRemoved` went red (leftovers `resource,grant`; the role's Resources differ; Install fails with #891)
+mutation: `Remove` skips `Config.Namespaces.Delete` -> `TestFeedRemoved` went red (#429 "Cannot delete database EVALFEED_DATA, in use"; leftovers `namespace,database,directory,resource,grant`)
+mutation: the `incidents` limit `MAX_SHARE` 8 -> 9 -> `incidents` went red: "the rule does not flag the sample bad-incidents-category" (and `bad-incidents-category-window`)
+mutation: the held-out count check of `incidents` dropped -> `incidents` went red: "the rule does not flag the sample bad-incidents-held-out" (and `bad-incidents-held-out-demo`)
+mutation: committed `carrier-host-not-found/case.json` `heldOut` true -> false -> `incidents` ("fewer than 2 held-out incident cases come from the test feed") and `TestFeedCasesRecorded` ("the committed case.json is the case of the definition") went red; the file was restored byte-identical
+mutation: `OnAfterAllTests` skips `Fixture.Remove()` -> `TestFeedRemoved` went red (leftovers after the second instance's `OnAfterAllTests`, the role's Resources, `Reader.Productions`)
+mutation: `Install` skips removing a leftover -> `TestFeedRemoved` went red ("Install succeeds over the running feed" fails with #891 "Resource %DB_EVALFEED_DATA already exists")
+mutation: `Test.Eval.Cases.Hosts` loses its object-reference exclusion (Decided in-stage 17) -> `TestIncidentChecksFlagViolations` ("an object reference in an error text is not an address") and `TestIncidentFiles` went red
+mutation: `TypedRecord.NewPinned` returns `..%New()` without pinning (Decided in-stage 18) -> `TestCommittedIsCurrent` (`claims-member-missing: ... differs at .sample.error`) and `TestFeedCasesRecorded` (`claims-member-missing (this run)`: the marker `MemberId(128@` is missing) went red
+mutation: `check-incidents.mjs` counts every incident case instead of the first ten (`slice` dropped) -> `incidents` went red: the good sample, whose eight later incidents share one category, was flagged ("10 of the first 10 ... connection_failure")
+mutation: `MIN_FEED` 9 -> 0 in `check-incidents.mjs` -> `incidents` went red: the sample `bad-incidents-feed-count` was flagged but not for its reason
+mutation: the `feed` rule's `grep -Iqi` becomes `grep -Iq` -> `feed` went red: "the rule does not flag the sample bad-feed-lowercase"
+mutation: the `feed` rule's namespace pattern excludes `_` before `EVALFEED` -> `feed` went red: "the rule does not flag the sample bad-feed-resource-name"
+mutation: the `feed` rule loses its `_bmad/*` exemption -> `feed` went red: "the rule flags the good sample: _bmad/custom/rules.md"
+mutation: the `feed` rule's class pattern matches dots only (not slashes) -> `feed` went red: "the rule does not flag the sample bad-feed-class-path"
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan summary.** One story, not split (Decided in-stage 1):
-- the test feed `OcuTalon.Test.Eval.Feed` in its own throwaway-only namespace `EVALFEED`, with nine real failures across five categories;
-- its fixture (`Install`, `Remove`, `Start`, `Keys` and `Record`);
-- the per-push re-induction and CON-3 tests in `Test.Eval.Record`;
-- the `record-eval.sh feed` driver and the nine recordings;
-- the `incidents` and `feed` rules in `test-eval-set.sh`.
+**Summary of the implemented change.** The evaluation set now holds ten incidents recorded from real IRIS failures:
+- the test feed `OcuTalon.Test.Eval.Feed` (nine items that fail through `%ValidateObject`, `EnsLib.HTTP.OutboundAdapter` against the feed's own partner listener, and an ObjectScript `<UNDEFINED>`), in the namespace `EVALFEED` that `Test.Eval.Feed.Fixture` makes and removes in throwaway stacks only (refused where the throwaway's `eval/` mount is missing);
+- the one grant, Read on `%DB_EVALFEED_DATA` to `OcuTalonServiceRole`, between `Install` and `Remove`;
+- `docker/tests/record-eval.sh feed`, which wrote the nine `eval/<name>/` folders;
+- `Test.Eval.Record` re-inducing all ten incidents on every run, with `TestFeedCasesRecorded`, `TestFeedOnlyInThrowaway` and `TestFeedRemoved`;
+- the `incidents` (spread, held-out cases, source) and `feed` (CON-3) rules of `test-eval-set.sh`.
 
-The veto-window item for the lead is the test-only Read grant on `%DB_EVALFEED_DATA`. The per-push CI cost is estimated at about 1 to 2 min on the `shards` job (inference), with Task 0 (c)'s tripwire.
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Feed.cls` and `Feed/*.cls` (14 classes): the production, its items, messages, typed records and `Fixture`.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls`: `Recipes()`, `InstallFeed`, feed hooks and the three new tests.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls`: `Hosts` leaves out the object reference of a required-property text (Decided in-stage 17).
+- `docker/tests/record-eval.sh`: the `feed` mode.
+- `docker/tests/test-eval-set.sh`: the `incidents` and `feed` rules, their samples and the feed enumerations.
+- `eval/<name>/{case.json,snapshot.json}` for nine cases, as the recorder wrote them; `eval/orders-date-format/*` is unchanged.
+
+**Review findings.** 36 findings from four layers: patches applied 17 (1 medium, 16 low), none deferred, 19 rejected with their reasons in the Review Triage Log. The patches: the CON-3 rule now matches in any letter case and the class written as a path; samples pin the window of the first ten, the feed count, the underscore form and the `_bmad` exemption; `Fixture.Record` refuses before it empties a folder; `Hosts` exempts only `::Property(N@Class)`; `AssertFeedSnapshot` asserts that the item is in the snapshot; the `record-eval.sh` header names both tests again. Before review, one flake of the plan was found and removed (Decided in-stage 18).
+
+**Follow-up review recommendation.** `false`: no high finding was patched and one medium was.
+
+**Verification performed (lane B, runner B; tags `e9s9i`, `e9s9iw`).**
+- `bash docker/tests/test-eval-set.sh`: every rule passes, including `incidents` and `feed`; seven mutations of the new samples went red and were reverted.
+- `record-eval.sh feed` (fresh stack, run twice, the last one after the final patch): `record-eval: 9 feed cases written`, exit 0; `git diff --stat -- eval/orders-date-format` is empty.
+- Warm: `Test.Eval.Record` (40.8 to 44.6 s), `Test.Eval.Cases`, then `Test.Watch.Tools`, `Test.Watch.Grant`, `Test.Demo.Production` and `Test.Watch.Evidence` each in its own call: all passed. Three more warm runs of `Test.Eval.Record` under 40 busy loops on 16 cores passed.
+- Fresh stack: `Test.Eval.Record` passed (58.49 s); lane-a shard part 5/8 (139 s), reversed part 4/8 (162 s) and forward part 4/8 (123 s): 10 classes each, all passed.
+- `eval/run.sh`: `eval/run: all checks passed`, the ten incident cases among the skipped.
+- `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh`: all blocks passed.
+- Teardown: both tags removed, the lane-b lock folder is empty, no `e9s9` container remains.
+- The slot (`ocutalon-slot-b`) was used for compile checks only.
+
+**Residual risks.**
+- CI time: `Test.Eval.Record` takes 41 to 58 s here against 11 to 15 s before the feed (75 s guard not reached). The estimate for the `shards` job is 0.5 to 2 min (inference); the lead's CI gate measures the real job.
+- The pin of the object-reference number relies on released numbers being reused last in, first out (measured on build 154U in a throwaway). If a job ever holds numbers above 128, `TestFeedCasesRecorded` reports `claims-member-missing` at once.
+- `Fixture.Record` and `record-eval.sh feed` run by hand only; `TestCommittedIsCurrent` re-checks their output on every CI run.
+- On a CI host with no resolver the `carrier-host-not-found` failures may take longer than 5 s a message; the error text does not carry the cause.
+- The feed's partner (port 9381) is a listener of the feed inside the throwaway; a runner that uses that port for something else would fail the class with the reason in `Missing`.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.7 and 9.8; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
-# ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below ci/mock/scenarios/A/,
-# the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh and the
-# enumerations of the classes. A failure prints `file: rule` and never the text of the file.
+# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.7, 9.8 and 9.9; AD-22, AD-29; CON-3, CON-5). It is a unit of the hosted `checks` job
+# (CHECK_SCRIPTS of ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below
+# ci/mock/scenarios/A/, the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh, the
+# enumerations of the classes and, for the rule feed, every file that git tracks or has not ignored. A failure prints `file: rule` and never the
+# text of the file.
 # Each rule first runs on synthetic trees: one for each way to break the rule, which must be flagged, and a good one, which must not be
 # (the convention of lib-scan.sh); only then does it read the real tree. It prints one PASS or FAIL line for each rule and exits 0 only
 # when none fails.
@@ -11,7 +12,8 @@
 #                 FIXKINDS), the case kinds, the finding keys and the demo case (Eval.Report CASEKINDS, FINDINGKEYS and DEMOCASE), the
 #                 words that make a setting name a credential (Watch.Reader CREDENTIALPARTS), the four catalog keys of Checks.Render
 #                 (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED) and the namespace and production of the Orders
-#                 demo (Install.Step.Demo NAMESPACE and PRODUCTION) are read from their classes, and each is found;
+#                 demo (Install.Step.Demo NAMESPACE and PRODUCTION) and the namespace and production of the test feed (Test.Eval.Feed.Fixture
+#                 NAMESPACE and PRODUCTION) are read from their classes, and each is found;
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
@@ -50,6 +52,18 @@
 #                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
+#   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 10; no
+#                 cause category accounts for more than 8 of the first 10 (a diagnosis that always gives one answer cannot reach SM-2);
+#                 at least 9 of them other than the one Eval.Report DEMOCASE names have a snapshot whose source.namespace and source.production
+#                 are the test feed's, and every incident other than the demo's is one of them (this release's rule: a later story that
+#                 records an incident elsewhere relaxes it in its own change); and at least 2 of the feed's incidents are held out (heldOut
+#                 true), so that prompt work never sees them;
+#   feed          (CON-3) no tracked or not-ignored file names the test feed, that is, the class OcuTalon.Test.Eval.Feed (and so every class
+#                 below it; written with dots or slashes) or the namespace EVALFEED not preceded by a letter or a digit (so %DB_EVALFEED_DATA
+#                 and the folder evalfeed_data are named too), in any letter case, unless its path is
+#                 below src/ocutalon/cls/OcuTalon/Test/, eval/, _bmad-output/ or _bmad/, or is docker/tests/record-eval.sh or
+#                 docker/tests/test-eval-set.sh. So docker-compose.yml, the Dockerfile, docker/merge.cpf, OcuTalon.Production, the install steps,
+#                 ci/ and .github/ never name the feed: only a throwaway test stack installs it;
 #   job           .github/workflows/lane-a.yml has a job evaluation with a timeout, a run tag of its own (run id, attempt and -eval, so
 #                 its teardown never removes another job's stack), a step that runs `bash ci/iris.sh build` before the step that runs
 #                 `bash eval/run.sh`, and no workflow file names the switch OCUTALON_EVAL, which eval/run.sh exports for its own
@@ -83,6 +97,7 @@ READER_FILE=src/ocutalon/cls/OcuTalon/Watch/Reader.cls
 FIXKIND_DIR=src/ocutalon/cls/OcuTalon/Fix/Kind
 RENDER_FILE=src/ocutalon/cls/OcuTalon/Checks/Render.cls
 DEMO_FILE=src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls
+FIXTURE_FILE=src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls
 
 # enum_value <file> <name>: the text of `Parameter <name> = "...";` in the class file.
 enum_value() {
@@ -430,6 +445,75 @@ try {
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
+cat > "$tmp/check-incidents.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const [root, filesPath] = process.argv.slice(2);
+const DEMOCASE = process.env.ENUM_DEMOCASE || '';
+const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
+const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
+const MIN_INCIDENTS = 10;
+const WINDOW = 10;
+const MAX_SHARE = 8;
+const MIN_FEED = 9;
+const MIN_HELD_OUT = 2;
+const out = [];
+const bad = (file, rule) => out.push(`${file}: ${rule}`);
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+// An incident is from the feed when its snapshot, a file of its folder, has the feed's namespace and production as its source.
+const fromFeed = (file, c) => {
+  try {
+    if (typeof c.snapshot !== 'string' || c.snapshot.includes('/') || c.snapshot.includes('\\')) return false;
+    const snapshot = readJson(path.posix.join(path.posix.dirname(file), c.snapshot));
+    return isObject(snapshot) && isObject(snapshot.source) && snapshot.source.namespace === FEEDNAMESPACE && snapshot.source.production === FEEDPRODUCTION;
+  } catch {
+    return false;
+  }
+};
+
+try {
+  const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => /^eval\/[^/]+\/case\.json$/.test(f) && !f.startsWith('eval/mock-wrong/'));
+  const cases = [];
+  for (const file of files) {
+    let c;
+    try {
+      c = readJson(file);
+    } catch {
+      continue;
+    }
+    if (isObject(c) && c.kind === 'incident') cases.push({ file, name: path.posix.basename(path.posix.dirname(file)), c });
+  }
+  cases.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  if (cases.length < MIN_INCIDENTS) bad('eval', `the set holds fewer than ${MIN_INCIDENTS} incident cases`);
+  const share = new Map();
+  for (const { c } of cases.slice(0, WINDOW)) {
+    const category = isObject(c.expectation) ? c.expectation.causeCategory : undefined;
+    share.set(category, (share.get(category) || 0) + 1);
+  }
+  for (const [category, n] of share) {
+    if (n > MAX_SHARE) bad('eval', `${n} of the first ${WINDOW} incident cases (by name) share the cause category ${category}, more than ${MAX_SHARE}`);
+  }
+  let feed = 0;
+  let held = 0;
+  for (const { file, name, c } of cases) {
+    if (name === DEMOCASE) continue;
+    if (!fromFeed(file, c)) {
+      bad(file, 'a non-demo incident is not from the test feed');
+      continue;
+    }
+    feed += 1;
+    if (c.heldOut === true) held += 1;
+  }
+  if (feed < MIN_FEED) bad('eval', `fewer than ${MIN_FEED} incident cases other than the demo's come from the test feed`);
+  if (held < MIN_HELD_OUT) bad('eval', `fewer than ${MIN_HELD_OUT} held-out incident cases come from the test feed`);
+} catch {
+  bad('check-incidents', 'could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
 cat > "$tmp/mksamples.mjs" <<'EOF'
 import fs from 'node:fs';
 import path from 'node:path';
@@ -444,6 +528,10 @@ const KEYNOTHINGWATCHED = process.env.ENUM_KEYNOTHINGWATCHED || '';
 const DEMOCASE = process.env.ENUM_DEMOCASE || '';
 const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
 const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
+const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
+const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
+const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
+const CATEGORIES = (process.env.ENUM_CAUSECATEGORIES || '').split(',').filter(Boolean);
 const D = 'doc' + 'ker';
 const DC = 'd' + 'c';
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -575,6 +663,80 @@ const demoTree = (mutate) => (f) => {
   for (const k of Object.keys(f)) delete f[k];
   f[DEMOFILE] = incident(DEMOCASE);
   f[`eval/${DEMOCASE}/snapshot.json`] = snapshotOf();
+  mutate(f);
+};
+
+// A good tree for the rule `incidents`: the demo incident and the nine incidents of the test feed with this release's spread (data format change 3 with the
+// demo's, validation error 2, connection failure 2, partner outage 2, unknown 1) and two held out, a tail of later incidents, and a test-only case, which
+// the rule does not read.
+const category = (name) => {
+  if (!CATEGORIES.includes(name)) throw new Error(`${name} is not a cause category`);
+  return name;
+};
+const incidentIn = (name, causeCategory, heldOut) => {
+  const c = incident(name);
+  c.expectation = { causeCategory: category(causeCategory), elementAtFault: 'ZzElement', fixKind: causeCategory === FIXCATEGORY ? 'repair_resend' : '' };
+  c.heldOut = heldOut;
+  return c;
+};
+const sourced = (namespace, production) => {
+  const s = snapshotOf();
+  s.source = { namespace, production, item: 'ZzItem' };
+  return s;
+};
+const FEEDCASES = [
+  ['carrier-host-not-found', 'connection_failure', true],
+  ['claims-archive-internal-error', 'unknown', false],
+  ['claims-member-missing', 'validation_error', false],
+  ['lab-results-refused', 'connection_failure', false],
+  ['payer-unavailable', 'partner_outage', false],
+  ['reference-lab-server-error', 'partner_outage', false],
+  ['results-decimal-comma', 'data_format_change', false],
+  ['returns-negative-weight', 'validation_error', true],
+  ['shipments-epoch-time', 'data_format_change', false],
+];
+// Eight further incidents that sort after the first ten by name and share one cause category: the whole set holds more than 8 of it, the first ten hold 2.
+const TAIL = Array.from({ length: 8 }, (_, i) => `zz-tail-${i + 1}`);
+const incidentsGood = () => {
+  const files = {};
+  files[`eval/${DEMOCASE}/case.json`] = incidentIn(DEMOCASE, 'data_format_change', false);
+  files[`eval/${DEMOCASE}/snapshot.json`] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
+  for (const [name, causeCategory, heldOut] of FEEDCASES) {
+    files[`eval/${name}/case.json`] = incidentIn(name, causeCategory, heldOut);
+    files[`eval/${name}/snapshot.json`] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
+  }
+  for (const name of TAIL) {
+    files[`eval/${name}/case.json`] = incidentIn(name, 'connection_failure', false);
+    files[`eval/${name}/snapshot.json`] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
+  }
+  files['eval/mock-wrong/wrong-good/case.json'] = wrong('wrong-good');
+  return files;
+};
+const incidentsTree = (mutate) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  Object.assign(f, incidentsGood());
+  mutate(f);
+};
+
+// A good tree for the rule `feed`: a repository whose shipped and installing files do not name the test feed, and whose test classes, eval/ and the
+// two scripts that may do. The tree is listed with find, and expect.txt is never part of it.
+const FEEDCLASS = `${FEEDPRODUCTION}.Fixture`;
+const feedGood = () => ({
+  'docker-compose.yml': 'services:\n  iris:\n    image: ocutalon\n',
+  'docker/merge.cpf': '[Actions]\nCreateDatabase:Name=OCUTALON_CODE\n',
+  'src/ocutalon/cls/OcuTalon/Production.cls': 'Class OcuTalon.Production\n{\nXData ProductionDefinition\n{\n<Production Name="OcuTalon.Production">\n  <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide"/>\n</Production>\n}\n}\n',
+  'src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls': 'Class OcuTalon.Install.Step.Zz\n{\nParameter NAMESPACE = "OCUORDERS";\n}\n',
+  'src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls': `Class OcuTalon.Test.Eval.Record\n{\n/// Installs ${FEEDCLASS} in ${FEEDNAMESPACE}.\n}\n`,
+  'src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls': `Class ${FEEDCLASS}\n{\nParameter RESOURCE = "%DB_${FEEDNAMESPACE}_DATA";\n}\n`,
+  'eval/zz-case/snapshot.json': sourced(FEEDNAMESPACE, FEEDPRODUCTION),
+  '_bmad-output/spec.md': `The feed ${FEEDPRODUCTION} lives in ${FEEDNAMESPACE}.\n`,
+  '_bmad/custom/rules.md': `The feed ${FEEDPRODUCTION} lives in ${FEEDNAMESPACE}.\n`,
+  'docker/tests/record-eval.sh': `# records ${FEEDCLASS}\n`,
+  'docker/tests/test-eval-set.sh': `# checks ${FEEDNAMESPACE}\n`,
+});
+const feedTree = (mutate) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  Object.assign(f, feedGood());
   mutate(f);
 };
 
@@ -767,6 +929,82 @@ variant('demo', 'bad-demo-fixkind', 'the demo expectation is not data_format_cha
 variant('demo', 'bad-demo-extra-field', 'the demo expectation is not data_format_change, OrderDate and repair_resend', demoTree((f) => { f[DEMOFILE].expectation.keyPhrases = ['x']; }));
 variant('demo', 'bad-demo-kind', 'the demo case is not of kind incident', demoTree((f) => { f[DEMOFILE].kind = 'item'; }));
 
+variant('incidents', 'good', '', incidentsTree(() => {}));
+const FEEDFILES = FEEDCASES.map(([name]) => `eval/${name}/case.json`);
+const withoutTail = (f) => {
+  for (const name of TAIL) {
+    delete f[`eval/${name}/case.json`];
+    delete f[`eval/${name}/snapshot.json`];
+  }
+};
+variant('incidents', 'bad-incidents-few', 'the set holds fewer than 10 incident cases', incidentsTree((f) => {
+  withoutTail(f);
+  delete f['eval/claims-member-missing/case.json'];
+  delete f['eval/claims-member-missing/snapshot.json'];
+}));
+variant('incidents', 'bad-incidents-category', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
+  for (const file of FEEDFILES) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+}));
+variant('incidents', 'bad-incidents-category-window', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
+  // An eleventh case that sorts last makes the cases beyond the first ten irrelevant: the first ten still have nine of one category.
+  for (const file of FEEDFILES) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+  f['eval/zz-last/case.json'] = incidentIn('zz-last', 'connection_failure', false);
+  f['eval/zz-last/snapshot.json'] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
+}));
+variant('incidents', 'bad-incidents-held-out', 'fewer than 2 held-out incident cases come from the test feed', incidentsTree((f) => {
+  f['eval/returns-negative-weight/case.json'].heldOut = false;
+}));
+variant('incidents', 'bad-incidents-held-out-demo', 'fewer than 2 held-out incident cases come from the test feed', incidentsTree((f) => {
+  // The demo's case does not count as a held-out feed case.
+  f['eval/returns-negative-weight/case.json'].heldOut = false;
+  f[`eval/${DEMOCASE}/case.json`].heldOut = true;
+}));
+variant('incidents', 'bad-incidents-source', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+  f['eval/payer-unavailable/snapshot.json'].source.production = 'Zz.Other.Production';
+}));
+variant('incidents', 'bad-incidents-feed-count', 'fewer than 9 incident cases other than the demo\'s come from the test feed', incidentsTree((f) => {
+  withoutTail(f);
+  f['eval/payer-unavailable/snapshot.json'].source.production = 'Zz.Other.Production';
+}));
+variant('incidents', 'bad-incidents-source-namespace', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+  f['eval/payer-unavailable/snapshot.json'].source.namespace = 'ZZOTHER';
+}));
+variant('incidents', 'bad-incidents-no-snapshot', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+  delete f['eval/payer-unavailable/snapshot.json'];
+}));
+
+variant('feed', 'good', '', feedTree(() => {}));
+variant('feed', 'bad-feed-compose', 'docker-compose.yml: names the test feed (CON-3)', feedTree((f) => {
+  f['docker-compose.yml'] += `    environment:\n      - NS=${FEEDNAMESPACE}\n`;
+}));
+variant('feed', 'bad-feed-production', 'src/ocutalon/cls/OcuTalon/Production.cls: names the test feed (CON-3)', feedTree((f) => {
+  f['src/ocutalon/cls/OcuTalon/Production.cls'] = f['src/ocutalon/cls/OcuTalon/Production.cls'].replace('</Production>', `  <Item Name="Zz" ClassName="${FEEDPRODUCTION}.Sender"/>\n</Production>`);
+}));
+variant('feed', 'bad-feed-install', 'src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls: names the test feed (CON-3)', feedTree((f) => {
+  f['src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls'] = `Class OcuTalon.Install.Step.Zz\n{\nParameter NAMESPACE = "${FEEDNAMESPACE}";\n}\n`;
+}));
+variant('feed', 'bad-feed-resource', 'docker/merge.cpf: names the test feed (CON-3)', feedTree((f) => {
+  f['docker/merge.cpf'] += `CreateDatabase:Name=${FEEDNAMESPACE}_DATA,Directory=/x\n`;
+}));
+variant('feed', 'bad-feed-resource-name', 'docker/merge.cpf: names the test feed (CON-3)', feedTree((f) => {
+  f['docker/merge.cpf'] += `Resource=%DB_${FEEDNAMESPACE}_DATA\n`;
+}));
+variant('feed', 'bad-feed-lowercase', 'docker/zz.sh: names the test feed (CON-3)', feedTree((f) => {
+  f['docker/zz.sh'] = `mkdir -p /mgr/${FEEDNAMESPACE.toLowerCase()}_data\n`;
+}));
+variant('feed', 'bad-feed-class-path', 'docker/zz.sh: names the test feed (CON-3)', feedTree((f) => {
+  f['docker/zz.sh'] = `cp src/ocutalon/cls/${FEEDCLASS.replace(/\./g, '/')}.cls /x\n`;
+}));
+variant('feed', 'bad-feed-ci', 'ci/zz.yml: names the test feed (CON-3)', feedTree((f) => {
+  f['ci/zz.yml'] = `env: ${FEEDPRODUCTION}.Fixture\n`;
+}));
+variant('feed', 'bad-feed-workflow', '.github/workflows/zz.yml: names the test feed (CON-3)', feedTree((f) => {
+  f['.github/workflows/zz.yml'] = `env: ${FEEDNAMESPACE}\n`;
+}));
+variant('feed', 'bad-feed-other-test-script', 'docker/tests/test-zz.sh: names the test feed (CON-3)', feedTree((f) => {
+  f['docker/tests/test-zz.sh'] = `# ${FEEDNAMESPACE}\n`;
+}));
+
 variant('job', 'bad-no-step', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }); });
 variant('job', 'bad-other-job', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }).replace('      - run: echo hi', '      - run: bash eval/run.sh'); });
 variant('job', 'bad-names-switch', 'lane-a.yml: the file names the switch OCUTALON_EVAL', (f) => { f[LANE] = job({ env: '      OCUTALON_EVAL: "1"\n' }); });
@@ -815,6 +1053,7 @@ run_node() { # run_node <program> <root>: the violations of the Node program on 
   ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" \
     ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
     ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" \
+    ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" \
     node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
 }
 
@@ -822,6 +1061,31 @@ check_cases() { run_node check-cases "$1"; }
 check_markers() { run_node check-markers "$1"; }
 check_set() { run_node check-set "$1"; }
 check_demo() { run_node check-demo "$1"; }
+check_incidents() { run_node check-incidents "$1"; }
+
+# feed_files <root>: the files of the tree, relative to the root, one per line. The real tree lists what git tracks or has not ignored; a synthetic tree
+# lists every file but the expect.txt that a bad sample carries at its root.
+feed_files() {
+  if [ "$1" = "$root" ]; then
+    scan_files
+  else
+    (cd "$1" && find . -type f 2> /dev/null | sed 's#^\./##' | grep -v '^expect\.txt$' | LC_ALL=C sort)
+  fi
+}
+
+# check_feed <root>: the files of the tree that name the test feed (the class of its production, so every class below it too, written with dots or
+# slashes, or its namespace not preceded by a letter or a digit, so that its database resource and folder are named too; in any letter case) and are
+# not one of the places that may: the test classes, eval/, the specs and the two scripts that record and check the feed.
+check_feed() {
+  local base=$1 f pattern
+  pattern="$(printf '%s' "$feed_production" | sed 's#\.#[./]#g')|(^|[^A-Za-z0-9])$feed_namespace"
+  feed_files "$base" | while IFS= read -r f; do
+    case $f in
+      src/ocutalon/cls/OcuTalon/Test/* | eval/* | _bmad-output/* | _bmad/* | docker/tests/record-eval.sh | docker/tests/test-eval-set.sh) continue ;;
+    esac
+    if grep -Iqi -E -- "$pattern" "$base/$f" 2> /dev/null; then echo "$f: names the test feed (CON-3)"; fi
+  done
+}
 
 # check_job <root>: the violations of the evaluation job in lane-a.yml of the tree.
 check_job() {
@@ -973,6 +1237,8 @@ key_not_everything=$(enum_value "$RENDER_FILE" KEYNOTEVERYTHING)
 key_nothing_watched=$(enum_value "$RENDER_FILE" KEYNOTHINGWATCHED)
 demo_namespace=$(enum_value "$DEMO_FILE" NAMESPACE)
 demo_production=$(enum_value "$DEMO_FILE" PRODUCTION)
+feed_namespace=$(enum_value "$FIXTURE_FILE" NAMESPACE)
+feed_production=$(enum_value "$FIXTURE_FILE" PRODUCTION)
 
 printf 'Class Zz.Bad\n{\nParameter OTHER = "x";\n}\n' > "$tmp/enum.bad"
 printf 'Class Zz.Good\n{\nParameter OUTCOME = "a,b";\n}\n' > "$tmp/enum.good"
@@ -1000,8 +1266,10 @@ missing=""
 [ -n "$key_nothing_watched" ] || missing="$missing KEYNOTHINGWATCHED is missing from $RENDER_FILE;"
 [ -n "$demo_namespace" ] || missing="$missing NAMESPACE is missing from $DEMO_FILE;"
 [ -n "$demo_production" ] || missing="$missing PRODUCTION is missing from $DEMO_FILE;"
+[ -n "$feed_namespace" ] || missing="$missing NAMESPACE is missing from $FIXTURE_FILE;"
+[ -n "$feed_production" ] || missing="$missing PRODUCTION is missing from $FIXTURE_FILE;"
 if [ -z "$missing" ]; then
-  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words, the four check keys and the Orders demo's namespace and production are read from their classes"
+  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words, the four check keys, the Orders demo's namespace and production and the test feed's namespace and production are read from their classes"
 else
   echo "FAIL enumerations:$missing"
   fails=$((fails + 1))
@@ -1010,7 +1278,8 @@ else
 fi
 
 if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
-  ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
+  ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXCATEGORY="$fix_category" \
+  ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
   cat "$tmp/mksamples.log"
   echo "FAIL the synthetic trees could not be written"
   exit 1
@@ -1020,6 +1289,8 @@ rule cases "every case.json below eval/ has its kind, held-out flag, record or t
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations and a command case" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
+rule incidents "the incident cases of eval/ are at least 10, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's does, and at least 2 of them are held out" check_incidents
+rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard

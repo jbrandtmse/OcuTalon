@@ -1,0 +1,13 @@
+{
+  "name": "shipments-epoch-time",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three shipments from the test feed with the shipping time written as seconds since 1970 (1792138500); the ledger operation expects a date and time.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "ShippedAt",
+    "fixKind": "repair_resend"
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}
