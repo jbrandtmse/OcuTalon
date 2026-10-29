@@ -353,12 +353,20 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "ChatId": "%String(MAXLEN=32)",
    "DisplayName": "%String(MAXLEN=128)",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "CodeSessionRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "CodeHash": "%String(COLLATION=EXACT,MAXLEN=64)",
+   "CodeExpiresAt": "%String(COLLATION=EXACT,MAXLEN=20)",
+   "CodeUsedAt": "%String(COLLATION=EXACT,MAXLEN=20)",
+   "ReplySlotAt": "%String(COLLATION=EXACT,MAXLEN=20)",
+   "SeenAt": "%String(COLLATION=EXACT,MAXLEN=20)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
    "SessionRefIndex": "SessionRef",
-   "ChatIdIndex": "ChatId"
+   "ChatIdIndex": "ChatId",
+   "CodeSessionRefIndex": "CodeSessionRef unique",
+   "CodeHashIndex": "CodeHash unique"
   }
  },
  "OcuTalon.Data.Turn": {
@@ -442,7 +450,10 @@ XData Contracts [ MimeType = application/json ]
    "DueAt": "%String(MAXLEN=20)",
    "State": "%String(MAXLEN=32)",
    "Late": "%Boolean",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "TraceHeaderId": "%Integer",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "CancelKey": "%String(MAXLEN=128)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

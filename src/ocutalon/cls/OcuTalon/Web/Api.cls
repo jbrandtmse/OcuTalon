@@ -3,8 +3,13 @@
 ///   - GET /v1/state is the snapshot and GET /v1/events the poll (AD-12); POST /v1/session/end signs out; POST /v1/messages
 ///     takes the page's message, {clientId, text, fromGuide}, hands it to WebChatIn through the production (AD-1, AD-30) and
 ///     answers 202 {clientId} (a repeat of a clientId included) or 400 bad_message for any other body. Every other
-///     route of the release that no story has shipped answers 501 not_built, and the pairing routes answer 404 while
-///     Telegram is not included. POST /v1/mailbox/incoming and /v1/mailbox/samples/:name simulate an incoming email: with demo
+///     route of the release that no story has shipped answers 501 not_built. The pairing routes answer 404 not_found while Telegram
+///     is not included (OcuTalon.Channel.Telegram.In.Included), before anything else is read; otherwise POST /v1/pairing/code
+///     makes a pairing code for the CSP session's session and answers 200 {"code","expiresAt"} (the code is 22 characters, valid for
+///     10 minutes, stored only as its hash and replacing the session's earlier code), or 409 not_available when the recorded
+///     Telegram state is not on or a pause is set; DELETE /v1/pairing never reads the body and submits an Unpair command for the
+///     CSP session through Commands.Submit (origin web_user): 200 {"result":"done"}, also when nothing was paired, 501 not_built for
+///     a stub owner and 500 server_error. POST /v1/mailbox/incoming and /v1/mailbox/samples/:name simulate an incoming email: with demo
 ///     mode off both answer 404 not_found before anything else is read. The first takes {from, subject, body} (strings; from
 ///     optional, at most 1000 characters with the subject; the body at most SimMailboxIn's BODYMAX): a blank subject or body is 400 bad_email with its field error (the
 ///     subject first), and any other bad body is 400 bad_email with the general text; the second takes the name of a sample
@@ -94,6 +99,15 @@ Parameter MESSAGESERVERERROR = "Something went wrong inside OcuTalon. Try again.
 Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet.";
 
 Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Nothing was changed.";
+
+/// The message of the 409 not_available of the code route while Telegram is not on.
+Parameter MESSAGETELEGRAMOFF = "Telegram isn't on in this OcuTalon, so no pairing code was made.";
+
+/// The message of the 409 not_available of the code route while Telegram is paused.
+Parameter MESSAGETELEGRAMPAUSED = "Telegram is paused, so no pairing code was made. Try again when the pause ends.";
+
+/// The seconds a pairing code stays valid.
+Parameter CODESECONDS = 600;
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -563,11 +577,54 @@ ClassMethod NotBuilt(arg As %String = "") As %Status
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 }
 
-/// The pairing routes: 404 while the release doesn't include Telegram, otherwise 501 until Story 10.3.
+/// The pairing routes (AD-1, AD-4, AD-13): 404 not_found while the release doesn't include Telegram, before anything else is read.
+/// Otherwise DELETE is Unpair and POST is PairingCode.
 ClassMethod Pairing() As %Status
 {
 	If '##class(OcuTalon.Channel.Telegram.In).Included() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If %request.Method = "DELETE" Quit ..Unpair()
+	Quit ..PairingCode()
+}
+
+/// POST /v1/pairing/code: a pairing code for the CSP session's session. It answers 409 not_available when the recorded Telegram state
+/// is not on (MESSAGETELEGRAMOFF) or a pause is set (MESSAGETELEGRAMPAUSED), before it reads the session, and nothing is written.
+/// Otherwise it makes the code (a Ref), stores only its hash and an expiry CODESECONDS from now through Data.Pairing.StoreCode (which replaces the session's
+/// earlier code), and answers 200 {"code","expiresAt"}: the one place that the code exists. A session that can't be read and a code
+/// that can't be stored are 500 server_error.
+ClassMethod PairingCode() As %Status [ Private ]
+{
+	If ##class(OcuTalon.Data.StatusMark).TelegramState() '= "on" Quit ..Fail(409, "not_available", ..#MESSAGETELEGRAMOFF)
+	If ##class(OcuTalon.Live.Payload.Status).TelegramPausedUntil() '= "" Quit ..Fail(409, "not_available", ..#MESSAGETELEGRAMPAUSED)
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set code = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set expiresAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), ..#CODESECONDS)
+	Set sc = ##class(OcuTalon.Data.Pairing).StoreCode(sessionRef, ##class(OcuTalon.Data.Pairing).HashCode(code), expiresAt)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"code": (code), "expiresAt": (expiresAt)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// DELETE /v1/pairing: unpairs the CSP session's chat. It never reads the body and submits an Unpair command for the session through
+/// Commands.Submit (origin web_user), which reaches SessionOps through CommandsIn, synchronously. Ok and not_paired are 200
+/// {"result":"done"} (nothing paired is not an error); not_built is 501 not_built; a status or any other outcome is 500 server_error.
+ClassMethod Unpair() As %Status [ Private ]
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()
+	Set command.SessionRef = sessionRef
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok || (result.Outcome = "not_paired") {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	If result.Outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The unpair was answered "_result.Outcome))
 }
 
 /// The snapshot of a session, keys in this order: the version, the instance zone, the session's epoch, each stream's
@@ -611,6 +668,9 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set telegram = {"included": false, "state": "off", "botUserName": "", "paired": false, "displayName": "", "pausedUntil": ""}
 	Do telegram.%Set("included", ##class(OcuTalon.Channel.Telegram.In).Included(), "boolean")
+	Set telegram.state = ##class(OcuTalon.Data.StatusMark).TelegramState(.botUserName)
+	Set telegram.botUserName = botUserName
+	Set telegram.pausedUntil = ##class(OcuTalon.Live.Payload.Status).TelegramPausedUntil()
 	If $IsObject(pairing) {
 		Do telegram.%Set("paired", 1, "boolean")
 		Set telegram.displayName = pairing.DisplayName
