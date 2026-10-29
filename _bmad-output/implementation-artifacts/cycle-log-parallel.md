@@ -746,3 +746,12 @@
 2026-10-29T18:39:47Z	Epic 1-37	inbox_resolved	id=U-150 by=orchestrator note=kept,nothing_to_apply
 2026-10-29T18:39:47Z	Epic 9	dispatch_skipped	slot=B reason=owner_condition_U-130(Planner_2026-10-29T00:47Z:B_takes_no_other_epic_while_Epic_9_has_a_story_left) re-dispatch=at_once_on_Epic_7's_merge('integrate_forward,_then_pick_up_9.6')
 2026-10-29T18:40:08Z	Epic 1-37	planner_pointer	to=Contest_Planner[6f6170] items=U-151,U-152(veto,16.9),U-153,U-154(veto,7.5) note=Epic_9_ended_waiting_on_7,slot_B_reserved;U-146..U-150_resolved;DW-386_for_Epic_9's_decision_sheet;attended_spine_list last_pointed=U-154
+2026-10-29T18:40:37Z	Epic 16	owner_decision	id=U-151 at=2026-10-29T18:40:12Z#460 via=inbox by=Contest_Planner(delegated) answer=keep:Session_AllowanceTimes,AllowanceUntil_appended;Turn_State_refused effect=none_needed(the_ruling_stands)
+2026-10-29T18:40:37Z	Epic 1-37	inbox_resolved	id=U-151 by=orchestrator note=kept,nothing_to_apply
+2026-10-29T18:40:37Z	Epic 16	owner_decision	id=U-152 at=2026-10-29T18:40:12Z#461 via=inbox by=Contest_Planner(delegated) answer=keep:429_allowance+email_limit_with_retryAt;UX's_first_sentences;spine_REST_row effect=none_needed(the_ruling_stands)
+2026-10-29T18:40:37Z	Epic 1-37	inbox_resolved	id=U-152 by=orchestrator note=kept,nothing_to_apply
+2026-10-29T18:40:37Z	Epic 7	owner_decision	id=U-153 at=2026-10-29T18:40:12Z#462 via=inbox by=Contest_Planner(delegated) answer=keep:Sweep_ends_a_stopped_waiter's_runs_only_after_the_60-s_wait_and_all_copies_done_inside_it;rest_to_30.5 effect=none_needed(the_ruling_stands)
+2026-10-29T18:40:37Z	Epic 1-37	inbox_resolved	id=U-153 by=orchestrator note=kept,nothing_to_apply
+2026-10-29T18:40:37Z	Epic 7	owner_decision	id=U-154 at=2026-10-29T18:40:12Z#463 via=inbox by=Contest_Planner(delegated) answer=keep:FixRun.Interrupted=Total-Completed-FailedAgain;no_'The_other_0'_text effect=none_needed(the_ruling_stands)
+2026-10-29T18:40:37Z	Epic 1-37	inbox_resolved	id=U-154 by=orchestrator note=kept,nothing_to_apply
+2026-10-29T18:40:37Z	Epic 1-37	planner_fyi	from=Contest_Planner[6f6170] note=hold_#8_at_19:01Z_today(owner:'Yes_send_the_hold_at_Noon';through_the_inbox);no_policy_change(6df0676e);Planner_edits_only_the_epics.md_1.0.0_step_release_check_during_the_hold;wants_hold_complete_with_final_shas,per-epic_unpushed_list,open_vetoes DW-386_plan_agreed:security-posture_veto_routed_to_the_bridge_owner's_next_story_after_Epic_7,condition:lands_before_the_1.0.0_public_flip
