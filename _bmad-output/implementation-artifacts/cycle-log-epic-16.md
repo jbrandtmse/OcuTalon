@@ -156,3 +156,5 @@
 2026-10-29T02:57:35Z	Epic 16	telemetry_gate	pending=0 action=none
 2026-10-29T02:57:35Z	Epic 16	bootstrap_check	result=ok rc=0 when=before_integrate_forward
 2026-10-29T02:57:35Z	Epic 16	ci_resolved	story=16.8 sha=f41b201 runs=40399832361,40399832013 result=success failed=none via=none resolved_at=resume
+2026-10-29T03:02:55Z	Epic 16	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON from=39b7898 ocutalon=447 compile=CompilePackage(OcuTalon,ck-d) errors=0 reason=after_integrate_forward identity=build_154U,id=19113194-CDDB-11F1-9984-5AEDC9673D1B
+2026-10-29T03:09:36Z	Epic 16	ruling	question=merged_tree_red(web/scripts/api-client-sources.test.mjs_one_typed_client_DW-231_vs_Story_16.5_DemoBusyState_inject(HttpClient)) choice=ApiClient.publicStatus()_entry_and_DemoBusyState_injects_ApiClient rejected=exempt_live/demo-busy-state.ts_in_the_test(weakens_DW-231s_one-client_rule) why=keeps_both_intents;no_behaviour_change(the_envelope_interceptor_leaves_/ocutalon/public/_alone;same_GET_and_query);api-client.ts_is_shared_by_entry category=decide policy=6df0676 web_test=1064_pass
