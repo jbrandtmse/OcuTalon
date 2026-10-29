@@ -564,10 +564,20 @@ XData Contracts [ MimeType = application/json ]
    "ApprovalRef": "%String(MAXLEN=22)",
    "IncidentRef": "%String(MAXLEN=22)",
    "StartedAt": "%String(MAXLEN=20)",
-   "Copies": "list Of %String(MAXLEN=20)"
+   "Copies": "list Of %String(MAXLEN=20)",
+   "ResentAt": "%String(MAXLEN=20)",
+   "EndedAt": "%String(MAXLEN=20)",
+   "Total": "%Integer",
+   "Resent": "%Integer",
+   "Completed": "%Integer",
+   "FailedAgain": "%Integer",
+   "Skipped": "%Integer",
+   "Interrupted": "%Integer",
+   "Reason": "%String(MAXLEN=1000)"
   },
   "indexes": {
    "ApprovalRefIndex": "ApprovalRef",
+   "CopiesIndex": "Copies(ELEMENTS)",
    "IncidentRefIndex": "IncidentRef"
   }
  }

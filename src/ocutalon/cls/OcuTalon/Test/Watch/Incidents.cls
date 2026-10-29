@@ -20,6 +20,9 @@ Include Ensemble
 ///     the same incident;
 ///   - TestResent: a batch that repeats held keys adds only its new keys, and none of its times, and a batch that joins an unnoticed incident publishes no
 ///     incident event;
+///   - TestRegisteredCopyIsNotAFailure (Story 7.4; AC 4): a FixRun of S's incident registers a header C as a copy of its resend. A batch of S that holds C and a fresh
+///     failure F joins only F (Count and Seen gain F, LastAt is F's time, not C's later one), and C alone in a batch of another namespace is a failure there, an incident
+///     of its own;
 ///   - TestPattern: two dates of one sentence are one group, another item and other words are other incidents, and so are the same item and text in another
 ///     production, in another namespace, or with an item that differs only in case;
 ///   - TestTwoSessions (rows Two sessions and Before the notice): the same cause for sessions A and B makes two incidents, each stream holds its own
@@ -214,6 +217,52 @@ Method TestResent()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size(), 0, "and a batch that joins an unnoticed incident publishes no incident event")
 	Do $$$AssertEquals(before.firstAt_"|"_row.firstAt_"|"_row.lastAt, s1_"|"_s1_"|"_s4, "a held failure adds no time: FirstAt is as it was and LastAt is the new failure's")
 	Do $$$AssertEquals(..Group(ref).seen, keys.%Get(0)_","_keys.%Get(1)_","_keys.%Get(2)_","_again.%Get(2), "the group holds each key once, oldest first")
+}
+
+Method TestRegisteredCopyIsNotAFailure()
+{
+	If '..Ready() || '..PointKeys() Quit
+	Set a = ..Session("copyfail")
+	Set item = ..Item("k")
+	Set since = ..Since()
+	Set first = ..Stamp(-6)
+	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (first)}], .keys)
+	Set rows = ..WaitIncident(a, ..#SYNTH)
+	If rows.%Size() < 1 {
+		Do $$$AssertTrue(0, "the first batch makes an incident")
+		Quit
+	}
+	Set ref = rows.%Get(0).ref
+	Do $$$AssertEquals(..WaitCount(ref, 1), 1, "it holds one failure")
+
+	// a run of the incident registered C as the copy of a resent message
+	Set copy = ..#SYNTHFIRST + 880001
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set run.IncidentRef = ref
+	Do run.Copies.Insert(copy)
+	Do $$$AssertStatusOK(run.%Save(), "a FixRun of the incident registers the header "_copy_" as a copy")
+	Set later = ..Stamp(30)
+	Set fresh = ..Stamp(-2)
+	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (later), "id": (copy)}, {"item": (item), "text": "Field 'Qty' was empty in order 3", "at": (fresh)}], .again)
+	Do $$$AssertEquals(..WaitCount(ref, 2), 2, "only the fresh failure is counted")
+	Hang 2
+	Set row = ..Incidents(a, ..#SYNTH).%Get(0)
+	Do $$$AssertEquals(..Incidents(a, ..#SYNTH).%Size(), 1, "in the same incident, and no other")
+	Do $$$AssertEquals(row.count, 2, "Count is 2 after the pause too")
+	Do $$$AssertEquals(row.firstAt_"|"_row.lastAt_"|"_row.laterSince, first_"|"_fresh_"|", "the copy adds no time: LastAt is the fresh failure's, not the copy's later one, and LaterSince is empty")
+	Do $$$AssertEquals(..Group(ref).seen, keys.%Get(0)_","_again.%Get(1), "the group's Seen gains the fresh failure's key only")
+	Do $$$AssertEquals(..Group(ref).groups.%Get(0).count, 2, "and its Count is 2")
+
+	// the same header in the batch of another namespace is a failure there
+	Do ..Deliver(..#OTHERNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 4", "at": (..Stamp(-1)), "id": (copy)}])
+	Set rows = ..WaitIncident(a, ..#SYNTH, 2)
+	Do $$$AssertEquals(rows.%Size(), 2, "another namespace's batch makes an incident of its own")
+	If rows.%Size() = 2 {
+		Set other = rows.%Get(1)
+		Do $$$AssertEquals(other.namespace_"|"_other.count, ..#OTHERNS_"|1", "it is that namespace's, with the one failure")
+		Do $$$AssertEquals(..WaitCount(ref, 2), 2, "and the first incident still holds two")
+	}
 }
 
 Method TestPattern()

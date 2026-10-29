@@ -46,6 +46,13 @@ Include Ensemble
 ///     Execute and FixResult headers of the incident's trace session), SetOrderDate (lifted here
 ///     from Test.Fix.DryRun) and SendExecute (an Execute to the real FixExecutor from the SimMailboxIn service, whose session is removed after the test).
 ///     DropIncidentRows also deletes the FixRun rows of a dropped incident.
+///   - for the tests that read the end of a run (Story 7.4): ResultOf (the result that an incident payload lists for a request), LastIncident (the newest incident
+///     event of a session's stream), Deliveries and AssertDeliveredIn (a channel's Delivery rows of a kind for a request), Posts (the model requests in the mock's log
+///     since a mark), CompletedCount (the headers among some ids that are Completed), and Joined and Originals (the ids of a run's copies, and the originals they
+///     were made of);
+///   - for the tests that end a run (Story 7.4): AskDryRun (a DryRun sent to FixExecutor from SimMailboxIn, whose sessions
+///     OnAfterOneTest removes), TempStopItem and TempStartItem (an item of the Orders production stopped with TempStopConfigItem and started again, also by
+///     PutBack) and SetFixParameters (the parameters of a pending request's row).
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -117,6 +124,9 @@ Parameter SENDER = "SimMailboxIn";
 
 Parameter EXECUTOR = "FixExecutor";
 
+/// The longest a test waits for FixExecutor's answer to a DryRun, in seconds.
+Parameter SENDWAIT = 60;
+
 /// The service that sends the Tick, and the item that handles it.
 Parameter HEARTBEAT = "HeartbeatIn";
 
@@ -184,6 +194,12 @@ Property OrdersStopped As %Boolean [ InitialExpression = 0 ];
 /// The sessions of the Executes that SendExecute sent, comma-separated, for the clean-up.
 Property ExecuteSessions As %String(MAXLEN = "");
 
+/// The sessions of the DryRuns that AskDryRun sent, comma-separated, for the clean-up.
+Property DrySessions As %String(MAXLEN = "");
+
+/// The item of the Orders production that TempStopItem stopped, "" when none.
+Property StoppedItem As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..ClassFloor = ..Top("OcuTalon_Data.Incident", $Namespace)
@@ -228,6 +244,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..DropIncidents(..IncidentFloor)
 	Do ..DropMessages()
 	Do ..DropExecuteSessions()
+	Do ..DropDrySessions()
 	Quit sc
 }
 
@@ -444,6 +461,11 @@ Method PutBack() As %Status [ Private ]
 	If ..OrdersStopped {
 		Set ..OrdersStopped = 0
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ..StartOrdersNow())
+	}
+	If ..StoppedItem '= "" {
+		Set item = ..StoppedItem
+		Set ..StoppedItem = ""
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..TempItem(item, 0))
 	}
 	If ..RoleSaved {
 		Set ..RoleSaved = 0
@@ -1022,6 +1044,33 @@ Method StartPoller() As %Boolean [ Private ]
 	Quit $$$ISOK(sc)
 }
 
+/// Stops an item of the Orders production in OCUORDERS for the test (TempStopConfigItem, which leaves the definition as it is); PutBack, so OnAfterOneTest too, starts it
+/// again.
+Method TempStopItem(item As %String) As %Boolean [ Private ]
+{
+	Set ..StoppedItem = item
+	Set sc = ..TempItem(item, 1)
+	Do $$$AssertStatusOK(sc, "the item "_item_" of the Orders production is stopped for the test")
+	Quit $$$ISOK(sc)
+}
+
+/// Starts the item that TempStopItem stopped again.
+Method TempStartItem(item As %String) As %Boolean [ Private ]
+{
+	Set sc = ..TempItem(item, 0)
+	Do $$$AssertStatusOK(sc, "the item "_item_" of the Orders production is started again")
+	If $$$ISOK(sc) Set ..StoppedItem = ""
+	Quit $$$ISOK(sc)
+}
+
+/// Stops (1) or starts (0) the item for the time of the test in the production of OCUORDERS.
+ClassMethod TempItem(item As %String, stop As %Boolean) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Quit ##class(Ens.Director).TempStopConfigItem(item, stop, 1)
+}
+
 /// Stops the Orders production in OCUORDERS for the test; OnAfterOneTest starts it again.
 Method StopOrders() As %Boolean [ Private ]
 {
@@ -1305,18 +1354,20 @@ ClassMethod NoticeBodies(ref As %String, kind As %String = "") As %DynamicArray
 /// request's Ref (Integration AC of Story 7.2), then asserts that there is exactly one.
 Method AssertDelivered(session As %String, kind As %String, approvalRef As %String) [ Private ]
 {
+	Do ..AssertDeliveredIn(session, ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL, kind, approvalRef)
+}
+
+/// AssertDelivered for any channel: waits up to WAITINCIDENT seconds, polling every quarter second, for the channel's Delivery row for the session, the kind and the
+/// request's Ref, then asserts that there is exactly one.
+Method AssertDeliveredIn(session As %String, channel As %String, kind As %String, approvalRef As %String) [ Private ]
+{
 	Set end = $ZHorolog + ..#WAITINCIDENT
 	For {
-		Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
-		Set count = 0
-		For i = 1:1:deliveries.Count() {
-			Set delivery = deliveries.GetAt(i)
-			If $IsObject(delivery) && (delivery.Channel = ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL) && (delivery.Kind = kind) && (delivery.ApprovalRef = approvalRef) Set count = count + 1
-		}
+		Set count = ..Deliveries(session, channel, kind, approvalRef)
 		If count || ($ZHorolog > end) Quit
 		Hang 0.25
 	}
-	Do $$$AssertEquals(count, 1, "WebChatOut recorded one "_kind_" Delivery row with the request's Ref")
+	Do $$$AssertEquals(count, 1, "the "_channel_" channel recorded one "_kind_" Delivery row with the request's Ref")
 }
 
 /// The requests that an incident payload (an incident event's, or /state's) lists, as "<count>|<Ref>|<State>" of the request at the index (the first by default);
@@ -1340,6 +1391,53 @@ ClassMethod StateIncident(session As %String, ref As %String) As %DynamicObject
 		If (each.type = "incident") && (each.payload.ref = ref) Set found = each.payload
 	}
 	Quit found
+}
+
+/// The result that an incident payload (an incident event's, or /state's) lists for the request at the index (the first by default) as
+/// "total|resent|completed|failedAgain|skipped|interrupted|reason" (Story 7.4); "none" when the request has no result or the payload lists no such request.
+ClassMethod ResultOf(payload As %DynamicObject, index As %Integer = 0) As %String
+{
+	Set requests = payload.requests
+	If '$IsObject(requests) || (requests.%Size() '> index) Quit "none"
+	Set result = requests.%Get(index).result
+	If '$IsObject(result) Quit "none"
+	Quit result.total_"|"_result.resent_"|"_result.completed_"|"_result.failedAgain_"|"_result.skipped_"|"_result.interrupted_"|"_result.reason
+}
+
+/// The payload of the newest incident event of the incident on the session's stream, or "" when there is none.
+ClassMethod LastIncident(session As %String, ref As %String) As %DynamicObject
+{
+	Set events = ..Stream(session)
+	Set found = ""
+	For i = 0:1:events.%Size() - 1 {
+		Set event = events.%Get(i)
+		If (event.type = "incident") && (event.payload.ref = ref) Set found = event.payload
+	}
+	Quit found
+}
+
+/// The number of Delivery rows of the owner in the channel, of the kind, for the request's Ref.
+ClassMethod Deliveries(owner As %String, channel As %String, kind As %String, approvalRef As %String) As %Integer
+{
+	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(owner)
+	Set count = 0
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If $IsObject(row) && (row.Channel = channel) && (row.Kind = kind) && (row.ApprovalRef = approvalRef) Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of model requests (POST /v1/messages) in the mock's request log after its first mark lines; -1 when the log cannot be read.
+ClassMethod Posts(mark As %Integer) As %Integer
+{
+	If $$$ISERR(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Quit -1
+	Set posts = 0
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If (entry.method = "POST") && (entry.path = "/v1/messages") Set posts = posts + 1
+	}
+	Quit posts
 }
 
 /// The number of Notification messages that carry the incident's Ref.
@@ -1516,7 +1614,8 @@ Method RaisedTwo(name As %String, Output a As %String, Output ref As %String, Ou
 	Quit 1
 }
 
-/// The FixRun rows of the incident, by ID, as a dynamic array of {"id", "approvalRef", "incidentRef", "startedAt", "copies" (an array of the registered header ids)}.
+/// The FixRun rows of the incident, by ID, as a dynamic array of {"id", "approvalRef", "incidentRef", "startedAt", "copies" (an array of the registered header ids),
+/// "resentAt", "endedAt", "total", "resent", "completed", "failedAgain", "skipped", "interrupted", "reason" (the run's stored result; empty before it ended)}.
 ClassMethod Runs(incidentRef As %String) As %DynamicArray
 {
 	Set runs = []
@@ -1528,7 +1627,7 @@ ClassMethod Runs(incidentRef As %String) As %DynamicArray
 		For i = 1:1:row.Copies.Count() {
 			Do copies.%Push(row.Copies.GetAt(i))
 		}
-		Do runs.%Push({"id": (row.%Id()), "approvalRef": (row.ApprovalRef), "incidentRef": (row.IncidentRef), "startedAt": (row.StartedAt), "copies": (copies)})
+		Do runs.%Push({"id": (row.%Id()), "approvalRef": (row.ApprovalRef), "incidentRef": (row.IncidentRef), "startedAt": (row.StartedAt), "copies": (copies), "resentAt": (row.ResentAt), "endedAt": (row.EndedAt), "total": (row.Total), "resent": (row.Resent), "completed": (row.Completed), "failedAgain": (row.FailedAgain), "skipped": (row.Skipped), "interrupted": (row.Interrupted), "reason": (row.Reason)})
 	}
 	Quit runs
 }
@@ -1629,6 +1728,18 @@ Method WaitCompleted(namespace As %String, ids As %String, seconds As %Integer =
 		Hang 0.5
 	}
 	Quit done
+}
+
+/// The number of headers among the ids (comma-separated) in the namespace that are Completed (status 9), read from the stored status only.
+ClassMethod CompletedCount(namespace As %String, ids As %String) As %Integer
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set count = 0
+	For i = 1:1:$Length(ids, ",") {
+		If ##class(Ens.MessageHeader).StatusGetStored($Piece(ids, ",", i)) = $$$eMessageStatusCompleted Set count = count + 1
+	}
+	Quit count
 }
 
 /// Waits up to seconds (WAITCOPY by default), polling every quarter second, until no header of the sessions (comma-separated session ids) in the namespace is
@@ -1736,6 +1847,87 @@ Method DropExecuteSessions() [ Private ]
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
 	}
 	Set ..ExecuteSessions = ""
+}
+
+/// Sets the FixParameters of the approval request's row to the JSON text (a fixture, before any answer: the request's parameters are not a product input a test may
+/// change otherwise). 1 when the row is saved.
+Method SetFixParameters(ref As %String, json As %String) As %Boolean [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the request "_ref_" has a row")
+		Quit 0
+	}
+	Set row.FixParameters = json
+	Set sc = row.%Save()
+	Do $$$AssertStatusOK(sc, "the request's FixParameters are "_json)
+	Quit $$$ISOK(sc)
+}
+
+/// Sends a Fix.Msg.DryRun from the SimMailboxIn service, in the trace session of the super session, to the item FixExecutor by name, and waits for the answer.
+/// The answer (a DryRunResult, or "") is given back; the session of the request is kept for the clean-up and given in session.
+Method AskDryRun(incidentRef As %String, kind As %String, parameters As %String, super As %String, Output session As %Integer, Output sc As %Status) As OcuTalon.Fix.Msg.DryRunResult [ Private ]
+{
+	Set session = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#SENDER, .service)
+	If $$$ISERR(sc) Quit ""
+	Set service.%SuperSession = super
+	Set request = ##class(OcuTalon.Fix.Msg.DryRun).%New()
+	Set request.IncidentRef = incidentRef
+	Set request.FixKind = kind
+	Set request.Parameters = parameters
+	Set sc = service.SendRequestSync(..#EXECUTOR, request, .response, ..#SENDWAIT)
+	Set session = service.%SessionId
+	Set ..DrySessions = ..DrySessions _ $Select(..DrySessions = "": "", 1: ",") _ session
+	Quit $Select($$$ISOK(sc) && $IsObject($Get(response)): response, 1: "")
+}
+
+/// Removes the headers, bodies and log rows of the sessions that AskDryRun used, in the home namespace.
+Method DropDrySessions() [ Private ]
+{
+	For i = 1:1:$Length(..DrySessions, ",") {
+		If $Piece(..DrySessions, ",", i) '= "" Do ..DropSession($Piece(..DrySessions, ",", i))
+	}
+	Set ..DrySessions = ""
+}
+
+/// Removes the headers and the bodies of a session of the home namespace, and its log rows.
+ClassMethod DropSession(session As %String) [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ?", session)
+	While rs.%Next() {
+		Set ids(rs.%GetData(1)) = $ListBuild(rs.%GetData(2), rs.%GetData(3))
+	}
+	Set id = ""
+	For {
+		Set id = $Order(ids(id), 1, body)
+		Quit:id=""
+		If $List(body, 1) '= "" Do $ClassMethod($List(body, 1), "%DeleteId", $List(body, 2))
+		Do ##class(Ens.MessageHeader).%DeleteId(id)
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
+}
+
+/// The header ids of the copies (a dynamic array of ids), comma-separated.
+ClassMethod Joined(copies As %DynamicArray) As %String
+{
+	Set text = ""
+	For i = 0:1:copies.%Size() - 1 {
+		Set text = text _ $Select(text = "": "", 1: ",") _ copies.%Get(i)
+	}
+	Quit text
+}
+
+/// The originals that the copies (a dynamic array of header ids, in OCUORDERS) were made of, the id that each copy's Description names, comma-separated, in the order
+/// of the copies; "?" for a copy that cannot be read.
+ClassMethod Originals(copies As %DynamicArray) As %String
+{
+	Set text = ""
+	For i = 0:1:copies.%Size() - 1 {
+		Set copy = ..Header(..#ORDERS, copies.%Get(i))
+		Set text = text _ $Select(text = "": "", 1: ",") _ $Select($IsObject(copy): +$Piece(copy.description, " ", 2), 1: "?")
+	}
+	Quit text
 }
 
 /// The names of the keys of the object, sorted, comma-separated.

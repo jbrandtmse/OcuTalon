@@ -11,12 +11,12 @@ Include Ensemble
 ///     over three failed orders dated 10/16/2026, and the ANSWERER account approves it. At once the incident is fixing; S gets one answered.approved Notification
 ///     (channel web, time AnsweredAt, R1's Ref and the incident's, no decision) in the incident's trace session, which renders as "Approved from the web chat at ...",
 ///     and WebChatOut records its answered Delivery row with R1's Ref; one Execute that carries only R1's Ref goes from IncidentManager to FixExecutor in the trace
-///     session. Then R1 is executing and has one FixRun (R1, the incident, a start) whose Copies are three new header ids; each copy is in its original's
+///     session. Then R1 has one FixRun (R1, the incident, a start) whose Copies are three new header ids; each copy is in its original's
 ///     session with its SuperSession, its Description is "Resent <original>", its body is of its original's class with a body of its own, its OrderDate is
 ///     2026-10-16 and its other fields are equal, and it completes; the originals and their bodies are unchanged (a snapshot of OCUORDERS differs in no line but the
-///     copies' sessions' new messages), there is no FixResult and no result Notification yet (the end of a run that resent copies is Story 7.4's), the incident is
-///     still fixing and the mock logged no request. A second Execute for R1, sent to the real item, is refused: one info line, still one FixRun and three copies,
-///     and nothing new in OCUORDERS;
+///     copies' sessions' new messages). Story 7.4: the run counts its copies, so R1 is done, one FixResult (R1, the incident, Final 1, 3/3/3/0/0) has gone to
+///     IncidentManager and S has one result.allThrough Notification, the incident is resolved and the mock logged no request. A second Execute for R1, sent to the
+///     real item, is refused: one info line, still one FixRun and three copies, and nothing new in OCUORDERS;
 ///   - TestCouldNotStart (AC 5; Integration; the matrix row "No resources"): the service role no longer holds %Ens_MessageResend when R1 is approved. One FixRun with
 ///     no copies; R1 is failed (Result failed); one FixResult goes from FixExecutor to IncidentManager in the trace session (R1, the incident, Final 1, Total 3, every
 ///     other count 0, the reason "OcuTalon isn't allowed to resend messages in that production"); the incident is resolved; S has one result.couldNotStart
@@ -29,7 +29,7 @@ Include Ensemble
 ///     Nothing was changed."; WebChatOut records its result Delivery row; and OCUORDERS did not change;
 ///   - TestRunsTheRowsTargetsOnly (AC 3, AC 7; U-126): session S's incident holds four failed orders and R1's row names two of them (the second and the fourth).
 ///     FixExecutor re-checks and resends exactly those two: R1's FixRun holds two copies, of the second and the fourth order in that order, and the other two orders
-///     get no copy, whatever the incident's failure groups hold, and nothing in OCUORDERS changes but the two orders' sessions.
+///     get no copy, whatever the incident's failure groups hold, and nothing in OCUORDERS changes but the two orders' sessions. R1 is done once the copies are counted.
 Class OcuTalon.Test.Fix.Execute Extends OcuTalon.Test.Watch.Case
 {
 
@@ -82,13 +82,13 @@ Method TestApprovedRepairsAreResent()
 	If '$IsObject(run) || (run.copies.%Size() '= 3) Quit
 	Do $$$AssertEquals(..Runs(ref).%Size(), 1, "and it is the only FixRun of the incident")
 	Do $$$AssertEquals(run.approvalRef_"|"_run.incidentRef_"|"_(run.startedAt '= ""), request.ref_"|"_ref_"|1", "it names R1 and the incident and has a start")
-	Do $$$AssertEquals(..Requests(ref).%Get(0).state, "executing", "R1 is executing")
 	Set copies = ""
 	For i = 0:1:2 {
 		Set copies = copies _ $Select(copies = "": "", 1: ",") _ run.copies.%Get(i)
 	}
 	Set completed = ..WaitCompleted(..#ORDERS, copies)
 	Do $$$AssertTrue(completed, "the three copies complete")
+	Do $$$AssertEquals(..WaitState(ref, request.ref, "done", 90), "done", "R1 is done: its copies are counted")
 	For i = 0:1:2 {
 		Set original = ..Header(..#ORDERS, originals.%Get(i).id)
 		Set copy = ..Header(..#ORDERS, run.copies.%Get(i))
@@ -110,12 +110,29 @@ Method TestApprovedRepairsAreResent()
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, afterRun, sessions, ..#ORDERS)
 	Do $$$AssertEquals(lines.%Size(), 0, "OCUORDERS changed in no header but the new messages of the originals' sessions: "_lines.%ToJSON())
 
-	// nothing is told of the end: the copies are not counted yet
-	Do $$$AssertEquals(..HeadersBetween(trace, 1, "FixExecutor", "IncidentManager", "OcuTalon.Fix.Msg.FixResult"), 0, "no FixResult has gone to IncidentManager")
-	Do $$$AssertEquals(..NoticeBodies(ref, "result").%Size(), 0, "and S has no result Notification")
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-	Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "fixing|", "the incident is still fixing")
-	Kill row
+	// the end: one FixResult, one result notice, the incident resolved, and no model request
+	Set results = ..FixResultsOf(trace, 1)
+	Do $$$AssertEquals(results.%Size(), 1, "one FixResult goes from FixExecutor to IncidentManager in the trace session")
+	If results.%Size() = 1 {
+		Set result = results.%Get(0)
+		Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, request.ref_"|"_ref_"|1|0", "it names R1 and the incident and is final")
+		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, "3|3|3|0|0", "with the counts 3, 3, 3, 0 and 0")
+		Do $$$AssertEquals(result.Reason, "", "and no reason")
+	}
+	Do $$$AssertEquals(..HeadersBetween(trace, 1, "FixExecutor", "IncidentManager", "OcuTalon.Fix.Msg.FixResult"), 1, "and it is the only one")
+	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
+	Set end = $ZHorolog + ..#WAITHOLD
+	For {
+		Set notes = ..NoticeBodies(ref, "result")
+		If (notes.%Size() '< 1) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertEquals(notes.%Size(), 1, "S has one result Notification")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef, "result.allThrough|"_request.ref_"|"_ref, "of the key allThrough, with R1's Ref and the incident's")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc), "All 3 orders went through.", "which renders as the UX document has it")
+	}
 	Do $$$AssertEquals(..Posts(mark), 0, "the mock logged no request during the run")
 
 	// a second Execute for R1 is refused
@@ -277,23 +294,10 @@ Method TestRunsTheRowsTargetsOnly()
 		Set original = ..Header(..#ORDERS, $Piece(left, ",", i))
 		Do $$$AssertEquals(original.status_"|"_original.body.OrderDate, $$$eMessageStatusError_"|10/16/2026", "the order "_$Piece(left, ",", i)_", which the row does not name, is still failed and unrepaired")
 	}
-	Do ..WaitState(ref, request.ref, "executing")
+	Do $$$AssertEquals(..WaitState(ref, request.ref, "done", 90), "done", "R1 is done: its two copies are counted")
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after, sessions, ..#ORDERS)
 	Do $$$AssertEquals(lines.%Size(), 0, "OCUORDERS changed in no header but the new messages of the two named orders' sessions: "_lines.%ToJSON())
-}
-
-/// --- helpers ---
-/// The number of model requests (POST /v1/messages) in the mock's request log after its first mark lines; -1 when the log cannot be read.
-ClassMethod Posts(mark As %Integer) As %Integer [ Private ]
-{
-	If $$$ISERR(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Quit -1
-	Set posts = 0
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") Set posts = posts + 1
-	}
-	Quit posts
 }
 
 }

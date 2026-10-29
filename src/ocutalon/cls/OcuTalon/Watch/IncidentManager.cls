@@ -2,7 +2,8 @@
 /// through OcuTalon.Live.Publish and only after its own change has committed (AD-12, AD-33). Its item keeps PoolSize 1, so one job serializes every row
 /// change. Nothing of what it decides is in memory: the rows and the persisted waiter instances are the state (AD-5).
 ///   - A FailureBatch (OcuTalon.Watch.Msg.FailureBatch, from FailurePoller) is grouped by production item and error pattern (OcuTalon.Watch.Settle.Pattern),
-///     per production and scope (the batch's OwnerRef). A failure joins the newest not-closed incident of its cause, compared exactly; with none, the
+///     per production and scope (the batch's OwnerRef). A failure of a copy that a fix run registered (Data.FixRun CopyOf) is skipped: the copy failed again, which
+///     the run's result reports, and the failure joins no group and starts no later round (AD-15; Story 7.4). A failure joins the newest not-closed incident of its cause, compared exactly; with none, the
 ///     batch makes an open incident and its group, with its Ref (OcuTalon.Bridge.Ids.NewRef) at the first failure. A failure is held once, by its key
 ///     (OcuTalon.Watch.Mark.KeyOf) in the group's Seen set (the newest OcuTalon.Watch.Settle SEENMAX keys): a key already held adds no count and no
 ///     time. Count is the failures held, FirstAt and LastAt the earliest and latest FailedAt. The batch's rows are saved in one transaction.
@@ -285,7 +286,9 @@ Method Batch(batch As OcuTalon.Watch.Msg.FailureBatch) As %Status [ Private ]
 	Quit sc
 }
 
-/// The failures of the batch, grouped by cause, saved as incident and group rows in one transaction. count is the number of causes that gained
+/// The failures of the batch, grouped by cause, saved as incident and group rows in one transaction. A failure whose header is a copy that a fix run registered
+/// (Data.FixRun CopyOf of the batch's namespace and the header id) is a copy that failed again, not a new failure: it is skipped, so it adds no count, no Seen
+/// key and no time, opens no group or incident and never sets LaterSince (AD-15, Story 7.4). count is the number of causes that gained
 /// failures and rows(i) their saved incidents; added(i) is "new" for an incident that this batch made, "later" for a noticed one whose LaterSince went from
 /// empty to set (its later waiter starts), "more" for any other that gained failures. A fresh failure that joins a group that has an AskedTo, while the
 /// incident is not open and noticed, is a later failure: LaterSince is the earliest FailedAt of them.
@@ -296,6 +299,7 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 	Set causes = 0
 	For i = 1:1:batch.Failures.Count() {
 		Set failure = batch.Failures.GetAt(i)
+		If (failure.HeaderId '= "") && (##class(OcuTalon.Data.FixRun).CopyOf(batch.Namespace, failure.HeaderId) '= "") Continue
 		Set text = ##class(OcuTalon.Watch.Settle).Pattern(failure.ErrorText)
 		Set cause = 0
 		For c = 1:1:causes {

@@ -4,7 +4,8 @@
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
-/// build from fixture sessions, turns, incidents and approval requests. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
+/// read from the request's FixRun. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -297,6 +298,60 @@ Method TestFromRowEvidence()
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs)
 }
 
+/// The result of a request (Story 7.4; DW-272, DW-292; AD-13): FromRow lists a request's result when the request's FixRun has ended (EndedAt set), with the seven
+/// fields of the run, as numbers and the reason. A request whose run has not ended (it has a ResentAt and counts, but no EndedAt), a request with no run, and a request
+/// whose Ref differs from another request's run only in case (the index compares without regard to case; OfRequest compares exactly) have no result.
+Method TestFromRowRequestResult()
+{
+	Set owner = "ZzPay"_..Number_"rr"
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set row = ..Incident(owner)
+	Set at = ##class(OcuTalon.Data.Time).NowUtc()
+	Set endedRef = $Extract("zzrr"_..Number_"eabcdefghijklmnopqrstu", 1, 22)
+	Set runningRef = $Extract("zzrr"_..Number_"rabcdefghijklmnopqrstu", 1, 22)
+	Set bareRef = $Extract("zzrr"_..Number_"nabcdefghijklmnopqrstu", 1, 22)
+	Set ended = $ClassMethod(fixture, "Approval", owner, row.Ref, "done", at, {"Ref": (endedRef)})
+	Set running = $ClassMethod(fixture, "Approval", owner, row.Ref, "executing", at, {"Ref": (runningRef)})
+	Set bare = $ClassMethod(fixture, "Approval", owner, row.Ref, "executing", at, {"Ref": (bareRef)})
+	Set row.RequestRefs = ended_","_running_","_bare
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists three requests")
+	Do ..Run(row.Ref, ended, {"ResentAt": (at), "EndedAt": (at), "Total": 50, "Resent": 48, "Completed": 45, "FailedAgain": 3, "Skipped": 2, "Interrupted": 1, "Reason": "the order date still wasn't accepted"})
+	Do ..Run(row.Ref, running, {"ResentAt": (at), "Total": 5, "Resent": 5, "Completed": 5, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0, "Reason": "stored before the end"})
+	Do ..Run(row.Ref, $ZConvert(bare, "U"), {"ResentAt": (at), "EndedAt": (at), "Total": 9, "Resent": 9, "Completed": 9, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0})
+	Do ..Run(row.Ref, ##class(OcuTalon.Bridge.Ids).NewRef(), {"ResentAt": (at), "EndedAt": (at), "Total": 7, "Resent": 7, "Completed": 7})
+
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.FixRun).OfRequest(ended)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest(bare)) + $IsObject(##class(OcuTalon.Data.FixRun).OfRequest("")), 1, "OfRequest finds the run of the Ref, compares it exactly (the upper-case run is not the bare request's) and gives none for an empty Ref")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
+	If object.requests.%Size() = 3 {
+		Set result = object.requests.%Get(0).result
+		Do $$$AssertEquals(object.requests.%Get(0).ref_"|"_object.requests.%Get(0).state, ended_"|done", "the first is the one whose run has ended")
+		Do $$$AssertTrue($IsObject(result), "and has a result")
+		If $IsObject(result) {
+			Do $$$AssertEquals(result.total_"|"_result.resent_"|"_result.completed_"|"_result.failedAgain_"|"_result.skipped_"|"_result.interrupted_"|"_result.reason, "50|48|45|3|2|1|the order date still wasn't accepted", "with its seven fields")
+			Do $$$AssertEquals(result.%GetTypeOf("total")_"|"_result.%GetTypeOf("interrupted")_"|"_result.%GetTypeOf("reason"), "number|number|string", "the counts are numbers")
+		}
+		Do $$$AssertEquals(object.requests.%Get(1).%IsDefined("result"), 0, "a request whose run has not ended has no result, whatever the run stores")
+		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
+	}
+	Do $ClassMethod(fixture, "Clean", ended_","_running_","_bare)
+}
+
+/// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set.
+Method Run(incident As %String, request As %String, fields As %DynamicObject)
+{
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = request
+	Set run.IncidentRef = incident
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set $Property(run, name) = value
+	}
+	Do $$$AssertStatusOK(run.%Save(), "a fixture FixRun is saved")
+}
+
 /// FromRow runs in /state as a user with no SQL grant, so the method code of Live.Payload.Incident holds no SQL at all (AD-13): no %SQL class, %ExecDirect,
 /// %Prepare, embedded &sql( or ##sql(.
 Method TestIncidentFromRowReadsNoSql()
@@ -311,6 +366,17 @@ Method TestIncidentFromRowReadsNoSql()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Source).Matches(text, needle, 1), 0, class_": no code line holds "_needle)
 		}
 		If c = 1 Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, "FailureGroup).OfIncident", 1), "the scan sees the groups read by object access")
+		If c = 1 Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, "FixRun).OfRequest", 1), "and the result read by the request's run")
+	}
+	// FixRun.OfRequest (Story 7.4) is the one method of Data.FixRun that /state runs: object access only (its CopyOf is SQL, for IncidentManager)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text("OcuTalon.Data.FixRun", .full), "the source of OcuTalon.Data.FixRun is read")
+	Set from = $Find(full, "ClassMethod OfRequest(")
+	Set to = $Find(full, "ClassMethod CopyOf(")
+	Do $$$AssertTrue(from && to && (to > from), "and OfRequest lies before CopyOf")
+	Set method = $Extract(full, from, to - 1)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(method, "ApprovalRefIndexExists", 1) && ##class(OcuTalon.Test.Bridge.Source).Matches(method, "%OpenId", 1), "OfRequest reads the run through the index and %OpenId")
+	For needle = "%SQL", "%ExecDirect", "%Prepare", "&sql(", "##sql(" {
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Source).Matches(method, needle, 1), 0, "FixRun.OfRequest: no code line holds "_needle)
 	}
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set rs = ##class(%SQL.Statement).%ExecDirect(, ""x"")", "%ExecDirect", 1), "the scan flags a line that runs SQL")
 }
@@ -753,6 +819,9 @@ ClassMethod Clean() [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef IN (SELECT Ref FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay')")
+	Do statement.%Execute()
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef IN (SELECT Ref FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay')")
 	Do statement.%Execute()
 	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay'")

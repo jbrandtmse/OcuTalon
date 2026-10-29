@@ -94,8 +94,9 @@ ClassMethod Alarm(seconds As %Integer) As %Integer
 	Quit $Select(seconds > ..#LONGESTALARM: ..#LONGESTALARM, 1: seconds)
 }
 
-/// A stamp as seconds since the start of the IRIS calendar, "" when it is not a stamp.
-ClassMethod Seconds(stamp As %String) As %Integer [ Private ]
+/// A stamp (UTC to the second, as OcuTalon.Data.Time gives it) as seconds since the start of the IRIS calendar, "" when it is not a stamp. The deadline of a
+/// wait (Fix.Executor) is read with it, as the settle rule is.
+ClassMethod Seconds(stamp As %String) As %Integer
 {
 	If stamp '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
 	Set seconds = ""

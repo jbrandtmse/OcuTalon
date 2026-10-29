@@ -1,15 +1,53 @@
-/// A FixExecutor that a test can call Execute on (test only; Story 7.3). A shadow instance cannot SendRequestAsync (its primary request header is not there), and
-/// the kind's Recheck and Execute need a running Orders production, so this class overrides the four seams of Fix.Executor and its refusal check: SendResult records each FixResult in Results,
-/// as a dynamic object of the fields the tests check, and answers OK, or an error when FailSend is set; Missing gives MissingIs when it is set (none is no pair missing,
+/// A FixExecutor that a test can call Execute on (test only; Stories 7.3 and 7.4). A shadow instance cannot SendRequestAsync (its primary request header is not there), and
+/// the kind's Recheck and Execute need a running Orders production, so this class overrides the seams of Fix.Executor and its refusal check: SendResult records each FixResult in Results,
+/// as a dynamic object of the fields the tests check, and in Sessions (the SessionId and SuperSession the host had at the send), and answers OK, or an error when FailSend is set; Missing gives MissingIs when it is set (none is no pair missing,
 /// throw is a check that throws), else the product's own check of the service user's resources; Check and Carry record each call (Checked and Carried: {class, incident, parameters, targets}) and give the canned answer
 /// of CheckIs or CarryIs when one is set, else the kind's own Recheck or Execute. A canned CheckIs is the text error (an error status), throw (an exception) or JSON
 /// {"passed": the ids, "skipped": [{"id", "reason"}]}; a canned CarryIs is error, throw or JSON {"copies": [header ids that the run registers on its FixRun, as the
-/// kind does], "skipped": [{"id", "reason"}]}. RefusalIs none makes the refusal check pass for any row, so that a request that is not approved reaches
-/// StartExecution. SaveFails makes the save of a run's FixRun fail: 1 for the first save only (the run's own, in Run), 2 for the second as well (the one of
-/// CouldNotStart); SavedWas holds the saved argument that CouldNotStart was given. Everything else is the product's: the handler, the FixRun row, StartExecution
+/// kind does], "skipped": [{"id", "reason"}], and an optional "fail", an error text: the copies are registered and the call then fails, as a resend that stops partway}.
+/// RefusalIs none makes the refusal check pass for any row, so that a request that is not approved reaches
+/// StartExecution. StartIs, an error text, makes StartExecution fail with it (the Start seam); otherwise it is the product's. SaveFails makes the save of a run's FixRun fail: 1 for the first save only (the run's own, in Run), 2 for the second as well (the one of
+/// CouldNotStart); SavedWas holds the saved argument that CouldNotStart was given.
+/// The wait (Story 7.4) reads no production: Statuses gives the canned StatusIs, a JSON object {copy header id: {"status", "error", "target"}}, with the outcome
+/// read (StatusOutcome gives another, and throw makes the read throw), and from the read number ThenAfter + 1 on the canned StatusThen when one is set; Reads counts the calls. Waiting is narrowed to the
+/// runs of the incidents in Incidents (comma-separated Refs; none when empty), so that a probe never takes a run of the running production, and the probe has a lock of its
+/// own and a short wait (WAITLOCK, WAITSECONDS and WAITPAUSE). WaitNow is the public Wait. WriteAudit records the data of each Action entry in Audits and writes nothing,
+/// and answers OK, or an error when AuditFails is set. Everything else is the product's: the handler, the FixRun row, StartExecution
 /// and FinishExecution. It is no item of any production.
 Class OcuTalon.Test.Fix.ExecutorProbe Extends OcuTalon.Fix.Executor
 {
+
+/// The probe's own lock, and a wait that a test can sit out.
+Parameter WAITLOCK = "^OcuTalon.Test.Fix.Wait";
+
+Parameter WAITSECONDS = 3;
+
+Parameter WAITPAUSE = 0.1;
+
+/// The error text that Start gives, "" for the product's StartExecution.
+Property StartIs As %String(MAXLEN = "") [ Transient ];
+
+/// The canned copies of Statuses (see the class description), the outcome it gives, the canned copies from read ThenAfter + 1 on, and the number of reads.
+Property StatusIs As %String(MAXLEN = "") [ Transient ];
+
+Property StatusOutcome As %String [ Transient ];
+
+Property StatusThen As %String(MAXLEN = "") [ Transient ];
+
+Property ThenAfter As %Integer [ Transient ];
+
+Property Reads As %Integer [ InitialExpression = 0, Transient ];
+
+/// The Refs of the incidents whose runs Waiting gives, comma-separated.
+Property Incidents As %String(MAXLEN = "") [ Transient ];
+
+/// The data of the Action entries that WriteAudit recorded, in order, and 1 to make it answer an error (after it recorded).
+Property Audits As %DynamicArray [ Transient ];
+
+Property AuditFails As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The session of the host at each SendResult, in order, each {approvalRef, session, super}.
+Property Sessions As %DynamicArray [ Transient ];
 
 /// The FixResults that SendResult recorded, in order, each {approvalRef, incidentRef, final, interrupted, total, resent, completed, failedAgain, skipped, reason}.
 Property Results As %DynamicArray [ Transient ];
@@ -51,8 +89,56 @@ Method SendResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
 	If '$IsObject(..Results) Set ..Results = []
 	Do ..Results.%Push({"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason)})
+	If '$IsObject(..Sessions) Set ..Sessions = []
+	Do ..Sessions.%Push({"approvalRef": (result.ApprovalRef), "session": (..%SessionId), "super": (..%SuperSession)})
 	If ..FailSend Quit $SYSTEM.Status.Error(5001, "The send of the result of "_result.ApprovalRef_" is refused")
 	Quit $$$OK
+}
+
+/// StartIs as an error when it is set, else the product's StartExecution.
+Method Start(ref As %String) As %Status [ Private ]
+{
+	If ..StartIs '= "" Quit $SYSTEM.Status.Error(5001, ..StartIs)
+	Quit ##super(ref)
+}
+
+/// The canned copies (see the class description) with the outcome StatusOutcome (read by default); the product's read when none is set.
+Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String [ Private ]
+{
+	Set ..Reads = ..Reads + 1
+	If ..StatusOutcome = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The read threw")
+	If ..StatusIs = "" Quit ##super(incident, run, .statuses)
+	Set canned = $Select((..StatusThen '= "") && (..Reads > ..ThenAfter): ..StatusThen, 1: ..StatusIs)
+	Set statuses = {}.%FromJSON(canned)
+	Quit $Select(..StatusOutcome = "": "read", 1: ..StatusOutcome)
+}
+
+/// The product's waiting runs, narrowed to those of the incidents in Incidents (none when it is empty).
+Method Waiting() As %List [ Private ]
+{
+	Set all = ##super()
+	Set waiting = ""
+	Set position = 0
+	While $ListNext(all, position, id) {
+		Set run = ##class(OcuTalon.Data.FixRun).%OpenId(id)
+		If $IsObject(run) && (..Incidents '= "") && $ListFind($ListFromString(..Incidents), run.IncidentRef) Set waiting = waiting _ $ListBuild(id)
+	}
+	Quit waiting
+}
+
+/// Records the data of the entry instead of writing it.
+Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
+{
+	If '$IsObject(..Audits) Set ..Audits = []
+	Do ..Audits.%Push({}.%FromJSON(data.%ToJSON()))
+	If ..AuditFails Quit $SYSTEM.Status.Error(5001, "The audit entry of "_data.approvalRef_" is refused")
+	Quit $$$OK
+}
+
+/// The wait for the copies of the runs of Incidents (the product's Wait, which is private).
+Method WaitNow()
+{
+	Do ..Wait()
 }
 
 /// "" for any row when RefusalIs is none, else the product's check.
@@ -137,6 +223,7 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 	}
 	$$$ThrowOnError(run.%Save())
 	Set result.skipped = canned.skipped
+	If canned.%IsDefined("fail") Quit $SYSTEM.Status.Error(5001, canned.fail)
 	Quit $$$OK
 }
 

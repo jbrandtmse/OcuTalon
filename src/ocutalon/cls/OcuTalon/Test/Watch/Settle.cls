@@ -10,6 +10,9 @@
 ///     1000 keys while the new keys are all given;
 ///   - TestWindow (Story 7.6): the keys of a Seen set that one dry-run ask covers: the first ask (no from mark), a later window, an empty window, a from mark
 ///     that was cut out of the set (the window starts at the first key), a to mark that was cut out or is empty (no key), and a to mark before the start;
+///   - TestUnlisted (Story 7.4; DW-318): FailureGroup.Unlisted on rows in memory: with no marks, or an empty AskedFrom with an AskedTo that Seen holds, the group's Count less the
+///     keys of its Seen (at least 0, and an empty Count is 0) and known; an AskedFrom that Seen holds is 0 and known; an AskedFrom or an AskedTo that Seen has dropped is 0
+///     and not known;
 ///   - TestValues: the settings (given only in the process's own cache of Data.Setting, which the test puts back, so that no setting row is written and no
 ///     production job can read them) give 4 and 12, and the defaults 10 and 30 when they are absent, 0, not a number, negative or fractional;
 ///   - TestKeyOf: h<header id> for a header failure, l<log id> for any other, and Key of the reader's row gives the same.
@@ -125,6 +128,36 @@ Method TestWindow()
 	Do $$$AssertEquals($ClassMethod(settle, "Window", seen, "h4", "h2"), "", "a to mark before the start holds no key")
 	Do $$$AssertEquals($ClassMethod(settle, "Window", "", "", "h1"), "", "an empty set holds none")
 	Do $$$AssertEquals($ClassMethod(settle, "Window", "h1,l2,h3", "h1", "h3"), "l2,h3", "a log key is a key like any other")
+}
+
+Method TestUnlisted()
+{
+	Set seen = "h1,h2,h3,h4"
+	Do ..AssertUnlisted(seen, 6, "", "", "2|1", "no marks: the Count 6 less the 4 keys")
+	Do ..AssertUnlisted(seen, 4, "", "", "0|1", "no marks and a Count equal to the keys")
+	Do ..AssertUnlisted(seen, 2, "", "", "0|1", "no marks and a Count below the keys: never below 0")
+	Do ..AssertUnlisted(seen, "", "", "", "0|1", "no marks and an empty Count")
+	Do ..AssertUnlisted("", 3, "", "", "3|1", "no marks and no key: the whole Count")
+	Do ..AssertUnlisted(seen, 7, "", "h3", "3|1", "an empty AskedFrom and an AskedTo that Seen holds: the first window takes the dropped keys")
+	Do ..AssertUnlisted(seen, 7, "h1", "h4", "0|1", "an AskedFrom that Seen holds: the window lies in Seen, whatever the Count")
+	Do ..AssertUnlisted(seen, 7, "h4", "h4", "0|1", "an AskedFrom that Seen holds, also the last key")
+	Do ..AssertUnlisted(seen, 7, "h0", "h4", "0|0", "an AskedFrom that Seen has dropped: not known")
+	Do ..AssertUnlisted(seen, 7, "", "h9", "0|0", "an AskedTo that Seen has dropped: not known")
+	Do ..AssertUnlisted(seen, 7, "h1", "h9", "0|0", "and so is an AskedTo that Seen has dropped after a held AskedFrom")
+	Do ..AssertUnlisted("", 7, "h1", "h2", "0|0", "an empty Seen holds no mark")
+	Do ..AssertUnlisted("h1,l2,h3", 5, "", "l2", "2|1", "a log key is a key like any other")
+}
+
+/// Asserts Unlisted of an unsaved group row ("number|known" is the expected answer).
+Method AssertUnlisted(seen As %String, count As %String, askedFrom As %String, askedTo As %String, expected As %String, label As %String) [ Private ]
+{
+	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set group.Seen = seen
+	Set group.Count = count
+	Set group.AskedFrom = askedFrom
+	Set group.AskedTo = askedTo
+	Set number = group.Unlisted(.known)
+	Do $$$AssertEquals(number_"|"_known, expected, label)
 }
 
 Method TestValues()

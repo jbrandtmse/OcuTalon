@@ -74,6 +74,34 @@ Method AskedKeys() As %String
 	Quit ##class(OcuTalon.Watch.Settle).Window(..Seen, ..AskedFrom, ..AskedTo)
 }
 
+/// How many failures of the group's window Seen no longer lists (Story 7.4, DW-318). Seen keeps only the newest SEENMAX keys of the group (Settle.Hold, oldest first),
+/// so the dropped keys are the oldest failures, which belong to the first window; Count still holds them. Pure: it reads this row's properties only.
+///   - no marks, or an empty AskedFrom with an AskedTo that Seen holds (the first window): Count less the keys of Seen, at least 0, and known;
+///   - an AskedFrom that Seen holds (a later window, which starts after it and so lies wholly in Seen): 0, and known;
+///   - an AskedFrom or an AskedTo that Seen has dropped: the window can no longer be told, so the number is 0 and known is 0.
+Method Unlisted(Output known As %Boolean) As %Integer
+{
+	Set known = 1
+	Set from = ..AskedFrom
+	Set to = ..AskedTo
+	Set listed = 0
+	Set seen = ..Seen
+	For i = 1:1:$Length(seen, ",") {
+		Set key = $Piece(seen, ",", i)
+		If key = "" Continue
+		Set listed = listed + 1
+		If key = from Set haveFrom = 1
+		If key = to Set haveTo = 1
+	}
+	If ((from '= "") && '$Get(haveFrom)) || ((to '= "") && '$Get(haveTo)) {
+		Set known = 0
+		Quit 0
+	}
+	If from '= "" Quit 0
+	Set unlisted = +..Count - listed
+	Quit $Select(unlisted > 0: unlisted, 1: 0)
+}
+
 Storage Default
 {
 <Data name="FailureGroupDefaultData">

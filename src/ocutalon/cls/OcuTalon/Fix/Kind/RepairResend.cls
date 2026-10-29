@@ -5,6 +5,8 @@
 /// The dry run reads the failed messages of the incident's failure groups through OcuTalon.Watch.Reader.Evidence only, changes nothing and calls no model.
 /// It reads the keys that each group's newest ask covers (FailureGroup.AskedKeys: the window that IncidentManager marked before it sent the ask, or the whole
 /// Seen of a group with no mark), so that a later request holds only the failures that arrived after the request before it (Story 7.6).
+/// A group's Seen keeps only its newest SEENMAX keys, so the failures of its window that Seen no longer lists (FailureGroup.Unlisted) cannot be read: each counts as
+/// affected and so as left out, and a window that Seen has cut at its start or its end cannot be counted at all, so it gets no dry run (Story 7.4, DW-318).
 /// A message is a target when it is a header of the group's window that is still in the status Error, its scope (OcuTalon.Watch.FailurePoller Scope of its
 /// SuperSession) is the incident's owner, and its field reads in the source format. A failed message of the scope whose field does not read (another format,
 /// no value, or no body that can be read) is counted as affected and left out.
@@ -106,8 +108,12 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Kill scoped
 	Set (before, after) = ""
 	Set haveExample = 0
+	Set unlisted = 0
 	For g = 1:1:groups.Count() {
 		Set group = groups.GetAt(g)
+		Set dropped = group.Unlisted(.known)
+		If 'known Return $$$ERROR($$$GeneralError, "The failed messages of "_group.ItemName_" that this request covers are no longer all listed, so they can't be counted")
+		Set unlisted = unlisted + dropped
 		Set keys = ""
 		Set asked = group.AskedKeys()
 		For i = 1:1:$Length(asked, ",") {
@@ -144,7 +150,7 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Set sc = ..CheckParameters(parameters, fields)
 	If $$$ISERR(sc) Quit sc
 	Set field = parameters.%Get("field")
-	Set affected = 0
+	Set affected = unlisted
 	Set id = ""
 	For {
 		Set id = $Order(scoped(id))
