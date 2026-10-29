@@ -154,3 +154,4 @@
 2026-10-29T08:58:40Z	Story 9.4	committed	sha=2abf13d submodules= ci=pending runs=40846022467,40846022367 pushed_with=4418a1e(build),9.8_spec+spine_Conventions_row amendments=epics.md(9.4_split_marker;Story_9.9_block),spine_Conventions_Background_checks(9.8,veto_U-149) footprint_extensions=docker/tests/record-eval.sh(header_comment)
 2026-10-29T08:58:40Z	Story 9.4	story_cycle	plan_to_commit_min=418 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-10-29T08:58:40Z	Epic 9	gap_rule_check	epic7_merged=no action=continue(9.8_next;spec_ready-for-dev)
+2026-10-29T08:58:54Z	Story 9.9	stage_spawned	spawn_at=2026-10-29T08:58:54Z stage=plan model=claude-opus agent_name=9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f-plan-1 cycle_iteration=1 note=planned_during_9.4_CI(9.8_spec_already_ready)
