@@ -464,7 +464,7 @@ unit_env_run() { # unit_env_run <function and arguments...>: OCUTALON_WARM is $U
 out=$(unit_env_run cmd_group shards)
 rc=$?
 check "group with OCUTALON_WARM=1: one WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=1'
+  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=1'
 if [ "$(printf '%s\n' "$out" | grep -c '^WARM ignored')" -eq 1 ]; then pass "group prints its WARM ignored line once"; else fail "group printed WARM ignored more than once"; fi
 out=$(unit_env_run cmd_all)
 rc=$?
@@ -476,7 +476,7 @@ for v in 0 ""; do
   out=$(UNIT_WARM=$v unit_env_run cmd_group shards)
   rc=$?
   check "group with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-    '!^WARM' '^UNIT-PROCESS shard lane-a warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=[01]'
+    '!^WARM' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=[01]'
   out=$(UNIT_WARM=$v unit_env_run cmd_all)
   rc=$?
   check "all with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and every group's process sees no OCUTALON_WARM" "$out" "$rc" 0 \

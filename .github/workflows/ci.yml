@@ -1,5 +1,5 @@
 # CI of Lane B (AD-22, AD-29; Story 0.7). Four jobs: `checks`, `install-macos` and `web` run on hosted runners; `iris` is a matrix of
-# six groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# seven groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
 # The `checks` job lints install.sh and its hermetic test with ShellCheck (Story 10.1) before it runs the checks. The `install-macos` job runs
 # that hermetic test under macOS's own /bin/bash, which is bash 3.2 (Story 10.1).
 # Each `iris` job runs its group only when ci/changes.sh finds a change to that group's inputs (ci/units.sh); otherwise it skips
@@ -108,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [install-fresh, install-upgrade, production, browser, shards, image]
+        group: [install-fresh, install-upgrade, production, browser, shards, shards-2, image]
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}
