@@ -3,7 +3,10 @@ Include Ensemble
 /// Tests of StatusMonitor (Story 2.10; AD-12, AD-18, AD-33), the one publisher of the status live event (Story 16.9 adds the allowance
 /// statuses, which it publishes on each session's own stream). They drive a shadow
 /// instance of Test.Core.StatusMonitorProbe, which takes the keys and the budget that the test sets and publishes on a private
-/// stream, so that they run on a slot with no production and publish nothing on the instance stream:
+/// stream, so that they run on a slot with no production and publish nothing on the instance stream. The allowance tests set the
+/// instance-wide onlineDemo flag and a real session's AllowanceUntil, so the probe publishes each session's allowance status on a
+/// private stream of its own (Divert): a production's own StatusMonitor, where one runs, publishes on the session's stream and
+/// cannot change a count:
 ///   - TestFirstRunPublishesNothing: the first run only remembers the state, whatever it is;
 ///   - TestChangePublishesTheChangedConditions: a change publishes the full view of exactly the conditions that changed, in the
 ///     catalog's order, and a run with nothing changed publishes nothing;
@@ -321,41 +324,43 @@ Method TestAllowancePublishesOnTheSessionsStream()
 	Set mine = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"mine", .sc)
 	Set other = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"other", .sc)
 	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "mine")
+	Set otherOut = ..Divert(probe, other.Ref, "other")
 	Set probe.KeysReading = ..Keys(1)
 	Set probe.BudgetReading = ..Budget(0, 0, "")
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 0, "the first run publishes nothing")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "the first run publishes nothing")
 
 	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
 	Set mine.AllowanceUntil = until
 	Do $$$AssertStatusOK(mine.%Save(), "the session's window opens")
 	Set probe.HeldReading = $ListBuild(mine.Ref)
 	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
-	Set events = ..SessionEvents(mine.Ref)
+	Set events = ..SessionEvents(mineOut)
 	Do $$$AssertEquals(events.%Size(), 1, "one event is published on the session's stream")
 	Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).stream, "status|session", "a status event")
 	Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""allowance"",""active"":true,""slots"":{""limit"":"_##class(OcuTalon.Core.Allowance).Limit()_",""time"":"""_until_"""}}", "the full view: active, with the limit and the end of the window")
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 1, "the same window again: nothing more")
-	Do $$$AssertEquals(..SessionEvents(other.Ref).%Size(), 0, "another session gets nothing")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 1, "the same window again: nothing more")
+	Do $$$AssertEquals(..SessionEvents(otherOut).%Size(), 0, "another session gets nothing")
 	Do $$$AssertEquals(..Events().%Size(), 0, "and the instance stream gets no allowance event")
 
 	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
 	Do $$$AssertStatusOK(mine.%Save(), "the window ends")
 	Set probe.HeldReading = ""
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Set events = ..SessionEvents(mine.Ref)
+	Set events = ..SessionEvents(mineOut)
 	Do $$$AssertEquals(events.%Size(), 2, "the next run publishes the clear")
 	Do $$$AssertEquals(events.%Get(1).payload.%ToJSON(), "{""condition"":""allowance"",""active"":false}", "active false and no slots")
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 2, "and nothing after it")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 2, "and nothing after it")
 
 	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
 	Do mine.%Save()
 	Set probe.HeldReading = $ListBuild(mine.Ref)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 3, "a window that opens again is published again")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 3, "a window that opens again is published again")
 }
 
 /// The first run publishes nothing for a window that is already open, it only remembers, so that the run after the window ends
@@ -367,17 +372,18 @@ Method TestAllowanceFirstRunOnlyRemembers()
 	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
 	Do $$$AssertStatusOK(mine.%Save(), "the session's window is open")
 	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "first")
 	Set probe.KeysReading = ..Keys(1)
 	Set probe.BudgetReading = ..Budget(0, 0, "")
 	Set probe.HeldReading = $ListBuild(mine.Ref)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 0, "the first run, and a second run with the same window, publish nothing")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "the first run, and a second run with the same window, publish nothing")
 	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
 	Do mine.%Save()
 	Set probe.HeldReading = ""
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Set events = ..SessionEvents(mine.Ref)
+	Set events = ..SessionEvents(mineOut)
 	Do $$$AssertEquals(events.%Size(), 1, "the run after the window ended publishes one event")
 	Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""allowance"",""active"":false}", "the clear")
 }
@@ -388,6 +394,7 @@ Method TestAllowanceOnlyOnTheOnlineDemoAndFailedReadRemembersNothing()
 {
 	Set mine = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"flag", .sc)
 	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "flag")
 	Set probe.KeysReading = ..Keys(1)
 	Set probe.BudgetReading = ..Budget(0, 0, "")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
@@ -396,18 +403,20 @@ Method TestAllowanceOnlyOnTheOnlineDemoAndFailedReadRemembersNothing()
 	Do $$$AssertStatusOK(mine.%Save(), "the session has an open window")
 	Set probe.HeldReading = $ListBuild(mine.Ref)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 0, "with the flag off nothing is published")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "with the flag off nothing is published")
+	Do $$$AssertEquals(probe.HeldReads, 0, "and the held sessions are not read at all: a local install does no extra read per run (QA)")
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set probe.FailHeld = 1
 	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "a failed read of the held sessions: the run returns OK")
+	Do $$$AssertEquals(probe.HeldReads, 1, "with the flag set the run reads the held sessions once (QA)")
 	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "AllowanceTick", ##class(OcuTalon.Core.StatusMonitor).#LOGALLOWANCE)
 	Do $$$AssertEquals(count, 1, "one warning says that the allowance status could not be published: "_text)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "AllowanceTick", ##class(OcuTalon.Core.StatusMonitor).#LOGALLOWANCE)
-	Do $$$AssertEquals(..SessionEvents(mine.Ref).%Size(), 0, "and nothing is published")
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "and nothing is published")
 	Set probe.FailHeld = 0
 	Do probe.OnProcessInput($$$NULLOREF, .output)
-	Set events = ..SessionEvents(mine.Ref)
+	Set events = ..SessionEvents(mineOut)
 	Do $$$AssertEquals(events.%Size(), 1, "the run that reads again publishes the window")
 	Do $$$AssertEquals(events.%Get(0).payload.active, 1, "as active")
 }
@@ -421,6 +430,16 @@ Method SessionEvents(ref As %String) As %DynamicArray [ Private ]
 		If events.%Get(i).type = "status" Do found.%Push(events.%Get(i))
 	}
 	Quit found
+}
+
+/// Gives the probe a private stream for the allowance status of the session: the stream of a fixture session of its own, which no
+/// StatusMonitor of a running production publishes on. Returns that stream's Ref; Clean removes its events and its row.
+Method Divert(probe As OcuTalon.Test.Core.StatusMonitorProbe, sessionRef As %String, name As %String) As %String [ Private ]
+{
+	Set stream = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_name_"out", .sc).Ref
+	Do $$$AssertStatusOK(sc, "the private stream of "_name_" is made")
+	Set probe.SessionStreams(sessionRef) = stream
+	Quit stream
 }
 
 /// A shadow instance of the probe, with the private stream.

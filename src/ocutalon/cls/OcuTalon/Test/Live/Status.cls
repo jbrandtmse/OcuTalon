@@ -15,7 +15,8 @@
 ///   - TestReadings: the keys are the agents' Keys.Status readings and the budget is Budget.State(), both as direct calls give them;
 ///   - TestAllowance (Story 16.9, AD-12, AD-20): the session's allowance condition is active, with the limit and the end of the window
 ///     as its slots, only with the online-demo flag set and while the window is open, and Active puts it first, before the instance
-///     conditions that it leaves as they are.
+///     conditions that it leaves as they are;
+///   - TestAllowanceLimitIsTheSetting (QA): the condition's limit is messageAllowance, here 7, not the start value.
 /// The tests write no row and no global, except TestTelegramPausedDefaultRead, which writes the telegramPaused mark and puts it back,
 /// and TestAllowance, which sets the public setting onlineDemo and writes one fixture session, and puts both back.
 Class OcuTalon.Test.Live.Status Extends %UnitTest.TestCase
@@ -250,6 +251,34 @@ Method TestAllowance()
 		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(ref)
+}
+
+/// The limit of the allowance condition is the public setting messageAllowance (QA, Story 16.9), not the start value: with 7 the
+/// condition, its export and Active's first condition say 7.
+Method TestAllowanceLimitIsTheSetting()
+{
+	Set savedFlag = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set savedLimit = ##class(OcuTalon.Data.Public.Settings).Get("messageAllowance")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzstatusallowancelimit")
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", 7)
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		Set row.AllowanceUntil = "2030-06-15T10:20:00Z"
+		Do $$$AssertStatusOK(row.%Save(), "the session has a window")
+		Set condition = ##class(OcuTalon.Live.Payload.Status).Allowance(ref, "2030-06-15T10:00:00Z")
+		Do $$$AssertEquals(condition.Slots.Limit, 7, "the condition's limit is the setting")
+		Do $$$AssertStatusOK(condition.%JSONExportToString(.json), "it exports")
+		Do $$$AssertEquals(json, "{""condition"":""allowance"",""active"":true,""slots"":{""limit"":7,""time"":""2030-06-15T10:20:00Z""}}", "with the number 7")
+		Set row.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+		Do $$$AssertStatusOK(row.%Save(), "the window ends in ten minutes")
+		Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Status).Active(ref).%Get(0).slots.limit, 7, "and so is the limit of the first condition of Active")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", savedLimit)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", savedFlag)
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean(ref)
 }
 

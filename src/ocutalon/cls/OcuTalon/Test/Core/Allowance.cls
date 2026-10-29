@@ -1,5 +1,6 @@
-/// Tests of Core.Allowance, the online demo's message and email limits (Story 16.9; AD-20, FR-40). Safe on a slot: they use fixture
-/// sessions and set the public settings onlineDemo and messageAllowance, which OnAfterAllTests puts back. The window arithmetic is
+/// Tests of Core.Allowance, the online demo's message and email limits (Story 16.9; AD-20, FR-40). They use fixture sessions and set
+/// the instance-wide public settings onlineDemo and messageAllowance for their run, which OnAfterAllTests puts back, so they run in a
+/// throwaway stack (the CI shards, the warm stack), never on a slot. The window arithmetic is
 /// shown with seeded AllowanceTimes (entries a known number of seconds old), so no test waits for an hour.
 ///   - TestAllowedUnderTheLimit: rows 1 and 3 of the matrix: below the limit a call returns 1, "" and 0 and appends now, oldest first;
 ///   - TestTheFiftyFirstIsRefused: the 51st message is refused with retryAt (the oldest entry plus 3600 s) and the first-refusal flag,
@@ -10,10 +11,14 @@
 ///   - TestNewWindow: after the oldest entry has left the window a message is allowed, and the next refusal is a first refusal again;
 ///   - TestFlagOffAllowsAndWritesNothing, TestNoRowAllowsAndRecordsNothing, TestBusyLockRefusesWithNoRetryAt, TestFailedSaveRollsBack:
 ///     rows 6, 7 and 8;
-///   - TestRefundGivesBackTheNewestEntry: row 9;
+///   - TestRefundGivesBackTheNewestEntry: row 9, with the row's lock free afterwards;
 ///   - TestLimitReadsThePublicSetting, TestUntil, TestNotices: the settings reading, the end of a window and the two notifications;
 ///   - TestMailAllowed: the email limit at 19, 20 and 21, outgoing rows and old rows ignored, the flag off;
-///   - TestConversationNamesNoAllowance: Conversation never refers to the allowance (AD-20).
+///   - TestConversationNamesNoAllowance: Conversation never refers to the allowance, by its full or its short name, or to TryConsume
+///     (AD-20);
+///   - QA (Story 16.9): TestMailAllowedFailedReadIsNotAnAllowance (a count that cannot be read is an error and 0, never an allowance),
+///     TestNoticeCarriesTheConfiguredLimit (the notice's limit is the setting's value) and TestOnlyTheNewestEntriesCountWhenTheLimitDrops
+///     (a lowered limit keeps the newest entries, so retryAt is not the oldest entry's).
 /// The run's number is n from ^OcuTalonTest("Allowance","n") (never reset); the fixture sessions are Test.Data.Fixture's, with the turns
 /// that TryConsume recorded adopted for the clean-up.
 Class OcuTalon.Test.Core.Allowance Extends %UnitTest.TestCase
@@ -153,11 +158,12 @@ Method TestNewWindow()
 	Set ended = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -2)
 	Do ..Seed(ref, 50, 3640, ended)
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).Until(ref), "", "the window has ended")
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz two", .retryAt, .first), 1, "a message is allowed again")
 	Do $$$AssertEquals(retryAt_"|"_first, "|0", "with no retryAt")
 	Set times = ..Times(ref)
 	Do $$$AssertTrue(($ListLength(times) < 50) && ($ListLength(times) >= 1), "the entries that left the window are dropped and the new one is kept: "_$ListLength(times))
-	Do $$$AssertTrue($List(times, $ListLength(times)) '] ##class(OcuTalon.Data.Time).NowUtc(), "the new one is the last")
+	Do $$$AssertTrue('(before ] $List(times, $ListLength(times))), "the new one, at the time of the call or later, is the last: "_$List(times, $ListLength(times)))
 
 	Do ..Seed(ref, 50, 100, ended)
 	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz three", .later, .first)
@@ -230,7 +236,7 @@ Method TestBusyLockRefusesWithNoRetryAt()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "the row's lock is free")
 }
 
-/// Row 8, the exception branch: a refused message whose Turn cannot be saved (a channel over the property's length) rolls back, so
+/// Row 8, a failed save: a refused message whose Turn cannot be saved (a channel over the property's length) rolls back, so
 /// the call answers 0 with an empty retryAt, no flag, no window, no Turn and no open transaction, and holds no lock.
 Method TestFailedSaveRollsBack()
 {
@@ -260,6 +266,7 @@ Method TestRefundGivesBackTheNewestEntry()
 	Do $$$AssertEquals($ListLength(..Times(ref)), 4, "four entries")
 	Do ##class(OcuTalon.Core.Allowance).Refund(ref)
 	Do $$$AssertEquals(..Times(ref), three, "Refund removes the newest one")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(..Row(ref).%Id()), 1, "and leaves the row's lock free for another job")
 	Do ##class(OcuTalon.Core.Allowance).Refund(ref)
 	Do ##class(OcuTalon.Core.Allowance).Refund(ref)
 	Do ##class(OcuTalon.Core.Allowance).Refund(ref)
@@ -348,6 +355,54 @@ Method TestMailAllowed()
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(other, now, .retryAt, .sc), 1, "another session's emails are not counted")
 }
 
+/// Matrix row 17, the error handling (QA): a count that cannot be read is an error status and the result is 0 with an empty retryAt,
+/// never an allowance (a failed read must not let an email through). A read needs a session's Ref, so an empty Ref and the literal
+/// instance make it fail. With the flag off nothing is read, so the same calls allow with an OK status.
+Method TestMailAllowedFailedReadIsNotAnAllowance()
+{
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	For ref = "", "instance" {
+		Set retryAt = "zz"
+		Set allowed = ##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc)
+		Do $$$AssertEquals(allowed, 0, "'"_ref_"': a count that cannot be read does not allow the email")
+		Do $$$AssertStatusNotOK(sc, "'"_ref_"': and the status says that the read failed")
+		Do $$$AssertEquals(retryAt, "", "'"_ref_"': with no retryAt")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set retryAt = "zz"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed("", now, .retryAt, .sc), 1, "with the flag off the same call allows")
+	Do $$$AssertStatusOK(sc, "with an OK status")
+	Do $$$AssertEquals(retryAt, "", "and no retryAt")
+}
+
+/// The limit in the notice is the setting's value, not the start value (QA): with messageAllowance at 7 the session notice carries the
+/// number 7 and the catalog renders "7 messages". The daily-cap notice carries no limit.
+Method TestNoticeCarriesTheConfiguredLimit()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", 7)
+	Set notice = ##class(OcuTalon.Core.Allowance).Notice("zzref", "2030-06-15T10:00:00Z")
+	Set slots = {}.%FromJSON(notice.Slots)
+	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit, "number|7", "the slot is the number 7")
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
+	Do $$$AssertStatusOK(sc, "the catalog renders it")
+	Do $$$AssertTrue(text [ "You've used this session's 7 messages for the hour. You can send more at ", "as 7 messages: "_text)
+}
+
+/// The rolling hour keeps the newest entries when the limit has been lowered below the number held (QA): with 8 entries and a limit
+/// of 5 the 9th message is refused, retryAt is the fourth entry (the oldest of the newest five) plus 3600 s, and the row keeps those
+/// five. Keeping the oldest five would give the first entry's time and leave a session blocked for too long.
+Method TestOnlyTheNewestEntriesCountWhenTheLimitDrops()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", 5)
+	Set ref = ..Session("lowered")
+	Do ..Seed(ref, 8, 3000)
+	Set held = ..Times(ref)
+	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(ref, "web", "zz after the limit dropped", .retryAt, .first)
+	Do $$$AssertEquals(allowed_"|"_first, "0|1", "the message is refused as the first refusal")
+	Do $$$AssertEquals(retryAt, ##class(OcuTalon.Data.Time).AddSeconds($List(held, 4), 3600), "retryAt is the oldest of the newest five plus 3600 seconds")
+	Do $$$AssertEquals(..Times(ref), $List(held, 4, 8), "and the row keeps the newest five")
+}
+
 /// AC 1: Conversation never refers to the allowance, whose answer WebChatIn alone uses (AD-20).
 Method TestConversationNamesNoAllowance()
 {
@@ -360,7 +415,7 @@ Method TestConversationNamesNoAllowance()
 		While 'method.Implementation.AtEnd {
 			Set code = method.Implementation.Read(30000)
 			Set scanned = scanned + 1
-			If code [ "OcuTalon.Core.Allowance" Set found = found + 1
+			If (code [ "Core.Allowance") || (code [ "##class(Allowance)") || (code [ "TryConsume") Set found = found + 1
 		}
 	}
 	Do $$$AssertTrue(scanned > 10, "the scan reads the methods of Conversation: "_scanned)

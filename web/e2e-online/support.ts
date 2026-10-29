@@ -518,17 +518,45 @@ export async function seedIncomingMail(epoch: string, count: number, oldestAge: 
   if (chk(lines, 'seeded') !== '1') throw new Error(`the emails of epoch ${epoch} could not be seeded (${lines.join(' ')})`);
 }
 
-/** How many incoming mailbox emails, mailbox events and Items to Intake the session of an epoch has so far. */
-export async function mailCounts(epoch: string): Promise<{ rows: number; events: number }> {
+/** How many incoming mailbox emails, mailbox events and Items from SimMailboxIn to Intake (under the session's TraceRef) the session of an epoch has so far. */
+export async function mailCounts(epoch: string): Promise<{ rows: number; events: number; items: number }> {
   const lines = await irisScript(
     [
       findSession(epoch),
       'Set m=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = ? AND Direction = ?",r.Ref,"mailbox","in") Do m.%Next()',
-      'Write !,"CHK|counts|",m.%GetData(1),"|",##class(OcuTalon.Test.Core.Observe).Events(r.Ref,"mailbox").%Size()',
+      'Set h=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SuperSession = ? AND SourceConfigName = ? AND TargetConfigName = ? AND Type = 1",r.TraceRef,"SimMailboxIn","Intake") Do h.%Next()',
+      'Write !,"CHK|counts|",m.%GetData(1),"|",##class(OcuTalon.Test.Core.Observe).Events(r.Ref,"mailbox").%Size(),"|",h.%GetData(1)',
     ].join('\n'),
   );
-  const [rows = '-1', events = '-1'] = (chk(lines, 'counts') ?? '').split('|');
-  return { rows: Number(rows), events: Number(events) };
+  const [rows = '-1', events = '-1', items = '-1'] = (chk(lines, 'counts') ?? '').split('|');
+  return { rows: Number(rows), events: Number(events), items: Number(items) };
+}
+
+/** The fallback reasons of the bridge's decisions of the session of an epoch (Bridge.Data.Decision rows with Fallback set), oldest first. */
+export async function fallbackReasons(epoch: string): Promise<string[]> {
+  const lines = await irisScript(
+    [
+      findSession(epoch),
+      'Set t=##class(%SQL.Statement).%ExecDirect(,"SELECT FallbackReason FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND Fallback = 1 ORDER BY ID",r.Ref)',
+      'While t.%Next() { Write !,"CHK|fallback|",t.%Get("FallbackReason") }',
+    ].join('\n'),
+  );
+  return lines.filter((line) => line.startsWith('CHK|fallback|')).map((line) => line.slice('CHK|fallback|'.length));
+}
+
+/**
+ * Whether StatusMonitor remembers the daily cap as lifted: the newest dailyCap status event of the instance stream is a clear, or there is
+ * none. The monitor publishes a condition only when it changes, and what it remembers is what it last published.
+ */
+export async function dailyCapSettled(): Promise<boolean> {
+  const lines = await irisScript(
+    [
+      'Set t=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 Payload FROM OcuTalon_Live.Event WHERE Stream = ? AND Type = ? AND Payload [ ? ORDER BY Seq DESC","instance","status","""condition"":""dailyCap""")',
+      'Set p=$Select(t.%Next():t.%Get("Payload"),1:"")',
+      `Write !,"CHK|settled|",(p="")||(p'["""active"":true")`,
+    ].join('\n'),
+  );
+  return chk(lines, 'settled') === '1';
 }
 
 /** The local date of today in the instance zone, as the bridge keys the day's cap and a session records its daily-cap day. */

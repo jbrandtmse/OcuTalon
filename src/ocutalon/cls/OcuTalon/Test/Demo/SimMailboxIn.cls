@@ -12,7 +12,7 @@
 ///     and an unknown sample are errors with no row, no event and no send; a body of exactly BODYMAX characters is accepted;
 ///   - TestEmailLimit (Story 16.9): on the online demo the 21st incoming email of the hour, a sample included, is refused with
 ///     {"refused":1,"retryAt"}: no row, no send and no event; outgoing and older emails are not counted; with the flag off there is
-///     no limit; a lock that stays busy is an error;
+///     no limit; a lock that stays busy is an error, and every call leaves the row's lock free;
 ///   - TestSendFailure: a send that fails deletes the row, publishes nothing and answers the error;
 ///   - TestSendThrows: a send that throws is returned as an error and deletes the row;
 ///   - TestRevealsFlags: Reveals names a body property that holds the simulation's words and passes an ordinary body;
@@ -191,6 +191,7 @@ Method TestEmailLimit()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(session, 100).Count(), rows, "no row is saved")
 	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), 3, "nothing is sent")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "mailbox").%Size(), events, "and no event is published")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()), 1, "the accepted and the refused emails leave the session row's lock free for another job")
 	Set other = ..Session("limitother")
 	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(other, "", "zz a", "zz b", "zz c"), .output), "another session is not limited by it")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")

@@ -3,7 +3,9 @@
 /// instance of Test.Core.WebChatInProbe, which records under the run number in ^OcuTalonTest("ApiProbe", "run");
 /// ^OcuTalonTest("ApiProbe", "mode") is "" to let the message through and "fail" to answer an error status, as a production
 /// that can't take the message does; ^OcuTalonTest("ApiProbe", "refuse") is 1 to have the allowance refuse the message with a
-/// retryAt (the refused output, Story 16.9) and "busy" to have it refuse with no retryAt (an error status). Press (Story 4.3) answers instead of BreakFeedIn: it records the session of each press under
+/// retryAt (the refused output, Story 16.9) and "busy" to have it refuse with no retryAt (an error status); when
+/// ^OcuTalonTest("ApiProbe", "output") is set, Post answers that text as the service's output, as it is (QA, Story 16.9: an output that
+/// is not a JSON object). Press (Story 4.3) answers instead of BreakFeedIn: it records the session of each press under
 /// ^OcuTalonTest("ApiProbe", "presses", n) and answers the text in ^OcuTalonTest("ApiProbe", "press"): "fail" is an error status, any
 /// other text is the service's output as it is, and an absent value is a sent press.
 Class OcuTalon.Test.Web.ApiProbe Extends OcuTalon.Web.Api
@@ -13,6 +15,10 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 {
 	Set output = ""
 	If $Get(^OcuTalonTest("ApiProbe", "mode")) = "fail" Quit $SYSTEM.Status.Error(5001, "zz the production is not running")
+	If $Data(^OcuTalonTest("ApiProbe", "output")) {
+		Set output = ^OcuTalonTest("ApiProbe", "output")
+		Quit $SYSTEM.Status.OK()
+	}
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.WebChatInProbe", .sc)
 	If '$IsObject(probe) Quit sc
 	Set probe.RunNumber = $Get(^OcuTalonTest("ApiProbe", "run"))

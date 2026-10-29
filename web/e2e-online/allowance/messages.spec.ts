@@ -18,6 +18,11 @@ import { allowanceRow, epochOf, mailCounts, removeSession, seedAllowance, seedIn
  * - A2: a new session whose rolling hour holds 50 entries about 3570 s old is refused its next message with a retryAt about 30 s ahead (about twice
  *   the status monitor's 15 s run, so that a run falls inside the window);
  *   within 45 s the banner clears, the controls return, its stream carries the allowance status with active false and a send gets 202.
+ * - A3 (QA): a new session whose rolling hour holds 50 entries about 3000 s old, so that the page does not know its window yet, presses the guide's
+ *   send prompt: the answer is a 429 allowance, the banner shows at once, and the prompt's entry just leaves the chat (no bubble, no "Not sent").
+ * - A4 (QA): the same session state; a message is posted from the composer and, while its post is held, other text is typed in the field: the
+ *   429 allowance does not take the text back over it. The message stays as "Not sent" with Retry sending, the newer text stays in the field, and
+ *   the banner shows (matrix row 12: "A 429 while the composer already holds other text fails as today").
  * - E1: 20 simulated emails through the API (samples and typed), then a chip press: 429 email_limit, the chips and Send are aria-disabled with
  *   the email text in page time, and no 21st row or mailbox event exists.
  * - E2: a new session with 20 incoming emails about 3580 s old: a form Send is refused, and within 45 s the chips and Send return and a press
@@ -179,6 +184,69 @@ test('A2: the allowance window clears at retryAt on the page and in the status s
   }
 });
 
+test('A3: a guide prompt that gets a 429 just leaves the chat, with no Not sent', async ({ page }) => {
+  let epoch = '';
+  try {
+    epoch = await open(page);
+    await seedAllowance(epoch, 50, 3000);
+    await expect(banner(page), 'the page does not know the window yet').toHaveCount(0);
+    await expect(guideSend(page), 'and the guide\'s send prompt is usable').not.toHaveAttribute('aria-disabled', 'true');
+    const bubbles = page.locator('app-chat-panel .bubble');
+    const before = await bubbles.count();
+    const refused = refusedPost(page);
+    await guideSend(page).click();
+    const body = (await (await refused).json()) as { error: { code: string }; retryAt: string; limit: number };
+    expect([body.error.code, body.limit], 'the answer is a 429 allowance').toEqual(['allowance', 50]);
+    await expect(banner(page), 'the banner shows at once, from the page\'s own 429').toBeVisible({ timeout: 2_000 });
+    await expect(bubbles, 'the prompt\'s entry has left the chat').toHaveCount(before);
+    await expect(page.locator('app-chat-panel .failed'), 'with no "Not sent"').toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Retry sending' }), 'and no Retry sending').toHaveCount(0);
+    await expect(composer(page), 'the composer holds nothing: the prompt\'s text did not move into it').toHaveValue('');
+    await expect(guideSend(page), 'the prompt is explained-disabled now').toHaveAttribute('aria-disabled', 'true');
+    const turns = await turnRowsOf(epoch);
+    expect(turns.map((turn) => turn.state), 'the server recorded the refusal and queued nothing').toEqual(['refused']);
+  } finally {
+    await signOutGroup(page);
+    if (epoch !== '') await removeSession(epoch);
+  }
+});
+
+test('A4: a 429 does not take the text back over other text in the composer, so the message stays as Not sent', async ({ page }) => {
+  let epoch = '';
+  try {
+    epoch = await open(page);
+    await seedAllowance(epoch, 50, 3000);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reached = 0;
+    await page.route(`**${MESSAGES}`, async (route) => {
+      reached += 1;
+      await held;
+      await route.continue();
+    });
+    await composer(page).fill('zz first text');
+    await composer(page).press('Enter');
+    await expect.poll(() => reached, { message: 'the post is held' }).toBe(1);
+    await composer(page).fill('zz newer text');
+    const refused = refusedPost(page);
+    release();
+    await refused;
+    await expect(page.locator('app-chat-panel .failed'), 'the message stays as Not sent').toHaveText('Not sent');
+    await expect(page.getByRole('button', { name: 'Retry sending' }), 'with Retry sending').toHaveCount(1);
+    await expect(composer(page), 'the composer keeps the newer text').toHaveValue('zz newer text');
+    await expect(page.locator('app-chat-panel .bubble').filter({ hasText: 'zz first text' }), 'and the first message is in the chat').toHaveCount(1);
+    await expect(banner(page), 'the banner shows all the same').toBeVisible({ timeout: 2_000 });
+    const turns = await turnRowsOf(epoch);
+    expect(turns.map((turn) => `${turn.state}:${turn.text}`), 'the server recorded the refusal and queued nothing').toEqual(['refused:zz first text']);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch !== '') await removeSession(epoch);
+  }
+});
+
 test('E1: the 21st simulated email is refused, and the chips and Send are explained-disabled until retryAt', async ({ page }) => {
   let epoch = '';
   try {
@@ -203,6 +271,7 @@ test('E1: the 21st simulated email is refused, and the chips and Send are explai
     const match = EMAIL_LIMIT.exec(text);
     expect(match, `the email text: ${text}`).not.toBeNull();
     expect(match?.[1], 'with the time as a page time').toBe(await pageTimeOf(page, body.retryAt));
+    await expect(page.locator('#mailbox-chip-error'), 'and no error text for the limit').toHaveCount(0);
     await expect(chips(page)).toHaveCount(3);
     for (let i = 0; i < 3; i += 1) {
       await expect(chips(page).nth(i), `chip ${i + 1} is aria-disabled and described by the reason`).toHaveAttribute('aria-disabled', 'true');
@@ -213,7 +282,7 @@ test('E1: the 21st simulated email is refused, and the chips and Send are explai
     await expect(formSend(page)).toHaveAttribute('aria-describedby', 'mailbox-email-limit');
 
     const counts = await mailCounts(epoch);
-    expect(counts, 'no 21st row and no 21st mailbox event exists').toEqual({ rows: 20, events: 20 });
+    expect(counts, 'no 21st row, no 21st mailbox event and no 21st Item to Intake exists').toEqual({ rows: 20, events: 20, items: 20 });
   } finally {
     await signOutGroup(page);
     if (epoch !== '') await removeSession(epoch);
@@ -237,6 +306,7 @@ test('E2: a refused form Send is allowed again at retryAt, and the chips and Sen
     expect(ahead).toBeLessThan(40);
     await expect(formSend(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(chips(page).first()).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('#mailbox-send-error'), 'and no error text for the limit').toHaveCount(0);
 
     await expect(page.locator('#mailbox-email-limit'), 'within 45 s the reason clears').toHaveCount(0, { timeout: 45_000 });
     await expect(chips(page).first(), 'the chips return').not.toHaveAttribute('aria-disabled', 'true');

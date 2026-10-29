@@ -6,7 +6,9 @@ import {
   answerApproval,
   cappedMarked,
   cleanPopulated,
+  dailyCapSettled,
   epochOf,
+  fallbackReasons,
   localToday,
   mockRequests,
   populate,
@@ -25,7 +27,8 @@ import {
  * Story 16.9, the online demo's daily cost cap (D1, D2 and AP; matrix rows 13 to 16; AC 5 and 8). The project runs on its own online-demo
  * throwaway with the daily cap at $20 and the runners' keys pointed at the CI mock, so that a decision reaches the cap before it reaches a
  * missing key. The cap is instance-wide, so the cases run in order (serial), and each `finally` deletes the Usage row it seeded and kills the
- * day's capped mark, so that the next case starts clean. Every case signs out of the whole sign-in group and removes the rows it made.
+ * day's capped mark, so that the next case starts clean; D2 and AP then wait until StatusMonitor has published the cap's clear. Every
+ * case signs out of the whole sign-in group and removes the rows it made.
  * - D1 (IRIS's own count of the spend): S3 signs in and sends one message and S2 signs in and stays idle; a Usage row of $20 is seeded for
  *   today; S1 sends, and its reply is the daily_cap fallback. S1 has one daily-cap card (an "ET" time and the install link), S3 has one from
  *   the broadcast of budget.capped, S2 has none until its own send and then one, and another send from S1 adds none. The "daily cap" banner
@@ -79,11 +82,12 @@ async function send(visitor: Visitor, text: string, id: string): Promise<void> {
 }
 
 /**
- * Waits for StatusMonitor's next tick (15 s) after a case has restored the cap: the monitor remembers the dailyCap it published, so a cap that
- * is lifted and reached again inside one tick is no change to it and publishes nothing, which a page that loaded in between would never see.
+ * Waits, after a case has restored the cap, until StatusMonitor has published the cap's clear (or never published the cap): the monitor
+ * remembers the dailyCap it published, so a cap that is lifted and reached again before its next run is no change to it and publishes
+ * nothing, which a page that loaded in between would never see.
  */
 async function settleMonitor(): Promise<void> {
-  await new Promise((done) => setTimeout(done, 20_000));
+  await expect.poll(dailyCapSettled, { message: 'StatusMonitor remembers the daily cap as lifted', timeout: 90_000, intervals: [1_000] }).toBe(true);
 }
 
 /** Restores what a case changed instance-wide: its Usage row and the day's capped mark. */
@@ -108,6 +112,7 @@ test('D1: the daily cap reached by IRIS\'s own count sends the daily-cap message
     await send(s1, 'zz S1 under the cap', 'd1s1');
 
     await expect(cappedCards(s1.page), 'S1 has one daily-cap card').toHaveCount(1, { timeout: 90_000 });
+    expect(await fallbackReasons(s1.epoch), "S1's decision fell back with daily_cap").toContain('daily_cap');
     await expect(cappedCards(s1.page).first()).toContainText(' ET. You can install OcuTalon yourself to keep going: ');
     await expect(cappedCards(s1.page).first()).toContainText(INSTALL);
     await expect(cappedCards(s3.page), 'S3 has one, from the broadcast').toHaveCount(1, { timeout: 60_000 });
@@ -151,6 +156,7 @@ test('D2: the gateway\'s 403 falls back with daily_cap, marks the day and sends 
     s4 = await visit(browser);
     await send(s4, `${MARKER} zz capped by the gateway`, 'd2');
     await expect(cappedCards(s4.page), 'one daily-cap card').toHaveCount(1, { timeout: 90_000 });
+    expect(await fallbackReasons(s4.epoch), 'its decision fell back with daily_cap').toContain('daily_cap');
     expect(await cappedMarked(), 'the day is marked').toBe(true);
     expect((await mockRequests('daily-cap')) - before, 'the mock saw one request').toBe(1);
     await expect(dailyCapBanner(s4.page), 'the banner shows').toBeVisible({ timeout: 60_000 });

@@ -254,13 +254,17 @@ ClassMethod Messages() As %Status
 	Set post.FromGuide = fromGuide
 	Set sc = ..Post(post, .output)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	Set sc = $SYSTEM.Status.OK()
+	Set sc = $SYSTEM.Status.OK(), refused = 0
 	Try {
 		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
-		Set refused = (answer.refused = 1)
-		If refused {
-			Set retryAt = answer.retryAt
-			Set limit = answer.limit
+		If 'answer.%IsA("%Library.DynamicObject") {
+			Set sc = $SYSTEM.Status.Error(5001, "WebChatIn answered an output that is not a JSON object")
+		} Else {
+			Set refused = (answer.refused = 1)
+			If refused {
+				Set retryAt = answer.retryAt
+				Set limit = answer.limit
+			}
 		}
 	} Catch exception {
 		Set sc = exception.AsStatus()

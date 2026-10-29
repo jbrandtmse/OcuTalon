@@ -14,7 +14,8 @@ const LONGEST_TIMER_MS = 2_147_483_647;
  *   now, or undefined.
  * - A clock signal, which a timer sets to the page's time at the next change (the time of the window that holds, as reset-watch.ts
  *   arms its timer to the pending reset), makes `active()` clear at the time on the page's own clock, whether or not an event brings
- *   the clear. The timer is armed again after it fires, until no time is ahead.
+ *   the clear. The timer is armed again after it fires, until no time is ahead. A new condition or refusal sets the clock too, so a
+ *   window whose time has already passed on the page never shows.
  * This class announces nothing and moves no focus.
  */
 @Injectable({ providedIn: 'root' })
@@ -33,7 +34,10 @@ export class AllowanceState {
     effect((onCleanup) => {
       this.condition();
       this.refusal();
-      untracked(() => this.arm());
+      untracked(() => {
+        this.clock.set(Date.now());
+        this.arm();
+      });
       onCleanup(() => this.disarm());
     });
   }

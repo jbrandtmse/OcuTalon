@@ -14,8 +14,9 @@
 /// job starts again from a silent first run. A publish that fails is logged as a warning and is not remembered, so that the
 /// next run publishes it again. OnProcessInput always returns OK.
 /// On the online demo each run also publishes the allowance condition of the sessions whose view changed (Story 16.9, AD-12):
-/// AllowanceTick reads the sessions with an open allowance window (Ownership.AllowanceHeld) and the ones it published as active
-/// before, builds each one's OcuTalon.Live.Payload.Status.Allowance and publishes it on that session's own stream when its exported
+/// AllowanceTick reads the sessions with an open allowance window (the private seam AllowanceSessions, Ownership.AllowanceHeld) and
+/// the ones it published as active before, builds each one's OcuTalon.Live.Payload.Status.Allowance and publishes it on that
+/// session's own stream (the private seam SessionStream) when its exported
 /// JSON differs from the remembered one: the active view when a refusal opened the window, and a clear (active false, no slots)
 /// once the window has ended. It remembers the active views only, and forgets a session once its clear is published. The first run
 /// only remembers, and a failed read is a warning that remembers nothing. The instance events are unchanged.
@@ -132,7 +133,7 @@ Method AllowanceOf(sessionRef As %String, now As %String, first As %Boolean) [ P
 			Quit
 		}
 		If $Select(condition.Active: json = before, 1: before = "") Quit
-		Set sc = ##class(OcuTalon.Live.Publish).Publish(sessionRef, "status", condition)
+		Set sc = ##class(OcuTalon.Live.Publish).Publish(..SessionStream(sessionRef), "status", condition)
 		If $SYSTEM.Status.IsError(sc) {
 			$$$LOGWARNING(..#LOGALLOWANCE_$SYSTEM.Status.GetOneStatusText(sc))
 			Quit
@@ -145,6 +146,12 @@ Method AllowanceOf(sessionRef As %String, now As %String, first As %Boolean) [ P
 	} Catch exception {
 		$$$LOGWARNING(..#LOGALLOWANCE_exception.DisplayString())
 	}
+}
+
+/// The stream that a session's allowance status is published on: the session's own. Private; a test subclass overrides it.
+Method SessionStream(sessionRef As %String) As %String [ Private ]
+{
+	Quit sessionRef
 }
 
 /// The resetSoon condition (AD-12): active on the online demo while the next reset is at most

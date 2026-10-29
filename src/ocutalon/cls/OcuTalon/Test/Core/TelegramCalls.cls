@@ -40,7 +40,7 @@ Method TestTryConsumeAllowsATelegramMessage()
 		Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "call "_i_": allowed, retryAt empty, no first refusal")
 	}
 	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(##class(OcuTalon.Bridge.Ids).NewRef(), "telegram", "hello", .retryAt, .firstRefusal)
-	Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "a session with no row is allowed too, with or without the online-demo flag: the allowance records nothing for it")
+	Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "a session with no row is allowed too: the allowance records nothing for it")
 }
 
 /// Join gives the thread of the session's day: the same positive id twice once the thread is started, and "" with an OK status before.

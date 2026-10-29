@@ -29,6 +29,10 @@
 ///     thread and leaves the row's lock free for another job;
 ///   - TestStartedFailureStillAccepts: a thread that cannot be recorded after a good send is one warning, and the message is
 ///     accepted;
+///   - TestRefusalReportsTheConfiguredLimit (QA, Story 16.9): the refused output and the notice carry messageAllowance, here 7, not the
+///     start value;
+///   - TestNoticeStartsASessionOfItsOwnOnAReusedService (QA, Story 16.9): the notice of a refused message is not sent in the session id
+///     that an earlier message of the same service was given;
 ///   - TestRefusedAndDuplicateMessagesTouchNoThread (QA): a message that the allowance refuses, and a repeat of a clientId, are
 ///     answered before the thread is joined, so they take no lock on the session's row and record no thread;
 ///   - TestYesterdaysThreadIsNotJoined (QA): a row whose thread is from an earlier day sends the Item in no session and records
@@ -47,11 +51,15 @@ Property Refs As %String(MAXLEN = "");
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
+/// The public setting messageAllowance before the tests, "" when it was absent.
+Property SavedAllowance As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("WebChatMessages", "n"))
 	Set ..Refs = ""
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set ..SavedAllowance = ##class(OcuTalon.Data.Public.Settings).Get("messageAllowance")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
 }
@@ -62,11 +70,19 @@ Method OnBeforeOneTest() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+/// Puts messageAllowance back after every test, also after one that failed or threw.
+Method OnAfterOneTest() As %Status
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", ..SavedAllowance)
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
 	Kill ^OcuTalonTest("WebChatIn", ..Number)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", ..SavedAllowance)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -163,6 +179,41 @@ Method TestRefusalQueuesNothing()
 	Do $$$AssertStatusOK(sc, "the same message is accepted when the allowance allows it")
 	Do $$$AssertEquals(output, "{""accepted"":1,""duplicate"":0}", "as a new message, not a duplicate: the refusal left no turn")
 	Do $$$AssertEquals(..Sends(), 1, "and it is sent")
+}
+
+/// The limit that a refusal reports is the setting's value (QA): with messageAllowance at 7, the refused output carries the number 7
+/// and so does the notice's limit slot, whatever the start value is.
+Method TestRefusalReportsTheConfiguredLimit()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("messageAllowance")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", 7)
+	Set session = ..Session("limit7")
+	Set probe = ..NewProbe()
+	Set probe.Refuse = 1
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"limit7", "zz refused", 0), .output)
+	Set answer = {}.%FromJSON(output)
+	Set slots = {}.%FromJSON(..Call(2, "slots"))
+	Do ##class(OcuTalon.Data.Public.Settings).Set("messageAllowance", saved)
+	Do $$$AssertStatusOK(sc, "the refusal is answered")
+	Do $$$AssertEquals(answer.%GetTypeOf("limit")_"|"_answer.limit, "number|7", "the refused output carries the number 7")
+	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit, "number|7", "and so does the notice's limit slot")
+}
+
+/// The notice does not inherit a session from an earlier message (QA): a service that has handled an allowed message still holds the
+/// session id the framework gave it, and the notice of the next message, which is refused, is sent in a session of its own, under
+/// the session's TraceRef. The service is reused by the Telegram service of Story 12.6, which runs for many messages.
+Method TestNoticeStartsASessionOfItsOwnOnAReusedService()
+{
+	Set session = ..Session("reuse")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 777777
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"reuse1", "zz allowed first", 0), .output), "a first message is accepted")
+	Do $$$AssertEquals(..Call(2, "target"), "Conversation", "and sent to Conversation")
+	Set probe.Refuse = 1
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"reuse2", "zz refused second", 0), .output), "a second message of the same service is refused")
+	Do $$$AssertEquals(..Call(4, "target"), "Notify", "its notice goes to Notify")
+	Do $$$AssertEquals(..Call(4, "sessionId")_"|"_..Call(4, "superSession"), "|"_trace, "in a session of its own, not the first message's, under the session's TraceRef")
 }
 
 /// A refusal with no retryAt, which is what TryConsume answers for a lock that stayed busy or an exception, is an error status

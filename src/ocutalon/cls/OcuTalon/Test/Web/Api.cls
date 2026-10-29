@@ -22,7 +22,8 @@
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 /// Story 16.1: TestStateTraceAccount (the snapshot's traceAccount, online demo only).
 /// Story 16.4: TestStateIdleSeconds (the snapshot's idleSeconds, online demo only, the key just before traceAccount).
-/// Story 16.9: TestMessagesAllowanceRefusal (the 429 allowance body and the 500 of a refusal with no retryAt) and
+/// Story 16.9: TestMessagesAllowanceRefusal (the 429 allowance body and the 500 of a refusal with no retryAt),
+/// TestMessagesUnreadableOutputIs500 (QA: an output that is not JSON is 500) and
 /// TestStateAllowanceStatus (the allowance condition first in /state's status). DW-300: TestStateSections seeds its check rows a day
 /// ahead, so that no heartbeat tick runs them.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
@@ -71,6 +72,7 @@ Method OnBeforeAllTests() As %Status
 Method OnBeforeOneTest() As %Status
 {
 	Kill ^EnsPortal.Settings($Username, "VisualTrace")
+	Kill ^OcuTalonTest("ApiProbe", "mode"), ^OcuTalonTest("ApiProbe", "refuse"), ^OcuTalonTest("ApiProbe", "output")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -1057,6 +1059,28 @@ Method TestMessagesAllowanceRefusal()
 	Do $$$AssertEquals(body, "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}", "with server_error")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 1, "and only the allowance was asked")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HTTP429TOOMANYREQUESTS"), "429 Too Many Requests", "the 429 status line")
+}
+
+/// An output of WebChatIn that is not a JSON object (empty, text, a number, a JSON array) is 500 server_error with no cause in the
+/// body, and so does not answer 202 for a message that may not have been taken (QA, Story 16.9: Messages reads the output on every
+/// post).
+Method TestMessagesUnreadableOutputIs500()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiOutput", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set valid = "{""clientId"":""zzout"",""text"":""zz hello"",""fromGuide"":false}"
+	Set wanted = "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}"
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	For output = "", "not json", "5", "{""accepted"":", "[]", "[{""accepted"":1}]" {
+		Set ^OcuTalonTest("ApiProbe", "output") = output
+		Set body = ..PostMessage(csp, valid, .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_wanted, "the output '"_output_"': 500 server_error")
+	}
+	Set ^OcuTalonTest("ApiProbe", "output") = {"accepted": 1, "duplicate": 1}.%ToJSON()
+	Set body = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""clientId"":""zzout""}", "a duplicate's output is 202 with the clientId, as before")
+	Kill ^OcuTalonTest("ApiProbe", "output")
 }
 
 /// With the online-demo flag set and the session's allowance window open, /state's status holds the allowance condition first,
