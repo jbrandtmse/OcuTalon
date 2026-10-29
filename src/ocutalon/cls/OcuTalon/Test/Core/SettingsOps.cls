@@ -333,11 +333,12 @@ Method TestAllowList()
 /// The run-time writer is SettingsOps alone: over every compiled OcuTalon class outside OcuTalon.Test and Data.Setting itself,
 /// a code line that writes Data.Setting (Set, %New, %OpenId, %Open, KeyIndexOpen, KeyIndexDelete, %DeleteId, %Delete,
 /// %DeleteExtent or %KillExtent of the class, its global, also by an extended reference, its SQL table, or a $ClassMethod of the
-/// class) is in OcuTalon.Core.SettingsOps, and a Seed is in an OcuTalon.Install class. The scanner is first shown to flag
-/// synthetic violators and to pass a comment-only mention.
+/// class) is in OcuTalon.Core.SettingsOps, and a Seed is in an OcuTalon.Install class. A code line that names the SQL table is a
+/// write unless it reads it, with the table name directly after FROM or JOIN on the same line; a DELETE FROM is a write. The
+/// scanner is first shown to flag synthetic violators and to pass a comment-only mention and the reads.
 Method TestOnlyRunTimeWriter()
 {
-	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting|OcuTalon_Data\.Setting|\$ClassMethod\(.OcuTalon\.Data\.Setting)"
+	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting|(DELETE\s+(%[A-Za-z]+\s+)*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting|\$ClassMethod\(.OcuTalon\.Data\.Setting)"
 	Set seeder = "OcuTalon\.Data\.Setting\)\.Seed\("
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).Set(k, v)", writer), "the scanner flags a Set")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set row = ##class(OcuTalon.Data.Setting).%New()", writer), "the scanner flags a %New")
@@ -347,6 +348,25 @@ Method TestOnlyRunTimeWriter()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).%KillExtent()", writer), "the scanner flags a %KillExtent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(k)", writer), "the scanner flags a KeyIndexDelete")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(UPDATE OcuTalon_Data.Setting SET Value = 1)", writer), "the scanner flags an SQL write")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(INSERT INTO OcuTalon_Data.Setting (Value) VALUES (1))", writer), "the scanner flags an SQL INSERT INTO")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(INSERT OcuTalon_Data.Setting (Value) VALUES (1))", writer), "the scanner flags an SQL INSERT with no INTO")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(INSERT OR UPDATE INTO OcuTalon_Data.Setting (Value) VALUES (1))", writer), "the scanner flags an SQL INSERT OR UPDATE")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DELETE FROM OcuTalon_Data.Setting WHERE Value = 1)", writer), "the scanner flags an SQL DELETE FROM")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DELETE OcuTalon_Data.Setting WHERE Value = 1)", writer), "the scanner flags an SQL DELETE with no FROM")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(TRUNCATE TABLE OcuTalon_Data.Setting)", writer), "the scanner flags an SQL TRUNCATE TABLE")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(UPDATE %NOCHECK %NOLOCK OcuTalon_Data.Setting SET Value = 1)", writer), "the scanner flags an SQL UPDATE with keywords before the table")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(INSERT %NOCHECK INTO OcuTalon_Data.Setting (Value) VALUES (1))", writer), "the scanner flags an SQL INSERT with a keyword before INTO")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set sc = ##class(%SQL.Statement).%ExecDirect(, ""delete from ocutalon_data.setting"")", writer), "the scanner flags a dynamic SQL write in lower case")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DELETE %NOLOCK FROM OcuTalon_Data.Setting WHERE Value = 1)", writer), "the scanner flags an SQL DELETE with a keyword before FROM")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DELETE  FROM"_$Char(9)_"OcuTalon_Data.Setting WHERE Value = 1)", writer), "the scanner flags an SQL DELETE FROM separated by several white space characters")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("      OcuTalon_Data.Setting SET Value = 1)", writer), "the scanner flags a table name that starts the line after its verb")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set table = ""OcuTalon_Data.Setting""", writer), "the scanner flags the table name held in a variable")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(DROP TABLE OcuTalon_Data.Setting)", writer), "the scanner flags an SQL DROP TABLE")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  Set rs = ##class(%SQL.Statement).%ExecDirect(, ""SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE UpdatedAt >= ?"", since)", writer), "the scanner passes a SELECT of the table")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(SELECT Value INTO :v FROM OcuTalon_Data.Setting WHERE ID = 1)", writer), "the scanner passes an embedded SELECT INTO that reads the table")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  SELECT s.Value FROM Ens.Config.Item i JOIN OcuTalon_Data.Setting s ON s.ID = i.ID", writer), "the scanner passes a JOIN that reads the table")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  SELECT ID, LastUpdate FROM OcuTalon_Data.Setting", writer), "the scanner passes a SELECT of a column list")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  select Value from  "_$Char(9)_"ocutalon_data.setting where ID = 1", writer), "the scanner passes a lower-case SELECT with several white space characters before the table")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do $ClassMethod(""OcuTalon.Data.Setting"", ""Set"", k, v)", writer), "the scanner flags a $ClassMethod write")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).Seed(k, v)", seeder), "the scanner flags a Seed")
 	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("  /// ##class(OcuTalon.Data.Setting).Set(k, v) is the writer"_$Char(10)_"  // ##class(OcuTalon.Data.Setting).Seed(k, v)", writer_"|"_seeder), "the scanner passes a comment-only mention")
