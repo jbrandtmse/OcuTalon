@@ -1715,3 +1715,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: PurgeOne deletes the FailureGroup rows and the incident in one transaction and nothing else; Fix.Executor saves one FixRun per approved request; after a purge those rows name a deleted incident (IncidentManager.cls:1254)
 - 2026-10-29T02:28:32Z status=open owner=7-3-approved-repairs-are-re-checked-and-resent by=harvest note=AD-27 retains incidents for DaysToKeep (Lane A's Purge): a FixRun row is the incident's own record, so following its incident is compliance (decide), not a retention change; one more delete in PurgeOne and an assertion in Test.Watch.Lifecycle.TestPurge (code review patches it)
+- 2026-10-29T04:19:48Z status=resolved-by:7-3-approved-repairs-are-re-checked-and-resent by=adjudication note=IncidentManager.PurgeOne_deletes_the_incident's_FixRun_rows_in_the_same_transaction(7.3_code_review);Test.Watch.Lifecycle.TestPurge:two_runs_go_with_the_old_incident,one_stays_with_the_young;mutation(drop_the_delete)->TestPurge_red
+
+### DW-380: An approved request whose ExpiresAt passes before FixExecutor takes its Execute, or whose StartExecution fails, is refused with an info line only, so it stays approved and its incident stays fixing with no result
+- source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Executor.Refusal refuses an approved row past ExpiresAt and Execute only logs a StartExecution error: no FinishExecution, no FixResult; Approval.Expire moves only pending rows
+- 2026-10-29T04:15:16Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=reachable once 7.4's wait holds a later request's Execute; end it as couldn't start; new reason text is veto-window
+
+### DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait run in its job would hold other incidents' notices past AD-15's 35-second notice
+- source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Production.cls gives FixExecutor PoolSize 1; IncidentManager's notice waits on its DryRun ask to FixExecutor; 7.3's Run ends after registration in that job, where 7.4's wait would go
+- 2026-10-29T04:15:22Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=7.4 plans where its 60 s wait runs so the dry-run ask never waits behind it, or shows the notice still holds 35 s

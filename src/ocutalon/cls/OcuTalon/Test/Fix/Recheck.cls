@@ -10,7 +10,10 @@ Include Ensemble
 ///     with a plain reason of its own that names it, and nothing in OCUORDERS changes. The test also reads the targets with the resent flag off and on, to show that
 ///     only the flag gives the ids that resent a message, in both description forms; reads a production that is not the namespace's own, which is an error with no target
 ///     passed; and shows that Execute, which reads the targets again, resends none of the five, and that the resend itself skips a plan entry whose header, status,
-///     field or value has gone stale.
+///     field or value has gone stale;
+///   - TestUnreadableNamespaceIsAnError (AC 6; the matrix row "Unreadable"): the same read passes a failed order while the service role holds Read on the Orders data
+///     database, and once the role no longer holds it the Reader's outcome is unreadable, which Recheck and Execute turn into an error that says the service user
+///     cannot read the namespace: no target passes, none is skipped as gone, no copy is made and nothing in OCUORDERS changes.
 Class OcuTalon.Test.Fix.Recheck Extends OcuTalon.Test.Watch.Case
 {
 
@@ -53,6 +56,11 @@ Method TestChangedTargetsAreSkipped()
 	Set incident = ..Fixture(a, targets)
 	Set parameters = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}
 	Set namespaces = $ListBuild(..#ORDERS)
+	Set sessions = ""
+	For i = 0:1:failed.%Size() - 1 {
+		Set sessions = sessions _ $Select(sessions = "": "", 1: ",") _ failed.%Get(i).sessionId
+	}
+	Do $$$AssertTrue(..WaitSettled(..#ORDERS, sessions), "the copies resent by hand have settled")
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
 
 	Set sc = $ClassMethod(..#KIND, "Recheck", incident, parameters, targets, .passed, .skipped)
@@ -132,6 +140,38 @@ Method TestChangedTargetsAreSkipped()
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after)
 	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUORDERS changed during the re-check: "_lines.%ToJSON())
+}
+
+Method TestUnreadableNamespaceIsAnError()
+{
+	If '..Ready() Quit
+	Set a = ..Session("recheckread")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
+	If '..Fail(1, trace) Quit
+	Set failed = ..WaitFailed(1)
+	If failed.%Size() '= 1 Quit
+	Set id = failed.%Get(0).id
+	Set incident = ..Fixture(a, id)
+	Set parameters = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}
+	Set namespaces = $ListBuild(..#ORDERS)
+
+	Set sc = $ClassMethod(..#KIND, "Recheck", incident, parameters, id, .passed, .skipped)
+	Do $$$AssertStatusOK(sc, "control: the re-check reads the production while the service role holds Read on the Orders data")
+	Do $$$AssertEquals(passed_"|"_skipped.%Size(), id_"|0", "and the failed order passes")
+
+	Do ..RevokeRole(..#ORDERSDATA)
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
+	Set sc = $ClassMethod(..#KIND, "Recheck", incident, parameters, id, .passedNone, .skippedNone)
+	Do $$$AssertStatusNotOK(sc, "with no Read on "_..#ORDERSDATA_" the re-check is an error")
+	Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "the service user cannot read the namespace") > 0, "which says that the service user cannot read the namespace: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(passedNone_"|"_skippedNone.%Size(), "|0", "no target passes and none is skipped as gone")
+
+	Set sc = $ClassMethod(..#KIND, "Execute", incident, parameters, id, .result)
+	Do $$$AssertStatusNotOK(sc, "Execute is an error too")
+	Do $$$AssertEquals(result.resent_"|"_result.skipped.%Size(), "0|0", "and resends and skips nothing")
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
+	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after)
+	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUORDERS changed: "_lines.%ToJSON())
 }
 
 /// --- helpers ---

@@ -40,7 +40,7 @@ Class OcuTalon.Fix.Executor Extends Ens.BusinessOperation
 /// The item that receives the FixResult (AD-16).
 Parameter MANAGER = "IncidentManager";
 
-/// The reasons of a run that cannot start without resources (the kind's NOTALLOWED is the third): the row cannot be used, and the failed messages cannot be read.
+/// The reasons of a run that cannot start, besides the kind's NOTALLOWED (no resources): the row cannot be used, and the failed messages cannot be read.
 /// They render as "Nothing was resent: {reason}. Nothing was changed." (public text, veto U-141).
 Parameter UNUSABLE = "OcuTalon couldn't read the approved fix";
 
@@ -61,7 +61,7 @@ Parameter LOGRUN = "FixExecutor could not save the run of request ";
 
 Parameter LOGMISSING = "FixExecutor could not check the resources for request ";
 
-/// The status of a request that is approved, a fix, and the state of a run that has started.
+/// The state of a request that is approved, and the kind of a fix request.
 Parameter APPROVED = "approved";
 
 Parameter KINDFIX = "fix";
@@ -224,7 +224,7 @@ Method Unchecked(class As %String, ref As %String) As %String [ Private ]
 	Quit missing
 }
 
-/// The run (steps 4 to 5 of the class description) of a request that StartExecution has moved to executing.
+/// The run (step 5 of the class description) of a request that StartExecution has moved to executing.
 Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Data.Incident, class As %String, parameters As %DynamicObject, total As %Integer) [ Private ]
 {
 	Set run = ""
@@ -427,16 +427,17 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 	}
 }
 
-/// The plain sentence, naming the message, for a copy that was not made (the codes of Resend).
+/// The plain sentence, naming the message, for a copy that was not made (the codes of Resend); the field is named in words, as the re-check names it.
 ClassMethod SkipReason(code As %String, id As %String, field As %String, detail As %String) As %String [ Private ]
 {
 	Set name = "message "_id
+	Set words = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(field)
 	If code = "stopped" Quit name_" was not resent because the production isn't running"
 	If code = "gone" Quit name_" is no longer in the production"
 	If code = "status" Quit name_" is no longer in the error status"
 	If code = "body" Quit name_" has no body that can be read any more"
-	If code = "field" Quit "the field "_field_" is no longer a stored field of "_name
-	If code = "changed" Quit "the field "_field_" of "_name_" changed while the run was starting"
+	If code = "field" Quit "the "_words_" is no longer a stored field of "_name
+	If code = "changed" Quit "the "_words_" of "_name_" changed while the run was starting"
 	If code = "refused" Quit name_" was not resent because the production refused the copy"
 	Quit name_" was not resent because of an internal error"
 }

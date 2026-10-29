@@ -41,7 +41,8 @@ Include Ensemble
 ///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
 ///   - for the tests that carry an approved request out (Story 7.3): RaisedTwo (Raised, then two more failing orders of S and a second request over them; WAITLATER, lifted
 ///     here from Test.Fix.Later), Runs and RunOf (the FixRun rows of an incident as plain objects), WaitRun (a run with copies registered), WaitState (a request in a
-///     state) and WaitIncidentState (an incident in a state), Header (a message header of a namespace with its body's stored properties as plain objects), WaitCompleted (copies that completed), ExecutesOf and FixResultsOf (the
+///     state) and WaitIncidentState (an incident in a state), Header (a message header of a namespace with its body's stored properties as plain objects), WaitCompleted (copies that completed), WaitSettled (sessions with no header still
+///     created, queued or delivered, before a snapshot), ExecutesOf and FixResultsOf (the
 ///     Execute and FixResult headers of the incident's trace session), SetOrderDate (lifted here
 ///     from Test.Fix.DryRun) and SendExecute (an Execute to the real FixExecutor from the SimMailboxIn service, whose session is removed after the test).
 ///     DropIncidentRows also deletes the FixRun rows of a dropped incident.
@@ -1537,9 +1538,9 @@ ClassMethod RunOf(incidentRef As %String, approvalRef As %String) As %DynamicObj
 {
 	Set runs = ..Runs(incidentRef)
 	For i = 0:1:runs.%Size() - 1 {
-		If runs.%Get(i).approvalRef = approvalRef Quit
+		If runs.%Get(i).approvalRef = approvalRef Return runs.%Get(i)
 	}
-	Quit $Select(i < runs.%Size(): runs.%Get(i), 1: "")
+	Quit ""
 }
 
 /// Waits up to seconds (WAITRUN by default), polling every half second, until the request's FixRun holds at least count copies; the run as Runs gives it, or ""
@@ -1628,6 +1629,28 @@ Method WaitCompleted(namespace As %String, ids As %String, seconds As %Integer =
 		Hang 0.5
 	}
 	Quit done
+}
+
+/// Waits up to seconds (WAITCOPY by default), polling every quarter second, until no header of the sessions (comma-separated session ids) in the namespace is
+/// still created, queued or delivered, so that a snapshot taken then holds no header whose status is about to change; 1 when they have settled, 0 when the time
+/// has passed. In the namespace, calling only %SQL there.
+ClassMethod WaitSettled(namespace As %String, sessions As %String, seconds As %Integer = {..#WAITCOPY}) As %Boolean
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set end = $ZHorolog + seconds
+	For {
+		Set busy = 0
+		For i = 1:1:$Length(sessions, ",") {
+			Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND Status IN (?, ?, ?)", $Piece(sessions, ",", i), $$$eMessageStatusCreated, $$$eMessageStatusQueued, $$$eMessageStatusDelivered)
+			If rs.%SQLCODE < 0 Return 0
+			Do rs.%Next()
+			Set busy = busy + rs.%GetData(1)
+		}
+		If (busy = 0) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit busy = 0
 }
 
 /// The Execute headers from IncidentManager to FixExecutor in the trace session whose body carries the request's Ref, once there is one (up to seconds), as header objects.

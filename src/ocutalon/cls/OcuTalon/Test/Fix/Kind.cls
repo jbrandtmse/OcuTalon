@@ -5,7 +5,8 @@
 ///   - TestContract: the base declares NAME, PARAMETERS, RESOURCES, NOTALLOWED (Story 7.3: the plain reason of a run that cannot start without the resources) and
 ///     KINDS, and the methods Classes, Names, ForName, Check, CheckParameters, DryRun, Recheck and
 ///     Execute (the last three with the same first three arguments, and Execute with the run as its last); the base's DryRun, Recheck and Execute are not implemented; the registered kinds are exactly
-///     RepairResend, whose NAME, PARAMETERS, RESOURCES and NOTALLOWED are fixed; a class that is not in KINDS (ZzKind) is unknown;
+///     RepairResend, whose NAME, PARAMETERS, RESOURCES and NOTALLOWED are fixed; every registered kind that declares RESOURCES sets NOTALLOWED; a class that is not
+///     in KINDS (ZzKind) is unknown;
 ///   - TestSchemaCheck: the base's CheckParameters (through ZzKind) accepts exactly the PARAMETERS keys, each a string that is not blank;
 ///   - TestCheckParameters: RepairResend's matrix: the field must be a member of the fields (exactly), both formats registered, one family, two different formats;
 ///   - TestFieldWords: the words of a property name;
@@ -80,6 +81,11 @@ Method TestContract()
 	}
 	Do $$$AssertEquals($Parameter(..#REPAIR, "NAME")_"|"_$Parameter(..#REPAIR, "PARAMETERS")_"|"_$Parameter(..#REPAIR, "RESOURCES"), "repair_resend|field,sourceFormat,targetFormat|%Ens_MessageResend:U", "RepairResend's name, parameters and resources")
 	Do $$$AssertEquals($Parameter(..#REPAIR, "NOTALLOWED"), "OcuTalon isn't allowed to resend messages in that production", "and the plain reason of a run that cannot start without its resources")
+	Set classes = ##class(OcuTalon.Fix.Kind).Classes()
+	Set position = 0
+	While $ListNext(classes, position, class) {
+		If $Parameter(class, "RESOURCES") '= "" Do $$$AssertTrue($Parameter(class, "NOTALLOWED") '= "", class_" declares RESOURCES, so it sets NOTALLOWED, the plain reason of a run that cannot start without them")
+	}
 	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(..#ZZ) && ($Parameter(..#ZZ, "NAME") = "zz_kind"), "the fixture kind exists")
 	Do $$$AssertNotTrue($ListFind(##class(OcuTalon.Fix.Kind).Classes(), ..#ZZ), "and is not a registered kind")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("zz_kind", {"alpha": "a", "beta": "b"}, []), "Check refuses a kind that is not registered")

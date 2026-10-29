@@ -22,7 +22,8 @@
 ///   - TestFixResults: a final (or interrupted) run resolves the incident, or returns it to awaiting approval while a request is pending, or starts the earliest
 ///     waiting request; the run's own request never waits for itself, even while its row still reads approved; a progress report changes nothing but the event;
 ///   - TestResultNotices (Story 7.3; AC 5): each accepted final or interrupted FixResult sends each recipient of the incident one Notification of kind result, with the
-///     key that Notice.ResultKey picks (couldNotStart, skipped, allThrough, interrupted), the slots that the key declares, the request's Ref and the incident's and no
+///     key that Notice.ResultKey picks for the row's state and the counts (couldNotStart, skipped, allThrough, interrupted, and stillResending for a row that still
+///     reads executing), the slots that the key declares, the request's Ref and the incident's and no
 ///     decision; a progress report, a result that the table refuses and a result whose slots cannot be built send none (one Type 3 warning for the last);
 ///   - TestLaterRequestWhileFixing (Story 7.6; AC 4): a later request R2 raised while the incident is fixing with R1 (the probe's LaterDried) leaves it fixing and
 ///     sends the owner one approval Notification; R2 approved sends no Execute; R1's final result sends exactly one Execute, for R2, in the incident's trace
@@ -33,7 +34,7 @@
 ///   - TestEveryChangePublishes: an accepted move publishes exactly one incident event with the row's state on each recipient's stream, a refused one none;
 ///   - TestRepeatDismiss: the same Dismiss twice closes once and then is not_allowed with state closed;
 ///   - TestExecuteSendFails: a failed send of the Execute leaves the row as saved, the event published, and logs one warning;
-///   - TestPurge: skipped when the namespace already holds a closed incident older than 59 days (Purge would delete a row that the test did not make); else Purge(90) deletes the incident closed 91 days ago with its groups and keeps the one closed 89 days ago, an open one, and a closed one with no
+///   - TestPurge: skipped when the namespace already holds a closed incident older than 59 days (Purge would delete a row that the test did not make); else Purge(90) deletes the incident closed 91 days ago with its groups and its fix runs (FixRun rows) and keeps the one closed 89 days ago with its group and its run, an open one, and a closed one with no
 ///     ClosedAt; at the cutoff, one closed an hour after it stays and one closed an hour before it goes; 0, "x" and other non-numbers are errors that delete nothing;
 ///   - TestOnlyTheIncidentsOwnRequestsCount (QA): a pending or approved request of another incident, a Ref with no row and empty entries in RequestRefs are no
 ///     facts: R1 rejected still reopens the incident, a final run still resolves it, and nothing is executed; a control with its own approved request executes it;
@@ -97,7 +98,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	For i = 1:1:$Length(..Incidents, ",") {
-		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i))
+		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i)), ..DropRuns($Piece(..Incidents, ",", i))
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
@@ -499,6 +500,14 @@ Method TestResultNotices()
 	Do ..AssertSent(host, before, "result.interrupted", "completed=30,count=50,itemNoun="_..#NOUN_",remaining=20", r1, incident, both, "interrupted")
 	Do $$$AssertEquals(..Row(incident).state, "resolved", "an interrupted run resolves the incident too")
 
+	// a final result whose request still reads executing (its FinishExecution failed): the key follows the row's state, still resending
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6969}, 1, production)
+	Set r1 = ..Request("instance", incident, "executing")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 is no longer in the error status"})
+	Do ..AssertSent(host, before, "result.stillResending", "completed=0,count=3,itemNoun="_..#NOUN, r1, incident, both, "the row still executing")
+
 	// a progress report sends none
 	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6666}, 1, production)
 	Set r1 = ..Request("instance", incident, "executing")
@@ -768,6 +777,8 @@ Method TestPurge()
 	Set closing = ..Incident(a, "resolved")
 	Do ..Group(closing, 1)
 	Do ..Group(closing, 2)
+	Do ..Run(closing)
+	Do ..Run(closing)
 	Do ..Command(host, "closeForReplay", closing, "")
 	Set closedAt = ..Row(closing).closedAt
 	Do $$$AssertTrue(closedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "a close sets ClosedAt: "_closedAt)
@@ -776,6 +787,7 @@ Method TestPurge()
 
 	Set young89 = ..Incident(a, "closed", {"ClosedAt": (young)})
 	Do ..Group(young89, 1)
+	Do ..Run(young89)
 	Set openOld = ..Incident(a, "open", {"FirstAt": (old), "LastAt": (old)})
 	Do ..Group(openOld, 1)
 	Set noClosedAt = ..Incident(a, "closed", {"FirstAt": (old), "LastAt": (old)})
@@ -784,8 +796,8 @@ Method TestPurge()
 	Do ..Group(fixing, 1)
 
 	Do $$$AssertStatusOK(##class(OcuTalon.Watch.IncidentManager).Purge(90), "Purge(90) is OK")
-	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing), "0|0", "the incident closed 91 days ago and its two groups are gone")
-	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89), "1|1", "the one closed 89 days ago stays, with its group")
+	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing)_"|"_..Runs(closing), "0|0|0", "the incident closed 91 days ago, its two groups and its two fix runs are gone")
+	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89)_"|"_..Runs(young89), "1|1|1", "the one closed 89 days ago stays, with its group and its fix run")
 	Do $$$AssertEquals(..Exists(openOld)_"|"_..Groups(openOld), "1|1", "an old open incident stays")
 	Do $$$AssertEquals(..Exists(noClosedAt)_"|"_..Groups(noClosedAt), "1|1", "so does a closed one with no ClosedAt")
 	Do $$$AssertEquals(..Exists(fixing)_"|"_..Groups(fixing), "1|1", "and a fixing one")
@@ -1143,6 +1155,30 @@ ClassMethod DropGroups(incident As %String)
 ClassMethod Groups(incident As %String) As %Integer
 {
 	Quit ##class(OcuTalon.Data.FailureGroup).OfIncident(incident).Count()
+}
+
+/// Saves a fixture FixRun row of the incident (a run of a request with a new Ref, with no copies); the incident's runs are deleted after the test.
+Method Run(incident As %String)
+{
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set run.IncidentRef = incident
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(run.%Save(), "a fix run of the incident is saved")
+}
+
+/// The number of FixRun rows of the incident.
+ClassMethod Runs(incident As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// Deletes the FixRun rows of the incident.
+ClassMethod DropRuns(incident As %String)
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident)
 }
 
 /// 1 when the incident row exists.

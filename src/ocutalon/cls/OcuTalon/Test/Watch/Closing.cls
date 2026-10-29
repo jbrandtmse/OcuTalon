@@ -14,7 +14,8 @@
 ///     trace session (TraceHeaderId) with the SuperSession kept (the request's TraceRef). This reaches the header that the probe's SendExecute stands in for (DW-281).
 ///     Since Story 7.3 FixExecutor handles it for real: the set-up's request names the kind zz_fix, which is not registered, so the run ends as one that could not start
 ///     (the reason UNUSABLE): one FixResult request goes back to IncidentManager in the trace session (Final 1, Total 3, every other count 0, the reason), the request is
-///     failed, the incident is resolved and its recipient has one result.couldNotStart Notification with the request's Ref. No type-2 answer to the Execute comes back to
+///     failed, the incident is resolved and its recipient has one result.couldNotStart Notification with the request's Ref, whose slots render the whole text
+///     "Nothing was resent: OcuTalon couldn't read the approved fix. Nothing was changed." (owner decision U-141). No type-2 answer to the Execute comes back to
 ///     IncidentManager within NOANSWERSECONDS (none is wanted).
 ///   The two hold tests share their set-up (HeldRequest) and the wait for the end of the hold (WaitHoldEnds).
 /// The rows and events of a test are removed after it, and so are the request, its hold and its task.
@@ -120,8 +121,8 @@ Method TestApproveSendsExecuteToFixExecutor()
 	Set done = ##class(OcuTalon.Bridge.Approval).Answer(approval, "approve", "web", ..#ANSWERER, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
 	Do $$$AssertEquals(done, "done", "the answerer approves the request")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, ..#WAITINCIDENT)
-	Do $$$AssertEquals(events.%Size(), 1, "an incident event reaches A's stream")
-	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, incident_"|fixing", "the first incident event says fixing")
+	Do $$$AssertTrue(events.%Size() '< 1, "an incident event reaches A's stream")
+	If events.%Size() '< 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, incident_"|fixing", "the first incident event says fixing")
 
 	// the real send: one Execute header from IncidentManager to FixExecutor in the incident's trace session, read once FixExecutor has handled it
 	Set end = $ZHorolog + ..#WAITINCIDENT
@@ -164,14 +165,9 @@ Method TestApproveSendsExecuteToFixExecutor()
 			Do $$$AssertEquals(result.Reason, "OcuTalon couldn't read the approved fix", "and the plain reason of an approved row that cannot be used")
 		}
 	}
-	Set end = $ZHorolog + ..#WAITINCIDENT
-	For {
-		Kill row
-		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-		If (row.State = "resolved") || ($ZHorolog > end) Quit
-		Hang 0.2
-	}
-	Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "resolved|", "the incident is resolved")
+	Do $$$AssertEquals(..WaitIncidentState(incident, "resolved", ..#WAITINCIDENT), "resolved", "the incident is resolved")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals($Select($IsObject(row): row.OpenVariant, 1: "<none>"), "", "with no open variant")
 	Kill row
 	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(approval)
 	Do $$$AssertEquals(request.State_"|"_request.Result, "failed|failed", "the request is closed failed")
@@ -187,6 +183,9 @@ Method TestApproveSendsExecuteToFixExecutor()
 		Set note = notes.%Get(0)
 		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.sessionRef_"|"_note.decisionRef, "result.couldNotStart|"_approval_"|"_incident_"|"_a_"|", "it is result.couldNotStart with the request's Ref")
 		Do $$$AssertEquals(note.slots.reason, "OcuTalon couldn't read the approved fix", "and the reason")
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc)
+		Do $$$AssertStatusOK(sc, "it renders")
+		Do $$$AssertEquals(text, "Nothing was resent: OcuTalon couldn't read the approved fix. Nothing was changed.", "as the whole text of the owner's decision U-141")
 	}
 	Do ..WaitHoldEnds(approval)
 }

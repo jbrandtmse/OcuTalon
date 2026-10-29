@@ -3126,6 +3126,8 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 - DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so (ledger; routed by harvest 2026-10-27)
 - DW-292: `/state`'s incident entries carry what the incident's live events carry: `Live.Payload.Incident.FromRow` fills its groups, requests, evidence and traceTargets, so a reloaded or resynced incident card shows its request cards, results, Show details evidence and diagnosis link (AD-12) (ledger; routed by merge_gate 2026-10-28)
 - DW-368: A stopped target production renders as 'had changed since the dry run' (AD-16 counts its refused copies as Skipped and the Result texts convention picks result.skipped); give it an honest result: its plain reason, or a key of its own (new wording is a veto-window item) (ledger; routed by spec_gate 2026-10-28)
+- DW-380: An approved request whose ExpiresAt passes before FixExecutor takes its Execute, or whose StartExecution fails, is refused with an info line only, so it stays approved and its incident stays fixing with no result; give it an ending (its wording is a veto-window item) (ledger; routed by cr 2026-10-29)
+- DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait in its job would hold other incidents' notices past AD-15's 35 s; run the wait where it cannot block a dry run (ledger; routed by cr 2026-10-29)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 

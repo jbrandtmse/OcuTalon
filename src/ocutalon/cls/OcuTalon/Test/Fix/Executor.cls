@@ -17,6 +17,18 @@
 ///     are not called;
 ///   - TestUnreadable (V3): a re-check that gives an error status or throws, and a resend that gives an error before any copy, end like a run that cannot start with the reason
 ///     NOREAD, after the FixRun is saved, with one Type 3 warning each;
+///   - TestRowIsTheTruth (AC 3; U-126): the kind's re-check and resend get the kind, the parameters and the targets of the request's row and the incident of its
+///     IncidentRef, whatever the incident's failure groups hold (it has none): the row's targets, which no group names, are re-checked as they stand, and only the ones
+///     the re-check passes are resent;
+///   - TestFirstFixRunSaveFailsIsSavedAgain (AC 5; V3): when the first save of a run's FixRun fails, CouldNotStart is told that no FixRun was saved, saves it again
+///     and the run ends like any run that could not read: one FixRun for the request and the incident (not a lost row), the request failed, the NOREAD result, one
+///     Type 3 warning for the failed save of the run and none for a save of CouldNotStart;
+///   - TestFixRunNeverSavedStillEnds (AC 5; V3): when the second save fails as well, the run still ends: no FixRun, the request failed, the NOREAD result, and one
+///     Type 3 warning for the run that could not be saved;
+///   - TestCouldNotStartReasonsRender (V3, U-141): the reason of each route that cannot start (no resources, an unusable row, a re-check that cannot read), as the
+///     executor sends it, gives the key result.couldNotStart and renders whole, through Notice.ResultKey, ResultSlots and Catalog.Render, as "Nothing was resent:
+///     OcuTalon isn't allowed to resend messages in that production. Nothing was changed.", "Nothing was resent: OcuTalon couldn't read the approved fix. Nothing was
+///     changed." and "Nothing was resent: OcuTalon couldn't read the failed messages in that production. Nothing was changed.";
 ///   - TestNothingResent (AC 3; V2): a run whose targets are all skipped (by the re-check, by the resend, or by both) closes its request done and sends one final FixResult:
 ///     Total and Skipped the number of targets, Resent, Completed and FailedAgain 0 and the reason of the lowest skipped target;
 ///   - TestResentRunSendsNoResult (V2): a run that registered a copy ends after the registration with its request still executing, its copies on the FixRun and no FixResult;
@@ -227,6 +239,133 @@ Method TestUnreadable()
 	Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOREAD, "resend error")
 	Do $$$AssertEquals(..Warnings(mark, ref), 1, "resend error: one Type 3 warning names the request")
 	Do $$$AssertEquals(..Calls(host), "1/1", "resend error: the re-check and the resend ran once")
+}
+
+Method TestRowIsTheTruth()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("truth")
+	Set incident = ..Incident(owner)
+	Set parameters = "{""field"":""ShipDate"",""sourceFormat"":""DD/MM/YYYY"",""targetFormat"":""YYYY-MM-DD""}"
+	Set host.CheckIs = "{""passed"":""12"",""skipped"":[{""id"":7,""reason"":""message 7 has been resent already""},{""id"":500,""reason"":""message 500 is no longer in the production""}]}"
+	Set host.CarryIs = "{""copies"":[""9001""],""skipped"":[]}"
+	Set ref = ..Request(owner, incident, "approved", {"FixParameters": (parameters), "FixTargets": "7,12,500"})
+	Do $$$AssertStatusOK(..Send(host, ref), "a request whose targets no failure group of its incident names is handled")
+	Do $$$AssertEquals(..Calls(host), "1/1", "the re-check and the resend each ran once")
+	If ..Calls(host) '= "1/1" Quit
+	Set checked = host.Checked.%Get(0)
+	Do $$$AssertEquals(checked.class_"|"_checked.incident, "OcuTalon.Fix.Kind.RepairResend|"_incident, "the re-check is the row's kind, over the incident that the row names")
+	Do $$$AssertEquals(checked.parameters, parameters, "with the row's own parameters")
+	Do $$$AssertEquals(checked.targets, "7,12,500", "and exactly the row's targets, whatever the incident's groups hold")
+	Set carried = host.Carried.%Get(0)
+	Do $$$AssertEquals(carried.class_"|"_carried.incident_"|"_carried.parameters, checked.class_"|"_incident_"|"_parameters, "the resend is the same kind over the same incident with the same parameters")
+	Do $$$AssertEquals(carried.targets, "12", "and only the target that the re-check passed")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run), "the request has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.copies.%ToJSON(), "[""9001""]", "which holds the one copy that was made")
+	Do $$$AssertEquals(..Row(ref), "executing||", "and the request stays executing: the copy is not counted yet")
+}
+
+Method TestFirstFixRunSaveFailsIsSavedAgain()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set host.SaveFails = 1
+	Set owner = ..Owner("save1")
+	Set incident = ..Incident(owner)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved")
+	Do $$$AssertStatusOK(..Send(host, ref), "an approved request whose first FixRun save fails is handled")
+	Do $$$AssertEquals(host.SavedWas, 0, "CouldNotStart was told that no FixRun had been saved")
+	Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOREAD, "first save fails")
+	Do $$$AssertEquals(..Runs(incident).%Size(), 1, "the request's FixRun is not lost: the incident has exactly one")
+	Do $$$AssertEquals(..Warnings(mark, ref), 1, "one Type 3 warning names the request: the failed save of the run")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "CouldNotStart", $Parameter(..#PROBE, "LOGRUN")_ref), 0, "and the save that followed worked: no warning for it")
+	Do $$$AssertEquals(..Calls(host), 0, "the re-check and the resend never ran")
+}
+
+Method TestFixRunNeverSavedStillEnds()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set host.SaveFails = 2
+	Set owner = ..Owner("save2")
+	Set incident = ..Incident(owner)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved")
+	Do $$$AssertStatusOK(..Send(host, ref), "an approved request whose FixRun cannot be saved at all is handled")
+	Do $$$AssertEquals(host.SavedWas, 0, "CouldNotStart was told that no FixRun had been saved")
+	Do $$$AssertEquals(..Row(ref), "failed|failed|finished", "the request is closed failed all the same")
+	Do $$$AssertEquals(..Runs(incident).%Size(), 0, "no FixRun is stored for the incident")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE ApprovalRef = ?", ref)
+	Do rs.%Next()
+	Do $$$AssertEquals(+rs.%GetData(1), 0, "and none for the request")
+	Set last = $Select($IsObject(host.Results): host.Results.%Get(host.Results.%Size() - 1), 1: "")
+	Do $$$AssertTrue($IsObject(last), "a FixResult was sent")
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.approvalRef_"|"_last.incidentRef_"|"_last.final_"|"_last.interrupted, ref_"|"_incident_"|1|0", "it names the request and the incident and is final")
+		Do $$$AssertEquals(last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, "3|0|0|0|0", "with Total 3 and every other count 0")
+		Do $$$AssertEquals(last.reason, ..#NOREAD, "and the reason")
+	}
+	Do $$$AssertEquals(..Warnings(mark, ref), 1, "one Type 3 warning names the request: the failed save of the run")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "CouldNotStart", $Parameter(..#PROBE, "LOGRUN")_ref)
+	Do $$$AssertEquals(warned, 1, "and one more says that the run could not be saved: "_text)
+	Do $$$AssertEquals(..Calls(host), 0, "the re-check and the resend never ran")
+}
+
+Method TestCouldNotStartReasonsRender()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("render")
+	Set incident = ..Incident(owner)
+	Set noun = {"one": "order", "other": "orders"}
+
+	// no resources, an unusable row, a re-check that cannot read: one approved request each
+	Set host.MissingIs = "%Ens_MessageResend:U"
+	Set first = ..Request(owner, incident, "approved")
+	Do $$$AssertStatusOK(..Send(host, first), "a request that lacks its resources is handled")
+	Set host.MissingIs = "none"
+	Set second = ..Request(owner, incident, "approved", {"FixKind": "zz_fix"})
+	Do $$$AssertStatusOK(..Send(host, second), "a request of an unregistered kind is handled")
+	Set host.CheckIs = "error"
+	Set third = ..Request(owner, incident, "approved")
+	Do $$$AssertStatusOK(..Send(host, third), "a request whose failed messages cannot be read is handled")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 3, "each sent one FixResult")
+	If '$IsObject(host.Results) || (host.Results.%Size() '= 3) Quit
+
+	Set expected(0) = "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."
+	Set expected(1) = "Nothing was resent: OcuTalon couldn't read the approved fix. Nothing was changed."
+	Set expected(2) = "Nothing was resent: OcuTalon couldn't read the failed messages in that production. Nothing was changed."
+	Set label(0) = "no resources"
+	Set label(1) = "an unusable row"
+	Set label(2) = "a re-check that cannot read"
+	For i = 0:1:2 {
+		Set sent = host.Results.%Get(i)
+		Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set result.ApprovalRef = sent.approvalRef
+		Set result.IncidentRef = sent.incidentRef
+		Set result.Final = sent.final
+		Set result.Interrupted = sent.interrupted
+		Set result.Total = sent.total
+		Set result.Resent = sent.resent
+		Set result.Completed = sent.completed
+		Set result.FailedAgain = sent.failedAgain
+		Set result.Skipped = sent.skipped
+		Set result.Reason = sent.reason
+		Set key = ##class(OcuTalon.Watch.Notice).ResultKey("failed", result)
+		Do $$$AssertEquals(key, "result.couldNotStart", label(i)_": the key of the result")
+		Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, noun, .sc)
+		Do $$$AssertStatusOK(sc, label(i)_": the slots are built")
+		If '$IsObject(slots) Continue
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots.%ToJSON(), "phone", .sc)
+		Do $$$AssertStatusOK(sc, label(i)_": it renders")
+		Do $$$AssertEquals(text, expected(i), label(i)_": the whole text")
+	}
 }
 
 Method TestNothingResent()

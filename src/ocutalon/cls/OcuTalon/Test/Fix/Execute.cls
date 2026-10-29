@@ -21,7 +21,15 @@ Include Ensemble
 ///     no copies; R1 is failed (Result failed); one FixResult goes from FixExecutor to IncidentManager in the trace session (R1, the incident, Final 1, Total 3, every
 ///     other count 0, the reason "OcuTalon isn't allowed to resend messages in that production"); the incident is resolved; S has one result.couldNotStart
 ///     Notification with R1's Ref that renders "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed." and WebChatOut
-///     records its result Delivery row; and OCUORDERS did not change.
+///     records its result Delivery row; the FixResult's header carries no description (it is sent with no third argument); and OCUORDERS did not change;
+///   - TestUnreadableProduction (AC 5; V3, U-141; the matrix row "Unreadable"): the service role no longer holds Read on the Orders data database when R1 is approved,
+///     so the re-check of the real Reader gives the outcome unreadable. One FixRun with no copies; R1 is failed; one FixResult (R1, the incident, Final 1, Total 3,
+///     every other count 0, the reason "OcuTalon couldn't read the failed messages in that production"); the incident is resolved; S has one result.couldNotStart
+///     Notification with R1's Ref whose slots carry that reason and which renders "Nothing was resent: OcuTalon couldn't read the failed messages in that production.
+///     Nothing was changed."; WebChatOut records its result Delivery row; and OCUORDERS did not change;
+///   - TestRunsTheRowsTargetsOnly (AC 3, AC 7; U-126): session S's incident holds four failed orders and R1's row names two of them (the second and the fourth).
+///     FixExecutor re-checks and resends exactly those two: R1's FixRun holds two copies, of the second and the fourth order in that order, and the other two orders
+///     get no copy, whatever the incident's failure groups hold, and nothing in OCUORDERS changes but the two orders' sessions.
 Class OcuTalon.Test.Fix.Execute Extends OcuTalon.Test.Watch.Case
 {
 
@@ -46,7 +54,8 @@ Method TestApprovedRepairsAreResent()
 	Set namespaces = $ListBuild(..#ORDERS)
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
-	Do $$$AssertTrue(mark > 0, "the mock's request log is read and holds the diagnosis, so a log with no request since means something")
+	Do $$$AssertTrue(mark > 0, "the mock's request log is read")
+	Do $$$AssertTrue(..Posts(0) > 0, "and holds the diagnosis as a model request, so a log with no model request since means something")
 	Set done = ##class(OcuTalon.Bridge.Approval).Answer(request.ref, "approve", "web", ..#ANSWERER, a, .winner)
 	Do $$$AssertEquals(done, "done", "the approval is accepted")
 
@@ -96,6 +105,7 @@ Method TestApprovedRepairsAreResent()
 		}
 		Do $$$AssertEquals(original.status, $$$eMessageStatusError, "the original is still in the error status")
 	}
+	Do $$$AssertTrue(..WaitSettled(..#ORDERS, sessions), "the copies' forwards in the originals' sessions have settled")
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .afterRun)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, afterRun, sessions, ..#ORDERS)
 	Do $$$AssertEquals(lines.%Size(), 0, "OCUORDERS changed in no header but the new messages of the originals' sessions: "_lines.%ToJSON())
@@ -106,13 +116,7 @@ Method TestApprovedRepairsAreResent()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "fixing|", "the incident is still fixing")
 	Kill row
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's request log is read")
-	Set posts = 0
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") Set posts = posts + 1
-	}
-	Do $$$AssertEquals(posts, 0, "the mock logged no request during the run")
+	Do $$$AssertEquals(..Posts(mark), 0, "the mock logged no request during the run")
 
 	// a second Execute for R1 is refused
 	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
@@ -155,6 +159,11 @@ Method TestCouldNotStart()
 		Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, request.ref_"|"_ref_"|1|0", "it names R1 and the incident and is final")
 		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, "3|0|0|0|0", "with Total 3 and every other count 0")
 		Do $$$AssertEquals(result.Reason, "OcuTalon isn't allowed to resend messages in that production", "and the plain reason")
+		Set carried = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(trace), 1, ..#EXECUTOR, ..#MANAGER)
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Description FROM Ens.MessageHeader WHERE ID = ?", $Select(carried.%Size() = 1: carried.%Get(0).id, 1: 0))
+		Set found = rs.%Next()
+		Do $$$AssertTrue(found && (carried.%Size() = 1), "the header that carried it is found")
+		Do $$$AssertEquals(rs.%Get("Description"), "", "and it has no description: the send passes none")
 	}
 	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
 	Set end = $ZHorolog + ..#WAITHOLD
@@ -176,6 +185,115 @@ Method TestCouldNotStart()
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .afterRun)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, afterRun)
 	Do $$$AssertEquals(lines.%Size(), 0, "no copy was made and OCUORDERS did not change: "_lines.%ToJSON())
+}
+
+Method TestUnreadableProduction()
+{
+	If '..Raised("noread", .a, .ref, .request) Quit
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Set trace = row.TraceHeaderId
+	Kill row
+	Set namespaces = $ListBuild(..#ORDERS)
+	Do ..RevokeRole(..#ORDERSDATA)
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
+	Set done = ##class(OcuTalon.Bridge.Approval).Answer(request.ref, "approve", "web", ..#ANSWERER, a, .winner)
+	Do $$$AssertEquals(done, "done", "the approval is accepted")
+
+	Set state = ..WaitState(ref, request.ref, "failed")
+	Do $$$AssertEquals(state, "failed", "R1 is closed failed")
+	Set closed = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ref)
+	Do $$$AssertEquals(closed.State_"|"_closed.Result_"|"_(closed.FinishedAt '= ""), "failed|failed|1", "with the Result failed and a FinishedAt")
+	Kill closed
+	Set runs = ..Runs(ref)
+	Do $$$AssertEquals(runs.%Size(), 1, "one FixRun is written")
+	If runs.%Size() = 1 Do $$$AssertEquals(runs.%Get(0).approvalRef_"|"_runs.%Get(0).copies.%Size(), request.ref_"|0", "for R1, with no copies")
+	Set results = ..FixResultsOf(trace, 1)
+	Do $$$AssertEquals(results.%Size(), 1, "one FixResult goes from FixExecutor to IncidentManager in the trace session")
+	If results.%Size() = 1 {
+		Set result = results.%Get(0)
+		Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, request.ref_"|"_ref_"|1|0", "it names R1 and the incident and is final")
+		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, "3|0|0|0|0", "with Total 3 and every other count 0")
+		Do $$$AssertEquals(result.Reason, "OcuTalon couldn't read the failed messages in that production", "and the plain reason")
+	}
+	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
+	Set end = $ZHorolog + ..#WAITHOLD
+	For {
+		Set notes = ..NoticeBodies(ref, "result")
+		If (notes.%Size() '< 1) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertEquals(notes.%Size(), 1, "S has one result Notification")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.sessionRef_"|"_note.decisionRef, "result|result.couldNotStart|"_request.ref_"|"_ref_"|"_a_"|", "of the key couldNotStart, with R1's Ref, the incident's and no decision")
+		Do $$$AssertEquals(note.slots.reason, "OcuTalon couldn't read the failed messages in that production", "whose slot carries the reason")
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc)
+		Do $$$AssertStatusOK(sc, "it renders")
+		Do $$$AssertEquals(text, "Nothing was resent: OcuTalon couldn't read the failed messages in that production. Nothing was changed.", "as the whole text of the owner's decision U-141")
+		Do $$$AssertEquals(..NoticeSessionOf(note.id), trace, "in the incident's trace session")
+		Do ..AssertDelivered(a, "result", request.ref)
+	}
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .afterRun)
+	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, afterRun)
+	Do $$$AssertEquals(lines.%Size(), 0, "no copy was made and OCUORDERS did not change: "_lines.%ToJSON())
+}
+
+Method TestRunsTheRowsTargetsOnly()
+{
+	If '..Raised("rowtruth", .a, .ref, .request, 4) Quit
+	Set originals = ..Failed(..OrdersFloor)
+	Set ids = ..HeaderIds(originals)
+	Do $$$AssertEquals(request.fixTargets, ids, "R1's targets are the four failed orders")
+	If originals.%Size() '= 4 Quit
+	Set chosen = $Piece(ids, ",", 2)_","_$Piece(ids, ",", 4)
+	Set left = $Piece(ids, ",", 1)_","_$Piece(ids, ",", 3)
+	Set sessions = originals.%Get(1).sessionId_","_originals.%Get(3).sessionId
+
+	// the row names two of the four; the incident's groups still hold all four
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ref)
+	Set row.FixTargets = chosen
+	Do $$$AssertStatusOK(row.%Save(), "R1's row names the second and the fourth order")
+	Kill row
+	Set namespaces = $ListBuild(..#ORDERS)
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(request.ref, "approve", "web", ..#ANSWERER, a, .winner), "done", "R1 is approved")
+
+	Set run = ..WaitRun(ref, request.ref, 2)
+	Do $$$AssertTrue($IsObject(run), "R1 has a FixRun")
+	If '$IsObject(run) Quit
+	Set more = ..WaitRun(ref, request.ref, 3, 2)
+	Do $$$AssertEquals(more.copies.%Size(), 2, "which holds two copies and no more")
+	If more.copies.%Size() '= 2 Quit
+	Set seen = ""
+	For i = 0:1:1 {
+		Set copy = ..Header(..#ORDERS, more.copies.%Get(i))
+		Do $$$AssertTrue($IsObject(copy), "copy "_(i + 1)_" exists")
+		If '$IsObject(copy) Continue
+		Set seen = seen _ $Select(seen = "": "", 1: ",") _ +$Piece(copy.description, " ", 2)
+		Do $$$AssertEquals(copy.body.OrderDate, "2026-10-16", "copy "_(i + 1)_" has its OrderDate repaired")
+	}
+	Do $$$AssertEquals(seen, chosen, "the copies are of the row's two orders, in order")
+	For i = 1:1:2 {
+		Set original = ..Header(..#ORDERS, $Piece(left, ",", i))
+		Do $$$AssertEquals(original.status_"|"_original.body.OrderDate, $$$eMessageStatusError_"|10/16/2026", "the order "_$Piece(left, ",", i)_", which the row does not name, is still failed and unrepaired")
+	}
+	Do ..WaitState(ref, request.ref, "executing")
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
+	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after, sessions, ..#ORDERS)
+	Do $$$AssertEquals(lines.%Size(), 0, "OCUORDERS changed in no header but the new messages of the two named orders' sessions: "_lines.%ToJSON())
+}
+
+/// --- helpers ---
+/// The number of model requests (POST /v1/messages) in the mock's request log after its first mark lines; -1 when the log cannot be read.
+ClassMethod Posts(mark As %Integer) As %Integer [ Private ]
+{
+	If $$$ISERR(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Quit -1
+	Set posts = 0
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If (entry.method = "POST") && (entry.path = "/v1/messages") Set posts = posts + 1
+	}
+	Quit posts
 }
 
 }

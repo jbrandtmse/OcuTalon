@@ -153,9 +153,9 @@ Method ResultHeaderOf(trace As %String, approvalRef As %String) As %String [ Pri
 	For i = 0:1:sent.%Size() - 1 {
 		If sent.%Get(i).bodyClass '= "OcuTalon.Fix.Msg.FixResult" Continue
 		Set body = ##class(OcuTalon.Fix.Msg.FixResult).%OpenId(sent.%Get(i).bodyId)
-		If $IsObject(body) && (body.ApprovalRef = approvalRef) Quit
+		If $IsObject(body) && (body.ApprovalRef = approvalRef) Return sent.%Get(i).id
 	}
-	Quit $Select(i < sent.%Size(): sent.%Get(i).id, 1: "")
+	Quit ""
 }
 
 /// The ids that both lists (comma-separated) hold, comma-separated, in the order of the first; "" when they share none.

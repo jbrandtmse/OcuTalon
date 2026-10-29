@@ -93,7 +93,7 @@
 ///     kind approval with the key incident.laterRequest, the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
 ///     at a time (the table's rows, Apply).
-///   - Purge deletes the incidents closed before a cutoff, with their groups (AD-27).
+///   - Purge deletes the incidents closed before a cutoff, with their groups and their fix runs (AD-27).
 ///   - Any other request class is an error that names the class.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
 {
@@ -1222,7 +1222,7 @@ Method Drop(ref As %String, event As %String, state As %String) [ Private ]
 	$$$LOGINFO(..#LOGREFUSED_ref_": "_event_" in the state "_state)
 }
 
-/// Deletes the incidents that were closed before the cutoff, with their groups (AD-27), one incident per transaction. The cutoff is now (UTC) moved back
+/// Deletes the incidents that were closed before the cutoff, with their groups and their fix runs (AD-27), one incident per transaction. The cutoff is now (UTC) moved back
 /// daysToKeep whole days; an incident closed at the cutoff stays, and so does every incident that is not closed, a closed one with no ClosedAt included.
 /// daysToKeep must be a whole number of at least 1; anything else is an error status and nothing is deleted. The result is OK, or the errors of the
 /// incidents that could not be deleted (the others are deleted).
@@ -1250,7 +1250,7 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 	Quit sc
 }
 
-/// Deletes the incident of the ID and its groups in one transaction, when it is still closed with a ClosedAt before the cutoff.
+/// Deletes the incident of the ID, its groups and its fix runs (its FixRun rows) in one transaction, when it is still closed with a ClosedAt before the cutoff.
 ClassMethod PurgeOne(id As %String, cutoff As %String) As %Status [ Private ]
 {
 	Set sc = $$$OK
@@ -1263,6 +1263,8 @@ ClassMethod PurgeOne(id As %String, cutoff As %String) As %Status [ Private ]
 			For i = 1:1:groups.Count() {
 				$$$ThrowOnError(##class(OcuTalon.Data.FailureGroup).%DeleteId(groups.GetAt(i).%Id()))
 			}
+			Set runs = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident.Ref)
+			If runs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The fix runs of the incident "_incident.Ref_" could not be deleted: "_runs.%Message))
 			$$$ThrowOnError(##class(OcuTalon.Data.Incident).%DeleteId(id))
 		}
 		TCOMMIT
