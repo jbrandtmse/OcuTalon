@@ -2,9 +2,10 @@
 title: 'Story 9.4: Ten incidents are recorded from real failures (part 1: the recorder, the demo incident and the replay test)'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2b7203dbc9a0c45abb9ba1e9644e4756d52e16b8'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
 warnings: ['multiple-goals', 'oversized']
@@ -284,6 +285,49 @@ Line anchors are from HEAD `0259a1f`. Story 9.7 is implemented first and edits `
 
 ## Review Triage Log
 
+### 2026-10-29 -- Review pass
+- verdicts: 39 findings -- high 0, medium 2, low 25, false 12, maybe-false 0
+- findings (layers in order: blind-hunter BH, edge-case-hunter EC, verification-gap VG, intent-alignment IA):
+  - `[low]` `[reject]` BH1 `fixKind` is not checked against the fix kinds in `CaseRecord` -- spec-bound: Design Notes 6 keeps `FIXKINDS` out of ObjectScript (Epic 7 deletes it) and says the repository check names the fix kind; `cases` flags `bad-fixkind`. The fix would name `FIXKINDS`.
+  - `[low]` `[reject]` BH2 `Write` checks less than CI (case.json not run through `Redact.Text`; no host or credential-name check) -- the spec lists exactly the checks of `Write`; the text of case.json is the author's own, and `TestIncidentFiles` and the `cases` rule catch the rest; a guard plus test is more than a direct correction for an unlikely case.
+  - `[low]` `[reject]` BH3 file replacement is not atomic, and a name can overwrite another kind's folder -- spec: "An existing file is replaced"; an author tool run in a throwaway; the fix adds temp files, renames and a kind check.
+  - `[false]` `[reject]` BH4 a missing `heldOut` becomes false -- the spec says `heldOut (boolean, default false)`.
+  - `[false]` `[reject]` BH5 tests that need no production sit behind `Guard()` -- the spec says `Test.Eval.Record` "fails every test with the reason" where eval/ is not mounted or Orders does not run.
+  - `[false]` `[reject]` BH6 `OnBeforeAllTests` wipes the shared `TMP` -- Task 3 says it removes what a killed run left under `TMP`, "the folder is this class's own"; a throwaway runs one class at a time.
+  - `[low]` `[reject]` BH7 `TestIncidentFiles` reads the snapshot unguarded -- a malformed committed snapshot makes the method error (loudly, red) after its own assertion failed; `cases` flags the file first; the fix adds guards.
+  - `[low]` `[reject]` BH8 the host rule only sees hosts after `@` or `://`, and flags `partner.example.com` -- Task 4 defines the rule as "every host that `Hosts` finds" (Decided in-stage 12, the rule of 9.3's item cases); the one committed incident has no host-shaped value; the sibling story (9.9) decides how bare hosts of its feed's settings are treated. Grouped with EC11 and VG2 (shared root cause).
+  - `[false]` `[reject]` BH9 the `Fix/Kind/` fallback is speculative -- Task 5 and Decided in-stage 7 require it, with a self-check on temporary files.
+  - `[low]` `[reject]` BH10 `LOCALPATH` is a hand copy with no sync check, and `/home/irisownerX` passes -- the shell scan has the same prefix exemption (`grep -v '/home/irisowner'`); the spec says "by the patterns of `test-boundaries.sh` `local_path`".
+  - `[low]` `[reject]` EC1 same as BH1.
+  - `[low]` `[reject]` EC2 `Write` accepts a snapshot with no `source`, empty strings or failures without `targetConfigName`/`error` -- the reader always sets them; the spec lists `Write`'s checks (format and non-empty failures); the `cases` rule flags the file.
+  - `[low]` `[reject]` EC3 `Write` accepts credential-named settings -- `Reader.Evidence` drops them; `Redact.Text` replaces the value of a sensitive key; the name is flagged by `TestIncidentFiles` and the `cases` rule.
+  - `[low]` `[reject]` EC4 keys that give only some failures are accepted -- the spec requires at least one failure; `Reader.Evidence` is the product's reader.
+  - `[low]` `[reject]` EC5 same as BH3 (non-atomic replace).
+  - `[low]` `[reject]` EC6 same as BH3 (name collision).
+  - `[low]` `[reject]` EC7 same as BH10.
+  - `[low]` `[reject]` EC8 a Windows path with doubled backslashes in the source text escapes `LOCALPATH` -- the spec accepts a backslash "once or doubled"; a doubled backslash in raw text is not a path the project's logs hold.
+  - `[low]` `[reject]` EC9 same as BH7.
+  - `[low]` `[reject]` EC10 a host followed by sentence punctuation is flagged with a trailing dot -- a loud false positive naming the host; `TestCaseRecords` (9.3) compares the same way.
+  - `[low]` `[reject]` EC11 same as BH8 (bare hosts and IPs).
+  - `[low]` `[reject]` EC12 the snapshot's ASCII check runs only once the format is right -- a snapshot of another violation is reported for that violation first and for ASCII on the re-run.
+  - `[medium]` `[patch]` VG1 the Hermeticity criterion has no pinning test for the clean-up (messages, folder, hold) and no mutation line -- real: no assertion could fail if `OnAfterAllTests` leaked 50 failed headers or lost the hold. Patched: `Clean` is a class method that `OnAfterAllTests` calls, `TestCleanRemovesBatch` runs it on a batch of one order, `OnBeforeAllTests` records `HoldChecked` and `TestNoIncidentMade` asserts it; four mutation lines.
+  - `[low]` `[reject]` VG2 same as BH8.
+  - `[medium]` `[patch]` VG3 nothing pins that `snapshot.json` is the reader's whole answer (the pack never reads the event log or most failure fields) -- real: a `Write` that dropped an event-log row passed every test. Patched: `Make` keeps the reader's answer and `TestCaptureWritesCase` asserts the file equals `Redact.Text` of it plus a line feed; mutation line.
+  - `[low]` `[reject]` VG4 `TestIncidentFiles`' ASCII, host, path and credential-name assertions have no mutation line -- Rule 19 asks one demonstrated mutation per AC; AC1 "And" has two (fixed point, credential rule).
+  - `[low]` `[reject]` VG5 the "no credential-type setting" assertion of `TestCaptureWritesCase` holds for any reader on the Orders item (its only setting is `TargetConfigName`) -- it asserts the Matrix row's stated outcome; the reader's removal of credential settings is pinned by `Test.Watch.Evidence` `TestReaderDropsCredentialSettings`.
+  - `[low]` `[reject]` VG6 `$IsObject(live.settings)` passes for `{}` -- the settings of the Orders item are not empty and `TestCommittedIsCurrent` compares them; VG itself calls it not a live problem.
+  - `[low]` `[reject]` VG7 same as BH1.
+  - `[false]` `[reject]` VG8 same as BH9.
+  - `[false]` `[reject]` IA1 capture and replay are only verified in a throwaway stack -- by design (Rule 21, AD-22: failures are induced only in throwaways, never on a slot).
+  - `[false]` `[reject]` IA2 the synthetic tests share the real-stack guard -- same as BH5.
+  - `[false]` `[reject]` IA3 `TestIncidentFiles` can pass with no assertion when there are no case names -- `Names` asserts "eval/ holds case folders" before it returns "", so the class fails; the "redacted" check is on the IRIS side by Task 4.
+  - `[false]` `[reject]` IA4 the committed snapshot differs from a fresh capture at file level -- Task 0 (a) compares packs; the measured differences are outside neither the pack nor `VOLATILE`; Decided in-stage 2.
+  - `[false]` `[reject]` IA5 the committed check compares with the live pack, not the replay pack -- the Matrix row "Committed current" says the live pack; `TestReplayEqualsLive` ties the replay pack to it.
+  - `[false]` `[reject]` IA6 `DEMOCASE` has no consumer here and the `demo` rule is stricter than the Matrix -- the consumer is Story 9.5; Task 5 says the expectation is "exactly" the three values.
+  - `[low]` `[patch]` IA7 the redactor's `UNCHECKED` refusal has no test (and the empty-keys refusal was unconfirmed) -- real: the refusal is listed in Boundaries and no test fails without it; the empty-keys refusal passed in every run. Patched: a body nested deeper than `Redact.MAXDEPTH` in `TestWriteRefuses`; mutation line.
+  - `[false]` `[reject]` IA8 the fix-kind enumeration reads `FIXKINDS` here and `Fix/Kind/` only after Epic 7 -- Decided in-stage 7; the fallback has its self-check.
+  - `[low]` `[reject]` IA9 the path patterns are a port, not shared code -- same as BH10; the spec chose "mirror the patterns".
+
 ## Design Notes
 
 **Architecture decisions (Rule 6):**
@@ -350,6 +394,17 @@ No AC of this part contradicts an AD.
 10. **The capture folder** is `/tmp/zz-eval-record/<run>/` in the container, because `eval/` is mounted read-only. The run is the test's own Ref.
 11. **Recipes.** The `RECIPES` parameter and the `Induce` dispatch in `Test.Eval.Record` hold how each committed incident is re-induced. The sibling adds one recipe per case.
 12. **Hosts in incident files** follow 9.3's rule for item cases (example.com or `.example`, `Hosts`). The sibling may allow a local partner endpoint, if a feed error names one.
+13. **Extra refusals in `Write`.** A blank `description`, a `heldOut` that is not a boolean and a `fixKind` that is not a string are refused too, naming the field. The `cases` rule fails on a case that has them, so the recorder never writes one. `Capture` checks the case before it reads the production.
+14. **`Test.Eval.Cases.Read` and `Plain` are public** (they were private), so `Test.Eval.Record` reuses them instead of copying them. No behaviour changed.
+15. **`test-eval-set.sh` extras.** `fix_kinds_of <class file> <folder>` is the one function that reads the fix kinds (`FIXKINDS`, else the `NAME` of each class of the folder); the real read and the self-check use it, so removing the fallback fails the self-check. The `demo` rule also has the variants `bad-demo-category`, `bad-demo-fixkind` and `bad-demo-extra-field`, and `cases` also has `bad-snapshot-failures-text`, `bad-snapshot-failure-no-error`, `bad-snapshot-failure-no-target`, `bad-snapshot-no-source-object`, `bad-snapshot-credential-setting-case` and `bad-incident-case-not-ascii`.
+16. **Compile check on slot B.** Slot B lacked Story 9.7's `Eval/Msg/TurnResult.cls`, which `Report.cls` needs. That committed class was loaded and compiled there, with `Eval/Record.cls`, `Eval/Report.cls`, `Test/Eval/Record.cls` and `Test/Eval/Cases.cls`. No test or production ran on the slot; the regex parameters were evaluated there with `Write` only.
+17. **Reverse run.** `--reverse` reverses the whole class list before it takes a part, so part 5/8 reversed holds no `Test.Eval` class; part 4/8 reversed holds all nine. Both ran.
+18. **Clean-up and hold pins (review pass).** `Test.Eval.Record.Clean(refs, folder, held)` is the clean-up that `OnAfterAllTests` runs, as a class method so that `TestCleanRemovesBatch` can run it on a batch of one order of its own (that test holds the failures again afterwards, and also keeps its reference in `Refs`). `OnBeforeAllTests` records `HoldChecked` (the mark is more than 300 s ahead right after the hold, before the first order is sent), because another test's re-hold would hide a missing hold from a check made later. `Make` keeps the reader's answer in `Recorded` so that `TestCaptureWritesCase` can compare `snapshot.json` with `Redact.Text` of it. `TestWriteRefuses` also refuses a body nested deeper than `Redact.MAXDEPTH` (the redactor's `UNCHECKED`). The class takes about 5 s longer (14 to 15 s).
+
+**Task 0 results (warm and fresh stacks of the implement stage):**
+- **(a)** The committed demo snapshot's pack and a fresh capture's pack are equal once `VOLATILE` is removed (`TestCommittedIsCurrent` passed). With `VOLATILE` emptied for one measurement, the differing fields were exactly `firstAt`, `lastAt`, `sample.headerId` (the JSON type differs), `sample.at`, `trace[0].headerId` and `trace[0].timeCreated`: nothing outside `VOLATILE`. No HALT.
+- **(b)** Both demo files are plain ASCII, fixed points of `Redact.Text`, hold no local path and no host, and the item has no credential setting (`TestIncidentFiles` passed on the warm and fresh stacks, forward and reversed). No HALT.
+- **(c)** `Test.Eval.Record` takes 8.4 to 11.7 s as a class (warm), 11.1 s as a class on a fresh stack and 10.3 s and 10.6 s inside the shard, forward and reversed. Almost all of it is `OnBeforeAllTests` (50 orders sent and failed, one live read, one capture). `lane-a` part 5/8 took 122 s forward (the CI `shards` job runs the whole shard).
 
 **Ledger inbox:** none.
 
@@ -440,7 +495,72 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | AC4 | `RECIPES` is empty | `TestCommittedIsCurrent` (`orders-date-format` has no recipe) |
 | enumerations | the `FIXKINDS` fallback is removed | `test-eval-set.sh` `enumerations` self-check |
 
+mutation: `Capture` passes only the first key to the reader -> `TestCaptureWritesCase` (1 failure, not 50) and `TestReplayEqualsLive` (`.count` differs) went red
+mutation: `Write` skips `Redact.Text` -> `TestWriteRedacts` went red
+mutation: `Write` drops the `LOCALPATH` check -> `TestWriteRefuses` went red (every path row, and "nothing was written")
+mutation: the committed demo snapshot's first body gains `"Password": "zz"` -> `TestIncidentFiles` went red (not a fixed point of `Redact.Text`)
+mutation: the snapshot rule ignores a credential-named setting (the check in `check-cases.mjs` disabled) -> `test-eval-set.sh` `cases` went red (`bad-snapshot-credential-setting` and `bad-snapshot-credential-setting-case` not flagged)
+mutation: `DEMOCASE` becomes `orders-date` -> `test-eval-set.sh` `demo` and `TestCaptureWritesCase` went red
+mutation: `Write` leaves `expectation` out of `case.json` -> `TestCaptureWritesCase` went red
+mutation: `Write` empties `trace` before it writes -> `TestReplayEqualsLive` (`.trace.0` missing) and `TestCaptureWritesCase` went red
+mutation: the committed demo snapshot's first `OrderDate` becomes `10/17/2026` -> `TestCommittedIsCurrent` went red (`.sample.body.OrderDate` differs)
+mutation: `RECIPES` is empty -> `TestCommittedIsCurrent` went red (`orders-date-format` has no recipe), with `TestCaptureWritesCase`
+mutation: the `FIXKINDS` fallback is removed (the loop of `fix_kinds_of`) -> `test-eval-set.sh` `enumerations` self-check went red
+mutation: `Capture` skips the check of the reader's outcome -> `TestCaptureRefuses` went red
+mutation: (measurement, not a pin) `VOLATILE` emptied -> `TestCommittedIsCurrent` went red at exactly the six volatile fields
+mutation: (Hermeticity) `Clean` skips deleting the batch's messages -> `TestCleanRemovesBatch` went red ("Clean deleted the headers of the batch")
+mutation: (Hermeticity) `Clean` skips deleting the folder -> `TestCleanRemovesBatch` went red ("and the folder")
+mutation: (Hermeticity) `Clean` skips releasing the mark -> `TestCleanRemovesBatch` went red ("and released the Orders WatchMark")
+mutation: (Hermeticity) `OnBeforeAllTests` skips `HoldFailures` -> `TestNoIncidentMade` went red ("the Orders WatchMark was held ahead before the first order was sent"); the class was run green first, so no leftover mark could explain it
+mutation: (AC1) `Write` drops an event-log row before it redacts -> `TestCaptureWritesCase` went red ("snapshot.json is the reader's own answer ..."); the packs of `TestReplayEqualsLive` stayed green, because `Build` never reads the event log
+mutation: (AC1) `Write` skips the `UNCHECKED` refusal -> `TestWriteRefuses` went red (the body nested deeper than `Redact.MAXDEPTH`)
+Each mutation was reverted from a backup, and the checksums of every changed file and of `eval/orders-date-format/*` matched the manifest taken before the first mutation (`git status --short` and `git diff --stat` unchanged).
+
+**Run record (implement stage):**
+- warm (`e9s4iw`): `Test.Eval.Record` passed, `Test.Eval.Cases` passed, `Test.Demo.Production` passed (35 s), `Test.Watch.Evidence` passed;
+- fresh (`e9s4i`): `Test.Eval.Record` passed (11.1 s, ready after 87 s); `lane-a` part 5/8 passed (10 classes, 122 s); `lane-a` part 5/8 `--reverse` passed (10 classes, none of them an Eval class, 121 s); `lane-a` part 4/8 `--reverse` passed (10 classes, all nine `Test.Eval` classes, 114 s);
+- `bash docker/tests/test-eval-set.sh` (every rule, `demo` included), `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh` passed;
+- both stacks were torn down and the lane-b lock folder is empty.
+
+**Run record (review pass, after the last patch):**
+- compile check on `ocutalon-slot-b` (`OCUTALON`, build 154U): `Eval/Record`, `Eval/Report`, `Test/Eval/Cases` and `Test/Eval/Record` compile; no test ran there;
+- `bash docker/tests/test-eval-set.sh` (every rule, `demo` included), `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh` (exit 0) passed;
+- warm (`e9s4iw`, a new stack): `Test.Eval.Record` passed (12 to 15 s), `Test.Eval.Cases` passed (3.6 s), then `Test.Demo.Production` (33 s) and `Test.Watch.Evidence` (2 s) passed on the same stack, so the pins and the WatchMark are intact; the six review-pass mutations above ran there, each followed by a green run of the class before the next one (the hold mutation after a green run, so no leftover mark could explain its red);
+- fresh (`e9s4i`): `Test.Eval.Record` passed (13.4 s, ready after 89 s); `lane-a` part 5/8 passed forward (10 classes, 143 s, all nine `Test.Eval` classes among them: `Record` 13.7 s, `Run` 7.4 s, `Cases` 3.7 s); part 4/8 passed reversed (10 classes, 130 s, `Record` 14.8 s) -- the same part reversed (5/8) holds no `Test.Eval` class (Decided in-stage 17);
+- both stacks were torn down and the lane-b lock folder is empty.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Part 1 of Story 9.4 is built.
+- `OcuTalon.Eval.Record` captures an incident's failures through `Watch.Reader.Evidence`, passes the reader's answer through `Bridge.Redact.Text`, refuses (with the reason, writing nothing) a case that is not valid, an outcome that is not `read`, no failure, an `UNCHECKED` redaction, a non-ASCII character and a local machine path, and writes `snapshot.json` and `case.json`.
+- `OcuTalon.Test.Eval.Record` re-induces the demo incident (50 orders in MM/DD/YYYY in the Orders production of OCUORDERS, WatchMark held) and proves that `Build(Load(written file))` and `Capture`'s pack equal the live pack exactly, and that the committed demo snapshot's pack equals it once `VOLATILE` is removed.
+- `TestIncidentFiles` and `test-eval-set.sh` (`cases` snapshot rules, the new `demo` rule, the `Fix/Kind/` fallback for `FIXKINDS`) check every incident file; `Eval.Report.DEMOCASE` names the demo incident.
+- Task 0: the committed demo snapshot and a fresh capture differ only in `VOLATILE`; both demo files are fixed points of `Redact.Text`; `eval/orders-date-format/*` is byte-identical.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Eval/Record.cls` (new): the recorder, `Capture` and `Write`.
+- `src/ocutalon/cls/OcuTalon/Eval/Report.cls`: `Parameter DEMOCASE`.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` (new): seven tests, the demo recipe, `Clean`, and the synthetic-snapshot helpers.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls`: `TestIncidentFiles`; `Read` and `Plain` are public.
+- `docker/tests/test-eval-set.sh`: the snapshot rules and variants, the `demo` rule, the fix-kind fallback and its self-check, the header.
+- `docker/tests/record-eval.sh`: header comment only (a reported footprint extension).
+- This spec: Task 0 results, Decided in-stage 13 to 18, `mutation:` lines, the triage log and run records.
+
+**Review findings.** 39 findings from four layers: medium 2, low 25, false 12 (the Review Triage Log holds every row).
+- Patches applied (3): the clean-up and hold pins for the Hermeticity criterion (`Clean`, `TestCleanRemovesBatch`, `HoldChecked`; medium), the exact comparison of `snapshot.json` with `Redact.Text` of the reader's answer (medium), and a test of the redactor's `UNCHECKED` refusal (low). Each has a demonstrated mutation.
+- Deferred: none.
+- Rejected with reasons (36): spec-bound behaviour (the `fixKind` name is checked by the repository check, the Write checks the spec lists, `heldOut` default, the `Guard()` on every test, the `Fix/Kind/` fallback, the `TMP` wipe), a loud failure on a malformed hand-edited file (BH7, EC9), non-atomic replace and name collision of an author tool, the `irisowner` prefix and doubled-backslash cases that mirror `test-boundaries.sh`, and descriptive intent-alignment observations.
+
+**Follow-up review recommended: true.** Two medium findings were patched. The named unverified risk is that `TestCleanRemovesBatch` and the exact snapshot comparison were written in the review pass and have had no second look: `TestCleanRemovesBatch` releases the Orders WatchMark and holds it again inside the class, and the exact comparison assumes two reads of the same failures return identical text (true on every run so far: 8 class runs, 2 shard runs and 6 mutation runs).
+
+**Verification performed.** `test-eval-set.sh`, `test-boundaries.sh` and `ci/checks.sh` pass. On a warm and a fresh throwaway (lane B): `Test.Eval.Record`, `Test.Eval.Cases`, `Test.Demo.Production` and `Test.Watch.Evidence` pass, and `lane-a` parts 5/8 (forward) and 4/8 (reversed) pass. 19 mutations were demonstrated red and reverted byte-identical. See the run records under `## Verification`.
+
+**Residual risks.**
+- `TestIncidentFiles`' host check only sees hosts after `@` or `://` (Task 4's rule, from 9.3): a bare host in an item setting passes. The sibling story (9.9), whose recordings come from a feed with settings, should decide this.
+- `Eval.Record` does not check the fix kind's name (it may not name `FIXKINDS`); the `cases` rule of `test-eval-set.sh` does.
+- The `Fix/Kind/` fallback has only its self-check until Epic 7's branch merges.
+- `Test.Eval.Record` adds about 15 s to the `lane-a` shard (the `shards` job).
+- Slot B holds the committed `Eval/Msg/TurnResult.cls` and the four classes of this story, loaded for the compile check (Decided in-stage 16).

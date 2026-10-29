@@ -31,6 +31,7 @@
 ///   - Cost and size come from the rows. Every priced decision (the decide or diagnose decision, and the untrusted turn) is listed with its
 ///     model, which is read from OcuTalon.Bridge.Data.Decision. The mean and the maximum are taken over the priced decisions, and a decision at
 ///     or above FLAGUSD is flagged. The largest request is the bridge's estimate, and a case over FLAGTOKENS is flagged.
+///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5).
 ///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind that EvalIn does not send yet
 ///     (the incident) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
 ///     not score) is listed as unscored.
@@ -72,6 +73,9 @@ Parameter TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools"
 
 /// The kind that is scored by cause category and element at fault, and counts in SM-2's incidents.
 Parameter INCIDENTKIND = "incident";
+
+/// The incident case that the demo incident gate runs (Story 9.5): the date-format failure of the Orders demo.
+Parameter DEMOCASE = "orders-date-format";
 
 /// SM-1 as a fraction: the share of items that must be right.
 Parameter ITEMTARGET = "9/10";

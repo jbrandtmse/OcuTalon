@@ -31,7 +31,11 @@
 ///     in the mailbox and only example.com or *.example hosts in its addresses and links;
 ///   - (QA) TestSampleExpectations: each sample email of the simulated mailbox has a case, the partner notice expects Digest and the
 ///     suspicious request records the two key phrases of the injection rule and no outcome;
-///   - (QA) TestFindingKeys: the keys that a finding case may use are production state changes of the Watch catalog.
+///   - (QA) TestFindingKeys: the keys that a finding case may use are production state changes of the Watch catalog;
+///   - TestIncidentFiles (Story 9.4): every incident case's case.json and snapshot are plain ASCII and fixed points of Bridge.Redact.Text, hold no local
+///     machine path (Eval.Record LOCALPATH) and no host but example.com and .example hosts, and no item of a snapshot has a setting that
+///     Reader.CredentialName flags; at least one incident case is checked.
+/// Read and Plain are public for Test.Eval.Record.
 Class OcuTalon.Test.Eval.Cases Extends %UnitTest.TestCase
 {
 
@@ -403,9 +407,56 @@ Method TestFindingKeys()
 	}
 }
 
+/// The files of every incident case: case.json and the snapshot it names. Each is plain ASCII, is a fixed point of Bridge.Redact.Text (as compact
+/// JSON), holds no local machine path and no host but example.com and .example hosts; the snapshot's items have no setting whose name
+/// Reader.CredentialName flags. At least one incident case is checked.
+Method TestIncidentFiles()
+{
+	Set folder = ..Folder()
+	Set names = ..Names(folder)
+	If names = "" Quit
+	Set checked = 0, position = 0
+	While $ListNext(names, position, name) {
+		Set case = ..Read(folder, name)
+		If '$IsObject(case) || (case.kind '= ##class(OcuTalon.Eval.Report).#INCIDENTKIND) Continue
+		Set checked = checked + 1
+		Do $$$AssertEquals(case.%GetTypeOf("snapshot"), "string", name_": the case names its snapshot file")
+		If case.%GetTypeOf("snapshot") '= "string" Continue
+		Set directory = ##class(%File).SubDirectoryName(folder, name)
+		Set files = $ListBuild(##class(%File).NormalizeFilename("case.json", directory), ##class(%File).NormalizeFilename(case.snapshot, directory))
+		Set at = 0
+		While $ListNext(files, at, file) {
+			Set label = name_"/"_##class(%File).GetFilename(file)
+			Do $$$AssertTrue(##class(%File).Exists(file), label_": the file exists")
+			If '##class(%File).Exists(file) Continue
+			Do $$$AssertTrue(..Plain(file), label_": it is plain ASCII")
+			Set compact = ##class(%DynamicAbstractObject).%FromJSONFile(file).%ToJSON()
+			Do $$$AssertTrue(##class(OcuTalon.Bridge.Redact).Text(compact) = compact, label_": it is a fixed point of Bridge.Redact.Text")
+			Do $$$AssertNotTrue($Locate(compact, ##class(OcuTalon.Eval.Record).#LOCALPATH), label_": it holds no local machine path")
+			Set others = ""
+			Set hosts = ..Hosts(compact), spot = 0
+			While $ListNext(hosts, spot, host) {
+				If (host '= "example.com") && ($Piece(host, ".", $Length(host, ".")) '= "example") Set others = others_" "_host
+			}
+			Do $$$AssertEquals(others, "", label_": every host is example.com or a .example host")
+		}
+		Set snapshot = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename(case.snapshot, directory))
+		Set flagged = ""
+		Set iterator = snapshot.items.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Set settings = entry.settings.%GetIterator()
+			While settings.%GetNext(.setting) {
+				If ##class(OcuTalon.Watch.Reader).CredentialName(setting) Set flagged = flagged_" "_setting
+			}
+		}
+		Do $$$AssertEquals(flagged, "", name_": no item of the snapshot has a setting with a credential name")
+	}
+	Do $$$AssertTrue(checked >= 1, "at least one incident case was checked: "_checked)
+}
+
 /// --- helpers ---
 /// The case of the folder as a dynamic object, or "" when it has no case.json.
-ClassMethod Read(folder As %String, name As %String) As %DynamicObject [ Private ]
+ClassMethod Read(folder As %String, name As %String) As %DynamicObject
 {
 	Set file = ##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name))
 	If '##class(%File).Exists(file) Quit ""
@@ -413,7 +464,7 @@ ClassMethod Read(folder As %String, name As %String) As %DynamicObject [ Private
 }
 
 /// 1 when every byte of the file is ASCII.
-ClassMethod Plain(file As %String) As %Boolean [ Private ]
+ClassMethod Plain(file As %String) As %Boolean
 {
 	Set stream = ##class(%Stream.FileBinary).%New()
 	If $$$ISERR(stream.LinkToFile(file)) Quit 0

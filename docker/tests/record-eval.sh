@@ -7,7 +7,10 @@
 # 50 failures, is ASCII and names no home folder (test-boundaries.sh scans the committed file for every local machine path).
 # An EXIT trap removes the project with its volume and images.
 # Rerun it whenever TestSnapshotIsReadableAndCurrent reports that a fresh recording differs from the committed one because the
-# production changed, then commit the file. Story 9.4's Eval.Record replaces this script.
+# production changed, then commit the file.
+# OcuTalon.Eval.Record records the other incidents of eval/. This script stays the recorder of eval/orders-date-format/snapshot.json
+# while Test.Watch.Evidence and Test.Demo.Production pin that recording, and Test.Eval.Record compares the evidence pack of the
+# committed file with a fresh recording's on every CI run.
 # Prints the number of failures it recorded; exits 0 only when the snapshot was written.
 # Needs docker compose, jq, and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u

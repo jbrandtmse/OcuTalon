@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Stories 9.2, 9.3 and 9.7; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
+# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4 and 9.7; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
 # ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below ci/mock/scenarios/A/,
 # the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh and the
 # enumerations of the classes. A failure prints `file: rule` and never the text of the file.
@@ -7,9 +7,10 @@
 # (the convention of lib-scan.sh); only then does it read the real tree. It prints one PASS or FAIL line for each rule and exits 0 only
 # when none fails.
 #   enumerations  the outcomes (Msg.Enum OUTCOME), the cause categories, fix kinds and fix category (Watch.Msg.DiagnosisPayload
-#                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY), the case kinds and the finding keys (Eval.Report CASEKINDS and FINDINGKEYS)
-#                 and the four catalog keys of Checks.Render (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED)
-#                 are read from their classes, and each is found;
+#                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY; the fix kinds are the NAME of each class below Fix/Kind/ once the class has no
+#                 FIXKINDS), the case kinds, the finding keys and the demo case (Eval.Report CASEKINDS, FINDINGKEYS and DEMOCASE), the
+#                 words that make a setting name a credential (Watch.Reader CREDENTIALPARTS) and the four catalog keys of Checks.Render
+#                 (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED) are read from their classes, and each is found;
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
@@ -23,7 +24,10 @@
 #                                       by outcome); the item record of an item (itemId and provenance), without the channel rules;
 #                   incident            expectation.causeCategory of the categories, an elementAtFault, and a fixKind of the fix kinds
 #                                       when the category is the fix category and empty otherwise; a snapshot, the name of a file in the
-#                                       folder whose format is ocutalon.readerSnapshot/1;
+#                                       folder whose format is ocutalon.readerSnapshot/1, with a source.namespace, source.production and
+#                                       source.item that are not empty, a non-empty failures array whose elements each have a non-empty
+#                                       targetConfigName and error, and no setting in an items[].settings whose name holds a word of
+#                                       CREDENTIALPARTS (in any case); the case.json and the snapshot are ASCII;
 #                   all-clear           a turn object with a non-blank text; expectation.catalogKey, one of the four Checks.Render keys;
 #                                       checks, an array of rows (the form of check_status), each an object whose result is passed, failed
 #                                       or not_checked, with a non-blank entry, a finding that is a string and a checkedAt that is a
@@ -39,6 +43,8 @@
 #                 at least one item from the mailbox and one from the system channel, at least one injection case, all-clear cases for
 #                 the three situations (at least one expecting KEYALLPASSED, one expecting KEYNOTHINGWATCHED and one expecting
 #                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case;
+#   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
+#                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
 #   job           .github/workflows/lane-a.yml has a job evaluation with a timeout, a run tag of its own (run id, attempt and -eval, so
 #                 its teardown never removes another job's stack), a step that runs `bash ci/iris.sh build` before the step that runs
 #                 `bash eval/run.sh`, and no workflow file names the switch OCUTALON_EVAL, which eval/run.sh exports for its own
@@ -68,11 +74,30 @@ trap 'rm -rf "$tmp"' EXIT
 ENUM_FILE=src/ocutalon/cls/OcuTalon/Msg/Enum.cls
 DIAGNOSIS_FILE=src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls
 REPORT_FILE=src/ocutalon/cls/OcuTalon/Eval/Report.cls
+READER_FILE=src/ocutalon/cls/OcuTalon/Watch/Reader.cls
+FIXKIND_DIR=src/ocutalon/cls/OcuTalon/Fix/Kind
 RENDER_FILE=src/ocutalon/cls/OcuTalon/Checks/Render.cls
 
 # enum_value <file> <name>: the text of `Parameter <name> = "...";` in the class file.
 enum_value() {
   sed -n "s/^Parameter $2 = \"\\(.*\\)\";.*\$/\\1/p" "$1" 2> /dev/null | head -n 1
+}
+
+# fix_kinds_of <class file> <folder>: the fix kinds, comma-separated: FIXKINDS of the class file when it has the parameter, else the NAME of each
+# class of the folder (one class for each fix kind).
+fix_kinds_of() {
+  local value f names=""
+  value=$(enum_value "$1" FIXKINDS)
+  if [ -n "$value" ]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+  for f in "$2"/*.cls; do
+    [ -f "$f" ] || continue
+    value=$(enum_value "$f" NAME)
+    [ -n "$value" ] && names="$names${names:+,}$value"
+  done
+  printf '%s\n' "$names"
 }
 
 # --- the Node programs ---
@@ -89,6 +114,7 @@ const FINDINGKEYS = list('ENUM_FINDINGKEYS');
 const CATEGORIES = list('ENUM_CAUSECATEGORIES');
 const FIXKINDS = list('ENUM_FIXKINDS');
 const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
+const CREDENTIALPARTS = list('ENUM_CREDENTIALPARTS').map((part) => part.toLowerCase());
 const KEYS = ['ENUM_KEYALLPASSED', 'ENUM_KEYRESTPASSED', 'ENUM_KEYNOTEVERYTHING', 'ENUM_KEYNOTHINGWATCHED'].map((name) => process.env[name] || '').filter(Boolean);
 const RESULTS = ['passed', 'failed', 'not_checked'];
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -99,6 +125,7 @@ const bad = (file, rule) => out.push(`${file}: ${rule}`);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v) => typeof v === 'string' && v.trim() !== '';
 const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+const ascii = (file) => !fs.readFileSync(path.join(root, file)).some((byte) => byte > 127);
 // Key phrases: a non-empty array of non-empty strings and non-empty arrays of non-empty strings (alternatives).
 const phrases = (v) => Array.isArray(v) && v.length > 0 && v.every((p) => text(p) || (Array.isArray(p) && p.length > 0 && p.every(text)));
 // The record of an item case: a mailbox email with no catalog key, or a finding (system channel) with a key of the finding keys, a slots
@@ -184,8 +211,21 @@ try {
         } catch {
           snapshot = null;
         }
-        if (!isObject(snapshot) || snapshot.format !== SNAPSHOT_FORMAT) bad(file, 'its snapshot is not a reader snapshot');
+        if (!isObject(snapshot) || snapshot.format !== SNAPSHOT_FORMAT) {
+          bad(file, 'its snapshot is not a reader snapshot');
+        } else {
+          const source = isObject(snapshot.source) ? snapshot.source : {};
+          if (!text(source.namespace) || !text(source.production) || !text(source.item)) bad(file, 'its snapshot has an empty source.namespace, source.production or source.item');
+          if (!Array.isArray(snapshot.failures) || snapshot.failures.length === 0) bad(file, 'its snapshot holds no failure');
+          else if (!snapshot.failures.every((failure) => isObject(failure) && text(failure.targetConfigName) && text(failure.error))) bad(file, 'a failure of its snapshot has no targetConfigName or no error');
+          for (const entry of Array.isArray(snapshot.items) ? snapshot.items : []) {
+            const settings = isObject(entry) && isObject(entry.settings) ? Object.keys(entry.settings) : [];
+            if (settings.some((setting) => CREDENTIALPARTS.some((part) => setting.toLowerCase().includes(part)))) bad(file, 'its snapshot has a setting with a credential name');
+          }
+          if (!ascii(path.posix.join(dir, name))) bad(file, 'its snapshot is not ASCII');
+        }
       }
+      if (!ascii(file)) bad(file, 'is not ASCII');
     } else if (c.kind === 'all-clear') {
       if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
       if (!text(x.catalogKey)) bad(file, 'has no expectation.catalogKey');
@@ -331,6 +371,44 @@ try {
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
+cat > "$tmp/check-demo.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const [root, filesPath] = process.argv.slice(2);
+const DEMOCASE = process.env.ENUM_DEMOCASE || '';
+const WANTED = { causeCategory: 'data_format_change', elementAtFault: 'OrderDate', fixKind: 'repair_resend' };
+const out = [];
+const bad = (file, rule) => out.push(`${file}: ${rule}`);
+
+try {
+  const files = fs.readFileSync(filesPath, 'utf8').split('\n');
+  const file = `eval/${DEMOCASE}/case.json`;
+  if (DEMOCASE === '' || !files.includes(file)) {
+    bad(DEMOCASE === '' ? 'eval' : file, 'the demo incident case has no case.json');
+  } else {
+    let c = null;
+    try {
+      c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      c = null;
+    }
+    if (c === null || typeof c !== 'object' || Array.isArray(c)) {
+      bad(file, 'is not a JSON object');
+    } else {
+      if (c.kind !== 'incident') bad(file, 'the demo case is not of kind incident');
+      const e = c.expectation !== null && typeof c.expectation === 'object' ? c.expectation : {};
+      if (Object.keys(e).sort().join(',') !== Object.keys(WANTED).sort().join(',') || Object.keys(WANTED).some((key) => e[key] !== WANTED[key])) {
+        bad(file, 'the demo expectation is not data_format_change, OrderDate and repair_resend');
+      }
+    }
+  }
+} catch {
+  bad('check-demo', 'could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
 cat > "$tmp/mksamples.mjs" <<'EOF'
 import fs from 'node:fs';
 import path from 'node:path';
@@ -342,6 +420,7 @@ const KEYALLPASSED = process.env.ENUM_KEYALLPASSED || '';
 const KEYRESTPASSED = process.env.ENUM_KEYRESTPASSED || '';
 const KEYNOTEVERYTHING = process.env.ENUM_KEYNOTEVERYTHING || '';
 const KEYNOTHINGWATCHED = process.env.ENUM_KEYNOTHINGWATCHED || '';
+const DEMOCASE = process.env.ENUM_DEMOCASE || '';
 const D = 'doc' + 'ker';
 const DC = 'd' + 'c';
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -379,6 +458,12 @@ const finding = (name) => ({
 const incident = (name) => ({
   ...base(name, 'incident', { causeCategory: 'data_format_change', elementAtFault: 'OrderDate', fixKind: 'repair_resend' }),
   snapshot: 'snapshot.json',
+});
+const snapshotOf = () => ({
+  format: 'ocutalon.readerSnapshot/1',
+  source: { namespace: 'OCUORDERS', production: 'Zz.Production', item: 'ZzItem' },
+  failures: [{ targetConfigName: 'ZzItem', error: 'ERROR #5001: A failure.' }],
+  items: [{ name: 'ZzItem', settings: { Host: 'partner.example.com' } }],
 });
 const clear = (name, key = KEYALLPASSED) => ({
   ...base(name, 'all-clear', { catalogKey: key }),
@@ -422,7 +507,7 @@ const good = () => ({
   'eval/injection-good/case.json': injection('injection-good'),
   'eval/finding-good/case.json': finding('finding-good'),
   'eval/incident-good/case.json': incident('incident-good'),
-  'eval/incident-good/snapshot.json': { format: 'ocutalon.readerSnapshot/1' },
+  'eval/incident-good/snapshot.json': snapshotOf(),
   'eval/clear-good/case.json': clear('clear-good'),
   'eval/command-good/case.json': command('command-good'),
   'eval/mock-wrong/wrong-good/case.json': wrong('wrong-good'),
@@ -457,6 +542,15 @@ const setTree = (mutate) => (f) => {
   mutate(f);
 };
 
+// A good tree for the rule `demo`: the demo incident case, with its snapshot.
+const DEMOFILE = `eval/${DEMOCASE}/case.json`;
+const demoTree = (mutate) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  f[DEMOFILE] = incident(DEMOCASE);
+  f[`eval/${DEMOCASE}/snapshot.json`] = snapshotOf();
+  mutate(f);
+};
+
 function write(root, files) {
   for (const [rel, content] of Object.entries(files)) {
     const p = path.join(root, rel);
@@ -486,6 +580,7 @@ const LANE = '.github/workflows/lane-a.yml';
 
 for (const rule of ['cases', 'markers', 'job', 'eval-scripts']) variant(rule, 'good', '', () => {});
 variant('set', 'good', '', setTree(() => {}));
+variant('demo', 'good', '', demoTree(() => {}));
 variant('run-guard', 'good', '', (f) => { f['eval/run.sh'] = guarded(); });
 
 variant('cases', 'bad-no-expectation', 'has no expectation', (f) => { delete f[ITEM].expectation; });
@@ -523,6 +618,17 @@ variant('cases', 'bad-no-item', 'has no item.itemId', (f) => { delete f[ITEM].it
 variant('cases', 'bad-snapshot-missing', 'its snapshot is not a file of the folder', (f) => { delete f['eval/incident-good/snapshot.json']; });
 variant('cases', 'bad-snapshot-path', 'its snapshot is not a file of the folder', (f) => { f[INCIDENT].snapshot = '../incident-good/snapshot.json'; });
 variant('cases', 'bad-snapshot-format', 'its snapshot is not a reader snapshot', (f) => { f['eval/incident-good/snapshot.json'] = { format: 'other/1' }; });
+const SNAPSHOT = 'eval/incident-good/snapshot.json';
+variant('cases', 'bad-snapshot-no-failure', 'its snapshot holds no failure', (f) => { f[SNAPSHOT].failures = []; });
+variant('cases', 'bad-snapshot-failures-text', 'its snapshot holds no failure', (f) => { f[SNAPSHOT].failures = 'none'; });
+variant('cases', 'bad-snapshot-failure-no-error', 'a failure of its snapshot has no targetConfigName or no error', (f) => { f[SNAPSHOT].failures[0].error = ''; });
+variant('cases', 'bad-snapshot-failure-no-target', 'a failure of its snapshot has no targetConfigName or no error', (f) => { delete f[SNAPSHOT].failures[0].targetConfigName; });
+variant('cases', 'bad-snapshot-no-source', 'its snapshot has an empty source.namespace, source.production or source.item', (f) => { f[SNAPSHOT].source.item = ''; });
+variant('cases', 'bad-snapshot-no-source-object', 'its snapshot has an empty source.namespace, source.production or source.item', (f) => { delete f[SNAPSHOT].source; });
+variant('cases', 'bad-snapshot-credential-setting', 'its snapshot has a setting with a credential name', (f) => { f[SNAPSHOT].items[0].settings.ApiKey = 'x'; });
+variant('cases', 'bad-snapshot-credential-setting-case', 'its snapshot has a setting with a credential name', (f) => { f[SNAPSHOT].items[0].settings.BOTTOKEN = 'x'; });
+variant('cases', 'bad-snapshot-not-ascii', 'its snapshot is not ASCII', (f) => { f[SNAPSHOT].failures[0].error = 'caf\u00e9'; });
+variant('cases', 'bad-incident-case-not-ascii', 'is not ASCII', (f) => { f[INCIDENT].description = 'caf\u00e9'; });
 variant('cases', 'bad-name', "name is not its folder's name", (f) => { f[ITEM].name = 'someone-else'; });
 variant('cases', 'bad-no-casejson', 'holds a file but no case.json', (f) => { f['eval/orphan/snapshot.json'] = {}; });
 variant('cases', 'bad-fixkind', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = 'nothing'; });
@@ -608,6 +714,13 @@ variant('set', 'bad-empty-tree', 'the set holds fewer than 20 item cases', setTr
   for (const k of Object.keys(f)) delete f[k];
 }));
 
+variant('demo', 'bad-demo-missing', 'the demo incident case has no case.json', demoTree((f) => { delete f[DEMOFILE]; }));
+variant('demo', 'bad-demo-element', 'the demo expectation is not data_format_change, OrderDate and repair_resend', demoTree((f) => { f[DEMOFILE].expectation.elementAtFault = 'Sku'; }));
+variant('demo', 'bad-demo-category', 'the demo expectation is not data_format_change, OrderDate and repair_resend', demoTree((f) => { f[DEMOFILE].expectation.causeCategory = 'unknown'; }));
+variant('demo', 'bad-demo-fixkind', 'the demo expectation is not data_format_change, OrderDate and repair_resend', demoTree((f) => { f[DEMOFILE].expectation.fixKind = ''; }));
+variant('demo', 'bad-demo-extra-field', 'the demo expectation is not data_format_change, OrderDate and repair_resend', demoTree((f) => { f[DEMOFILE].expectation.keyPhrases = ['x']; }));
+variant('demo', 'bad-demo-kind', 'the demo case is not of kind incident', demoTree((f) => { f[DEMOFILE].kind = 'item'; }));
+
 variant('job', 'bad-no-step', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }); });
 variant('job', 'bad-other-job', 'the job evaluation has no step that runs bash eval/run.sh', (f) => { f[LANE] = job({ step: '        run: echo nothing' }).replace('      - run: echo hi', '      - run: bash eval/run.sh'); });
 variant('job', 'bad-names-switch', 'lane-a.yml: the file names the switch OCUTALON_EVAL', (f) => { f[LANE] = job({ env: '      OCUTALON_EVAL: "1"\n' }); });
@@ -655,12 +768,13 @@ run_node() { # run_node <program> <root>: the violations of the Node program on 
   tree_files "$2" > "$tmp/files.txt"
   ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" \
     ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
-    ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
+    ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
 }
 
 check_cases() { run_node check-cases "$1"; }
 check_markers() { run_node check-markers "$1"; }
 check_set() { run_node check-set "$1"; }
+check_demo() { run_node check-demo "$1"; }
 
 # check_job <root>: the violations of the evaluation job in lane-a.yml of the tree.
 check_job() {
@@ -800,10 +914,12 @@ rule() {
 
 outcomes=$(enum_value "$ENUM_FILE" OUTCOME)
 categories=$(enum_value "$DIAGNOSIS_FILE" CAUSECATEGORIES)
-fix_kinds=$(enum_value "$DIAGNOSIS_FILE" FIXKINDS)
+fix_kinds=$(fix_kinds_of "$DIAGNOSIS_FILE" "$FIXKIND_DIR")
 fix_category=$(enum_value "$DIAGNOSIS_FILE" FIXCATEGORY)
 case_kinds=$(enum_value "$REPORT_FILE" CASEKINDS)
 finding_keys=$(enum_value "$REPORT_FILE" FINDINGKEYS)
+demo_case=$(enum_value "$REPORT_FILE" DEMOCASE)
+credential_parts=$(enum_value "$READER_FILE" CREDENTIALPARTS)
 key_all_passed=$(enum_value "$RENDER_FILE" KEYALLPASSED)
 key_rest_passed=$(enum_value "$RENDER_FILE" KEYRESTPASSED)
 key_not_everything=$(enum_value "$RENDER_FILE" KEYNOTEVERYTHING)
@@ -811,21 +927,30 @@ key_nothing_watched=$(enum_value "$RENDER_FILE" KEYNOTHINGWATCHED)
 
 printf 'Class Zz.Bad\n{\nParameter OTHER = "x";\n}\n' > "$tmp/enum.bad"
 printf 'Class Zz.Good\n{\nParameter OUTCOME = "a,b";\n}\n' > "$tmp/enum.good"
+mkdir -p "$tmp/kinds.some" "$tmp/kinds.none"
+printf 'Class Zz.A\n{\nParameter NAME = "a_kind";\n}\n' > "$tmp/kinds.some/A.cls"
+printf 'Class Zz.B\n{\nParameter NAME = "b_kind";\n}\n' > "$tmp/kinds.some/B.cls"
+printf 'Class Zz.Has\n{\nParameter FIXKINDS = "x_kind";\n}\n' > "$tmp/enum.has"
 missing=""
 [ -z "$(enum_value "$tmp/enum.bad" OUTCOME)" ] || missing="$missing the reader finds a value in a class without it;"
 [ "$(enum_value "$tmp/enum.good" OUTCOME)" = "a,b" ] || missing="$missing the reader does not find a value in a class with it;"
+[ "$(fix_kinds_of "$tmp/enum.good" "$tmp/kinds.some")" = "a_kind,b_kind" ] || missing="$missing the fix kinds are not read from the classes below Fix/Kind/ when FIXKINDS is absent;"
+[ "$(fix_kinds_of "$tmp/enum.has" "$tmp/kinds.some")" = "x_kind" ] || missing="$missing FIXKINDS is not preferred where the class has it;"
+[ -z "$(fix_kinds_of "$tmp/enum.good" "$tmp/kinds.none")" ] || missing="$missing a fix kind is read where there is none;"
 [ -n "$outcomes" ] || missing="$missing OUTCOME is missing from $ENUM_FILE;"
 [ -n "$categories" ] || missing="$missing CAUSECATEGORIES is missing from $DIAGNOSIS_FILE;"
-[ -n "$fix_kinds" ] || missing="$missing FIXKINDS is missing from $DIAGNOSIS_FILE;"
+[ -n "$fix_kinds" ] || missing="$missing FIXKINDS is missing from $DIAGNOSIS_FILE and $FIXKIND_DIR names no fix kind;"
 [ -n "$fix_category" ] || missing="$missing FIXCATEGORY is missing from $DIAGNOSIS_FILE;"
 [ -n "$case_kinds" ] || missing="$missing CASEKINDS is missing from $REPORT_FILE;"
 [ -n "$finding_keys" ] || missing="$missing FINDINGKEYS is missing from $REPORT_FILE;"
+[ -n "$demo_case" ] || missing="$missing DEMOCASE is missing from $REPORT_FILE;"
+[ -n "$credential_parts" ] || missing="$missing CREDENTIALPARTS is missing from $READER_FILE;"
 [ -n "$key_all_passed" ] || missing="$missing KEYALLPASSED is missing from $RENDER_FILE;"
 [ -n "$key_rest_passed" ] || missing="$missing KEYRESTPASSED is missing from $RENDER_FILE;"
 [ -n "$key_not_everything" ] || missing="$missing KEYNOTEVERYTHING is missing from $RENDER_FILE;"
 [ -n "$key_nothing_watched" ] || missing="$missing KEYNOTHINGWATCHED is missing from $RENDER_FILE;"
 if [ -z "$missing" ]; then
-  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys and the four check keys are read from their classes"
+  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words and the four check keys are read from their classes"
 else
   echo "FAIL enumerations:$missing"
   fails=$((fails + 1))
@@ -833,7 +958,7 @@ else
   exit 1
 fi
 
-if ! ENUM_OUTCOME="$outcomes" ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
+if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
   ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
   cat "$tmp/mksamples.log"
   echo "FAIL the synthetic trees could not be written"
@@ -843,6 +968,7 @@ fi
 rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation, and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, an injection case, the three all-clear situations and a command case" check_set
+rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
