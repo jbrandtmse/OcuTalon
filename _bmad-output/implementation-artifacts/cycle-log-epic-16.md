@@ -149,3 +149,10 @@
 2026-10-26T20:54:31Z	Story 16.9	story_waiting	story=16-9-allowances-cap-messages-model-cost-and-simulated-emails on=6 code=none(never_planned) set_aside=not_needed
 2026-10-26T20:54:31Z	Epic 16	ruling	question=gap-fill_story_while_16.4_and_16.9_wait choice=none_chartered rejected=charter_from_DW-252(needs_Epic_4s_guide_prompt_control,not_closable_until_integrated_forward),DW-233/DW-236/DW-260(decision-sheet_items,not_work) why=U10_gap_fill_needs_closable_entries_owned_by_this_epic;none_exists category=decide policy=36abb05
 2026-10-26T20:54:31Z	Epic 16	epic_runner_paused	reason=waiting waiting_on=10(16.4),6(16.9) head_before_bookkeeping=66a1583 image_job_s=1352(DW-220_reopen_if_30min:not_met)
+2026-10-29T02:57:35Z	Epic 16	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec lane=C slot=ocutalon-slot-c dispatch=redispatch note=re-dispatch_after_epic_10_merge(16.4,16.9_unblocked) head=f41b201 feature=48f92e3
+2026-10-29T02:57:35Z	Epic 16	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-29T02:57:35Z	Epic 16	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-29T02:57:35Z	Epic 16	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-29T02:57:35Z	Epic 16	telemetry_gate	pending=0 action=none
+2026-10-29T02:57:35Z	Epic 16	bootstrap_check	result=ok rc=0 when=before_integrate_forward
+2026-10-29T02:57:35Z	Epic 16	ci_resolved	story=16.8 sha=f41b201 runs=40399832361,40399832013 result=success failed=none via=none resolved_at=resume
