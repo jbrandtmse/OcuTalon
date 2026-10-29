@@ -1710,3 +1710,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 7.3 spec Design Notes V4; Runs.TestStoppedProductionSkipsEveryCopy pins the Skipped counts; the result key choice is the Result texts convention's (Stories 7.3, 7.4, 7.5, 30.5)
 - 2026-10-28T22:37:53Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4 owns the result texts (E > Incidents and Approvals > Results): give a stopped production an honest result (its plain reason, or a key of its own); new wording is a veto-window public-text item at 7.4's spec gate
+
+### DW-379: The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which Story 7.3 is the first to write
+- source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: PurgeOne deletes the FailureGroup rows and the incident in one transaction and nothing else; Fix.Executor saves one FixRun per approved request; after a purge those rows name a deleted incident (IncidentManager.cls:1254)
+- 2026-10-29T02:28:32Z status=open owner=7-3-approved-repairs-are-re-checked-and-resent by=harvest note=AD-27 retains incidents for DaysToKeep (Lane A's Purge): a FixRun row is the incident's own record, so following its incident is compliance (decide), not a retention change; one more delete in PurgeOne and an assertion in Test.Watch.Lifecycle.TestPurge (code review patches it)
