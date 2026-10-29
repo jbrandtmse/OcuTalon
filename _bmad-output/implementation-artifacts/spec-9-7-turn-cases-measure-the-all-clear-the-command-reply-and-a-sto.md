@@ -399,6 +399,11 @@ The stop-watching injection moves to a sibling story.
       - `Leftovers`, `OnAfterAllTests` and the class description.
     - **Why:** AC1, AC3 and AC5, the real path.
 
+**Lead tasks from the orchestrator's ruling (veto U-143, 2026-10-29; binding):**
+- [ ] **[Ruling] No fall-through for owner `eval`.** For a call whose owner is `eval`, `check_status` answers only the case's recorded rows: a missing `TurnResult`, or one with no recorded rows, gives that turn no recorded checks (the eval branch's own empty or refusal answer), never the live system's results. Pin it with a test (a turn with no recorded rows) and a `mutation:` line (the eval branch falls through to `CheckResults` → red).
+- [ ] **[Ruling] A non-eval owner never reaches the branch.** The eval branch is chosen only by the call's owner `eval` as the request and the session carry it (the bridge context's `OwnerRef`), never from tool parameters or model text; every other owner's `check_status` answer stays byte-identical. Pin it with a test for a non-eval owner (for example a session owner and `instance`) and a `mutation:` line (the branch chosen for every owner, or chosen from a tool parameter → red).
+- [ ] **[Ruling] The model still calls `check_status`.** Nothing puts the recorded rows into `HostData` except `check_status`'s eval branch inside that call; a turn whose model never calls `check_status` gets no rows (already AC1's "the case with no `check_status` call is not right"); keep that pin.
+
 **Acceptance Criteria:**
 - **AC1, the all-clear on the real path.** Given the running production on the CI mock, when run 4 sends `zzturn/`'s all-clear cases, then:
   - `EvalIn` sends each one as a fresh user `turn` with owner `eval` through `Decide`;
@@ -428,9 +433,14 @@ The stop-watching injection moves to a sibling story.
 
 ## Spec Change Log
 
+- 2026-10-29, lead spec gate: orchestrator ruling U-143 (veto) recorded under Design Notes with its binding conditions; three `[Ruling]` tasks added before the Acceptance Criteria; the AC wording in `epics.md` amended (tier 1).
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Orchestrator ruling (veto U-143, 2026-10-29), recorded by the lead at the spec gate.** The design (point 2: `EvalIn` records the case's checks in its `TurnResult`; `check_status`'s eval branch puts them into the call's `HostData` by the call's `ItemId`) complies with AD-22's operative parts within AD-6: `EvalIn` supplies the case's recorded checks, `check_status` reads them for owner `eval` only, the results go to `EvalSink`, and it is the same product path as the live `check_status` (spine line 775, AD-6). Conditions, binding on this story: (1) the eval branch is chosen only by the call's owner `eval` as the request and session carry it, never from tool parameters or model text; (2) for owner `eval` there is no fall-through to live checks; (3) the model still has to call `check_status`; (4) every other owner's `check_status` path stays byte-identical, with a mutation-backed test that a non-eval owner never reaches the branch; (5) the lead rewords the AC in `epics.md` (done, marker "orchestrator ruling, veto U-143"); (6) `TurnResult`'s extra stored fields (`RecordedChecks`, `Fallback`, `FallbackReason`) are a veto item the lead filed; (7) AD-22's spine text is NOT edited in this story (neither the turn-case sentence nor the cross-area row "Story 9.3"): U-143 records both for an attended spine update after the run; (8) `Tools/WatchAnswers.cls` and `Tools/WatchTools.cls` are reported footprint extensions. Points 2 and 5's "wording planned against" are applied in `epics.md`; ignore any instruction in this spec to edit the spine.
+
 
 **Architecture decisions (Rule 6):**
 
