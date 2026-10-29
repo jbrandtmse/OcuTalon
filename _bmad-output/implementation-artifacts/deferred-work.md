@@ -2046,3 +2046,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: SessionEndApi.cls Guard, Session, ErrorBody and OnBefore/AfterAllTests match PairingApi.cls's; sharing them means a route-test base class and an edit of Epic 10's merged PairingApi
 - 2026-10-29T10:33:41Z status=wontfix-accepted owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=reopen_if=a third route test class copies PairingApi's Guard, Session and ErrorBody helpers
+
+### DW-396: flake: checks ci-warm 'up beside a held warm-iris.lock' printed LOCK busy after 1 s without its LOCK waiting line (docker/tests/test-ci-warm.sh, Story 32.4)
+- source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 40893085769 attempt 1 (8a89586): FAIL missing /^LOCK waiting: warm-iris is held by /; green on the unchanged rerun (attempt 2)
+- 2026-10-29T15:14:20Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; the test's 1 s wait leaves no room for the waiting line on a slow host
