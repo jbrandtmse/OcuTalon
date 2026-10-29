@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The evaluation run against the CI mock (Story 9.2; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
+# The evaluation run against the CI mock (Stories 9.2, 9.3 and 9.7; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
 # .github/workflows/lane-a.yml and runs the same way on a developer machine:
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own with the CI override and
@@ -24,9 +24,14 @@
 #      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
 # The checks print one PASS or FAIL line each: each run started (a disabled EvalIn fails with the director's text), the set has no
 # problem, the set has at least one case scored by the injection rule, the set's Markdown has the Injections score line and the section
-# "Injection cases" with a bullet for mail-suspicious-request, and the mock-wrong run has no problem, at least one case, and every case
-# decided (not a fallback) with the scenario's answer and not right. The SM-1, SM-2 and injection results are printed and never checked:
-# a score below its target is reported and fails nothing. Exits 1 when any check fails, 0 otherwise.
+# "Injection cases" with a bullet for mail-suspicious-request, the set has at least one all-clear case and one command case scored (the
+# turn cases of Story 9.7: the lines CHK|allclear| and CHK|commands| carry "<right> of <total>", and a total that is empty, not a number
+# or 0 fails), the set's Markdown has the score lines All-clear and Command and the section "Turn cases" with a bullet for
+# allclear-orders-failing and one for command-run-shell, and the mock-wrong run has no problem, at least one case, and every case
+# decided (not a fallback) with the scenario's answer and not right. The SM-1, SM-2, injection, all-clear and command results are
+# printed and never checked: a score below its target is reported and fails nothing (on the mock the turn cases get the default chat
+# script, so both turn scores are 0: the all-clear cases never call check_status, and the command case gets the default reply, which
+# lacks the key phrase). Exits 1 when any check fails, 0 otherwise.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -77,6 +82,8 @@ eval_run() {
     'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):"",1:c.got),"|",c.%Get("fallback") }' \
     'For g="items","incidents" { Set s=report.scores.%Get(g) Write !,"CHK|",g,"|",s.right," of ",s.total,"|",$Select(s.%GetTypeOf("met")="null":"not measured",s.%Get("met"):"met",1:"not met") }' \
     'Set s=report.scores.injections Write !,"CHK|injections|",s.right," of ",s.total' \
+    'Set s=report.scores.allClear Write !,"CHK|allclear|",s.right," of ",s.total' \
+    'Set s=report.scores.commands Write !,"CHK|commands|",s.right," of ",s.total' \
     "Set sc=##class(OcuTalon.Eval.Report).Save(report,\"$title\",\"$CONTAINER_REPORTS/\",\"$name\")" \
     'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
     'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
@@ -144,12 +151,24 @@ if run_started set; then
     '' | *[!0-9]* | 0) fail "set: no injection case was scored by the injection rule (injections: ${injections:-no score})" ;;
     *) pass "set: the injection cases are scored apart ($injections right)" ;;
   esac
+  for turn_score in allclear commands; do
+    turn_value=$(chk_value set "$turn_score")
+    case ${turn_value##* of } in
+      '' | *[!0-9]* | 0) fail "set: no $turn_score case was scored by its turn rule ($turn_score: ${turn_value:-no score})" ;;
+      *) pass "set: the $turn_score cases are scored apart ($turn_value right)" ;;
+    esac
+  done
   if [ "$(chk_value set saved)" = 1 ]; then fetch set; else fail "set: the report could not be saved"; fi
   before=$fails
   for want in '^| Injections |' '^## Injection cases$' '^- mail-suspicious-request: '; do
     grep -q "$want" "$report_dir/set.md" 2> /dev/null || fail "set: set.md has no line that matches '$want'"
   done
   if [ "$fails" -eq "$before" ]; then pass "set: set.md has the injections score and the section Injection cases with mail-suspicious-request"; fi
+  before=$fails
+  for want in '^| All-clear |' '^| Command |' '^## Turn cases$' '^- allclear-orders-failing: ' '^- command-run-shell: '; do
+    grep -q "$want" "$report_dir/set.md" 2> /dev/null || fail "set: set.md has no line that matches '$want'"
+  done
+  if [ "$fails" -eq "$before" ]; then pass "set: set.md has the All-clear and Command scores and the section Turn cases with allclear-orders-failing and command-run-shell"; fi
 fi
 
 # --- run 2: the test-only cases, which the mock answers wrongly ---

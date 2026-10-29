@@ -1,4 +1,4 @@
-/// Tests of EvalSink and the result table it completes (Story 9.1; AD-3, AD-5, AD-14, AD-20, AD-22, AD-30, AD-33). WARM-SAFE: they call
+/// Tests of EvalSink and the result table it completes (Stories 9.1 and 9.7; AD-3, AD-5, AD-14, AD-20, AD-22, AD-30, AD-33). WARM-SAFE: they call
 /// OnMessage on a shadow instance of OcuTalon.Eval.Sink with synthetic OcuTalon.Eval.Data.CaseResult rows opened as EvalIn opens
 /// them, and synthetic Decision (decide, turn, diagnose) and Usage rows. They start no production, send no message and go through
 /// no IncidentManager. Every Ref is a 22-character OcuTalon.Bridge.Ids.NewRef(); the run Refs and case names start with zz.
@@ -12,7 +12,11 @@
 ///   - TestFallback: an ItemDecision with Fallback 1 and no DecisionRef leaves the cost and size fields empty;
 ///   - TestNoOpenRow: an ItemDecision for an ItemId with no sent row, and a second decision for a decided row, log a warning that names
 ///     the ItemId and the SourceItemId and store or change nothing;
-///   - TestRefused: a message that is not an ItemDecision, and one whose owner is not eval, log a warning and store nothing;
+///   - TestRefused: a message that is neither an ItemDecision nor a TurnResult, and an ItemDecision whose owner is not eval, log a warning and store nothing;
+///   - TestTurnResult (Story 9.7): a TurnResult completes the row of its ItemId: the DecisionRef (the turn's Decision), the fallback fields from the message,
+///     an empty Outcome, the cost and the largest request of the DecisionRef's Usage rows, and no TurnDecisionRef although the item has a turn Decision;
+///   - TestTurnFallback: a TurnResult that is a fallback with no DecisionRef leaves the cost and size fields empty;
+///   - TestTurnNoRow: a TurnResult for an ItemId with no sent row, and a second one for a decided row, log a warning and store or change nothing;
 ///   - TestUnpriced: a cost that is not known is empty, never 0.
 ///   - TestCostFromUsage: the cost is read from the Usage rows, not from the Decision's own cost field;
 ///   - TestCauseOnlyFromDiagnose, TestLongValues, TestSaveFailure and TestNeverThrows: only a diagnose Decision's payload gives the
@@ -239,7 +243,8 @@ Method TestNoOpenRow()
 	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback_"|"_row.DecidedAt, "decided|"_decision_"|digest|0|"_decidedAt, "the decided row is unchanged")
 }
 
-/// A message that is not an ItemDecision, and an ItemDecision whose owner is not eval, are refused with a warning; the open row stays sent.
+/// A message that is neither an ItemDecision nor a TurnResult, and an ItemDecision whose owner is not eval, are refused with a warning; the open
+/// row stays sent.
 Method TestRefused()
 {
 	Set start = ##class(OcuTalon.Eval.Sink).#LOGREFUSED
@@ -247,8 +252,8 @@ Method TestRefused()
 	Set itemId = ..Open(run, "refused", "source-refused")
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..Deliver(##class(Ens.StringRequest).%New("not a decision"))
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a message that is not an ItemDecision logs one warning")
-	Do $$$AssertTrue(text [ "not an ItemDecision", "and says why: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a message that is neither an ItemDecision nor a TurnResult logs one warning")
+	Do $$$AssertTrue(text [ "it is neither an ItemDecision nor a TurnResult", "and says why: "_text)
 
 	Set decision = ..Decision(itemId, "decide", {"Outcome": "digest"})
 	For owner = "instance", ##class(OcuTalon.Bridge.Ids).NewRef(), "" {
@@ -263,6 +268,75 @@ Method TestRefused()
 		If '$IsObject(row) Continue
 		Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.DecidedAt, "sent|||", label_"the row is still sent and holds nothing")
 	}
+}
+
+/// A TurnResult completes the row of its ItemId from the turn's Decision: no outcome, the cost and size of the DecisionRef's rows, and no act turn
+/// (the item has a turn Decision, which is the DecisionRef itself, and TurnDecisionRef stays empty).
+Method TestTurnResult()
+{
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "turnresult", "source-turnresult")
+	Set turn = ..Decision(itemId, "turn", {"CostUSD": (0.0007), "Outcome": ""})
+	Do ..Usage(turn, 0.0003, 2000)
+	Do ..Usage(turn, 0.0004, 9000)
+	Set other = ..Decision(##class(OcuTalon.Bridge.Ids).NewRef(), "turn", {"Outcome": ""})
+	Do ..Usage(other, 0.0009, 99999)
+	Set before = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Do ..Deliver(..TurnMessage(itemId, "source-turnresult", turn))
+	Set after = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row = ..RowOf(run, "turnresult")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason, "decided|"_turn_"||0|", "the row is decided with the turn Decision, no outcome and no fallback")
+	Do $$$AssertEquals(row.RunRef_"|"_row.CaseName_"|"_row.SourceItemId_"|"_row.ItemId, run_"|"_..#CASEPREFIX_"turnresult|source-turnresult|"_itemId, "the run, the case, the SourceItemId and the ItemId are the ones EvalIn opened")
+	Do $$$AssertEquals(+row.CostUSD, 0.0007, "the cost is the sum of the Usage rows of the DecisionRef")
+	Do $$$AssertEquals(row.LargestRequestTokens, 9000, "the largest request is the largest of those rows")
+	Do $$$AssertEquals(row.TurnDecisionRef_"|"_row.TurnCostUSD, "|", "TurnDecisionRef and TurnCostUSD stay empty: a turn case has no act turn")
+	Do $$$AssertEquals(row.CauseCategory_row.ElementAtFault_row.FixKind_row.FixParameters, "", "and a turn gives no cause or fix")
+	Do $$$AssertTrue((before '] row.DecidedAt) && (row.DecidedAt '] after), "DecidedAt lies between the clock before the call ("_before_") and after it ("_after_"): "_row.DecidedAt)
+}
+
+/// A TurnResult that is a fallback: the fields come from the message, and with no DecisionRef the cost and size stay empty.
+Method TestTurnFallback()
+{
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "turnfallback", "source-turnfallback")
+	Set message = ..TurnMessage(itemId, "source-turnfallback", "")
+	Set message.Fallback = 1
+	Set message.FallbackReason = "rate_limited"
+	Do ..Deliver(message)
+	Set row = ..RowOf(run, "turnfallback")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.DecisionRef_"|"_row.Outcome, "decided|1|rate_limited||", "the row is decided as a fallback with the reason")
+	Do $$$AssertEquals(row.CostUSD_"|"_row.LargestRequestTokens_"|"_row.TurnDecisionRef_"|"_row.TurnCostUSD, "|||", "and its cost and size are empty")
+}
+
+/// A TurnResult with no sent row of its ItemId, and a second TurnResult for a decided row, log a warning and store or change nothing.
+Method TestTurnNoRow()
+{
+	Set start = ##class(OcuTalon.Eval.Sink).#LOGNOROW
+	Set before = ..CountRows()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ..Deliver(..TurnMessage(itemId, "source-turnnorow", ""))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a TurnResult for an ItemId with no row logs one warning")
+	Do $$$AssertTrue((text [ itemId) && (text [ "source-turnnorow"), "it names the ItemId and the SourceItemId: "_text)
+	Do $$$AssertEquals(..CountRows(), before, "and no row is stored")
+
+	Set run = ..NewRun()
+	Set itemId = ..Open(run, "turntwice", "source-turntwice")
+	Set turn = ..Decision(itemId, "turn", {"Outcome": ""})
+	Do ..Usage(turn, 0.0002, 1500)
+	Do ..Deliver(..TurnMessage(itemId, "source-turntwice", turn))
+	Set first = ..RowOf(run, "turntwice")
+	If '$IsObject(first) Quit
+	Set decidedAt = first.DecidedAt
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set message = ..TurnMessage(itemId, "source-turntwice", "")
+	Set message.Fallback = 1
+	Do ..Deliver(message)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a second TurnResult for a decided row logs one warning")
+	Set row = ..RowOf(run, "turntwice")
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Fallback_"|"_row.DecidedAt, "decided|"_turn_"|0|"_decidedAt, "and the decided row is unchanged")
 }
 
 /// A cost that is not known is empty, never 0: one unpriced Usage row makes the decision's cost empty, and a turn Decision with no cost
@@ -435,6 +509,16 @@ Method Message(itemId As %String, sourceItemId As %String, decisionRef As %Strin
 	Set message.Channel = "mailbox"
 	Set message.DecisionRef = decisionRef
 	Set message.Outcome = outcome
+	Quit message
+}
+
+/// A TurnResult of the item, not saved, with the turn's DecisionRef (empty for a turn that has none).
+Method TurnMessage(itemId As %String, sourceItemId As %String, decisionRef As %String) As OcuTalon.Eval.Msg.TurnResult [ Private ]
+{
+	Set message = ##class(OcuTalon.Eval.Msg.TurnResult).%New()
+	Set message.ItemId = itemId
+	Set message.SourceItemId = sourceItemId
+	Set message.DecisionRef = decisionRef
 	Quit message
 }
 

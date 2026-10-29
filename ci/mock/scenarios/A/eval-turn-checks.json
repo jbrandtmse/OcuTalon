@@ -1,0 +1,19 @@
+{
+  "name": "eval-turn-checks",
+  "match": {
+    "marker": "eval-turn-checks"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "check_status",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the check results."
+    }
+  ]
+}

@@ -13,10 +13,15 @@
 ///     Nothing is submitted for a refusal, and no text of the incident from outside the instance (cause, element, fix summary, sample error) is read.
 ///   - Dismissed is the answer of the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the entry's production and ref, and the
 ///     state and openVariant that the owner's Data holds.
-///   - CheckResults is the one source of the results that check_status gives (9.3 adds its eval branch here): the session's own Kind production
+///   - CheckResults is the source of the results that check_status gives for a session: the session's own Kind production
 ///     watches (read through the ownership API, by ID), each as {"result", "entry" (ENTRY with the display name), "finding", "checkedAt"} copied from
 ///     the row's Result, Finding and LastRunAt, so the tool never decides a result (AD-28). Rows of another Kind are left out. A read that fails
-///     answers {"ok": false, "message": CHECKSNOTREAD}.
+///     answers {"ok": false, "message": CHECKSNOTREAD}. It refuses the owner eval (CHECKSNOTREAD), as before.
+///   - EvalCheckResults is the eval branch of check_status (Story 9.7, AD-22): it answers 1, with the case's recorded rows in results, only when
+///     the bridge context's OwnerRef is exactly eval (as the request and the session carry it, never a tool argument) and the newest
+///     OcuTalon.Eval.Msg.TurnResult of the context's ItemId has RecordedChecks that parse as a JSON array. For every other call, and when
+///     it cannot read the table, it answers 0 and results is []. It reads the table with SQL, so that no class of the evaluation set joins the
+///     callback, and it never throws.
 ///   - PutChecks sets the results as the checks member of the bridge context's HostData (a JSON object keeps its other members and loses an
 ///     earlier checks; any other HostData becomes {"checks": results}), which Conversation hands to Checks.Render.
 ///   - Checked is the answer of check_status for the model: {"ok": true, "checks": [{"result", "entry", "finding", "checked"}]}, where checked is the
@@ -204,6 +209,34 @@ ClassMethod CheckResults(sessionRef As %String, Output results As %DynamicArray)
 		Do results.%Push({"result": (check.Result), "entry": ($Replace(..#ENTRY, "{name}", check.DisplayName)), "finding": (check.Finding), "checkedAt": (check.LastRunAt)})
 	}
 	Quit ""
+}
+
+/// The eval branch of check_status: 1 and the case's recorded rows in results ([{"result", "entry", "finding", "checkedAt"}, ...], as the case
+/// recorded them) when the context's OwnerRef is exactly eval and the newest TurnResult of the context's ItemId has RecordedChecks that
+/// parse as a JSON array (an empty array is a case with nothing watched). Otherwise 0 and []: another owner, no context, no ItemId, no
+/// TurnResult, RecordedChecks that are empty or not an array, or a table that cannot be read.
+ClassMethod EvalCheckResults(context As OcuTalon.Bridge.Context, Output results As %DynamicArray) As %Boolean
+{
+	Set results = []
+	Set found = 0
+	Try {
+		If $IsObject(context) && (context.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL) && (context.ItemId '= "") {
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT RecordedChecks FROM OcuTalon_Eval_Msg.TurnResult WHERE ItemId = ? ORDER BY ID DESC", context.ItemId)
+			If (result.%SQLCODE '< 0) && result.%Next() {
+				Set recorded = result.%Get("RecordedChecks")
+				If recorded '= "" {
+					Set parsed = ##class(%DynamicAbstractObject).%FromJSON(recorded)
+					If $IsObject(parsed) && parsed.%IsA("%Library.DynamicArray") {
+						Set results = parsed
+						Set found = 1
+					}
+				}
+			}
+		}
+	} Catch exception {
+		Set results = [], found = 0
+	}
+	Quit found
 }
 
 /// Sets the results as the checks member of the bridge context's HostData. A HostData that is a JSON object keeps its other members; any other

@@ -1,8 +1,9 @@
 /// One evaluation case's result in one run (AD-22, AD-30, AD-33). Lane A. The two writers are Lane A's and write only through the
 /// class methods below:
-///   - EvalIn opens the row (Open) as sent when it sends the case's Item to Intake;
-///   - EvalSink takes the open row (Pending) by the Item's ItemId and completes it as decided from the ItemDecision and from the
-///     bridge's Decision and Usage rows.
+///   - EvalIn opens the row (Open) as sent when it sends the case's Item to Intake, or, for a turn case (all-clear or command), when it
+///     asks Decide for the turn;
+///   - EvalSink takes the open row (Pending) by the Item's ItemId and completes it as decided from the ItemDecision, or the TurnResult
+///     of a turn case, and from the bridge's Decision and Usage rows.
 /// A case that EvalIn does not send has no row. A sent case that is never decided stays visible as a row in state sent.
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
 /// folder in eval/, and SourceItemId is the case's recorded item id. Times are UTC to the second. A cost that is not known is empty,
@@ -40,10 +41,11 @@ Property SentAt As %String(MAXLEN = 20);
 /// When EvalSink completed the row.
 Property DecidedAt As %String(MAXLEN = 20);
 
-/// The Ref of the Decision row of the attention decision (a decide or, for an incident, a diagnose); empty for a fallback that has none.
+/// The Ref of the Decision row of the attention decision (a decide or, for an incident, a diagnose) or, for a turn case, of its turn; empty for a
+/// fallback that has none.
 Property DecisionRef As %String(COLLATION = "EXACT", MAXLEN = 22);
 
-/// The outcome of the ItemDecision: one of Msg.Enum OUTCOME.
+/// The outcome of the ItemDecision: one of Msg.Enum OUTCOME; empty for a turn case, which has none.
 Property Outcome As %String(MAXLEN = 32);
 
 /// 1 when the decision took the fallback route (AD-8).

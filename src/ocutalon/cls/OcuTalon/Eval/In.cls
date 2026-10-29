@@ -1,18 +1,30 @@
-/// EvalIn, the adapterless service that sends the recorded item cases of eval/ through the product's own path (AD-22, AD-30). Lane A.
+/// EvalIn, the adapterless service that sends the recorded cases of eval/ through the product's own path (AD-22, AD-30). Lane A.
 /// The product keeps it disabled; the Production install step enables it only when OCUTALON_EVAL is 1, and Start reaches it only through
 /// Ens.Director.CreateBusinessService, so a disabled EvalIn sends nothing. It uses neither EnsLib.Testing.Service nor the production's
-/// testing switch, and it sends only to Intake.
+/// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink, and nothing else is ever a target.
 ///   - Start is the run entry: it creates the service, mints the run's Ref and sends each named case, or each case folder under the
 ///     folder, once. It returns the run's Ref, how many cases were sent, and the cases that were not, each with its reason.
+///   - Start sends the turn cases first (SendOrder), then the others, each group in the order of the case list. ChatAgent has one job,
+///     so the Decide timer of a turn case would otherwise be spent behind the act turns of earlier item cases.
 ///   - A case is a folder with a case.json (the shape of the eval/ cases): name, kind, heldOut, description, expectation and
-///     recordedBy, and for a kind of item or injection an item {itemId, channel, provenance, sender, subject, text, catalogKey, slots}.
-///     A case that is not sent is logged as a warning and goes into the skipped list with its reason: a kind that holds no recorded
-///     Item (an incident, a turn kind), no case.json or one that is not a JSON object, no item.itemId, or a recorded provenance
-///     other than untrusted. The other cases still run.
+///     recordedBy, and for a kind of item or injection an item {itemId, channel, provenance, sender, subject, text, catalogKey, slots},
+///     and for a kind of all-clear or command a turn {text} (and, for an all-clear, checks: the array of the recorded check rows).
+///     A case that is not sent is logged as a warning and goes into the skipped list with its reason: a kind that is not sent (an
+///     incident), no case.json or one that is not a JSON object, no item.itemId, a recorded provenance other than untrusted, no
+///     turn.text, or an all-clear case whose checks is not an array. The other cases still run.
 ///   - A sent case is an OcuTalon.Msg.Item with a fresh ItemId (OcuTalon.Bridge.Ids.NewRef), SourceItemId set to the recorded
 ///     item.itemId, owner eval (OcuTalon.Data.Ownership EVAL), provenance untrusted, and the channel, sender, subject, text, catalog key
 ///     and slots of the record. Before the send EvalIn opens the case's OcuTalon.Eval.Data.CaseResult row, which EvalSink completes;
 ///     a send that fails deletes the row and skips the case with the error text.
+///   - A turn case (SendTurn) is a user turn of owner eval: a fresh ItemId, a request of Kind turn, Provenance user, Channel web,
+///     SessionMode fresh (so that no case shares a conversation with another) and no SeedText, with the Input that Agent.Input renders from
+///     an unsaved Item of the case's turn.text. Before the send EvalIn saves the case's OcuTalon.Eval.Msg.TurnResult (ItemId,
+///     SourceItemId and RecordedChecks, the case's checks as JSON for an all-clear case), which the eval branch of check_status reads by
+///     the request's ItemId, and opens the case's row. It sends the request to Decide and waits for the Reply: a Busy reply is asked
+///     again BUSYWAIT seconds later, BUSYMAX times at most, and then the case ends as a fallback with the reason rate_limited. The Reply's
+///     DecisionRef, ToolsRun, Text, Fallback and FallbackReason go into the TurnResult, and so do the catalog key and rows that
+///     Checks.Render gives the Reply's HostData checks. EvalIn then sends the TurnResult to EvalSink, which completes the row. A Decide
+///     that gives no Reply (an error, a timeout or an answer that is not a Reply) deletes the row and the TurnResult and skips the case.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26).
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
 Class OcuTalon.Eval.In Extends Ens.BusinessService
@@ -24,8 +36,35 @@ Parameter FOLDER = "/opt/ocutalon/eval/";
 /// The item that takes every Item.
 Parameter TARGET = "Intake";
 
-/// The kinds of case that hold a recorded Item, comma-separated.
-Parameter KINDS = "item,injection";
+/// The item that answers a turn case.
+Parameter DECIDE = "Decide";
+
+/// The item that completes the rows, and takes the TurnResult of a turn case.
+Parameter SINK = "EvalSink";
+
+/// The kinds of case that EvalIn sends, comma-separated.
+Parameter KINDS = "item,injection,all-clear,command";
+
+/// The kinds of case that hold a recorded Item, and go to Intake.
+Parameter ITEMKINDS = "item,injection";
+
+/// The kinds of case that are a user turn, and go to Decide.
+Parameter TURNKINDS = "all-clear,command";
+
+/// The kind of turn case that holds recorded check rows.
+Parameter ALLCLEARKIND = "all-clear";
+
+/// The channel of a turn case: the user asks in the chat.
+Parameter TURNCHANNEL = "web";
+
+/// The seconds to wait for Decide's Reply: above the longest timer of Decide (110) and its 2-second conversation probe.
+Parameter TURNWAIT = 150;
+
+/// Seconds to wait before a Busy turn is asked again, and how many times it is asked again before the fallback rate_limited: the numbers
+/// of Core.Conversation (a test pins them equal), kept here so that the turn path reads no Lane B class.
+Parameter BUSYWAIT = 3;
+
+Parameter BUSYMAX = 5;
 
 /// The name of the file that holds a case.
 Parameter CASEFILE = "case.json";
@@ -36,14 +75,26 @@ Parameter REASONNOCASEFILE = "the folder has no case.json";
 
 Parameter REASONNOTJSON = "case.json is not a JSON object";
 
-Parameter REASONKIND = "its kind is '{kind}', and only the kinds {kinds} hold a recorded Item";
+Parameter REASONKIND = "its kind is '{kind}', and only the kinds {kinds} are sent";
 
 Parameter REASONNOITEMID = "it has no item.itemId";
 
 Parameter REASONPROVENANCE = "its recorded provenance is '{provenance}', not untrusted";
 
+Parameter REASONNOTEXT = "it has no turn.text";
+
+Parameter REASONNOCHECKS = "its checks is not an array";
+
+Parameter REASONNOREPLY = "Decide gave no Reply";
+
 /// The start of the warning for a case that is not sent; the case's name and its reason follow it.
 Parameter LOGSKIPPED = "EvalIn did not send the case ";
+
+/// The start of the warning for a TurnResult that could not be sent to EvalSink; the case's name and the error follow it.
+Parameter LOGNOTDELIVERED = "EvalIn could not send the TurnResult of the case ";
+
+/// The start of the warning for check rows in a Reply that Checks.Render could not take; the error follows it.
+Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
 
 /// The Ref of the run that this service instance sends; Start sets it.
 Property RunRef As %String(MAXLEN = 22);
@@ -62,7 +113,7 @@ ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output
 	If $$$ISERR(sc) Quit sc
 	If '$IsObject(service) || 'service.%IsA("OcuTalon.Eval.In") Quit $SYSTEM.Status.Error(5001, "The item EvalIn is not an OcuTalon.Eval.In")
 	Set folder = ##class(%File).NormalizeDirectory(folder)
-	Set list = ..CaseNames(folder, names)
+	Set list = ..SendOrder(folder, ..CaseNames(folder, names))
 	Set service.RunRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set runRef = service.RunRef
 	Set position = 0
@@ -114,6 +165,35 @@ ClassMethod CaseNames(folder As %String, names As %String) As %List
 	Quit list
 }
 
+/// The case list in the order Start sends it: the cases of the turn kinds first, then every other, each group in the order of the list. A
+/// case whose kind cannot be read goes with the others.
+ClassMethod SendOrder(folder As %String, list As %List) As %List
+{
+	Set turns = "", others = ""
+	Set position = 0
+	While $ListNext(list, position, name) {
+		If $ListFind($ListFromString(..#TURNKINDS), ..KindOf(folder, name)) {
+			Set turns = turns_$ListBuild(name)
+		} Else {
+			Set others = others_$ListBuild(name)
+		}
+	}
+	Quit turns_others
+}
+
+/// The kind of the case in the folder's subfolder of that name, or "" when its case.json cannot be read.
+ClassMethod KindOf(folder As %String, name As %String) As %String [ Private ]
+{
+	Set kind = ""
+	Try {
+		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename(..#CASEFILE, ##class(%File).SubDirectoryName(folder, name)))
+		If $IsObject(case) && case.%IsA("%Library.DynamicObject") Set kind = ..Scalar(case, "kind")
+	} Catch exception {
+		Set kind = ""
+	}
+	Quit kind
+}
+
 /// Sends the case in the folder; pOutput is an Ens.StringContainer whose StringValue is "" when the case was sent, and otherwise the
 /// reason it was not.
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
@@ -150,6 +230,7 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If '$IsObject(case) || 'case.%IsA("%Library.DynamicObject") Quit ..#REASONNOTJSON
 	Set kind = ..Scalar(case, "kind")
 	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", $Replace(..#KINDS, ",", " and "))
+	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name)
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
 	Set provenance = ..Scalar(record, "provenance")
@@ -180,10 +261,159 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Quit ""
 }
 
-/// The one send of the class: the Item to the target item, asynchronously, with no answer. Private; a test subclass overrides it.
+/// The one send of an item case: the Item to the target item, asynchronously, with no answer. Private; a test subclass overrides it.
 Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#TARGET, item)
+}
+
+/// The steps for one turn case (see the class description); the reason it was not sent, or "" when it was. A case that has no turn.text,
+/// or an all-clear case whose checks is not an array, is refused before anything is saved. Otherwise the case's TurnResult and row are
+/// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again.
+Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %String [ Private ]
+{
+	Set turn = case.turn
+	Set text = $Select($IsObject(turn) && turn.%IsA("%Library.DynamicObject"): ..Scalar(turn, "text"), 1: "")
+	If $ZStrip(text, "*WC") = "" Quit ..#REASONNOTEXT
+	Set recorded = ""
+	If kind = ..#ALLCLEARKIND {
+		Set checks = case.checks
+		If '$IsObject(checks) || 'checks.%IsA("%Library.DynamicArray") Quit ..#REASONNOCHECKS
+		Set recorded = checks.%ToJSON()
+	}
+	Set result = ##class(OcuTalon.Eval.Msg.TurnResult).%New()
+	Set result.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set result.SourceItemId = name
+	Set result.RecordedChecks = recorded
+	Set sc = result.%Save()
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, result.ItemId)
+	If $$$ISERR(sc) {
+		Do ..Discard(result, name)
+		Quit $SYSTEM.Status.GetOneStatusText(sc)
+	}
+	Set ..%SuperSession = ..RunRef
+	Set reason = ""
+	Try {
+		Set reason = ..Converse(result, text, name)
+	} Catch exception {
+		Set reason = exception.DisplayString()
+	}
+	If reason '= "" Do ..Discard(result, name)
+	Quit reason
+}
+
+/// Asks Decide for the turn, again after a Busy reply, then keeps the Reply in the TurnResult and sends the TurnResult to EvalSink. The
+/// reason there was no Reply to keep, or "". The turn is asked at most BUSYMAX + 1 times, BUSYWAIT seconds apart; a Decide that is busy
+/// every time ends the case as a fallback with the reason rate_limited, with no DecisionRef.
+Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String) As %String [ Private ]
+{
+	Set reply = ""
+	For asks = 1:1:..#BUSYMAX + 1 {
+		Kill reply
+		Set sc = ..Ask(..TurnRequest(result.ItemId, text), .reply)
+		If $$$ISERR(sc) Quit
+		If '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") Quit
+		If 'reply.Busy Quit
+		If asks '> ..#BUSYMAX Do ..Pause(..#BUSYWAIT)
+	}
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	If '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") Quit ..#REASONNOREPLY
+	If reply.Busy {
+		Set result.Fallback = 1
+		Set result.FallbackReason = "rate_limited"
+	} Else {
+		Set result.DecisionRef = reply.DecisionRef
+		Set result.ToolsRun = +reply.ToolsRun
+		Set result.ReplyText = reply.Text
+		Set result.Fallback = +reply.Fallback
+		Set result.FallbackReason = reply.FallbackReason
+		Do ..Render(result, reply.HostData)
+	}
+	Set sc = result.%Save()
+	If $$$ISOK(sc) Set sc = ..Deliver(result)
+	If $$$ISERR(sc) $$$LOGWARNING(..#LOGNOTDELIVERED_name_": "_$SYSTEM.Status.GetOneStatusText(sc))
+	Quit ""
+}
+
+/// The request to Decide for a turn case (AD-6): a user turn of owner eval, in a fresh conversation, with no recap. The Input is what
+/// Agent.Input renders from an Item of the same fields as a user's turn in the chat, so the model sees the turn as the product sends it.
+Method TurnRequest(itemId As %String, text As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.ItemId = itemId
+	Set item.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL
+	Set item.Channel = ..#TURNCHANNEL
+	Set item.Provenance = "user"
+	Set item.Text = text
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Set request.Provenance = "user"
+	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item)
+	Set request.ItemId = itemId
+	Set request.Summary = ..FirstLine(text)
+	Set request.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL
+	Set request.TraceRef = ..RunRef
+	Set request.Channel = ..#TURNCHANNEL
+	Set request.ThreadSessionId = ..%SessionId
+	Set request.SessionMode = "fresh"
+	Quit request
+}
+
+/// The first line of the text that is not blank, without the white space at its ends, cut to the 80 characters of a Summary.
+ClassMethod FirstLine(text As %String) As %String [ Private ]
+{
+	Set text = $Translate(text, $Char(13), $Char(10))
+	Set line = ""
+	For i = 1:1:$Length(text, $Char(10)) {
+		Set line = $ZStrip($Piece(text, $Char(10), i), "<>WC")
+		If line '= "" Quit
+	}
+	Quit $Extract(line, 1, 80)
+}
+
+/// Puts the catalog key and the rows that Checks.Render gives the check rows of the Reply's HostData in the TurnResult. A HostData that is
+/// not a JSON object with an array checks, or that renders neither a key nor a row, adds nothing; one that cannot be read is logged.
+Method Render(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If ($ClassName(data) '= "%Library.DynamicObject") || (data.%GetTypeOf("checks") '= "array") Quit
+		Set key = ##class(OcuTalon.Checks.Render).Render(data.checks, .rows)
+		Set size = $Select($IsObject($Get(rows)): rows.%Size(), 1: 0)
+		If (key = "") && (size = 0) Quit
+		Set result.CatalogKey = key
+		Set result.CheckRows = $Select(size > 0: rows.%ToJSON(), 1: "")
+	} Catch exception {
+		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
+	}
+}
+
+/// Deletes the case's row and its TurnResult.
+Method Discard(result As OcuTalon.Eval.Msg.TurnResult, name As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
+	If $IsObject(result) && (result.%Id() '= "") Do ##class(OcuTalon.Eval.Msg.TurnResult).%DeleteId(result.%Id())
+}
+
+/// The call of a turn case to Decide: synchronous, for at most TURNWAIT seconds. A call that times out answers OK with no response. Private;
+/// a test subclass overrides it.
+Method Ask(request As OcuTalon.Bridge.Msg.Request, Output reply As %Library.Persistent) As %Status [ Private ]
+{
+	Quit ..SendRequestSync(..#DECIDE, request, .reply, ..#TURNWAIT)
+}
+
+/// The send of a turn case's TurnResult to EvalSink, asynchronously, with no answer. Private; a test subclass overrides it.
+Method Deliver(result As OcuTalon.Eval.Msg.TurnResult) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#SINK, result)
+}
+
+/// The wait before a Busy turn is asked again. Private; a test subclass overrides it.
+Method Pause(seconds As %Integer) [ Private ]
+{
+	Hang seconds
 }
 
 /// The text of a string, number or boolean member of a JSON object; "" for a member that is missing, null, an object or an array. EvalSink
