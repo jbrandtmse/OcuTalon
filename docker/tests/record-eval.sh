@@ -83,8 +83,8 @@ if [ "$mode" = feed ]; then
   done
   if [ "$count" -eq 0 ]; then die "the feed recorded no case"; fi
   for name in $(printf '%s' "$names" | tr ',' ' '); do
-    mkdir -p "eval/$name"
-    cp "$tmp/feed/$name/case.json" "$tmp/feed/$name/snapshot.json" "eval/$name/"
+    mkdir -p "eval/$name" || die "eval/$name could not be made"
+    cp "$tmp/feed/$name/case.json" "$tmp/feed/$name/snapshot.json" "eval/$name/" || die "eval/$name could not be written"
   done
   echo "record-eval: $count feed cases written"
   exit 0

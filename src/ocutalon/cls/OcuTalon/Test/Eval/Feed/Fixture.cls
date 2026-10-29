@@ -2,19 +2,22 @@ Include (Ensemble, %sySecurity)
 
 /// The fixture of the evaluation set's test feed (Story 9.9; AD-22, CON-3): it installs OcuTalon.Test.Eval.Feed in a namespace of its own, sends the
 /// feed's nine cases, reads their keys, records them, and removes everything it made. It is not a test case (it has no test method).
-///   - THROWAWAYS ONLY. Install refuses, writes nothing and names the reason unless the folder of the evaluation set (Eval.In FOLDER, which only
-///     docker/tests/compose.throwaway.yml mounts) exists. Its only callers are Test.Eval.Record and docker/tests/record-eval.sh feed, each in a
-///     throwaway of its own. Nothing in the product's install, the judges' compose file or the demo host names it.
+///   - THROWAWAYS ONLY. Install refuses, writes nothing and names the reason unless the folder of the evaluation set (Mount: Eval.In FOLDER, which only
+///     docker/tests/compose.throwaway.yml mounts) exists, and the folder it is given exists too, so the argument can only narrow the guard. Its callers
+///     are Test.Eval.Record, Test.Eval.FeedGrant (through its subclasses BareFixture, BrokenFixture, StuckFixture and UnmountedFixture) and
+///     docker/tests/record-eval.sh feed, each in a throwaway of its own. Nothing in the product's install, the judges' compose file or the demo host
+///     names it.
 ///   - What Install makes, in this order: the resource RESOURCE (no public permission); the folder below the manager directory and the database
 ///     DATABASE in it, with its Config.Databases entry; the namespace NAMESPACE (globals and routines in DATABASE); the package mapping of CODEPACKAGE
 ///     from CODEDATABASE, which makes this class, the feed's production and the classes below them visible there; Interoperability in the namespace
 ///     (EnableNamespace with the install flag); the one grant, Read on RESOURCE added to the Resources of the service role (Install.Step.Users
-///     SERVICEROLE), nothing else and never %All; then the production, started, with every enabled item that has a pool alive. A leftover of an earlier
-///     run is removed first.
-///   - What Remove removes, each step skipped when there is nothing to remove: the production (stopped), the web applications of the namespace, the
-///     namespace, the Interoperability marker and role, every database entry at or below the folder with its files and the folder, and the resource.
-///     Deleting the resource also takes the grant out of the role (Security.Resources.Delete). It is idempotent and its status says what it could not
-///     remove; Leftovers names what still exists.
+///     SERVICEROLE), nothing else and never %All; then the production, started, with a job of every enabled item that has a pool past its start (its
+///     adapter made, the partner's listener open). A leftover of an earlier run is removed first.
+///   - What Remove removes, each step skipped when there is nothing to remove: first the grant (RESOURCE taken out of the service role's Resources, so
+///     that it is gone even when a later step fails), then the production (stopped), the web applications of the namespace and its web folder, the
+///     namespace, the Interoperability marker and role, every database entry at or below the folder with its files and the folder, and the resource
+///     with the database's own role of that name. Deleting the resource also takes it out of every role (Security.Resources.Delete). It is idempotent
+///     and its status says what it could not remove; Leftovers names what still exists.
 ///   - Cases (XData) holds the nine cases: each has a name, a held-out flag, a description, the expectation of the diagnosis, the item the failures are
 ///     at, the message class and three messages of fixed synthetic values, and the markers (errorHas) that every recorded error must hold. Start sends
 ///     them, one batch for each, with a reference of its own as the SuperSession of the batch's messages. Keys waits for a case's failures and gives
@@ -224,10 +227,12 @@ ClassMethod Definition(name As %String) As %DynamicObject
 	Quit found
 }
 
-/// Installs the feed (see the class description) and starts its production. It refuses, and does nothing, when the folder does not exist: the
-/// folder is the throwaway's mount of the evaluation set. Any leftover of an earlier run is removed first. The status is the first step that failed.
+/// Installs the feed (see the class description) and starts its production. It refuses, and does nothing, unless the throwaway's mount of the
+/// evaluation set (Mount) exists and the folder exists too. Any leftover of an earlier run is removed first. The status is the first step that failed.
 ClassMethod Install(folder As %String = {##class(OcuTalon.Eval.In).#FOLDER}) As %Status
 {
+	Set mount = ..Mount()
+	If '##class(%File).DirectoryExists(mount) Quit $$$ERROR($$$GeneralError, ..#REFUSAL_"the evaluation folder "_mount_" is not mounted here")
 	If '##class(%File).DirectoryExists(folder) Quit $$$ERROR($$$GeneralError, ..#REFUSAL_"the evaluation folder "_folder_" is not mounted here")
 	Set sc = ..Remove()
 	If $$$ISERR(sc) Quit sc
@@ -236,23 +241,32 @@ ClassMethod Install(folder As %String = {##class(OcuTalon.Eval.In).#FOLDER}) As 
 	Quit ..StartProduction()
 }
 
-/// Removes everything Install made (see the class description). Idempotent. The status holds each step that failed, and an error naming what Leftovers
-/// still finds.
+/// Removes everything Install made (see the class description), the grant first. Idempotent. The status holds each step that failed, and an error naming
+/// what Leftovers still finds.
 ClassMethod Remove() As %Status
 {
-	Set sc = ..StopProduction()
+	Set sc = ..Revoke()
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..StopProduction())
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..RemoveSystem())
 	Set left = ..Leftovers()
 	If left '= "" Set sc = $SYSTEM.Status.AppendStatus(sc, $$$ERROR($$$GeneralError, "The test feed was not removed completely: "_left))
 	Quit sc
 }
 
-/// What still exists of what Install made, comma-separated: namespace, database, directory, resource, marker, role, application and grant. "" when
-/// nothing does.
+/// The folder that only a throwaway test stack has: the evaluation set's mount (Eval.In FOLDER, which only docker/tests/compose.throwaway.yml mounts).
+/// Install refuses where it does not exist.
+ClassMethod Mount() As %String
+{
+	Quit ##class(OcuTalon.Eval.In).#FOLDER
+}
+
+/// What still exists of what Install made, comma-separated: namespace, database, directory, resource, dbrole (the database's own role, named as the
+/// resource), marker, role, application, portal (the web folder of the namespace) and grant. "" when nothing does.
 ClassMethod Leftovers() As %String
 {
 	Set ns = ..#NAMESPACE, db = ..#DATABASE, resource = ..#RESOURCE
 	Set directory = ..Directory()
+	Set portalDir = ..PortalDirectory()
 	Set interopRole = $$$InteropNSRole(ns)
 	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
 	New $NAMESPACE
@@ -262,10 +276,12 @@ ClassMethod Leftovers() As %String
 	If ##class(Config.Databases).Exists(db) Set left = left_",database"
 	If ##class(%File).DirectoryExists(directory) Set left = left_",directory"
 	If ##class(Security.Resources).Exists(resource) Set left = left_",resource"
+	If ##class(Security.Roles).Exists(resource) Set left = left_",dbrole"
 	If $Data(^%SYS("Ensemble", "InstalledNamespace", ns)) Set left = left_",marker"
 	If ##class(Security.Roles).Exists(interopRole) Set left = left_",role"
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Security.Applications WHERE NameSpace = ?", ns)
 	If rs.%Next() && rs.%GetData(1) Set left = left_",application"
+	If ##class(%File).DirectoryExists(portalDir) Set left = left_",portal"
 	If ##class(Security.Roles).Exists(role) {
 		Kill props
 		If $$$ISOK(##class(Security.Roles).Get(role, .props)) && (("," _ $Get(props("Resources")) _ ",") [ ("," _ resource _ ":")) Set left = left_",grant"
@@ -404,6 +420,36 @@ ClassMethod Directory() As %String [ Private ]
 	Quit ##class(%File).NormalizeDirectory($SYSTEM.Util.ManagerDirectory()_$ZConvert(..#DATABASE, "L"))
 }
 
+/// The web folder of the namespace's default web application: csp/<namespace in lower case>/ below the data directory, with its closing slash.
+ClassMethod PortalDirectory() As %String [ Private ]
+{
+	Quit ##class(%File).NormalizeDirectory($SYSTEM.Util.DataDirectory()_"csp/"_$ZConvert(..#NAMESPACE, "L"))
+}
+
+/// Takes RESOURCE out of the Resources of the service role (Install.Step.Users SERVICEROLE), whatever permission it holds there, so that the grant is
+/// gone even when a later step of Remove fails. Nothing to do when the role does not exist or does not hold it. Runs in %SYS, as CreateSystem does.
+ClassMethod Revoke() As %Status [ Private ]
+{
+	Set resource = ..#RESOURCE
+	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If '##class(Security.Roles).Exists(role) Quit $$$OK
+	Kill props
+	Set sc = ##class(Security.Roles).Get(role, .props)
+	If $$$ISERR(sc) Quit sc
+	Set current = $Get(props("Resources")), kept = ""
+	For i = 1:1:$Length(current, ",") {
+		Set entry = $Piece(current, ",", i)
+		If (entry = "") || ($Piece(entry, ":", 1) = resource) Continue
+		Set kept = kept_$Select(kept = "": "", 1: ",")_entry
+	}
+	If kept = current Quit $$$OK
+	Kill props
+	Set props("Resources") = kept
+	Quit ##class(Security.Roles).Modify(role, .props)
+}
+
 /// Makes what lives in %SYS and in the CPF (see the class description), in this order, and the grant. Runs in %SYS, where only the system classes
 /// resolve, so everything it needs is read before the switch and it calls no other method of this class there.
 ClassMethod CreateSystem() As %Status [ Private ]
@@ -448,7 +494,8 @@ ClassMethod CreateSystem() As %Status [ Private ]
 }
 
 /// Loads the production from its class in the namespace of the feed, starts it, and waits up to WAITSECONDS until it runs and every enabled item that
-/// has a pool has an alive job that is not in error, halted or terminated.
+/// has a pool has an alive job past its start: not starting or registered (a registered job has not yet made its host and adapter, so the partner's
+/// port may not listen yet), and not in error, halted or terminated.
 ClassMethod StartProduction() As %Status [ Private ]
 {
 	Set ns = ..#NAMESPACE, production = ..#PRODUCTION, wait = ..#WAITSECONDS
@@ -469,7 +516,7 @@ ClassMethod StartProduction() As %Status [ Private ]
 			If $$$ISOK(rs.Execute()) {
 				While rs.Next() {
 					If rs.Get("State") '= "Alive" Continue
-					If $ListFind($ListBuild("error", "halted", "terminated"), rs.Get("Status")) Continue
+					If $ListFind($ListBuild("starting", "registered", "error", "halted", "terminated"), rs.Get("Status")) Continue
 					Set alive(rs.Get("ConfigName")) = ""
 				}
 			}
@@ -512,35 +559,32 @@ ClassMethod StopProduction() As %Status [ Private ]
 	Quit sc
 }
 
-/// Removes what lives in %SYS and in the CPF (see the class description): the web applications of the namespace, the namespace, its Interoperability
-/// marker and role, every database entry at or below the folder (innermost first) with its files and the folder, and the resource. Each step is
-/// skipped when there is nothing to remove. Runs in %SYS, as CreateSystem does.
+/// Removes what lives in %SYS and in the CPF (see the class description): the web applications of the namespace and its web folder (also when no
+/// application names it any more), the namespace, its Interoperability marker and role, every database entry at or below the folder (innermost first)
+/// with its files and the folder, and the resource. Each step is skipped when there is nothing to remove. Runs in %SYS, as CreateSystem does.
 ClassMethod RemoveSystem() As %Status [ Private ]
 {
 	Set ns = ..#NAMESPACE, resource = ..#RESOURCE
 	Set directory = ..Directory()
 	Set interopRole = $$$InteropNSRole(ns)
-	Set portalDir = ##class(%File).NormalizeDirectory($SYSTEM.Util.DataDirectory()_"csp/"_$ZConvert(ns, "L"))
+	Set portalDir = ..PortalDirectory()
 	New $NAMESPACE
 	Set $NAMESPACE = "%SYS"
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Path FROM Security.Applications WHERE NameSpace = ?", ns)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Security.Applications WHERE NameSpace = ?", ns)
 	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The web applications of "_ns_" could not be listed: "_rs.%Message)
 	While rs.%Next() {
-		Set apps(rs.%Get("Name")) = rs.%Get("Path")
+		Set apps(rs.%Get("Name")) = ""
 	}
 	Set sc = $$$OK
 	Set app = ""
 	For {
-		Set app = $Order(apps(app), 1, path)
+		Set app = $Order(apps(app))
 		Quit:app=""
 		Set sc = ##class(Security.Applications).Delete(app)
 		If $$$ISERR(sc) Quit
-		If (path '= "") && (##class(%File).NormalizeDirectory(path) = portalDir) && ##class(%File).DirectoryExists(portalDir) {
-			If '##class(%File).RemoveDirectoryTree(portalDir) Set sc = $$$ERROR($$$GeneralError, "The folder "_portalDir_" could not be removed")
-		}
-		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
+	If ##class(%File).DirectoryExists(portalDir) && '##class(%File).RemoveDirectoryTree(portalDir) Quit $$$ERROR($$$GeneralError, "The folder "_portalDir_" could not be removed")
 	If ##class(Config.Namespaces).Exists(ns) {
 		Set sc = ##class(Config.Namespaces).Delete(ns)
 		If $$$ISERR(sc) Quit sc

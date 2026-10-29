@@ -10,9 +10,10 @@
 ///   - TestCaptureWritesCase: the demo capture's two files, field by field; snapshot.json is the reader's own answer after Redact.Text, with nothing
 ///     added and nothing dropped; case.json is the committed case except recordedBy; the committed expectation; Eval.Report DEMOCASE names the case;
 ///   - TestReplayEqualsLive: the pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly, for the
-///     demo and for each case of the feed;
+///     demo and for each case of the feed; (QA) and the packs replayed are those of the incident cases of eval/, at least 10;
 ///   - TestCommittedIsCurrent: the incident cases of eval/ and Recipes() are the same set, and the pack of each committed snapshot equals the live pack
 ///     once VOLATILE (row ids and times, which a re-induced incident cannot repeat) is removed from both;
+///   - (QA) TestVolatileIsRowIdsAndTimesOnly: VOLATILE is exactly the six row ids and times, so no field of the evidence is masked in a comparison;
 ///   - TestFeedCasesRecorded (Story 9.9): the feed has at least 9 cases with unique names, at items of its production, and at least 2 held out; for
 ///     each, in this run's recording and in the committed snapshot, the source is the feed's, every failure is at the case's item with all the markers
 ///     of the case in its error, the item's host setting is a loopback address or an example host, and the committed case.json is the case;
@@ -312,11 +313,12 @@ Method TestCaptureWritesCase()
 }
 
 /// The pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly (no field is masked), for each
-/// recipe. The live pack is not empty.
+/// recipe. The live pack is not empty. (QA) The recipes replayed are the incident cases of eval/, at least 10, so that a recipe left out of the loop, or a
+/// case with no recipe, fails here too.
 Method TestReplayEqualsLive()
 {
 	If '..Guard() Quit
-	Set recipes = $ListFromString(..Recipes()), position = 0
+	Set recipes = $ListFromString(..Recipes()), position = 0, replayed = 0
 	While $ListNext(recipes, position, name) {
 		Set entry = ..Entry(name)
 		If '$IsObject(entry) Continue
@@ -332,7 +334,11 @@ Method TestReplayEqualsLive()
 		If $IsObject(replay) Do ..AssertSamePack(name_": the pack of the written file equals the live pack", replay, live)
 		If $IsObject(entry.captured) Do ..AssertSamePack(name_": the pack that Capture returned equals the live pack", entry.captured, live)
 		Do $$$AssertTrue($IsObject(entry.captured), name_": Capture returned a pack")
+		If $IsObject(replay) && $IsObject(entry.captured) Set replayed = replayed + 1
 	}
+	Set cases = ..IncidentCases(##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER))
+	Do $$$AssertTrue($ListLength(cases) >= 10, "eval/ holds at least 10 incident cases: "_$ListLength(cases))
+	Do $$$AssertEquals(replayed, $ListLength(cases), "the pack of every incident case of eval/ was replayed and compared: "_replayed_" of "_$ListToString(cases))
 }
 
 /// The incident cases of eval/ and Recipes() are the same set, in both directions, so a case with no recipe fails; and for each recipe the pack that Build
@@ -341,12 +347,7 @@ Method TestCommittedIsCurrent()
 {
 	If '..Guard() Quit
 	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
-	Set recipes = $ListFromString(..Recipes()), cases = ""
-	Set names = ##class(OcuTalon.Eval.In).CaseNames(folder, ""), position = 0
-	While $ListNext(names, position, name) {
-		Set case = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
-		If $IsObject(case) && (case.kind = ##class(OcuTalon.Eval.Report).#INCIDENTKIND) Set cases = cases_$ListBuild(name)
-	}
+	Set recipes = $ListFromString(..Recipes()), cases = ..IncidentCases(folder)
 	Set position = 0
 	While $ListNext(cases, position, name) {
 		Do $$$AssertTrue($ListFind(recipes, name), name_": the incident case has a recipe in Recipes()")
@@ -366,6 +367,36 @@ Method TestCommittedIsCurrent()
 		Do $$$AssertTrue($IsObject(stable.sample) && (stable.count > 0) && (stable.item '= "") && (stable.errorPattern '= ""), name_": what VOLATILE leaves of the committed pack is not empty")
 		Do ..AssertSamePack(name_": the committed snapshot's pack equals the live pack apart from VOLATILE", stable, ..Stable(entry.live))
 	}
+}
+
+/// (QA) What a committed pack may differ in is fixed: VOLATILE is exactly the row ids and times of the pack (firstAt, lastAt, sample.headerId, sample.at,
+/// trace.headerId and trace.timeCreated), so that no field of the evidence a diagnosis reads (the error, its pattern, the body, the count, the item, the
+/// settings) is ever masked when a committed snapshot is compared with a fresh recording. Widening it is a decision of its own, not a way to make a
+/// drifting recording pass.
+Method TestVolatileIsRowIdsAndTimesOnly()
+{
+	Kill wanted, found
+	Set paths = $ListFromString("firstAt,lastAt,sample.headerId,sample.at,trace.headerId,trace.timeCreated"), position = 0
+	While $ListNext(paths, position, path) {
+		Set wanted(path) = ""
+	}
+	Set paths = $ListFromString(..#VOLATILE), position = 0
+	While $ListNext(paths, position, path) {
+		Set found(path) = ""
+	}
+	Set extra = "", missing = "", path = ""
+	For {
+		Set path = $Order(found(path))
+		If path = "" Quit
+		If '$Data(wanted(path)) Set extra = extra_" "_path
+	}
+	For {
+		Set path = $Order(wanted(path))
+		If path = "" Quit
+		If '$Data(found(path)) Set missing = missing_" "_path
+	}
+	Do $$$AssertEquals(extra, "", "VOLATILE masks no field beyond the row ids and times")
+	Do $$$AssertEquals(missing, "", "and it masks every row id and time of the pack")
 }
 
 /// The cases of the test feed (Story 9.9): the feed has at least 9 cases with unique names, none of them the demo's, each at an item of the feed's
@@ -791,6 +822,18 @@ Method Entry(name As %String) As %DynamicObject [ Private ]
 	Set entry = ..Recorded.%Get(name)
 	Do $$$AssertTrue($IsObject(entry), name_": the incident was recorded in OnBeforeAllTests")
 	Quit $Select($IsObject(entry): entry, 1: "")
+}
+
+/// The names of the incident cases that the folder holds, as a list, in the order of Eval.In CaseNames.
+ClassMethod IncidentCases(folder As %String) As %List [ Private ]
+{
+	Set cases = "", position = 0
+	Set names = ##class(OcuTalon.Eval.In).CaseNames(folder, "")
+	While $ListNext(names, position, name) {
+		Set case = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
+		If $IsObject(case) && (case.kind = ##class(OcuTalon.Eval.Report).#INCIDENTKIND) Set cases = cases_$ListBuild(name)
+	}
+	Quit cases
 }
 
 /// 1 when the test may run. Otherwise it fails with the reason, and the test quits.

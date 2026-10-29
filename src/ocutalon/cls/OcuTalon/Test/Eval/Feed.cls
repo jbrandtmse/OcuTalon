@@ -6,7 +6,8 @@
 ///   - Intake items validate the message as a typed record: ResultsToChart and ShipmentsToLedger (a datatype), ReturnsToLedger (a minimum value) and
 ///     ClaimsToBilling (a required property);
 ///   - PartnerOut items POST the message to an HTTP partner: LabResultsOut (a port where nothing listens), CarrierBookingOut (a host that does not
-///     exist), PayerClaimsOut (503 from PartnerSite) and ReferenceLabOut (500 from PartnerSite). The retried ones give up after 2 seconds;
+///     exist), PayerClaimsOut (503 from PartnerSite) and ReferenceLabOut (500 from PartnerSite). The retried ones (FailureTimeout 2, RetryInterval 1)
+///     give up at the first failed attempt that ends after 2 seconds, so a connection that cannot be made takes about 5 seconds a message;
 ///   - PartnerSite (port 9381) is the feed's partner: 503 for /payer/, 500 for /reference-lab/;
 ///   - ClaimsToArchive fails with an <UNDEFINED> error.
 Class OcuTalon.Test.Eval.Feed Extends Ens.Production

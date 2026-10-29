@@ -59,7 +59,7 @@
 #                 records an incident elsewhere relaxes it in its own change); and at least 2 of the feed's incidents are held out (heldOut
 #                 true), so that prompt work never sees them;
 #   feed          (CON-3) no tracked or not-ignored file names the test feed, that is, the class OcuTalon.Test.Eval.Feed (and so every class
-#                 below it; written with dots or slashes) or the namespace EVALFEED not preceded by a letter or a digit (so %DB_EVALFEED_DATA
+#                 below it; written with dots, slashes or the underscores of its SQL schema) or the namespace EVALFEED not preceded by a letter or a digit (so %DB_EVALFEED_DATA
 #                 and the folder evalfeed_data are named too), in any letter case, unless its path is
 #                 below src/ocutalon/cls/OcuTalon/Test/, eval/, _bmad-output/ or _bmad/, or is docker/tests/record-eval.sh or
 #                 docker/tests/test-eval-set.sh. So docker-compose.yml, the Dockerfile, docker/merge.cpf, OcuTalon.Production, the install steps,
@@ -74,6 +74,9 @@
 #   run-guard     eval/run.sh refuses an OCUTALON_EVAL_WAIT that is not a whole number from 1 to 3600 with exit 2 before it calls the
 #                 container tool, accepts one that is (it goes on to the preflight), and makes OCUTALON_EVAL_REPORT_DIR. The script
 #                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started.
+#   record-guard  docker/tests/record-eval.sh (Story 9.9) refuses every argument but the single word feed with exit 2, before it sources
+#                 lib-live.sh, and goes on to lib-live.sh with no argument and with feed. The script runs from a copy in a folder of its
+#                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
 # Each bad sample of a rule carries the reason it must be flagged for (expect.txt in its folder): a sample that another rule flags does
 # not count.
 set -u
@@ -615,6 +618,13 @@ const guarded = ({ digits = true, low = 1, high = 3600, octal = '10#', folder = 
   (folder ? 'report_dir=${OCUTALON_EVAL_REPORT_DIR:-}\nif [ -n "$report_dir" ]; then mkdir -p "$report_dir" || exit 1; fi\n' : '') +
   `${D} image inspect --format x base > /dev/null 2>&1 || exit 1\n`;
 
+// A stand-in for docker/tests/record-eval.sh: the guard of its argument (the condition is the test for the mode feed), and then the library, which
+// the check puts a stand-in in place of: it prints a line and exits 99, so that a script that goes on to it is told from one that refuses.
+const RECORDER_HEAD = '#!/usr/bin/env bash\nset -u\nmode=demo\n';
+const RECORDER_TAIL = '. "$(dirname "$0")/lib-live.sh"\n';
+const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]') =>
+  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
+
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
   'eval/injection-good/case.json': injection('injection-good'),
@@ -726,6 +736,7 @@ const feedGood = () => ({
   'docker/merge.cpf': '[Actions]\nCreateDatabase:Name=OCUTALON_CODE\n',
   'src/ocutalon/cls/OcuTalon/Production.cls': 'Class OcuTalon.Production\n{\nXData ProductionDefinition\n{\n<Production Name="OcuTalon.Production">\n  <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide"/>\n</Production>\n}\n}\n',
   'src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls': 'Class OcuTalon.Install.Step.Zz\n{\nParameter NAMESPACE = "OCUORDERS";\n}\n',
+  'src/module.xml': '<Module>\n  <Name>ocutalon</Name>\n  <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>\n</Module>\n',
   'src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls': `Class OcuTalon.Test.Eval.Record\n{\n/// Installs ${FEEDCLASS} in ${FEEDNAMESPACE}.\n}\n`,
   'src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls': `Class ${FEEDCLASS}\n{\nParameter RESOURCE = "%DB_${FEEDNAMESPACE}_DATA";\n}\n`,
   'eval/zz-case/snapshot.json': sourced(FEEDNAMESPACE, FEEDPRODUCTION),
@@ -772,6 +783,7 @@ for (const rule of ['cases', 'markers', 'job', 'eval-scripts']) variant(rule, 'g
 variant('set', 'good', '', setTree(() => {}));
 variant('demo', 'good', '', demoTree(() => {}));
 variant('run-guard', 'good', '', (f) => { f['eval/run.sh'] = guarded(); });
+variant('record-guard', 'good', '', (f) => { f['docker/tests/record-eval.sh'] = recorder(); });
 
 variant('cases', 'bad-no-expectation', 'has no expectation', (f) => { delete f[ITEM].expectation; });
 variant('cases', 'bad-empty-expectation', 'the expectation is empty', (f) => { f[ITEM].expectation = {}; });
@@ -937,6 +949,15 @@ const withoutTail = (f) => {
     delete f[`eval/${name}/snapshot.json`];
   }
 };
+// On the edge of the rule, and kept by it: the first ten hold 8 incidents of one cause category, and the eleventh and the later ones hold the same category
+// (9 of the first 11 and 16 of the 18); and a set of exactly 10 incidents, 9 of them from the feed, with 2 held out.
+variant('incidents', 'good-incidents-eight', '', incidentsTree((f) => {
+  for (const [name] of FEEDCASES) {
+    if (name === 'claims-archive-internal-error') continue;
+    f[`eval/${name}/case.json`].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
+  }
+}));
+variant('incidents', 'good-incidents-ten', '', incidentsTree(withoutTail));
 variant('incidents', 'bad-incidents-few', 'the set holds fewer than 10 incident cases', incidentsTree((f) => {
   withoutTail(f);
   delete f['eval/claims-member-missing/case.json'];
@@ -983,6 +1004,9 @@ variant('feed', 'bad-feed-production', 'src/ocutalon/cls/OcuTalon/Production.cls
 variant('feed', 'bad-feed-install', 'src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls: names the test feed (CON-3)', feedTree((f) => {
   f['src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls'] = `Class OcuTalon.Install.Step.Zz\n{\nParameter NAMESPACE = "${FEEDNAMESPACE}";\n}\n`;
 }));
+variant('feed', 'bad-feed-manifest', 'src/module.xml: names the test feed (CON-3)', feedTree((f) => {
+  f['src/module.xml'] = f['src/module.xml'].replace('</Module>', `  <Resource Name="${FEEDPRODUCTION}.PKG" Directory="ocutalon/cls"/>\n</Module>`);
+}));
 variant('feed', 'bad-feed-resource', 'docker/merge.cpf: names the test feed (CON-3)', feedTree((f) => {
   f['docker/merge.cpf'] += `CreateDatabase:Name=${FEEDNAMESPACE}_DATA,Directory=/x\n`;
 }));
@@ -994,6 +1018,9 @@ variant('feed', 'bad-feed-lowercase', 'docker/zz.sh: names the test feed (CON-3)
 }));
 variant('feed', 'bad-feed-class-path', 'docker/zz.sh: names the test feed (CON-3)', feedTree((f) => {
   f['docker/zz.sh'] = `cp src/ocutalon/cls/${FEEDCLASS.replace(/\./g, '/')}.cls /x\n`;
+}));
+variant('feed', 'bad-feed-sql', 'src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls: names the test feed (CON-3)', feedTree((f) => {
+  f['src/ocutalon/cls/OcuTalon/Install/Step/Zz.cls'] = `Class OcuTalon.Install.Step.Zz\n{\nParameter QUERY = "SELECT COUNT(*) FROM ${FEEDPRODUCTION.replace(/\./g, '_')}.Claim";\n}\n`;
 }));
 variant('feed', 'bad-feed-ci', 'ci/zz.yml: names the test feed (CON-3)', feedTree((f) => {
   f['ci/zz.yml'] = `env: ${FEEDPRODUCTION}.Fixture\n`;
@@ -1033,6 +1060,12 @@ variant('run-guard', 'bad-refuses-one', 'is not accepted though it is a whole nu
 variant('run-guard', 'bad-refuses-3600', 'is not accepted though it is a whole number from 1 to 3600', (f) => { f['eval/run.sh'] = guarded({ high: 3599 }); });
 variant('run-guard', 'bad-octal', 'is accepted with an error of the shell', (f) => { f['eval/run.sh'] = guarded({ octal: '' }); });
 variant('run-guard', 'bad-calls-before-guard', 'reached the container tool before it was refused', (f) => { f['eval/run.sh'] = guarded().replace('set -u\n', `set -u\n${D} version > /dev/null 2>&1\n`); });
+variant('record-guard', 'bad-no-script', 'docker/tests/record-eval.sh: the script is missing', (f) => { delete f['docker/tests/record-eval.sh']; });
+variant('record-guard', 'bad-no-guard', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = RECORDER_HEAD + RECORDER_TAIL; });
+variant('record-guard', 'bad-accepts-demo', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && { [ "$1" = feed ] || [ "$1" = demo ]; }'); });
+variant('record-guard', 'bad-accepts-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "${1:-}" = feed ]'); });
+variant('record-guard', 'bad-refuses-feed', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
+variant('record-guard', 'bad-refuses-none', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = `${RECORDER_HEAD}if [ "$#" -eq 0 ]; then\n  exit 2\nfi\n${RECORDER_TAIL}`; });
 variant('run-guard', 'bad-no-report-dir', 'OCUTALON_EVAL_REPORT_DIR is not made', (f) => { f['eval/run.sh'] = guarded({ folder: false }); });
 EOF
 
@@ -1073,12 +1106,13 @@ feed_files() {
   fi
 }
 
-# check_feed <root>: the files of the tree that name the test feed (the class of its production, so every class below it too, written with dots or
-# slashes, or its namespace not preceded by a letter or a digit, so that its database resource and folder are named too; in any letter case) and are
+# check_feed <root>: the files of the tree that name the test feed (the class of its production, so every class below it too, written with dots,
+# slashes or the underscores of its SQL schema, or its namespace not preceded by a letter or a digit, so that its database resource and folder are named
+# too; in any letter case) and are
 # not one of the places that may: the test classes, eval/, the specs and the two scripts that record and check the feed.
 check_feed() {
   local base=$1 f pattern
-  pattern="$(printf '%s' "$feed_production" | sed 's#\.#[./]#g')|(^|[^A-Za-z0-9])$feed_namespace"
+  pattern="$(printf '%s' "$feed_production" | sed 's#\.#[./_]#g')|(^|[^A-Za-z0-9])$feed_namespace"
   feed_files "$base" | while IFS= read -r f; do
     case $f in
       src/ocutalon/cls/OcuTalon/Test/* | eval/* | _bmad-output/* | _bmad/* | docker/tests/record-eval.sh | docker/tests/test-eval-set.sh) continue ;;
@@ -1178,8 +1212,46 @@ check_run_guard() {
   done
 }
 
+# check_record_guard <root>: the violations of docker/tests/record-eval.sh of the tree in its use of its argument. The script runs from a copy in a
+# folder of the check's own, beside a stand-in for lib-live.sh that prints a line and exits 99: an argument that the script refuses ends with exit 2
+# before the stand-in is reached, and one that it accepts (none, or the word feed) goes on to the stand-in and ends with exit 99. Nothing is ever
+# started, and nothing is written outside the folder.
+check_record_guard() {
+  local script="$1/docker/tests/record-eval.sh" dir="$tmp/guard-record" args rc
+  if [ ! -f "$script" ]; then
+    echo "docker/tests/record-eval.sh: the script is missing"
+    return 0
+  fi
+  rm -rf "$dir"
+  mkdir -p "$dir/docker/tests"
+  cp "$script" "$dir/docker/tests/record-eval.sh"
+  printf 'echo reached-lib-live\nexit 99\n' > "$dir/docker/tests/lib-live.sh"
+  for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed'; do
+    rc=0
+    # shellcheck disable=SC2086
+    (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
+    if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
+      echo "docker/tests/record-eval.sh: the argument '$args' is not refused with exit 2 before the library (exit $rc)"
+    fi
+  done
+  rc=0
+  (cd "$dir" && bash docker/tests/record-eval.sh '' > "$dir/out.log" 2>&1) || rc=$?
+  if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: the empty argument is not refused with exit 2 before the library (exit $rc)"
+  fi
+  for args in '' feed; do
+    rc=0
+    # shellcheck disable=SC2086
+    (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
+    if [ "$rc" -ne 99 ] || ! grep -q reached-lib-live "$dir/out.log"; then
+      echo "docker/tests/record-eval.sh: '${args:-no argument}' is not accepted (exit $rc)"
+    fi
+  done
+}
+
 # rule <label> <description> <checker>: every sample bad-* of the label must be flagged, and flagged for the reason in its expect.txt, the
-# sample good must not be flagged, and then the real tree must have no violation.
+# sample good and every sample good-* (a tree on the edge of the rule, which keeps it) must not be flagged, and then the real tree must have no
+# violation.
 rule() {
   local label=$1 description=$2 checker=$3 s n=0 ok=1 hits want
   for s in "$tmp/samples/$label"/bad-*; do
@@ -1206,6 +1278,14 @@ rule() {
     echo "FAIL $label: the rule flags the good sample: $("$checker" "$tmp/samples/$label/good" | head -n 3 | tr '\n' ' ')"
     ok=0
   fi
+  for s in "$tmp/samples/$label"/good-*; do
+    [ -d "$s" ] || continue
+    hits=$("$checker" "$s")
+    if [ -n "$hits" ]; then
+      echo "FAIL $label: the rule flags the sample $(basename "$s"), which keeps it: $(printf '%s\n' "$hits" | head -n 3 | tr '\n' ' ')"
+      ok=0
+    fi
+  done
   if [ "$ok" -eq 1 ]; then
     hits=$("$checker" "$root")
     if [ -n "$hits" ]; then
@@ -1294,6 +1374,7 @@ rule feed "no file that ships or installs the product names the test feed or its
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
+rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
 
 if [ "$fails" -ne 0 ]; then
   echo "test-eval-set: $fails rule(s) failed"

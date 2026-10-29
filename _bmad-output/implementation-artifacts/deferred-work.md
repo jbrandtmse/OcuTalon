@@ -1946,3 +1946,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Eval/WatchOwners.cls:202-293 Row/RefOf/Sweep match Test/Eval/Watch.cls:284-378 but for the production and display name; Decided 18 covers per-class clean-up only
 - 2026-10-29T13:04:31Z status=wontfix-accepted owner=9-8-a-stop-watching-injection-leaves-the-watch-unchanged by=cr note=reopen_if a third Test.Eval class copies a BackgroundCheck row builder, or a BackgroundCheck change must be made in both Rows
+
+### DW-397: Test.Eval.Feed.Fixture (Story 9.9) near-copies Install.Step.Demo.System's namespace create/remove and ServiceRole, and Keys/Count repeat Test.Demo.Production WaitCount/Count, forced by Lane B's OCUORDERS-fixed private helpers; the two teardown sequences drift when one changes
+- source: spec-9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Fixture.cls RemoveSystem (about 65 of its 95 lines) vs Demo.cls System off branch, Revoke vs Demo.ServiceRole(0); Install/** and Test/Demo/* are read-only for 9.9 and both siblings are fixed to OCUORDERS
+- 2026-10-29T17:55:09Z status=routed owner=burndown by=cr note=Rule 2 forced copy: a namespace-parameterised Demo.System helper unifies it when Epic 15 touches Demo.cls (cf. DW-223)
