@@ -471,13 +471,13 @@ test.describe('S5 to S7, signing in', () => {
   });
 
   /**
-   * S7: the form's POST carries no field but the four of the proxy's allow-list, and the redirect that answers it drops since (Story
-   * 16.8; the page that then loads normalizes its address to /ocutalon/#/, so the redirect's Location is where Shell.Redirect shows).
+   * S7: the form's POST carries no field but the four of the proxy's allow-list, and the redirect that answers it drops since and ended (Story
+   * 16.8 and 16.4; the page that then loads normalizes its address to /ocutalon/#/, so the redirect's Location is where Shell.Redirect shows).
    */
   test('S7: the sign-in POST carries only IRISSessionToken, IRISUsername, IRISPassword and IRISLogin', async ({ page }) => {
     try {
       const allowed = ALLOWED_FIELDS;
-      for (const path of [splashPath(), splashPath('since=2026-10-25T00:00:00Z&')]) {
+      for (const path of [splashPath(), splashPath('since=2026-10-25T00:00:00Z&'), splashPath('since=2026-10-25T00:00:00Z&ended=1&')]) {
         const posts: Array<{ url: string; type: string; names: string[] }> = [];
         const watch = (request: { method: () => string; url: () => string; postData: () => string | null; headers: () => Record<string, string> }): void => {
           if (request.method() !== 'POST' || !new URL(request.url()).pathname.startsWith('/ocutalon/')) return;
@@ -493,6 +493,7 @@ test.describe('S5 to S7, signing in', () => {
         const location = answer.headers()['location'] ?? '';
         expect(location, `the sign-in POST answers with a redirect (from ${path})`).not.toBe('');
         expect(new URL(location, page.url()).searchParams.has('since'), `the redirect after the sign-in POST drops since (from ${path}: ${location})`).toBe(false);
+        expect(new URL(location, page.url()).searchParams.has('ended'), `and ended (Story 16.4; from ${path}: ${location})`).toBe(false);
         page.off('request', watch);
         const sent = posts.find((one) => new URL(one.url).pathname === '/ocutalon/');
         expect(sent, `the form was posted at ${path}`).toBeTruthy();

@@ -12,8 +12,8 @@
 /// goes through Test.Demo.Step's row helpers. Capture, Collect and Written are shared with the other web tests that call
 /// a class method and read what it wrote.
 /// Story 2.9: a turn's chat entry and a decision of the rail carry traceUrl (Web.TraceLink), the turn's with the PAGE of its
-/// position for the user's page size and choice of events, and a check in a namespace with no trace application carries none; the
-/// chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
+/// position for the user's page size and choice of events, and a check carries its latest run's traceUrl, into the trace application
+/// of the namespace that holds the run (Story 5.6), and none without a run; the chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
 /// tests (in a process-private global), unset before each test and put back after them.
 /// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
 /// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
@@ -21,6 +21,7 @@
 /// (TestStateBody, TestStateFlags); the markers route is GuideMarkers (TestRoutes; Test.Web.GuideApi has the endpoint).
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 /// Story 16.1: TestStateTraceAccount (the snapshot's traceAccount, online demo only).
+/// Story 16.4: TestStateIdleSeconds (the snapshot's idleSeconds, online demo only, the key just before traceAccount).
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -1466,7 +1467,8 @@ Method TestStateTraceAccount()
 
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
-		Do $$$AssertEquals(..KeyList(body), local_",traceAccount", "flag 1 with both values: traceAccount is the last key")
+		Set online = local_",idleSeconds"
+		Do $$$AssertEquals(..KeyList(body), online_",traceAccount", "flag 1 with both values: idleSeconds, then traceAccount as the last key")
 		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "object", "traceAccount is an object")
 		Do $$$AssertEquals(..KeyList(body.traceAccount), "user,password", "traceAccount holds user, then password")
 		Do $$$AssertEquals(body.traceAccount.user, "TraceReader"_..Number, "the user name is readonlyUser")
@@ -1474,12 +1476,12 @@ Method TestStateTraceAccount()
 
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "")
 		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
-		Do $$$AssertEquals(..KeyList(body), local, "flag 1 with an empty password: no traceAccount")
+		Do $$$AssertEquals(..KeyList(body), online, "flag 1 with an empty password: no traceAccount")
 
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "")
 		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
-		Do $$$AssertEquals(..KeyList(body), local, "flag 1 with an empty user name: no traceAccount")
+		Do $$$AssertEquals(..KeyList(body), online, "flag 1 with an empty user name: no traceAccount")
 	} Catch ex {
 		Set error = ex.DisplayString()
 	}
@@ -1487,6 +1489,56 @@ Method TestStateTraceAccount()
 		Do ##class(OcuTalon.Data.Public.Settings).Set($List(names, i), saved($List(names, i)))
 	}
 	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// Story 16.4: the snapshot's idleSeconds is the page's idle cap, online demo only, just before traceAccount. With the flag on it is the
+/// whole number that the setting onlineDemo.idleSeconds holds, and 600 (the seed) when the row is absent, holds "x" (not a number) or
+/// holds 0 or a negative number or a fraction; with the flag off the snapshot has no such key. It is a JSON number. The setting's row
+/// and the flag are put back, also after a failure; the fixture session is zzapiidle<n>.
+Method TestStateIdleSeconds()
+{
+	Set key = ##class(OcuTalon.Data.Setting).#IDLEKEY
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id)
+	Set savedValue = $Select(existed: ##class(OcuTalon.Data.Setting).%OpenId(id).Value, 1: "")
+	Set anchor = ##class(OcuTalon.Data.Public.Settings).Get("resetAnchor")
+	Set error = ""
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapiidle"_..Number, .sc)
+		Do $$$AssertStatusOK(sc, "the fixture session")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do ..IdleRow(key, "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(body.idleSeconds, 600, "flag 1, no row: 600")
+		Do $$$AssertEquals(body.%GetTypeOf("idleSeconds"), "number", "idleSeconds is a number")
+		Do ..IdleRow(key, "300")
+		Do $$$AssertEquals(##class(OcuTalon.Web.Api).StateBody(session).idleSeconds, 300, "the row holds 300: 300")
+		For value = "x", "0", "-5", "1.5", "300 ", "1e3", "-0" {
+			Do ..IdleRow(key, value)
+			Do $$$AssertEquals(##class(OcuTalon.Web.Api).StateBody(session).idleSeconds, 600, "the row holds '"_value_"': 600")
+		}
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ..IdleRow(key, "300")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(body.%GetTypeOf("idleSeconds"), "unassigned", "flag 0: no idleSeconds")
+		Do $$$AssertNotTrue((","_..KeyList(body)_",") [ ",idleSeconds,", "flag 0: no idleSeconds among the keys")
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	Do ..IdleRow(key, $Select(existed: savedValue, 1: ""))
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", anchor)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// The setting row of key holds value (the row is created or changed), or is absent when value is "", and this process's cache entry
+/// is dropped.
+ClassMethod IdleRow(key As %String, value As %String) [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id) Do ##class(OcuTalon.Data.Setting).%DeleteId(id)
+	Kill ^||OcuTalon.Setting(key)
+	If value '= "" Do ##class(OcuTalon.Data.Setting).Set(key, value)
 }
 
 /// The keys of a dynamic object, comma-separated, in order.

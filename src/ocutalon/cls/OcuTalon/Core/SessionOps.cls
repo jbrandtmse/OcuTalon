@@ -13,14 +13,20 @@ Include Ensemble
 ///   - Unpair {ChatRef}. From telegram (the /stop command) it unlinks the chat's own session. From any other origin it unlinks the
 ///     command's session, whose paired chat must be the ChatRef when one is given, with the notice pairing.unpairedFromPage. The outcomes
 ///     are unpaired and not_paired (Ok 0, nothing changed, nothing audited).
-///   - EndSession answers the error status NotImplemented (code 5003, so not_built) until Story 16.4 builds it.
+///   - EndSession {SessionRef} ends an online-demo session (Story 16.4; AD-4): the page's Sign out, through POST /v1/session/end. In order,
+///     and each of the first four steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
+///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
+///     Approval.Cancel for each pending approval request the session owns. Only when all of them succeeded is the row's ResumeHash cleared, so
+///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
+///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first four steps were
+///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
 /// Every pair outcome is audited as a Pairing entry (linked or rejected) through Bridge.Audit.Record, and every unlink as an unlinked
 /// entry, with the session's IRIS user (else the job's user), the session, the channel of the command's origin and no chat id or display
 /// name. A link needs its audit entry: when the entry can't be written nothing links and the outcome is failed, and a chat that the pair had already dropped stays dropped. An unlink stands when its
 /// audit entry, its notice or its event fails; the failure is a warning. A notice is a Notification of kind pairing with the dropped
 /// chat's ChatRef, a catalog key and no text; Notify decides where it goes. An error thrown while carrying out a command is logged and
 /// answers failed. The pool of the item is 1, so its commands are handled one at a time.
-/// Unlink is the one way a chat is unlinked, and Story 16.4's SessionOps.End calls it.
+/// Unlink is the one way a chat is unlinked, and End calls it.
 Class OcuTalon.Core.SessionOps Extends Ens.BusinessOperation
 {
 
@@ -45,18 +51,27 @@ Parameter MESSAGEUNPAIRED = "The chat is no longer paired with the session.";
 
 Parameter MESSAGENOTPAIRED = "No chat is paired, so nothing was changed.";
 
+Parameter MESSAGEENDED = "The session was ended.";
+
+Parameter MESSAGENOSESSION = "That session is not known, so nothing was ended.";
+
+/// The item that carries out the reminder commands End sends.
+Parameter REMINDERITEM = "ReminderOps";
+
+/// The item that carries out the watch commands End sends.
+Parameter WATCHITEM = "WatchOps";
+
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {
 	Set pResponse = ""
 	Set command = $Get(pRequest)
 	Set class = $Select($IsObject(command): $ClassName(command), 1: "")
-	If class = "OcuTalon.Msg.Command.EndSession" Quit $$$ERROR($$$NotImplemented)
-	If '$ListFind($ListBuild("OcuTalon.Msg.Command.Pair", "OcuTalon.Msg.Command.Unpair"), class) {
+	If '$ListFind($ListBuild("OcuTalon.Msg.Command.Pair", "OcuTalon.Msg.Command.Unpair", "OcuTalon.Msg.Command.EndSession"), class) {
 		$$$LOGERROR("OcuTalon.Core.SessionOps: it carries out no " _ $Select(class = "": "message that is not an object", 1: class))
 		Quit $SYSTEM.Status.Error(5001, "SessionOps carries out only Pair, Unpair and EndSession")
 	}
 	Try {
-		Set pResponse = $Select(class = "OcuTalon.Msg.Command.Pair": ..Pair(command), 1: ..Unpair(command))
+		Set pResponse = $Case(class, "OcuTalon.Msg.Command.Pair": ..Pair(command), "OcuTalon.Msg.Command.Unpair": ..Unpair(command), : ..End(command))
 	} Catch exception {
 		$$$LOGERROR(exception.DisplayString())
 		Set pResponse = ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
@@ -212,6 +227,156 @@ Method Unpair(command As OcuTalon.Msg.Command.Unpair) As OcuTalon.Msg.CommandRes
 	If $$$ISERR(sc) Quit ..Failed("the chat could not be unlinked", sc)
 	If changed Quit ..Result(1, "unpaired", ..#MESSAGEUNPAIRED)
 	Quit ..Result(0, "not_paired", ..#MESSAGENOTPAIRED)
+}
+
+/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). Unlink, the reminders, the
+/// watches and the approval requests each run even when an earlier one failed or threw, and a failure is a warning with the step's reason;
+/// the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session resumable.
+Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set sessionRef = command.SessionRef
+	Set row = $Select(sessionRef = "": "", 1: ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef))
+	If '$IsObject(row) Quit ..Result(0, "no_session", ..#MESSAGENOSESSION)
+	Set row = ""
+	Set channel = ..ChannelOf(command.Origin)
+	Set failed = 0
+	Try {
+		Set sc = ..Unlink(sessionRef, "", "session_end", channel, "", .changed)
+		If $$$ISERR(sc) Set failed = 1 Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, sc)
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, exception.AsStatus())
+	}
+	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + failed
+	If 'failed Set failed = ..EndResume(sessionRef)
+	Quit $Select(failed: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED), 1: ..Result(1, "ended", ..#MESSAGEENDED))
+}
+
+/// End's reminders: one CancelReminder for each pending reminder of the session, sent to the ReminderOps item. The result is the
+/// number of reminders that could not be cancelled (a failed answer, an error status or an error thrown); a reminder that is no longer
+/// pending when its command arrives is not a failure.
+Method EndReminders(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set rows = ##class(OcuTalon.Data.Ownership).Reminders(command.SessionRef, .sc)
+		If $$$ISERR($Get(sc, 1)) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+		For i = 1:1:rows.Count() {
+			Set cancel = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
+			Set cancel.SessionRef = command.SessionRef
+			Set cancel.Origin = command.Origin
+			Set cancel.ReminderRef = rows.GetAt(i).Ref
+			Set failed = failed + ..Carry(..#REMINDERITEM, cancel, "a reminder of session " _ command.SessionRef _ " was not cancelled")
+		}
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the reminders of session " _ command.SessionRef _ " could not be read", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// End's watches: one StopWatch for each production watch of the session, sent to the WatchOps item. The result is the number of
+/// watches that could not be stopped; a watch that is already gone is not a failure.
+Method EndWatches(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set rows = ##class(OcuTalon.Data.Ownership).Checks(command.SessionRef, .sc)
+		If $$$ISERR($Get(sc, 1)) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+		For i = 1:1:rows.Count() {
+			Set check = rows.GetAt(i)
+			If check.Kind '= ##class(OcuTalon.Watch.Ops).#KIND Continue
+			Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+			Set stop.SessionRef = command.SessionRef
+			Set stop.Origin = command.Origin
+			Set stop.Namespace = check.Namespace
+			Set stop.Production = check.Production
+			Set failed = failed + ..Carry(..#WATCHITEM, stop, "a watch of session " _ command.SessionRef _ " was not stopped")
+		}
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the watches of session " _ command.SessionRef _ " could not be read", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// End's approval requests: Approval.Cancel (the one way a request is cancelled, AD-11) for each pending request that the session owns,
+/// naming the session's IRIS user, the channel and the session in the Approval entry. The result is the number of requests that could
+/// not be cancelled; a request that was answered meanwhile is not a failure.
+Method EndApprovals(sessionRef As %String, channel As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set rows = ##class(OcuTalon.Data.Ownership).Approvals(sessionRef, .sc)
+		If $$$ISERR($Get(sc, 1)) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+		Set irisUser = ..IrisUser(sessionRef)
+		For i = 1:1:rows.Count() {
+			Set request = rows.GetAt(i)
+			If request.OwnerRef '= sessionRef Continue
+			Set ref = request.Ref
+			Set sc = ##class(OcuTalon.Bridge.Approval).Cancel(ref, "", channel, irisUser, sessionRef)
+			If $$$ISERR(sc) {
+				Set current = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+				If '$IsObject(current) || (current.State = "pending") {
+					Set failed = failed + 1
+					Do ..Warn("a request of session " _ sessionRef _ " was not cancelled", sc)
+				}
+			}
+		}
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the requests of session " _ sessionRef _ " could not be read", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// End's last step, run only when every earlier step succeeded: the row's ResumeHash is cleared (saved only when it holds one). The result
+/// is 1 when the row could not be saved.
+Method EndResume(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef, 4, .sc)
+		If '$IsObject(row) {
+			Set failed = 1
+			Do ..Warn("the session " _ sessionRef _ " could not be opened to clear its resume hash", $Get(sc, $$$OK))
+		} ElseIf row.ResumeHash '= "" {
+			Set row.ResumeHash = ""
+			Set sc = row.%Save()
+			If $$$ISERR(sc) Set failed = 1 Do ..Warn("the resume hash of session " _ sessionRef _ " was not cleared", sc)
+		}
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the resume hash of session " _ sessionRef _ " was not cleared", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// Sends a command to an owner item of the production, synchronously, and returns 0 when the owner carried it out or had nothing to do,
+/// else 1 (a status error, an answer that is not a CommandResult, or the outcome failed), with the reason logged as a warning.
+Method Carry(target As %String, request As OcuTalon.Msg.Command, reason As %String) As %Integer [ Private ]
+{
+	Try {
+		Set sc = ..SendRequestSync(target, request, .response, ##class(OcuTalon.Core.CommandsIn).#TIMEOUT)
+		If $$$ISOK(sc) {
+			If '$IsObject($Get(response)) || 'response.%IsA("OcuTalon.Msg.CommandResult") {
+				Set sc = $SYSTEM.Status.Error(5001, "The owner answered no CommandResult")
+			} ElseIf response.Outcome = "failed" {
+				Set sc = $SYSTEM.Status.Error(5001, "The owner answered failed")
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISOK(sc) Quit 0
+	Do ..Warn(reason, sc)
+	Quit 1
+}
+
+/// A warning with the reason and the status text (which holds no chat id and no name).
+Method Warn(reason As %String, sc As %Status) [ Private ]
+{
+	$$$LOGWARNING("OcuTalon.Core.SessionOps: " _ reason _ ": " _ $SYSTEM.Status.GetErrorText(sc))
 }
 
 /// A rejected pair: one rejected audit entry with the reason, and the CommandResult of the outcome (Ok 0). Nothing is linked. A failed

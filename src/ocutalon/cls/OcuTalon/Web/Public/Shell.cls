@@ -26,6 +26,10 @@ Parameter ROLE = "OcuTalonUser";
 /// OnPreDispatch reads it, so the key lives in this public class, which the hook may name (AD-3).
 Parameter REFUSALKEY = "OcuTalon.Refused";
 
+/// The name of the online demo's resume cookie (AD-4): its one definition. The splash reads it here (it may name only %CSP and
+/// its own package, AD-3), and Web.SessionEvents answers it as its own RESUMECOOKIE.
+Parameter RESUMECOOKIE = "OcuTalonResume";
+
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
@@ -90,7 +94,8 @@ ClassMethod File(path As %String) As %Status
 }
 
 /// POST /<path>: the sign-in form's target, answered with a redirect to the page that was asked for. The address drops every since
-/// pair (the splash's after-reset marker, Story 16.8), so that the signed-in page never carries it.
+/// pair (the splash's after-reset marker, Story 16.8) and every ended pair (the splash's epoch-change marker, Story 16.4), so that
+/// the signed-in page never carries them.
 ClassMethod Redirect(path As %String) As %Status
 {
 	Set %response.Status = "303 See Other"
@@ -138,14 +143,15 @@ ClassMethod RelativePath() As %String [ Private ]
 	Quit $Extract(%request.URL, $Length(%request.Application) + 1, *)
 }
 
-/// FullUrl without the since pairs of the query string; the other pairs keep their order.
+/// FullUrl without the since and ended pairs of the query string (the page's return address, Story 16.8 and Story 16.4); the
+/// other pairs keep their order.
 ClassMethod RedirectUrl() As %String [ Private ]
 {
 	Set query = $Get(%request.CgiEnvs("QUERY_STRING"))
 	Set kept = ""
 	For i = 1:1:$Length(query, "&") {
 		Set pair = $Piece(query, "&", i)
-		If $Piece(pair, "=", 1) '= "since" Set kept = kept_$ListBuild(pair)
+		If '$ListFind($ListBuild("since", "ended"), $Piece(pair, "=", 1)) Set kept = kept_$ListBuild(pair)
 	}
 	Set query = $ListToString(kept, "&")
 	Quit $Translate(%request.URL_$Select(query '= "": "?"_query, 1: ""), $Char(13, 10))

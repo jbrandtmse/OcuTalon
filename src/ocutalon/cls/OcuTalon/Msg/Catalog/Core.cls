@@ -481,6 +481,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE State Patterns / Session ended by an unscheduled restart"
  },
+ "splash.placeFreed": {
+  "text": "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Place freed (online demo)"
+ },
  "splash.resetSoon": {
   "text": "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}.",
   "slots": {"countdown": "text", "time": "text"},

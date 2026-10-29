@@ -10,6 +10,7 @@ import { ResetWatch } from './live/reset-watch';
 import { ResettingView } from './live/resetting-view';
 import { type FocusRule, keepFocus } from './shared/focus-rule';
 import { LAYOUT_QUERIES } from './shared/layout-view';
+import { SessionGate } from './session/session-gate';
 import { Popovers } from './shared/popover';
 
 /** The switch to the resetting view removes the whole app, so a focus anywhere in it goes to the view's main region. */
@@ -65,6 +66,7 @@ export class App {
   private readonly popovers = inject(Popovers);
 
   constructor() {
+    inject(SessionGate);
     inject(LiveState).load();
     effect(() => {
       this.reset.resetting();

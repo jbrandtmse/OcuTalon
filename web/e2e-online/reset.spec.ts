@@ -30,8 +30,8 @@ import { publicValue, recordSplashAnnouncements, removeSession, setPublic, signI
  * - R4 (row 11, AC 2): a reset event that moves the next reset later, while more than five minutes remain, moves the pill.
  * - R5 (row 7, AC 3): the splash's script shows the reset-soon notice when the reset comes within five minutes, announces it once and
  *   hides it after the reset; the server wrote it hidden.
- * - R6 (row 11, AC 4): a 401 before the pending reset is not the reset's. It takes the signed-out path (the sign-in page with
- *   signedOut=1), and the page never enters the resetting view.
+ * - R6 (row 11, AC 4): a 401 before the pending reset is not the reset's. On the online demo it takes the page back to the splash with
+ *   the time the page loaded, with no signedOut=1 (Story 16.4), and the page never enters the resetting view.
  * - R7 (AC 4): the resetting view shows the logo of the page's theme, the light one in a light scheme and the dark one in a dark scheme,
  *   and follows the scheme when it changes.
  * - R8 (AC 2): the pill sits in the header's right group after the Status button (drawer band) and before the Visual Trace button, and the
@@ -52,6 +52,11 @@ const RESET_NOTICE = (time: string): string => `The demo was reset at ${time}, w
 const RESTART_NOTICE = 'The demo was restarted, which cleared your session. Sign in again for a fresh one.';
 const SOON_NOTICE = /^The demo resets in (3|4) min, which may cut your run short\. You can start now or come back after \d{1,2}:\d{2}\.$/;
 const STATUS = '/ocutalon/public/status';
+/**
+ * The idle cap that a case's /state answers carry (Story 16.4): the cases whose page clock runs past 600 s with no key press or click would
+ * otherwise leave for the splash at the cap, so their snapshot raises it far above the case's longest run.
+ */
+const KEEP_ACTIVE_SECONDS = 86_400;
 const EVENTS_POLL = /\/ocutalon\/api\/v1\/events\?/;
 
 const mainOf = (page: Page) => page.locator('main.main');
@@ -125,6 +130,7 @@ test('R1: the pill turns urgent at 10 minutes, the banner comes at 5, the resett
       body.status = body.status.filter((one) => one.condition !== 'resetSoon');
       delete body['nextReset'];
       body['nextReset'] = lastReset;
+      body['idleSeconds'] = KEEP_ACTIVE_SECONDS;
       await route.fulfill({ response, json: body });
     });
     await page.route(EVENTS_POLL, async (route) => {
@@ -364,6 +370,7 @@ async function routeLivePath(
     body.status = body.status.filter((one) => one.condition !== 'resetSoon');
     delete body['nextReset'];
     body['nextReset'] = reset;
+    body['idleSeconds'] = KEEP_ACTIVE_SECONDS;
     return route.fulfill({ response, json: body });
   });
   await page.route(EVENTS_POLL, async (route) => {
@@ -570,8 +577,8 @@ test('R6: a 401 before the pending reset signs the page out and does not show th
     // when a session ends elsewhere (while it lasts, the sign-in address would serve the page again).
     blocked = true;
     await signOutGroup(page);
-    await page.waitForURL(/[?&]signedOut=1/, { timeout: 60_000, waitUntil: 'commit' });
-    expect(navigations.some((url) => url.includes('since=')), 'the page did not go to the splash as after a reset').toBe(false);
+    await page.waitForURL(/[?&]since=/, { timeout: 60_000, waitUntil: 'commit' });
+    expect(navigations.some((url) => url.includes('signedOut=1')), 'the online demo never takes the local sign-in page, and its "You were signed out." text, for a 401 (Story 16.4)').toBe(false);
     await expect(page.locator('app-resetting-view'), 'and the resetting view never showed').toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Sign in and start', exact: true }), 'the sign-in page shows').toBeVisible();
   } finally {

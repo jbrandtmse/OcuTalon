@@ -146,6 +146,12 @@ describe('the splash address', () => {
     assert.equal(utcSeconds(Date.parse('2026-10-25T07:49:30.987Z')), '2026-10-25T07:49:30Z');
   });
 
+  it('adds &ended=1 after an epoch change (Story 16.4), and only then', () => {
+    const loaded = Date.parse('2026-10-25T07:49:30.987Z');
+    assert.equal(splashAddress(loaded, true), '/ocutalon/?since=2026-10-25T07:49:30Z&ended=1');
+    assert.equal(splashAddress(loaded, false), '/ocutalon/?since=2026-10-25T07:49:30Z');
+  });
+
   it('holds the load time, captured once when the module starts', () => {
     assert.equal(PAGE_LOADED_AT, utcSeconds(PAGE_LOADED_AT_MS));
     assert.ok(Math.abs(Date.now() - PAGE_LOADED_AT_MS) < 60_000);

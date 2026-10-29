@@ -12,6 +12,8 @@
 /// request with no state and no message (no wrong-credentials code, no no-role state) is shown in state busy while Status.Busy() is 1,
 /// and every page in state busy, this one or the post-sign-in refusal's, carries the header Status.BUSYHEADER. Show and a direct render
 /// call OnPreHTTP first. Without a valid connection cap Busy answers 0, so a local install never shows it.
+/// The info notice above both cards (InfoNotice) names the reset that cleared the session (Story 16.8) or, when the request carries the
+/// resume cookie and no ended=1, the freed place, PLACEFREED (Story 16.4).
 /// Every other value comes from OcuTalon.Data.Public.Settings and is HTML-escaped where it is written. The page has one inline style,
 /// one inline script, no style attribute, no external file and no font. Its own texts are parameters, each equal to a splash.*
 /// catalog key except the interval words, which the UX does not quote alone; the labels and the error texts are Login's, equal to
@@ -60,6 +62,10 @@ Parameter RESETNOTICE = "The demo was reset at {time}, which cleared your sessio
 
 /// The notice above both cards after an unscheduled restart (EXPERIENCE: Session ended by an unscheduled restart).
 Parameter RESTARTNOTICE = "The demo was restarted, which cleared your session. Sign in again for a fresh one.";
+
+/// The notice above both cards when the visitor's place was freed (EXPERIENCE: Place freed (online demo)). It equals the catalog's
+/// splash.placeFreed.
+Parameter PLACEFREED = "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off.";
 
 /// The reset-soon notice under the sign-in card's title (EXPERIENCE: Reset soon at sign-in). The script fills "in {countdown}" (the
 /// countdown words start with "in") and {time}.
@@ -208,20 +214,29 @@ ClassMethod OnLoginPage() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The info notice above both cards, or "" (Story 16.8). It names the reset that cleared the visitor's session: only when the request's
-/// since (the time the page loaded, UTC to the second) and the public lastReset are both readable times and lastReset is strictly
-/// later. The kind unscheduled gives RESTARTNOTICE; any other kind gives RESETNOTICE, whose {time} is a time element for the script
-/// to fill in the browser's zone. The value of since is never written into the page.
+/// The info notice above both cards, or "" (Story 16.8, Story 16.4), one of:
+///   - The reset that cleared the visitor's session, first: only when the request's since (the time the page loaded, UTC to the
+///     second) and the public lastReset are both readable times and lastReset is strictly later. The kind unscheduled gives
+///     RESTARTNOTICE; any other kind gives RESETNOTICE, whose {time} is a time element for the script to fill in the browser's zone.
+///   - Otherwise PLACEFREED, when the request carries the resume cookie (Shell RESUMECOOKIE, which is set only while the session is
+///     resumable) and no ended=1, which the page adds after an epoch change, where "you were away" would be untrue.
+///   - Otherwise nothing.
+/// The value of since is never written into the page.
 ClassMethod InfoNotice() As %String [ Private ]
 {
 	Set since = ##class(OcuTalon.Data.Public.Settings).ToSeconds($Get(%request.Data("since", 1)))
 	Set last = ##class(OcuTalon.Data.Public.Settings).Get("lastReset")
 	Set lastSeconds = ##class(OcuTalon.Data.Public.Settings).ToSeconds(last)
-	If (since = "") || (lastSeconds = "") || (lastSeconds <= since) Quit ""
-	If ##class(OcuTalon.Data.Public.Settings).Get("lastResetKind") = "unscheduled" {
-		Set text = ..#RESTARTNOTICE
+	If (since '= "") && (lastSeconds '= "") && (lastSeconds > since) {
+		If ##class(OcuTalon.Data.Public.Settings).Get("lastResetKind") = "unscheduled" {
+			Set text = ..#RESTARTNOTICE
+		} Else {
+			Set text = $Replace(..#RESETNOTICE, "{time}", "<time class=""tnum"" id=""ocu-notice-time"" datetime="""_$ZConvert(last, "O", "HTML")_"""></time>")
+		}
+	} ElseIf (%request.GetCookie(##class(OcuTalon.Web.Public.Shell).#RESUMECOOKIE) '= "") && ($Get(%request.Data("ended", 1)) '= 1) {
+		Set text = ..#PLACEFREED
 	} Else {
-		Set text = $Replace(..#RESETNOTICE, "{time}", "<time class=""tnum"" id=""ocu-notice-time"" datetime="""_$ZConvert(last, "O", "HTML")_"""></time>")
+		Quit ""
 	}
 	Quit "<div class=""notice notice-info"" id=""ocu-notice"">"_..Icon(..#ICONINFO)_"<p>"_text_"</p></div>"
 }

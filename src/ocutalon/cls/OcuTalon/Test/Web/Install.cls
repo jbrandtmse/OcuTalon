@@ -69,6 +69,46 @@ Method TestDefinitions()
 	}
 }
 
+/// The CSP session timeout (Story 16.4, matrix row 1): with the online-demo flag on, /ocutalon, /ocutalon/api and the OCUTALON trace
+/// application get 120 seconds and /ocutalon/public keeps 28800; with the flag off, or absent, every application keeps 28800. The
+/// OCUORDERS trace application the Demo step builds takes the same timeout as the OCUTALON one. The public setting onlineDemo is put
+/// back, also after a failure; Expected (the flag off) is unchanged.
+Method TestOnlineDemoTimeout()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#ONLINETIMEOUT, 120, "the online demo's timeout is 120 seconds")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#LOCALTIMEOUT, 28800, "a local install's is 8 hours")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.apps), "Definitions with the flag on")
+		Do $$$AssertEquals(apps("/ocutalon", "Timeout"), 120, "flag on: /ocutalon")
+		Do $$$AssertEquals(apps("/ocutalon/api", "Timeout"), 120, "flag on: /ocutalon/api")
+		Do $$$AssertEquals(apps("/ocutalon/trace/ocutalon", "Timeout"), 120, "flag on: the OCUTALON trace application")
+		Do $$$AssertEquals(apps("/ocutalon/public", "Timeout"), 28800, "flag on: /ocutalon/public keeps 8 hours")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).TraceApp("OCUORDERS", .orders), "/ocutalon/trace/ocuorders", "the OCUORDERS trace application")
+		Do $$$AssertEquals(orders("Timeout"), 120, "flag on: the OCUORDERS trace application")
+		Do $$$AssertEquals(apps("/ocutalon", "Path"), $SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/", "the other properties are unchanged")
+		For flag = 0, "" {
+			Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+			Kill apps, orders
+			Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.apps), "Definitions with the flag '"_flag_"'")
+			Set name = ""
+			For {
+				Set name = $Order(apps(name))
+				Quit:name=""
+				Do $$$AssertEquals(apps(name, "Timeout"), 28800, "flag '"_flag_"': "_name_" keeps 8 hours")
+			}
+			Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUORDERS", .orders)
+			Do $$$AssertEquals(orders("Timeout"), 28800, "flag '"_flag_"': the OCUORDERS trace application keeps 8 hours")
+		}
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
 /// The Web area declares the live-event purge (AD-27, Story 30.2 calls it): Purge(90) deletes every live event older than
 /// 24 hours, whatever the number, keeps the newer ones and leaves the stream's counter alone. It deletes the events of
 /// every stream, rows this test did not create too, so this class runs only on a throwaway (Rule 21).

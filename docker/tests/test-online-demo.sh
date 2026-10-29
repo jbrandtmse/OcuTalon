@@ -78,12 +78,18 @@
 # port only on 127.0.0.1, on the first free port of 52800-52819 (or OCUTALON_TEST_WEB_PORT). An EXIT trap removes the project with its volume
 # and images. Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
 # throwaway lock is held); the browser run's global timeout is what is left of it minus 20 s, and the browser does not start with under 60 s left.
+# The stack's CSP sessions time out after 120 s on /ocutalon, /ocutalon/api and the trace applications (Story 16.4; AD-13), and its pages
+# stop polling and leave for the splash after the idle cap (600 s of no key press, click or sent message): no check here reuses a jar or a
+# page after more than 120 s without a request, and a case of the browser step that lets a page's clock pass 600 s keeps the page active.
+# The shared start (the test values, redact, the probe counter, logout_all and online_signin) is docker/tests/lib-online.sh's, which
+# test-online-session.sh (Story 16.4) uses too.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or later, curl, the
 # built web bundle and Chromium (npx --prefix web playwright install chromium; ci/iris.sh live installs it).
 set -u
 
 . "$(dirname "$0")/lib-live.sh"
+. "$(dirname "$0")/lib-online.sh"
 live_start online-demo
 live_web_port || exit 1
 
@@ -91,19 +97,10 @@ version=$(manifest_version src/module.xml)
 ipm_version=0.10.10
 base="http://127.0.0.1:$web_port"
 
-hexpw() { LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 32; }
-
-demo_user=DemoVisitor
-readonly_user=TraceReader
-readonly_user_caps=TRACEREADER
+# The users, the passwords, the anchor and the last reset come from lib-online.sh (online_values); the control user is this unit's own.
+online_values
 control_user=ZzOnlineControl
-demo_password=$(hexpw)
-readonly_password=$(hexpw)
 control_password=$(hexpw)
-# The reset anchor is two hours ahead of the unit's start, to the minute (Story 16.8): the next reset is the anchor itself, so no real reset or
-# reset-soon period falls inside a run, and the splash's reset-soon notice and the page's resetting view never show in the other specs.
-anchor=$(node -e 'const t = Math.floor(Date.now() / 60000) * 60000 + 2 * 3600 * 1000; console.log(`${new Date(t).toISOString().slice(0, 19)}Z`);')
-last_reset=2026-10-25T08:00:00Z
 
 # The forms of S17 that change a password on build 154, as "<form>@<where>" for every request that does (Task 0 measured them; the unit
 # asserts both directions: a listed request changes the control's password, an unlisted one does not). <where> is root (/ocutalon/), state
@@ -113,38 +110,16 @@ last_reset=2026-10-25T08:00:00Z
 CHANGE_FORMS="F1@root F1@state F1@trace-ocutalon F1@trace-ocuorders F2@root F3@root F3@state F3@trace-ocutalon F3@trace-ocuorders F4@root F5@root F6@root F7@root F8@root F9@root F10@root F12@pwpage-ocutalon F12@pwpage-ocuorders"
 
 # No password of the run, current or attempted, is printed: the checks print names, outcomes and counts (a password is compared
-# inside IRIS or by curl), and every tail of a log that this script shows passes through redact.
+# inside IRIS or by curl), and every tail of a log that this script shows passes through redact (lib-online.sh).
 # The resume reference of row 6 is one more such value, once it is known.
 resume_ref=
-redact() { sed "s/$demo_password/<redacted>/g; s/$readonly_password/<redacted>/g; s/$control_password/<redacted>/g${resume_ref:+; s/$resume_ref/<redacted>/g}"; }
 
 # An attempted (new) password is random too, and is never printed.
 new_attempt() { hexpw; }
 
 # --- the test start values: an override in this run's temporary folder; the passwords come from the environment of docker compose ---
 
-export OCUTALON_TEST_DEMO_PASSWORD="$demo_password" OCUTALON_TEST_READONLY_PASSWORD="$readonly_password"
-# The proxy address's start value: the override sets it, row 2 reads it back, the proxied phase puts it back.
-proxy_start=192.0.2.10
-printf '%s\n' \
-  'services:' \
-  '  iris:' \
-  '    environment:' \
-  '      OCUTALON_ONLINE_DEMO: "1"' \
-  "      OCUTALON_DEMO_USER: $demo_user" \
-  '      OCUTALON_DEMO_PASSWORD: ${OCUTALON_TEST_DEMO_PASSWORD}' \
-  "      OCUTALON_READONLY_USER: $readonly_user" \
-  '      OCUTALON_READONLY_PASSWORD: ${OCUTALON_TEST_READONLY_PASSWORD}' \
-  '      OCUTALON_RESET_INTERVAL_HOURS: "4"' \
-  "      OCUTALON_RESET_ANCHOR: \"$anchor\"" \
-  "      OCUTALON_LAST_RESET: \"$last_reset\"" \
-  '      OCUTALON_LAST_RESET_KIND: scheduled' \
-  "      OCUTALON_PROXY_ADDRESS: $proxy_start" \
-  '      OCUTALON_CONNECTION_CAP: "8"' \
-  '      OCUTALON_CONNECTION_RESERVE: "2"' \
-  '      OCUTALON_MESSAGE_ALLOWANCE: "50"' \
-  '      OCUTALON_DAILY_COST_CAP_USD: "20"' > "$tmp/online-demo.yml"
-live_add_file "$tmp/online-demo.yml"
+online_override
 
 # --- build and start (row 1) ---
 
@@ -194,14 +169,6 @@ CHK|ready|1|1
 CHK|demoPassword|1|1
 CHK|readonlyPassword|1|1" \
   "${keys_lines[@]}" 'Halt'
-
-# next_probe sets probes to a number that no request of this run used, also across the subshells of $(...): the counter lives in a file.
-probe_file="$tmp/probe.n"
-echo 0 > "$probe_file"
-next_probe() {
-  probes=$(($(cat "$probe_file") + 1))
-  echo "$probes" > "$probe_file"
-}
 
 computed_next=$(printf '%s\n' 'Write !,"CHK|next|",##class(OcuTalon.Data.Public.Settings).NextReset()' 'Halt' | session_value OCUTALON next)
 next_probe
@@ -286,38 +253,6 @@ pct() {
     out="$out$(printf '%%%02X' "'${s:i:1}")"
   done
   printf '%s' "$out"
-}
-
-# logout_all <jar> <application path>: ends the session of the jar on the application and on /ocutalon/, each with a unique probe.
-logout_all() {
-  next_probe
-  curl -s --max-time 30 -o /dev/null -b "$1" -c "$1" "$base$2?IRISLogout=end&probe=$probes"
-  next_probe
-  curl -s --max-time 30 -o /dev/null -b "$1" -c "$1" "$base/ocutalon/?IRISLogout=end&probe=$probes"
-}
-
-# online_signin <jar> <forwarded address or ""> <resume cookie value or ""> [<user> <password>]: the splash GET and the sign-in POST of the
-# account (by default the demo account) on the jar, with X-Forwarded-For when an address is given and the resume cookie when a value is
-# given. It prints the POST's HTTP status, and leaves the POST's headers in <jar>.h, the final page in <jar>.b and, after a redirect, the
-# first /ocutalon/ GET's headers in <jar>.g.
-online_signin() {
-  local jar=$1 forwarded=$2 cookie=$3 user=${4-$demo_user} password=${5-$demo_password} code
-  local args=(-s --max-time 30 -c "$jar" -b "$jar")
-  if [ -n "$forwarded" ]; then args+=(-H "X-Forwarded-For: $forwarded"); fi
-  if [ -n "$cookie" ]; then args+=(-b "OcuTalonResume=$cookie"); fi
-  rm -f "$jar.h" "$jar.g" "$jar.b"
-  next_probe
-  curl "${args[@]}" -o /dev/null "$base/ocutalon/?probe=$probes"
-  next_probe
-  code=$(curl "${args[@]}" -D "$jar.h" -o "$jar.b" -w '%{http_code}' --data-urlencode "IRISUsername=$user" --data-urlencode "IRISPassword=$password" \
-    --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/?probe=$probes")
-  case $code in
-    3??)
-      next_probe
-      curl "${args[@]}" -D "$jar.g" -o "$jar.b" "$base/ocutalon/?probe=$probes"
-      ;;
-  esac
-  printf '%s' "$code"
 }
 
 # signin_outcome <user> <password>: a plain sign-in POST to /ocutalon/, on a jar of its own, and what it led to, ended with a sign-out:

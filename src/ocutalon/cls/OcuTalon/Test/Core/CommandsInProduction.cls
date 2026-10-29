@@ -1,16 +1,16 @@
 /// End-to-end tests of the command gate over the running production (Story 2.3; AD-1, AD-22, AD-26). THIS CLASS RUNS IN
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has. Where the
 /// production does not run, every test fails with that reason, so that a broken start can never give a green shard. Every
-/// test goes through OcuTalon.Core.Commands.Submit, to the stub owner (SessionOps), to the built SettingsOps,
-/// and to IncidentManager, which Story 5.5 built. Each owner's story rewrites its row here when it builds the owner.
-///   - TestStubOwnersAnswerPlainEnglish: a command to each stub owner gives status OK and a CommandResult with Ok 0, not_built
-///     and the plain-English text;
+/// test goes through OcuTalon.Core.Commands.Submit, to the built SessionOps and SettingsOps and to IncidentManager. No owner
+/// is a stub any more: Story 16.4 built the last, SessionOps' EndSession; Test.Core.CommandsRouting's probe pins not_built for
+/// an owner that is still one. Each owner's story rewrites its row here when it builds the owner.
+///   - TestEndSessionReachesSessionOps: an EndSession from web_user is carried out by the real SessionOps (Ok 1, ended), and its answer
+///     is one response header to CommandsIn that is not an error;
 ///   - TestSettingsOpsSwitches: a SetDemoMode from the system, with the mode the stack already has, is carried out by the real
 ///     SettingsOps (the Demo step reruns, changing nothing), which writes the row, with the text of its mode, and its answer is
 ///     one response header that is not an error; the demo.mode row is put back after it;
 ///   - TestTraceAndThread: outside a turn the command and the owner's answer are messages of one session whose SuperSession is
-///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId. A stub owner's answer is
-///     one response header (type 2, IsError 1) from the owner to CommandsIn, which carries the owner's error status;
+///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId;
 ///   - TestGovernanceRefusedFromTool: inside a context the governance verbs are refused and no header goes to SettingsOps or
 ///     SessionOps;
 ///   - TestToolDismissReachesIncidentManager: inside a context, the Dismiss of the session's own noticed incident reaches
@@ -21,37 +21,29 @@
 Class OcuTalon.Test.Core.CommandsInProduction Extends OcuTalon.Test.Core.InProduction
 {
 
-/// The text of a stub owner's answer.
-Parameter NOTBUILT = "This part of OcuTalon isn't built yet. Nothing was changed.";
-
-/// Each stub owner gets one verb with an origin it accepts: SessionOps (EndSession). Each
-/// answers with status OK and a CommandResult that carries nothing out, in plain English.
-Method TestStubOwnersAnswerPlainEnglish()
+/// An EndSession from web_user for a fixture session with nothing to end is carried out by the real SessionOps through the gate: the
+/// status is OK, the CommandResult is Ok 1, ended, the command reached the owner, and the owner's answer is one response header to
+/// CommandsIn that is not an error.
+Method TestEndSessionReachesSessionOps()
 {
 	If '..Guard() Quit
-	Set a = ..Session("stubs")
+	Set a = ..Session("end")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set table = $ListBuild("EndSession|SessionOps|web_user")
-	For i = 1:1:$ListLength(table) {
-		Set verb = $Piece($List(table, i), "|", 1)
-		Set owner = $Piece($List(table, i), "|", 2)
-		Set command = $ClassMethod("OcuTalon.Msg.Command."_verb, "%New")
-		Set command.SessionRef = a
-		Set command.IdempotencyKey = "zzkey"_..Number_verb
-		Set before = ..Sent(owner)
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, $Piece($List(table, i), "|", 3), .result)
-		Do $$$AssertStatusOK(sc, verb_" to "_owner_": the status is OK")
-		If '$IsObject(result) {
-			Do $$$AssertTrue(0, verb_" to "_owner_": a CommandResult comes back, not '"_$Get(result)_"'")
-			Continue
-		}
-		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_built", verb_" to "_owner_": nothing was carried out, the owner is not built")
-		Do $$$AssertEquals(result.Message, ..#NOTBUILT, verb_" to "_owner_": and the text is plain English")
-		Do $$$AssertEquals(..Sent(owner), before + 1, verb_" to "_owner_": the command reached the owner")
-		Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, owner, "CommandsIn")
-		Do $$$AssertEquals(answers.%Size(), 1, verb_" to "_owner_": the owner's answer is a response header to CommandsIn")
-		If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 1, verb_" to "_owner_": that carries the owner's error")
+	Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
+	Set command.SessionRef = a
+	Set command.IdempotencyKey = "zzkey"_..Number_"EndSession"
+	Set before = ..Sent("SessionOps")
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	Do $$$AssertStatusOK(sc, "EndSession to SessionOps: the status is OK")
+	If '$IsObject(result) {
+		Do $$$AssertTrue(0, "EndSession to SessionOps: a CommandResult comes back, not '"_$Get(result)_"'")
+		Quit
 	}
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "EndSession to SessionOps: carried out: "_result.Message)
+	Do $$$AssertEquals(..Sent("SessionOps"), before + 1, "the command reached the owner")
+	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, "SessionOps", "CommandsIn")
+	Do $$$AssertEquals(answers.%Size(), 1, "the owner's answer is one response header to CommandsIn")
+	If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 0, "that is not an error")
 }
 
 /// A SetDemoMode from the system, with the mode the stack already has, reaches the real SettingsOps once: it is carried out

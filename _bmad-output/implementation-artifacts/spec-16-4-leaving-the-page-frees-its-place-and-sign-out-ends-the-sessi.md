@@ -2,9 +2,10 @@
 title: 'Story 16.4: Leaving the page frees its place, and Sign out ends the session'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '25aab4984a05dc4b6daa879568c565689e7f9a4b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-1, lines 99-111; AD-4, 155-178; AD-11, 314-329; AD-13, 345-395; AD-24, 657-684; AD-25, 685-736)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only About, lines 137-147; Frame and the dialog rule, 199-221; State Patterns, 328-347)'
@@ -371,6 +372,59 @@ Where each row runs:
 
 ## Review Triage Log
 
+### 2026-10-29 — Review pass
+- verdicts: 49 findings — high 0, medium 8, low 34, false 7, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` BH: a failed Sign out is half-applied; End clears the resume hash after a failed step while the route and the page say the session stays resumable — SessionOps.End ran EndResume after a failed step, so a failed End left the chat unlinked and the cookie dead with a reminder still pending (a live session no cookie reaches). Patched: End clears the hash only when its other four steps succeeded; class doc, Api doc and the two End tests follow; mutation recorded.
+  - `[low]` `[reject]` BH: the idle cap and the epoch exit work per tab, while the group sign-out ends the browser's one CSP session — Real only with two OcuTalon tabs of one browser (the demo flow is one tab; the trace pages have no cap); the visitor lands on the splash and signs in to resume. The fix is a cross-tab activity channel, which is more than a direct correction. reopen_if: a second OcuTalon tab shows up in demo sessions.
+  - `[low]` `[reject]` BH: End does not stop work already running (a turn in flight can still create a reminder, a watch or a request after Sign out) — The intent lists End's steps and no stored field may be added (Never); stopping in-flight work needs an ended marker on the row. The late rows fire into a session no page reaches until the reset. reopen_if: Story 29.4's load run finds late rows after Sign out.
+  - `[low]` `[patch]` BH: row 2 asserts C's CSP session gone at 150 s, while Task 0 (d) measured 152 to 153 s — The check ran at the very edge of the measured delay. Patched: row 2 waits up to 180 s (row 4's bound) for C's session to go, after the 150 s floor, then reads K's /state; the unit run read 152 s.
+  - `[medium]` `[patch]` BH: the 'gone' checks of rows 2 and 4 can pass without the sessions ever having existed (empty csp_c, no trace cookie) — csp_exists '' answers 0 and csp_find '' answers none, so a harness fault read as success; trace_info_c was assigned and never used. Patched with a setup check that C holds a main and a trace CSP session; mutation (open_trace does nothing) stops the unit at it.
+  - `[low]` `[patch]` BH: the header claim 'Every wait ends by the overall deadline' is false for the reminder, watch and trace_end loops — Patched: each of the three loops stops at the deadline.
+  - `[low]` `[reject]` BH: only some of End's failure branches are pinned (EndWatches failing, EndApprovals, EndResume save failure, Carry non-CommandResult) — The not-failure branches that decide ended against failed on a repeat (a request or watch already gone) are pinned by TestEndAgainChangesNothing; the others are error paths that log and count. No realistic failure; more tests only. reopen_if: a failed End is reported in the demo.
+  - `[low]` `[patch]` BH: sign-out.spec O1 asserts the length of a constant — expect(SIGN_OUT_SENTENCE.length).toBeGreaterThan(0) cannot fail; the dialog name is pinned by the signOutDialog locator. Patched: the line and the unused import are removed.
+  - `[low]` `[reject]` BH: rail.spec open() leaves the waitForResponse promise unawaited if signIn throws — It rejects only after signIn has already failed the case, as report noise; the fix is a guard line on a helper that DW-333 just made reliable. reopen_if: a rail case reports an unhandled rejection.
+  - `[medium]` `[patch]` ECH: End still clears ResumeHash when a step fails (SessionOps.cls:248) — Same root cause as the first Blind Hunter finding; patched together (one condition in End).
+  - `[low]` `[reject]` ECH: after /session/end answers 500 or 501 the page signs the group out anyway (session-gate.ts) — Specified: 'After any other answer but a 401: the full group sign-out, then the plain splash. The session stays resumable.' With the patched End the session now is resumable, which the splash's notice and the sign-in then use. by-design.
+  - `[low]` `[reject]` ECH: the idle cap counts only this document's key and click events while another tab stays active — Same root cause as the second Blind Hunter finding; rejected with the same reason.
+  - `[low]` `[reject]` ECH: an epoch change seen in a stale tab runs the group sign-out with the shared cookies and ends the other tab's new session — Specified twice: matrix row 9b ('It signs the group out') and Design Notes 'The page signs out on an epoch change ... That other tab then returns to its own place-freed splash and resumes on sign-in'. by-design.
+  - `[low]` `[reject]` ECH: each Carry waits CommandsIn.TIMEOUT (120 s) while the gate waits 120 s for all of End — Needs an owner item that does not answer for two minutes; the bound is the project's one command timeout, and a shared budget is a new mechanism. The gate then answers 500, the session stays resumable, and the repeat finishes the work. reopen_if: a Sign out reaches 500 on a stuck owner item.
+  - `[low]` `[reject]` ECH: a Visual Trace tab idle for over 120 s loses its CSP session while the main page polls — The 120 s timeout of both trace applications is AC 1 and AD-25's backstop (the trace pages make no keep-alive request); a sign-in form after two idle minutes is the specified outcome. by-design.
+  - `[false]` `[reject]` ECH: a splash left open past 120 s has an expired CSP session, so the sign-in may fail — Measured on the flag-on stack (temporary, reverted): a splash GET, 135 s of waiting, then the sign-in POST answered 303 and the next /state answered 200. The form carries no IRISSessionToken on this stack.
+  - `[low]` `[reject]` ECH: the place-freed notice shows beside a refusal when the sign-in page re-renders with the cookie (wrong credentials, busy) — Specified: PLACEFREED shows when the request carries the resume cookie and no ended=1. The cookie means the session is resumable, so 'pick up where you left off' is true. by-design.
+  - `[false]` `[reject]` ECH: a 200 answer without an epoch field compares unequal and the page leaves — The API always sends epoch (StateBody and Events set it from the row); a missing field would be a server defect, and leaving the page on it is a loud, safe failure.
+  - `[low]` `[reject]` ECH: a stale page can send a chat message before its next poll sees the new epoch, and it lands in the other session — The window is the poll interval (about a second) and the session is the same visitor's own; closing it needs an epoch on every command, an API change outside this story. reopen_if: a message lands in the wrong session.
+  - `[low]` `[reject]` ECH: signOut() runs while leave() is already signing out — Needs the dialog's Sign out pressed in the same second as the idle cap or a 401; both end in the splash. A guard line adds nothing a visitor meets.
+  - `[medium]` `[patch]` ECH: test-online-session.sh csp_find/csp_exists with an empty value pass vacuously (lines 178, 245, 260) — Same root cause as the Blind Hunter finding on vacuous gone checks; patched together.
+  - `[low]` `[patch]` ECH: the reminder and watch wait loops ignore the overall deadline — Same root cause as the Blind Hunter finding on the header claim; patched together.
+  - `[low]` `[patch]` ECH: row 2 asserts C gone at 150 s, measured 152 to 153 s — Same root cause as the Blind Hunter finding on row 2; patched together.
+  - `[low]` `[reject]` ECH: the production-level stub case (TestStubOwnersAnswerPlainEnglish) was deleted — The spec replaces it (Tasks: TestEndSessionReachesSessionOps) because EndSession was the last stub owner, and says Test.Core.CommandsRouting's probe keeps not_built pinned (it passes). by-design.
+  - `[medium]` `[patch]` VG: the snapshot path of the epoch guard (LiveState.fetchSnapshot) has no test; AC 4 says 'a poll or snapshot' — L4 and L5 reach the poll guard first. Patched: L4b (a skipped Seq of the page's own epoch, then a snapshot of another epoch: never shown, group sign-out, ended=1, one snapshot request); mutation recorded.
+  - `[medium]` `[patch]` VG: Sign out when POST /session/end fails has no client test — Only the server half was pinned. Patched: O3 (a routed 500: group sign-out as a request, plain address, CSP session gone, cookie kept, same epoch on the next sign-in); mutation recorded.
+  - `[low]` `[patch]` VG: the 3 s bound of the group sign-out (SIGN_OUT_LIMIT_MS) is not pinned — An Always clause with no case. Patched: L4c (a sign-out request that is never answered; the page lands on ended=1); mutation recorded. The finding's 'defer' became a fix because the case was cheap beside L4b.
+  - `[low]` `[patch]` VG: unit row 4's 'every row of C is as it was' includes a constant CHK|events|0 — The statement printed a literal, so the entry could not fail and the spec's row lists no events count. Patched: the entry is removed from the expectation and the script.
+  - `[medium]` `[patch]` VG: the 'session gone' checks pass without proving the sessions existed — Same root cause as the Blind Hunter finding on vacuous gone checks; patched together, and Task 0 (a) and (b) now report 'unmeasured' when the jar held no trace session before the sign-out.
+  - `[low]` `[patch]` VG: the pinning tests of AC 6 (F6) and DW-333 (R1) have no observed mutation — Closed in this pass: F6 went red in live sign-in part 1/2 with the old tagline, and R1's delay case (old open() red, new open() green) ran in part 2/2; both lines are in the Mutation record.
+  - `[low]` `[patch]` VG, other: sign-out.spec O1 asserts the length of a constant — Same root cause as the Blind Hunter finding on O1; patched together.
+  - `[low]` `[reject]` VG, other: the 501 not_built branch of the route is dead code with no test — Specified ('not_built gives 501') and kept as the contract of the route if the owner is withdrawn; Test.Web.SessionEndApi has the three cases of matrix row 14. by-design.
+  - `[low]` `[reject]` VG, other: Test.Data.Setting's two seed tests leave the other key's row behind — The leftover rows hold the seeded defaults (600 and 5), TestIdleSetting and TestStateIdleSeconds remove or restore the row they assert on, and the spec forbids changing an existing method of that class. reopen_if: a test asserts the absence of the other key.
+  - `[low]` `[reject]` VG, other: the online-demo unit's header claim (no jar or page idle for over 120 s) is a comment, not a check — The unit passed twice (371 s and 392 s, 173 PASS lines each) with the 120 s timeouts; a mechanical check would be a new feature of the unit. reopen_if: an online-demo row goes red on a session that timed out.
+  - `[false]` `[reject]` IA: the problem is stated in licence connections and the tests assert CSP session existence — The matrix itself says 'licence counts MEASURED'; the unit prints the licence before and after as MEASURED lines. Nothing in the intent asks for a licence assertion.
+  - `[false]` `[reject]` IA: the page wiring (SessionGate, LiveState, Header) has no node test — Specified: the Tasks give node tests to IdleCap, the store and splashAddress, and the wiring to the browser cases L1 to L5 and O1 to O3 on the live stack, where every case ran and its mutation went red.
+  - `[low]` `[reject]` IA: a sent chat message counting as activity has no direct case — A message is sent by Enter or a click, which already count; the outbox effect adds nothing a visitor can observe. wontfix-theoretical.
+  - `[low]` `[reject]` IA: the cap stopping in the reset's resetting view has no case — The halted effect stops the cap for every stop(); the resetting view shows a screen the page leaves at the reset anyway, and a case needs a 600 s clock run in reset.spec. reopen_if: a page leaves from the resetting view.
+  - `[low]` `[patch]` IA: the 3 s limit on the group sign-out has no direct case — Same root cause as the Verification Gap finding on SIGN_OUT_LIMIT_MS; patched together (L4c).
+  - `[low]` `[reject]` IA: the 501 not_built branch of the route has no case — Same root cause as the Verification Gap finding on the dead branch; rejected with the same reason.
+  - `[medium]` `[patch]` IA: 'never sends a request after a 401' is not observed by L3, whose filter sees only /ocutalon/api/ — The group sign-out goes to /ocutalon/?IRISLogout=end. Patched: L3 records the context's requests and asserts none to IRISLogout or /session/end after the 401; mutation recorded.
+  - `[false]` `[reject]` IA: the server tests call Api.EndSession as a class method, so the envelope is not on their path — Specified: Test.Web.SessionEndApi mirrors PairingApi (matrix row 14: 'in process on the warm stack'); the envelope and the real route run in O2 and O3 on the live stack.
+  - `[false]` `[reject]` IA: the install step and the route compare the flag differently (Public.Settings.Get = '1' against Setting.Get = 1) — Setting.Get answers a public key from Public.Settings; Api.cls reads the flag the same way in StateBody and four other places, and the Public step writes 0 or 1.
+  - `[low]` `[reject]` IA: before the first snapshot the page's online() is false, so a 401 or Sign out would take the local path — Specified ('the loaded snapshot's onlineDemo in the page'); the online demo's server renders the splash for a 401 before the first snapshot, and Design Notes records it. by-design.
+  - `[low]` `[reject]` IA: the per-document cap and the per-browser sign-out diverge for two tabs — Same root cause as the Blind Hunter finding on tabs; rejected with the same reason.
+  - `[low]` `[reject]` IA: after a failed End the cookie remains, so the splash says 'You were away' to a visitor who pressed Sign out — Follows the specified notice rule (cookie present, no ended=1); the finding is the auditor's own note that this is the contract's text. by-design.
+  - `[false]` `[reject]` IA: Task 0's (a)/(b) check passes if either request ends the trace session — Specified: 'If (a) and (b) show that no request ends a trace session, stop'. Both ended it (0 s each); L2 and O2 assert the trace sign-in form for each path.
+  - `[low]` `[patch]` IA: F6 and R1 (in live sign-in) were not run by the author, so their mutations are unobserved — Same root cause as the Verification Gap finding on the two mutation lines; closed in this pass.
+  - `[low]` `[reject]` IA: test-side changes outside the contract's text (floor-sources, reset.spec, ci/units.sh) — Shared surfaces the spec's Verification names (the keydown allow-list, R6, the CI group); informational, no defect.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -411,6 +465,10 @@ Where each row runs:
 - **A 401 before the first snapshot keeps today's path.** The online demo's server renders the splash for it anyway.
 - **The dialog has no heading.** The UX gives none, and a new heading would be new public text.
 - **The Web step reads the flag through `Public.Settings`** (the AC), through one helper for the timeout and both seeds.
+
+- **A failed End keeps the resume hash** (review pass, 2026-10-29). `End` clears `ResumeHash` only when its other four steps all succeeded. The Always list says every step runs after a failed one, and the same list says a failed End leaves the session resumable; the hash cleared after a failed End would orphan a session whose reminders still fire, the case this note's "A failed End keeps the session" rules out. So step 5 alone follows the resumable reading, and a repeat of `End` (the visitor presses Sign out again) clears it. Reversible inside this story: one condition in `SessionOps.End` and two assertions.
+- **The splash after a failed End.** The cookie is kept, so the plain splash shows the place-freed notice; the notice rule (cookie present, no `ended=1`) stands as specified.
+- **Footprint, beyond the lead-approved list.** The implement stage edited five paths that are in neither the approved extensions nor the paths_hint, all under `web/**` (Lane B's files, which Epic 16 keeps) and none claimed by a concurrent epic's footprint: `web/scripts/floor-sources.test.mjs` (its allow-lists name the one document `keydown` listener and the second `dialogs.open` caller), `web/scripts/online-demo-anchor.test.mjs` (the anchor moved to `docker/tests/lib-online.sh`), `web/scripts/reset-schedule.test.mjs` (the node test of `splash-address.ts`), `web/src/app/app.ts` (one line: `inject(SessionGate)`, so that the idle cap's listeners and effects exist before the first snapshot) and `web/e2e/support/clock.ts` (an optional `stepMs` for `runUntil`). `Test/Web/ResetSchedule.cls` and `web/scripts/live-store.test.mjs` are in the paths_hint and the Tasks. The lead reports them under `footprint_extensions:`.
 
 **Rule 2 (extend, don't copy):**
 - `Dialogs.open` gains `autoFocus`; `SignOutDialog` follows `AboutDialog`; `IdleCap` follows `ContactWatch`.
@@ -539,14 +597,80 @@ Everything else is in the paths_hint or shared by entry. No contended path is to
 | AC 5 | `sign-out.spec.ts` O2 | `Api.EndSession`'s online branch skips the cookie expiry |
 | AC 5 | `Test.Core.SessionOpsProduction.TestEndThroughTheProduction` | `End` skips `Approval.Cancel` |
 | AC 5 | `Test.Web.SessionEndApi` | the online branch logs out after a failed End |
+| AC 3 | `leave.spec.ts` L3 (no sign-out request after the 401) | `onSignedOut`'s online exit runs the group sign-out after a 401 |
+| AC 4 | `leave.spec.ts` L4b | `LiveState.fetchSnapshot` applies a snapshot of another epoch |
+| AC 4 | `leave.spec.ts` L4c | `groupSignOut` has no time limit |
+| AC 5 | `sign-out.spec.ts` O3 | the online error branch of `signOut` navigates to `?IRISLogout=end` |
+| AC 5 | `Test.Core.SessionOps.TestEndUnlinksWithoutNotice` | `End` clears the `ResumeHash` after a failed step |
 | AC 6 | `frame.spec.ts` F6 | the old tagline is put back |
 | DW-333 | `rail.spec.ts` R1 | a temporary route delays `/state` by 12 s: the old `open()` goes red, the new one stays green |
 
 **Mutation record:**
+- Each mutation was applied, observed red and reverted byte-identical (`cmp` against a saved copy; `git diff --stat` the same before and after). The five server mutations ran on the warm stack `e16s4iw` (a production item's mutated class needs the item restarted to load, which the SessionOps case did). The seven browser and live mutations were applied together in one `ci/iris.sh build` and one fresh `live online-session` run on `e16s4i`; each pinning test went red on its own mutation (the combined run also turned L5 red with L4's mutation and row 4 red with row 4's), and the bundle was rebuilt clean after the revert.
+- mutation: AC 1, `Test.Web.Install.TestOnlineDemoTimeout`, `Common` ignores the flag (28800 always): red, 4 asserts (`flag on: /ocutalon`, `/ocutalon/api`, the OCUTALON trace application, the OCUORDERS trace application); reverted.
+- mutation: AC 1, `leave.spec.ts` L1, `SessionGate` sends `/ocutalon/?IRISLogout=end` on `pagehide`: red (`reload 1: the main page loads its snapshot` failed: the reload landed on the splash); reverted.
+- mutation: AC 2, the unit's row 4, `SessionEvents` gains an `OnTimeout` that submits `EndSession`: red (`C's CSP sessions were not both gone within 180 s` (310 s), `every row of C is as it was` 4 of 7 values differ, `Approval.Answer answered 'not_found'`, the watch did not run again, the sign-in gave another epoch); reverted.
+- mutation: AC 3, `leave.spec.ts` L2, `IdleCap` touched by every poll answer: red (`page.waitForURL` timed out after 60 s: the page never left); reverted.
+- mutation: AC 3, `leave.spec.ts` L3, `onSignedOut` keeps `?signedOut=1` on the online demo: red (`page.waitForURL` for `?since=` timed out); reverted.
+- mutation: AC 3, `Test.Web.Splash.TestPlaceFreedNotice`, `InfoNotice` ignores the cookie: red (`TestPlaceFreedNotice` and `TestInfoNotice` failed); reverted.
+- mutation: AC 3, `Test.Web.Api.TestStateIdleSeconds`, `StateBody` writes 600 whatever the setting: red (`the row holds 300: 300`); reverted.
+- mutation: AC 4, `leave.spec.ts` L4, `LiveState` reloads and applies an online answer of another epoch: red (`page.waitForURL` for `ended=1` timed out; L5 red too); reverted.
+- mutation: AC 5, `sign-out.spec.ts` O1, the dialog opens with `autoFocus` `'first-heading'`: red (`Cancel has the focus`); reverted.
+- mutation: AC 5, `sign-out.spec.ts` O2, `Api.EndSession`'s online branch skips the cookie expiry: red (`it sets the resume cookie once`); reverted.
+- mutation: AC 5, `Test.Core.SessionOpsProduction.TestEndThroughTheProduction`, `End` skips `Approval.Cancel`: red (`A's request 1 is cancelled`, `A's request 2 is cancelled`, `with one Approval entry`, and `TestEndAgainChangesNothing` and `TestEndWithAHeldReminderFails` too); reverted. A first attempt without restarting the SessionOps item stayed green (the production job still ran the old code); that is why the item is restarted.
+- mutation: AC 5, `Test.Web.SessionEndApi`, the online branch logs out after a failed End: red (`500 server_error`, `no cookie is set`, `the CSP session is not logged out and does not end`); reverted.
+- mutation: AC 6, `frame.spec.ts` F6, the old tagline put back in `about-dialog.ts`: red in `live sign-in --part 1/2` (`F6: the About dialog`, `the seven lines, in order`); the node pin `ux-strings.test.mjs` goes red too (`has an entry for every inventory string`); reverted, then rebuilt.
+- mutation: DW-333, `rail.spec.ts` R1, the first `/state` delayed by 12 s (a temporary route): a temporary case with the old `open()` went red (`toHaveAttribute` on `main.main` timed out at 10000 ms), and R1 with the new `open()` and the same delay stayed green (`live sign-in --part 2/2`, 96 passed, 1 failed: the temporary case); reverted (`cmp`, `git status --short` and `git diff --stat` identical).
+- Review pass (patches of the 2026-10-29 review), each applied temporarily, observed red, reverted byte-identical (`cmp` against a saved copy; `git status --short` and `git diff --stat` the same before and after):
+- mutation: AC 5, `Test.Core.SessionOps.TestEndUnlinksWithoutNotice` (and, by the same assertion on a held reminder, `TestEndWithAHeldReminderFails`), `End` runs `EndResume` after a failed step: red on the warm stack (`the resume hash is kept: a failed End leaves the session resumable`); green again on the same stack after the revert.
+- mutation: AC 3, `leave.spec.ts` L3, `leave('unauthorized')` runs the group sign-out: red (`and the page sent no sign-out after it`: one `IRISLogout=end&t=` request); reverted.
+- mutation: AC 4, `leave.spec.ts` L4b, the snapshot guard in `LiveState.fetchSnapshot` removed: red (`it never showed the other session`); reverted. L4 and L5 stay green with it, because the poll guard fires first.
+- mutation: AC 4, `leave.spec.ts` L4c, `groupSignOut` without its `AbortSignal.timeout`: red (`page.waitForURL` for `ended=1` timed out at 30 s); reverted.
+- mutation: AC 5, `sign-out.spec.ts` O3, the online error branch of `signOut` replaced by `location.replace('/ocutalon/?IRISLogout=end')`: red (`at the plain address, not at a sign-out address`); reverted.
+- mutation: rows 2 and 4, `docker/tests/test-online-session.sh`, `open_trace` does nothing: red (`FAIL setup: C's CSP sessions could not be named (main ..., trace 'none')`, and Task 0 (c) fails), and the unit stops before rows 2 and 4 wait for sessions that never existed; reverted.
+- The four web mutations of L3, L4b, L4c and O3 ran together in one `ci/iris.sh build` and one fresh `live online-session` run (6 passed, 4 failed: exactly those four); the bundle was rebuilt clean after the revert.
+
 
 **Task 0 results:**
+- MEASURED (a): after `GET /ocutalon/?IRISLogout=end&t=<n>` with a jar that opened a Visual Trace page, the jar's trace CSP session was gone at the first check (0 s, inside the 15 s); licence (connections/units) 2/2 before, 1/1 after. The page's group sign-out is that one GET, and `DemoBusyState.openTrace` is unchanged (no trace sign-outs).
+- MEASURED (b): the same with `POST /api/v1/session/end` on the online demo: the trace CSP session gone at 0 s; licence 2/2 before, 1/1 after. No trace sign-outs follow a 204.
+- MEASURED (c): the jar's trace CSP session is an `/ocutalon/trace/ocutalon/` session (the application's name has the trailing slash) with `AppTimeout` 120.
+- MEASURED (d): a closed jar's main and trace CSP sessions were both gone 152 to 153 s after its last request (two runs; the unit polls every 5 s and each check takes 1 to 3 s); licence (connections/units) 2/2 with the trace page open, 1/1 once gone.
+- MEASURED (e): the jar holds a `CSPSESSIONID...` cookie at `/ocutalon/` and one at `/ocutalon/trace/ocutalon/`; the `%CSP.Session` row whose `CSPSessionCookie` equals the cookie names each session (`/ocutalon/|120` and `/ocutalon/trace/ocutalon/|120`). The main session is also the Session row's `CspSessionId` (`%CSP.Session.%ExistsId`).
+- MEASURED times (final tree): `live online-session` 306 s (10 specs, the browser step 27 s; the first run 282 s with 7 specs, 4:42), `live online-demo` 392 s (173 PASS lines; 364 to 422 s before), `live sign-in` part 1/2 319 s (127 tests) and part 2/2 310 s (96 tests), `shard lane-b` 192, 193 and 417 s (82 classes) and `shard lane-a` 378, 149 and 418 s (70 classes), all on lane C.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** On the online demo the four sign-in-group applications get a 120-second CSP timeout; the page frees its place after the 600-second idle cap (a `Setting` row, `/state`'s `idleSeconds`), on a 401 and on an epoch change, runs the group sign-out as a bounded GET and lands on the splash, which shows the place-freed notice whenever the browser holds the resume cookie (not after `ended=1`); Sign out opens a confirm dialog and, once confirmed, `/session/end` submits `SessionOps.End` (unlink, reminders, watches, approval requests, then the resume hash), expires the cookie and logs the group out. DW-378 (the tagline), DW-290, DW-291 and DW-333 are in. Task 0 measured that a sign-out ends the trace CSP session at once (so the page needs no trace sign-outs), that a closed jar's sessions are gone 152 to 153 s after its last request, and that the trace session has `AppTimeout` 120.
+
+**Files changed.**
+- Server: `Install/Step/Web.cls` (timeouts, one flag helper, idle seed), `Data/Setting.cls` (idle key and seed), `Web/Api.cls` (`/state` idleSeconds, online `EndSession`), `Core/SessionOps.cls` (`End`), `Web/SessionEvents.cls` (one cookie setter, cookie name as Shell's), `Web/Public/Shell.cls` (cookie name, `ended` dropped), `Web/Public/Splash.cls` (place-freed notice), `Msg/Catalog/Core.cls` (`splash.placeFreed`).
+- Server tests: new `Test/Web/SessionEndApi.cls`; changed `Test/Web/{Install,Api,Splash,PublicTexts,ResetSchedule}.cls`, `Test/Msg/Catalog.cls`, `Test/Data/Setting.cls`, `Test/Core/{SessionOps,SessionOpsProduction,CommandsInProduction}.cls`.
+- Web: new `session/idle-cap.ts`, `header/sign-out-dialog.ts`, `header/sign-out-texts.ts`; changed `session/{session-gate,splash-address}.ts`, `live/{live-state,live-store}.ts`, `header/header.ts`, `shared/dialogs.ts`, `api/api-types.ts`, `about/about-dialog.ts`, `app.ts`.
+- Web tests and config: new `e2e-online/session/{leave,sign-out}.spec.ts`, `scripts/idle-cap.test.mjs`; changed `e2e-online/{support.ts,reset.spec.ts,splash.spec.ts}`, `e2e/{frame/frame.spec.ts,rail/rail.spec.ts,support/clock.ts}`, `scripts/{ux-strings,live-store,reset-schedule,floor-sources,online-demo-anchor,playwright-projects}.test.mjs`, `playwright.config.ts`, `package.json`.
+- Live units: new `docker/tests/lib-online.sh` (extracted from `test-online-demo.sh`) and `docker/tests/test-online-session.sh`; changed `docker/tests/test-online-demo.sh` and `ci/units.sh` (`live:online-session` in `install-fresh` and `BROWSER_UNITS`).
+
+**Review.** One pass, four layers: 49 findings (medium 8, low 34, false 7). 19 patched (8 medium, 11 low), 30 rejected with a recorded reason, none deferred (`deferred:` stays empty). The patches:
+- `SessionOps.End` clears `ResumeHash` only after a clean End (a failed End stays resumable, as the route and page already assume); class doc, Api doc and the two End tests follow.
+- New cases L4b (the snapshot path of the epoch guard), L4c (the 3 s bound of the group sign-out), O3 (a failed `/session/end`); L3 now watches every request after the 401; O1's vacuous line is gone.
+- `test-online-session.sh`: a setup check that C holds a main and a trace CSP session, row 2 waits up to 180 s for C to go, the constant `events` entry is gone, the three waits honour the deadline, and Task 0 reports `unmeasured` when the jar had no trace session.
+- The F6 and R1 mutations the author had left for the lead were run and recorded.
+
+**Rejected findings** (reasons are in the Review Triage Log): two OcuTalon tabs of one browser sharing one group sign-out (BH2/ECH3/IA: low, reopen_if a second tab shows up in demo sessions); End not stopping work already in flight; End failure branches beyond the pinned ones; a trace tab idle over 120 s (AD-25's backstop); the splash after a failed End and beside a refusal (the specified notice rule); the group sign-out after a failed `/session/end` and after an epoch change in a stale tab (specified); the 501 branch with no case; the cap in the resetting view and the outbox touch without cases; the commands' 120 s waits against the gate's; a stale page's chat message in the poll window; the double Sign out/leave race; Setting-test leftovers; the demo unit's comment; rail.spec's unawaited promise. Seven were false, among them the splash left open past 120 s (measured: the POST after 135 s answered 303 and `/state` 200).
+
+**Footprint.** Five paths beyond the lead-approved extensions, all `web/**` (Lane B's files, kept by Epic 16) and none in a concurrent epic's footprint: `web/scripts/floor-sources.test.mjs`, `web/scripts/online-demo-anchor.test.mjs`, `web/scripts/reset-schedule.test.mjs`, `web/src/app/app.ts` (one line) and `web/e2e/support/clock.ts`. No contended path and nothing under the spec's Never-edit list was touched.
+
+**Follow-up review recommended: true.** The risk to look at: 8 mediums were patched in one pass, among them the change of `End`'s semantics on failure (the hash is kept) which the page flow only sees through a faked 500 (O3) and in-process tests, never through a real failing End in the browser, and four new timing-based browser cases (L4b, L4c, O3, L3's wider watch) that ran green once on one stack.
+
+**Verification.** Final tree, lane C, tags `e16s4i` and `e16s4iw` (both torn down; nothing tagged is left):
+- `npm --prefix web test` 1078 pass; `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass.
+- Warm stack: the 12 listed classes pass on the patched tree (also on the pre-patch tree).
+- `live online-session` 306 s, 10 specs and 16 PASS lines with the `MEASURED` lines; `live online-demo` 392 s, 173 PASS, 0 FAIL (both under the 480 s mark).
+- `live sign-in --part 1/2` (127 tests, 319 s) and `--part 2/2` (96 tests, 310 s) pass; `shard lane-b` 82 classes in three parts and `shard lane-a` 70 classes in three parts pass; `ci/iris.sh teardown` left nothing.
+- Matrix audit: rows 1 to 15 are each covered by a test that ran and passed in these runs (row 1 by `TestOnlineDemoTimeout` and the unit's row 1, 2 and 4 by the unit, 3/5/7/9/9b by L1/L2/L3/L4/L5, 6 by `TestStateIdleSeconds`/`TestIdleSetting`, 8 by `TestPlaceFreedNotice`, 10/11 by O1/O2, 12 to 14 by the End and route tests, 15 by `live sign-in`).
+- Mutations: one demonstrated per pinning test, recorded in `## Verification` (the AC 6 and DW-333 ones were run in this pass).
+
+**Residual risks.** The multi-tab case above; End's in-flight work; the 120 s trace-tab timeout is the AD-25 backstop, not a per-tab sign-out (reported to the lead in `For the lead`); `live:online-session` joins `install-fresh` (about 5 minutes locally, the group's CI time grows by about that, as the spec estimated).

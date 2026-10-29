@@ -249,7 +249,7 @@ test('F6: the About dialog', async ({ page }) => {
   const lines = (await dialog.locator('h2, p').allTextContents()).map((line) => line.replace(/\s+/g, ' ').trim());
   expect(lines, 'the seven lines, in order').toEqual([
     title,
-    'An OpenClaw-style assistant for InterSystems IRIS.',
+    'An AI assistant for InterSystems IRIS.',
     'An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention.',
     'Default model: Claude Haiku 5.5.',
     'README (opens in a new tab)',
@@ -259,7 +259,7 @@ test('F6: the About dialog', async ({ page }) => {
   const sameBody = await dialog.evaluate((root) => {
     const parentOf = (text: string): Element | null | undefined =>
       [...root.querySelectorAll('p')].find((p) => p.textContent?.trim() === text)?.parentElement;
-    const tagline = parentOf('An OpenClaw-style assistant for InterSystems IRIS.');
+    const tagline = parentOf('An AI assistant for InterSystems IRIS.');
     const note = parentOf('OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.');
     return !!tagline && tagline === note;
   });

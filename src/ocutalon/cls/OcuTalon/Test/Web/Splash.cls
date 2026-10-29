@@ -28,6 +28,7 @@ Method TestTexts()
 	Set texts = texts_$ListBuild($ListBuild("OWNLINE", "Your chat, phone, mailbox and orders are yours alone."))
 	Set texts = texts_$ListBuild($ListBuild("TELEGRAMLINE", "Have Telegram? You can scan a QR code inside to get the notices on your own phone."))
 	Set texts = texts_$ListBuild($ListBuild("LIMITLINE", "Each session can send {limit} messages an hour in the chat or Telegram."))
+	Set texts = texts_$ListBuild($ListBuild("PLACEFREED", "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off."))
 	Set texts = texts_$ListBuild($ListBuild("RESETNOTICE", "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one."))
 	Set texts = texts_$ListBuild($ListBuild("RESTARTNOTICE", "The demo was restarted, which cleared your session. Sign in again for a fresh one."))
 	Set texts = texts_$ListBuild($ListBuild("RESETSOON", "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}."))
@@ -494,6 +495,69 @@ Method TestInfoNotice()
 	Do $$$AssertTrue(local '[ ..#INFO, "and has no info notice")
 }
 
+/// Row 8 (Story 16.4): the place-freed notice, in the same info element above both cards. 16.8's reset and restart notices come first:
+/// with since earlier than lastReset the page shows the reset text, cookie or not. Otherwise the notice shows when the request carries the
+/// resume cookie (since absent, unreadable, or not before lastReset) and has no ended=1, and shows nothing without the cookie or with
+/// ended=1. The local sign-in page never changes, and the values of since and the cookie are never written into the page.
+Method TestPlaceFreedNotice()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set text = "<p>You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off.</p>"
+	Set cookie = "zzPlaceFreedCookie0123"
+	Do $ClassMethod(settings, "Set", "lastReset", "2026-10-25T08:00:00Z")
+	Do $ClassMethod(settings, "Set", "lastResetKind", "scheduled")
+
+	Set page = ..PageWith("", cookie)
+	Do $$$AssertEquals(..Count(page, ..#INFO), 1, "the cookie and no since: one info notice")
+	Set notice = $Piece($Piece(page, "<div class=""notice notice-info"" id=""ocu-notice"">", 2), "</div>", 1)
+	Do $$$AssertTrue(notice [ "<svg class=""icon"" viewBox=""0 0 24 24"" aria-hidden=""true"" focusable=""false""><circle cx=""12"" cy=""12"" r=""10""/>", "it has the info icon")
+	Do $$$AssertTrue(notice [ text, "it reads the place-freed text")
+	Do $$$AssertTrue(page '[ "id=""ocu-notice-time""", "with no time element")
+	Do $$$AssertTrue($Find(page, ..#INFO) < $Find(page, "<div class=""splash-cards"">"), "above both cards")
+	Do $$$AssertTrue($Find(page, "<p class=""lead"">") < $Find(page, ..#INFO), "and after the lead")
+	Do $$$AssertTrue(page '[ cookie, "the cookie's value is not in the page")
+
+	For since = "2026-10-25T08:00:00Z", "2026-10-25T08:00:01Z", "2027-01-01T00:00:00Z", "<b>zz</b>", "2026-10-25T07:49:30" {
+		Set page = ..PageWith("since="_since, cookie)
+		Do $$$AssertEquals(..Count(page, ..#INFO), 1, "the cookie and since '"_since_"' (not before the last reset): one info notice")
+		Do $$$AssertTrue(page [ text, "that reads the place-freed text")
+		Do $$$AssertTrue(page '[ "zz</b>", "and does not echo since")
+	}
+	Set page = ..PageWith("ended=0", cookie)
+	Do $$$AssertTrue(page [ text, "ended=0 is not ended=1: the notice shows")
+
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z", cookie)
+	Do $$$AssertEquals(..Count(page, ..#INFO), 1, "the cookie and since before lastReset: one info notice")
+	Do $$$AssertTrue(page [ "<p>The demo was reset at <time class=""tnum"" id=""ocu-notice-time"" datetime=""2026-10-25T08:00:00Z""></time>, which cleared your session. Sign in again for a fresh one.</p>", "it is the reset notice, unchanged")
+	Do $$$AssertTrue(page '[ "your place was freed", "and not the place-freed one")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z&ended=1", cookie)
+	Do $$$AssertTrue(page [ "The demo was reset at", "the reset notice comes first, also with ended=1")
+	Do $ClassMethod(settings, "Set", "lastResetKind", "unscheduled")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z", cookie)
+	Do $$$AssertTrue(page [ "<p>The demo was restarted, which cleared your session. Sign in again for a fresh one.</p>", "an unscheduled restart gives the restart notice, with the cookie")
+	Do $$$AssertTrue(page '[ "your place was freed", "and not the place-freed one")
+	Do $ClassMethod(settings, "Set", "lastResetKind", "scheduled")
+
+	Set page = ..PageWith("ended=1", cookie)
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "the cookie and ended=1: no notice")
+	Set page = ..PageWith("since=2026-10-25T08:00:01Z&ended=1", cookie)
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "the cookie, a since not before lastReset and ended=1: no notice")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(..Count(page, "id=""ocu-notice-time"""), 1, "no cookie: the reset notice, as before")
+	Set page = ..PageWith("")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no cookie and no since: no notice")
+	Set page = ..PageWith("since=2026-10-25T08:00:01Z")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no cookie and a since after lastReset: no notice")
+
+	Do $ClassMethod(settings, "Set", "lastReset", "")
+	Set page = ..PageWith("", cookie)
+	Do $$$AssertEquals(..Count(page, ..#INFO), 1, "the cookie and no last reset: the place-freed notice")
+
+	Set local = ..Render("login", "", , , , , , , "", cookie)
+	Do $$$AssertEquals(local, ..Render("login", ""), "the local sign-in page is the same with the cookie")
+	Do $$$AssertTrue(local '[ ..#INFO, "and has no info notice")
+}
+
 /// Row 7: the reset-soon notice, a warning notice right after the sign-in card's title. It is written whenever the reset line is, with
 /// the hidden attribute unless the reset is at most 300 s away; without an interval there is neither. The form, its fields and the
 /// button are the same in every case.
@@ -589,10 +653,11 @@ ClassMethod Count(text As %String, what As %String) As %Integer [ Private ]
 	Quit $Length(text, what) - 1
 }
 
-/// The splash for a first visit whose query string is query: pairs name=value joined by "&", set unencoded in the request's data.
-Method PageWith(query As %String) As %String [ Private ]
+/// The splash for a first visit whose query string is query: pairs name=value joined by "&", set unencoded in the request's data. A
+/// non-empty cookie is the value of the request's resume cookie.
+Method PageWith(query As %String, cookie As %String = "") As %String [ Private ]
 {
-	Quit ..Render("splash", "", , , , , , , query)
+	Quit ..Render("splash", "", , , , , , , query, cookie)
 }
 
 /// The splash for a state, the server's error code and the typed user name (and the query signedOut=1 when signedOut is 1).
@@ -605,8 +670,8 @@ Method Page(state As %String, code As %String, user As %String, signedOut As %Bo
 ///   splash  Splash.OnPage (and Splash's OnPreHTTP, for the policy)
 ///   login   Login's own OnPreHTTP, then its OnPage
 ///   show    Login.Show with no header to write, as the shell's dispatch calls it
-/// busyHeader is the marker header that the response then holds.
-Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "", Output busyHeader As %String, query As %String = "") As %String [ Private ]
+/// busyHeader is the marker header that the response then holds. A non-empty cookie is the value of the request's resume cookie.
+Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "", Output busyHeader As %String, query As %String = "", cookie As %String = "") As %String [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(%CSP.Request).%New()
@@ -617,6 +682,7 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	If code '= "" Set %request.Data("Error:ErrorCode", 1) = code
 	If user '= "" Set %request.Data("IRISUsername", 1) = user
 	If signedOut Set %request.Data("signedOut", 1) = 1
+	If cookie '= "" Set %request.Cookies(##class(OcuTalon.Web.Public.Shell).#RESUMECOOKIE, 1) = cookie
 	For i = 1:1:$Length(query, "&") {
 		Set pair = $Piece(query, "&", i)
 		If pair '= "" Set %request.Data($Piece(pair, "=", 1), 1) = $Piece(pair, "=", 2, *)

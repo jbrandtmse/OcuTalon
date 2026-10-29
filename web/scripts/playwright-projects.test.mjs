@@ -287,11 +287,35 @@ describe('the API specs read the sign-in unit\'s variables when a test uses one'
   });
 });
 
-describe('the online-demo project (Story 16.1)', () => {
-  it('online-demo (the e2e:online-demo script) lists exactly the spec files of web/e2e-online/', () => {
-    const onlineOnDisk = specFilesOnDisk(join(webDir, 'e2e-online'));
+describe('the online-demo and online-session projects (Stories 16.1 and 16.4)', () => {
+  const onlineOnDisk = specFilesOnDisk(join(webDir, 'e2e-online'));
+  // The listing names a file relative to the config's own testDir (e2e/), so these projects' files start with ../e2e-online/.
+  const listedName = (name) => `../e2e-online/${name}`;
+
+  it('online-demo (the e2e:online-demo script) lists exactly the spec files of web/e2e-online/ outside session/', () => {
     assert.ok(onlineOnDisk.length > 0, 'web/e2e-online/ holds spec files');
-    // The listing names a file relative to the config's own testDir (e2e/), so this project's files start with ../e2e-online/.
-    assert.deepEqual(filesOf('e2e:online-demo'), onlineOnDisk.map((name) => `../e2e-online/${name}`));
+    assert.deepEqual(
+      filesOf('e2e:online-demo'),
+      onlineOnDisk.filter((name) => !name.startsWith('session/')).map(listedName),
+    );
+  });
+
+  it('online-session (the e2e:online-session script) lists exactly the spec files of web/e2e-online/session/, and the online-demo script none of them', () => {
+    const own = onlineOnDisk.filter((name) => name.startsWith('session/'));
+    assert.ok(own.length > 0, 'web/e2e-online/session/ holds spec files');
+    // This project's testDir is e2e-online/session/, so its files are named relative to it.
+    assert.deepEqual(
+      filesOf('e2e:online-session'),
+      own.map((name) => `../e2e-online/${name}`),
+    );
+    assert.deepEqual(filesOf('e2e:online-demo').filter((name) => name.startsWith(listedName('session/'))), []);
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:online-session'];
+    assert.equal(script, 'playwright test --project=online-session');
+  });
+
+  it('every spec file of web/e2e-online/ is listed by one of the two scripts, and by neither e2e script of web/e2e/', () => {
+    const listedByAny = new Set([...filesOf('e2e:online-demo'), ...filesOf('e2e:online-session')]);
+    assert.deepEqual(onlineOnDisk.map(listedName).filter((name) => !listedByAny.has(name)), []);
+    assert.deepEqual(filesOf('e2e').filter((name) => name.includes('e2e-online')), []);
   });
 });

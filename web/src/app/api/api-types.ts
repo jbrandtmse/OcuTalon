@@ -52,6 +52,8 @@ export interface StateSnapshot {
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
+  /** The idle cap in seconds: how long the page may go with no key press, click or sent message; present only on the online demo (Story 16.4). */
+  idleSeconds?: number;
   /** The read-only Visual Trace account that the online demo publishes; present only on the online demo, never on a local install. */
   traceAccount?: { user: string; password: string };
   /** The next scheduled reset, UTC to the second; present only on the online demo with a schedule, and the last key (Story 16.8). */

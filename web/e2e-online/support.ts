@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { APIRequestContext, BrowserContext, Cookie, Page, PlaywrightWorkerArgs, Response } from '@playwright/test';
+import { expect, type APIRequestContext, type BrowserContext, type Cookie, type Locator, type Page, type PlaywrightWorkerArgs, type Response } from '@playwright/test';
 
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
@@ -19,7 +19,8 @@ const TRACE_SIGN_OUTS = ['/ocutalon/trace/ocutalon/?IRISLogout=end', '/ocutalon/
 
 /**
  * Signs the context out of the whole sign-in group. Every spec calls it in `finally`, because a signed-in CSP session holds one of the
- * stack's licence connections until it times out (28,800 s on a throwaway). A failed sign-out is not a failure of the case.
+ * stack's licence connections until it times out (120 s on the online demo, Story 16.4, and only while nothing polls). A failed sign-out is
+ * not a failure of the case.
  */
 export async function signOutGroup(target: Page | BrowserContext): Promise<void> {
   const context = 'context' in target && typeof target.context === 'function' ? target.context() : (target as BrowserContext);
@@ -210,4 +211,166 @@ export async function httpConnections(api: APIRequestContext): Promise<number> {
   } finally {
     await setPublic('connectionCap', savedCap);
   }
+}
+
+/** True when a CSP session with the id exists in the container (read through irisScript in %SYS-wide terms: the session extent is the instance's). */
+export async function cspSessionExists(id: string): Promise<boolean> {
+  const lines = await irisScript(`Write !,"CHK|exists|",##class(%CSP.Session).%ExistsId(${quoted(id)})`);
+  return chk(lines, 'exists') === '1';
+}
+
+/** What a case watches for in a page: whether any node of the document held the text. It outlives the page's navigations. */
+export interface TextWatch {
+  seen: () => boolean;
+}
+
+/**
+ * Before the page's scripts run: records, through an exposed function that survives navigations, whether any node of any document of the
+ * page ever held the text (a MutationObserver over the whole document, checked at every change). A case uses it to show that the page never
+ * showed a text that must not reach it.
+ */
+export async function watchText(page: Page, text: string): Promise<TextWatch> {
+  let seen = false;
+  await page.exposeFunction('__ocuSeenText', () => {
+    seen = true;
+  });
+  await page.addInitScript((needle) => {
+    const check = (): void => {
+      if (document.documentElement?.textContent?.includes(needle)) (window as unknown as { __ocuSeenText: () => void }).__ocuSeenText();
+    };
+    new MutationObserver(check).observe(document, { subtree: true, childList: true, characterData: true });
+  }, text);
+  return { seen: () => seen };
+}
+
+/** The URLs of every request of a context's pages, in order (a request context such as page.request does not show here). */
+export interface RequestLog {
+  /** The number of requests so far, a mark for `since`. */
+  mark: () => number;
+  /** The URLs requested after the mark. */
+  since: (mark: number) => string[];
+}
+
+/** Records the URL of every request of the context's pages. */
+export function recordRequests(context: BrowserContext): RequestLog {
+  const urls: string[] = [];
+  context.on('request', (request) => urls.push(request.url()));
+  return { mark: () => urls.length, since: (mark) => urls.slice(mark) };
+}
+
+/** The rows that populate() made for a session, by their Refs ('' when none). */
+export interface Populated {
+  session: string;
+  reminder: string;
+  approval: string;
+  pairing: string;
+}
+
+/**
+ * Gives the session (a Ref) a real reminder due in an hour (ReminderFixture), a real watch of the Orders production (a StartWatch through
+ * Commands.Submit, as the page's chat tool does), a pending approval request that the demo account may answer and a fixture pairing, and
+ * returns their Refs. A case calls cleanPopulated for it in `finally`.
+ */
+export async function populate(session: string): Promise<Populated> {
+  const lines = await irisScript(
+    [
+      `Set ref=${quoted(session)}`,
+      'Set made=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(ref,"zz sign out",3600)',
+      'Set start=##class(OcuTalon.Msg.Command.StartWatch).%New() Set start.SessionRef=ref,start.Namespace=##class(OcuTalon.Install.Step.Demo).#NAMESPACE,start.Production=##class(OcuTalon.Install.Step.Demo).#PRODUCTION,start.DisplayName="Orders"',
+      'Set sc=##class(OcuTalon.Core.Commands).Submit(start,"web_user",.started)',
+      'Set approval=##class(OcuTalon.Test.Data.Fixture).Approval(ref,"","pending",,{"RequiredRole":"OcuTalonUser"})',
+      'Set pair=##class(OcuTalon.Test.Data.Fixture).Pairing(ref,"Dana")',
+      'Write !,"CHK|reminder|",made.ref,"|",made.ok,!,"CHK|watch|",$Select($IsObject($Get(started)):started.Ok_"|"_started.Outcome,1:"none"),!,"CHK|approval|",approval,!,"CHK|pairing|",pair',
+    ].join('\n'),
+  );
+  const reminder = (chk(lines, 'reminder') ?? '').split('|');
+  if (reminder[1] !== '1' || chk(lines, 'watch') !== '1|started') throw new Error(`the session's reminder and watch could not be made: ${lines.join(' ')}`);
+  return { session, reminder: reminder[0] ?? '', approval: chk(lines, 'approval') ?? '', pairing: chk(lines, 'pairing') ?? '' };
+}
+
+/** What a session's populated rows read now. */
+export interface PopulatedState {
+  reminder: string;
+  waiting: number;
+  watches: number;
+  approval: string;
+  pairing: string;
+  resumeHash: string;
+}
+
+/** Reads the state of a session's populated rows in the container: the rows' states, the reminder's waiters, the watch rows and the pairing. */
+export async function populatedState(rows: Populated): Promise<PopulatedState> {
+  const lines = await irisScript(
+    [
+      `Write !,"CHK|reminder|",##class(OcuTalon.Data.Reminder).RefIndexOpen(${quoted(rows.reminder)}).State`,
+      `Write !,"CHK|waiting|",##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(${quoted(rows.reminder)})`,
+      `Write !,"CHK|watches|",##class(OcuTalon.Data.Ownership).Checks(${quoted(rows.session)}).Count()`,
+      `Write !,"CHK|approval|",##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(rows.approval)}).State`,
+      `Set p=##class(OcuTalon.Data.Ownership).Pairing(${quoted(rows.session)},.sc) Write !,"CHK|pairing|",$Select($IsObject(p):p.SessionRef,1:"")`,
+      `Write !,"CHK|hash|",##class(OcuTalon.Data.Session).RefIndexOpen(${quoted(rows.session)}).ResumeHash`,
+    ].join('\n'),
+  );
+  return {
+    reminder: chk(lines, 'reminder') ?? '',
+    waiting: Number(chk(lines, 'waiting') ?? '-1'),
+    watches: Number(chk(lines, 'watches') ?? '-1'),
+    approval: chk(lines, 'approval') ?? '',
+    pairing: chk(lines, 'pairing') ?? '',
+    resumeHash: chk(lines, 'hash') ?? '',
+  };
+}
+
+/** The mark of the audit log now (AuditLog.Now), for auditEntries. */
+export async function auditMark(): Promise<string> {
+  return chk(await irisScript('Write !,"CHK|mark|",##class(OcuTalon.Test.Bridge.AuditLog).Now()'), 'mark') ?? '';
+}
+
+/** How many audit entries of the type, written since the mark, name the marker (a Ref), and, for a Pairing entry, hold `summary` as change/reason/channel. */
+export async function auditCount(mark: string, type: 'Approval' | 'Pairing', marker: string, summary: string): Promise<number> {
+  const lines = await irisScript(
+    [
+      `Set es=##class(OcuTalon.Test.Bridge.AuditLog).Entries(${quoted(mark)},"OcuTalon",${quoted(type)},${quoted(type)},${quoted(marker)})`,
+      'Set n=0 For i=0:1:es.%Size()-1 { Set d=es.%Get(i).data If d.change_"/"_$Select(d.%IsDefined("reason"):d.reason,1:"")_"/"_d.channel=' + quoted(summary) + ' Set n=n+1 }',
+      'Write !,"CHK|count|",n',
+    ].join('\n'),
+  );
+  return Number(chk(lines, 'count') ?? '-1');
+}
+
+/** Removes what populate() made, with the reminder's waiter and the watch rows; the session's own rows are removeSession's. */
+export async function cleanPopulated(rows: Populated): Promise<void> {
+  await irisScript(
+    [
+      `Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveAll(${quoted(rows.session)})`,
+      `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",${quoted(rows.session)})`,
+      `Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(`${rows.approval},${rows.pairing}`)})`,
+      'Write !,"CHK|cleaned|1"',
+    ].join('\n'),
+  );
+}
+
+/** A turn of the session whose text is given, made directly (Fixture.Turn); removeSession removes it with the session. */
+export async function fixtureTurn(session: string, text: string): Promise<void> {
+  await irisScript([`Do ##class(OcuTalon.Test.Data.Fixture).Turn(${quoted(session)},,,${quoted(text)})`, 'Write !,"CHK|turn|1"'].join('\n'));
+}
+
+/** The online demo's Sign out dialog: its one sentence, which names it. Written out as the independent oracle of the page's own. */
+export const SIGN_OUT_SENTENCE = 'Signing out ends this demo session. Signing in again starts a fresh one.';
+
+/** The account menu's trigger: a button named by the signed-in demo account. */
+export const accountTrigger = (page: Page): Locator => page.getByRole('button', { name: fixtureUser('DEMOACCOUNT').user, exact: true });
+
+/** The Sign out dialog. */
+export const signOutDialog = (page: Page): Locator => page.getByRole('dialog', { name: SIGN_OUT_SENTENCE, exact: true });
+
+/** Opens the account menu and chooses Sign out; the dialog opens. */
+export async function pressSignOut(page: Page): Promise<void> {
+  await accountTrigger(page).click();
+  await page.getByRole('menuitem', { name: 'Sign out', exact: true }).click();
+  await expect(signOutDialog(page)).toBeVisible();
+}
+
+/** Presses Sign out in the open dialog. */
+export async function confirmSignOut(page: Page): Promise<void> {
+  await signOutDialog(page).getByRole('button', { name: 'Sign out', exact: true }).click();
 }

@@ -19,11 +19,17 @@
 ///     proxy: at the limit nothing is created, and the refusal is recorded in the CSP session for Shell, which ends the CSP
 ///     session in the same request and shows the splash's field error. A request that did not come through the proxy is exempt.
 /// The resume reference is held in local variables of this request and the cookie alone; no line of the log carries it.
+/// The class has no OnLogout, OnEndSession or OnTimeout: a CSP session that ends (a closed page, the idle cap, the timeout)
+/// ends nothing else (AD-4). Only Sign out ends the OcuTalon session, through SessionOps.End.
 Class OcuTalon.Web.SessionEvents Extends %CSP.SessionEvents [ ProcedureBlock ]
 {
 
-/// The name of the resume cookie (AD-4). Story 16.4 expires it at sign-out.
-Parameter RESUMECOOKIE = "OcuTalonResume";
+/// The name of the resume cookie (AD-4). Its one definition is the public class Web.Public.Shell's, which the splash reads it
+/// from (AD-3); this parameter answers it for the writers of the cookie.
+Parameter RESUMECOOKIE As COSEXPRESSION = "##class(OcuTalon.Web.Public.Shell).#RESUMECOOKIE";
+
+/// The Expires date of an expired resume cookie: an RFC 1123 date in the past.
+Parameter EXPIREDDATE = "Thu, 01 Jan 1970 00:00:00 GMT";
 
 /// The licence connections that the signing-in session itself holds when OnLogin runs; the busy check leaves them out.
 Parameter OWNCONNECTIONS = 1;
@@ -88,9 +94,17 @@ ClassMethod AttachVisitor() As %Status [ Private ]
 		Do ##class(OcuTalon.Data.AddressCounter).Unlock(address)
 	}
 	If $SYSTEM.Status.IsOK(sc), reference '= "" {
-		Do %response.SetCookie(..#RESUMECOOKIE, reference, ..CookieExpiry(##class(OcuTalon.Data.Public.Settings).NextReset()), "/ocutalon/", "", 1, 1, "Strict")
+		Do ..ResumeCookie(reference, ..CookieExpiry(##class(OcuTalon.Data.Public.Settings).NextReset()))
 	}
 	Quit sc
+}
+
+/// The one write of the resume cookie (AD-4): the value and the Expires date (an RFC 1123 date, see CookieExpiry), with path
+/// /ocutalon/, Secure, HttpOnly and SameSite Strict. The sign-in sets the reference with the next reset's date; Sign out
+/// (Web.Api.EndSession) expires it with an empty value and EXPIREDDATE, under the same name and path.
+ClassMethod ResumeCookie(value As %String, expiry As %String)
+{
+	Do %response.SetCookie(..#RESUMECOOKIE, value, expiry, "/ocutalon/", "", 1, 1, "Strict")
 }
 
 /// The client address that the address limit counts, and whether the request is proxied. A request is proxied when proxy is

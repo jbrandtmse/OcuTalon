@@ -10,11 +10,17 @@ export interface DialogOptions {
   labelledBy: string;
   /** The control that opened the dialog: focus returns to it when the dialog closes. */
   restoreFocus: HTMLElement;
+  /**
+   * Where focus starts: the CDK's target ('first-tabbable', 'first-heading' or 'dialog') or a CSS selector inside the dialog. The default
+   * is the first heading (UX-DR38); the online demo's Sign out dialog starts on Cancel (UX-DR30).
+   */
+  autoFocus?: string;
 }
 
 /**
  * The page's modal dialogs over the CDK dialog. Dialogs are at most one deep: opening one first closes every open
- * popover and any dialog that is open. A press on the backdrop or Escape closes the dialog.
+ * popover and any dialog that is open. A press on the backdrop or Escape closes the dialog. Focus starts on the first heading unless
+ * the options name another place.
  */
 @Injectable({ providedIn: 'root' })
 export class Dialogs {
@@ -28,7 +34,7 @@ export class Dialogs {
       role: 'dialog',
       ariaModal: true,
       ariaLabelledBy: options.labelledBy,
-      autoFocus: 'first-heading',
+      autoFocus: options.autoFocus ?? 'first-heading',
       restoreFocus: options.restoreFocus,
       hasBackdrop: true,
       backdropClass: 'app-dialog-scrim',

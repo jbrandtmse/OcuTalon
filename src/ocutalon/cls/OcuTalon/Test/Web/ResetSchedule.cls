@@ -104,7 +104,8 @@ Method TestOneNextResetEverywhere()
 }
 
 /// Row 4: with the flag off and an anchor set, or with the flag on and no anchor, /state has no nextReset, its keys are the local
-/// ones (those of the flag off with no schedule, whose list Test.Web.Api.TestStateBody pins) and its status has no resetSoon.
+/// ones (those of the flag off with no schedule, whose list Test.Web.Api.TestStateBody pins; the flag on adds idleSeconds, Story 16.4)
+/// and its status has no resetSoon.
 Method TestLocalSnapshotKeepsItsKeys()
 {
 	Set error = ""
@@ -125,7 +126,7 @@ Method TestLocalSnapshotKeepsItsKeys()
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
 		Set state = ##class(OcuTalon.Web.Api).StateBody(..Session)
-		Do $$$AssertEquals(..KeyList(state), local, "flag 1 with no anchor: the local keys")
+		Do $$$AssertEquals(..KeyList(state), local_",idleSeconds", "flag 1 with no anchor: the local keys and the idle cap (Story 16.4), and no nextReset")
 		Do $$$AssertNotTrue((","_..StatusConditions(state)_",") [ ",resetSoon,", "flag 1 with no anchor: no resetSoon in status")
 	} Catch exception {
 		Set error = exception.DisplayString()

@@ -33,6 +33,8 @@ import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
 import { CredentialRows } from './credential-rows';
+import { SignOutDialog, SIGN_OUT_FOCUS } from './sign-out-dialog';
+import { SIGN_OUT_TEXT_ID } from './sign-out-texts';
 import { ResetCountdown } from './reset-countdown';
 
 /** The theme menu's options, in order. */
@@ -51,7 +53,8 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
 /**
  * The app header. Left: the mark and the wordmark (underlined, as every link is), both linking to the main page, and the context badge (Online demo,
  * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
- * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group.
+ * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group; on the online demo it asks
+ * first, in a small dialog (SignOutDialog, Story 16.4), and ends the OcuTalon session too.
  *
  * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
  * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
@@ -454,7 +457,19 @@ export class Header {
     this.closeTrace();
   }
 
+  /**
+   * The account menu's Sign out. On the online demo it opens the confirm dialog (Story 16.4; UX-DR30), whose focus starts on Cancel and
+   * returns to the account trigger when it closes; its Sign out signs out. Anywhere else it signs out at once.
+   */
   protected signOut(): void {
+    if (this.live.snapshot()?.onlineDemo === true) {
+      this.dialogs.open(SignOutDialog, {
+        labelledBy: SIGN_OUT_TEXT_ID,
+        restoreFocus: this.accountTrigger().nativeElement,
+        autoFocus: SIGN_OUT_FOCUS,
+      });
+      return;
+    }
     this.gate.signOut();
   }
 

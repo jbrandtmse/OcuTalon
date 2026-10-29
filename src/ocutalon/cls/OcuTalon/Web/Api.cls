@@ -32,8 +32,11 @@
 ///     The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
-///     and the guide that Demo.Guide.Compute derives, and, on the online demo only, traceAccount: the read-only Visual
-///     Trace account, and the reset fields (resetSoon in status, nextReset last).
+///     and the guide that Demo.Guide.Compute derives, and, on the online demo only, idleSeconds: the page's idle cap,
+///     traceAccount: the read-only Visual Trace account, and the reset fields (resetSoon in status, nextReset last).
+///     POST /v1/session/end signs out: on a local install only the CSP session ends; on the online demo it submits an EndSession
+///     command for the session (SessionOps.End, through CommandsIn), expires the resume cookie and then signs out, 204; a failed
+///     End is 500 server_error, which neither expires the cookie nor signs out, so the session stays resumable (EndSession).
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -192,8 +195,30 @@ ClassMethod Events() As %Status
 
 /// POST /v1/session/end: signs the user out. The CSP session ends together with every application of the sign-in group
 /// (Logout(1) with EndSession), and the answer is 204 with no body. The browser envelope was checked before the route.
+/// On a local or IPM install that is all it does (the durable session stays). On the online demo (onlineDemo on) Sign out ends the
+/// OcuTalon session too (AD-4, AD-1): the route resolves the CSP session's session (Ownership.SessionRef) and submits an EndSession
+/// command for it through Commands.Submit (origin web_user), which reaches SessionOps.End through CommandsIn, synchronously.
+///   - Ok: the resume cookie is expired (SessionEvents.ResumeCookie, the same name and path as the sign-in's), the CSP session signs
+///     out, and the answer is 204.
+///   - not_built: 501 not_built. Any other outcome or status: 500 server_error, with no cookie change and no sign-out, so the
+///     session stays resumable.
+///   - A CSP session that no OcuTalon session resolves for (the attach failed at sign-in): the sign-out alone, and 204, with no
+///     command.
 ClassMethod EndSession() As %Status
 {
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 {
+		Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+		If $SYSTEM.Status.IsOK(sc) {
+			Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
+			Set command.SessionRef = sessionRef
+			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+			If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+			If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+			If result.Outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+			If 'result.Ok Quit ..ServerError($SYSTEM.Status.Error(5001, "The session end was answered "_result.Outcome))
+			Do ##class(OcuTalon.Web.SessionEvents).ResumeCookie("", ##class(OcuTalon.Web.SessionEvents).#EXPIREDDATE)
+		}
+	}
 	Do %session.Logout(1)
 	Set %session.EndSession = 1
 	Set %response.Status = ..#HTTP204NOCONTENT
@@ -671,7 +696,8 @@ ClassMethod Unpair() As %Status [ Private ]
 /// oldest first, each the mailbox payload plus, when the session has a decide decision of the email's Item, the member
 /// decision (its payload), and guide: the guide that Demo.Guide.Compute derives; after those, traceAccount (TraceAccount: the
 /// read-only account's user name and password) only when onlineDemo is 1 and both read-only values are set; on the online
-/// demo, resetSoon is appended to status when active and the last key is nextReset when there is a next reset (AddReset).
+/// demo, idleSeconds (IdleSeconds: the page's idle cap) comes before traceAccount, resetSoon is appended to status when active and
+/// the last key is nextReset when there is a next reset (AddReset).
 /// instanceStream is the stream reported as instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
@@ -721,11 +747,20 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 		Set body.mailbox = ..MailboxItems(sessionRef)
 		Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
 	}
+	If body.onlineDemo Set body.idleSeconds = ..IdleSeconds()
 	Set account = ..TraceAccount()  Set:$IsObject(account) body.traceAccount = account
 	Do ..AddReset(body)
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body
+}
+
+/// The idle cap in seconds that the online demo's snapshot carries (Setting IDLEKEY): the stored value when it is a whole number
+/// above 0, else Setting IDLESEED (600).
+ClassMethod IdleSeconds() As %Integer [ Private ]
+{
+	Set seconds = ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Data.Setting).#IDLEKEY, ##class(OcuTalon.Data.Setting).#IDLESEED)
+	Quit $Select((seconds ? 1.N) && (seconds > 0): +seconds, 1: ##class(OcuTalon.Data.Setting).#IDLESEED)
 }
 
 /// The simulated mailbox: the session's newest MAILMAX emails, oldest first, each the Mailbox payload object plus decision when

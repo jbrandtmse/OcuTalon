@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Browser specs against a running stack. OCUTALON_URL is its origin, for example http://127.0.0.1:52800; the specs
  * open paths below it, such as /ocutalon/. One worker: the specs share one IRIS instance and its licence.
  *
- * Eight projects:
+ * Nine projects:
  *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/, e2e/floor/, e2e/answers/ and e2e/cards/ (the sign-in and API units), Desktop Chrome;
  *   demo-path      the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh), Desktop Chrome;
  *   demo-switch    the badge, guide, phone and mailbox specs of e2e/demo-switch/ (the demo-switch unit, docker/tests/test-demo-switch.sh, which names the stack's
@@ -15,7 +15,10 @@ import { defineConfig, devices } from '@playwright/test';
  *   cards          the specs of e2e/cards/ (the cards unit, docker/tests/test-cards.sh): the incident card and the approval request card, Story 6.1's
  *                  I2 to I11 and Story 6.2's A2 to A10 (I1 and A1 stay in the floor, which runs them in three engines), Desktop Chrome;
  *   floor-firefox  the floor cases tagged @browsers, in Desktop Firefox;
- *   floor-webkit   the floor cases tagged @browsers, in Desktop Safari (WebKit).
+ *   floor-webkit   the floor cases tagged @browsers, in Desktop Safari (WebKit);
+ *   online-demo    the specs of e2e-online/ outside e2e-online/session/ (the online-demo unit, docker/tests/test-online-demo.sh), Desktop Chrome;
+ *   online-session the specs of e2e-online/session/ (the online-session unit, docker/tests/test-online-session.sh): leaving the page and
+ *                  Sign out on a flag-on stack, Story 16.4, Desktop Chrome.
  * The floor unit runs the three floor projects one after the other on its one stack (the e2e:floor script), Chromium first.
  * When OCUTALON_E2E_JSON names a file, a JSON report is written there beside the list reporter.
  */
@@ -51,8 +54,12 @@ export default defineConfig({
     { name: 'cards', testDir: './e2e/cards', use: { ...devices['Desktop Chrome'] } },
     { name: 'floor-firefox', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Firefox'] } },
     { name: 'floor-webkit', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Safari'] } },
-    // online-demo: the specs of e2e-online/ (the online-demo unit, docker/tests/test-online-demo.sh, on a flag-on throwaway), Desktop Chrome.
-    // Its folder lies outside e2e/, so the chromium project never runs it.
-    { name: 'online-demo', testDir: './e2e-online', use: { ...devices['Desktop Chrome'] } },
+    // online-demo: the specs of e2e-online/ (the online-demo unit, docker/tests/test-online-demo.sh, on a flag-on throwaway), Desktop Chrome,
+    // except those of e2e-online/session/, which are the online-session project's. Its folder lies outside e2e/, so the chromium project
+    // never runs either.
+    { name: 'online-demo', testDir: './e2e-online', testIgnore: ['**/e2e-online/session/**'], use: { ...devices['Desktop Chrome'] } },
+    // online-session: the specs of e2e-online/session/ (the online-session unit, docker/tests/test-online-session.sh, on its own flag-on
+    // throwaway), Desktop Chrome.
+    { name: 'online-session', testDir: './e2e-online/session', use: { ...devices['Desktop Chrome'] } },
   ],
 });

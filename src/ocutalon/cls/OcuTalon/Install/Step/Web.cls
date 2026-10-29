@@ -9,8 +9,11 @@
 /// The applications are structural (AD-19): every start rewrites each one to exactly these properties, with
 /// Modify, never delete and create, so nothing attached to an application is lost. The OCUORDERS trace
 /// application is the Demo step's, built from TraceApp, and exists only with demo mode on.
-/// With the online demo on, the step also seeds the per-address session limit (SeedSettings), and its purge declaration
-/// covers the address counter (AddressCounter, one hour) as well as the live events.
+/// With the online demo on, the step also seeds the per-address session limit and the idle cap (SeedSettings), and its
+/// purge declaration covers the address counter (AddressCounter, one hour) as well as the live events.
+/// The CSP session timeout (Common) is ONLINETIMEOUT, 120 seconds, for the four sign-in-group applications on the online
+/// demo and LOCALTIMEOUT, 8 hours, for every other application and every install without the flag (AD-13); the flag is
+/// read through OcuTalon.Data.Public.Settings, by OnlineDemo, for the timeout and for both seeds.
 /// The bundle lives in csp/ocutalon-web/, not in csp/ocutalon/, which the non-Health image's default application
 /// /csp/ocutalon serves without sign-in (DW-5); every start removes OcuTalon's own files from the old folder.
 Class OcuTalon.Install.Step.Web Extends OcuTalon.Install.Step
@@ -47,6 +50,13 @@ Parameter SESSIONEVENTS = "OcuTalon.Web.SessionEvents";
 
 /// The application's name, in lower case, is appended to this for each trace application.
 Parameter TRACEPREFIX = "/ocutalon/trace/";
+
+/// The CSP session timeout, in seconds, of a sign-in-group application on the online demo (AD-13).
+Parameter ONLINETIMEOUT = 120;
+
+/// The CSP session timeout, in seconds, of every application on a local or IPM install (8 hours), and of
+/// /ocutalon/public on any install.
+Parameter LOCALTIMEOUT = 28800;
 
 /// The step: refuses a missing bundle, removes OcuTalon's files from the old bundle folder, writes the four
 /// applications, then grants the trace role its SQL privilege in this namespace.
@@ -88,11 +98,22 @@ ClassMethod Reconcile() As %Status
 }
 
 /// With the online demo on, seeds the new sessions per client address per hour (Setting ADDRESSLIMITKEY, ADDRESSLIMITSEED)
-/// when the key is absent, so a value changed afterwards is kept. With the flag off it writes nothing.
+/// and the page's idle cap in seconds (Setting IDLEKEY, IDLESEED) when a key is absent, so a value changed afterwards is
+/// kept. With the flag off it writes nothing. The result is the first error; the idle cap is seeded after a failed limit too.
 ClassMethod SeedSettings() As %Status
 {
-	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit $SYSTEM.Status.OK()
-	Quit ##class(OcuTalon.Data.Setting).Seed(##class(OcuTalon.Data.Setting).#ADDRESSLIMITKEY, ##class(OcuTalon.Data.Setting).#ADDRESSLIMITSEED)
+	If '..OnlineDemo() Quit $SYSTEM.Status.OK()
+	Set limit = ##class(OcuTalon.Data.Setting).Seed(##class(OcuTalon.Data.Setting).#ADDRESSLIMITKEY, ##class(OcuTalon.Data.Setting).#ADDRESSLIMITSEED)
+	Set idle = ##class(OcuTalon.Data.Setting).Seed(##class(OcuTalon.Data.Setting).#IDLEKEY, ##class(OcuTalon.Data.Setting).#IDLESEED)
+	If $SYSTEM.Status.IsError(limit) Quit limit
+	Quit idle
+}
+
+/// 1 when the online-demo flag is set, read through the public settings (the Public step has written it before this step
+/// runs, AD-23). The timeout of Common and both seeds of SeedSettings follow it.
+ClassMethod OnlineDemo() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = "1"
 }
 
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
@@ -117,13 +138,15 @@ ClassMethod Grants() As %DynamicArray
 
 /// apps(name, key) = the value, for each application of this step, with every key that Security.Applications
 /// is given (Modify keeps a key that is not passed, so all of them are passed). The CORS allow-list is passed
-/// empty, so a list added by hand is removed at the next start.
+/// empty, so a list added by hand is removed at the next start. With the online demo on, /ocutalon, /ocutalon/api and
+/// the OCUTALON trace application get ONLINETIMEOUT; /ocutalon/public and every application of a local install get LOCALTIMEOUT.
 /// CSPZENEnabled is 1 for all four: with it off, build 154 does not reach the dispatch class of a signed-in
 /// request, and answers an empty page or a 404.
 ClassMethod Definitions(Output apps) As %Status
 {
 	Kill apps
-	Do ..Common(.shell, "OCUTALON", "/ocutalon/")
+	Set online = ..OnlineDemo()
+	Do ..Common(.shell, "OCUTALON", "/ocutalon/", online)
 	Set shell("DispatchClass") = "OcuTalon.Web.Public.Shell"
 	Set shell("EventClass") = ..#SESSIONEVENTS
 	Set shell("Path") = $SYSTEM.Util.DataDirectory()_..#BUNDLEFOLDER
@@ -133,7 +156,7 @@ ClassMethod Definitions(Output apps) As %Status
 	Set shell("CSPZENEnabled") = 1
 	Merge apps("/ocutalon") = shell
 
-	Do ..Common(.api, "OCUTALON", "/ocutalon/")
+	Do ..Common(.api, "OCUTALON", "/ocutalon/", online)
 	Set api("DispatchClass") = "OcuTalon.Web.Api"
 	Set api("Path") = ""
 	Set api("ServeFiles") = 0
@@ -142,10 +165,10 @@ ClassMethod Definitions(Output apps) As %Status
 	Set api("CSPZENEnabled") = 1
 	Merge apps("/ocutalon/api") = api
 
-	Set name = ..TraceApp("OCUTALON", .trace)
+	Set name = ..TraceApp("OCUTALON", .trace, online)
 	Merge apps(name) = trace
 
-	Do ..Common(.public, "OCUTALON", "/ocutalon/public/")
+	Do ..Common(.public, "OCUTALON", "/ocutalon/public/", 0)
 	Set public("AutheEnabled") = 64
 	Set public("GroupById") = ""
 	Set public("DispatchClass") = "OcuTalon.Web.Public.Status"
@@ -161,11 +184,12 @@ ClassMethod Definitions(Output apps) As %Status
 /// The trace application of a namespace: its name, /ocutalon/trace/<namespace in lower case>, and props with
 /// the properties of AD-24 and S7. It has no application roles and no dispatch class, serves the ZEN pages,
 /// and is in the same sign-in group as the other applications. The Demo step builds the OCUORDERS one from it.
-ClassMethod TraceApp(namespace As %String, Output props) As %String
+/// online is 1 for the online-demo timeout; it defaults to the flag as the Public step wrote it.
+ClassMethod TraceApp(namespace As %String, Output props, online As %Boolean = {..OnlineDemo()}) As %String
 {
 	Kill props
 	Set name = ..#TRACEPREFIX_$ZConvert(namespace, "L")
-	Do ..Common(.props, namespace, name_"/")
+	Do ..Common(.props, namespace, name_"/", online)
 	Set props("DispatchClass") = ""
 	Set props("Path") = ""
 	Set props("ServeFiles") = 1
@@ -175,8 +199,9 @@ ClassMethod TraceApp(namespace As %String, Output props) As %String
 	Quit name
 }
 
-/// The properties that the applications share.
-ClassMethod Common(Output props, namespace As %String, cookiePath As %String) [ Private ]
+/// The properties that the applications share. online is 1 for a sign-in-group application on the online demo, which
+/// gets ONLINETIMEOUT; every other application gets LOCALTIMEOUT.
+ClassMethod Common(Output props, namespace As %String, cookiePath As %String, online As %Boolean = 0) [ Private ]
 {
 	Kill props
 	Set props("NameSpace") = namespace
@@ -184,7 +209,7 @@ ClassMethod Common(Output props, namespace As %String, cookiePath As %String) [ 
 	Set props("AutheEnabled") = 32
 	Set props("GroupById") = ..#GROUP
 	Set props("SessionScope") = 2
-	Set props("Timeout") = 28800
+	Set props("Timeout") = $Select(online: ..#ONLINETIMEOUT, 1: ..#LOCALTIMEOUT)
 	Set props("CookiePath") = cookiePath
 	Set props("LoginPage") = ""
 	Set props("InbndWebServicesEnabled") = 0

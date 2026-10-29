@@ -57,6 +57,7 @@ const IMPORTED = [
   ['phone/phone-view.ts', ['PHONE_TEXTS']],
   ['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']],
   ['live/reset-schedule.ts', ['RESET_TEXTS']],
+  ['header/sign-out-texts.ts', ['SIGN_OUT_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -277,7 +278,7 @@ const SOURCES = {
     'Online demo',
     'Demo mode',
     'Account',
-    'An OpenClaw-style assistant for InterSystems IRIS.',
+    'An AI assistant for InterSystems IRIS.',
     'An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention.',
     'Default model: {slot}.',
     'README',
@@ -287,6 +288,8 @@ const SOURCES = {
     'Talon',
     'About OcuTalon',
     'Sign out',
+    'Signing out ends this demo session. Signing in again starts a fresh one.',
+    'Cancel',
     'Theme',
     'Chat',
     'Retry',

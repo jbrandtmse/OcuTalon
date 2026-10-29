@@ -25,7 +25,11 @@
 ///   - TestUnlinkSignature: the compiled signature of Unlink, the stable API of Story 16.4: a public instance method with its six
 ///     parameters in order, the notice key defaulting to "", and the status as its return;
 ///   - TestUnlinkStandsWhenTheSideEffectsFail: a failed audit entry or notice is a warning and the chat is unlinked;
-///   - TestEndSessionStaysNotBuilt and TestOtherMessagesAreRefused.
+///   - TestEndUnlinksWithoutNotice and TestEndNeedsTheSession (Story 16.4, the unit part of EndSession): the session's chat is unlinked
+///     with one unlinked entry (session_end, on the channel of the origin) and no notice, its resume hash is cleared, and the answer is
+///     ended, also for a repeat that changes nothing; a failed step is answered failed after the later steps still ran; a session with no
+///     row is no_session. The reminders, watches and requests of End are TestEndThroughTheProduction's (Test.Core.SessionOpsProduction);
+///   - TestOtherMessagesAreRefused.
 Class OcuTalon.Test.Core.SessionOps Extends %UnitTest.TestCase
 {
 
@@ -588,16 +592,58 @@ Method TestUnlinkStandsWhenTheSideEffectsFail()
 	Do $$$AssertEquals(..EventSummary(session), "true:Dana,false:", "and the event was published")
 }
 
-/// EndSession keeps answering the error status NotImplemented (code 5003), so CommandsIn answers not_built, until Story 16.4.
-Method TestEndSessionStaysNotBuilt()
+/// EndSession (Story 16.4; the part that needs no production): a session with a paired chat and a resume hash is ended. The chat is
+/// unlinked through Unlink with one unlinked entry, reason session_end, on the channel of the origin, and no notice; the pairing event
+/// is published; the resume hash is "" afterwards; the answer is Ok 1, ended. A repeat answers ended again and changes nothing: no new
+/// entry, no new event. An origin with no audit channel makes the unlink fail, and the answer is failed and the resume hash is kept, so
+/// that the session stays resumable.
+Method TestEndUnlinksWithoutNotice()
 {
 	Set probe = ..Probe()
-	Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
-	Set command.Origin = "web_user"
-	Set command.SessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set sc = probe.OnMessage(command, .result)
-	Do $$$AssertStatusNotOK(sc, "an error status")
-	Do $$$AssertTrue($ListFind($ListFromString($SYSTEM.Status.GetErrorCodes(sc)), 5003) > 0, "of code 5003")
+	Set session = ..Session("end")
+	Set chat = ..NewChat("Dana")
+	Do ..Code(session, .hash)
+	Do ..Pair(probe, hash, chat)
+	Set probe = ..Probe()
+	Do ..SetResumeHash(session, "zzsessops"_..Number_"end")
+	Set result = ..End(probe, "web_user", session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "Ok 1, ended")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef, "", "the chat is unlinked")
+	Do $$$AssertEquals(..AuditSummary(probe), "unlinked/session_end/"_session_"/web", "one unlinked entry, session_end, on web")
+	Do $$$AssertEquals(probe.Notices.Count(), 0, "no notice")
+	Do $$$AssertEquals(..EventSummary(session), "true:Dana,false:", "the not-paired event was published")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, "", "the resume hash is cleared")
+
+	Set result = ..End(probe, "web_user", session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "a repeat: ended again")
+	Do $$$AssertEquals(probe.Audits.%Size()_"|"_probe.Notices.Count(), "1|0", "and nothing new is audited or sent")
+	Do $$$AssertEquals(..EventSummary(session), "true:Dana,false:", "and no new event")
+
+	Set second = ..Session("endfail")
+	Set chat2 = ..NewChat("Eli")
+	Do ..Code(second, .hash2)
+	Do ..Pair(probe, hash2, chat2)
+	Set probe = ..Probe()
+	Do ..SetResumeHash(second, "zzsessops"_..Number_"endfail")
+	Set warnings = ..Logged("the chat could not be unlinked at the end of session "_second)
+	Set result = ..End(probe, "bogus", second)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an origin with no audit channel: Ok 0, failed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat2).SessionRef, second, "the chat stays, because the unlink was refused")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(second).ResumeHash, ##class(OcuTalon.Data.Session).Hash("zzsessops"_..Number_"endfail"), "the resume hash is kept: a failed End leaves the session resumable")
+	Do $$$AssertEquals(..Logged("the chat could not be unlinked at the end of session "_second), warnings + 1, "and one warning names the session")
+}
+
+/// EndSession for a session that has no row, or no session at all, answers Ok 0, no_session, with nothing audited, sent or published.
+Method TestEndNeedsTheSession()
+{
+	Set probe = ..Probe()
+	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set result = ..End(probe, "web_user", other)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|no_session", "a session with no row: Ok 0, no_session")
+	Set result = ..End(probe, "web_user", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|no_session", "an empty session: Ok 0, no_session")
+	Do $$$AssertEquals(probe.Audits.%Size()_"|"_probe.Notices.Count(), "0|0", "nothing is audited or sent")
+	Do $$$AssertEquals(..EventSummary(other), "", "and nothing is published")
 }
 
 /// A message that is no command, or another command, is refused with an error status that is not code 5003.
@@ -678,6 +724,25 @@ Method Pair(probe As OcuTalon.Test.Core.SessionOpsProbe, hash As %String, chat A
 	Set sc = probe.OnMessage(command, .result)
 	Do $$$AssertStatusOK(sc, "the status is OK")
 	Quit result
+}
+
+/// Sends an EndSession to the probe and returns its CommandResult.
+Method End(probe As OcuTalon.Test.Core.SessionOpsProbe, origin As %String, session As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
+	Set command.Origin = origin
+	Set command.SessionRef = session
+	Set sc = probe.OnMessage(command, .result)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	Quit result
+}
+
+/// Gives the fixture session a resume hash, the hash of the text.
+Method SetResumeHash(session As %String, text As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash(text)
+	Do $$$AssertStatusOK(row.%Save(), "the fixture session holds a resume hash")
 }
 
 /// Sends an Unpair to the probe and returns its CommandResult.
