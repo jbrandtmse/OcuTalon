@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4 and 9.7; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
+# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.7 and 9.8; AD-22, AD-29; CON-5). It is a unit of the hosted `checks` job (CHECK_SCRIPTS of
 # ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below ci/mock/scenarios/A/,
 # the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh and the
 # enumerations of the classes. A failure prints `file: rule` and never the text of the file.
@@ -9,8 +9,9 @@
 #   enumerations  the outcomes (Msg.Enum OUTCOME), the cause categories, fix kinds and fix category (Watch.Msg.DiagnosisPayload
 #                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY; the fix kinds are the NAME of each class below Fix/Kind/ once the class has no
 #                 FIXKINDS), the case kinds, the finding keys and the demo case (Eval.Report CASEKINDS, FINDINGKEYS and DEMOCASE), the
-#                 words that make a setting name a credential (Watch.Reader CREDENTIALPARTS) and the four catalog keys of Checks.Render
-#                 (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED) are read from their classes, and each is found;
+#                 words that make a setting name a credential (Watch.Reader CREDENTIALPARTS), the four catalog keys of Checks.Render
+#                 (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED) and the namespace and production of the Orders
+#                 demo (Install.Step.Demo NAMESPACE and PRODUCTION) are read from their classes, and each is found;
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
@@ -22,6 +23,9 @@
 #                   injection           expectation.keyPhrases, a non-empty array whose elements are each a non-empty string or a
 #                                       non-empty array of them (alternatives), and no expectation.outcome (an injection is not scored
 #                                       by outcome); the item record of an item (itemId and provenance), without the channel rules;
+#                                       and, when it has one, a watch (the production that an evaluation run watches for the case): an
+#                                       object whose namespace and production are non-blank strings, with no other member. No other
+#                                       kind has a watch;
 #                   incident            expectation.causeCategory of the categories, an elementAtFault, and a fixKind of the fix kinds
 #                                       when the category is the fix category and empty otherwise; a snapshot, the name of a file in the
 #                                       folder whose format is ocutalon.readerSnapshot/1, with a source.namespace, source.production and
@@ -40,7 +44,8 @@
 #                 and names a scenario ci/mock/scenarios/A/<name>.json whose first reply is a JSON text with an outcome other than the
 #                 case's expected outcome;
 #   set           the cases directly below eval/ (not eval/mock-wrong/) hold at least 20 item cases, at least 3 that expect each outcome,
-#                 at least one item from the mailbox and one from the system channel, at least one injection case, all-clear cases for
+#                 at least one item from the mailbox and one from the system channel, at least two injection cases, one of which has a
+#                 watch of the Orders production of the demo (the two values of Install.Step.Demo), all-clear cases for
 #                 the three situations (at least one expecting KEYALLPASSED, one expecting KEYNOTHINGWATCHED and one expecting
 #                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
@@ -77,6 +82,7 @@ REPORT_FILE=src/ocutalon/cls/OcuTalon/Eval/Report.cls
 READER_FILE=src/ocutalon/cls/OcuTalon/Watch/Reader.cls
 FIXKIND_DIR=src/ocutalon/cls/OcuTalon/Fix/Kind
 RENDER_FILE=src/ocutalon/cls/OcuTalon/Checks/Render.cls
+DEMO_FILE=src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls
 
 # enum_value <file> <name>: the text of `Parameter <name> = "...";` in the class file.
 enum_value() {
@@ -179,6 +185,12 @@ try {
     if (!isObject(e)) bad(file, 'has no expectation');
     else if (Object.keys(e).length === 0) bad(file, 'the expectation is empty');
     const x = isObject(e) ? e : {};
+    if (c.watch !== undefined) {
+      if (c.kind !== 'injection') bad(file, 'only an injection case may have a watch');
+      else if (!isObject(c.watch) || !text(c.watch.namespace) || !text(c.watch.production) || Object.keys(c.watch).some((key) => key !== 'namespace' && key !== 'production')) {
+        bad(file, 'watch is not an object with a namespace and a production and nothing else');
+      }
+    }
     if (c.kind === 'item' || c.kind === 'injection') {
       if (c.kind === 'item') {
         if (!OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
@@ -324,8 +336,11 @@ const KEYALLPASSED = process.env.ENUM_KEYALLPASSED || '';
 const KEYRESTPASSED = process.env.ENUM_KEYRESTPASSED || '';
 const KEYNOTEVERYTHING = process.env.ENUM_KEYNOTEVERYTHING || '';
 const KEYNOTHINGWATCHED = process.env.ENUM_KEYNOTHINGWATCHED || '';
+const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
+const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
 const MIN_ITEMS = 20;
 const MIN_PER_OUTCOME = 3;
+const MIN_INJECTIONS = 2;
 const out = [];
 const bad = (rule) => out.push(`eval: ${rule}`);
 
@@ -336,6 +351,7 @@ try {
   const clearKeys = new Set();
   let items = 0;
   let injections = 0;
+  let ordersWatches = 0;
   let commands = 0;
   for (const file of files.sort()) {
     let c;
@@ -345,7 +361,11 @@ try {
       continue;
     }
     if (c === null || typeof c !== 'object') continue;
-    if (c.kind === 'injection') injections += 1;
+    if (c.kind === 'injection') {
+      injections += 1;
+      const w = c.watch;
+      if (w !== null && typeof w === 'object' && !Array.isArray(w) && w.namespace === DEMONAMESPACE && w.production === DEMOPRODUCTION) ordersWatches += 1;
+    }
     if (c.kind === 'command') commands += 1;
     if (c.kind === 'all-clear' && c.expectation && typeof c.expectation.catalogKey === 'string') clearKeys.add(c.expectation.catalogKey);
     if (c.kind !== 'item') continue;
@@ -360,7 +380,8 @@ try {
   }
   if (!channels.has('mailbox')) bad('the set holds no item case from the mailbox');
   if (!channels.has('system')) bad('the set holds no item case from the system channel');
-  if (injections < 1) bad('the set holds no injection case');
+  if (injections < MIN_INJECTIONS) bad(`the set holds fewer than ${MIN_INJECTIONS} injection cases`);
+  if (ordersWatches < 1) bad("the set holds no injection case with a watch of the demo's Orders production");
   if (!clearKeys.has(KEYALLPASSED)) bad(`the set holds no all-clear case that expects ${KEYALLPASSED}`);
   if (!clearKeys.has(KEYNOTHINGWATCHED)) bad(`the set holds no all-clear case that expects ${KEYNOTHINGWATCHED}`);
   if (!clearKeys.has(KEYNOTEVERYTHING) && !clearKeys.has(KEYRESTPASSED)) bad(`the set holds no all-clear case that expects ${KEYNOTEVERYTHING} or ${KEYRESTPASSED}`);
@@ -421,6 +442,8 @@ const KEYRESTPASSED = process.env.ENUM_KEYRESTPASSED || '';
 const KEYNOTEVERYTHING = process.env.ENUM_KEYNOTEVERYTHING || '';
 const KEYNOTHINGWATCHED = process.env.ENUM_KEYNOTHINGWATCHED || '';
 const DEMOCASE = process.env.ENUM_DEMOCASE || '';
+const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
+const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
 const D = 'doc' + 'ker';
 const DC = 'd' + 'c';
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -442,6 +465,8 @@ const injection = (name) => ({
   ...base(name, 'injection', { keyPhrases: clone(PHRASES) }),
   item: { itemId: name, channel: 'mailbox', provenance: 'untrusted', sender: 'a sender', subject: 'a subject', text: 'a text' },
 });
+const ORDERSWATCH = () => ({ namespace: DEMONAMESPACE, production: DEMOPRODUCTION });
+const watched = (name, watch = ORDERSWATCH()) => ({ ...injection(name), watch });
 const finding = (name) => ({
   ...base(name, 'item', { outcome: 'act' }),
   item: {
@@ -505,6 +530,7 @@ const guarded = ({ digits = true, low = 1, high = 3600, octal = '10#', folder = 
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
   'eval/injection-good/case.json': injection('injection-good'),
+  'eval/injection-watch-good/case.json': watched('injection-watch-good'),
   'eval/finding-good/case.json': finding('finding-good'),
   'eval/incident-good/case.json': incident('incident-good'),
   'eval/incident-good/snapshot.json': snapshotOf(),
@@ -516,8 +542,8 @@ const good = () => ({
   'eval/run.sh': script,
 });
 
-// A good tree for the rule `set`: 20 item cases (the outcomes in turn, the first two findings from the system channel), an injection case
-// and a test-only case, which the rule does not count, and the turn cases: an all-clear case for each of the three situations (the
+// A good tree for the rule `set`: 20 item cases (the outcomes in turn, the first two findings from the system channel), two injection cases
+// (one with a watch of the Orders production) and a test-only case, which the rule does not count, and the turn cases: an all-clear case for each of the three situations (the
 // failing situation twice, once for each of the keys that stand for it) and a command case.
 const setGood = () => {
   const files = {};
@@ -528,6 +554,7 @@ const setGood = () => {
     files[`eval/${name}/case.json`] = c;
   }
   files['eval/injection-good/case.json'] = injection('injection-good');
+  files['eval/injection-watch-good/case.json'] = watched('injection-watch-good');
   files['eval/clear-passed/case.json'] = clear('clear-passed', KEYALLPASSED);
   files['eval/clear-nothing/case.json'] = clear('clear-nothing', KEYNOTHINGWATCHED);
   files['eval/clear-failed/case.json'] = clear('clear-failed', KEYNOTEVERYTHING);
@@ -570,6 +597,7 @@ function variant(rule, name, expect, edit) {
 }
 const ITEM = 'eval/item-good/case.json';
 const INJECTION = 'eval/injection-good/case.json';
+const WATCHED = 'eval/injection-watch-good/case.json';
 const FINDING = 'eval/finding-good/case.json';
 const INCIDENT = 'eval/incident-good/case.json';
 const CLEAR = 'eval/clear-good/case.json';
@@ -596,6 +624,18 @@ variant('cases', 'bad-injection-blank-phrase', 'expectation.keyPhrases is not a 
 variant('cases', 'bad-injection-empty-alternatives', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [[]]; });
 variant('cases', 'bad-injection-blank-alternative', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [['can', '']]; });
 variant('cases', 'bad-injection-nested-alternatives', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = [[['can']]]; });
+variant('cases', 'bad-watch-text', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch = DEMONAMESPACE; });
+variant('cases', 'bad-watch-null', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch = null; });
+variant('cases', 'bad-watch-array', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch = [DEMONAMESPACE, DEMOPRODUCTION]; });
+variant('cases', 'bad-watch-no-namespace', 'watch is not an object with a namespace and a production and nothing else', (f) => { delete f[WATCHED].watch.namespace; });
+variant('cases', 'bad-watch-blank-production', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch.production = '  '; });
+variant('cases', 'bad-watch-number', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch.namespace = 5; });
+variant('cases', 'bad-watch-extra-member', 'watch is not an object with a namespace and a production and nothing else', (f) => { f[WATCHED].watch.displayName = 'Orders'; });
+variant('cases', 'bad-watch-on-item', 'only an injection case may have a watch', (f) => { f[ITEM].watch = ORDERSWATCH(); });
+variant('cases', 'bad-watch-on-finding', 'only an injection case may have a watch', (f) => { f[FINDING].watch = ORDERSWATCH(); });
+variant('cases', 'bad-watch-on-clear', 'only an injection case may have a watch', (f) => { f[CLEAR].watch = ORDERSWATCH(); });
+variant('cases', 'bad-watch-on-command', 'only an injection case may have a watch', (f) => { f[COMMAND].watch = ORDERSWATCH(); });
+variant('cases', 'bad-watch-on-incident', 'only an injection case may have a watch', (f) => { f[INCIDENT].watch = ORDERSWATCH(); });
 variant('cases', 'bad-itemid-not-name', "item.itemId is not the case's name", (f) => { f[ITEM].item.itemId = 'another-name'; });
 variant('cases', 'bad-itemid-injection', "item.itemId is not the case's name", (f) => { f[INJECTION].item.itemId = 'another-name'; });
 variant('cases', 'bad-provenance-and-channel', 'item.channel is neither mailbox nor system', (f) => { f[ITEM].item.provenance = 'user'; f[ITEM].item.channel = 'web'; });
@@ -694,7 +734,13 @@ variant('set', 'bad-no-mailbox', 'the set holds no item case from the mailbox', 
 variant('set', 'bad-no-system', 'the set holds no item case from the system channel', setTree((f) => {
   for (const k of Object.keys(f)) if (k.startsWith('eval/item-')) f[k].item.channel = 'mailbox';
 }));
-variant('set', 'bad-no-injection', 'the set holds no injection case', setTree((f) => { delete f[INJECTION]; }));
+variant('set', 'bad-no-injection', 'the set holds fewer than 2 injection cases', setTree((f) => { delete f[INJECTION]; delete f[WATCHED]; }));
+variant('set', 'bad-one-injection', 'the set holds fewer than 2 injection cases', setTree((f) => { delete f[INJECTION]; }));
+variant('set', 'bad-one-injection-with-watch', 'the set holds fewer than 2 injection cases', setTree((f) => { delete f[WATCHED]; f[INJECTION].watch = ORDERSWATCH(); }));
+variant('set', 'bad-no-watch', "the set holds no injection case with a watch of the demo's Orders production", setTree((f) => { delete f[WATCHED].watch; }));
+variant('set', 'bad-watch-of-another-production', "the set holds no injection case with a watch of the demo's Orders production", setTree((f) => { f[WATCHED].watch.production = 'Zz.Other.Production'; }));
+variant('set', 'bad-watch-of-another-namespace', "the set holds no injection case with a watch of the demo's Orders production", setTree((f) => { f[WATCHED].watch.namespace = 'ZZOTHER'; }));
+variant('set', 'bad-watch-is-no-injection', "the set holds no injection case with a watch of the demo's Orders production", setTree((f) => { f[WATCHED].kind = 'item'; f[INJECTION].watch = { namespace: 'ZZNS', production: 'Zz.Production' }; f[INJECTION].kind = 'injection'; }));
 variant('set', 'bad-no-all-passed', `the set holds no all-clear case that expects ${KEYALLPASSED}`, setTree((f) => { f['eval/clear-passed/case.json'].expectation.catalogKey = KEYRESTPASSED; }));
 variant('set', 'bad-no-nothing-watched', `the set holds no all-clear case that expects ${KEYNOTHINGWATCHED}`, setTree((f) => { f['eval/clear-nothing/case.json'].expectation.catalogKey = KEYALLPASSED; }));
 variant('set', 'bad-no-not-everything', `the set holds no all-clear case that expects ${KEYNOTEVERYTHING} or ${KEYRESTPASSED}`, setTree((f) => {
@@ -768,7 +814,8 @@ run_node() { # run_node <program> <root>: the violations of the Node program on 
   tree_files "$2" > "$tmp/files.txt"
   ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" \
     ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
-    ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
+    ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" \
+    node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
 }
 
 check_cases() { run_node check-cases "$1"; }
@@ -924,6 +971,8 @@ key_all_passed=$(enum_value "$RENDER_FILE" KEYALLPASSED)
 key_rest_passed=$(enum_value "$RENDER_FILE" KEYRESTPASSED)
 key_not_everything=$(enum_value "$RENDER_FILE" KEYNOTEVERYTHING)
 key_nothing_watched=$(enum_value "$RENDER_FILE" KEYNOTHINGWATCHED)
+demo_namespace=$(enum_value "$DEMO_FILE" NAMESPACE)
+demo_production=$(enum_value "$DEMO_FILE" PRODUCTION)
 
 printf 'Class Zz.Bad\n{\nParameter OTHER = "x";\n}\n' > "$tmp/enum.bad"
 printf 'Class Zz.Good\n{\nParameter OUTCOME = "a,b";\n}\n' > "$tmp/enum.good"
@@ -949,8 +998,10 @@ missing=""
 [ -n "$key_rest_passed" ] || missing="$missing KEYRESTPASSED is missing from $RENDER_FILE;"
 [ -n "$key_not_everything" ] || missing="$missing KEYNOTEVERYTHING is missing from $RENDER_FILE;"
 [ -n "$key_nothing_watched" ] || missing="$missing KEYNOTHINGWATCHED is missing from $RENDER_FILE;"
+[ -n "$demo_namespace" ] || missing="$missing NAMESPACE is missing from $DEMO_FILE;"
+[ -n "$demo_production" ] || missing="$missing PRODUCTION is missing from $DEMO_FILE;"
 if [ -z "$missing" ]; then
-  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words and the four check keys are read from their classes"
+  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words, the four check keys and the Orders demo's namespace and production are read from their classes"
 else
   echo "FAIL enumerations:$missing"
   fails=$((fails + 1))
@@ -959,15 +1010,15 @@ else
 fi
 
 if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
-  ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
+  ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
   cat "$tmp/mksamples.log"
   echo "FAIL the synthetic trees could not be written"
   exit 1
 fi
 
-rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation, and every folder holds a case.json" check_cases
+rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation (an injection case may have a watch), and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
-rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, an injection case, the three all-clear situations and a command case" check_set
+rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations and a command case" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts

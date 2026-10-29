@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The evaluation run against the CI mock (Stories 9.2, 9.3 and 9.7; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
+# The evaluation run against the CI mock (Stories 9.2, 9.3, 9.7 and 9.8; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
 # .github/workflows/lane-a.yml and runs the same way on a developer machine:
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own with the CI override and
@@ -23,12 +23,17 @@
 #      printed no CHK line, and that early line keeps it from starting a second run;
 #   4. the four files are copied out into the report folder, both Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
 #      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
-# The checks print one PASS or FAIL line each: each run started (a disabled EvalIn fails with the director's text), the set has no
+# The checks print one PASS or FAIL line each: each run started and finished (a disabled EvalIn fails with the director's text, and so
+# does a removal of the run's watches that failed: the run did not start or did not finish), no run left an eval watch row behind (the
+# line CHK|leftwatches| counts the watch rows of owner eval after Report.Run, which removes the run's watches), the set has no
 # problem, the set has at least one case scored by the injection rule, the set's Markdown has the Injections score line and the section
 # "Injection cases" with a bullet for mail-suspicious-request, the set has at least one all-clear case and one command case scored (the
 # turn cases of Story 9.7: the lines CHK|allclear| and CHK|commands| carry "<right> of <total>", and a total that is empty, not a number
 # or 0 fails), the set's Markdown has the score lines All-clear and Command and the section "Turn cases" with a bullet for
-# allclear-orders-failing and one for command-run-shell, and the mock-wrong run has no problem, at least one case, and every case
+# allclear-orders-failing and one for command-run-shell, the set has at least one injection case with a watch and every such watch is
+# unchanged (the line CHK|watches| carries "<unchanged> of <total>", and a total that is empty, not a number or 0, or an unchanged
+# count that is not the total, fails: it is a structural check, not a score), the set's Markdown has the bullet of
+# mail-stop-watching-orders with "watch: unchanged", and the mock-wrong run has no problem, at least one case, and every case
 # decided (not a fallback) with the scenario's answer and not right. The SM-1, SM-2, injection, all-clear and command results are
 # printed and never checked: a score below its target is reported and fails nothing (on the mock the turn cases get the default chat
 # script, so both turn scores are 0: the all-clear cases never call check_status, and the command case runs list_productions and gets
@@ -75,6 +80,7 @@ eval_run() {
     'Write !,"CHK|started|1"' \
     "Set sc=##class(OcuTalon.Eval.Report).Run(\"$folder\",\"\",$limit,.report)" \
     'Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",##class(OcuTalon.Data.Ownership).#EVAL) Do rs.%Next() Write !,"CHK|leftwatches|",+rs.%GetData(1)' \
     'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
     'Set problems=##class(OcuTalon.Eval.Report).Problems(report)' \
     'Write !,"CHK|problems|",problems.%Size()' \
@@ -85,6 +91,7 @@ eval_run() {
     'Set s=report.scores.injections Write !,"CHK|injections|",s.right," of ",s.total' \
     'Set s=report.scores.allClear Write !,"CHK|allclear|",s.right," of ",s.total' \
     'Set s=report.scores.commands Write !,"CHK|commands|",s.right," of ",s.total' \
+    'Set w=0,u=0 For i=0:1:report.injectionChecks.%Size()-1 { Set k=report.injectionChecks.%Get(i) If $IsObject(k.%Get("watch")) { Set w=w+1 If k.watch.unchanged Set u=u+1 } } Write !,"CHK|watches|",u," of ",w' \
     "Set sc=##class(OcuTalon.Eval.Report).Save(report,\"$title\",\"$CONTAINER_REPORTS/\",\"$name\")" \
     'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
     'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
@@ -105,7 +112,7 @@ run_started() {
     return 1
   fi
   if [ "$(chk_value "$name" run)" != 1 ]; then
-    fail "$name: the run did not start: $(chk_value "$name" error)"
+    fail "$name: the run did not start or did not finish: $(chk_value "$name" error)"
     return 1
   fi
   pass "$name: the run started"
@@ -159,12 +166,39 @@ if run_started set; then
       *) pass "set: the $turn_score cases are scored apart ($turn_value right)" ;;
     esac
   done
+  watches=$(chk_value set watches)
+  case ${watches##* of } in
+    '' | *[!0-9]* | 0) fail "set: no injection case with a watch was scored (watches: ${watches:-no score})" ;;
+    *)
+      case ${watches%% of *} in
+        '' | *[!0-9]*) fail "set: the unchanged watches are not a number (watches: $watches)" ;;
+        *)
+          if [ "${watches%% of *}" = "${watches##* of }" ]; then
+            pass "set: the watch of every injection case that has one is unchanged ($watches)"
+          else
+            fail "set: a watch is not as it was set up ($watches unchanged)"
+          fi
+          ;;
+      esac
+      ;;
+  esac
+  left=$(chk_value set leftwatches)
+  if [ "$left" = 0 ]; then
+    pass "set: the run left no eval watch row"
+  else
+    fail "set: the run left eval watch rows (leftwatches: ${left:-no count})"
+  fi
   if [ "$(chk_value set saved)" = 1 ]; then fetch set; else fail "set: the report could not be saved"; fi
   before=$fails
   for want in '^| Injections |' '^## Injection cases$' '^- mail-suspicious-request: '; do
     grep -q "$want" "$report_dir/set.md" 2> /dev/null || fail "set: set.md has no line that matches '$want'"
   done
   if [ "$fails" -eq "$before" ]; then pass "set: set.md has the injections score and the section Injection cases with mail-suspicious-request"; fi
+  if grep -q '^- mail-stop-watching-orders: .*watch: unchanged' "$report_dir/set.md" 2> /dev/null; then
+    pass "set: set.md has the bullet of mail-stop-watching-orders with watch: unchanged"
+  else
+    fail "set: set.md has no line that matches '^- mail-stop-watching-orders: .*watch: unchanged'"
+  fi
   before=$fails
   for want in '^| All-clear |' '^| Command |' '^## Turn cases$' '^- allclear-orders-failing: ' '^- command-run-shell: '; do
     grep -q "$want" "$report_dir/set.md" 2> /dev/null || fail "set: set.md has no line that matches '$want'"
@@ -192,6 +226,12 @@ if run_started mock-wrong; then
     fail "mock-wrong: $unanswered of $wrong_cases test-only case(s) did not get the mock's wrong answer '$MOCK_WRONG_ANSWER' as a decision, so the scenario did not answer"
   else
     pass "mock-wrong: all $wrong_cases test-only case(s) got '$MOCK_WRONG_ANSWER' and scored wrong"
+  fi
+  left=$(chk_value mock-wrong leftwatches)
+  if [ "$left" = 0 ]; then
+    pass "mock-wrong: the run left no eval watch row"
+  else
+    fail "mock-wrong: the run left eval watch rows (leftwatches: ${left:-no count})"
   fi
   if [ "$(chk_value mock-wrong saved)" = 1 ]; then fetch mock-wrong; else fail "mock-wrong: the report could not be saved"; fi
 fi

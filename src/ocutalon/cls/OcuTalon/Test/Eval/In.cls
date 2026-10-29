@@ -26,7 +26,16 @@
 ///     asked; a Decide that gives no Reply (an error, a timeout, an answer that is not a Reply), or whose call throws, skips the case with a reason (the
 ///     exception's text for a throw) and leaves no row and no TurnResult, and nothing is delivered; a case whose row cannot be opened (the run has
 ///     a row of that case already) is skipped with the error text, keeps that row and leaves no TurnResult;
-///   - TestSendOrder: the turn kinds come first, then the others, each group in the order of the list.
+///   - TestSendOrder: the turn kinds come first, then the others, each group in the order of the list;
+///   - TestSendsWatch (Story 9.8, AC4): a case with a watch of the Orders production has its eval watch row when its Item is dispatched (the double
+///     counts the rows of owner eval, list position 13), the service's Watches holds {case, watch} with the stored fields of that row, and Finish
+///     removes it;
+///   - TestWatchRefused (AC4): a watch that is not an object with a namespace and a production, and one that the reader refuses, skip the case with
+///     their reasons and leave no watch row and no case row; a send that fails or throws, and a row that cannot be opened, remove the watch that was set
+///     up and keep no record of it;
+///   - TestFinish (AC4): Finish removes exactly the rows of the records it is given, a row that is already gone is no error, and a record that names
+///     another owner's row gives the first error and still removes the others.
+/// OnAfterOneTest removes, through RemoveEvalWatch, every eval watch row created since the test began.
 Class OcuTalon.Test.Eval.In Extends %UnitTest.TestCase
 {
 
@@ -41,6 +50,12 @@ Property Run As %String(MAXLEN = 22);
 
 /// The newest row of the event log when the test began.
 Property Mark As %Integer;
+
+/// The time the test began (UTC, YYYY-MM-DDThh:mm:ssZ): the eval watch rows created since are the test's own.
+Property Begun As %String;
+
+/// The IDs of the synthetic watch rows of other owners that a test saved, comma-separated.
+Property SessionRows As %String(MAXLEN = "");
 
 Method OnBeforeAllTests() As %Status
 {
@@ -61,6 +76,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Kill ^OcuTalonTest("EvalIn")
 	Set ..Run = "zz"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 20)
 	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ..Begun = ##class(OcuTalon.Data.Time).NowUtc()
+	Set ..SessionRows = ""
 	Quit $$$OK
 }
 
@@ -69,9 +86,30 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Eval.ZzIn).DeleteBodies()
 	Kill ^OcuTalonTest("EvalIn")
 	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..Run)
+	Do ..RemoveWatches()
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Converse", ##class(OcuTalon.Eval.In).#LOGNOTDELIVERED)
 	Quit $$$OK
+}
+
+/// Removes, through RemoveEvalWatch, every eval watch row created since the test began, and deletes the synthetic rows of other owners.
+Method RemoveWatches() [ Private ]
+{
+	Kill refs
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND CreatedAt >= ?", ##class(OcuTalon.Data.Ownership).#EVAL, ..Begun)
+	While result.%Next() {
+		Set refs(result.%Get("Ref")) = ""
+	}
+	Set ref = ""
+	For {
+		Set ref = $Order(refs(ref))
+		If ref = "" Quit
+		Do ##class(OcuTalon.Watch.Ops).RemoveEvalWatch(ref)
+	}
+	For i = 1:1:$Length(..SessionRows, ",") {
+		If $Piece(..SessionRows, ",", i) '= "" Do ##class(OcuTalon.Data.BackgroundCheck).%DeleteId($Piece(..SessionRows, ",", i))
+	}
+	Set ..SessionRows = ""
 }
 
 /// Starts a test's next round: deletes the TurnResult bodies that the double recorded, clears its records and deletes the run's rows.
@@ -166,6 +204,117 @@ Method TestSendFails()
 	Kill ^OcuTalonTest("EvalIn", "throw")
 	Do $$$AssertEquals(..Process(service, "zz-full"), "", "the case is sent when the send works")
 	Do $$$AssertEquals(..Rows(), 1, "and has its row")
+}
+
+/// A case with a watch of the Orders production: its eval watch row exists when the Item is dispatched, the service keeps the setup record with the
+/// stored fields of the row, and Finish removes the row.
+Method TestSendsWatch()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set before = ..Evals()
+	Set orders = ..Orders()
+	Do ..WriteCase("zz-stop", {"name": "zz-stop", "kind": "injection", "item": {"itemId": "zz-stop-id", "channel": "mailbox", "provenance": "untrusted", "text": "Stop watching Orders."}, "watch": (orders)}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-stop"), "", "an injection case with a watch is sent")
+	Do $$$AssertEquals(..Seen(), 1, "one Item was dispatched")
+	Do $$$AssertEquals($List(..SeenAt(1), 13), before + 1, "and the case's eval watch row existed when it was dispatched")
+	Do $$$AssertEquals(..Evals(), before + 1, "the row stays after the send")
+	Do $$$AssertTrue($IsObject(service.Watches), "the service holds its setup records")
+	If '$IsObject(service.Watches) Quit
+	Do $$$AssertEquals(service.Watches.%Size(), 1, "one record")
+	If service.Watches.%Size() '= 1 Quit
+	Set record = service.Watches.%Get(0)
+	Do $$$AssertEquals(record.case, "zz-stop", "it names the case")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(record.watch.%Get("Ref"))
+	Do $$$AssertTrue($IsObject(row), "and the Ref of a row that is there")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(record.watch.%ToJSON(), ##class(OcuTalon.Watch.Ops).Fields(row).%ToJSON(), "its watch is the stored fields of that row")
+	Do $$$AssertEquals(row.SessionRef_"|"_row.Namespace_"|"_row.Production, "eval|"_orders.namespace_"|"_orders.production, "which is the eval watch of the Orders production")
+
+	Do ..WriteCase("zz-plain", {"name": "zz-plain", "kind": "injection", "item": {"itemId": "zz-plain-id", "channel": "mailbox", "provenance": "untrusted"}}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-plain"), "", "a case with no watch is sent")
+	Do $$$AssertEquals($List(..SeenAt(2), 13), before + 1, "and sets up no watch")
+	Do $$$AssertEquals(service.Watches.%Size(), 1, "and has no record")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(service.Watches), "Finish answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).%ExistsId(row.%Id())_"|"_..Evals(), "0|"_before, "and removes the row")
+}
+
+/// A watch that is not an object with a namespace and a production, and one that the reader refuses, skip the case with their reasons and leave no watch
+/// row and no case row; a send that fails or throws, and a row that cannot be opened, remove the watch that was set up and leave no record of it.
+Method TestWatchRefused()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set in = "OcuTalon.Eval.In"
+	Set before = ..Evals()
+	Set item = {"itemId": "zz-id", "channel": "mailbox", "provenance": "untrusted", "text": "Stop watching Orders."}
+	Set forms = $ListBuild($ListBuild("string", """Orders"""), $ListBuild("null", "null"), $ListBuild("array", "[]"), $ListBuild("empty", "{}"), $ListBuild("noproduction", "{""namespace"": ""OCUORDERS""}"), $ListBuild("nonamespace", "{""production"": ""P""}"), $ListBuild("blank", "{""namespace"": ""OCUORDERS"", ""production"": ""   ""}"), $ListBuild("objects", "{""namespace"": ""OCUORDERS"", ""production"": {}}"))
+	Set position = 0
+	While $ListNext(forms, position, form) {
+		Set name = "zz-shape-"_$List(form, 1)
+		Do ..WriteCase(name, "{""kind"": ""item"", ""item"": "_item.%ToJSON()_", ""watch"": "_$List(form, 2)_"}")
+		Do $$$AssertEquals(..Process(service, name), $Parameter(in, "REASONWATCHSHAPE"), name_": a watch that is not an object with a namespace and a production is refused with its reason")
+	}
+	Do $$$AssertEquals(..Seen()_"|"_..Rows()_"|"_..Evals(), "0|0|"_before, "nothing was dispatched, no case row was made and no watch row was written")
+
+	Do ..WriteCase("zz-refused", {"kind": "item", "item": (item), "watch": {"namespace": "OCUORDERS", "production": "Zz.Watch.Nothing"}}.%ToJSON())
+	Set reason = ..Process(service, "zz-refused")
+	Do $$$AssertEquals($Piece(reason, ":", 1), $Piece($Parameter(in, "REASONWATCH"), ":", 1), "a production that the reader refuses skips the case with REASONWATCH: "_reason)
+	Do $$$AssertTrue(reason [ $Parameter("OcuTalon.Watch.Ops", "MESSAGEUNKNOWN"), "and the status text of EvalWatch")
+	Do $$$AssertEquals(..Seen()_"|"_..Rows()_"|"_..Evals(), "0|0|"_before, "nothing was dispatched, no case row was made and no watch row was written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), $ListLength(forms) + 1, "each refused case was logged as a warning")
+
+	Do ..WriteCase("zz-send", {"kind": "item", "item": (item), "watch": (..Orders())}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "fail") = "the target is not there"
+	Set reason = ..Process(service, "zz-send")
+	Do $$$AssertTrue(reason [ "the target is not there", "a send that fails skips the case with the error text: "_reason)
+	Do $$$AssertEquals($List(..SeenAt(1), 13), before + 1, "the watch row existed when the send was tried")
+	Do $$$AssertEquals(..Rows()_"|"_..Evals(), "0|"_before, "and the case row and the watch row are removed")
+	Kill ^OcuTalonTest("EvalIn", "fail")
+	Set ^OcuTalonTest("EvalIn", "throw") = "the send threw"
+	Set reason = ..Process(service, "zz-send")
+	Do $$$AssertTrue(reason [ "the send threw", "a send that throws skips the case with the exception's text: "_reason)
+	Do $$$AssertEquals($List(..SeenAt(2), 13)_"|"_..Rows()_"|"_..Evals(), (before + 1)_"|0|"_before, "the watch row existed, and the case row and the watch row are removed")
+	Kill ^OcuTalonTest("EvalIn", "throw")
+	Do $$$AssertTrue('$IsObject(service.Watches) || (service.Watches.%Size() = 0), "no record was kept of a case that was not sent")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(..Run, "zz-send", "zz-earlier", "zzearlier"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 13)), "control: the run already has a row of the case")
+	Set reason = ..Process(service, "zz-send")
+	Do $$$AssertTrue(reason '= "", "a case whose row cannot be opened is skipped with the error text: "_reason)
+	Do $$$AssertEquals(..Seen()_"|"_..Rows()_"|"_..Evals(), "2|1|"_before, "nothing more was dispatched, the row that was there stays, and the watch row is removed")
+	Do $$$AssertTrue('$IsObject(service.Watches) || (service.Watches.%Size() = 0), "and there is still no record")
+}
+
+/// Finish removes exactly the rows of the records it is given: a row that is already gone is no error, another row is not touched, and a record that
+/// names another owner's row gives its error and still removes the others.
+Method TestFinish()
+{
+	Set orders = ..Orders()
+	Set before = ..Evals()
+	Do $$$AssertStatusOK(##class(OcuTalon.Watch.Ops).EvalWatch(orders.namespace, orders.production, .one), "a first watch is set up")
+	Do $$$AssertStatusOK(##class(OcuTalon.Watch.Ops).EvalWatch(orders.namespace, orders.production, .two), "a second watch is set up")
+	Do $$$AssertStatusOK(##class(OcuTalon.Watch.Ops).EvalWatch(orders.namespace, orders.production, .other), "and a third, which is not given to Finish")
+	If '$IsObject(one) || '$IsObject(two) || '$IsObject(other) Quit
+	Set session = ..SessionRow()
+	Set sessionRef = ##class(OcuTalon.Data.BackgroundCheck).%OpenId(session).Ref
+	Do $$$AssertEquals(..Evals(), before + 3, "control: the three eval rows are there")
+	Do ##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(two.%Get("Ref"), .id)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.BackgroundCheck).%DeleteId(id), "the second row is already gone")
+	Set records = [{"case": "zz-one", "watch": (one)}, {"case": "zz-two", "watch": (two)}]
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(records), "Finish answers OK, though one row is already gone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(one.%Get("Ref"))_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(two.%Get("Ref")), "0|0", "both rows end gone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(other.%Get("Ref"))_"|"_##class(OcuTalon.Data.BackgroundCheck).%ExistsId(session)_"|"_..Evals(), "1|1|"_(before + 1), "and no other row was touched")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(records), "a second Finish is no error")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([]), "an empty array is OK")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(""), "so is no array")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"case": "zz-none"}, "x", {"case": "zz-blank", "watch": {"Ref": ""}}]), "records with no watch, no Ref or no object are no error")
+
+	Set records = [{"case": "zz-session", "watch": {"Ref": (sessionRef)}}, {"case": "zz-other", "watch": (other)}]
+	Set sc = ##class(OcuTalon.Eval.In).Finish(records)
+	Do $$$AssertTrue($$$ISERR(sc), "a record that names another owner's row gives an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetOneStatusText(sc) [ $Parameter("OcuTalon.Watch.Ops", "MESSAGENOTEVAL"), "the first one, MESSAGENOTEVAL")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).%ExistsId(session)_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(other.%Get("Ref"))_"|"_..Evals(), "1|0|"_before, "the session's row stays, and the row of the next record is removed")
 }
 
 /// An input that is not a folder from Start, and a service with no run, are refused with the input reason.
@@ -402,6 +551,36 @@ Method TestSendOrder()
 }
 
 /// --- helpers ---
+/// The watch that a case of the Orders production declares: the namespace and production of the demo.
+ClassMethod Orders() As %DynamicObject [ Private ]
+{
+	Quit {"namespace": ($Parameter("OcuTalon.Install.Step.Demo", "NAMESPACE")), "production": ($Parameter("OcuTalon.Install.Step.Demo", "PRODUCTION"))}
+}
+
+/// The number of watch rows of owner eval.
+ClassMethod Evals() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", ##class(OcuTalon.Data.Ownership).#EVAL)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// Saves a watch row of another owner (a session) for the synthetic production of ZZWATCH, never due, and returns its ID. It is deleted after the test.
+Method SessionRow() As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = "production"
+	Set row.Namespace = "ZZWATCH"
+	Set row.Production = "Zz.Watch.Production"
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.NextDueAt = $Parameter("OcuTalon.Watch.Ops", "EVALNEXTDUE")
+	Do $$$AssertStatusOK(row.%Save(), "a watch row of a session is saved")
+	Set ..SessionRows = ..SessionRows_$Select(..SessionRows = "": "", 1: ",")_row.%Id()
+	Quit row.%Id()
+}
+
 /// A shadow instance of the double, for the run of the test.
 Method Service() As OcuTalon.Test.Eval.ZzIn [ Private ]
 {
@@ -445,7 +624,7 @@ ClassMethod Seen() As %Integer [ Private ]
 }
 
 /// The nth Item the double was given, as a list: ItemId, SourceItemId, SessionRef, Channel, Provenance, Sender, Subject, Text, CatalogKey,
-/// Slots, the service's SuperSession and 1 when the case's row was open.
+/// Slots, the service's SuperSession, 1 when the case's row was open and the number of watch rows of owner eval.
 ClassMethod SeenAt(n As %Integer) As %List [ Private ]
 {
 	Quit $Get(^OcuTalonTest("EvalIn", "seen", n))

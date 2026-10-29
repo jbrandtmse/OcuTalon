@@ -25,6 +25,13 @@
 ///     DecisionRef, ToolsRun, Text, Fallback and FallbackReason go into the TurnResult, and so do the catalog key and rows that
 ///     Checks.Render gives the Reply's HostData checks. EvalIn then sends the TurnResult to EvalSink, which completes the row. A Decide
 ///     that gives no Reply (an error, a timeout or an answer that is not a Reply) deletes the row and the TurnResult and skips the case.
+///   - A case of kind item or injection may declare a watch {namespace, production}: the production that the case's email talks about, with a
+///     watch of it set up for the run. Before the case's row is opened and its Item is sent, EvalIn calls OcuTalon.Watch.Ops.EvalWatch (the
+///     watch of owner eval, never polled, never due, no CheckChanged). A watch that is not an object with a non-blank namespace and production
+///     skips the case with REASONWATCHSHAPE, and one that cannot be set up skips it with REASONWATCH and the status text; neither leaves a row.
+///     A row that cannot be opened and a send that fails remove the watch again. A sent case's record {case, watch}, watch being
+///     OcuTalon.Watch.Ops.Fields of the row, goes into the Watches of the service, and Start returns the records in its last output. Finish
+///     removes exactly the rows of the records it is given, through OcuTalon.Watch.Ops.RemoveEvalWatch.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26).
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
 Class OcuTalon.Eval.In Extends Ens.BusinessService
@@ -87,6 +94,11 @@ Parameter REASONNOCHECKS = "its checks is not an array";
 
 Parameter REASONNOREPLY = "Decide gave no Reply";
 
+Parameter REASONWATCHSHAPE = "its watch is not an object with a namespace and a production";
+
+/// {why} is the text of the status that WatchOps.EvalWatch returned.
+Parameter REASONWATCH = "its watch could not be set up: {why}";
+
 /// The start of the warning for a case that is not sent; the case's name and its reason follow it.
 Parameter LOGSKIPPED = "EvalIn did not send the case ";
 
@@ -99,22 +111,28 @@ Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
 /// The Ref of the run that this service instance sends; Start sets it.
 Property RunRef As %String(MAXLEN = 22);
 
+/// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
+Property Watches As %DynamicArray;
+
 /// Starts a run: creates EvalIn, mints the run's Ref and sends each case once.
 ///   - folder holds the case folders. names is a comma-separated list of case folder names; "" means every subfolder that holds a
 ///     case.json, in name order.
 ///   - runRef is the run's Ref, 22 characters, "" when the run did not start. sent is the number of cases sent. skipped is a dynamic
 ///     array of {"case", "reason"} for each case that was not sent.
+///   - watches is always a dynamic array: the setup records {"case", "watch"} of the sent cases that declared a watch (empty when the run
+///     did not start). The run's end passes it to Finish.
 ///   - The status is the director's error when EvalIn cannot be created, which a disabled EvalIn is (the text says disabled); then
 ///     nothing was sent and there is no run Ref. Otherwise OK.
-ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray) As %Status
+ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray) As %Status
 {
-	Set runRef = "", sent = 0, skipped = []
+	Set runRef = "", sent = 0, skipped = [], watches = []
 	Set sc = ##class(Ens.Director).CreateBusinessService("EvalIn", .service)
 	If $$$ISERR(sc) Quit sc
 	If '$IsObject(service) || 'service.%IsA("OcuTalon.Eval.In") Quit $SYSTEM.Status.Error(5001, "The item EvalIn is not an OcuTalon.Eval.In")
 	Set folder = ##class(%File).NormalizeDirectory(folder)
 	Set list = ..SendOrder(folder, ..CaseNames(folder, names))
 	Set service.RunRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set service.Watches = watches
 	Set runRef = service.RunRef
 	Set position = 0
 	While $ListNext(list, position, name) {
@@ -141,6 +159,25 @@ ClassMethod Wait(runRef As %String, seconds As %Integer) As %Integer
 		Hang 0.25
 	}
 	Quit open
+}
+
+/// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and nothing else. A
+/// row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
+ClassMethod Finish(watches As %DynamicArray) As %Status
+{
+	Set result = $$$OK
+	Try {
+		If $IsObject($Get(watches)) && watches.%IsA("%Library.DynamicArray") {
+			Set iterator = watches.%GetIterator()
+			While iterator.%GetNext(, .record) {
+				Set sc = ..Unwatch($Select($IsObject(record) && record.%IsA("%Library.DynamicObject"): record.%Get("watch"), 1: ""))
+				If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+			}
+		}
+	} Catch exception {
+		If $$$ISOK(result) Set result = exception.AsStatus()
+	}
+	Quit result
 }
 
 /// The case folder names to send, as a list: the names given, each once, in the order given, or, with no names, every subfolder of the
@@ -246,19 +283,55 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Set item.Text = ..Scalar(record, "text")
 	Set item.CatalogKey = ..Scalar(record, "catalogKey")
 	Set item.Slots = $Select($IsObject(record.slots): record.slots.%ToJSON(), 1: ..Scalar(record, "slots"))
-	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId)
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
-	Set ..%SuperSession = ..RunRef
+	Set watch = ""
+	If case.%IsDefined("watch") {
+		Set reason = ..WatchUp(case.%Get("watch"), .watch)
+		If reason '= "" Quit reason
+	}
+	Set opened = 0
 	Try {
-		Set sc = ..Dispatch(item)
+		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId)
+		If $$$ISOK(sc) {
+			Set opened = 1
+			Set ..%SuperSession = ..RunRef
+			Set sc = ..Dispatch(item)
+		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
+		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
+		Do ..Unwatch(watch)
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
+	If $IsObject(watch) {
+		If '$IsObject(..Watches) Set ..Watches = []
+		Do ..Watches.%Push({"case": (name), "watch": (watch)})
+	}
 	Quit ""
+}
+
+/// Sets up the watch that a case declares: the reason it was not set up, or "" when it was, with the watch's stored fields in fields. A watch
+/// that is not an object with a non-blank namespace and production is REASONWATCHSHAPE; one that WatchOps.EvalWatch refuses is REASONWATCH.
+Method WatchUp(declared As %DynamicObject, Output fields As %DynamicObject) As %String [ Private ]
+{
+	Set fields = ""
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicObject") Quit ..#REASONWATCHSHAPE
+	Set namespace = ..Scalar(declared, "namespace"), production = ..Scalar(declared, "production")
+	If ($ZStrip(namespace, "<>WC") = "") || ($ZStrip(production, "<>WC") = "") Quit ..#REASONWATCHSHAPE
+	Set sc = ##class(OcuTalon.Watch.Ops).EvalWatch(namespace, production, .fields)
+	If $$$ISERR(sc) {
+		Set fields = ""
+		Quit $Replace(..#REASONWATCH, "{why}", $SYSTEM.Status.GetOneStatusText(sc))
+	}
+	Quit ""
+}
+
+/// Removes the watch row of the stored fields (WatchOps.Fields of the row); "" is no watch. The status of WatchOps.RemoveEvalWatch.
+ClassMethod Unwatch(fields As %DynamicObject) As %Status [ Private ]
+{
+	If '$IsObject(fields) Quit $$$OK
+	Quit ##class(OcuTalon.Watch.Ops).RemoveEvalWatch(fields.%Get("Ref"))
 }
 
 /// The kinds that EvalIn sends, as the text of a reason: joined with a comma, and with "and" before the last one.
