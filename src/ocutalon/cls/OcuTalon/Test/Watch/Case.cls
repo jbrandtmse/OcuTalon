@@ -52,7 +52,12 @@ Include Ensemble
 ///     were made of);
 ///   - for the tests that end a run (Story 7.4): AskDryRun (a DryRun sent to FixExecutor from SimMailboxIn, whose sessions
 ///     OnAfterOneTest removes), TempStopItem and TempStartItem (an item of the Orders production stopped with TempStopConfigItem and started again, also by
-///     PutBack) and SetFixParameters (the parameters of a pending request's row).
+///     PutBack) and SetFixParameters (the parameters of a pending request's row);
+///   - for the tests that cut a run short or stop its waiter (Story 7.5): TempStopOwn and TempStartOwn (an item of OcuTalon.Production stopped with TempStopConfigItem and started
+///     again, also by PutBack; TempItem takes the namespace), FixResultsFor (every FixResult of a request, from any sender and in any session, with its header's source,
+///     session and super session), WaitFixResults and WaitResultNotices (the wait for a request's FixResults and for an incident's result Notifications), HoldRun, LetGoRun and FreeRuns
+///     (the lock of a FixRun's end, which a test holds so that no real Tick sweeps the run; OnAfterOneTest lets go of every hold), and WaitResent, WaitQueued and SecondsSince (the wait for
+///     a run's copies, lifted here from Test.Fix.Waits).
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -200,6 +205,9 @@ Property DrySessions As %String(MAXLEN = "");
 /// The item of the Orders production that TempStopItem stopped, "" when none.
 Property StoppedItem As %String;
 
+/// The items of OcuTalon.Production that TempStopOwn stopped, comma-separated, "" when none.
+Property OwnStopped As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..ClassFloor = ..Top("OcuTalon_Data.Incident", $Namespace)
@@ -222,6 +230,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ..FreeRuns()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
 	If ..ApprovalRoleSaved {
@@ -250,6 +259,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Do ..FreeRuns()
 	Set sc = ..PutBack()
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..Unswap())
 	If ..Pointed && ##class(OcuTalon.Test.Agent.RunnerFixture).Running() {
@@ -466,6 +476,13 @@ Method PutBack() As %Status [ Private ]
 		Set item = ..StoppedItem
 		Set ..StoppedItem = ""
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ..TempItem(item, 0))
+	}
+	If ..OwnStopped '= "" {
+		Set items = ..OwnStopped
+		Set ..OwnStopped = ""
+		For i = 1:1:$Length(items, ",") {
+			If $Piece(items, ",", i) '= "" Set sc = $SYSTEM.Status.AppendStatus(sc, ..TempItem($Piece(items, ",", i), 0, $Namespace))
+		}
 	}
 	If ..RoleSaved {
 		Set ..RoleSaved = 0
@@ -1063,12 +1080,40 @@ Method TempStartItem(item As %String) As %Boolean [ Private ]
 	Quit $$$ISOK(sc)
 }
 
-/// Stops (1) or starts (0) the item for the time of the test in the production of OCUORDERS.
-ClassMethod TempItem(item As %String, stop As %Boolean) As %Status [ Private ]
+/// Stops (1) or starts (0) the item for the time of the test in the production of the namespace (OCUORDERS by default).
+ClassMethod TempItem(item As %String, stop As %Boolean, namespace As %String = {..#ORDERS}) As %Status [ Private ]
 {
 	New $NAMESPACE
-	Set $NAMESPACE = ..#ORDERS
+	Set $NAMESPACE = namespace
 	Quit ##class(Ens.Director).TempStopConfigItem(item, stop, 1)
+}
+
+/// Stops the item of OcuTalon.Production (the namespace of the tests) for the test; PutBack starts it again.
+Method TempStopOwn(item As %String) As %Boolean [ Private ]
+{
+	Set ..OwnStopped = ..OwnStopped _ $Select(..OwnStopped = "": "", 1: ",") _ item
+	Set sc = ..TempItem(item, 1, $Namespace)
+	Do $$$AssertStatusOK(sc, "the item "_item_" of the OcuTalon production is stopped for the test")
+	Quit $$$ISOK(sc)
+}
+
+/// Starts the item that TempStopOwn stopped again.
+Method TempStartOwn(item As %String) As %Boolean [ Private ]
+{
+	Set sc = ..TempItem(item, 0, $Namespace)
+	Do $$$AssertStatusOK(sc, "the item "_item_" of the OcuTalon production is started again")
+	If $$$ISOK(sc) {
+		Set list = $ListFromString(..OwnStopped)
+		Set at = $ListFind(list, item)
+		If at Set $List(list, at) = ""
+		Set kept = ""
+		Set position = 0
+		While $ListNext(list, position, one) {
+			If one '= "" Set kept = kept _ $Select(kept = "": "", 1: ",") _ one
+		}
+		Set ..OwnStopped = kept
+	}
+	Quit $$$ISOK(sc)
 }
 
 /// Stops the Orders production in OCUORDERS for the test; OnAfterOneTest starts it again.
@@ -1655,6 +1700,20 @@ Method WaitRun(incidentRef As %String, approvalRef As %String, count As %Integer
 	Quit run
 }
 
+/// The state of the incident's request with the Ref now ("" when there is no such request).
+Method RequestState(incidentRef As %String, approvalRef As %String) As %String [ Private ]
+{
+	Set requests = ..Requests(incidentRef)
+	Set state = ""
+	For i = 0:1:requests.%Size() - 1 {
+		If requests.%Get(i).ref = approvalRef {
+			Set state = requests.%Get(i).state
+			Quit
+		}
+	}
+	Quit state
+}
+
 /// Waits up to seconds (WAITRUN by default), polling every half second, until the request of the incident is in the state; the state then ("" when there is no such request).
 Method WaitState(incidentRef As %String, approvalRef As %String, state As %String, seconds As %Integer = {..#WAITRUN}) As %String [ Private ]
 {
@@ -1796,6 +1855,112 @@ Method FixResultsOf(trace As %String, count As %Integer) As %DynamicArray [ Priv
 		Hang 0.25
 	}
 	Quit found
+}
+
+/// Every FixResult of the request (its ApprovalRef), from any sender and in any session, in header order, as a dynamic array of {"headerId", "source", "target", "sessionId",
+/// "superSession", "incidentRef", "final", "interrupted", "total", "resent", "completed", "failedAgain", "skipped", "reason"}: the exactly-once checks count every sender and session,
+/// where FixResultsOf reads one sender in one session.
+ClassMethod FixResultsFor(approvalRef As %String) As %DynamicArray
+{
+	Set found = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SourceConfigName, TargetConfigName, SessionId, SuperSession, MessageBodyId FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Fix.Msg.FixResult' ORDER BY ID")
+	While rs.%Next() {
+		Set body = ##class(OcuTalon.Fix.Msg.FixResult).%OpenId(rs.%GetData(6))
+		If '$IsObject(body) || (body.ApprovalRef '= approvalRef) Continue
+		Do found.%Push({"headerId": (rs.%GetData(1)), "source": (rs.%GetData(2)), "target": (rs.%GetData(3)), "sessionId": (rs.%GetData(4)), "superSession": (rs.%GetData(5)), "incidentRef": (body.IncidentRef), "final": (+body.Final), "interrupted": (+body.Interrupted), "total": (+body.Total), "resent": (+body.Resent), "completed": (+body.Completed), "failedAgain": (+body.FailedAgain), "skipped": (+body.Skipped), "reason": (body.Reason)})
+	}
+	Quit found
+}
+
+/// Takes the end lock of the FixRun (Fix.Executor TakeRun) for this process and remembers the hold in ^||RunHolds (the count of holds for each run id, so that a test class of any base
+/// shares it: Test.Fix.Executor calls these too); FreeRuns lets go of every hold, and so does LetGoRun of one. 1 when the lock was taken.
+ClassMethod HoldRun(id As %Integer) As %Boolean
+{
+	If '##class(OcuTalon.Fix.Executor).TakeRun(id) Quit 0
+	Set ^||RunHolds(id) = $Get(^||RunHolds(id)) + 1
+	Quit 1
+}
+
+/// Lets go of one hold of the FixRun's end lock.
+ClassMethod LetGoRun(id As %Integer)
+{
+	If '$Get(^||RunHolds(id)) Quit
+	Set ^||RunHolds(id) = ^||RunHolds(id) - 1
+	If ^||RunHolds(id) = 0 Kill ^||RunHolds(id)
+	Do ##class(OcuTalon.Fix.Executor).FreeRun(id)
+}
+
+/// Lets go of every hold of a FixRun's end lock.
+ClassMethod FreeRuns()
+{
+	Set id = ""
+	For {
+		Set id = $Order(^||RunHolds(id), 1, count)
+		Quit:id=""
+		For i = 1:1:count Do ##class(OcuTalon.Fix.Executor).FreeRun(id)
+	}
+	Kill ^||RunHolds
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every half second, until the request has count FixResults; the FixResults as FixResultsFor gives them.
+Method WaitFixResults(approvalRef As %String, count As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set found = ..FixResultsFor(approvalRef)
+		If (found.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit found
+}
+
+/// Waits up to WAITHOLD seconds until the incident has count result Notifications, then two seconds more so that a further one would be seen; the result Notifications as
+/// NoticeBodies gives them.
+Method WaitResultNotices(ref As %String, count As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITHOLD
+	For {
+		Set notes = ..NoticeBodies(ref, "result")
+		If (notes.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Hang 2
+	Quit ..NoticeBodies(ref, "result")
+}
+
+/// Waits up to WAITRUN seconds, polling every half second, until the request's FixRun holds at least count copies and a ResentAt (the run waits for them); the run as
+/// Runs gives it, or "" when there is none.
+Method WaitResent(incidentRef As %String, approvalRef As %String, count As %Integer) As %DynamicObject [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITRUN
+	For {
+		Set run = ..RunOf(incidentRef, approvalRef)
+		If ($IsObject(run) && (run.copies.%Size() '< count) && (run.resentAt '= "")) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit run
+}
+
+/// Waits up to 10 seconds, polling every quarter second, until every copy (an array of header ids of OCUORDERS) is Queued; the number of copies that are Queued then.
+Method WaitQueued(copies As %DynamicArray) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + 10
+	For {
+		Set queued = 0
+		For i = 0:1:copies.%Size() - 1 {
+			Set copy = ..Header(..#ORDERS, copies.%Get(i))
+			If $IsObject(copy) && (copy.status = $$$eMessageStatusQueued) Set queued = queued + 1
+		}
+		If (queued = copies.%Size()) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit queued
+}
+
+/// The seconds from the stamp (UTC to the second) to now, in stamps, as the executor's deadline counts them.
+ClassMethod SecondsSince(stamp As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Watch.Settle).Seconds(##class(OcuTalon.Data.Time).NowUtc()) - ##class(OcuTalon.Watch.Settle).Seconds(stamp)
 }
 
 /// Sets the OrderDate of the order that the header holds, in OCUORDERS. The test edits only the orders it made.

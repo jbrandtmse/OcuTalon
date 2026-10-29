@@ -6,9 +6,13 @@
 ///     session, sent synchronously to IncidentManager (SendQuiet; at most QUIETWAIT seconds) in the Tick's trace session with the TraceRef of the
 ///     incident's owner as its SuperSession (empty for instance or eval; AD-26), the process's own SuperSession being put back after the send.
 ///     Checks does not act on the answer: IncidentManager applies the table (AD-15) and publishes the incident event. A failed or late send logs one
-///     Type 3 warning (LOGQUIET) and the sweep goes on. Then the checks: every row of Kind production is due when its NextDueAt is empty or at most
+///     Type 3 warning (LOGQUIET) and the sweep goes on. Then the fixes (Fixes, Story 7.5): the final OcuTalon.Fix.Msg.FixResults of OcuTalon.Fix.Run.Sweep()
+///     (the seam FixRunSweep; the one Fix code that Checks calls) are each sent to IncidentManager, asynchronously with no answer wanted (SendFixResult), in the
+///     trace session of the result's incident (its TraceHeaderId, when set) with the request's TraceRef as the SuperSession (AD-26), the process's own session
+///     and SuperSession being put back after each send. A Sweep that throws logs one Type 3 warning (LOGFIXES), a failed send one Type 3 warning (LOGFIX, with
+///     the request's Ref), and the other results still go. Then the checks: every row of Kind production is due when its NextDueAt is empty or at most
 ///     DUESLACKSECONDS after the tick time, and each due row runs once however many ticks were missed. An exception in one row's run logs one Type 3
-///     warning (LOGRUN), and the next row still runs.
+///     warning (LOGRUN), and the next row still runs. The quiet sweep, the fixes and the due checks each have their own Try/Catch.
 ///   - An OcuTalon.Checks.Msg.CheckChanged (WatchOps sends one after a watch is started or stopped): Checks publishes the change as a check event
 ///     on the owner's stream, FromRow of the row it opens by Ref for a start (nothing when the row is gone), and for a stop a payload of the message's
 ///     fields with stopped true. A failed publish logs one Type 3 warning (LOGPUBLISH).
@@ -98,6 +102,10 @@ Parameter LOGSWEEP = "Checks could not read the quiet incidents: ";
 
 Parameter LOGQUIET = "Checks could not send closeQuiet for incident ";
 
+Parameter LOGFIXES = "Checks could not sweep the fix runs: ";
+
+Parameter LOGFIX = "Checks could not send the result of request ";
+
 Parameter LOGRUN = "Checks could not run check ";
 
 Parameter LOGREAD = "Checks could not read the production of check ";
@@ -127,6 +135,11 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 		$$$LOGWARNING(..#LOGSWEEP_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
 	Try {
+		Do ..Fixes()
+	} Catch exception {
+		$$$LOGWARNING(..#LOGFIXES_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Try {
 		Set due = ..Due(tickAt)
 		Set iterator = due.%GetIterator()
 		While iterator.%GetNext(, .row) {
@@ -140,6 +153,47 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
 	Quit $$$OK
+}
+
+/// The fixes: each final FixResult that Fix.Run Sweep returns goes to IncidentManager (see the class description). A send that fails or throws logs one Type 3 warning (LOGFIX), and the
+/// next result still goes.
+Method Fixes() [ Private ]
+{
+	Set results = ..FixRunSweep()
+	For i = 1:1:results.Count() {
+		Set result = results.GetAt(i)
+		Set session = ..%SessionId
+		Set superSession = ..%SuperSession
+		Set sc = $$$OK
+		Try {
+			Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(result.IncidentRef)
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(result.ApprovalRef)
+			If $IsObject(incident) {
+				If incident.TraceHeaderId '= "" Set ..%SessionId = incident.TraceHeaderId
+				Set ..%SuperSession = $Select($IsObject(row): row.TraceRef, 1: "")
+			}
+			Set sc = ..SendFixResult(result)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		Set ..%SessionId = session
+		Set ..%SuperSession = superSession
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGFIX_result.ApprovalRef_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		}
+	}
+}
+
+/// The final FixResults of the runs that end now: OcuTalon.Fix.Run.Sweep(), a %ListOfObjects (a seam for the tests).
+Method FixRunSweep() As %ListOfObjects [ Private ]
+{
+	Quit ##class(OcuTalon.Fix.Run).Sweep()
+}
+
+/// Sends IncidentManager the FixResult, asynchronously, with no answer wanted, in this process's session and with its SuperSession (a seam for the tests).
+Method SendFixResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#MANAGER, result, 0)
 }
 
 /// The quiet sweep: closeQuiet for each incident of Quiet(now), in the Tick's session with the owner's TraceRef as SuperSession.

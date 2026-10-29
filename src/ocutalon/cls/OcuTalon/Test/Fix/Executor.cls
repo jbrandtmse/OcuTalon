@@ -74,6 +74,32 @@ Include Ensemble
 ///     them), the owner as the session when that is a Ref, and no member beside the shape; a write that fails logs one Type 3 warning (LOGAUDIT) and the FixResult still goes;
 ///   - TestFailedSendLogsOneWarning: a send that fails logs one Type 3 warning and the request is closed all the same;
 ///   - TestUnknownRequest: a request that is neither a DryRun nor an Execute is the error 5001 that names its class, with no answer.
+/// Story 7.5 (AD-5, AD-16, AD-18, AD-23, AD-33; DW-395) adds the ends that no waiter makes. These tests call Install.Step.Fix.ReconcileWith and Interrupt and Sweep of
+/// Test.Fix.RunProbe (a Fix.Run whose seams are canned) over fixture runs, rows and incidents. The test process holds the lock of each fixture run from its save until the test
+/// ends (Hold), so that the production's own Sweep, which runs on every Tick of a stack, never takes a fixture run; a test that needs the lock free lets go of it (LetGo).
+///   - TestInterruptMarksOnlyRunsCutByTheRestart (AC 1): of runs with no EndedAt, the one that started before the production's start and whose request is executing is marked
+///     (Total and Interrupted the number of targets, no EndedAt) and its request is closed failed with the Result interrupted; a run that started after the start, one whose request is done and
+///     an ended one are left; a run that is marked already keeps its mark and has its request closed; a second pass changes nothing and closes nothing; with no start time nothing is marked and
+///     there is one problem; a run with no StartedAt and one that started in the second of the start are left; a read of the runs that fails is an error status;
+///   - TestReconcileWarnsAndGoesOn (AC 1): ReconcileWith turns each problem into one WARN line of the step and returns OK: no start time, and a close that fails (the run stays marked);
+///     a read of the runs that fails is the error status;
+///   - TestSweepReportsAnInterruptedRunOnce (AC 2, AC 3): a marked run of 5 targets and 3 copies that completed ends interrupted with 5/3/3/0/0 and Interrupted 2: one final FixResult
+///     with Interrupted 1, the row closed, one Action entry interrupted, one Type 4 line, and the text the UX document has it; a second Sweep returns nothing, and End refuses the ended run;
+///   - TestSweepInterruptedCounts (AC 2; the matrix row "Interrupted counts"): 5 targets with 2 completed and 1 queued copy give Interrupted 3 and result.interrupted; copies that all completed give
+///     result.allThrough with Interrupted 0; copies that failed again give result.failedAgain with the reason; a read that is not read, a read that throws (one Type 3 warning) and a missing
+///     incident count no copy as completed;
+///   - TestSweepClosesTheRowFirst (AC 2): the request is closed interrupted before the result comes back, so the key is result.interrupted; a close that fails gives no result, no EndedAt and one Type 3
+///     warning, and the next Sweep reports the run; a close that throws logs one Type 3 warning and the next run is still swept;
+///   - TestSweepEndsARunNoWaiterEnded (AC 4; DW-395): an unmarked run past its wait whose copies were all done inside it ends as the waiter would have ended it: Skipped is Total - Resent, Interrupted 0,
+///     the row done, one Action entry done; a failed close logs one Type 3 warning and the result still comes;
+///   - TestSweepLeavesRunsOfTheWaiterAndOfStory305 (AC 5): unmarked runs inside their wait, with a copy still queued, whose last copy finished after the wait or has no time, whose read is not read,
+///     with no ResentAt or whose request is done get no result, no EndedAt and no close, and Sweep logs no warning and reads the copies of exactly the runs that get that far;
+///   - TestSweepGoesOnWhenTheEndFails: a marked or an unmarked run whose end cannot be saved gives no result, no entry and one Type 3 warning, and the next Sweep reports it once; a marked run whose audit
+///     write throws still gives its result (one warning); an unmarked run whose close throws still gives its result and its entry (one warning);
+///   - TestSweepSkipsALockedRun: a run whose lock another job holds is skipped, and reported once the lock is free; End and Mark refuse it as well;
+///   - TestStartedIsTheProductionStart (AC 1): Fix.Run Started gives ^Ens.Runtime("StartTime") as a UTC stamp to the second, and the start of the instance when it is unset or not a time;
+///   - TestEndRefusesAnEndedOrMarkedRun (AC 1, AC 3): End refuses an ended run, a normal end of a marked run and an interrupted end of an unmarked one, and Mark an ended or a marked run, each
+///     without a write; Waiting leaves out a marked run, and a look at a marked run ends in a Finish that End refuses: nothing is closed, audited or sent, and one Type 4 line says why.
 /// The fixture rows and the log lines of a test are removed after it.
 Class OcuTalon.Test.Fix.Executor Extends %UnitTest.TestCase
 {
@@ -123,6 +149,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Refs = ""
 	Set ..Incidents = ""
+	Do ##class(OcuTalon.Test.Fix.RunProbe).Reset()
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Quit $$$OK
 }
@@ -130,6 +158,9 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ..ReleaseLock()
+	Do ..FreeRuns()
+	Do ##class(OcuTalon.Test.Fix.RunProbe).Reset()
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
 	For i = 1:1:$Length(..Incidents, ",") {
 		If $Piece(..Incidents, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", $Piece(..Incidents, ",", i))
 		If $Piece(..Incidents, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", $Piece(..Incidents, ",", i))
@@ -1092,6 +1123,564 @@ Method TestUnknownRequest()
 	Do $$$AssertEquals(response, "", "and gives no answer")
 }
 
+Method TestInterruptMarksOnlyRunsCutByTheRestart()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("cut")
+	Set start = "2026-06-01T00:00:00Z"
+	Set before = "2026-05-31T23:00:00Z"
+	Set iCut = ..Incident(owner)
+	Set rCut = ..Request(owner, iCut, "executing", {"FixTargets": (..TargetList(5))})
+	Set runCut = ..FixRun(iCut, rCut, {"startedAt": (before), "copies": [9001, 9002, 9003]})
+	Set iNew = ..Incident(owner)
+	Set rNew = ..Request(owner, iNew, "executing")
+	Set runNew = ..FixRun(iNew, rNew, {"startedAt": "2026-06-01T00:00:01Z"})
+	Set iDone = ..Incident(owner)
+	Set rDone = ..Request(owner, iDone, "done")
+	Set runDone = ..FixRun(iDone, rDone, {"startedAt": (before)})
+	Set iEnded = ..Incident(owner)
+	Set rEnded = ..Request(owner, iEnded, "executing")
+	Set runEnded = ..FixRun(iEnded, rEnded, {"startedAt": (before), "endedAt": "2026-05-31T23:30:00Z"})
+	Set iAgain = ..Incident(owner)
+	Set rAgain = ..Request(owner, iAgain, "executing")
+	Set runAgain = ..FixRun(iAgain, rAgain, {"startedAt": (before), "total": 2})
+	Set iBlank = ..Incident(owner)
+	Set rBlank = ..Request(owner, iBlank, "executing")
+	Set runBlank = ..FixRun(iBlank, rBlank, {"startedAt": ""})
+	Set iEdge = ..Incident(owner)
+	Set rEdge = ..Request(owner, iEdge, "executing")
+	Set runEdge = ..FixRun(iEdge, rEdge, {"startedAt": (start)})
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "StartIs", start)
+	Set rowsBefore = ..Whole(rNew)_..Whole(rDone)_..Whole(rEnded)_..Whole(rBlank)_..Whole(rEdge)
+	Set sc = $ClassMethod(probe, "Interrupt", .problems)
+	Do $$$AssertStatusOK(sc, "Interrupt reads the runs")
+	Do $$$AssertEquals(problems.%Size(), 0, "and has no problem")
+	Do $$$AssertEquals(..Stored(runCut.%Id()), "0|5|0|0|0|0|5|", "the run that started before the start is marked: Total and Interrupted 5, no EndedAt and no counts")
+	Do $$$AssertEquals(..Row(rCut), "failed|interrupted|finished", "and its request is closed failed with the Result interrupted")
+	Do $$$AssertEquals(##class(OcuTalon.Data.FixRun).%OpenId(runCut.%Id()).Copies.Count(), 3, "it keeps its three copies and makes none")
+	Do $$$AssertEquals(..Stored(runNew.%Id())_"#"_..Row(rNew), "0|0|0|0|0|0|0|#executing||", "a run that started after the start is left: not marked, its request executing")
+	Do $$$AssertEquals(..Stored(runDone.%Id())_"#"_..Row(rDone), "0|0|0|0|0|0|0|#done||", "so is one whose request is done")
+	Do $$$AssertEquals(..Stored(runEnded.%Id())_"#"_..Row(rEnded), "1|0|0|0|0|0|0|#executing||", "and one that ended")
+	Do $$$AssertEquals(..Stored(runAgain.%Id()), "0|2|0|0|0|0|2|", "a run that is marked already keeps its mark")
+	Do $$$AssertEquals(..Row(rAgain), "failed|interrupted|finished", "and has its request closed")
+	Do $$$AssertEquals(..Stored(runBlank.%Id())_"#"_..Row(rBlank)_"#"_..Stored(runEdge.%Id())_"#"_..Row(rEdge), "0|0|0|0|0|0|0|#executing||#0|0|0|0|0|0|0|#executing||", "a run with no StartedAt and one that started in the second of the start are left")
+	Do $$$AssertEquals(..Whole(rNew)_..Whole(rDone)_..Whole(rEnded)_..Whole(rBlank)_..Whole(rEdge), rowsBefore, "the rows that were left are as they were")
+	Do $$$AssertEquals(..ClosedList(), rCut_"|interrupted,"_rAgain_"|interrupted", "only the two runs that were cut short had their request closed, with the result interrupted")
+
+	// a second pass changes nothing and closes nothing
+	Set sc = $ClassMethod(probe, "Interrupt", .problems)
+	Do $$$AssertStatusOK(sc, "a second Interrupt reads the runs")
+	Do $$$AssertEquals(problems.%Size(), 0, "and has no problem")
+	Do $$$AssertEquals(..ClosedList(), rCut_"|interrupted,"_rAgain_"|interrupted", "no request is closed a second time")
+	Do $$$AssertEquals(..Stored(runCut.%Id())_"#"_..Stored(runAgain.%Id())_"#"_..Stored(runNew.%Id()), "0|5|0|0|0|0|5|#0|2|0|0|0|0|2|#0|0|0|0|0|0|0|", "and the runs are as they were")
+
+	// no start time: nothing is marked, and one problem says so
+	Set iLate = ..Incident(owner)
+	Set rLate = ..Request(owner, iLate, "executing")
+	Set runLate = ..FixRun(iLate, rLate, {"startedAt": (before)})
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "StartIs", "")
+	Set sc = $ClassMethod(probe, "Interrupt", .problems)
+	Do $$$AssertStatusOK(sc, "with no start time Interrupt still gives OK")
+	Do $$$AssertEquals(problems.%Size(), 1, "with one problem")
+	Do $$$AssertEquals(..Stored(runLate.%Id())_"#"_..Row(rLate), "0|0|0|0|0|0|0|#executing||", "and nothing is marked or closed")
+
+	// the runs cannot be read: the error status
+	Do $ClassMethod(probe, "StartIs", start)
+	Do $ClassMethod(probe, "UnendedThrows")
+	Set sc = $ClassMethod(probe, "Interrupt", .problems)
+	Do $$$AssertStatusNotOK(sc, "a read of the runs that fails is an error status")
+}
+
+Method TestReconcileWarnsAndGoesOn()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("warn")
+	Set start = "2026-06-01T00:00:00Z"
+	Set before = "2026-05-31T23:00:00Z"
+	Set iLate = ..Incident(owner)
+	Set rLate = ..Request(owner, iLate, "executing")
+	Set runLate = ..FixRun(iLate, rLate, {"startedAt": (before)})
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+
+	// no start time: one WARN line, the step still OK
+	Do $ClassMethod(probe, "StartIs", "")
+	Set sc = ##class(OcuTalon.Install.Step.Fix).ReconcileWith(probe)
+	Do $$$AssertStatusOK(sc, "with no start time the step gives OK")
+	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertEquals($ListLength(lines), 1, "and one warning line")
+	Do $$$AssertEquals(..Stored(runLate.%Id()), "0|0|0|0|0|0|0|", "nothing is marked")
+
+	// a close that fails: the run stays marked, one WARN line that names the request, the step OK
+	Do $ClassMethod(probe, "StartIs", start)
+	Do $ClassMethod(probe, "FailClose", rLate)
+	Set sc = ##class(OcuTalon.Install.Step.Fix).ReconcileWith(probe)
+	Do $$$AssertStatusOK(sc, "with a close that fails the step gives OK")
+	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertEquals($ListLength(lines), 1, "with one warning line")
+	Do $$$AssertTrue($ListLength(lines) && ($List(lines, 1) [ rLate), "which names the request: "_$Select($ListLength(lines): $List(lines, 1), 1: ""))
+	Do $$$AssertEquals(..Stored(runLate.%Id())_"#"_..Row(rLate), "0|3|0|0|0|0|3|#executing||", "the run is marked, and its request is still executing")
+
+	// the next pass closes it
+	Do $ClassMethod(probe, "FailClose", "")
+	Set sc = ##class(OcuTalon.Install.Step.Fix).ReconcileWith(probe)
+	Do $$$AssertStatusOK(sc, "the next pass gives OK")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Install.Step).TakeWarnings()), 0, "with no warning")
+	Do $$$AssertEquals(..Row(rLate), "failed|interrupted|finished", "and closes the request")
+
+	// the runs cannot be read: the step's status is the error
+	Do $ClassMethod(probe, "UnendedThrows")
+	Set sc = ##class(OcuTalon.Install.Step.Fix).ReconcileWith(probe)
+	Do $$$AssertStatusNotOK(sc, "a read of the runs that fails is the error status")
+}
+
+Method TestSweepReportsAnInterruptedRunOnce()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("once")
+	Set incident = ..Incident(owner)
+	Set ref = ..Request(owner, incident, "executing", {"FixTargets": (..TargetList(5))})
+	Set run = ..FixRun(incident, ref, {"startedAt": "2026-05-31T23:00:00Z", "copies": [9501, 9502, 9503], "total": 5})
+	Set id = run.%Id()
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "Feed", ref, ..CannedAt(9501, 3, "Completed", ..Stamp(-5)))
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "Sweep returns one FixResult")
+	If results.Count() '= 1 Quit
+	Set result = results.GetAt(1)
+	Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, ref_"|"_incident_"|1|1", "it names the request and the incident, is final and is interrupted")
+	Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped_"|"_result.Reason, "5|3|3|0|0|", "with the counts 5/3/3/0/0 and no reason")
+	Do $$$AssertEquals(..Row(ref), "failed|interrupted|finished", "the request is closed failed with the Result interrupted")
+	Do $$$AssertEquals(..Stored(id), "1|5|3|3|0|0|2|", "the run has an EndedAt, 5/3/3/0/0 and Interrupted 2, the targets the restart cut off")
+	Do $$$AssertEquals(..ClosedList(), ref_"|interrupted", "the request was closed once")
+	Set audits = $ClassMethod(probe, "Audits")
+	Do $$$AssertEquals(audits.%Size(), 1, "one Action entry is written")
+	If audits.%Size() = 1 {
+		Set entry = audits.%Get(0)
+		Do $$$AssertEquals(entry.approvalRef_"|"_entry.result_"|"_entry.action_"|"_entry.channel, ref_"|interrupted|repair_resend|web", "which names the request, the result interrupted, the kind and the channel")
+		Do $$$AssertEquals(entry.counts.%ToJSON(), "{""total"":5,""resent"":3,""completed"":3,""failedAgain"":0,""skipped"":0}", "with the five counts as numbers")
+	}
+	Set text = ..Render(..AsSent(result), ..StateOf(ref), .key)
+	Do $$$AssertEquals(key, "result.interrupted", "the key is result.interrupted")
+	Do $$$AssertEquals(text, "The resend stopped when OcuTalon restarted: 3 of 5 orders went through. The other 2 need a new approval.", "and it reads as the UX document has it")
+	Do $$$AssertEquals(..SweptLines(ref), 1, "one Type 4 line says that Sweep ended the run")
+
+	// reported once
+	Set again = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(again.Count(), 0, "a second Sweep returns nothing")
+	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "1|"_ref_"|interrupted", "writes no second entry and closes nothing again")
+	Set counts = {"total": 5, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "interrupted": 2, "reason": ""}
+	Set wrote = ##class(OcuTalon.Fix.Executor).End(##class(OcuTalon.Data.FixRun).%OpenId(id), counts, 1, .sc)
+	Do $$$AssertEquals(wrote, 0, "End refuses the ended run")
+	Do $$$AssertStatusNotOK(sc, "with the reason")
+	Do $$$AssertEquals(..Stored(id), "1|5|3|3|0|0|2|", "and writes nothing")
+}
+
+Method TestSweepInterruptedCounts()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("counts")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+
+	// a: 5 targets, 3 copies, 2 completed and 1 queued
+	Set iA = ..Incident(owner)
+	Set statuses = ..CannedAt(9601, 2, "Completed", ..Stamp(-5))
+	Do statuses.%Set("9603", {"status": "Queued", "error": "", "target": "OrdersFromPartner", "at": (..Stamp(-5))})
+	Set rA = ..MarkedRun(owner, iA, 5, "9601,9602,9603", statuses)
+
+	// b: 3 targets, 3 copies, all completed
+	Set iB = ..Incident(owner)
+	Set rB = ..MarkedRun(owner, iB, 3, "9611,9612,9613", ..CannedAt(9611, 3, "Completed", ..Stamp(-5)))
+
+	// c: 3 copies, 1 completed and 2 failed again with the incident's own error
+	Set iC = ..Incident(owner)
+	Do ..Group(iC, "OrdersFromPartner", ..#ORDERDATETEXT)
+	Set statuses = ..CannedAt(9621, 1, "Completed", ..Stamp(-5))
+	Do statuses.%Set("9622", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (..Stamp(-5))})
+	Do statuses.%Set("9623", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (..Stamp(-5))})
+	Set rC = ..MarkedRun(owner, iC, 3, "9621,9622,9623", statuses)
+
+	// d: a read that is not read
+	Set iD = ..Incident(owner)
+	Set rD = ..MarkedRun(owner, iD, 3, "9631,9632,9633", ..CannedAt(9631, 3, "Completed", ..Stamp(-5)), "unreadable")
+
+	// e: a read that throws
+	Set iE = ..Incident(owner)
+	Set rE = ..MarkedRun(owner, iE, 3, "9641,9642,9643", ..CannedAt(9641, 3, "Completed", ..Stamp(-5)))
+	Do $ClassMethod(probe, "ReadThrows", rE)
+
+	// f: a missing incident
+	Set iF = "zzmissingincident0001"
+	Set ..Incidents = ..Incidents_","_iF
+	Set rF = ..MarkedRun(owner, iF, 3, "9651,9652,9653", ..CannedAt(9651, 3, "Completed", ..Stamp(-5)))
+
+	// g: the request's row is gone: the run ends with its counts, and no entry or result is made
+	Set iG = ..Incident(owner)
+	Set rG = ..MarkedRun(owner, iG, 5, "9661,9662,9663", ..CannedAt(9661, 3, "Completed", ..Stamp(-5)))
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(rG)
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 6, "Sweep returns one FixResult for each of the six runs whose request exists")
+	Do ..AssertCut(results, rA, "5|3|2|0|0", 1, 3, "result.interrupted", "The resend stopped when OcuTalon restarted: 2 of 5 orders went through. The other 3 need a new approval.", "a: 2 completed and 1 queued of 5")
+	Do ..AssertCut(results, rB, "3|3|3|0|0", 0, 0, "result.allThrough", "All 3 orders went through.", "b: all 3 completed")
+	Do ..AssertCut(results, rC, "3|3|1|2|0", 0, 0, "result.failedAgain", "1 of 3 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval.", "c: 1 completed and 2 failed again")
+	Do ..AssertCut(results, rD, "3|3|0|0|0", 1, 3, "result.interrupted", "The resend stopped when OcuTalon restarted: 0 of 3 orders went through. The other 3 need a new approval.", "d: an unreadable read counts no copy as completed")
+	Do ..AssertCut(results, rE, "3|3|0|0|0", 1, 3, "result.interrupted", "The resend stopped when OcuTalon restarted: 0 of 3 orders went through. The other 3 need a new approval.", "e: a read that throws counts no copy as completed")
+	Do ..AssertCut(results, rF, "3|3|0|0|0", 1, 3, "result.interrupted", "The resend stopped when OcuTalon restarted: 0 of 3 orders went through. The other 3 need a new approval.", "f: a missing incident counts no copy as completed")
+	Do $$$AssertTrue('$IsObject(..ResultFor(results, rG)), "g: none for the run whose request is gone")
+	Do $$$AssertEquals(..Stored(##class(OcuTalon.Data.FixRun).OfRequest(rG).%Id()), "1|5|3|3|0|0|2|", "g: but the run is ended with its counts, Total from the stored Total")
+	Do $$$AssertEquals(..AuditCount(), 6, "and no entry is written for it")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "EndMarked", $Parameter("OcuTalon.Fix.Run", "LOGREAD")_rE)
+	Do $$$AssertEquals(warned, 1, "the read that threw logged one Type 3 warning that names the request: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "EndMarked", $Parameter("OcuTalon.Fix.Run", "LOGREAD")), 1, "and no other read logged one")
+}
+
+Method TestSweepClosesTheRowFirst()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("first")
+	Set iA = ..Incident(owner)
+	Set rA = ..MarkedRun(owner, iA, 5, "9701,9702,9703", ..CannedAt(9701, 3, "Completed", ..Stamp(-5)))
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "Sweep returns the FixResult of a marked run whose request is executing")
+	Do $$$AssertEquals(..Row(rA), "failed|interrupted|finished", "the request is closed interrupted by then, so it is not executing when the result is read")
+	Do $$$AssertEquals(..ClosedList(), rA_"|interrupted", "it was closed once, with the result interrupted")
+	If results.Count() = 1 {
+		Do ..Render(..AsSent(results.GetAt(1)), ..StateOf(rA), .key)
+		Do $$$AssertEquals(key, "result.interrupted", "so the key is result.interrupted, never result.stillResending")
+	}
+
+	// a close that fails: no result, no EndedAt, one warning; the next Sweep reports the run
+	Set iB = ..Incident(owner)
+	Set rB = ..MarkedRun(owner, iB, 5, "9711,9712,9713", ..CannedAt(9711, 3, "Completed", ..Stamp(-5)))
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "FailClose", rB)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 0, "a request that cannot be closed gives no result")
+	Do $$$AssertEquals(..Stored(##class(OcuTalon.Test.Watch.Case).RunOf(iB, rB).id)_"#"_..Row(rB), "0|5|0|0|0|0|5|#executing||", "the run has no EndedAt and the request is still executing")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "EndMarked", $Parameter("OcuTalon.Fix.Run", "LOGCLOSE")_rB)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $ClassMethod(probe, "FailClose", "")
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "the next Sweep reports the run")
+	Do $$$AssertEquals(..Row(rB), "failed|interrupted|finished", "and its request is closed")
+
+	// a close that throws: one warning, and the next run is still swept
+	Set iC = ..Incident(owner)
+	Set rC = ..MarkedRun(owner, iC, 5, "9721,9722,9723", ..CannedAt(9721, 3, "Completed", ..Stamp(-5)))
+	Set iD = ..Incident(owner)
+	Set rD = ..MarkedRun(owner, iD, 5, "9731,9732,9733", ..CannedAt(9731, 3, "Completed", ..Stamp(-5)))
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "ThrowClose", rC)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "a close that throws gives no result for its run, and the next run is still swept")
+	If results.Count() = 1 Do $$$AssertEquals(results.GetAt(1).ApprovalRef, rD, "the result of the next run")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP")_rC)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request that threw: "_text)
+}
+
+Method TestSweepEndsARunNoWaiterEnded()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("nowaiter")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+	Set sentAt = ..Stamp(-100)
+	Set doneAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 20)
+
+	// A: 5 targets, 3 copies, all completed inside the wait
+	Set iA = ..Incident(owner)
+	Set rA = ..UnmarkedRun(owner, iA, 5, "9801,9802,9803", sentAt, ..CannedAt(9801, 3, "Completed", doneAt))
+
+	// B: 3 targets, 3 copies, 2 completed and 1 failed again with the incident's own error
+	Set iB = ..Incident(owner)
+	Do ..Group(iB, "OrdersFromPartner", ..#ORDERDATETEXT)
+	Set statuses = ..CannedAt(9811, 2, "Completed", doneAt)
+	Do statuses.%Set("9813", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (doneAt)})
+	Set rB = ..UnmarkedRun(owner, iB, 3, "9811,9812,9813", sentAt, statuses)
+
+	// C: all completed, and a close that fails
+	Set iC = ..Incident(owner)
+	Set rC = ..UnmarkedRun(owner, iC, 3, "9821,9822,9823", sentAt, ..CannedAt(9821, 3, "Completed", doneAt))
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "FailClose", rC)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 3, "Sweep returns one FixResult for each of the three runs")
+	Do ..AssertDone(results, rA, iA, "5|3|3|0|2", "", "result.skipped", "3 of 5 orders went through. 2 had changed since the dry run, so I skipped them; they need a new approval.", "done|done|finished", "A: 3 of 5 targets resent, all completed")
+	Do ..AssertDone(results, rB, iB, "3|3|2|1|0", "the order date still wasn't accepted", "result.failedAgain", "2 of 3 orders went through. 1 failed again (the order date still wasn't accepted). I won't retry it without a new approval.", "done|done|finished", "B: one copy failed again")
+	Do ..AssertDone(results, rC, iC, "3|3|3|0|0", "", "result.stillResending", "Still resending: 3 of 3 orders have gone through so far. I'll tell you when it's done.", "executing||", "C: a close that fails leaves the request executing, so its notice reads still resending")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "EndLeft", $Parameter("OcuTalon.Fix.Run", "LOGCLOSE")_rC)
+	Do $$$AssertEquals(warned, 1, "the close that failed logged one Type 3 warning that names the request: "_text)
+	Set audits = $ClassMethod(probe, "Audits")
+	Do $$$AssertEquals(audits.%Size(), 3, "one Action entry is written for each run")
+	For i = 0:1:audits.%Size() - 1 {
+		Do $$$AssertEquals(audits.%Get(i).result, "done", "entry "_(i + 1)_" has the result done")
+	}
+	Do $$$AssertEquals(..ClosedList(), rA_"|done,"_rB_"|done,"_rC_"|done", "each request was closed done once")
+	Set again = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(again.Count(), 0, "a second Sweep returns nothing")
+}
+
+Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("left")
+	Set sentAt = ..Stamp(-100)
+	Set doneAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 20)
+	Set lateAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 70)
+	Set all = ..CannedAt(9901, 3, "Completed", doneAt)
+	Set cases = 0
+
+	// inside its wait
+	Set i = ..Incident(owner)
+	Set cases($Increment(cases)) = $ListBuild("inside its wait", ..UnmarkedRun(owner, i, 3, "9901,9902,9903", ..Stamp(-10), ..CannedAt(9901, 3, "Completed", ..Stamp(-5))), i)
+	// past its wait, with a copy still queued
+	Set i = ..Incident(owner)
+	Set queued = ..CannedAt(9911, 2, "Completed", doneAt)
+	Do queued.%Set("9913", {"status": "Queued", "error": "", "target": "OrdersFromPartner", "at": (sentAt)})
+	Set cases($Increment(cases)) = $ListBuild("with a copy still queued", ..UnmarkedRun(owner, i, 3, "9911,9912,9913", sentAt, queued), i)
+	// past its wait, the last copy done after the wait
+	Set i = ..Incident(owner)
+	Set late = ..CannedAt(9921, 2, "Completed", doneAt)
+	Do late.%Set("9923", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (lateAt)})
+	Set cases($Increment(cases)) = $ListBuild("whose last copy finished after the wait", ..UnmarkedRun(owner, i, 3, "9921,9922,9923", sentAt, late), i)
+	// past its wait, a copy that is done and has no time
+	Set i = ..Incident(owner)
+	Set cases($Increment(cases)) = $ListBuild("with a copy that has no time", ..UnmarkedRun(owner, i, 3, "9931,9932,9933", sentAt, ..CannedAt(9931, 3, "Completed", "")), i)
+	// no ResentAt
+	Set i = ..Incident(owner)
+	Set cases($Increment(cases)) = $ListBuild("with no ResentAt", ..UnmarkedRun(owner, i, 3, "9941,9942,9943", "", ..CannedAt(9941, 3, "Completed", doneAt)), i)
+	// the request is done
+	Set i = ..Incident(owner)
+	Set cases($Increment(cases)) = $ListBuild("whose request is done", ..UnmarkedRun(owner, i, 3, "9951,9952,9953", sentAt, ..CannedAt(9951, 3, "Completed", doneAt), "done"), i)
+	// the read is not read
+	Set i = ..Incident(owner)
+	Set cases($Increment(cases)) = $ListBuild("whose read is not read", ..UnmarkedRun(owner, i, 3, "9961,9962,9963", sentAt, ..CannedAt(9961, 3, "Completed", doneAt), "executing", "unreadable"), i)
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 0, "Sweep returns nothing for any of the runs")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP"))_"|"_##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "EndLeft", $Parameter("OcuTalon.Fix.Run", "LOGREAD")), "0|0", "and logs no warning: none of the runs was left because Sweep failed on it")
+	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 4, "the copies were read for the four runs that are past their wait and whose request is executing, and for no other")
+	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "0|", "writes no entry and closes no request")
+	For n = 1:1:cases {
+		Set ref = $List(cases(n), 2)
+		Set run = ##class(OcuTalon.Test.Watch.Case).RunOf($List(cases(n), 3), ref)
+		Do $$$AssertEquals(..Stored(run.id)_"#"_..Row(ref), "0|0|0|0|0|0|0|#"_$Select($List(cases(n), 1) = "whose request is done": "done||", 1: "executing||"), "a run "_$List(cases(n), 1)_" has no EndedAt and keeps its request")
+	}
+}
+
+Method TestSweepGoesOnWhenTheEndFails()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("endfails")
+	Set sentAt = ..Stamp(-100)
+	Set doneAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 20)
+
+	// a marked run whose end cannot be saved: no result, no entry, one warning; the next Sweep reports it once
+	Set iM = ..Incident(owner)
+	Set rM = ..MarkedRun(owner, iM, 5, "9801,9802,9803", ..CannedAt(9801, 3, "Completed", ..Stamp(-5)))
+	Set idM = ##class(OcuTalon.Test.Watch.Case).RunOf(iM, rM).id
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "SpoilSave", rM)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 0, "a marked run whose end cannot be saved gives no result")
+	Do $$$AssertEquals(..Stored(idM)_"#"_..AuditCount(), "0|5|0|0|0|0|5|#0", "its run has no EndedAt and no entry is written")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Ended", $Parameter("OcuTalon.Fix.Run", "LOGSAVE")_rM)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $ClassMethod(probe, "SpoilSave", "")
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "the next Sweep reports the run")
+	Do $$$AssertEquals(..Stored(idM)_"#"_..AuditCount(), "1|5|3|3|0|0|2|#1", "its run is ended and has one entry")
+	Do $$$AssertEquals($ClassMethod(probe, "Sweep").Count(), 0, "and a further Sweep reports nothing")
+
+	// an unmarked run whose end cannot be saved: the same, and its request is not closed
+	Set iU = ..Incident(owner)
+	Set rU = ..UnmarkedRun(owner, iU, 3, "9811,9812,9813", sentAt, ..CannedAt(9811, 3, "Completed", doneAt))
+	Set idU = ##class(OcuTalon.Test.Watch.Case).RunOf(iU, rU).id
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "SpoilSave", rU)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 0, "an unmarked run whose end cannot be saved gives no result")
+	Do $$$AssertEquals(..Stored(idU)_"#"_..Row(rU)_"#"_..AuditCount(), "0|0|0|0|0|0|0|#executing||#1", "its run has no EndedAt, its request is still executing and no entry is written")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Ended", $Parameter("OcuTalon.Fix.Run", "LOGSAVE")_rU)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $ClassMethod(probe, "SpoilSave", "")
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "the next Sweep reports the run")
+	Do $$$AssertEquals(..Stored(idU)_"#"_..Row(rU)_"#"_..AuditCount(), "1|3|3|3|0|0|0|#done|done|finished#2", "it ends done, with one entry")
+	Do $$$AssertEquals($ClassMethod(probe, "Sweep").Count(), 0, "and a further Sweep reports nothing")
+
+	// a marked run whose audit write throws: one warning, and the result still comes
+	Set iA = ..Incident(owner)
+	Set rA = ..MarkedRun(owner, iA, 5, "9821,9822,9823", ..CannedAt(9821, 3, "Completed", ..Stamp(-5)))
+	Set idA = ##class(OcuTalon.Test.Watch.Case).RunOf(iA, rA).id
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "AuditThrows", rA)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "a run whose audit write throws still gives its result")
+	If results.Count() = 1 Do $$$AssertEquals(results.GetAt(1).ApprovalRef, rA, "the result of that run")
+	Do $$$AssertEquals(..Stored(idA)_"#"_..AuditCount(), "1|5|3|3|0|0|2|#2", "its run is ended and no entry was recorded")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Entry", $Parameter("OcuTalon.Fix.Run", "LOGAUDIT")_rA)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $ClassMethod(probe, "AuditThrows", "")
+
+	// an unmarked run whose close throws: one warning, and the entry and the result still come
+	Set iT = ..Incident(owner)
+	Set rT = ..UnmarkedRun(owner, iT, 3, "9831,9832,9833", sentAt, ..CannedAt(9831, 3, "Completed", doneAt))
+	Set idT = ##class(OcuTalon.Test.Watch.Case).RunOf(iT, rT).id
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Do $ClassMethod(probe, "ThrowClose", rT)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "a run whose close throws still gives its result")
+	If results.Count() = 1 Do $$$AssertEquals(results.GetAt(1).ApprovalRef, rT, "the result of that run")
+	Do $$$AssertEquals(..Stored(idT)_"#"_..Row(rT)_"#"_..AuditCount(), "1|3|3|3|0|0|0|#executing||#3", "its run is ended and has its entry, and its request is still executing")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "EndLeft", $Parameter("OcuTalon.Fix.Run", "LOGCLOSE")_rT)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP")), 0, "and Sweep did not give up on the run")
+}
+
+Method TestStartedIsTheProductionStart()
+{
+	Set had = $Data($$$EnsRuntime("StartTime"), saved)
+	Set failed = ""
+	Try {
+		Set $$$EnsRuntime("StartTime") = "2026-10-29 17:11:27.941"
+		Set one = ##class(OcuTalon.Fix.Run).Started()
+		Set $$$EnsRuntime("StartTime") = "not a time"
+		Set two = ##class(OcuTalon.Fix.Run).Started()
+		Kill $$$EnsRuntime("StartTime")
+		Set three = ##class(OcuTalon.Fix.Run).Started()
+	} Catch exception {
+		Set failed = exception.DisplayString()
+	}
+	If had Set $$$EnsRuntime("StartTime") = saved
+	If 'had Kill $$$EnsRuntime("StartTime")
+	Do $$$AssertEquals(failed, "", "the start is read without an error")
+	If failed '= "" Quit
+	Do $$$AssertEquals(one, "2026-10-29T17:11:27Z", "the production's start is that of ^Ens.Runtime(""StartTime""), as a UTC stamp to the second")
+	Set now = ##class(OcuTalon.Watch.Settle).Seconds(##class(OcuTalon.Data.Time).NowUtc())
+	For case = 2, 3 {
+		Set fallback = ##class(OcuTalon.Watch.Settle).Seconds($Select(case = 2: two, 1: three))
+		Set apart = $Select(fallback = "": "", 1: (now - fallback) - ($ZHorolog \ 1))
+		Do $$$AssertTrue((apart '= "") && (apart '< -3) && (apart '> 3), $Select(case = 2: "a value that is not a time", 1: "no value")_" gives the start of the instance: "_apart_" seconds from the uptime")
+	}
+}
+
+Method TestSweepSkipsALockedRun()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("locked")
+	Set incident = ..Incident(owner)
+	Set ref = ..MarkedRun(owner, incident, 5, "9971,9972,9973", ..CannedAt(9971, 3, "Completed", ..Stamp(-5)))
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Set id = run.id
+	Set flag = "runlock"_..Number
+	Set ..HoldFlag = flag
+	Set ^OcuTalonTest("FixExecutor", flag) = ""
+	Job ##class(OcuTalon.Test.Fix.Executor).HoldLock("^OcuTalon.Fix.Run("_id_")", flag)
+	Do ..LetGo(id)
+	Set end = $ZHorolog + 10
+	While ($Get(^OcuTalonTest("FixExecutor", flag)) '= "held") && ($ZHorolog < end) {
+		Hang 0.1
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("FixExecutor", flag)), "held", "another job holds the run's lock")
+	If $Get(^OcuTalonTest("FixExecutor", flag)) '= "held" Quit
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 0, "Sweep returns nothing for a run it cannot lock")
+	Do $$$AssertEquals(..Stored(id)_"#"_..Row(ref), "0|5|0|0|0|0|5|#executing||", "and writes nothing: no EndedAt, the request still executing")
+	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "0|", "no entry and no close")
+	Set counts = {"total": 5, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "interrupted": 2, "reason": ""}
+	Set wrote = ##class(OcuTalon.Fix.Executor).End(##class(OcuTalon.Data.FixRun).%OpenId(id), counts, 1, .sc)
+	Do $$$AssertEquals(wrote_"|"_($SYSTEM.Status.GetErrorText(sc) [ "lock"), "0|1", "End refuses a run whose lock another job holds, naming the lock")
+	Set marked = ##class(OcuTalon.Fix.Executor).Mark(##class(OcuTalon.Data.FixRun).%OpenId(id), 5, .sc)
+	Do $$$AssertEquals(marked_"|"_($SYSTEM.Status.GetErrorText(sc) [ "lock"), "0|1", "and so does Mark")
+	Do $$$AssertEquals(..Stored(id), "0|5|0|0|0|0|5|", "neither wrote anything")
+	Do ..ReleaseLock()
+	Do ..Hold(id)
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "once the lock is free the next Sweep reports the run")
+}
+
+Method TestEndRefusesAnEndedOrMarkedRun()
+{
+	Set executor = "OcuTalon.Fix.Executor"
+	Set owner = ..Owner("end")
+	Set before = "2026-05-31T23:00:00Z"
+	Set counts = {"total": 3, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "reason": ""}
+	Set cut = {"total": 3, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "interrupted": 0, "reason": ""}
+
+	// an ended run: nothing ends it again, nothing marks it
+	Set i1 = ..Incident(owner)
+	Set r1 = ..Request(owner, i1, "executing")
+	Set ended = ..FixRun(i1, r1, {"startedAt": (before), "endedAt": "2026-05-31T23:30:00Z"})
+	Do $$$AssertEquals($ClassMethod(executor, "End", ended, counts, 0, .sc), 0, "End refuses a run that has ended")
+	Do $$$AssertStatusNotOK(sc, "with the reason")
+	Do $$$AssertEquals($ClassMethod(executor, "End", ended, cut, 1, .sc), 0, "also for an interrupted end")
+	Do $$$AssertEquals($ClassMethod(executor, "Mark", ended, 3, .sc), 0, "and Mark refuses it too")
+	Do $$$AssertEquals(..Stored(ended.%Id()), "1|0|0|0|0|0|0|", "nothing is written")
+
+	// a marked run: a normal end is refused, an interrupted end is not
+	Set i2 = ..Incident(owner)
+	Set r2 = ..Request(owner, i2, "executing")
+	Set marked = ..FixRun(i2, r2, {"startedAt": (before), "total": 3})
+	Do $$$AssertEquals($ClassMethod(executor, "End", marked, counts, 0, .sc), 0, "End refuses a normal end of a run that is marked as interrupted")
+	Do $$$AssertEquals($ClassMethod(executor, "Mark", marked, 3, .sc), 0, "and Mark refuses a run that is marked already")
+	Do $$$AssertEquals(..Stored(marked.%Id()), "0|3|0|0|0|0|3|", "nothing is written")
+
+	// an unmarked run: an interrupted end is refused, a normal end writes
+	Set i3 = ..Incident(owner)
+	Set r3 = ..Request(owner, i3, "executing")
+	Set plain = ..FixRun(i3, r3, {"startedAt": (before)})
+	Do $$$AssertEquals($ClassMethod(executor, "End", plain, cut, 1, .sc), 0, "End refuses an interrupted end of a run that is not marked")
+	Do $$$AssertEquals(..Stored(plain.%Id()), "0|0|0|0|0|0|0|", "and writes nothing")
+	Do $$$AssertEquals($ClassMethod(executor, "End", plain, counts, 0, .sc), 1, "a normal end of it writes")
+	Do $$$AssertStatusOK(sc, "and saves")
+	Do $$$AssertEquals(..Stored(plain.%Id()), "1|3|3|3|0|0|0|", "EndedAt and the counts")
+	Do $$$AssertEquals($ClassMethod(executor, "End", plain, counts, 0, .sc), 0, "and a second end is refused")
+
+	// an unmarked run is marked once
+	Set i4 = ..Incident(owner)
+	Set r4 = ..Request(owner, i4, "executing")
+	Set fresh = ..FixRun(i4, r4, {"startedAt": (before)})
+	Do $$$AssertEquals($ClassMethod(executor, "Mark", fresh, 3, .sc), 1, "Mark marks a run that is not marked")
+	Do $$$AssertEquals(..Stored(fresh.%Id()), "0|3|0|0|0|0|3|", "with Total and Interrupted 3 and no EndedAt")
+	Do $$$AssertEquals($ClassMethod(executor, "Mark", fresh, 3, .sc), 0, "and once")
+
+	// Waiting leaves out a marked run; a look at a marked run ends in a Finish that End refuses
+	Set host = ..Host(..#LONGPROBE)
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set resentAt = ..Stamp(0)
+	Set i5 = ..Incident(owner)
+	Set r5 = ..Request(owner, i5, "executing")
+	Set cutRun = ..FixRun(i5, r5, {"startedAt": (before), "copies": [9981, 9982, 9983], "resentAt": (resentAt), "total": 3})
+	Set i6 = ..Incident(owner)
+	Set r6 = ..Request(owner, i6, "executing")
+	Set twin = ..FixRun(i6, r6, {"startedAt": (before), "copies": [9984, 9985, 9986], "resentAt": (resentAt)})
+	Set host.Incidents = i5_","_i6
+	Set waiting = host.WaitingNow()
+	Do $$$AssertEquals($ListLength(waiting), 1, "Waiting gives one run of the two that wait")
+	Do $$$AssertEquals($ListToString(waiting), twin.%Id(), "the one that is not marked")
+	Set host.StatusIs = ..Canned(9981, 3, "Completed").%ToJSON()
+	Set looked = host.LookNow(cutRun.%Id())
+	Do $$$AssertEquals(looked, "", "a look at the marked run counts its copies and finishes it")
+	Do $$$AssertEquals(..Row(r5), "executing||", "but End refuses the run: its request is not closed")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0)_"|"_$Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), "0|0", "no FixResult is sent and no entry is written")
+	Do $$$AssertEquals(..Stored(cutRun.%Id()), "0|3|0|0|0|0|3|", "and the run is as it was")
+	Do $$$AssertEquals(..EndedLines(r5), 1, "one Type 4 line says that FixExecutor left the run")
+}
+
 /// --- helpers ---
 /// A shadow instance of the probe (or of the class given, a subclass of it), in this process.
 Method Host(class As %String = {..#PROBE}) As OcuTalon.Test.Fix.ExecutorProbe
@@ -1404,6 +1993,190 @@ ClassMethod Calls(host As OcuTalon.Test.Fix.ExecutorProbe) As %String
 	Quit $Select((checked = 0) && (carried = 0): 0, 1: checked_"/"_carried)
 }
 
+/// A fixture FixRun of the request for the incident, started now unless fields say otherwise, saved. fields is an object of startedAt, copies (an array of header ids),
+/// resentAt, endedAt and total (a run that is marked as interrupted has Total and Interrupted set to it). The test process takes the run's lock at once and holds it until the test ends (Hold).
+Method FixRun(incident As %String, ref As %String, fields As %DynamicObject = "") As OcuTalon.Data.FixRun
+{
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = ref
+	Set run.IncidentRef = incident
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	If $IsObject(fields) {
+		If fields.%IsDefined("startedAt") Set run.StartedAt = fields.startedAt
+		If fields.%IsDefined("resentAt") Set run.ResentAt = fields.resentAt
+		If fields.%IsDefined("endedAt") Set run.EndedAt = fields.endedAt
+		If fields.%IsDefined("total") {
+			Set run.Total = fields.total
+			Set run.Interrupted = fields.total
+		}
+		If fields.%IsDefined("copies") {
+			Set iterator = fields.copies.%GetIterator()
+			While iterator.%GetNext(, .copy) {
+				Do run.Copies.Insert(copy)
+			}
+		}
+	}
+	Do $$$AssertStatusOK(run.%Save(), "a FixRun is saved")
+	Do ..Hold(run.%Id())
+	Quit run
+}
+
+/// A marked run (Total and Interrupted the number of targets) of a new request over targets targets, with the copies (comma-separated header ids), fed the statuses and the outcome
+/// for Test.Fix.RunProbe; the request's Ref. The request is executing.
+Method MarkedRun(owner As %String, incident As %String, targets As %Integer, copies As %String, statuses As %DynamicObject, outcome As %String = "read") As %String
+{
+	Set ref = ..Request(owner, incident, "executing", {"FixTargets": (..TargetList(targets))})
+	Set list = []
+	For i = 1:1:$Length(copies, ",") Do list.%Push($Piece(copies, ",", i))
+	Do ..FixRun(incident, ref, {"startedAt": "2026-05-31T23:00:00Z", "copies": (list), "total": (targets)})
+	Do ##class(OcuTalon.Test.Fix.RunProbe).Feed(ref, statuses, outcome)
+	Quit ref
+}
+
+/// An unmarked run of a new request over targets targets, with the copies, the ResentAt given and the request in the state (executing by default), fed the statuses and the outcome for
+/// Test.Fix.RunProbe; the request's Ref.
+Method UnmarkedRun(owner As %String, incident As %String, targets As %Integer, copies As %String, resentAt As %String, statuses As %DynamicObject, state As %String = "executing", outcome As %String = "read") As %String
+{
+	Set ref = ..Request(owner, incident, state, {"FixTargets": (..TargetList(targets))})
+	Set list = []
+	For i = 1:1:$Length(copies, ",") Do list.%Push($Piece(copies, ",", i))
+	Set fields = {"startedAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -200)), "copies": (list)}
+	If resentAt '= "" Do fields.%Set("resentAt", resentAt)
+	Do ..FixRun(incident, ref, fields)
+	Do ##class(OcuTalon.Test.Fix.RunProbe).Feed(ref, statuses, outcome)
+	Quit ref
+}
+
+/// Takes the lock of the run for this process (Executor.TakeRun) and remembers the hold, so that OnAfterOneTest lets go of it (Test.Watch.Case HoldRun).
+Method Hold(id As %String)
+{
+	Do ##class(OcuTalon.Test.Watch.Case).HoldRun(id)
+}
+
+/// Lets go of one hold of the run's lock.
+Method LetGo(id As %String)
+{
+	Do ##class(OcuTalon.Test.Watch.Case).LetGoRun(id)
+}
+
+/// Lets go of every hold.
+Method FreeRuns()
+{
+	Do ##class(OcuTalon.Test.Watch.Case).FreeRuns()
+}
+
+/// The stored end of the FixRun as "ended|Total|Resent|Completed|FailedAgain|Skipped|Interrupted|Reason", ended being 1 when EndedAt is set; "<none>" for no such run.
+ClassMethod Stored(id As %String) As %String
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT EndedAt, Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason FROM OcuTalon_Data.FixRun WHERE ID = ?", id)
+	If 'rs.%Next() Quit "<none>"
+	Quit (rs.%GetData(1) '= "")_"|"_+rs.%GetData(2)_"|"_+rs.%GetData(3)_"|"_+rs.%GetData(4)_"|"_+rs.%GetData(5)_"|"_+rs.%GetData(6)_"|"_+rs.%GetData(7)_"|"_rs.%GetData(8)
+}
+
+/// The state of the request's row.
+ClassMethod StateOf(ref As %String) As %String
+{
+	Quit $Piece(..Row(ref), "|", 1)
+}
+
+/// The calls of Close that Test.Fix.RunProbe recorded, comma-separated.
+ClassMethod ClosedList() As %String
+{
+	Set closed = ##class(OcuTalon.Test.Fix.RunProbe).Closed()
+	Set text = ""
+	For i = 0:1:closed.%Size() - 1 Set text = text _ $Select(text = "": "", 1: ",") _ closed.%Get(i)
+	Quit text
+}
+
+/// The number of Action entries that Test.Fix.RunProbe recorded.
+ClassMethod AuditCount() As %Integer
+{
+	Quit ##class(OcuTalon.Test.Fix.RunProbe).Audits().%Size()
+}
+
+/// A canned status of count copies with the ids first, first + 1 and so on, all in the status with no error text and the time at (a header's timeProcessed), as a dynamic object.
+ClassMethod CannedAt(first As %Integer, count As %Integer, status As %String, at As %String) As %DynamicObject
+{
+	Set statuses = {}
+	For i = 0:1:count - 1 Do statuses.%Set(first + i, {"status": (status), "error": "", "target": "OrdersFromPartner", "at": (at)})
+	Quit statuses
+}
+
+/// The UTC stamp that lies the number of seconds (negative for earlier) from now.
+ClassMethod Stamp(seconds As %Integer) As %String
+{
+	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
+}
+
+/// The FixResult of the request among the results of a Sweep, "" when there is none.
+ClassMethod ResultFor(results As %ListOfObjects, ref As %String) As OcuTalon.Fix.Msg.FixResult
+{
+	Set found = ""
+	For i = 1:1:results.Count() {
+		If results.GetAt(i).ApprovalRef = ref {
+			Set found = results.GetAt(i)
+			Quit
+		}
+	}
+	Quit found
+}
+
+/// The FixResult as the dynamic object that Render takes (the fields of the probe's records).
+ClassMethod AsSent(result As OcuTalon.Fix.Msg.FixResult) As %DynamicObject
+{
+	Quit {"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason)}
+}
+
+/// Asserts the FixResult that a Sweep gave for a marked run: the counts ("total|resent|completed|failedAgain|skipped"), the Interrupted flag of the result and of the stored run
+/// (Interrupted is the stored count of the targets cut off), the key and the text, the request closed interrupted and the run ended.
+Method AssertCut(results As %ListOfObjects, ref As %String, counts As %String, flag As %Boolean, cutOff As %Integer, key As %String, text As %String, label As %String)
+{
+	Set result = ..ResultFor(results, ref)
+	Do $$$AssertTrue($IsObject(result), label_": a FixResult is returned")
+	If '$IsObject(result) Quit
+	Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, counts, label_": the counts "_counts)
+	Do $$$AssertEquals(+result.Final_"|"_+result.Interrupted, "1|"_flag, label_": final, Interrupted "_flag)
+	Set got = ..Render(..AsSent(result), ..StateOf(ref), .gotKey)
+	Do $$$AssertEquals(gotKey, key, label_": the key is "_key)
+	Do $$$AssertEquals(got, text, label_": the text")
+	Do $$$AssertEquals(..Row(ref), "failed|interrupted|finished", label_": the request is failed with the Result interrupted")
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(ref)
+	Do $$$AssertEquals(..Stored(run.%Id()), "1|"_$Piece(counts, "|", 1)_"|"_$Piece(counts, "|", 2)_"|"_$Piece(counts, "|", 3)_"|"_$Piece(counts, "|", 4)_"|"_$Piece(counts, "|", 5)_"|"_cutOff_"|"_result.Reason, label_": the run is ended with the same counts and Interrupted "_cutOff)
+}
+
+/// Asserts the FixResult that a Sweep gave for a run that no waiter ended: the counts, the reason, the key and the text, the Interrupted flag 0 and the state of the request's row.
+Method AssertDone(results As %ListOfObjects, ref As %String, incident As %String, counts As %String, reason As %String, key As %String, text As %String, row As %String, label As %String)
+{
+	Set result = ..ResultFor(results, ref)
+	Do $$$AssertTrue($IsObject(result), label_": a FixResult is returned")
+	If '$IsObject(result) Quit
+	Do $$$AssertEquals(result.IncidentRef_"|"_+result.Final_"|"_+result.Interrupted, incident_"|1|0", label_": it names the incident, is final and is not interrupted")
+	Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, counts, label_": the counts "_counts)
+	Do $$$AssertEquals(result.Reason, reason, label_": the reason")
+	Set got = ..Render(..AsSent(result), ..StateOf(ref), .gotKey)
+	Do $$$AssertEquals(gotKey, key, label_": the key is "_key)
+	Do $$$AssertEquals(got, text, label_": the text")
+	Do $$$AssertEquals(..Row(ref), row, label_": the request is "_row)
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(ref)
+	Do $$$AssertEquals(..Stored(run.%Id()), "1|"_$Piece(counts, "|", 1)_"|"_$Piece(counts, "|", 2)_"|"_$Piece(counts, "|", 3)_"|"_$Piece(counts, "|", 4)_"|"_$Piece(counts, "|", 5)_"|0|"_reason, label_": the run is ended with the same counts and Interrupted 0")
+}
+
+/// The number of Type 4 lines in which Sweep said that it ended the run of the request, since the test began.
+Method SweptLines(ref As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter("OcuTalon.Fix.Run", "LOGSWEPT")_ref)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The number of Type 4 lines in which FixExecutor said that it left the run of the request (End refused it), since the test began.
+Method EndedLines(ref As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGENDED")_ref)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// The number of Type 4 lines of the executor's refusals in the event log since the test began.
 Method Infos() As %Integer
 {
@@ -1441,6 +2214,13 @@ Method RemoveLogs()
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Finish", $Parameter(..#PROBE, "LOGRUN"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGRUN"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Wait", $Parameter(..#PROBE, "LOGWAIT"))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGENDED"))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter("OcuTalon.Fix.Run", "LOGSWEPT"))
+	For method = "EndMarked", "EndLeft" {
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, method, $Parameter("OcuTalon.Fix.Run", "LOGCLOSE"))
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, method, $Parameter("OcuTalon.Fix.Run", "LOGREAD"))
+	}
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP"))
 }
 
 }

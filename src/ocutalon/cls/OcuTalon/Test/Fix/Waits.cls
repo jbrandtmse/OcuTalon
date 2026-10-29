@@ -161,19 +161,6 @@ Method TestDryRunAnsweredDuringAWait()
 	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "and the incident is resolved")
 }
 
-/// Waits up to WAITRUN seconds, polling every half second, until the request's FixRun holds at least count copies and a ResentAt (the run waits for them); the run as
-/// Runs gives it, or "" when there is none.
-Method WaitResent(incidentRef As %String, approvalRef As %String, count As %Integer) As %DynamicObject [ Private ]
-{
-	Set end = $ZHorolog + ..#WAITRUN
-	For {
-		Set run = ..RunOf(incidentRef, approvalRef)
-		If ($IsObject(run) && (run.copies.%Size() '< count) && (run.resentAt '= "")) || ($ZHorolog > end) Quit
-		Hang 0.5
-	}
-	Quit run
-}
-
 /// Waits up to JOBSWAIT seconds, polling every half second, until the item has count alive jobs; the number of its alive jobs then.
 Method WaitJobs(item As %String, count As %Integer) As %Integer [ Private ]
 {
@@ -184,28 +171,6 @@ Method WaitJobs(item As %String, count As %Integer) As %Integer [ Private ]
 		Hang 0.5
 	}
 	Quit jobs
-}
-
-/// Waits up to 10 seconds, polling every quarter second, until every copy (an array of header ids of OCUORDERS) is Queued; the number of copies that are Queued then.
-Method WaitQueued(copies As %DynamicArray) As %Integer [ Private ]
-{
-	Set end = $ZHorolog + 10
-	For {
-		Set queued = 0
-		For i = 0:1:copies.%Size() - 1 {
-			Set copy = ..Header(..#ORDERS, copies.%Get(i))
-			If $IsObject(copy) && (copy.status = $$$eMessageStatusQueued) Set queued = queued + 1
-		}
-		If (queued = copies.%Size()) || ($ZHorolog > end) Quit
-		Hang 0.25
-	}
-	Quit queued
-}
-
-/// The seconds from the stamp (UTC to the second) to now, in stamps, as the executor's deadline counts them.
-ClassMethod SecondsSince(stamp As %String) As %Integer [ Private ]
-{
-	Quit ##class(OcuTalon.Watch.Settle).Seconds(##class(OcuTalon.Data.Time).NowUtc()) - ##class(OcuTalon.Watch.Settle).Seconds(stamp)
 }
 
 }

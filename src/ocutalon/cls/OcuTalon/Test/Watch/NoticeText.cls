@@ -17,6 +17,9 @@
 ///     they and the text they render are the UX fixtures' exactly (among them "Nothing was resent: OcuTalon isn't allowed to resend messages in that production.
 ///     Nothing was changed." and "All 50 orders went through."); an empty count is 0, remaining is at least 0, and slots that cannot be built (no reason where the
 ///     key renders one, a noun without both forms, a key that is no result key) give "" and an error;
+///   - TestRestartAndResendTexts (Story 7.5; AC 6): the keys result.failedAndSkipped, result.stillResending and result.interrupted are in OcuTalon.Msg.Catalog.Watch with the slots that
+///     Notice.ResultSlots builds for them, and render through Catalog.Render (the path every *Out operation uses) on web, phone, mailbox and telegram as P16's text (EXPERIENCE.md, Results),
+///     and as the count-of-one form of Epic 0's burn-down: "... so I skipped it", "has gone through so far" and "The other one needs a new approval.";
 ///   - TestApprovedText (Story 7.3; AC 1): answered.approved renders "Approved from the web chat at 14:20 ET." (the page wording has no full stop);
 ///   - TestEveryChannel: every variant renders on web, phone, mailbox and telegram;
 ///   - TestGroupLines: two groups give two lines in order, a group with no NoticeCount is left out, an empty error summary is written as no error text, and each line's
@@ -140,6 +143,23 @@ ClassMethod Result(fields As %DynamicObject) As OcuTalon.Fix.Msg.FixResult
 Method AssertKey(state As %String, fields As %DynamicObject, key As %String, label As %String)
 {
 	Do $$$AssertEquals($ClassMethod(..#NOTICE, "ResultKey", state, ..Result(fields)), key, label_": "_key)
+}
+
+/// The names of the members of the object, sorted, comma-separated.
+ClassMethod Names(object As %DynamicObject) As %String
+{
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.name) {
+		Set sorted(name) = ""
+	}
+	Set names = ""
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name))
+		Quit:name=""
+		Set names = names _ $Select(names = "": "", 1: ",") _ name
+	}
+	Quit names
 }
 
 /// The members of the object (slots) as "name=value,..." in name order, an object value as its JSON text.
@@ -386,6 +406,48 @@ Method TestResultKeys()
 	Do $$$AssertStatusNotOK(sc, "so is no noun")
 	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "incident.noFix", ..Result({"Final": 1, "Total": 3}), noun, .sc)
 	Do $$$AssertStatusNotOK(sc, "a key that is no result key is refused")
+}
+
+Method TestRestartAndResendTexts()
+{
+	Set fixtures = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures").Data)
+	Set forms = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||OneForms").Data)
+	Set noun = {"one": "order", "other": "orders"}
+	Set reason = "the order date still wasn't accepted"
+
+	// the key, the state of the request and the result of a run; the texts of P16 and of the count-of-one form
+	Set cases = $ListBuild(
+		$ListBuild("result.failedAndSkipped", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""FailedAgain"":2,""Skipped"":3,""Reason"":"""_reason_"""}", "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.", "47 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval."),
+		$ListBuild("result.stillResending", "executing", "{""Total"":50,""Resent"":50,""Completed"":30}", "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.", "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done."),
+		$ListBuild("result.interrupted", "failed", "{""Interrupted"":1,""Total"":50,""Resent"":50,""Completed"":30}", "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval.", "The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval."))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set key = $List(case, 1)
+		Set entry = ##class(OcuTalon.Msg.Catalog).Entry(key, .sc)
+		Do $$$AssertStatusOK(sc, key_": the catalog has an entry")
+		If '$IsObject(entry) Continue
+		Do $$$AssertEquals(entry.class, "OcuTalon.Msg.Catalog.Watch", key_": in OcuTalon.Msg.Catalog.Watch")
+		Set result = ..Result({}.%FromJSON($List(case, 3)))
+		Do $$$AssertEquals($ClassMethod(..#NOTICE, "ResultKey", $List(case, 2), result), key, key_": Notice.ResultKey picks it")
+		Set slots = $ClassMethod(..#NOTICE, "ResultSlots", key, result, noun, .sc)
+		Do $$$AssertStatusOK(sc, key_": ResultSlots builds the slots")
+		If '$IsObject(slots) Continue
+		Do $$$AssertEquals(..Names(slots), ..Names(entry.slots), key_": the slots that ResultSlots builds are the ones the entry declares")
+		Do $$$AssertEquals(..Flat(slots), ..Flat(fixtures.%Get(key).slots), key_": and the UX fixture's")
+		For channel = "web", "phone", "mailbox", "telegram" {
+			Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots.%ToJSON(), channel, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
+			Do $$$AssertEquals(text, $List(case, 4), key_" on "_channel_": P16's text")
+		}
+
+		// the count-of-one form
+		Set form = forms.%Get(key)
+		For channel = "web", "phone", "mailbox", "telegram" {
+			Set text = ##class(OcuTalon.Msg.Catalog).Render(key, form.slots.%ToJSON(), channel, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders its one form on "_channel)
+			Do $$$AssertEquals(text, $List(case, 5), key_" on "_channel_": the count-of-one form")
+		}
+	}
 }
 
 Method TestApprovedText()

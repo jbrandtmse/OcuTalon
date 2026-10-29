@@ -16,7 +16,7 @@
 /// and FinishExecution. It is no item of any production.
 /// The faults of the waiter: WaitingEmpty is a number of calls of Waiting that answer with no run (a run saved while the holder unlocks), WaitingThrows a number of calls that
 /// throw (a read of the waiting runs that fails), and ResentSaveFails makes the canned Carry spoil the run in memory after it registered its copies, so that the save of ResentAt fails.
-/// WaitingNow is the public Waiting. The faults of the end: EndSaveFails makes Statuses spoil the run in memory, so that the save of its counts in Finish fails, and
+/// WaitingNow is the public Waiting and LookNow the public Look (Story 7.5: a look at a run that is marked as interrupted ends in a Finish that End refuses). The faults of the end: EndSaveFails makes Statuses spoil the run in memory, so that the save of its counts in Finish fails, and
 /// CloseMoves, a state, is written into the request's row on disk (SQL) before the product's Close, so that FinishExecution refuses it. StartMoves, a state, is written into the
 /// row on disk (SQL) before Start fails with StartIs, so that the row the handler holds is not the row on disk (another job or a cancel moved it). SendResult also records,
 /// from disk, whether the run's FixRun has an EndedAt (storedEnd 1 or 0) and the request's State (storedState) at the send.
@@ -141,6 +141,12 @@ ClassMethod MoveRow(ref As %String, state As %String) [ Private ]
 Method WaitingNow() As %List
 {
 	Quit ..Waiting()
+}
+
+/// Looks at the copies of the waiting run with the id (the product's Look, which is private): the number of copies that still run, or "" when the run ended.
+Method LookNow(id As %String) As %Integer
+{
+	Quit ..Look(id)
 }
 
 /// The canned copies (see the class description) with the outcome StatusOutcome (read by default); the product's read when none is set. With EndSaveFails the

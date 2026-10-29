@@ -2,12 +2,22 @@
 title: 'A resend cut short by a restart says how far it got'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f84b5474b99faa7b52f71bea26b198df972e07af'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss.
+    evidence: |-
+      The class stops and starts FixExecutor (TempStopOwn, TempStartOwn, up to two 10-second lock waits) between R1's ResentAt and the restart of the copies' item, then asserts
+      the elapsed seconds are at most MARGIN. It passed twice on the developer machine (85 s for the class) and printed no elapsed value. A CI run that shows the elapsed seconds (the
+      assertion message names it on a failure) would settle it; if it fails there, the margin or the order of the steps needs to change.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Fix/Stopped.cls:24
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -352,6 +362,49 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 
 ## Review Triage Log
 
+### 2026-10-29 - Review pass
+- verdicts: 43 findings - high 0, medium 8, low 29, false 5, maybe-false 1
+- findings (B = blind hunter, E = edge case hunter, G/O/R/V/H = verification gap, I = intent alignment; a group shares one root cause):
+  - Group A, EndLeft ends the run, then closes the request:
+    - `[low]` `patch` B1: a failed close leaves a finished run with an executing request - the Always bullet orders End, then the close, and residual risk 4 names it (needs a FinishExecution fault); the order stays, the notice is conservative (still resending), no false all-clear; patched: the test now reads the notice from the row
+    - `[low]` `patch` E1: same, and a close that throws loses the entry and the result - patched: the close is inside a Try/Catch (entry and result still come)
+    - `[medium]` `patch` G3: `AssertDone` rendered run C's notice with the literal state done while its row stays executing - patched: it renders from the row (result.stillResending for C)
+    - `[low]` `patch` I4: the key in the close-failure case (same as G3)
+    - `[low]` `patch` I5: a thrown close in the DW-395 branch (same as E1)
+  - Group B, Started() and the start boundary:
+    - `[medium]` `patch` B6 / G2: the real `Started()` had no direct test - patched: `Executor.TestStartedIsTheProductionStart`
+    - `[low]` `patch` I1, I2: the restart is played and the start comparison was read from code - covered by the same test and Task 0 (a)
+  - Group C, failure branches without tests:
+    - `[medium]` `patch` B7 / G1: a failed save of the end, a failing audit write, End and Mark refused by a held lock - patched: `Executor.TestSweepGoesOnWhenTheEndFails`, the lock refusals in `TestSweepSkipsALockedRun`, seams `SpoilSave` and `AuditThrows` in `RunProbe`
+    - `[low]` `patch` G4: a run with no StartedAt and one that started in the second of the start were untested - patched in `TestInterruptMarksOnlyRunsCutByTheRestart`
+  - Group D, tests that could not fail:
+    - `[medium]` `patch` V1: the "left alone" test passes if Sweep throws on every run - patched: it asserts no warning and the read count (4)
+    - `[medium]` `patch` H1: `Restart` read the step's warnings without draining leftovers of earlier tests - patched: it drains them first
+  - Group E, structure:
+    - `[low]` `patch` B8: the new header bullets sat between FixExecutor's outcome list and its sub-bullets - patched: moved after them
+    - `[medium]` `patch` B9: the run-lock hold helpers were written twice (Test.Fix.Executor, Test.Watch.Case) - patched: one set of class methods in `Case`, called by the Executor test
+  - `[low]` `reject` B2, E3: the final result is lost when its send fails or Checks stops after the end is saved - spec-bound (a failed send logs LOGFIX and the others go; never a second result; no stored property, so no unsent marker); the same at-most-once as FixExecutor's own Report
+  - `[low]` `reject` B3: a marked run ends at the first Tick although a copy may still complete - spec-bound (V2, residual risk 3: counted as cut off, never as completed)
+  - `[low]` `reject` B4, E5: runs that nothing ends stay in Unended - the Always bullets leave them alone; the table has one row per approved fix, so the scan is small
+  - `[low]` `reject` B5: MarkOne skips a run with no StartedAt or no row without a problem line - the intent takes only runs with a start before and an executing row
+  - `[low]` `reject` B10: the spec's Auto Run Result is stale - finalize writes it (a fix that edits the spec)
+  - `[low]` `reject` E2: the Catch body of Sweep itself throws - needs a storage fault; the fix adds a guard
+  - `[false]` `reject` E4: End gives 0 for a lock timeout or an exception, so the waiter drops the run - the lock is held by the job that ends the run, and for an exception Sweep's unmarked branch ends the run after its wait
+  - `[false]` `reject` E6: a copy's timeProcessed with a fraction - Reader.cls:339 always gives "YYYY-MM-DDTHH:MM:SSZ"; Task 0 (b) measured it
+  - `[false]` `reject` E7 (claim): AC 2 says Interrupted set - V2 (veto U-154, kept) sets it when targets were cut off; a run that lost nothing reports its own result
+  - `[low]` `reject` G5: no test for a send that throws in Fixes - SendRequestAsync returns a status and the failed-send case is pinned
+  - `[maybe-false]` `defer` O1: Stopped's 50-second margin between ResentAt and the restart of OrdersFromPartner could fail on a slow runner - the pass printed no value; settled by `used` in a CI run (medium if true: a flaky CI run)
+  - `[low]` `reject` O2: the acquire-probe of the wait lock could land before the waiter takes it - a window of microseconds, and WaitQueued runs first
+  - `[low]` `reject` O3: FreeRuns runs before the fixtures are deleted - only on an early Quit, where the test has failed already
+  - `[low]` `reject` O4: Hold ignores a failed TakeRun - the fixture run is new, so nobody holds its lock
+  - `[low]` `reject` R1, R2, R3, R4, R5: parts of AC 1 to AC 5 with no own mutation line - Rule 19 asks one demonstrated mutation per AC, and each AC has at least one; AC 3's Ticks are guarded three times over, which the AC 3 line says
+  - `[low]` `reject` V2: Stopped's second lock check passes whatever the product does - its first check pins the property
+  - `[low]` `reject` I3: exactly-once under contention is tested in sequence - the lock refusals are now pinned (Group C)
+  - `[low]` `reject` I6: a failed save in Sweep gives no result - decided in-stage (no duplicate result); now tested (Group C)
+  - `[low]` `reject` I7: Mark stores at least 1, an empty StartedAt is left, Started falls back to the instance start - decided in-stage; the last two are now tested
+  - `[false]` `reject` I8: helpers moved into Case may clash with a subclass - no other test class defines them
+  - `[false]` `reject` I9: SendFixResult is typed on FixResult - a type reference; Checks calls only Fix.Run.Sweep() (Test.Bridge.CodeRules passes)
+
 ## Design Notes
 
 **V1. Sweep ends the runs that a stopped waiter left (DW-395). For the lead's ruling: AD-16's Rule names two kinds of run that Sweep reports, and this is a third.**
@@ -416,6 +469,14 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - **The restart in the tests.** The test plays the run that was cut short, with FixExecutor stopped, as the criterion says ("a test leaves a `FixRun` row running, then runs the `Reconcile` step"). No live restart unit is needed, so Epic 8's and Epic 15's units stay as they are.
 - **Probe tests hold their fixture runs' locks,** because the production's real Checks sweeps every minute on a fresh stack.
 - **`ReconcileWith(class)`** lets a probe test drive the declaration. `Reconcile()` passes it `OcuTalon.Fix.Run`.
+- **Implement stage (small, reversible, inside this story):**
+  - **A failed save of the end in Sweep.** When `End` gives 1 with a failed save, Sweep logs one Type 3 warning (`LOGSAVE`), sends no result and leaves the run for the next Tick, so a result never goes out twice for a run. `Finish` goes on as Story 7.4 did.
+  - **`End` and `Mark` give 0 with the reason in `sc`** (an error status) for a refusal, a lock they cannot take, and, for `Mark`, a failed save. `Finish` puts that reason in its `LOGENDED` line. `Mark` stores `Interrupted` as at least 1.
+  - **The run lock** has two public class methods, `Executor.TakeRun(id)` and `FreeRun(id)`, which `End`, `Mark`, `Fix.Run` and the tests use.
+  - **`Interrupt` leaves a run with an empty `StartedAt`.** `Started()` drops the fraction of `^Ens.Runtime("StartTime")` ("YYYY-MM-DD hh:mm:ss.fff", UTC) and falls back to the instance start.
+  - **`Fix.Run`'s log texts** are `LOGCLOSE`, `LOGREAD`, `LOGSAVE`, `LOGAUDIT`, `LOGSWEEP` and `LOGSWEPT` (Type 4).
+  - **Test helpers shared by the live classes** moved to `Test.Watch.Case`: `WaitResent`, `WaitQueued` and `SecondsSince` (lifted from `Test.Fix.Waits`), `RequestState`, `HoldRun`, `LetGoRun`, `FreeRuns`, `WaitFixResults` and `WaitResultNotices`. `Restart` also calls `End` on the ended run, because Sweep's own guards keep a second result from going out, so Ticks alone cannot show a broken `End`.
+  - **Review pass (implement stage).** `Fix.Run.EndLeft` closes the request inside a Try/Catch, so a close that throws logs `LOGCLOSE` and the entry and the result still come, as a close that fails does. `Test.Watch.Case` holds the one set of run-lock helpers (`HoldRun`, `LetGoRun`, `FreeRuns`, class methods over `^||RunHolds`), and `Test.Fix.Executor` calls them. The close-first order stays for the marked branch only: the unmarked branch ends, then closes, as the Always bullet says (residual risk 4).
 
 **Ledger inbox:**
 - DW-395: AC 4, the "Waiter stopped" row and V1.
@@ -552,9 +613,41 @@ Conventions: "Result texts", "Audit entries", "Messages" and "Redaction".
 | AC 6 | `result.interrupted`'s one form reads "The other 1 need a new approval." | `NoticeText.TestRestartAndResendTexts` |
 | FixExecutor's refusal | `Finish` ignores `End`'s refusal | `Executor.TestEndRefusesAnEndedOrMarkedRun` |
 
+**Task 0 results (implement stage, 2026-10-29; a scratch measurement class on fresh throwaway e7s5i, removed afterwards).**
+- (a) `^Ens.Runtime("StartTime")` is "2026-10-29 17:11:27.941": UTC, "YYYY-MM-DD hh:mm:ss.fff". `Ens.Director.RestartProduction` changed it to "2026-10-29 17:12:15.879". A FixRun of an Execute handled after that has StartedAt "2026-10-29T17:12:26Z", after "2026-10-29T17:12:15Z", which is `Started()`'s conversion (fraction dropped). `Started()` uses it; the instance start (now less `$ZHOROLOG` seconds) is only the fallback.
+- (b) `timeProcessed` of a Completed copy is its completion time: the copies completed in the second between `NowUtc` before ("2026-10-29T17:11:50Z") and after ("2026-10-29T17:11:50Z"), and their timeProcessed is "2026-10-29T17:11:50Z". A Queued copy's timeProcessed equals its timeCreated ("2026-10-29T17:11:46Z"). So the DW-395 branch can tell its runs from Story 30.5's; no halt.
+- (c) An Execute sent to FixExecutor stopped by `TempStopConfigItem` is queued (header status 2), no IncidentManager warning is logged, R1 stays approved, and after the item starts the Execute is handled (R1 ran to done).
+- (d) Stopping FixExecutor while its waiter waits: the waiter let go of `^OcuTalon.Fix.Wait` within 0.08 s; the run stayed executing with ResentAt set, no EndedAt and no FixResult; after the item was started again nothing held the lock, and R1 stayed executing after its copies completed (DW-395, before the fix).
+- (e) Asserted live by `Restart` and `Stopped`: the FixResult that Checks sent has source Checks, target IncidentManager, SessionId the incident's TraceHeaderId and SuperSession the request's TraceRef. Checks' own session is back after each send (`Runs.TestTickSendsTheSweptResults`).
+- (f) `EndedAtGetStored(id)` and `InterruptedGetStored(id)` read the stored values ('' and '') while the job held an object with EndedAt "2001-01-01T00:00:00Z" and Interrupted 5; after the save they read those values.
+- (g) Class times on this machine (fresh stack ready in 84 to 93 s): Restart 38 s, Stopped 85 s, Results 44 s, Waits 42 s, Partial 38 s, Runs 60 s, Execute 53 s, Checks.Heartbeat 3.5 s, Bridge.Approval 28 s, Install.Registry 2.4 s. Warm: Executor 20 s, Checks.Runs 0.1 s, NoticeText 0.2 s, Kind 0.1 s, CodeRules 1.5 s, Lifecycle 0.2 s, Payloads 0.3 s. No class passes 180 s, so none is split.
+
+**Pinning mutations (implement stage; each applied on a throwaway, observed red, reverted byte-identically from a backup, with `git status --short` and `git diff --stat` unchanged).**
+- mutation: `Install.Step.Fix.Reconcile` renamed away -> `Restart.TestRestartSaysHowFarItGot` red (R1 not failed, run not marked, no FixResult)
+- mutation: `Interrupt` takes every unended executing run whatever its `StartedAt` -> `Executor.TestInterruptMarksOnlyRunsCutByTheRestart` red and `Restart.TestRestartSaysHowFarItGot` red (the first pass marks the run)
+- mutation: `Waiting` keeps marked runs -> `Executor.TestEndRefusesAnEndedOrMarkedRun` red
+- mutation: `Tick` skips `Fixes()` -> `Runs.TestTickSendsTheSweptResults` red and `Restart.TestRestartSaysHowFarItGot` red (no FixResult)
+- mutation: Sweep counts and returns a marked run without closing its executing row -> `Executor.TestSweepClosesTheRowFirst` red
+- mutation: `Fixes` keeps the process's own session and SuperSession -> `Runs.TestTickSendsTheSweptResults` red and `Restart.TestRestartSaysHowFarItGot` red (the header's session)
+- mutation: `Interrupted` = `Total` - `Resent` -> `Executor.TestSweepInterruptedCounts` red
+- mutation: `End` ignores the stored `EndedAt` -> `Executor.TestSweepReportsAnInterruptedRunOnce` and `Executor.TestEndRefusesAnEndedOrMarkedRun` red and `Restart.TestRestartSaysHowFarItGot` red (its direct `End` on the ended run; the Ticks alone stay green, because Sweep's `Unended` and `One` guards also keep the run from a second result)
+- mutation: Sweep takes no run lock -> `Executor.TestSweepSkipsALockedRun` red
+- mutation: Sweep has no unmarked branch -> `Executor.TestSweepEndsARunNoWaiterEnded` red and `Stopped.TestRunOfAStoppedWaiterEnds` red
+- mutation: the unmarked branch also takes runs inside their wait -> `Executor.TestSweepLeavesRunsOfTheWaiterAndOfStory305` red and `Stopped.TestRunOfAStoppedWaiterEnds` red (the Tick inside the wait)
+- mutation: the unmarked branch ignores `lastAt` -> `Executor.TestSweepLeavesRunsOfTheWaiterAndOfStory305` red
+- mutation: `result.interrupted`'s one form reads "The other 1 need a new approval." -> `NoticeText.TestRestartAndResendTexts` red
+- mutation: `Finish` ignores `End`'s refusal -> `Executor.TestEndRefusesAnEndedOrMarkedRun` red
+- mutation (review pass): `Fix.Run.Ended` gives 1 after a failed save -> `Executor.TestSweepGoesOnWhenTheEndFails` red
+- mutation (review pass): `Fix.Run.Entry` lets a failed audit write escape -> `Executor.TestSweepGoesOnWhenTheEndFails` red
+- mutation (review pass): `Fix.Run.EndLeft` lets a close that throws escape -> `Executor.TestSweepGoesOnWhenTheEndFails` red
+- mutation (review pass): `Fix.Run.Started` ignores `^Ens.Runtime("StartTime")` -> `Executor.TestStartedIsTheProductionStart` red
+- mutation (review pass): `Interrupt` takes a run with no `StartedAt` -> `Executor.TestInterruptMarksOnlyRunsCutByTheRestart` red
+- mutation (review pass): `EndLeft` throws for every run -> `Executor.TestSweepLeavesRunsOfTheWaiterAndOfStory305` red (its no-warning and read-count checks; it stayed green before them) and `TestSweepGoesOnWhenTheEndFails` red
+- mutation (review pass): `Executor.End` does not take the run lock -> `Executor.TestSweepSkipsALockedRun` red
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-29).**
@@ -573,3 +666,32 @@ Also:
 - There is no NFR tripwire.
 - Nothing contended is touched, and there is no footprint extension. The Reconcile declaration lives in `Install/Step/Fix.cls`, this epic's own.
 - An optional split is offered: a sibling 7.7 would take DW-395.
+
+**Implement stage (2026-10-29).**
+- **Summary.** A run that a restart cut short, or whose waiter stopped, now ends exactly once and tells the user how far it got:
+  - FixExecutor's `End` and `Mark` are the one writer of a run's end, under a per-run lock (`^OcuTalon.Fix.Run(<id>)`).
+  - The Fix area's `Reconcile()` (`Install.Step.Fix`) calls `Fix.Run.Interrupt`: it marks each run that started before the production's current start, and closes its request `failed` with the result `interrupted`. It resends and resumes nothing.
+  - On each Tick, `Checks.Fixes()` takes the final FixResults of `Fix.Run.Sweep()` and sends them to IncidentManager in the incident's trace session. Sweep ends a marked run with its counts (`Interrupted` = targets cut off) and, for DW-395, a run that no waiter ended when its copies were all done inside its wait.
+  - No stored property, item, message class, catalog key or public text was added (V1 and V2 as ruled; `Fix.Run` is the one new product class).
+- **Files changed.**
+  - Product: `Fix/Executor.cls` (End, Mark, TakeRun, FreeRun, public Read, Tally, FailReason, ActionEntry and ResultOf; Finish calls End; Waiting leaves out marked runs), `Fix/Run.cls` (new: Interrupt, Sweep and the seams), `Install/Step/Fix.cls` (Reconcile, ReconcileWith), `Checks/Process.cls` (Fixes and its seams, called between the quiet sweep and the due checks).
+  - Docs only: `Data/FixRun.cls`, `Fix/Msg/FixResult.cls`, `Live/Payload/Part/IncidentRequestResult.cls`, `Watch/IncidentManager.cls`.
+  - Tests: `Test/Fix/RunProbe.cls`, `Test/Fix/Restart.cls` and `Test/Fix/Stopped.cls` (new); `Test/Fix/Executor.cls` (11 new tests), `Test/Fix/ExecutorProbe.cls`, `Test/Fix/Waits.cls` (three helpers moved to `Case`); `Test/Checks/Probe.cls`, `Test/Checks/Runs.cls`; `Test/Watch/Case.cls`, `Test/Watch/NoticeText.cls`.
+- **Review.** 43 findings from four layers: high 0, medium 8, low 29, false 5, maybe-false 1 (the Review Triage Log has each row).
+  - Patched (five groups, all medium): the close inside `EndLeft` is in a Try/Catch and the test reads the notice from the row's state (group A); `Started()` has its own test (B); a failed save of the end, a failing audit write, a close that throws and a held lock now have tests (C); the "left alone" test checks no warning and the read count, and `Restart` drains leftover step warnings (D); the header bullets moved and the run-lock helpers are one set in `Test.Watch.Case` (E).
+  - Deferred: one (`Test.Fix.Stopped`'s 50-second margin on a slow runner, maybe-false, medium if true), in the frontmatter `deferred:` list.
+  - Rejected with a reason: 26 (spec-bound at-most-once and the close order, residual risks 3 and 4, Rule 19 per-AC lines, theoretical windows, and five false findings).
+- **Follow-up review recommended: true.** Five medium groups were patched, and two touched shared code that every `Test.Watch.Case` class runs (the run-lock holds are now process-global class methods, called from each `OnAfterOneTest`) or the running production (`Fix.Run.EndLeft`). The loop, both shards and `production-restart` passed after the patches, but a second pass should confirm the dedupe and the new failure tests.
+- **Verification performed.**
+  - Task 0 (a) to (g), recorded under `## Verification`; no halt condition.
+  - Slot A: all changed classes loaded and compiled before the review; the final load follows the commit.
+  - The `(loop)` lines after the last patch, all passed: warm `Test.Fix.Executor` (24.9 s; green again after the seven reviewer-pass mutations were reverted), `Test.Checks.Runs`, `Test.Watch.NoticeText`, `Test.Fix.Kind`, `Test.Bridge.CodeRules`, `Test.Watch.Lifecycle`, `Test.Live.Payloads`; fresh `Test.Fix.Restart` (40.2 s), `Test.Fix.Stopped` (84.5 s), `Test.Checks.Heartbeat` (6.0 s), `Test.Fix.Results` (42.1 s), `Test.Fix.Waits` (41.3 s), `Test.Fix.Partial` (37.7 s), `Test.Fix.Runs` (61.1 s), `Test.Fix.Execute` (55.7 s), `Test.Bridge.Approval` (28.4 s), `Test.Install.Registry` (2.5 s). A fresh stack was ready in 98 to 137 s.
+  - `(once)`: `shard lane-a --part k/12`, 12 parts, 89 classes, all passed (277, 212, 148, 111, 136, 275, 301, 244, 117, 187, 267 and 185 s); `shard lane-b --part k/4`, 78 classes, all passed (156, 105, 343 and 220 s); `live production-restart` passed (the Reconcile step ran with Fix's `Reconcile()`); `bash ci/checks.sh` passed (all scripts).
+  - Matrix Test Audit: every matrix row has a covering test that ran and passed (Restart, Stopped, the Executor probe tests, `Checks.Runs.TestTickSendsTheSweptResults`, `NoticeText.TestRestartAndResendTexts`).
+  - Pinning mutations: 14 from the implement pass and 7 from the review pass, each applied on a throwaway, red, reverted byte-identically; the lines are under `## Verification`.
+  - Both stacks (`e7s5iw`, `e7s5i`) were torn down.
+- **Residual risks.**
+  - The spec's residual risks 1 to 6 stand.
+  - A close that fails after the end is saved in `EndLeft` leaves the request executing with a "still resending" notice (residual risk 4; the test now says so).
+  - A final FixResult is sent at most once: if the send fails after the end is saved, the incident stays `fixing` (spec-bound; no stored property to mark it).
+  - `Test.Fix.Stopped` passes with a margin of 50 seconds from `ResentAt` (deferred above); the first CI run settles it.

@@ -23,10 +23,10 @@ Include (EnsConstants, EnsErrors)
 ///          made; the kind's Execute resends a repaired copy of each target that passed (Fix.Kind.RepairResend: through Resend, below) and registers each copy's
 ///          header id on the FixRun (Copies). A re-check that cannot read the production, or an error before any copy was made, ends like a run that cannot start,
 ///          with the reason NOREAD and one Type 3 warning (LOGRECHECK).
-///     Every run that ends, ends once, in Finish: the counts and EndedAt are saved on the FixRun, the request is closed through Approval.FinishExecution (done or failed; a
-///     failed one also from approved), one OcuTalon Action entry is written through Bridge.Audit (the WriteAudit seam: the row's kind, the production and namespace
-///     of the incident, the result, the counts, the request's Ref, the approver and the channel), and the one final FixResult goes to IncidentManager (Report),
-///     in the incident's trace session (AD-26), also when another job finishes it. A failed save (LOGRUN), close (LOGFINISH), audit write (LOGAUDIT) or send
+///     Every run that ends, ends once, in Finish: the counts and EndedAt are saved on the FixRun (End), the request is closed through Approval.FinishExecution (done or
+///     failed; a failed one also from approved), one OcuTalon Action entry is written through Bridge.Audit (the WriteAudit seam: ActionEntry, the row's kind, the production
+///     and namespace of the incident, the result, the counts, the request's Ref, the approver and the channel), and the one final FixResult (ResultOf) goes to IncidentManager
+///     (Report), in the incident's trace session (AD-26), also when another job finishes it. A failed save (LOGRUN), close (LOGFINISH), audit write (LOGAUDIT) or send
 ///     (LOGRESULT) logs one Type 3 warning, and the rest still happens. Log text goes through Bridge.Redact.
 ///       - A run that cannot start (2, 3 and 4), and one that could not read before its first copy, close the request failed: Total the number of targets,
 ///         every other count 0 and the plain Reason.
@@ -40,14 +40,23 @@ Include (EnsConstants, EnsErrors)
 ///         A run whose copies are not all done when the time is up is not waited for any more: one Type 3 warning (LOGWAIT), nothing is stored or sent, and the
 ///         request stays executing (Story 30.5 reports it in progress and its Sweep ends it). No final result ever goes out with a copy uncounted. A run whose ResentAt
 ///         cannot be saved (LOGRUN) is not waited for either, and its request stays executing in the same way.
+///   - One writer of a run's end (AD-33). End and Mark, class methods of this class, are the only code that writes the end fields of a FixRun (EndedAt, Total, Resent,
+///     Completed, FailedAgain, Skipped, Interrupted and Reason), each under the run's lock (RUNLOCK, TakeRun and FreeRun; at most RUNLOCKSECONDS to take it), and the stored
+///     EndedAt and Interrupted decide whether a run may end. Three callers end runs: Finish (every end of Story 7.4); Fix.Run.Interrupt, which the Fix area's Reconcile() calls at a
+///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
+///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
+///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
+///   - A waiter that stops (the job should quiesce or terminate, or its item is stopped) leaves its runs, with a ResentAt and no EndedAt, to Sweep (DW-395): a run whose copies
+///     were all done inside its WAITSECONDS ends there, with the waiter's own counts and result, only later.
 ///   - One waiter (DW-381): Wait takes the lock WAITLOCK without waiting; the job that holds it makes a pass every WAITPAUSE seconds over every waiting run (Waiting:
-///     ResentAt set, EndedAt empty, the request executing, inside its WAITSECONDS) and ends each whose copies are done, so a job that finds the lock taken returns at
+///     ResentAt set, EndedAt empty, not marked as interrupted, the request executing, inside its WAITSECONDS) and ends each whose copies are done, so a job that finds the lock taken returns at
 ///     once and the holder finishes its run too. The holder stops when no run waits or when the job should quiesce or terminate, and looks once more after it unlocks.
 ///   - Resend is the only method of the executor that switches namespace (AD-3, AD-16): it opens the original header and body in the production's namespace,
 ///     calling no OcuTalon class there, and resends each copy with Ens.MessageHeader.ResendDuplicatedMessage. The wait reads through Watch.Reader.
 ///   - The seams SendResult (the send to IncidentManager), Start (StartExecution), Missing (the resources check), Check (the kind's Recheck), Carry (the kind's Execute),
 ///     Statuses (the read of the copies), Waiting (the waiting runs) and WriteAudit (the audit write) are private methods that a test subclass overrides
-///     (Test.Fix.ExecutorProbe); its WAITSECONDS, WAITPAUSE and WAITLOCK are read as ..# in the instance methods, so a subclass's values apply.
+///     (Test.Fix.ExecutorProbe); its WAITSECONDS, WAITPAUSE and WAITLOCK are read as ..# in the instance methods, so a subclass's values apply. Read (the read behind Statuses),
+///     Tally (the count of the copies), FailReason, ActionEntry and ResultOf are public class methods, which Fix.Run calls too.
 /// FixExecutor calls no model. Lane A.
 Class OcuTalon.Fix.Executor Extends Ens.BusinessOperation
 {
@@ -98,6 +107,13 @@ Parameter LOGWAIT = "FixExecutor stopped waiting for the copies of request ";
 Parameter LOGAUDIT = "FixExecutor could not write the audit entry of request ";
 
 Parameter LOGLOOK = "FixExecutor could not read the copies of request ";
+
+Parameter LOGENDED = "FixExecutor left the run of request ";
+
+/// The lock of one run's end (a subscript of it is the FixRun's id), and the longest a job waits for it, in seconds (see End and Mark).
+Parameter RUNLOCK = "^OcuTalon.Fix.Run";
+
+Parameter RUNLOCKSECONDS = 2;
 
 /// The state of a request that is approved, the state of one that is carried out, and the kind of a fix request.
 Parameter APPROVED = "approved";
@@ -350,23 +366,19 @@ Method Close(ref As %String, result As %String) [ Private ]
 	}
 }
 
-/// The one end of every run: the counts (a dynamic object of total, resent, completed, failedAgain, skipped and reason, as numbers and text) and EndedAt are saved
-/// on the run's FixRun when it has an Id, the request is closed with the result (done or failed; Close), one Action entry is written (Audit) and the one final
-/// FixResult goes to IncidentManager (Report). The reason is redacted and at most 1000 characters, here, so that the FixRun, the entry and the FixResult carry the
-/// same text. A failed step logs its own Type 3 warning and the others still happen.
+/// The one end of every run of this job: the counts (a dynamic object of total, resent, completed, failedAgain, skipped and reason, as numbers and text) and EndedAt
+/// are saved on the run's FixRun when it has an Id (End), the request is closed with the result (done or failed; Close), one Action entry is written (Audit) and the one
+/// final FixResult goes to IncidentManager (Report). The reason is redacted and at most 1000 characters, here, so that the FixRun, the entry and the FixResult carry the
+/// same text. A failed step logs its own Type 3 warning and the others still happen. When End refuses the run (another job ended it, or marked it as interrupted, or holds its
+/// lock), nothing else happens here: one Type 4 line (LOGENDED) names the request and says why.
 Method Finish(row As OcuTalon.Bridge.Data.ApprovalRequest, run As OcuTalon.Data.FixRun, result As %String, counts As %DynamicObject) [ Private ]
 {
 	Do counts.%Set("reason", $Extract(##class(OcuTalon.Bridge.Redact).Text(counts.reason), 1, 1000), "string")
 	If $IsObject(run) && (run.%Id() '= "") {
-		Set run.EndedAt = ##class(OcuTalon.Data.Time).NowUtc()
-		Set run.Total = counts.total
-		Set run.Resent = counts.resent
-		Set run.Completed = counts.completed
-		Set run.FailedAgain = counts.failedAgain
-		Set run.Skipped = counts.skipped
-		Set run.Interrupted = 0
-		Set run.Reason = counts.reason
-		Set sc = run.%Save()
+		If '..End(run, counts, 0, .sc) {
+			$$$LOGINFO(..#LOGENDED_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Quit
+		}
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGRUN_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		}
@@ -376,29 +388,107 @@ Method Finish(row As OcuTalon.Bridge.Data.ApprovalRequest, run As OcuTalon.Data.
 	Do ..Report(row, counts)
 }
 
-/// Writes the Action entry of a run that ended (WriteAudit): the action is the row's FixKind, the target "<production> in <namespace>" of the incident, the result,
-/// the counts (total, resent, completed, failedAgain and skipped, as numbers), the request's Ref, the approver (the row's AnsweredBy, else the job's user) and the
-/// channel (the row's AnsweredChannel, else system), and the row's OwnerRef as the session when that is a Ref. A write that fails or throws logs one Type 3 warning
-/// (LOGAUDIT). The entry holds no key, token, password or chat identity: the row holds none.
+/// Takes the lock of the run (RUNLOCK, the FixRun's id as its subscript), waiting at most RUNLOCKSECONDS; 1 when it is taken, and FreeRun lets it go. A job that holds it takes it again
+/// (End and Mark do) and lets it go as often.
+ClassMethod TakeRun(id As %String) As %Boolean
+{
+	Set lock = ..#RUNLOCK
+	Lock +@lock@(id):..#RUNLOCKSECONDS
+	Quit $Test
+}
+
+/// Lets the lock of the run go once (see TakeRun).
+ClassMethod FreeRun(id As %String)
+{
+	Set lock = ..#RUNLOCK
+	Lock -@lock@(id)
+}
+
+/// The one writer of a run's end (AD-33), for every job that ends a run (Finish, Fix.Run.Interrupt and Fix.Run.Sweep): under the run's lock it sets EndedAt (UTC now) and the
+/// counts of counts (a dynamic object of total, resent, completed, failedAgain, skipped, reason and, when the run was cut short, interrupted, which is 0 when it is missing) and
+/// saves the run. The stored EndedAt and Interrupted decide (EndedAtGetStored and InterruptedGetStored; the object the caller holds is not read again). A run that was marked
+/// (Mark) has Interrupted above 0 and no EndedAt; interrupted 1 ends only such a run, and interrupted 0 only one that is not marked. It gives 1 when it wrote, and sc holds the error of a
+/// save that failed (the caller goes on as Finish does). It gives 0 and writes nothing, with the reason in sc as an error, for a run that has ended, one of the other kind, a run with
+/// no Id and a lock that cannot be taken in RUNLOCKSECONDS (another job is ending the run).
+ClassMethod End(run As OcuTalon.Data.FixRun, counts As %DynamicObject, interrupted As %Boolean, Output sc As %Status) As %Boolean
+{
+	Set sc = $$$OK
+	Set id = $Select($IsObject(run): run.%Id(), 1: "")
+	If id = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "the run has no Id")
+		Quit 0
+	}
+	If '..TakeRun(id) {
+		Set sc = $SYSTEM.Status.Error(5001, "another job holds the lock of the run")
+		Quit 0
+	}
+	Set wrote = 0
+	Try {
+		Set ended = ##class(OcuTalon.Data.FixRun).EndedAtGetStored(id)
+		Set marked = (+##class(OcuTalon.Data.FixRun).InterruptedGetStored(id) > 0)
+		If ended '= "" {
+			Set sc = $SYSTEM.Status.Error(5001, "the run has ended already")
+		} ElseIf 'interrupted && marked {
+			Set sc = $SYSTEM.Status.Error(5001, "the run is marked as interrupted")
+		} ElseIf interrupted && 'marked {
+			Set sc = $SYSTEM.Status.Error(5001, "the run is not marked as interrupted")
+		} Else {
+			Set run.EndedAt = ##class(OcuTalon.Data.Time).NowUtc()
+			Set run.Total = counts.total
+			Set run.Resent = counts.resent
+			Set run.Completed = counts.completed
+			Set run.FailedAgain = counts.failedAgain
+			Set run.Skipped = counts.skipped
+			Set run.Interrupted = +counts.interrupted
+			Set run.Reason = counts.reason
+			Set wrote = 1
+			Set sc = run.%Save()
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do ..FreeRun(id)
+	Quit wrote
+}
+
+/// Marks a run as cut short, under the run's lock: Total and Interrupted are set to total (the number of the request's targets) and the run is saved. A run that has ended or is marked
+/// already is refused (the stored EndedAt and Interrupted decide, as in End). It gives 1 when the run is marked; 0 otherwise, with the reason in sc as an error: a refusal, a save that failed
+/// or a lock that cannot be taken in RUNLOCKSECONDS.
+ClassMethod Mark(run As OcuTalon.Data.FixRun, total As %Integer, Output sc As %Status) As %Boolean
+{
+	Set sc = $$$OK
+	Set id = $Select($IsObject(run): run.%Id(), 1: "")
+	If id = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "the run has no Id")
+		Quit 0
+	}
+	If '..TakeRun(id) {
+		Set sc = $SYSTEM.Status.Error(5001, "another job holds the lock of the run")
+		Quit 0
+	}
+	Try {
+		If ##class(OcuTalon.Data.FixRun).EndedAtGetStored(id) '= "" {
+			Set sc = $SYSTEM.Status.Error(5001, "the run has ended already")
+		} ElseIf +##class(OcuTalon.Data.FixRun).InterruptedGetStored(id) > 0 {
+			Set sc = $SYSTEM.Status.Error(5001, "the run is marked as interrupted already")
+		} Else {
+			Set run.Total = total
+			Set run.Interrupted = $Select(total > 0: total, 1: 1)
+			Set sc = run.%Save()
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do ..FreeRun(id)
+	Quit $$$ISOK(sc)
+}
+
+/// Writes the Action entry of a run that ended (WriteAudit; the entry is ActionEntry's). A write that fails or throws logs one Type 3 warning (LOGAUDIT).
 Method Audit(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %String, counts As %DynamicObject) [ Private ]
 {
 	Set sc = $$$OK
 	Try {
-		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
-		Set data = {}
-		Do data.%Set("action", row.FixKind, "string")
-		Do data.%Set("target", $Select($IsObject(incident): incident.Production_" in "_incident.Namespace, 1: ""), "string")
-		Do data.%Set("result", result, "string")
-		Set tally = {}
-		For name = "total", "resent", "completed", "failedAgain", "skipped" {
-			Do tally.%Set(name, +counts.%Get(name), "number")
-		}
-		Do data.%Set("counts", tally)
-		Do data.%Set("approvalRef", row.Ref, "string")
-		Do data.%Set("irisUser", $Select(row.AnsweredBy '= "": row.AnsweredBy, 1: $Username), "string")
-		Do data.%Set("sessionRef", $Select(##class(OcuTalon.Bridge.Approval).IsRef(row.OwnerRef): row.OwnerRef, 1: ""), "string")
-		Do data.%Set("channel", $Select(row.AnsweredChannel '= "": row.AnsweredChannel, 1: "system"), "string")
-		Set sc = ..WriteAudit(data)
+		Set sc = ..WriteAudit(..ActionEntry(row, result, counts))
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
@@ -407,27 +497,41 @@ Method Audit(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %String, cou
 	}
 }
 
+/// The data of the Action entry of a run that ended, for every job that ends a run: the action is the row's FixKind, the target "<production> in <namespace>" of the incident, the
+/// result (done, failed or interrupted), the counts (total, resent, completed, failedAgain and skipped, as numbers), the request's Ref, the approver (the row's AnsweredBy, else the
+/// job's user) and the channel (the row's AnsweredChannel, else system), and the row's OwnerRef as the session when that is a Ref. The entry holds no key, token, password or chat
+/// identity: the row holds none.
+ClassMethod ActionEntry(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %String, counts As %DynamicObject) As %DynamicObject
+{
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
+	Set data = {}
+	Do data.%Set("action", row.FixKind, "string")
+	Do data.%Set("target", $Select($IsObject(incident): incident.Production_" in "_incident.Namespace, 1: ""), "string")
+	Do data.%Set("result", result, "string")
+	Set tally = {}
+	For name = "total", "resent", "completed", "failedAgain", "skipped" {
+		Do tally.%Set(name, +counts.%Get(name), "number")
+	}
+	Do data.%Set("counts", tally)
+	Do data.%Set("approvalRef", row.Ref, "string")
+	Do data.%Set("irisUser", $Select(row.AnsweredBy '= "": row.AnsweredBy, 1: $Username), "string")
+	Do data.%Set("sessionRef", $Select(##class(OcuTalon.Bridge.Approval).IsRef(row.OwnerRef): row.OwnerRef, 1: ""), "string")
+	Do data.%Set("channel", $Select(row.AnsweredChannel '= "": row.AnsweredChannel, 1: "system"), "string")
+	Quit data
+}
+
 /// The one audit write of the executor: an entry of type Action, through the one writer of product code (a seam for the tests).
 Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Bridge.Audit).Record("Action", data)
 }
 
-/// Sends IncidentManager the one final FixResult of a run: the counts as Finish gives them, Final 1. It goes in the incident's trace session (its TraceHeaderId)
+/// Sends IncidentManager the one final FixResult of a run (ResultOf): the counts as Finish gives them. It goes in the incident's trace session (its TraceHeaderId)
 /// with the request's TraceRef as the SuperSession (AD-26), whichever job sends it, and the session of the message being handled is put back afterwards; with no
 /// incident the current session is kept. A failed send logs one Type 3 warning.
 Method Report(row As OcuTalon.Bridge.Data.ApprovalRequest, counts As %DynamicObject) [ Private ]
 {
-	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
-	Set result.ApprovalRef = row.Ref
-	Set result.IncidentRef = row.IncidentRef
-	Set result.Final = 1
-	Set result.Total = counts.total
-	Set result.Resent = counts.resent
-	Set result.Completed = counts.completed
-	Set result.FailedAgain = counts.failedAgain
-	Set result.Skipped = counts.skipped
-	Set result.Reason = counts.reason
+	Set result = ..ResultOf(row, counts)
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
 	Set session = ..%SessionId
 	Set superSession = ..%SuperSession
@@ -441,6 +545,24 @@ Method Report(row As OcuTalon.Bridge.Data.ApprovalRequest, counts As %DynamicObj
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGRESULT_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
+}
+
+/// The final FixResult of a run, for every job that sends one (FixExecutor, and Checks through Fix.Run.Sweep): the request's Ref and the incident's, Final 1, the counts of counts
+/// and the reason, and Interrupted 1 when counts.interrupted is above 0 (the run was cut short and targets were cut off).
+ClassMethod ResultOf(row As OcuTalon.Bridge.Data.ApprovalRequest, counts As %DynamicObject) As OcuTalon.Fix.Msg.FixResult
+{
+	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+	Set result.ApprovalRef = row.Ref
+	Set result.IncidentRef = row.IncidentRef
+	Set result.Final = 1
+	Set result.Interrupted = (+counts.interrupted > 0)
+	Set result.Total = counts.total
+	Set result.Resent = counts.resent
+	Set result.Completed = counts.completed
+	Set result.FailedAgain = counts.failedAgain
+	Set result.Skipped = counts.skipped
+	Set result.Reason = counts.reason
+	Quit result
 }
 
 /// The reason of the skipped target with the lowest id (entries are {"id", "reason"}); "" when none was skipped.
@@ -492,13 +614,13 @@ Method Wait() [ Private ]
 	}
 }
 
-/// The ids of the FixRun rows that wait, as a list: ResentAt set, EndedAt empty, the request's row executing and the time (WAITSECONDS from ResentAt) not up (a seam
-/// for the tests).
+/// The ids of the FixRun rows that wait, as a list: ResentAt set, EndedAt empty, not marked as interrupted (Mark), the request's row executing and the time (WAITSECONDS from
+/// ResentAt) not up (a seam for the tests).
 Method Waiting() As %List [ Private ]
 {
 	Set waiting = ""
 	Set now = ##class(OcuTalon.Watch.Settle).Seconds(##class(OcuTalon.Data.Time).NowUtc())
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FixRun WHERE ResentAt IS NOT NULL AND EndedAt IS NULL ORDER BY ID")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FixRun WHERE ResentAt IS NOT NULL AND EndedAt IS NULL AND (Interrupted IS NULL OR Interrupted = 0) ORDER BY ID")
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The waiting runs could not be read: "_rs.%Message))
 	While rs.%Next() {
 		Set run = ##class(OcuTalon.Data.FixRun).%OpenId(rs.%GetData(1))
@@ -552,7 +674,7 @@ Method Pass(waiting As %List, ByRef last) [ Private ]
 }
 
 /// Looks at the copies of one waiting run: the number of copies that still run, or "" when the run is not waiting any more or has ended now. A run whose copies are
-/// all completed or failed again ends here, done, through Finish with the counts of its own row and FixRun.
+/// all completed or failed again ends here, done, through Finish with the counts of its own row and FixRun (Tally counts the copies).
 Method Look(id As %String) As %Integer [ Private ]
 {
 	Set run = ##class(OcuTalon.Data.FixRun).%OpenId(id)
@@ -561,14 +683,30 @@ Method Look(id As %String) As %Integer [ Private ]
 	If '$IsObject(row) || $$$ISERR(row.%Reload()) || (row.State '= ..#EXECUTING) Quit ""
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(run.IncidentRef)
 	Set outcome = $Select($IsObject(incident): ..Statuses(incident, run, .statuses), 1: "")
+	Set tally = ..Tally(run, outcome, $Get(statuses))
+	If tally.running > 0 Quit tally.running
+	Set total = $Select(row.FixTargets = "": 0, 1: $Length(row.FixTargets, ","))
+	Set resent = run.Copies.Count()
+	Set reason = $Select(tally.failed = "": "", 1: ..FailReason(incident, row, statuses.%Get(tally.failed)))
+	Do ..Finish(row, run, "done", {"total": (total), "resent": (resent), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": ($Select(total > resent: total - resent, 1: 0)), "reason": (reason)})
+	Quit ""
+}
+
+/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE), failedAgain (one of COPYFAILED),
+/// running (any other status, a header the read lacks, and every copy when the outcome is not read), failed (the id of the failed copy with the lowest id, "" when none) and lastAt:
+/// the latest "at" of the copies that are done (completed or failed again), in seconds (Watch.Settle Seconds), and "" when a copy that is done has no usable "at" or none is done.
+ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %DynamicObject) As %DynamicObject
+{
 	Set completed = 0
 	Set failedAgain = 0
 	Set running = 0
 	Set failed = ""
+	Set latest = ""
+	Set unstamped = 0
 	Set failedStatuses = $ListFromString(..#COPYFAILED)
 	For i = 1:1:run.Copies.Count() {
 		Set copy = run.Copies.GetAt(i)
-		Set entry = $Select(outcome = "read": statuses.%Get(copy), 1: "")
+		Set entry = $Select((outcome = "read") && $IsObject($Get(statuses)): statuses.%Get(copy), 1: "")
 		Set status = $Select($IsObject(entry): entry.status, 1: "")
 		If status = ..#COPYDONE {
 			Set completed = completed + 1
@@ -577,21 +715,29 @@ Method Look(id As %String) As %Integer [ Private ]
 			If (failed = "") || (+copy < +failed) Set failed = copy
 		} Else {
 			Set running = running + 1
+			Continue
+		}
+		Set at = ##class(OcuTalon.Watch.Settle).Seconds($Select($IsObject(entry): entry.at, 1: ""))
+		If at = "" {
+			Set unstamped = 1
+		} ElseIf (latest = "") || (at > latest) {
+			Set latest = at
 		}
 	}
-	If running > 0 Quit running
-	Set total = $Select(row.FixTargets = "": 0, 1: $Length(row.FixTargets, ","))
-	Set resent = run.Copies.Count()
-	Set reason = $Select(failed = "": "", 1: ..FailReason(incident, row, statuses.%Get(failed)))
-	Do ..Finish(row, run, "done", {"total": (total), "resent": (resent), "completed": (completed), "failedAgain": (failedAgain), "skipped": ($Select(total > resent: total - resent, 1: 0)), "reason": (reason)})
-	Quit ""
+	Quit {"completed": (completed), "failedAgain": (failedAgain), "running": (running), "failed": (failed), "lastAt": ($Select(unstamped: "", 1: latest))}
 }
 
-/// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run: statuses is a dynamic object by the copy's header id of
-/// {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName)} (a seam for the tests). The read is Reader.Evidence
-/// over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so that the one reader reads the production (AD-3). A
-/// header the read lacks is not in statuses.
+/// The outcome of the read of the run's copies (a seam for the tests): Read's.
 Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String [ Private ]
+{
+	Quit ..Read(incident, run, .statuses)
+}
+
+/// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run, for every job that counts a run's copies: statuses is a dynamic object
+/// by the copy's header id of {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName), "at" (the header's timeProcessed, the time
+/// of its last status change, a UTC stamp)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
+/// that the one reader reads the production (AD-3). A header the read lacks is not in statuses.
+ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String
 {
 	Set statuses = {}
 	Set keys = ""
@@ -603,7 +749,7 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 	If outcome '= "read" Quit outcome
 	For i = 0:1:snapshot.failures.%Size() - 1 {
 		Set failure = snapshot.failures.%Get(i)
-		Do statuses.%Set(failure.headerId, {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName)})
+		Do statuses.%Set(failure.headerId, {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)})
 	}
 	Quit outcome
 }
@@ -611,8 +757,8 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 /// The reason of a run whose copies failed again: that of the failed copy with the lowest id (entry, as Statuses gives it). When the pattern of its error text (Settle)
 /// is that of one of the incident's groups whose ItemName is the copy's target, the copy failed with the incident's own error and the reason says the field
 /// still wasn't accepted (the field of the row's parameters, in words). Otherwise it is the first sentence of the error text, without its closing full stop; with no text
-/// it is the notice's "no error text". The caller redacts it.
-Method FailReason(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, entry As %DynamicObject) As %String [ Private ]
+/// it is the notice's "no error text". The caller redacts it. A class method, for every job that ends a run.
+ClassMethod FailReason(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, entry As %DynamicObject) As %String
 {
 	Set text = ##class(OcuTalon.Watch.ErrorText).Text($Select($IsObject(entry): entry.error, 1: ""))
 	If text = "" Quit ##class(OcuTalon.Watch.Notice).#NOERRORTEXT

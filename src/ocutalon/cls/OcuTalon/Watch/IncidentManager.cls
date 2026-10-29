@@ -55,7 +55,7 @@
 ///     warning. A failed read of the recipients logs one Type 3 warning and sends nothing; a failed send leaves the other sessions their notice and
 ///     event and logs one Type 3 warning for the notice. The row stays noticed either way. Notice takes the state and the variant from the table.
 ///   - The states (Story 5.5; AD-15): OcuTalon.Watch.Transitions is the one table, and every input goes through it: the notice step, the IncidentCommand verbs
-///     (dismiss, closeForReplay, closeQuiet), ApprovalOutcome (from ApprovalHold) and OcuTalon.Fix.Msg.FixResult (from FixExecutor). The facts that the table
+///     (dismiss, closeForReplay, closeQuiet), ApprovalOutcome (from ApprovalHold) and OcuTalon.Fix.Msg.FixResult (from FixExecutor, or from Checks for the runs that Fix.Run Sweep ends). The facts that the table
 ///     needs are read from the rows each time (AD-11): an incident's requests are the entries of RequestRefs whose ApprovalRequest row exists and names the
 ///     incident. An accepted move saves the new state (Move: state, open variant and, for a close, ClosedAt, in one save) and then, for a noticed incident,
 ///     publishes the incident event through Tell, even when the state stays the same, because the payload's requests may have changed; when the table says so
@@ -1159,7 +1159,7 @@ Method Compose(incident As OcuTalon.Data.Incident, kind As %String, key As %Stri
 	Quit notice
 }
 
-/// A FixResult from FixExecutor: finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. A finished one carries the
+/// A FixResult from FixExecutor or from Checks (the runs that Fix.Run Sweep ends): finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. A finished one carries the
 /// result notice (ResultNotice), which goes out with the accepted move.
 Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
