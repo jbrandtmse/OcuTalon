@@ -162,3 +162,4 @@
 2026-10-29T03:37:52Z	Epic 16	ledger_load	total=345 open=0 routed=64 escalated=1 decision_pending=2 terminal=278 owner_unknown=0 burndown=4 reowned_none=0 owned_16-4=5(DW-285,DW-290,DW-291,DW-333,DW-378) owned_16-9=2(DW-300,DW-361) burndown_items=DW-233,DW-236,DW-252,DW-260 when=re-dispatch
 2026-10-29T03:38:28Z	Epic 16	sprint_planning_complete	gate=PASS when=re-dispatch_readiness_recheck in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,Epic_List;expected) remaining=16.4,16.9(deps_Epics_5,6,8,10_merged) model=claude-opus-5-5
 2026-10-29T03:38:28Z	Epic 16	retro_review_skipped	reason=handled_by_epic_7(batch_owner)
+2026-10-29T03:45:27Z	Epic 16	epic_context_compiled	reason=planning_artifact_newer(re-dispatch;epics.md,PRD,UX,spine_moved_since_10-25) lines=101 model=claude-opus-5-5 note=focused_on_16.4,16.9;over_1500_token_target(~2500)
