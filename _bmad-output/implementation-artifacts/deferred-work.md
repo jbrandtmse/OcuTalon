@@ -2009,3 +2009,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+
+### DW-399: Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss
+- source: _bmad-output/implementation-artifacts/spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: the class stops and starts FixExecutor (two 10 s lock waits) between R1's ResentAt and the copies' item restart, then asserts elapsed <= MARGIN; passed twice locally (85 s), no elapsed value printed (Stopped.cls:24)
+- 2026-10-29T20:57:12Z status=open owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=harvest note=QA at the resume: measure the elapsed margin on a fresh run and on CI; if it can fail on a slow host, reorder the steps or widen the window
