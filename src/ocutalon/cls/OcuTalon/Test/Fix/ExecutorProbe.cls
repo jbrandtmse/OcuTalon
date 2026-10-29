@@ -14,6 +14,12 @@
 /// own and a short wait (WAITLOCK, WAITSECONDS and WAITPAUSE). WaitNow is the public Wait. WriteAudit records the data of each Action entry in Audits and writes nothing,
 /// and answers OK, or an error when AuditFails is set. Everything else is the product's: the handler, the FixRun row, StartExecution
 /// and FinishExecution. It is no item of any production.
+/// The faults of the waiter: WaitingEmpty is a number of calls of Waiting that answer with no run (a run saved while the holder unlocks), WaitingThrows a number of calls that
+/// throw (a read of the waiting runs that fails), and ResentSaveFails makes the canned Carry spoil the run in memory after it registered its copies, so that the save of ResentAt fails.
+/// WaitingNow is the public Waiting. The faults of the end: EndSaveFails makes Statuses spoil the run in memory, so that the save of its counts in Finish fails, and
+/// CloseMoves, a state, is written into the request's row on disk (SQL) before the product's Close, so that FinishExecution refuses it. StartMoves, a state, is written into the
+/// row on disk (SQL) before Start fails with StartIs, so that the row the handler holds is not the row on disk (another job or a cancel moved it). SendResult also records,
+/// from disk, whether the run's FixRun has an EndedAt (storedEnd 1 or 0) and the request's State (storedState) at the send.
 Class OcuTalon.Test.Fix.ExecutorProbe Extends OcuTalon.Fix.Executor
 {
 
@@ -26,6 +32,15 @@ Parameter WAITPAUSE = 0.1;
 
 /// The error text that Start gives, "" for the product's StartExecution.
 Property StartIs As %String(MAXLEN = "") [ Transient ];
+
+/// The state that Start writes into the request's row on disk before it fails with StartIs; "" for none.
+Property StartMoves As %String [ Transient ];
+
+/// The state that Close writes into the request's row on disk before the product's Close; "" for none.
+Property CloseMoves As %String [ Transient ];
+
+/// 1 to make Statuses give the run an IncidentRef that no FixRun can hold, so that the save of its counts in Finish fails.
+Property EndSaveFails As %Boolean [ InitialExpression = 0, Transient ];
 
 /// The canned copies of Statuses (see the class description), the outcome it gives, the canned copies from read ThenAfter + 1 on, and the number of reads.
 Property StatusIs As %String(MAXLEN = "") [ Transient ];
@@ -41,6 +56,14 @@ Property Reads As %Integer [ InitialExpression = 0, Transient ];
 /// The Refs of the incidents whose runs Waiting gives, comma-separated.
 Property Incidents As %String(MAXLEN = "") [ Transient ];
 
+/// The number of the next calls of Waiting that answer with no run, and the number of the next calls that throw (the throws come first).
+Property WaitingEmpty As %Integer [ InitialExpression = 0, Transient ];
+
+Property WaitingThrows As %Integer [ InitialExpression = 0, Transient ];
+
+/// 1 to make the canned Carry give the run an IncidentRef that no FixRun can hold after the copies are registered and saved, so that the next save of the run fails.
+Property ResentSaveFails As %Boolean [ InitialExpression = 0, Transient ];
+
 /// The data of the Action entries that WriteAudit recorded, in order, and 1 to make it answer an error (after it recorded).
 Property Audits As %DynamicArray [ Transient ];
 
@@ -49,7 +72,8 @@ Property AuditFails As %Boolean [ InitialExpression = 0, Transient ];
 /// The session of the host at each SendResult, in order, each {approvalRef, session, super}.
 Property Sessions As %DynamicArray [ Transient ];
 
-/// The FixResults that SendResult recorded, in order, each {approvalRef, incidentRef, final, interrupted, total, resent, completed, failedAgain, skipped, reason}.
+/// The FixResults that SendResult recorded, in order, each {approvalRef, incidentRef, final, interrupted, total, resent, completed, failedAgain, skipped, reason, storedEnd,
+/// storedState}.
 Property Results As %DynamicArray [ Transient ];
 
 /// 1 to make SendResult answer an error (after it recorded the result).
@@ -88,24 +112,43 @@ Property TrueIncidentRef As %String [ Transient ];
 Method SendResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
 	If '$IsObject(..Results) Set ..Results = []
-	Do ..Results.%Push({"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason)})
+	Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT EndedAt FROM OcuTalon_Data.FixRun WHERE %EXACT(ApprovalRef) = ?", result.ApprovalRef)
+	Set storedEnd = $Select(stored.%Next(): (stored.%GetData(1) '= ""), 1: 0)
+	Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT State FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE %EXACT(Ref) = ?", result.ApprovalRef)
+	Set storedState = $Select(stored.%Next(): stored.%GetData(1), 1: "")
+	Do ..Results.%Push({"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason), "storedEnd": (storedEnd), "storedState": (storedState)})
 	If '$IsObject(..Sessions) Set ..Sessions = []
 	Do ..Sessions.%Push({"approvalRef": (result.ApprovalRef), "session": (..%SessionId), "super": (..%SuperSession)})
 	If ..FailSend Quit $SYSTEM.Status.Error(5001, "The send of the result of "_result.ApprovalRef_" is refused")
 	Quit $$$OK
 }
 
-/// StartIs as an error when it is set, else the product's StartExecution.
+/// StartIs as an error when it is set (after StartMoves is written into the row on disk), else the product's StartExecution.
 Method Start(ref As %String) As %Status [ Private ]
 {
+	If ..StartMoves '= "" Do ..MoveRow(ref, ..StartMoves)
 	If ..StartIs '= "" Quit $SYSTEM.Status.Error(5001, ..StartIs)
 	Quit ##super(ref)
 }
 
-/// The canned copies (see the class description) with the outcome StatusOutcome (read by default); the product's read when none is set.
+/// Writes the state into the request's row on disk by SQL, so that an object the handler already holds keeps its own state until it is read again.
+ClassMethod MoveRow(ref As %String, state As %String) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Bridge_Data.ApprovalRequest SET State = ? WHERE %EXACT(Ref) = ?", state, ref)
+}
+
+/// The waiting runs of Incidents (the product's Waiting, which is private, as the probe narrows it).
+Method WaitingNow() As %List
+{
+	Quit ..Waiting()
+}
+
+/// The canned copies (see the class description) with the outcome StatusOutcome (read by default); the product's read when none is set. With EndSaveFails the
+/// run (in memory) gets an IncidentRef that no FixRun can hold.
 Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String [ Private ]
 {
 	Set ..Reads = ..Reads + 1
+	If ..EndSaveFails Set run.IncidentRef = run.IncidentRef_"-too-long-for-a-run"
 	If ..StatusOutcome = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The read threw")
 	If ..StatusIs = "" Quit ##super(incident, run, .statuses)
 	Set canned = $Select((..StatusThen '= "") && (..Reads > ..ThenAfter): ..StatusThen, 1: ..StatusIs)
@@ -113,9 +156,18 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 	Quit $Select(..StatusOutcome = "": "read", 1: ..StatusOutcome)
 }
 
-/// The product's waiting runs, narrowed to those of the incidents in Incidents (none when it is empty).
+/// The product's waiting runs, narrowed to those of the incidents in Incidents (none when it is empty); a call that WaitingThrows names throws, and one that WaitingEmpty
+/// names gives none.
 Method Waiting() As %List [ Private ]
 {
+	If ..WaitingThrows > 0 {
+		Set ..WaitingThrows = ..WaitingThrows - 1
+		Throw ##class(%Exception.General).%New("Probe", 5001, , "The waiting runs could not be read")
+	}
+	If ..WaitingEmpty > 0 {
+		Set ..WaitingEmpty = ..WaitingEmpty - 1
+		Quit ""
+	}
 	Set all = ##super()
 	Set waiting = ""
 	Set position = 0
@@ -167,10 +219,11 @@ Method CouldNotStart(row As OcuTalon.Bridge.Data.ApprovalRequest, total As %Inte
 	Do ##super(row, total, reason, saved)
 }
 
-/// The real IncidentRef is back before the request is closed and its result is sent.
+/// The real IncidentRef is back before the request is closed and its result is sent; CloseMoves, when set, is written into the row on disk first.
 Method Close(ref As %String, result As %String) [ Private ]
 {
 	Do ..PutBackRef()
+	If ..CloseMoves '= "" Do ..MoveRow(ref, ..CloseMoves)
 	Do ##super(ref, result)
 }
 
@@ -222,6 +275,7 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 		Set result.resent = result.resent + 1
 	}
 	$$$ThrowOnError(run.%Save())
+	If ..ResentSaveFails Set run.IncidentRef = run.IncidentRef_"-too-long-for-a-run"
 	Set result.skipped = canned.skipped
 	If canned.%IsDefined("fail") Quit $SYSTEM.Status.Error(5001, canned.fail)
 	Quit $$$OK

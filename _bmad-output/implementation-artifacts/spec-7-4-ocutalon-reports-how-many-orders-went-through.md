@@ -295,6 +295,63 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
   - a window whose start or end `Seen` has dropped gets no dry run.
 - **AC 11 (DW-380).** Given an approved, unexpired request whose `StartExecution` fails, when FixExecutor handles its Execute, then the run ends as couldn't start, with the reason "OcuTalon couldn't start the resend".
 
+### Review Findings
+
+Code review, 2026-10-29, full mode. Four layers ran (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor) and filed 24 findings. After triage: no decision-needed, 7 patch entries (9 findings, all applied), 2 defer entries (in the ledger, `by=cr`) and 13 rejected. No finding was high.
+
+**Patch (applied):**
+- [x] [Review][Patch] The re-read of the row after a failed `StartExecution` was pinned by no test (verification-gap; AC 11; med, fix-risk low, test only). The probe's `StartMoves` writes `cancelled` or `executing` into the row on disk before `Start` fails. `TestStartExecutionFailsForAnApprovedRequest` now asserts the refusal: no FixRun, no FixResult, the row as the other change left it, and one info line. [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:190]
+- [x] [Review][Patch] The wait's length and its start were checked only from below (verification-gap; AC 1; med, low). New `TestWaitLastsWaitSecondsFromResentAt` runs on the long probe through `WaitingNow`. [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:506]
+- [x] [Review][Patch] "Stored and closed before the FixResult goes" was checked only through a race (verification-gap; AC 1, AC 9; med, low). At the send, the probe's `SendResult` records from disk the run's `EndedAt` and the row's State. `AssertEnded` and `AssertCounted` assert both. [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:357]
+- [x] [Review][Patch] The sum of unlisted failures across groups had no test (verification-gap; AC 10; med, low). `TestUnlistedFailuresAreCounted` gains a second over-cap group and expects 9/4/5. [src/ocutalon/cls/OcuTalon/Fix/Kind/RepairResend.cls:116]
+- [x] [Review][Patch] A failed save of the counts in `Finish`, and a failed close, had no test (verification-gap; Always: "the `FixResult` still goes"; low, low). The probe gains `EndSaveFails` and `CloseMoves`, and new `TestFailedEndSaveOrCloseStillSendsTheResult` covers both. [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:369]
+- [x] [Review][Patch] A fixture run is visible to the production's unnarrowed `Waiting` (blind-hunter, verification-gap and acceptance-auditor; low, low).
+  - `Payloads`' "running" fixture now has a `ResentAt` long past the wait, so no waiter can finish it.
+  - The probe's own fixture runs must sit inside their window. A production waiter is active only while a real run waits, which no warm class leaves behind.
+  - reopen_if: a probe class sees a LOGWAIT, a LOGLOOK or a FixResult from the FixExecutor item that names a probe Ref.
+  [src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls:320]
+- [x] [Review][Patch] `FixRun`'s class doc filed `CopyOf` under AD-13 (acceptance-auditor; low, low). The doc now says that `OfRequest` uses object access only (AD-13) and that `CopyOf` is SQL, for IncidentManager. [src/ocutalon/cls/OcuTalon/Data/FixRun.cls:8]
+
+**Defer (ledger):**
+- [x] [Review][Defer] A waiter that stops on a quiesce or terminate request while the production keeps running leaves the runs still in its wait `executing`, with no result (blind-hunter). [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:476] — deferred: DW-395, routed, owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got (med, fix-risk med: a resume trigger, or 7.5's Sweep; this spec's Residual risks name it for 7.5).
+- [x] [Review][Defer] A resend that errs partway counts its unreached targets as Skipped, and `result.skipped` renders them as "had changed since the dry run" (blind-hunter). [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:586] — deferred: the counts are this spec's (Skipped = Total - Resent, Interrupted 0), and the root cause is DW-368's (`result.skipped`'s text for any Skipped). The occurrence is appended to DW-368, which stays escalated for the decision sheet.
+
+**Rejected (13 findings):**
+- A copy that is Aborted, Discarded or Suspended takes its original's error as the reason. Evidence falls back to the session's row for the target, and a copy shares its original's session (blind-hunter).
+  - low: it needs an operator to abort or suspend a resent copy inside the 60 s wait. The counts and "I won't retry them" stay true.
+  - A fix needs a branch this spec does not name, and no probe can pin it.
+  - reopen_if: a result's reason names the incident's field for a copy whose status is Aborted, Discarded or Suspended.
+- Two Executes for one Ref in the two pool jobs can both pass `Refusal`. That would give two FixRun rows and results, or a NOSTART result for a run another job started (blind-hunter, edge-case-hunter).
+  - low, theoretical: IncidentManager sends one Execute per request (the table refuses a repeated outcome), and `StartExecution`'s lock is held for milliseconds.
+  - It would become real with a second sender of Execute: an operator resending an Execute from the Message Viewer while the row is approved, or a later story that resends Execute.
+- The waiter's warnings for another job's run land in the session of the message the waiter handles (blind-hunter).
+  - low: AD-26 and this spec bind the FixResult's session, which `Report` sets.
+  - Switching Ens's job-local session for log rows is more than a direct fix.
+- A waited run whose count save and close both fail is finished again on every pass, repeating its FixResult and Action entry (edge-case-hunter, and its claim check).
+  - low, theoretical: both writes must fail for one run, as with a full or read-only data database.
+  - It would become real if a FixRun save and a `FinishExecution` failed together outside a storage fault.
+- A `SendResult` that throws leaves the session switched and sends no result (edge-case-hunter).
+  - low, theoretical: `SendRequestAsync` returns a status. Only an internal error (`<STORE>`) throws.
+- `Unlisted` counts dropped log-row keys, while listed log rows are not counted (edge-case-hunter).
+  - low: this is the spec's rule (max(0, Count - the keys of Seen)).
+  - The error is conservative (more left out, never fewer), and it needs over 1000 failures in a group that holds log rows.
+- AC 9's no-SQL rule is checked by a source scan, not by a run as a restricted user (verification-gap).
+  - low: the scan catches SQL in `OfRequest`. A miss needs a delegation to a new SQL helper.
+  - Design Notes chose `StateBody` as AC 9's surface (earlier review, finding 28).
+- The `Waits` tests depend on the host's speed against the 60 s window (verification-gap).
+  - low: about 1 s of the 10 to 11 s to B's notice is CPU-bound; the rest is the fixed settle. A host ten times as slow still passes `MARGIN` (50 s).
+  - AC 8 is bounded by the product's own window.
+  - reopen_if: CI's lane-a shard shows `Test.Fix.Waits` red with B noticed after `MARGIN`.
+- Two "later Wait" assertions cannot fail under any single mutation (verification-gap).
+  - false: neither is its test's pinning assertion, and the recorded mutations falsify those.
+  - Each can still fail: the first if `Waiting` lists a run with no `ResentAt`, the second if a first Wait returns while its run still waits.
+- The time-up warning (LOGWAIT) in `Pass` skips `Redact.Text` (acceptance-auditor).
+  - false: its only variable parts are the Ref and two counts.
+  - Every log line of the executor keeps the Ref outside Redact and passes only free text through it.
+- The `Payloads` changes go past its entries: the class doc, the shared `Clean()` and a helper (acceptance-auditor).
+  - low: each edit serves only the new entry (its doc sentence, the clean-up of its rows, its fixture helper).
+  - The feature branch has not touched the file since the merge base, so there is no conflict.
+
 ## Spec Change Log
 
 - 2026-10-29, spec gate (lead): V1, V2 and V3 ruled as veto items U-146, U-147 and U-148 (kept as planned); DW-368 escalated and DW-380's past-expiry half split into DW-384 (escalated) for the decision sheet; kept as one story.
@@ -585,6 +642,65 @@ Conventions: "Result texts", "Watch failures", "Later requests", "Audit entries"
 - Fresh, one class per call: `Fix.Results` 43.6 s, `Fix.Partial` 37.7 s, `Fix.Waits` 31.6 s, `Fix.Runs` 63.6 s, `Fix.Execute` 54.5 s, `Fix.Scale` 20.1 s, `Fix.DryRun` 5.1 s, `Watch.Incidents` 111.5 s, `Fix.Refused` 1.3 s, `Fix.Recheck` 1.2 s, `Fix.Later` 54.8 s, `Fix.Raise` 62.2 s and `Watch.Closing` 29.8 s, all passed.
 - `shard lane-a --part k/12`, k = 1 to 12, all passed: 271 s, 173 s, 124 s, 102 s, 126 s, 173 s, 276 s, 199 s, 96 s, 171 s, 255 s and 171 s (each includes a ready time of 77 to 109 s); `shard lane-b --part k/3` passed: 133 s, 169 s and 100 s.
 - `live storage-roundtrip` and `live production` passed; `bash ci/checks.sh` passed (701 PASS lines); both stacks were torn down (0 leftovers).
+
+**QA stage (2026-10-29; tags e7s4qa and e7s4qaw; test files only, no product code changed).**
+
+*Test files (QA)* (all under `src/ocutalon/cls/OcuTalon/`):
+- `Test/Fix/ExecutorProbeLong.cls` (QA, new): the probe with a 30-second wait, for the probe tests that hand the wait to another job or stop the waiter; it has no test method.
+- `Test/Fix/ExecutorProbe.cls` (QA): `WaitingEmpty`, `WaitingThrows` and `ResentSaveFails`, the seams of the waiter's faults.
+- `Test/Fix/Executor.cls` (QA): `TestFailedResentAtSaveLeavesTheRunUnwaited`, `TestWaiterThatErrsStopsAndReleasesTheLock`, `TestWaiterStopsWhenTheJobShouldQuiesceOrTerminate` and `TestHolderLooksOnceMoreAfterUnlocking`; `TestOneWaiterFinishesEveryRun` now runs on the long probe; helpers `LockIsFree`, `TryLock` and `SendWhileJobIs`; the clean-up removes the `Run` and `Wait` warnings.
+- `Test/Fix/Waits.cls` (QA): `TestNoticeSentDuringAWait` rebuilt for the window, and new `TestDryRunAnsweredDuringAWait` (the DW-381 pin).
+- `Test/Fix/Partial.cls` (QA): `TestCopiesFailAgain` also asserts the incident event and `/state` list R1 with the stored result and its reason.
+- `Test/Watch/Case.cls` (QA): `AskDryRun` takes an optional `wait` (seconds).
+
+*Audit.* All 11 ACs and all 14 Matrix rows have a pinning test and a `mutation:` line above (the implement stage's 22 stand: none of their tests changed except `Executor.TestOneWaiterFinishesEveryRun`, `Waits.TestNoticeSentDuringAWait` and `Partial.TestCopiesFailAgain`, whose mutations are shown again below). The gaps filled: the DW-381 invariant at the dry-run ask (AC 8), the waiter's four residual paths (a failed `ResentAt` save, a waiter that stops on an error, a job that should quiesce or terminate, the look after the unlock), the reason of a failed-again result on the live event and `/state` (AC 9), and the wait windows. Not reachable without a product change, so not tested: `CopyOf` giving "" when its SQL read fails; a `Waiting()` that throws after the unlock (the call outside the `Try`).
+
+*Windows, measured (warm stack of the developer machine, then the fresh runs).* Every run of the live classes ended in the second of its `ResentAt` or the next (`Results` 50 copies: 0 s; `Scale` 500 copies: 1 s; `Partial`, `Runs`: 0 s), so only `Waits` holds a run open. `TestNoticeSentDuringAWait`: B's batch goes in at once after the approval, B was noticed 10 to 11 s after R1's `ResentAt` (the settle rule's 10 s of quiet), and the item was started again 10 s after it; the test asserts at most 50 s (`MARGIN`, the product's 60 less 10), so a host 4 times as slow still passes. `TestDryRunAnsweredDuringAWait`: the ask for the other incident was answered in 0.01 s (the budget is 35 s) and the item was started again 0 s after `ResentAt`. Both tests wait for FixExecutor's two jobs first and for the run's `ResentAt`, the copies' Queued status, B's `NoticedAt` and R1's `done`, never for a fixed time; everything B and F need is made before the approval. The only fixed pauses left in the story's tests are proofs of absence that can only miss a defect, never fail on a slow host (`Case.Settle` 7 s, `Results` 2 s, `Incidents` 1 to 2 s).
+
+*Mutations done in QA (Rule 19; each file restored from a backup, checksums and `git status --short` equal to their values before; probe tests warm, live tests on a fresh stack; no mutated file was loaded on slot A).*
+- mutation: a failed `ResentAt` save ends the run now with its copies counted as completed (`Run`: `Do ..Finish(...)` before the `Quit`) -> red `Executor.TestFailedResentAtSaveLeavesTheRunUnwaited` (request executing, no FixResult, no Action entry)
+- mutation: the waiter does not stop after an error (`Wait`: `Set stop = 1` removed from the `Catch`) -> red `Executor.TestWaiterThatErrsStopsAndReleasesTheLock` (copies read, request ended, result sent)
+- mutation: the waiter never unlocks (`Wait`: `Lock -@lock` removed) -> red `Executor.TestWaiterThatErrsStopsAndReleasesTheLock`, `Executor.TestWaiterStopsWhenTheJobShouldQuiesceOrTerminate` (both rounds) and `Executor.TestOneWaiterFinishesEveryRun`
+- mutation: the waiter ignores both job requests (`Wait`: the quiesce and terminate test replaced by `If 0`) -> red `Executor.TestWaiterStopsWhenTheJobShouldQuiesceOrTerminate`, both rounds; with only the quiesce clause removed, only the quiescent round goes red, and with only the terminate clause removed, only the terminate round
+- mutation: the holder does not look again after it unlocks (`Wait`: the last `If $ListLength(..Waiting()) = 0 Quit` replaced by `Quit`) -> red `Executor.TestHolderLooksOnceMoreAfterUnlocking`
+- mutation: a run waits in its own job while another job holds the lock (`Wait`: the `If '$Test Quit` removed), on the changed test -> red `Executor.TestOneWaiterFinishesEveryRun`
+- mutation: the FixResult goes in the waiter's own session (`Report`: the `..%SessionId` assignment removed), on the changed test -> red `Executor.TestOneWaiterFinishesEveryRun` (both trace-session assertions)
+- mutation: FixExecutor PoolSize 1 (`Production.cls`), twice (the first and the final `Waits`) -> red `Waits.TestDryRunAnsweredDuringAWait` (the answer took 45 s, the longest the test waits; the pool has one job) and `Waits.TestNoticeSentDuringAWait` (B is not noticed in 40 s)
+- mutation: `Record` keeps registered copies (`IncidentManager`: the `CopyOf` test replaced by `If 0 Continue`), AC 4 shown again on a fresh stack -> red `Partial.TestCopiesFailAgain` (the incident's Count, LaterSince and AskingSince; its group's Count and Seen)
+- mutation: the payload's result leaves its reason empty (`Live.Payload.Incident`: `Set part.Result.Reason = ""`) -> red `Partial.TestCopiesFailAgain` (the event and `/state` list the reason)
+
+*Commands run (QA; `<lane>` as above with `stage=qa`).*
+- Warm (`ci/warm.sh up` 129 s and, after the product mutations, again 125 s): `Fix.Executor` passed 20.9 s before the changes and 16.9 s, 17.1 s after; the mutation runs of `Fix.Executor` were red in 16.6 to 41.0 s. Warm measuring runs of `Fix.Waits` 40.7 s and 40.5 s, `Fix.Partial` 36.7 s and 38.7 s, `Fix.Results` 42.7 s, `Fix.Runs` 62.3 s and `Fix.Scale` 19.8 s all passed.
+- Fresh, one class per call (ready in 78 to 101 s): `Fix.Waits` 42.4 s, 41.4 s and, on the final tree, 40.2 s; `Fix.Partial` 37.9 s, 37.8 s and, on the final tree, 38.0 s; `Fix.Results` 43.5 s and 44.0 s; `Fix.Runs` 60.6 s and 63.4 s; `Fix.Scale` 19.6 s; `Fix.DryRun` 5.2 s (it calls the changed `AskDryRun`); all passed. The mutation runs: `Fix.Waits` red in 116.3 s and 176.6 s, `Fix.Partial` red in 39.1 s and 58.8 s.
+- `bash ci/checks.sh` passed on the final tree; both stacks were torn down.
+
+**Code review (2026-10-29; tags e7s4crw (warm) and e7s4cr (fresh); `<lane>` with `stage=code-review`).**
+
+*Test files and the one product file changed (all under `src/ocutalon/cls/OcuTalon/`):*
+- `Test/Fix/ExecutorProbe.cls`: new `StartMoves`, `CloseMoves`, `EndSaveFails` and `WaitingNow`. `SendResult` also records, from disk, `storedEnd` and `storedState`.
+- `Test/Fix/Executor.cls`:
+  - new `TestFailedEndSaveOrCloseStillSendsTheResult` and `TestWaitLastsWaitSecondsFromResentAt`;
+  - the moved-row cases of `TestStartExecutionFailsForAnApprovedRequest`;
+  - `AssertEnded` and `AssertCounted` assert the stored end and close at the send.
+- `Test/Fix/DryRun.cls`: `TestUnlistedFailuresAreCounted` gains a second group.
+- `Test/Live/Payloads.cls`: the running fixture's `ResentAt` is long past the wait.
+- `Data/FixRun.cls`: the class doc only.
+- Shared surfaces: none beyond `Test.Fix.Executor`, the probe's only user.
+
+*Runs:*
+- Slot A: the six changed classes compiled `ck-d`, before any mutation.
+- `ci/warm.sh up`: READY in 90 s.
+- Warm: `Fix.Executor` passed in 17.4 s, and in 16.7 s again after the mutations on the same stack. `Live.Payloads` passed in 0.31 s and `Data.Tables` in 0.32 s.
+- Fresh: `Fix.DryRun` passed in 6.8 s (ready in 91 s).
+- `bash ci/checks.sh` passed (701 PASS lines). Both tags were torn down, with 0 leftovers.
+
+*Mutations (Rule 19).* Each file was restored from a backup. The checksums of `Fix/Executor.cls` and `Fix/Kind/RepairResend.cls` equal their values before, and `git diff --stat -- src/ocutalon/cls/OcuTalon/Fix/` is empty. No mutated file was loaded on slot A.
+- mutation: the row is not read again after a failed StartExecution (`Execute`: `$$$ISOK(row.%Reload()) &&` removed) -> red `Executor.TestStartExecutionFailsForAnApprovedRequest`. Both moved-row cases wrote a FixRun, sent a FixResult and logged no info line, and the executing row was closed (warm).
+- mutation: the wait lasts twice WAITSECONDS (`Waiting`: `start + (2 * ..#WAITSECONDS)`) -> red `Executor.TestWaitLastsWaitSecondsFromResentAt` ("a run whose ResentAt is 32 seconds ago no longer waits"; warm). `TestStillRunningAfterTheWait` stayed green under it.
+- mutation: the wait is timed from StartedAt (`Waiting`: `Seconds(run.StartedAt)`) -> red `Executor.TestWaitLastsWaitSecondsFromResentAt` ("a run whose ResentAt is 20 seconds ago waits"; warm).
+- mutation: Finish sends the FixResult before it saves the counts and closes the request (`Report` moved to Finish's first line) -> red in `Executor`'s tests that end a run through `AssertEnded` or `AssertCounted`, among them `TestCouldNotStartRoutes`, `TestNothingResent`, `TestResentRunEndsWithItsCounts`, `TestRunThatErredAfterACopyStillWaits` and `TestStartExecutionFailsForAnApprovedRequest` ("when it was sent, the FixRun's EndedAt ... were saved already"; warm).
+- mutation: Finish stops after a failed save of the counts (`Quit` after its LOGRUN warning) -> red `Executor.TestFailedEndSaveOrCloseStillSendsTheResult` (the request closed, the FixResult sent and the Action entry; warm). The one-warning assertion went red too, because the run then qualifies on every pass.
+- mutation: the dry run keeps only the last group's unlisted failures (`RepairResend.DryRun`: `Set unlisted = dropped`) -> red `DryRun.TestUnlistedFailuresAreCounted` ("the two that the first group no longer lists and the three of the second"; fresh).
 
 ## Auto Run Result
 

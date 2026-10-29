@@ -13,9 +13,9 @@ Include Ensemble
 ///   - TestCopiesFailAgain (AC 3, AC 4; the matrix row "Copies fail again"): R1 is over three failed orders, and before the approval its FixParameters get the target
 ///     format DD/MM/YYYY, so that the copies fail at OrdersFromPartner with the incident's own error. The FixResult is 3/3/0/3/0 with the reason "the order date still
 ///     wasn't accepted" and the Notification renders "0 of 3 orders went through. 3 failed again (the order date still wasn't accepted). I won't retry them without
-///     a new approval." The copies' failures arrive in a FailureBatch of the poller, but IncidentManager takes them for no new failure: the incident's Count, its
-///     group's Count and Seen are unchanged, S has no other incident, LaterSince stays empty and no later request comes. R1 gets no other Execute, FixRun or copy, and
-///     no header names a copy as resent.
+///     a new approval." The incident's last event and /state list R1 done with that result and its reason. The copies' failures arrive in a FailureBatch of the poller, but
+///     IncidentManager takes them for no new failure: the incident's Count, its group's Count and Seen are unchanged, S has no other incident, LaterSince stays empty and
+///     no later request comes. R1 gets no other Execute, FixRun or copy, and no header names a copy as resent.
 Class OcuTalon.Test.Fix.Partial Extends OcuTalon.Test.Watch.Case
 {
 
@@ -105,6 +105,15 @@ Method TestCopiesFailAgain()
 	}
 	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
 
+	// the incident event and /state list R1 with the stored result and its reason
+	Set expected = "3|3|0|3|0|0|the order date still wasn't accepted"
+	Set last = ..WaitResultOf(a, ref, expected)
+	Do $$$AssertTrue($IsObject(last), "the incident event is on S's stream")
+	If $IsObject(last) Do $$$AssertEquals(last.state_"|"_..Listed(last)_"|"_..ResultOf(last), "resolved|1|"_request.ref_"|done|"_expected, "and lists R1 done with the result 3/3/0/3/0/0 and its reason")
+	Set state = ..StateIncident(a, ref)
+	Do $$$AssertTrue($IsObject(state), "/state lists the incident")
+	If $IsObject(state) Do $$$AssertEquals(..ResultOf(state), expected, "with the same result and reason")
+
 	// the copies' failures reach IncidentManager and are taken for no new failure
 	Set batches = ..WaitBatched(since, 3, a)
 	Set sent = $ListFromString(..Ids(batches, a))
@@ -151,6 +160,19 @@ ClassMethod ResentNames(floor As %Integer) As %String [ Private ]
 		Set names = names _ $Select(names = "": "", 1: ",") _ $Piece($Piece(rs.%GetData(1), " ", 2), ":", 1)
 	}
 	Quit names
+}
+
+/// Waits up to WAITHOLD seconds, polling every half second, until the newest incident event of the incident on S's stream lists the first request with the result
+/// (as ResultOf gives it); that event, or "" when there is none.
+Method WaitResultOf(session As %String, ref As %String, result As %String) As %DynamicObject [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITHOLD
+	For {
+		Set last = ..LastIncident(session, ref)
+		If ($IsObject(last) && (..ResultOf(last) = result)) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit last
 }
 
 /// The header ids of the run's copies as a dynamic array.

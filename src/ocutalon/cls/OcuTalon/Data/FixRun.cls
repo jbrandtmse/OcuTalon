@@ -5,7 +5,8 @@
 ///     ResentAt set and EndedAt empty is a run that waits or was given up on. EndedAt is the time the run ended, and is set together with the counts, which are
 ///     the run's final FixResult: Total, Resent, Completed, FailedAgain, Skipped, Interrupted and Reason (Story 7.4). A run without EndedAt has no result. FixExecutor
 ///     is the only writer of these properties.
-///   - OfRequest gives the run of a request and CopyOf the request of a copy, both through the indexes (AD-13).
+///   - OfRequest gives the run of a request, through ApprovalRefIndex by object access only, so that a REST request may call it (AD-13); CopyOf gives the request of a
+///     copy, through CopiesIndex by SQL, for IncidentManager.
 Class OcuTalon.Data.FixRun Extends %Persistent
 {
 

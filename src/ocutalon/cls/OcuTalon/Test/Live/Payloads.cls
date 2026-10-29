@@ -299,7 +299,8 @@ Method TestFromRowEvidence()
 }
 
 /// The result of a request (Story 7.4; DW-272, DW-292; AD-13): FromRow lists a request's result when the request's FixRun has ended (EndedAt set), with the seven
-/// fields of the run, as numbers and the reason. A request whose run has not ended (it has a ResentAt and counts, but no EndedAt), a request with no run, and a request
+/// fields of the run, as numbers and the reason. A request whose run has not ended (it has counts and a ResentAt long past FixExecutor's wait, so that no waiter takes
+/// it up, but no EndedAt), a request with no run, and a request
 /// whose Ref differs from another request's run only in case (the index compares without regard to case; OfRequest compares exactly) have no result.
 Method TestFromRowRequestResult()
 {
@@ -316,7 +317,7 @@ Method TestFromRowRequestResult()
 	Set row.RequestRefs = ended_","_running_","_bare
 	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists three requests")
 	Do ..Run(row.Ref, ended, {"ResentAt": (at), "EndedAt": (at), "Total": 50, "Resent": 48, "Completed": 45, "FailedAgain": 3, "Skipped": 2, "Interrupted": 1, "Reason": "the order date still wasn't accepted"})
-	Do ..Run(row.Ref, running, {"ResentAt": (at), "Total": 5, "Resent": 5, "Completed": 5, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0, "Reason": "stored before the end"})
+	Do ..Run(row.Ref, running, {"ResentAt": "2026-01-01T00:00:00Z", "Total": 5, "Resent": 5, "Completed": 5, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0, "Reason": "stored before the end"})
 	Do ..Run(row.Ref, $ZConvert(bare, "U"), {"ResentAt": (at), "EndedAt": (at), "Total": 9, "Resent": 9, "Completed": 9, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0})
 	Do ..Run(row.Ref, ##class(OcuTalon.Bridge.Ids).NewRef(), {"ResentAt": (at), "EndedAt": (at), "Total": 7, "Resent": 7, "Completed": 7})
 

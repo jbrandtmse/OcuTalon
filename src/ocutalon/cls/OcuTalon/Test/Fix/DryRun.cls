@@ -16,7 +16,8 @@
 ///     refused with the reason that the incident has no failed message of its scope;
 ///   - TestUnlistedFailuresAreCounted (Story 7.4; AC 10, DW-318): a group whose Count is two above the keys of its Seen (no mark) counts the two as affected and so as left
 ///     out: the four listed orders are the targets, and affected is 6, resend 4 and leftOut 2; a first window that ends at the second key counts the same two with its
-///     two keys; a later window whose start Seen holds counts none;
+///     two keys; a later window whose start Seen holds counts none; with a second group whose Count is three above its one key, the unlisted failures of both groups
+///     count (affected 9, resend 4, leftOut 5);
 ///   - TestUncountableWindowIsRefused (Story 7.4; AC 10, DW-318): a group whose AskedFrom or whose AskedTo is no key of its Seen any more gets no dry run: it is refused
 ///     with a plain Reason that says the failures are no longer all listed, and no targets;
 ///   - TestNothingReadable: in-scope failed orders, none of which reads in the source format: the dry run is worked out, with no target;
@@ -281,6 +282,26 @@ Method TestUnlistedFailuresAreCounted()
 		Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_$Piece(ids, ",", 2)_","_$Piece(ids, ",", 3), "the targets are the second and third orders")
 		Set dryRun = {}.%FromJSON(response.DryRun)
 		Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "2|2|0", "and the group's Count adds nothing to it")
+	}
+
+	// a second group whose Count is three above its one key: the unlisted failures of both groups count
+	Set group.AskedFrom = ""
+	Set group.AskedTo = ""
+	Do $$$AssertStatusOK(group.%Save(), "the first group has no marks again")
+	Set second = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set second.IncidentRef = incident.Ref
+	Set second.Seq = 2
+	Set second.ItemName = "OrdersFromPartner"
+	Set second.ErrorPattern = "zzSecondGroup"
+	Set second.Seen = "h"_$Piece(ids, ",", 4)
+	Set second.Count = 4
+	Do $$$AssertStatusOK(second.%Save(), "a second group of the incident counts four failures and lists one of the four orders")
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If $IsObject(response) {
+		Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the targets are the four listed orders, each once")
+		Set dryRun = {}.%FromJSON(response.DryRun)
+		Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "9|4|5", "the two that the first group no longer lists and the three of the second are affected and left out")
 	}
 }
 

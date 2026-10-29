@@ -1864,9 +1864,9 @@ Method SetFixParameters(ref As %String, json As %String) As %Boolean [ Private ]
 	Quit $$$ISOK(sc)
 }
 
-/// Sends a Fix.Msg.DryRun from the SimMailboxIn service, in the trace session of the super session, to the item FixExecutor by name, and waits for the answer.
-/// The answer (a DryRunResult, or "") is given back; the session of the request is kept for the clean-up and given in session.
-Method AskDryRun(incidentRef As %String, kind As %String, parameters As %String, super As %String, Output session As %Integer, Output sc As %Status) As OcuTalon.Fix.Msg.DryRunResult [ Private ]
+/// Sends a Fix.Msg.DryRun from the SimMailboxIn service, in the trace session of the super session, to the item FixExecutor by name, and waits for the answer for
+/// up to wait seconds (SENDWAIT by default). The answer (a DryRunResult, or "") is given back; the session of the request is kept for the clean-up and given in session.
+Method AskDryRun(incidentRef As %String, kind As %String, parameters As %String, super As %String, Output session As %Integer, Output sc As %Status, wait As %Integer = {..#SENDWAIT}) As OcuTalon.Fix.Msg.DryRunResult [ Private ]
 {
 	Set session = ""
 	Set sc = ##class(Ens.Director).CreateBusinessService(..#SENDER, .service)
@@ -1876,7 +1876,7 @@ Method AskDryRun(incidentRef As %String, kind As %String, parameters As %String,
 	Set request.IncidentRef = incidentRef
 	Set request.FixKind = kind
 	Set request.Parameters = parameters
-	Set sc = service.SendRequestSync(..#EXECUTOR, request, .response, ..#SENDWAIT)
+	Set sc = service.SendRequestSync(..#EXECUTOR, request, .response, wait)
 	Set session = service.%SessionId
 	Set ..DrySessions = ..DrySessions _ $Select(..DrySessions = "": "", 1: ",") _ session
 	Quit $Select($$$ISOK(sc) && $IsObject($Get(response)): response, 1: "")

@@ -1,9 +1,12 @@
+Include Ensemble
+
 /// Tests of what FixExecutor does with an Execute (Stories 7.3 and 7.4; AD-11, AD-16), through a shadow instance of Test.Fix.ExecutorProbe in the test process, over fixture
 /// sessions, incidents and approval requests of Test.Data.Fixture and the product's own handler, FixRun row, StartExecution and FinishExecution. The probe records the
 /// FixResults that the handler sends (no production is needed to send them), the Action entries it would write and the session of each send, and stands in for the kind's
 /// Recheck and Execute, for the resources check and for the read of the copies (canned statuses), so that each route is driven without an Orders production; the real
 /// re-check, resend, wait and result are pinned by Test.Fix.Recheck, Execute, Refused, Runs, Results, Partial, Waits and Scale on a fresh stack. They run warm.
-/// Each test asserts the FixRun rows, the request's state and Result and the recorded FixResult.
+/// Each test asserts the FixRun rows, the request's state and Result and the recorded FixResult; a run's end also asserts that its counts and close were on disk when the
+/// FixResult was sent.
 ///   - TestRefusedStates (AC 4): a request that is pending, rejected, expired, cancelled, executing, done or failed, an approved one past its ExpiresAt, a tool_call, a Ref
 ///     with no row and an empty Ref are each refused, as are a cancelled request of a closed incident and a pending one of an unregistered kind (the state decides, not
 ///     the row's other faults): the handler answers OK, writes no FixRun, leaves the row as it was (every column), sends no FixResult, calls neither the re-check nor the
@@ -49,9 +52,23 @@
 ///   - TestOneWaiterFinishesEveryRun (AC 7, AC 8; the matrix row "One waiter for every run"): while another job holds the probe's wait lock, two Executes (two incidents) return
 ///     with no FixResult and both runs wait; once the lock is free one Wait sends two FixResults, each with its own Ref and counts, in its own incident's trace session
 ///     (TraceHeaderId) with its row's TraceRef as the SuperSession, and the host's own session is put back;
+///   - TestHolderLooksOnceMoreAfterUnlocking (AC 8): a Waiting that finds no run on the waiter's first look (a run saved while it was unlocking) does not leave the run: the
+///     waiter looks once more after it unlocks, takes the lock again and ends the run, with its one FixResult;
+///   - TestWaiterThatErrsStopsAndReleasesTheLock (AC 8): a waiter whose read of the waiting runs throws logs one Type 3 warning (LOGWAIT, "(any)"), stops without reading a
+///     copy or sending a result, leaves the request executing and the lock free (a job of its own takes it), and the next Wait ends the run;
+///   - TestWaiterStopsWhenTheJobShouldQuiesceOrTerminate (AC 8): a job that Ens.Job says should quiesce, and one that should terminate, makes no pass: no copy is read, the
+///     run is not given up, the request stays executing, the lock is free and the next Wait ends the run;
+///   - TestFailedResentAtSaveLeavesTheRunUnwaited (AC 1): a run whose ResentAt cannot be saved after its copies were registered logs one Type 3 warning (LOGRUN), is not
+///     waited for and sends no result, so the request stays executing with its FixRun holding the copies and no ResentAt or EndedAt, and a later Wait does not touch it;
+///   - TestFailedEndSaveOrCloseStillSendsTheResult (AC 1): a run whose counts cannot be saved at its end logs one Type 3 warning (LOGRUN), and its request is closed done,
+///     its Action entry written and its FixResult sent all the same, with no second result from a later Wait; a run whose request cannot be closed (its row was moved on)
+///     logs one Type 3 warning (LOGFINISH), and its counts and EndedAt are stored, its entry written and its FixResult sent all the same;
+///   - TestWaitLastsWaitSecondsFromResentAt (AC 1): on the long probe, a run whose ResentAt is 10 seconds inside the wait waits, though it started long before, and one whose
+///     ResentAt is 2 seconds past the wait does not: the wait lasts WAITSECONDS from ResentAt;
 ///   - TestStartExecutionFailsForAnApprovedRequest (AC 11; DW-380): an approved request, not past its expiry, whose StartExecution fails ends as could not start: one FixRun, the
 ///     request failed, one FixResult with Total the number of targets, every other count 0 and the reason "OcuTalon couldn't start the resend", one Action entry, and
-///     neither the re-check nor the resend is called; a pending, a cancelled and an executing request, and an approved one past its expiry, are refused;
+///     neither the re-check nor the resend is called; a pending, a cancelled and an executing request, and an approved one past its expiry, are refused; so is an approved
+///     request whose row on disk was cancelled or started by another job while its StartExecution failed (the row is read again): no FixRun, no FixResult, the row as it was left;
 ///   - TestEveryRunWritesOneActionEntry (AC 5): a run that cannot start, one that resent nothing and one that resent copies each write one Action entry, with the row's FixKind,
 ///     the production and namespace of the incident, the result, the counts as numbers, the request's Ref, the approver and channel (the system and the job's user without
 ///     them), the owner as the session when that is a Ref, and no member beside the shape; a write that fails logs one Type 3 warning (LOGAUDIT) and the FixResult still goes;
@@ -62,6 +79,9 @@ Class OcuTalon.Test.Fix.Executor Extends %UnitTest.TestCase
 {
 
 Parameter PROBE = "OcuTalon.Test.Fix.ExecutorProbe";
+
+/// The probe with a wait of 30 seconds, for the tests that must not depend on the speed of the host (the probe's own three seconds are for the tests that sit the wait out).
+Parameter LONGPROBE = "OcuTalon.Test.Fix.ExecutorProbeLong";
 
 /// The parameters of the repair of the requests.
 Parameter PARAMETERS = "{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""}";
@@ -646,7 +666,7 @@ Method TestStillRunningAfterTheWait()
 
 Method TestOneWaiterFinishesEveryRun()
 {
-	Set host = ..Host()
+	Set host = ..Host(..#LONGPROBE)
 	If '$IsObject(host) Quit
 	Set host.MissingIs = "none"
 	Set owner = ..Owner("waiter")
@@ -720,6 +740,208 @@ Method TestOneWaiterFinishesEveryRun()
 	Do $$$AssertEquals($Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), 2, "and each run wrote its Action entry")
 }
 
+Method TestHolderLooksOnceMoreAfterUnlocking()
+{
+	Set host = ..Host(..#LONGPROBE)
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("lookagain")
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9311, 3)
+	Set host.StatusIs = ..Canned(9311, 3, "Completed").%ToJSON()
+
+	// the waiter's first look finds no run, as if the run were saved while it was unlocking
+	Set host.WaitingEmpty = 1
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run that the waiter's first look does not find is handled")
+	Do $$$AssertEquals(host.WaitingEmpty, 0, "the waiter's first look was the one that found no run")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|3|3|0|0", "", "the waiter's look after it unlocked", "All 3 orders went through.")
+	Do $$$AssertEquals(host.Results.%Size(), 1, "and the run's FixResult was sent once")
+}
+
+Method TestWaiterThatErrsStopsAndReleasesTheLock()
+{
+	Set host = ..Host(..#LONGPROBE)
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("waiterr")
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9501, 3)
+	Set host.StatusIs = ..Canned(9501, 3, "Completed").%ToJSON()
+	Set host.WaitingThrows = 1
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose waiter cannot read the waiting runs is handled")
+	Do $$$AssertEquals(host.WaitingThrows, 0, "the waiter's read of the waiting runs threw")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Wait", $Parameter(..#PROBE, "LOGWAIT")_"(any)")
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning says that the waiter stopped: "_text)
+	Do $$$AssertTrue($Find(text, "The waiting runs could not be read") > 0, "and why")
+	Do $$$AssertEquals(host.Reads, 0, "the waiter read none of the copies")
+	Do $$$AssertEquals(..Row(ref), "executing||", "the request stays executing: nobody counted its copies")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run) && (run.resentAt '= "") && (run.endedAt = ""), "its run has a ResentAt and no EndedAt: it waits for the next waiter")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "no FixResult is sent")
+	Do $$$AssertTrue(..LockIsFree($Parameter(..#PROBE, "WAITLOCK")), "the waiter let go of the wait lock")
+
+	// the next job to wait ends the run
+	Do host.WaitNow()
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|3|3|0|0", "", "the next waiter", "All 3 orders went through.")
+}
+
+Method TestWaiterStopsWhenTheJobShouldQuiesceOrTerminate()
+{
+	Set host = ..Host(..#LONGPROBE)
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("jobstop")
+	Set first = 9511
+	For request = $$$eJobRequestQuiescent, $$$eJobRequestTerminate {
+		Set incident = ..Incident(owner)
+		Set host.Incidents = incident
+		Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+		Set host.CarryIs = ..CarryJSON(first, 3)
+		Set host.StatusIs = ..Canned(first, 3, "Completed").%ToJSON()
+		Set reads = host.Reads
+		Set sent = $Select($IsObject(host.Results): host.Results.%Size(), 1: 0)
+		Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+		Do $$$AssertStatusOK(..SendWhileJobIs(host, ref, request), request_": a run is handled by a job that should "_request)
+		Do $$$AssertEquals(host.Reads - reads, 0, request_": the waiter read none of the copies")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGWAIT")_ref), 0, request_": and gave no run up")
+		Do $$$AssertEquals(..Row(ref), "executing||", request_": the request stays executing")
+		Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+		Do $$$AssertTrue($IsObject(run) && (run.resentAt '= "") && (run.endedAt = ""), request_": its run has a ResentAt and no EndedAt")
+		Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0) - sent, 0, request_": no FixResult is sent")
+		Do $$$AssertTrue(..LockIsFree($Parameter(..#PROBE, "WAITLOCK")), request_": the waiter let go of the wait lock")
+
+		// the next job to wait ends the run
+		Do host.WaitNow()
+		Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|3|3|0|0", "", request_": the next waiter", "All 3 orders went through.")
+		Set first = first + 10
+	}
+}
+
+Method TestFailedResentAtSaveLeavesTheRunUnwaited()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set host.ResentSaveFails = 1
+	Set owner = ..Owner("resentsave")
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9301, 3)
+	Set host.StatusIs = ..Canned(9301, 3, "Completed").%ToJSON()
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose ResentAt cannot be saved is handled")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Run", $Parameter(..#PROBE, "LOGRUN")_ref)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $$$AssertEquals(..Row(ref), "executing||", "the request stays executing: its copies are not counted")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run), "the request has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.copies.%Size()_"|"_run.resentAt_"|"_run.endedAt, "3||", "which holds the three copies that were saved, with no ResentAt and no EndedAt")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "no FixResult is sent")
+	Do $$$AssertEquals($Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), 0, "and no Action entry is written")
+
+	// the run waits for nobody: a later Wait neither reads its copies nor ends it
+	Do host.WaitNow()
+	Do $$$AssertEquals(host.Reads, 0, "a later Wait reads none of its copies")
+	Do $$$AssertEquals(..Row(ref), "executing||", "and the request is still executing")
+}
+
+Method TestFailedEndSaveOrCloseStillSendsTheResult()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("endfault")
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+
+	// the save of the counts fails: one Type 3 warning, and the request is closed, the entry written and the result sent all the same
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CarryIs = ..CarryJSON(9851, 3)
+	Set host.StatusIs = ..Canned(9851, 3, "Completed").%ToJSON()
+	Set host.EndSaveFails = 1
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose counts cannot be saved is handled")
+	Set host.EndSaveFails = 0
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Finish", $Parameter(..#PROBE, "LOGRUN")_ref)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $$$AssertEquals(..Row(ref), "done|done|finished", "the request is closed done all the same")
+	Set last = ..LastResult(host)
+	Do $$$AssertTrue($IsObject(last) && (last.approvalRef = ref), "the FixResult is sent all the same")
+	If $IsObject(last) Do $$$AssertEquals(last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, "3|3|3|0|0", "with the run's counts")
+	Set entry = ..LastAudit(host)
+	Do $$$AssertTrue($IsObject(entry) && (entry.approvalRef = ref), "and the Action entry is written")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run), "the request has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.endedAt, "", "which has no EndedAt on disk: its save failed")
+	Set sent = host.Results.%Size()
+	Do host.WaitNow()
+	Do $$$AssertEquals(host.Results.%Size(), sent, "a later Wait sends no second result: the request is no longer executing")
+
+	// the close fails: one Type 3 warning, and the counts are stored, the entry written and the result sent all the same
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CarryIs = ..CarryJSON(9861, 3)
+	Set host.StatusIs = ..Canned(9861, 3, "Completed").%ToJSON()
+	Set host.CloseMoves = "cancelled"
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose request cannot be closed is handled")
+	Set host.CloseMoves = ""
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Close", $Parameter(..#PROBE, "LOGFINISH")_ref)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $$$AssertEquals(..Row(ref), "cancelled||", "the request is as the other change left it")
+	Set last = ..LastResult(host)
+	Do $$$AssertTrue($IsObject(last) && (last.approvalRef = ref), "the FixResult is sent all the same")
+	Set entry = ..LastAudit(host)
+	Do $$$AssertTrue($IsObject(entry) && (entry.approvalRef = ref), "and the Action entry is written")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run), "the request has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.total_"|"_run.resent_"|"_run.completed_"|"_(run.endedAt '= ""), "3|3|3|1", "which stores the counts and an EndedAt")
+}
+
+Method TestWaitLastsWaitSecondsFromResentAt()
+{
+	Set host = ..Host(..#LONGPROBE)
+	If '$IsObject(host) Quit
+	Set wait = $Parameter(..#LONGPROBE, "WAITSECONDS")
+	Set owner = ..Owner("window")
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set now = ##class(OcuTalon.Watch.Settle).Seconds(##class(OcuTalon.Data.Time).NowUtc())
+	Set started = now - 100
+	Set started = $Translate($ZDateTime((started \ 86400)_","_(started # 86400), 3, 1), " ", "T")_"Z"
+	For case = "inside", "past" {
+		Set ago = $Select(case = "inside": wait - 10, 1: wait + 2)
+		Set resent = now - ago
+		Set run = ##class(OcuTalon.Data.FixRun).%New()
+		Set run.ApprovalRef = ..Request(owner, incident, "executing")
+		Set run.IncidentRef = incident
+		Set run.StartedAt = started
+		Set run.ResentAt = $Translate($ZDateTime((resent \ 86400)_","_(resent # 86400), 3, 1), " ", "T")_"Z"
+		Do run.Copies.Insert(9801)
+		Do $$$AssertStatusOK(run.%Save(), case_": a run that started 100 seconds ago and registered its last copy "_ago_" seconds ago is saved")
+		Set id(case) = run.%Id()
+	}
+	Set waiting = host.WaitingNow()
+	Set position = 0
+	While $ListNext(waiting, position, item) {
+		Set listed(item) = ""
+	}
+	Do $$$AssertTrue($Data(listed(id("inside"))), "a run whose ResentAt is "_(wait - 10)_" seconds ago waits, though it started 100 seconds ago: the wait runs from ResentAt")
+	Do $$$AssertTrue('$Data(listed(id("past"))), "a run whose ResentAt is "_(wait + 2)_" seconds ago no longer waits: the wait lasts WAITSECONDS ("_wait_") from ResentAt")
+}
+
 Method TestStartExecutionFailsForAnApprovedRequest()
 {
 	Set host = ..Host()
@@ -760,6 +982,22 @@ Method TestStartExecutionFailsForAnApprovedRequest()
 		Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), before, case_": no FixResult is sent")
 		Do $$$AssertEquals(..Infos() - infos, 1, case_": one info line is logged")
 	}
+
+	// an approved row that another job starts, or a cancel moves on, while StartExecution fails is read again and refused: the row the handler holds is stale
+	Set host.RefusalIs = ""
+	For moved = "cancelled", "executing" {
+		Set host.StartMoves = moved
+		Set incident = ..Incident(owner)
+		Set ref = ..Request(owner, incident, "approved")
+		Set before = $Select($IsObject(host.Results): host.Results.%Size(), 1: 0)
+		Set infos = ..Infos()
+		Do $$$AssertStatusOK(..Send(host, ref), moved_" on disk: the Execute is handled")
+		Do $$$AssertEquals(..Row(ref), moved_"||", moved_" on disk: the row is as the other change left it")
+		Do $$$AssertEquals(..Runs(incident).%Size(), 0, moved_" on disk: no FixRun is written")
+		Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), before, moved_" on disk: no FixResult is sent")
+		Do $$$AssertEquals(..Infos() - infos, 1, moved_" on disk: one info line is logged")
+	}
+	Set host.StartMoves = ""
 }
 
 Method TestEveryRunWritesOneActionEntry()
@@ -855,10 +1093,10 @@ Method TestUnknownRequest()
 }
 
 /// --- helpers ---
-/// A shadow instance of the probe, in this process.
-Method Host() As OcuTalon.Test.Fix.ExecutorProbe
+/// A shadow instance of the probe (or of the class given, a subclass of it), in this process.
+Method Host(class As %String = {..#PROBE}) As OcuTalon.Test.Fix.ExecutorProbe
 {
-	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_class, .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
 	Quit host
 }
@@ -920,7 +1158,8 @@ Method Send(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String) As %Status
 }
 
 /// Asserts how a run ended: the request is in the state "State|Result|finished" (see Row), the incident has one FixRun for the request with no copies, and the probe
-/// recorded one more FixResult than the tests before it: final, Total the total, Resent, Completed and FailedAgain 0, Skipped the number given (0 by default) and the reason.
+/// recorded one more FixResult than the tests before it: final, Total the total, Resent, Completed and FailedAgain 0, Skipped the number given (0 by default) and the reason;
+/// when it was sent, the FixRun's EndedAt and the request's close were on disk already.
 Method AssertEnded(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, incident As %String, row As %String, total As %Integer, reason As %String, label As %String, skipped As %Integer = 0)
 {
 	Do $$$AssertEquals(..Row(ref), row, label_": the request is "_row)
@@ -933,6 +1172,7 @@ Method AssertEnded(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, inci
 	Do $$$AssertEquals(last.approvalRef_"|"_last.incidentRef_"|"_last.final_"|"_last.interrupted, ref_"|"_incident_"|1|0", label_": the FixResult names the request and the incident and is final")
 	Do $$$AssertEquals(last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, total_"|0|0|0|"_skipped, label_": with the counts Total "_total_", Skipped "_skipped_" and the rest 0")
 	Do $$$AssertEquals(last.reason, reason, label_": and the reason")
+	If $IsObject(run) Do $$$AssertEquals(last.storedEnd_"|"_last.storedState, "1|"_$Piece(row, "|", 1), label_": when it was sent, the FixRun's EndedAt and the request's close were saved already")
 	If $IsObject(run) {
 		Do $$$AssertEquals(run.total_"|"_run.resent_"|"_run.completed_"|"_run.failedAgain_"|"_run.skipped_"|"_run.interrupted_"|"_run.reason, total_"|0|0|0|"_skipped_"|0|"_reason, label_": the FixRun stores the same counts and reason")
 		Do $$$AssertTrue(run.endedAt '= "", label_": and an EndedAt")
@@ -943,8 +1183,8 @@ Method AssertEnded(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, inci
 }
 
 /// Asserts how a run that resent copies ended: the request is in the state row ("State|Result|finished"), the probe recorded the final FixResult with the counts
-/// ("total|resent|completed|failedAgain|skipped") and the reason, the FixRun stores the same with a ResentAt and an EndedAt, the last Action entry carries the same counts,
-/// and the result reads as text through the catalog.
+/// ("total|resent|completed|failedAgain|skipped") and the reason, the FixRun stores the same with a ResentAt and an EndedAt (on disk already when the result was sent, as was
+/// the request's close), the last Action entry carries the same counts, and the result reads as text through the catalog.
 Method AssertCounted(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, incident As %String, row As %String, counts As %String, reason As %String, label As %String, text As %String)
 {
 	Do $$$AssertEquals(..Row(ref), row, label_": the request is "_row)
@@ -954,6 +1194,7 @@ Method AssertCounted(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, in
 	Do $$$AssertEquals(last.approvalRef_"|"_last.incidentRef_"|"_last.final_"|"_last.interrupted, ref_"|"_incident_"|1|0", label_": it names the request and the incident and is final")
 	Do $$$AssertEquals(last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, counts, label_": with the counts "_counts)
 	Do $$$AssertEquals(last.reason, reason, label_": and the reason")
+	Do $$$AssertEquals(last.storedEnd_"|"_last.storedState, "1|"_$Piece(row, "|", 1), label_": when it was sent, the FixRun's EndedAt and counts and the request's close were saved already")
 	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
 	Do $$$AssertTrue($IsObject(run), label_": the request has a FixRun")
 	If $IsObject(run) {
@@ -1092,6 +1333,45 @@ ClassMethod HoldLock(lock As %String, flag As %String)
 	Set ^OcuTalonTest("FixExecutor", flag) = "released"
 }
 
+/// Tries the lock (a global name) in a job of its own, for up to 5 seconds, and sets the flag (a subscript of ^OcuTalonTest("FixExecutor")) to free when it got it
+/// (it lets go at once) or to busy when it did not. A test starts it with Job (see LockIsFree).
+ClassMethod TryLock(lock As %String, flag As %String)
+{
+	Lock +@lock:5
+	Set free = $Test
+	Set ^OcuTalonTest("FixExecutor", flag) = $Select(free: "free", 1: "busy")
+	If free Lock -@lock
+}
+
+/// 1 when a job of its own can take the lock (a global name) at once: nobody, this process included, holds it.
+Method LockIsFree(lock As %String) As %Boolean
+{
+	Set flag = "try"_..Number_"x"_$Increment(^OcuTalonTest("FixExecutor", "try"))
+	Set ^OcuTalonTest("FixExecutor", flag) = ""
+	Job ##class(OcuTalon.Test.Fix.Executor).TryLock(lock, flag)
+	Set end = $ZHorolog + 20
+	While ($Get(^OcuTalonTest("FixExecutor", flag)) = "") && ($ZHorolog < end) {
+		Hang 0.1
+	}
+	Set state = $Get(^OcuTalonTest("FixExecutor", flag))
+	Kill ^OcuTalonTest("FixExecutor", flag)
+	Quit (state = "free")
+}
+
+/// Hands the probe an Execute for the Ref (Send) while Ens.Job is asked to give this process the job request (quiescent or terminate); the request is taken back
+/// afterwards, also when the handler throws. The status.
+Method SendWhileJobIs(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, request As %String) As %Status
+{
+	Set $$$EnsJobRequest($$$SystemName, $Job) = request
+	Try {
+		Set sc = ..Send(host, ref)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Kill $$$EnsJobRequest($$$SystemName, $Job)
+	Quit sc
+}
+
 /// The row of the request as "State|Result|finished" ("finished" when FinishedAt is set); "<none>" for a Ref with no row.
 ClassMethod Row(ref As %String) As %String
 {
@@ -1159,6 +1439,8 @@ Method RemoveLogs()
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Pass", $Parameter(..#PROBE, "LOGLOOK"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Audit", $Parameter(..#PROBE, "LOGAUDIT"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Finish", $Parameter(..#PROBE, "LOGRUN"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGRUN"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Wait", $Parameter(..#PROBE, "LOGWAIT"))
 }
 
 }

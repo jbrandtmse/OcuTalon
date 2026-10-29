@@ -1373,6 +1373,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R3): FixRun holds only ApprovalRef, IncidentRef and StartedAt; no table stores a fix run's counts before Epic 7
 - 2026-10-26T13:11:27Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.4_at_Epic_5's_merge
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FixRun_stores_Total,Resent,Completed,FailedAgain,Skipped,Interrupted,Reason,EndedAt(c1f5162);Live.Payload.Incident.FromRow_lists_each_request's_result;pinned_by_Test.Fix.{Results,Partial,Runs}+Test.Live.Payloads_entries;mutations_red
 
 ### DW-273: Owner answer U-91: the evidence pack's credential-name rule (Watch.Reader CREDENTIALPARTS, case-insensitive substring) also leaves out settings whose name holds bearer or cookie; the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie
 - source: inbox U-91 (owner decision 2026-10-26T13:11:36Z#273) | severity: med | fix-risk: low | footprint: in-epic
@@ -1517,6 +1518,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=after a reload an answered request has no request card, so its result band never shows on an open card while the chat announces it
 - 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the snapshot's incident parts (orchestrator ruling 5); the parts need Lane A's builder (Epic 5); recommended: route to Story 11.1 (Epic 11 turns the real path on), /state building the parts with IncidentManager's builder
 - 2026-10-28T03:51:21Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): Lane A's Live.Payload.Incident.FromRow fills groups, requests, evidence and traceTargets for /state, beside DW-271/DW-272; Epic 7 integrates forward before 7.4's plan
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FromRow(Story_5.8)_already_filled_/state's_groups,evidence,traceTargets,requests;7.4_adds_each_request's_result;Test.Fix.Results/Partial_pin_the_whole_/state_entry(Partial.TestCopiesFailAgain:result_and_reason_on_event_and_/state)
 
 ### DW-293: Incident.CauseCategory and Incident.Element values are fixed by no contract: the card humanizes a snake_case category (data_format_change -> 'Data format change') and shows Element as published, while the UX evidence line reads 'order date' and eval/orders-date-format records elementAtFault 'OrderDate'
 - source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1633,6 +1635,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T00:12:03Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=harvest note=7.4 owns scale: make the dry run's count honest past the Seen cap (say how many it could not list, or read the targets another way) and pin it
 - 2026-10-28T01:03:01Z occurrence=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing
 - 2026-10-28T21:18:33Z occurrence=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=the_dry_run_counts_failures_Seen_no_longer_lists_as_affected_and_left_out;a_window_Seen_has_cut_is_refused;Test.Fix.DryRun.TestUnlistedFailuresAreCounted(two_groups:9_affected,4_resent,5_left_out)
 
 ### DW-328: The spine's dependency rule lists only Watch -> Fix.Kind and Checks -> Fix.Run.Sweep inside the domain layer, while the Fix area (RepairResend, Executor) references Watch.Reader, FailurePoller.Scope, ItemNoun and Transitions
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1711,6 +1714,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 7.3 spec Design Notes V4; Runs.TestStoppedProductionSkipsEveryCopy pins the Skipped counts; the result key choice is the Result texts convention's (Stories 7.3, 7.4, 7.5, 30.5)
 - 2026-10-28T22:37:53Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4 owns the result texts (E > Incidents and Approvals > Results): give a stopped production an honest result (its plain reason, or a key of its own); new wording is a veto-window public-text item at 7.4's spec gate
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=an_honest_stopped-production_result_needs_an_AD-16_amendment(a_production_not_running_at_the_run's_start_ends_it_as_couldn't_start,Skipped_0)_or_a_new_result_key_with_a_Result_texts_row_and_the_page's_key_selection(web/src/app/approvals/approval-view.ts);AD-16_is_cited_by_done_specs(U7(c):a_re-architecture,the_owner's);recommended:amend_AD-16,then_a_small_fix_story(Epic_11_X.0_or_30.x)
+- 2026-10-29T13:12:01Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=also a resend that errs partway: its unreached targets count as Skipped and render as changed since the dry run
 
 ### DW-379: The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which Story 7.3 is the first to write
 - source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
@@ -1723,13 +1727,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Executor.Refusal refuses an approved row past ExpiresAt and Execute only logs a StartExecution error: no FinishExecution, no FixResult; Approval.Expire moves only pending rows
 - 2026-10-29T04:15:16Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=reachable once 7.4's wait holds a later request's Execute; end it as couldn't start; new reason text is veto-window
 - 2026-10-29T05:56:54Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4_addresses_the_StartExecution-failure_half(AC_11,NOSTART);the_past-expiry_half_split_to_DW-384(escalated)
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=StartExecution_half:an_approved_unexpired_request_whose_StartExecution_fails_ends_as_couldn't_start_with_NOSTART('OcuTalon_couldn't_start_the_resend');Test.Fix.Executor.TestStartExecutionFailsForAnApprovedRequest(+moved-row_cases);the_past-expiry_half_is_DW-384(escalated)
 
 ### DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait run in its job would hold other incidents' notices past AD-15's 35-second notice
 - source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Production.cls gives FixExecutor PoolSize 1; IncidentManager's notice waits on its DryRun ask to FixExecutor; 7.3's Run ends after registration in that job, where 7.4's wait would go
 - 2026-10-29T04:15:22Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=7.4 plans where its 60 s wait runs so the dry-run ask never waits behind it, or shows the notice still holds 35 s
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FixExecutor_PoolSize_2_with_one_waiter_under_WAITLOCK(veto_U-147);Test.Fix.Waits.TestDryRunAnsweredDuringAWait(dry_run_answered_in_0.01s_while_a_run_waits;PoolSize_1_mutation_red)
 
 ### DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result
 - source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: split from DW-380 at 7.4's spec gate: 7.4 ends the StartExecution-failure half (NOSTART, AC 11); the past-expiry half needs AD-16's refused-Execute list amended
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=recommended: amend AD-16 so that an approved row past its ExpiresAt ends as couldn't start with NOSTART ('OcuTalon couldn't start the resend'), one line in Executor.Refusal; AD-16 is cited by done specs (U7(c): the owner's)
+
+### DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed, or a stop that timed out) leaves every run still in its 60-second wait executing and its incident fixing, with no result, because no job calls Wait again until another run resends copies
+- source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Fix.Executor.Wait quits on Ens.Job ShouldBeQuiescent/ShouldTerminate and only Run calls it; AD-16's Sweep (7.5) ends runs reported in progress (30.5) or marked interrupted by Reconcile at a start, neither of which covers these; 7.4 spec Residual risks names it for 7.5's Sweep
+- 2026-10-29T13:11:51Z status=routed owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=7.5's Sweep or Reconcile must also end runs whose waiter stopped while IRIS kept running (no restart); fix-risk med

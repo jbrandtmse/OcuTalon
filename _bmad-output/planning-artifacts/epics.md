@@ -3150,6 +3150,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **When** the catalog test runs
 **Then** each key, created in Epic 0 (Story 0.9 [AMENDED 2026-10-19, split for size, Rule 22]), exists in `OcuTalon.Msg.Catalog.Watch` with its slots and renders through the same `*Out` path as the other results, and its wording is P16's, accepted by the author on October 17 (EXPERIENCE.md › Results) (AD-16, AD-29, AD-32)
 
+- DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed) leaves every run still in its 60-second wait executing and its incident fixing with no result; the Sweep (or a waiter restart) must end them (ledger; routed by cr 2026-10-29)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
