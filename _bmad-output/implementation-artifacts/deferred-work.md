@@ -1291,6 +1291,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T12:16:50Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=spec_gate note=moved from 16.9 to 16.4's CI rework: on 0af9742 the image job timed out at 40 min (run 40866408272), shard:lane-b 706->866 s with 16.4's classes; move live:online-demo to install-upgrade
 - 2026-10-29T14:01:55Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi
 - 2026-10-29T14:01:55Z status=routed owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=image left at ~2047 s (0af9742 units minus online-demo, ~34.6 min job): reopen_if 30 min still met; 16.9 rebalances
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=ci/units.sh_moves(live:demo-switch_to_install-upgrade,live:online-allowance_to_install-fresh;16.4_moved_live:online-demo_to_install-upgrade);CI_run_40945229992(ba6856d,same_ci/units.sh):image_26.9min(was_34.1),install-upgrade_31.7,install-fresh_27.8,shards_32.4,browser_25.0,production_18.1;wall-clock_32m28s;image_no_longer_the_longest;no_job_over_REL-4s_35min;the_committed_head_and_the_merged_head_are_measured_at_their_ci_resolved
 
 ### DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view
 - source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1639,6 +1640,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: BridgeSink L292-294,L330,L377,L403 rows due at once and untyped event counts; Web.Api L193/L253 asserts check2 has no run
 - 2026-10-27T12:47:05Z status=routed owner=burndown by=harvest note=residual of DW-289 (orchestrator ruling): Epic 5 cannot edit Test/Core (Epic 6) or Test/Web (Epic 16); route to an open Epic 8, 6 or 16 story at merge (rows due a day ahead, or typed event counts)
 - 2026-10-29T01:11:55Z owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=burndown note=Epic 10 burn-down overflow: Test.Core.BridgeSink and Test.Web.Api.TestStateSections are Epic 16's (Core/BridgeSink, Test/Web); Story 16.9 edits BridgeSink's budget.capped path and /state's status, so it seeds those check rows a day ahead or counts typed events
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=delivered:Test.Core.BridgeSinks_four_methods_seed_check_rows_through_Check_Ahead()(asserted_over_23h_out)_and_count_approval_events_only;Test.Web.Api.TestStateSections_the_same_for_check1,check2(20cc3f9+review)
 ### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
@@ -1989,6 +1991,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: banner-view.ts:64-67 sends both actions to README_URL (#readme); epics.md Story 10.2 AC (line 3508) asks for an existing section; Design Note 1 kept #readme because web/src/app/banners/** is contended (Epic 16)
 - 2026-10-28T19:20:22Z status=escalated owner=burndown by=cr note=recommend: the Epic 16 story that next edits banners/** targets #set-a-model-key and #install-it-yourself; or accept #readme
 - 2026-10-29T02:22:28Z status=routed owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=merge_gate note=Epic 10 decision sheet (decide): the banners' How to set a key and Install it yourself actions target the README's #set-a-model-key and #install-it-yourself sections, not #readme
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=banner-view.ts_actions_target_#set-a-model-key_and_#install-it-yourself;README_has_both_headings;pinned_by_banner-view.test.mjs,banners.spec.ts_B1/B4/B5,busy.spec.ts,allowance-sources.test.mjs,test-readme.sh
 
 ### DW-367: The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so once Included() can be 1 a start with no bot token (FR-21: no token, so Telegram off) has no way to be expressed in CI
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2057,3 +2060,39 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 16.9 implement deferred: Task 0 (a) found NoticesIn's two branches already give each notice its own session's TraceRef; only the comment is stale
 - 2026-10-29T18:56:14Z status=open owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=harvest note=a two-way-door LOW for 16.9's review to patch
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=code_review_patched_the_Core/NoticesIn.cls_class_comment(names_BridgeSinks_daily-cap_message_as_a_sender;comment_only)
+
+### DW-400: The allowance banner's clear at retryAt on the page's own clock (BannerStack.withAllowance) is pinned only by a source-text test
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: A2 waits 45 s for the clear with retryAt about 30 s ahead; StatusMonitor's clear (15 s tick) also arrives in that time, so keeping the store's condition in withAllowance leaves A2 green; only allowance-sources.test.mjs (a regex) goes red.
+- 2026-10-29T22:47:08Z status=wontfix-accepted owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=reopen_if=a page shows the allowance banner after retryAt while its composer is usable (A2 trace, smoke or bug report)
+
+### DW-401: After a visitor's first allowance window ends, each later short window that opens at the limit starts with a first refusal and sends another allowance card
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Matrix row 5: a refusal once now >= AllowanceUntil is a first refusal; with a rolling hour the later windows last only until the next oldest entry ages out, so a visitor who keeps sending at the limit gets a card per short window.
+- 2026-10-29T22:47:08Z status=by-design owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=spec-bound (matrix row 5, AC 3: one notice per window); reopens only by a spec amendment
+
+### DW-402: AllowanceUntil is not reconciled when messageAllowance changes during an open window
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TryConsume keeps AllowanceUntil on an allowed message and returns the newly computed until on a later refusal: a raised limit accepts while the banner holds, a lowered one gives a 429 retryAt later than the status time.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if an admin changes messageAllowance on a running demo while a visitor's window is open
+
+### DW-403: Allowance.Refund after a concurrent first refusal leaves AllowanceUntil set though the count is back under the limit
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Refund removes the newest entry under the row lock but never clears AllowanceUntil, so the banner and the disabled composer hold until retryAt although TryConsume would accept.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if an Item send fails on the 50th message while a concurrent post of that session is refused
+
+### DW-404: Allowance.MailAllowed gives a retryAt too early when a session has more than 20 incoming emails in the hour
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: retryAt is the oldest incoming email plus 3600 s; with 21 or more in the window the count is still 20 or more then, so the page re-enables the chips and the next press is refused again.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if the online-demo flag is switched on while a session has over 20 incoming emails in the past hour
+
+### DW-405: Ownership.Resume's unlocked save at sign-in can write back a stale AllowanceUntil or DailyCapDay, not only AllowanceTimes
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Resume opens, sets CspSessionId and saves the whole Session row without its lock; a refusal or daily-cap send of the same session between its open and save is overwritten, so the next one sends a second card.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if a sign-in's Resume interleaves with a refusal or daily-cap send of that session; a second card would show it
+
+### DW-406: The browser timer idiom (LONGEST_TIMER_MS, arm, disarm, re-arm) is copied into live/allowance-state.ts and mailbox/simulated-mailbox.ts beside reset-watch.ts and session/idle-cap.ts
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Rule 2, weak reason: the spec names reset-watch.ts as the sibling AllowanceState follows but not why the timer is not shared; the copies already differ (one clamps at 0, one clears at once).
+- 2026-10-29T22:47:08Z status=wontfix-accepted owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=reopen_if=a fifth copy of the LONGEST_TIMER_MS idiom lands in web/src/app, or a fix to one copy's clamp or re-arm misses another
