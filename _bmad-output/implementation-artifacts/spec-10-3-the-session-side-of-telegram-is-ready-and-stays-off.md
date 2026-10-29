@@ -429,6 +429,41 @@ Paths under `src/ocutalon/cls/OcuTalon/` unless they start otherwise.
   - with Task F5, `qrcode-generator` 2.0.4 is pinned and recorded in the spine's Stack section.
 - **The switch.** Given all of the above, when a judge installs 0.1.0, then `Included()` returns 0 and nothing Telegram is visible or reachable: no rail section, the pairing routes answer 404, and `TelegramIn` and `TelegramOut` stay disabled.
 
+### Review Findings
+
+Code review of 2026-10-28 (`bmad-code-review`, full mode, diff `git diff 3cc3045` plus QA's uncommitted tests; four layers, 34 rows, plus two Rule 2 findings by the reviewer; 10 entries after grouping: high 0, med 6, low 4).
+
+- [x] [Review][Patch] (med; Rule 19, Boundaries "Nothing is left in TelegramOut's queue") `TestBodyNamesNoSession` sends a paired DELETE with Included 1, so its `pairing.unpairedFromPage` notice is queued in the disabled `TelegramOut` and never removed [src/ocutalon/cls/OcuTalon/Test/Web/PairingApi.cls:238] — fixed: the test waits for the Notify-to-TelegramOut hop, aborts its own queued item and checks the queue count is back; the class header says so
+- [x] [Review][Patch] (med) A reply queued for `getUpdates` while a long poll waits is not served until the poll times out (up to 50 s): `queueReplies` wakes no waiter and the wait loop checks only the update queue; Story 12.x's 409/429 tests would outlast their 20 s waits [ci/mock/mock.mjs:314] — fixed: `queueReplies` wakes the long polls, a waiting `getUpdates` ends when a reply is queued for it and serves that reply; header updated; new test in `telegram.test.mjs`
+- [x] [Review][Patch] (med; Rule 19) Two tests assert on the Telegram marks without setting them: `HeartbeatLogic.TestStalledCondition` counts `ActiveOf` with the real `telegramPaused` mark, and `Test.Web.Api.TestStateSections` asserts state `off` and no pause before it saves or clears either mark [src/ocutalon/cls/OcuTalon/Test/Schedule/HeartbeatLogic.cls:117] — fixed: `HeartbeatLogic` passes a telegram reading of "" to every `Computed` call; `TestStateSections` saves and clears both marks before its first `StateBody` and puts them back
+- [x] [Review][Patch] (med; Rule 19) `TestPageUnpairSendsTheNotice` checks that Notify sent nothing to `TelegramOut` after a fixed `Hang 2`, not after Notify has handled the Notification [src/ocutalon/cls/OcuTalon/Test/Core/SessionOpsProduction.cls:190] — fixed: it waits with the existing `Test.Core.Observe.WaitProcessed` (the SessionOps-to-Notify request completed) before the absence check
+- [x] [Review][Patch] (low) `Data.Pairing.Chat`, which Lane A's `TelegramOut` calls to resolve a ChatRef, has no cross-lane signature pin [src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls:306] — fixed: `{Pairing, Chat, chatRef, OcuTalon.Data.Pairing}` added to the signatures and the class header
+- [x] [Review][Patch] (low) `pairing.spec.ts` records the code's hash for the clean-up only after five assertions, so a failure among them leaves the code row behind [web/e2e/api/pairing.spec.ts:90] — fixed: each hash is taken right after its POST is read, before any assertion
+- [x] [Review][Patch] (low) Decided 21 ("a 409 reads no session") is pinned by no test: a 409 from the code route must leave the CSP session unattached [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:1097] — fixed: `TestPairing` keeps the CSP session of the 409 call and asserts it holds no `OcuTalon.SessionRef`
+- [x] [Review][Defer] (med) The mock's Bot API state is one global queue, call list and counter that assumes one client: `reset` restarts `update_id` at 1 (Decided 23), so a poller that keeps its offset drops new updates as confirmed, and `Test.Contract.Mock.TestTelegramBotApi` expects exactly its own three calls and `update_id` 1 [ci/mock/mock.mjs:330] — deferred: spec-bound (Decided 23) and reachable only once Story 12.1 runs an enabled `TelegramIn` poller against the mock; routed to Story 12.1 (DW-370)
+- [x] [Review][Defer] (med; Rule 2) `Data.Pairing.Purge` repeats about 20 of the 22 lines of Lane A's `Digest.Data.Item.Purge` (the day validation and the cutoff), a copy forced by AD-29 and Task A's "follow" [src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217] — deferred: Lane A owns the sibling; routed to Story 30.2, whose `Bridge.Purge` would be a third copy (DW-371)
+- [x] [Review][Defer] (low; Rule 2) The new Pairing test classes each carry their own `NewChat`, `Code`, `Submit`, `Hops` and `WaitHops` helpers (`Test/Core/SessionOps`, `SessionOpsProduction`, `AnswersTelegramProduction`, `Test/Web/PairingApi`, beside `RoutingProduction.WaitHops`) [src/ocutalon/cls/OcuTalon/Test/Web/PairingApi.cls:312] — deferred: weak reason (per-class helpers bound to each class's clean-up list; the shared home `Test.Data.Fixture` is contended); not a two-way door; `wontfix-accepted` (DW-372)
+
+Rejected (closed at emission):
+- `false` A reverse-order fresh run is not recorded — it is the lead's pre-push check (Rule 19), after review.
+- `false` `CommandsInProduction` still calls SessionOps "the stub owner" — the class sends only EndSession, which SessionOps still answers `not_built`, and Shared surfaces keeps that row.
+- `false` The registry purge tests delete old unpaired Pairing rows on a slot — that is `Purge`'s contract (AD-27); a slot holds no real pairing in 0.1.0, and an unpaired chat row is recorded again on its next message.
+- `false` The TryConsume assertion cannot fail and the StatusMonitor tick has no mutation line — `TryConsume`'s body is the code under test (a `Quit 0` mutation turns it red), and Rule 19 asks one mutation per AC: both ACs have one.
+- `false` lib-live's decoy `TELEGRAM_BOT_TOKEN` is shadowed by the override's `environment` — the decoy env_file is dropped or kept whole, and `ANTHROPIC_API_KEY=decoy` still detects a kept one.
+- `false` `StoreCode` does not re-compare `CodeSessionRef` after the index open — the column is `COLLATION = "EXACT"` and its index unique, so the open is exact.
+- `false` The code route's "nothing read" is not testable — the auditor found the code compliant (`Included()` first).
+- `low` (spec-bound, by-design) The mock's `editMessageText` answers a new `message_id` and `sendMessage` without `chat_id` answers 200 — Task E sets these defaults; a test can queue a reply for the real API's shape; reopen_if=a Lane A test needs the edited message's own id.
+- `low` (spec-bound, by-design) An Unpair from origin `timer` or `system` is audited `page` with the page notice — Task B's "any other origin"; nothing sends such an Unpair (Story 16.4 calls `Unlink` with its own reason); reopen_if=a timer or system Unpair is added.
+- `low` (spec-bound) `FromTelegram` maps an `Answer` `not_found` caused by a lock timeout on the session's own request to `not_visible` — Task C's mapping; it needs a lock held past LOCKSECONDS + TASKSECONDS; reopen_if=a press on the session's own pending request answers `not_visible`.
+- `low` (theoretical) A `Link` that fails after the `linked` entry leaves that entry, and a `failed` Pair from an internal error (an `Unlink` or `Ownership` read error, the catch) writes no entry — audit first is Decided 5; both need a lock timeout or a failed save; reopen_if=a failed Pair is found with a `linked` entry or with none.
+- `low` (already adjudicated) `Link` does not re-check the code against a concurrent `StoreCode` — the review pass rejected it; reopen_if=a code shown to a user is found used before they use it.
+- `low` `RecordChat` cuts the name with `$Extract` and can split a surrogate pair at 128 — it needs a name of 128 UTF-16 units with an astral character across the cut, and the fix is a guard; reopen_if=a display name ends in U+FFFD.
+- `low` The mock's Bot API method names are case-sensitive — a wrong case fails loudly with a 404, never a false green; reopen_if=a Lane A call uses another case.
+- `low` (already adjudicated) `ApiClient.pairingCode()` and `unpair()` are pinned by source only — Task F names the source pins; Stories 12.3 and 12.4 are the first callers.
+- `low` (already adjudicated) `PairingRows` does not enforce "throwaways and CI only" at run time — `Purge` is global by definition and the header says so.
+- `low` `TestTelegramBotApi` calls the constant host, not the URL built from `OCUTALON_TELEGRAM_API_BASE` — the guard first requires the variable to equal that constant, so the call goes to the configured base.
+- `low` `qr-pin.test.mjs` accepts any spine table row that names the library — only the Stack row does; reopen_if=another spine table row names `qrcode-generator`.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -749,6 +784,40 @@ Added in the review pass (same method, each restored and byte-identical afterwar
 - mutation: `web/package.json` pins `^2.0.4` -> `web/scripts/qr-pin.test.mjs` "package.json pins qrcode-generator at exactly 2.0.4" red (AC Web);
 - mutation: `live_key_count` ignores `TELEGRAM_BOT_TOKEN` -> `docker/tests/test-lib-live.sh` six `live_key_count` rows red (AC The mock: the start-with-no-key checks still hold).
 - Not mutated: `web/e2e/api/pairing.spec.ts`, which runs in `live:sign-in` (the `(once)` lines); `Test.Web.PairingApi` pins the same code-route and unpair rows by the mutations above.
+
+QA stage (gap audit of every Tasks & Acceptance item and every I/O matrix row against its pinning test; Lane C warm stack `e10s3qw` for the class runs, then three fresh `shard lane-b --part k/3` runs). Tests added or changed (QA):
+- `src/ocutalon/cls/OcuTalon/Test/Core/SessionOps.cls` (QA): `TestPairSameChatNewCode`, `TestPairMoveOntoASessionWithAChat`, `TestPairUsedCodeAfterItsExpiry`, `TestUnlinkSignature`; a "code that expires at this second" row in `TestPairExpiredCode`; a SeenAt row in `TestUnpairStop`.
+- `src/ocutalon/cls/OcuTalon/Test/Data/PairingRows.cls` (QA): SeenAt rows in `TestStoreCodeReplaces`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/AnswersTelegramProduction.cls` (QA): `TestAnswerFollowsThePairingSessionOpsWrites` and its helpers `NewChat`, `Code` and `Submit`.
+- `web/scripts/api-client-sources.test.mjs` (QA): the two Telegram parts of the demo path (the matrix row "Demo-path files").
+
+Mutations (Rule 19, QA; one per AC at least; each applied, red observed, reverted from a backup in the stage's scratchpad, `git diff`, `git status --short` and `git diff --stat` byte-identical, then the class green again on the same stack):
+- mutation: `Pair` drops the second-chat guard (`If otherId '= chatId {` -> `If 1 {`) -> `Test.Core.SessionOps` `TestPairSameChatNewCode` red (AC Pairing);
+- mutation: the dropped second chat's unlink reason `other_chat` -> `moved` -> `Test.Core.SessionOps` `TestPairMoveOntoASessionWithAChat` and `TestPairSecondChat` red (AC Pairing);
+- mutation: the expiry compare `expires <= now` -> `expires < now` -> `Test.Core.SessionOps` `TestPairExpiredCode` red at "a code that expires at this second is expired too" (AC Pairing);
+- mutation: the used check is skipped for an expired code (`If code.CodeUsedAt '= "" {` -> `If (code.CodeUsedAt '= "") && (code.CodeExpiresAt ] now) {`) -> `Test.Core.SessionOps` `TestPairUsedCodeAfterItsExpiry` red (AC Pairing);
+- mutation: `Guide.TelegramState()` quits `"off"` -> `Test.Core.SessionOpsProduction` `TestPairAndStopThroughTheProduction` red at the two guide rows (AC Pairing's consumers);
+- mutation: the page Unpair passes no notice key (`"pairing.unpairedFromPage"` -> `""`) -> `Test.Core.SessionOps` `TestPageUnpair` and `TestUnlinkStandsWhenTheSideEffectsFail` red (AC Notices to a dropped chat);
+- mutation: `Unlink` loses the default of `noticeKey` -> `Test.Core.SessionOps` `TestUnlinkSignature` red (AC The unlink API);
+- mutation: `StoreCode` no longer sets `SeenAt` -> `Test.Data.PairingRows` `TestStoreCodeReplaces` red at three rows; `Unlink` no longer touches `SeenAt` -> `Test.Core.SessionOps` `TestUnpairStop` red (AC Pairing rows);
+- mutation: the code route stores the code instead of its hash (`StoreCode(sessionRef, code, ...)`) -> `Test.Web.PairingApi` `TestCodeRoute` red (AC The code route);
+- mutation: the unpair route submits with origin `telegram` instead of `web_user` -> `Test.Web.PairingApi` `TestPageUnpair` and `TestBodyNamesNoSession` red (AC The unpair route);
+- mutation: `PauseHolds` reads `until >= now` -> `Test.Live.Status` `TestComputedTelegramPaused` red at the pause that ends at `now` (AC Status);
+- mutation: `FromTelegram` answers on channel `web` -> `Test.Core.AnswersTelegram` `TestApprovedAndRejected` red; and `Unlink` keeps the chat row's `SessionRef` (SessionOps item restarted, Decided 26) -> `Test.Core.AnswersTelegramProduction` `TestAnswerFollowsThePairingSessionOpsWrites` red at six rows (AC AnswersIn's Telegram entry);
+- mutation: `Delivery.FindByApproval` ignores its channel argument -> `Test.Core.TelegramCalls` `TestDeliveryIsFoundByItsOwner` red (AC Direct calls);
+- mutation: the mock's `getUpdates` stops dropping the confirmed updates (`if (offset !== null)` -> `if (false)`) -> `ci/mock/test/telegram.test.mjs` two tests red; and the CI dummy bot token made key-shaped -> `docker/tests/test-compose-file.sh` four checks red (AC The mock);
+- mutation: `ApiClient.unpair()` posts instead of deleting -> `web/scripts/api-client-sources.test.mjs` "unpair() is a DELETE of /pairing" red; and the story id of `telegram-page.spec.ts` `'12.4'` -> `'12.5'` -> the same file's "telegram-page.spec.ts declares one not-built part" red (AC Web);
+- mutation: `Pairing()` skips the `Included()` check for DELETE -> `Test.Web.PairingApi` `TestSwitchOffAnswers404` red at five rows (AC The switch).
+- mutations_demonstrated=20. Not mutated: `web/e2e/api/pairing.spec.ts` (unchanged by QA; its rows are the code route's and unpair route's, which `Test.Web.PairingApi` mutates above).
+
+QA runs: the warm stack ran each changed class green; fresh `shard lane-b --part 1/3`, `2/3` and `3/3` passed (26, 26 and 26 classes), `npm --prefix web test` passed (1002 tests), `docker/tests/test-compose-file.sh` and `test-lib-live.sh` passed. Not run by QA: `live sign-in` and `live demo-path` (no spec or web source changed), the reverse-order fresh check (the lead's, Rule 19).
+
+Code review (tests added or changed by the review's patches; Lane C, warm stack `e10s3rw`, fresh tag `e10s3r`; each mutation applied from a backup in the stage's scratchpad, red observed, restored, `git status --short`, `git diff --stat` and `git diff` byte-identical, then green again):
+- `ci/mock/test/telegram.test.mjs` (review): "a reply queued for getUpdates while a long poll waits answers that poll at once". mutation: `queueReplies` no longer calls `wakeWaiters()` -> that test red (the poll answered after its 30 s timeout) (AC The mock);
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` (review): `TestPairing` asserts that the 409 leaves the CSP session unattached (Decided 21). mutation: `PairingCode` reads `Ownership.SessionRef` before the two checks -> `Test.Web.Api` `TestPairing` red at "the 409 read no session" (AC The code route);
+- `src/ocutalon/cls/OcuTalon/Test/Web/PairingApi.cls` (review): `TestBodyNamesNoSession` removes its queued `TelegramOut` item and checks the count. mutation: the test's `AbortQueued` call removed -> `Test.Web.PairingApi` `TestBodyNamesNoSession` red at "the item the page notice queued for TelegramOut is removed" (Boundaries: nothing is left in TelegramOut's queue);
+- not mutated (hermeticity or readiness fixes that change no assertion): `Test.Schedule.HeartbeatLogic` (a telegram reading of "" in every `Computed` call), `Test.Web.Api.TestStateSections` (both marks cleared first and put back), `Test.Core.SessionOpsProduction.TestPageUnpairSendsTheNotice` (`Observe.WaitProcessed` before the absence check), `Test.Contract.Ac` (the `Pairing.Chat` signature entry), `web/e2e/api/pairing.spec.ts` (the clean-up hash taken before the assertions).
+- Runs: `bash docker/tests/test-mock.sh` (117 tests), `npm --prefix web test` (1002), `npm --prefix web run lint`, `docker/tests/test-class-rules.sh` and `bash ci/checks.sh` pass; on the warm stack `Test.Web.PairingApi`, `Test.Core.SessionOpsProduction`, `Test.Web.Api`, `Test.Schedule.HeartbeatLogic`, `Test.Contract.Ac` and `Test.Contract.Mock` pass; fresh, after `ci/iris.sh build`, `live sign-in --part 1/2` passes (127 tests, `api/pairing.spec.ts` included); both tags torn down.
 
 ## Auto Run Result
 

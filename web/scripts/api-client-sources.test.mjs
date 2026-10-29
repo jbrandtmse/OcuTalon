@@ -3,14 +3,17 @@
 // api/api-client.ts and nowhere else, the second client of Story 4.4 (feed/break-feed-api.ts) is gone, and the Break the feed box calls
 // ApiClient.breakFeed(). The browser envelope (Content-Type and X-OcuTalon-Request) is added by the one interceptor to every POST, PUT, PATCH
 // and DELETE, so a client that built its own requests would lose it; this keeps the page to one client. The browser cases (e2e/api/pairing.spec.ts
-// and the demo path) pin what the running routes do; this reads the sources.
+// and the demo path) pin what the running routes do; this reads the sources. It also pins the two Telegram parts of the demo path
+// (e2e/demo-path/telegram-page.spec.ts and telegram-approval.spec.ts): each exists, declares one not-built part that names the Lane A story
+// that replaces it, and is a part that demo-path-summary.mjs accepts for its step.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { stepOfFile } from './demo-path-summary.mjs';
 import { sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -103,4 +106,23 @@ describe('one typed client (DW-231)', () => {
   it('the client has no other method that posts to the break-feed address', () => {
     assert.equal((client.code.match(/demo\/break-feed/g) ?? []).length, 1);
   });
+});
+
+describe('the Telegram parts of the demo path', () => {
+  const e2e = join(here, '..', 'e2e', 'demo-path');
+  const parts = [
+    ['telegram-page.spec.ts', 'page', 0, '12.4'],
+    ['telegram-approval.spec.ts', 'approval', 4, '12.7'],
+  ];
+
+  for (const [name, step, index, story] of parts) {
+    it(`${name} declares one not-built part, owned by Story ${story}, and is a part of the ${step} step`, () => {
+      const code = readFileSync(join(e2e, name), 'utf8');
+      assert.match(code, /import \{ notBuilt \} from '\.\/not-built';/);
+      assert.equal((code.match(/\bnotBuilt\(/g) ?? []).length, 1, 'one declaration');
+      assert.match(code, new RegExp(`^notBuilt\\('[^']+', '${story.replace('.', '\\.')}'\\);$`, 'm'));
+      assert.doesNotMatch(code, /\btest\(|\btest\.(skip|only)\(/, 'no test of its own yet: Lane A replaces the call');
+      assert.deepEqual(stepOfFile(name), { index, numbered: false });
+    });
+  }
 });

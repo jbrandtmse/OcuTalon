@@ -80,6 +80,8 @@ test('the pairing routes: 404 while Telegram is not included, then the code rout
     const issued = await call(request, 'POST', `${PAIRING}/code`);
     expect(issued.status(), await issued.text()).toBe(200);
     const body = (await issued.json()) as { code: string; expiresAt: string };
+    const hash = createHash('sha256').update(String(body.code), 'utf8').digest('base64url');
+    latest = hash;
     expect(Object.keys(body)).toEqual(['code', 'expiresAt']);
     expect(body.code, 'a 22-character code of the Ref alphabet').toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(body.expiresAt, 'an expiry in UTC to the second').toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
@@ -87,16 +89,14 @@ test('the pairing routes: 404 while Telegram is not included, then the code rout
     expect(ahead, `the code lives 10 minutes: ${ahead} s`).toBeGreaterThan(540);
     expect(ahead).toBeLessThanOrEqual(601);
 
-    const hash = createHash('sha256').update(body.code, 'utf8').digest('base64url');
-    latest = hash;
     expect(hash).toHaveLength(43);
     expect(await codeRow(hash, body.code), 'the session holds the hash of the code, a code row without a chat or a session, and nothing holds the code').toBe(`${hash}|1|1|1|0`);
 
     const second = (await (await call(request, 'POST', `${PAIRING}/code`)).json()) as { code: string };
+    const secondHash = createHash('sha256').update(String(second.code), 'utf8').digest('base64url');
+    if (typeof second.code === 'string') latest = secondHash;
     expect(second.code, 'a second call makes another code').not.toBe(body.code);
     expect(await codeRow(hash, body.code), 'and replaces the first hash').toBe('');
-    const secondHash = createHash('sha256').update(second.code, 'utf8').digest('base64url');
-    latest = secondHash;
     expect(await codeRow(secondHash, second.code)).toBe(`${secondHash}|1|1|1|0`);
 
     const unpaired = await call(request, 'DELETE', PAIRING);

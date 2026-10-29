@@ -11,8 +11,9 @@
 /// The stalled rule (Story 8.2; FR-32), with no production:
 ///   - TestStalled: every row of the matrix of that spec through Heartbeat.Stalled: never ticked, fresh, the 180 s boundary (off), 181 s (on),
 ///     240 s, an unreadable tick or now, a tick later than now, and a missing argument;
-///   - TestStalledCondition: Status.Computed with an injected heartbeat reading: the order dailyCap, noModelKey, heartbeatStalled, telegramPaused, the exact
-///     exported JSON on and off, a reading of "" or one that is not an object is off, and ActiveOf holds the condition only when on.
+///   - TestStalledCondition: Status.Computed with an injected heartbeat reading and a telegram reading of "" (no pause, whatever the
+///     telegramPaused mark holds): the order dailyCap, noModelKey, heartbeatStalled, telegramPaused, the exact exported JSON on and off, a
+///     heartbeat reading of "" or one that is not an object is off, and ActiveOf holds the condition only when on.
 Class OcuTalon.Test.Schedule.HeartbeatLogic Extends %UnitTest.TestCase
 {
 
@@ -110,14 +111,14 @@ Method TestStalled()
 	Do $$$AssertEquals(##class(OcuTalon.Schedule.Heartbeat).#STALLSECONDS, 180, "the stall is more than 180 s")
 }
 
-/// Status.Computed with an injected heartbeat reading.
+/// Status.Computed with an injected heartbeat reading, and a telegram reading of "" so that no recorded pause is counted.
 Method TestStalledCondition()
 {
 	Set keys = {"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}
 	Set budget = {"capped": false}
 	Set now = "2001-01-01T12:00:00Z"
 	Set mark = ##class(OcuTalon.Data.Time).AddSeconds(now, -240)
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark), "now": (now)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark), "now": (now)}, "")
 	Set names = ""
 	For i = 1:1:conditions.Count() {
 		Set names = names _ $Select(names = "": "", 1: ",") _ conditions.GetAt(i).Condition
@@ -131,24 +132,24 @@ Method TestStalledCondition()
 	Do $$$AssertEquals(active.%Size(), 1, "ActiveOf holds it when on")
 	Do $$$AssertEquals(active.%Get(0).condition, "heartbeatStalled", "and only it")
 
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -180)), "now": (now)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -180)), "now": (now)}, "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "180 s back: off")
 	Do $$$AssertStatusOK(conditions.GetAt(3).%JSONExportToString(.json), "it exports")
 	Do $$$AssertEquals(json, "{""condition"":""heartbeatStalled"",""active"":false}", "off, with no slots")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions).%Size(), 0, "ActiveOf leaves it out when off")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -181)), "now": (now)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -181)), "now": (now)}, "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 1, "181 s back: on")
 
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": "", "now": (now)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": "", "now": (now)}, "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "an empty lastTick: off")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark)}, "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "a reading with no now: off")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, "")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, "", "")
 	Do $$$AssertEquals(conditions.Count(), 4, "a reading of the empty string: still the four conditions")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "and the empty string is no tick: off")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, [1, 2])
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, [1, 2], "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "an array is not a reading: off")
-	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": 5, "now": (now)})
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": 5, "now": (now)}, "")
 	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "a lastTick that is not a string: off")
 }
 

@@ -10,12 +10,20 @@
 ///   - TestPairRepeatChangesNothing: a used code repeated by the chat that is on its session is paired, with no audit and no event;
 ///   - TestPairChatMoves and TestPairSecondChat: the unlinks come first with their audit entries, events and (for a second chat only) the
 ///     notice, then the link; TestNotifyReadsTheNotice routes that notice through the Notify rule, with Included 1 and 0;
+///   - TestPairUsedCodeAfterItsExpiry: the used check comes before the expiry check: a used code that has since expired is still paired for
+///     the chat that used it (nothing written), and used_code, not expired_code, for another chat;
+///   - TestPairSameChatNewCode: a chat that is already on the session and sends the session's new code is paired again, not a second
+///     chat: no unlink, no notice, one linked entry and a second paired event;
+///   - TestPairMoveOntoASessionWithAChat: a chat that moves onto a session that has another chat drops that chat as well: moved (no notice)
+///     and other_chat (with the notice), then linked, in that order;
 ///   - TestPairAuditFails: no linked entry, no link, the code unused, a warning;
 ///   - TestPairAuditFailsAfterADrop: when the linked entry fails after a second chat dropped the first, neither chat is linked, the code is
 ///     unused, the dropped chat was told at the drop, and the same code pairs once the entry can be written;
 ///   - TestUnpairStop, TestUnpairNotPaired, TestPageUnpair, TestPageUnpairNothingPaired, TestCrossSessionUnpair: the Unpair rows;
 ///   - TestUnpairOriginsAuditTheirChannel: an Unpair from web_user, web_admin, timer and system is audited on web, web, system and system;
 ///   - TestUnlinkApi: the signature that Story 16.4 calls, its no-ops and its refusals before any change;
+///   - TestUnlinkSignature: the compiled signature of Unlink, the stable API of Story 16.4: a public instance method with its six
+///     parameters in order, the notice key defaulting to "", and the status as its return;
 ///   - TestUnlinkStandsWhenTheSideEffectsFail: a failed audit entry or notice is a warning and the chat is unlinked;
 ///   - TestEndSessionStaysNotBuilt and TestOtherMessagesAreRefused.
 Class OcuTalon.Test.Core.SessionOps Extends %UnitTest.TestCase
@@ -119,6 +127,11 @@ Method TestPairExpiredCode()
 	Set row = ##class(OcuTalon.Data.Pairing).ForCode(hash)
 	Do $$$AssertEquals(row.CodeUsedAt_"|"_row.CodeExpiresAt, "|"_past, "the code row is unchanged")
 	Do $$$AssertEquals(..EventSummary(session), "", "no event")
+	Set atNow = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..Code(session, .nowHash, atNow)
+	Set result = ..Pair(probe, nowHash, chat)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|expired_code", "a code that expires at this second is expired too")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef_"|"_##class(OcuTalon.Data.Pairing).ForCode(nowHash).CodeUsedAt, "|", "and it links nothing and stays unused")
 }
 
 /// A used code that another chat sends links nothing: used_code, audited as rejected (used) with the code's session, and the code row is
@@ -196,6 +209,30 @@ Method TestPairRepeatChangesNothing()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(hash).CodeUsedAt_"|"_##class(OcuTalon.Data.Pairing).Chat(chat).SeenAt, usedAt_"|"_seenAt, "the marks are unchanged")
 }
 
+/// The used check comes before the expiry check: a used code that has since expired is still paired for the chat that used it, with no
+/// audit entry (a re-sent start changes nothing), and it is used_code, not expired_code, for another chat.
+Method TestPairUsedCodeAfterItsExpiry()
+{
+	Set probe = ..Probe()
+	Set session = ..Session("usedexpired")
+	Set first = ..NewChat("Dana")
+	Set second = ..NewChat("Sam")
+	Do ..Code(session, .hash)
+	Do $$$AssertEquals(..Pair(probe, hash, first).Outcome, "paired", "control: the first chat uses the code")
+	Set row = ##class(OcuTalon.Data.Pairing).ForCode(hash)
+	Set row.CodeExpiresAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -60)
+	Do row.%Save()
+	Set row = ""
+	Set probe = ..Probe()
+	Set result = ..Pair(probe, hash, first)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "the chat that used the code is paired again, though the code has expired")
+	Do $$$AssertEquals(probe.Audits.%Size(), 0, "with no audit entry")
+	Set result = ..Pair(probe, hash, second)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|used_code", "another chat gets used_code, not expired_code")
+	Do $$$AssertEquals(..AuditSummary(probe), "rejected/used/"_session_"/telegram", "audited as rejected (used)")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(second).SessionRef, "", "and is not linked")
+}
+
 /// A chat on session 1 that sends session 2's code moves: it is on session 2, session 1 gets an unlinked entry (moved) and a not-paired
 /// event, then session 2 gets the linked entry and the paired event, in that order. No Notification is sent: the chat gets the pair reply.
 Method TestPairChatMoves()
@@ -241,6 +278,55 @@ Method TestPairSecondChat()
 	Set notice = probe.Notices.GetAt(1)
 	Do $$$AssertEquals(notice.SessionRef_"|"_notice.ChatRef_"|"_notice.Kind_"|"_notice.CatalogKey_"|"_notice.Slots, session_"|"_one_"|pairing|pairing.otherChatPaired|{}", "it names the first chat's ChatRef and the key")
 	Do $$$AssertEquals(..EventSummary(session), "true:Dana,false:,true:Sam", "events: paired, not paired, paired with the second name")
+}
+
+/// A chat that is already on the session and sends the session's new, unused code is paired again, and it is not a second chat: nothing is
+/// unlinked, no Notification is sent, one linked entry is written, the new code is marked used, and a second paired event follows (never a
+/// not-paired one).
+Method TestPairSameChatNewCode()
+{
+	Set probe = ..Probe()
+	Set session = ..Session("samechat")
+	Set chat = ..NewChat("Dana")
+	Do ..Code(session, .h1)
+	Do $$$AssertEquals(..Pair(probe, h1, chat).Outcome, "paired", "control: the chat pairs")
+	Do ..Code(session, .h2)
+	Set probe = ..Probe()
+	Set result = ..Pair(probe, h2, chat)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "Ok 1, paired")
+	Do $$$AssertEquals(..AuditSummary(probe), "linked/code/"_session_"/telegram", "one linked entry and no unlinked entry")
+	Do $$$AssertEquals(probe.Notices.Count(), 0, "no Notification: the chat is not a second chat")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef, session, "the chat is on the session")
+	Do $$$AssertNotEquals(##class(OcuTalon.Data.Pairing).ForCode(h2).CodeUsedAt, "", "the new code is marked used")
+	Do $$$AssertEquals(..EventSummary(session), "true:Dana,true:Dana", "events: paired, then paired again, never not paired")
+}
+
+/// A chat on session 1 that sends the code of session 2, which has another chat, moves and takes the session: session 1 gets an unlinked
+/// entry (moved) with no notice, session 2 an unlinked entry (other_chat) and the notice for the chat it lost and for no other, then the
+/// linked entry, in that order; the events follow the entries, and the lost chat is unlinked.
+Method TestPairMoveOntoASessionWithAChat()
+{
+	Set probe = ..Probe()
+	Set from = ..Session("movefrom")
+	Set onto = ..Session("moveonto")
+	Set mover = ..NewChat("Dana")
+	Set holder = ..NewChat("Sam")
+	Do ..Code(from, .h1)
+	Do ..Code(onto, .h2)
+	Do $$$AssertEquals(..Pair(probe, h1, mover).Outcome, "paired", "control: the mover is on session 1")
+	Do $$$AssertEquals(..Pair(probe, h2, holder).Outcome, "paired", "control: the holder is on session 2")
+	Do ..Code(onto, .h3)
+	Set probe = ..Probe()
+	Set result = ..Pair(probe, h3, mover)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "Ok 1, paired")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(mover).SessionRef_"|"_##class(OcuTalon.Data.Pairing).Chat(holder).SessionRef, onto_"|", "the mover is on session 2 and the holder is unlinked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Pairing(from, .sc), "", "and session 1 has no pairing")
+	Do $$$AssertEquals(..AuditSummary(probe), "unlinked/moved/"_from_"/telegram;unlinked/other_chat/"_onto_"/telegram;linked/code/"_onto_"/telegram", "unlinked (moved), unlinked (other_chat), then linked (code)")
+	Do $$$AssertEquals(probe.Notices.Count(), 1, "one Notification")
+	Set notice = probe.Notices.GetAt(1)
+	Do $$$AssertEquals(notice.SessionRef_"|"_notice.ChatRef_"|"_notice.CatalogKey, onto_"|"_holder_"|pairing.otherChatPaired", "for the holder, and none for the mover")
+	Do $$$AssertEquals(..EventSummary(from), "true:Dana,false:", "session 1: paired, then not paired")
+	Do $$$AssertEquals(..EventSummary(onto), "true:Sam,false:,true:Dana", "session 2: the holder, not paired, then the mover")
 }
 
 /// The Notification of a second chat goes through the Notify rule: with Telegram included it goes to TelegramOut alone, otherwise
@@ -323,10 +409,15 @@ Method TestUnpairStop()
 	Set chat = ..NewChat("Dana")
 	Do ..Code(session, .hash)
 	Do ..Pair(probe, hash, chat)
+	Set row = ##class(OcuTalon.Data.Pairing).Chat(chat)
+	Set row.SeenAt = "2020-01-01T00:00:00Z"
+	Do row.%Save()
+	Set row = ""
 	Set probe = ..Probe()
 	Set result = ..Unpair(probe, "telegram", "", chat)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|unpaired", "Ok 1, unpaired")
 	Do $$$AssertEquals(..AuditSummary(probe), "unlinked/stop/"_session_"/telegram", "one unlinked entry (stop) on telegram")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Pairing).Chat(chat).SeenAt ] "2020-01-01T00:00:00Z", "the unlink touches SeenAt, so that the purge counts the chat as seen")
 	Do $$$AssertEquals(..EventSummary(session), "true:Dana,false:", "events: paired, then not paired")
 	Do $$$AssertEquals(probe.Notices.Count(), 0, "no Notification")
 	Set row = ##class(OcuTalon.Data.Pairing).Chat(chat)
@@ -462,6 +553,18 @@ Method TestUnlinkApi()
 	Set probe = ..Probe()
 	Set sc = probe.Unlink(session, chat, "session_end", "system", "pairing.unpairedFromPage", .changed)
 	Do $$$AssertEquals(changed_"|"_probe.Notices.Count()_"|"_probe.Notices.GetAt(1).ChatRef, "1|1|"_chat, "with a key and the chat's own Ref: unlinked, and one notice with the ChatRef")
+}
+
+/// Unlink is the stable API that Story 16.4's End calls: a public instance method (not a class method, not private) whose parameters are
+/// sessionRef, chatRef, reason, channel, noticeKey (default "") and the output changed, in that order, and whose return is a status.
+Method TestUnlinkSignature()
+{
+	Set method = ##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Core.SessionOps||Unlink")
+	Do $$$AssertTrue($IsObject(method), "Unlink is compiled")
+	If '$IsObject(method) Quit
+	Do $$$AssertEquals(method.ClassMethod_"|"_method.Private, "0|0", "a public instance method")
+	Do $$$AssertEquals(method.FormalSpec, "sessionRef:%String,chatRef:%String,reason:%String,channel:%String,noticeKey:%String="""",*changed:%Boolean", "the six parameters in order, noticeKey defaulting to the empty string, changed an output")
+	Do $$$AssertTrue($ListFind($ListBuild("%Status", "%Library.Status"), method.ReturnType) > 0, "returning a status: "_method.ReturnType)
 }
 
 /// An unlink stands when its audit entry, its notice or both fail: the chat is unlinked, Ok, and a warning is logged for each.

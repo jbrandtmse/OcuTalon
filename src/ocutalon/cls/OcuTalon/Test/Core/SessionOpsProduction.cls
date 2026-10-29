@@ -187,7 +187,7 @@ Method TestPageUnpairSendsTheNotice()
 		Set notification = ##class(OcuTalon.Msg.Notification).%OpenId(sent.%Get(0).bodyId)
 		Do $$$AssertEquals(notification.SessionRef_"|"_notification.ChatRef_"|"_notification.Kind_"|"_notification.CatalogKey_"|"_notification.Slots, session_"|"_chat_"|pairing|pairing.unpairedFromPage|{}", "it names the ChatRef and the key, and holds no text")
 	}
-	Hang 2
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "SessionOps", "Notify", 1, ..#EVENTSECONDS), "Notify has handled the Notification")
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "TelegramOut").%Size(), 0, "Notify sent it nowhere, because Telegram is not included")
 }

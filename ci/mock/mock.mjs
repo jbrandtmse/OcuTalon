@@ -16,7 +16,7 @@
 //   POST /_mock/telegram/reset         clears the updates, the queued replies, the calls and the counters
 // A Bot API call is answered by the first queued reply of its method; else getUpdates by the update queue (updates below the offset
 // are dropped, and a negative offset is a 400; with none queued it waits until one is queued or min(timeout, 50) seconds pass, then answers an empty list, and a
-// client that hangs up ends the wait); else by the default of the method: getMe the bot ocutalon_ci_bot, sendMessage and
+// client that hangs up ends the wait; a reply queued for getUpdates while it waits answers it at once); else by the default of the method: getMe the bot ocutalon_ci_bot, sendMessage and
 // editMessageText a Message with a counted message_id, the chat.id as given and the text, answerCallbackQuery true. An empty token is a
 // 401, getFile (Story 25.3) and any other method a 404, all as Bot API errors {"ok":false,"error_code","description"}. The token is
 // never logged: the path is /bot[redacted]/<method> and the entry holds tokenLength; a Bot API call logs its method and parameter names
@@ -311,9 +311,11 @@ export function createMock({ scenarios, logDir, out }) {
     for (const wake of [...tg.waiters]) wake();
   }
 
+  // Queues the replies of a method and wakes the long polls, so that a getUpdates call that is already waiting takes a queued reply at once.
   function queueReplies(method, replies, scenario) {
     if (!tg.replies.has(method)) tg.replies.set(method, []);
     for (const reply of replies) tg.replies.get(method).push({ reply, scenario });
+    wakeWaiters();
   }
 
   // The control routes of the Bot API side.
@@ -563,12 +565,18 @@ export function createMock({ scenarios, logDir, out }) {
       return;
     }
     let reply = null;
-    const queue = tg.replies.get(method);
-    if (queue !== undefined && queue.length > 0) {
+    // Takes the method's next queued reply, if there is one.
+    const takeQueued = () => {
+      const queue = tg.replies.get(method);
+      if (queue === undefined || queue.length === 0) return false;
       const queued = queue.shift();
       reply = queued.reply;
       entry.scenario = queued.scenario;
       entry.selectedBy = 'queued';
+      return true;
+    };
+    if (takeQueued()) {
+      // A queued reply comes before the defaults and the update queue.
     } else if (method === 'getUpdates') {
       if (/^-[0-9]+$/.test(String(params.offset))) {
         refuse(400, 'bad-offset', 'Bad Request: the CI mock takes an offset of 0 or more');
@@ -582,6 +590,7 @@ export function createMock({ scenarios, logDir, out }) {
       while (ready.length === 0 && Date.now() < until && !res.destroyed) {
         await pollWait(res, until - Date.now());
         if (res.destroyed || res.writableEnded) break;
+        if ((tg.replies.get(method) ?? []).length > 0) break;
         ready = pendingUpdates(offset, limit);
       }
       if (res.destroyed || res.writableEnded) {
@@ -589,8 +598,10 @@ export function createMock({ scenarios, logDir, out }) {
         emit(entry, null, summary);
         return;
       }
-      entry.selectedBy = ready.length > 0 ? 'updates' : 'empty';
-      reply = { status: 200, body: { ok: true, result: ready } };
+      if (!takeQueued()) {
+        entry.selectedBy = ready.length > 0 ? 'updates' : 'empty';
+        reply = { status: 200, body: { ok: true, result: ready } };
+      }
     } else {
       entry.selectedBy = 'default';
       reply = { status: 200, body: defaultAnswer(method, params, () => tg.nextMessageId++) };

@@ -4,8 +4,9 @@
 /// and sends its notice to Notify. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): where OcuTalon.Production does not run every
 /// test fails with that reason, so that a broken stack can never give a green shard. ^OcuTalonTest("TelegramIncluded"), the telegramState
 /// and telegramPaused marks are put back in OnAfterAllTests, and the fixture rows, events and the sessions' messages are removed.
-/// With Telegram included, Notify sends the page notice to the disabled TelegramOut, where the item is queued (measured in Story 10.3): the
-/// page-Unpair test removes its own queued item with Ens.Queue (EnumerateItem and AbortItem) and checks that the queue is as it was.
+/// With Telegram included, Notify sends the page notice to the disabled TelegramOut, where the item is queued (measured in Story 10.3): each
+/// test that unpairs a paired session removes its own queued item with Ens.Queue (EnumerateItem and AbortItem) and checks that the queue is
+/// as it was.
 ///   - TestSwitchOffAnswers404: with Included 0, whatever the Telegram state, both routes answer 404 not_found and nothing is read or written
 ///     (no code row, no command, no event);
 ///   - TestCodeRoute: with Included 1 and the state on, the route answers 200 {"code","expiresAt"}: a 22-character code and an expiry 600
@@ -234,21 +235,27 @@ Method TestPageUnpairNothingPaired()
 	Do $$$AssertEquals(..Hops(trace, "SessionOps", "Notify"), 0, "and no Notification was sent")
 }
 
-/// A body that names another session and its chat is not read: the other session's pairing stays, and the caller's own is unlinked.
+/// A body that names another session and its chat is not read: the other session's pairing stays, and the caller's own is unlinked. The
+/// test removes the queued TelegramOut item that the caller's page notice caused, and the queue is as it was.
 Method TestBodyNamesNoSession()
 {
 	If '..Guard() Quit
 	Set mine = ..Session()
+	Set trace = ..TraceOf(mine)
 	Set theirs = ##class(OcuTalon.Test.Data.Fixture).Session("zzpairapi"_..Number_"other")
 	Set ..Refs = ..Refs_","_theirs
 	Do ..Keep(theirs)
 	Set theirChat = ..PairedChat(theirs)
 	Set myChat = ..PairedChat(mine)
+	Set queued = +##class(Ens.Queue).GetCount("TelegramOut")
 	Set body = ..Call("DELETE", .response, "{""sessionRef"":"""_theirs_""",""chatRef"":"""_theirChat_"""}")
 	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", "200 {result: done}")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(myChat).SessionRef, "", "the caller's own chat is unlinked")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(theirChat).SessionRef, theirs, "the other session's pairing stays")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(theirs, "pairing").%Size(), 0, "and it got no event")
+	Do ..WaitHops(trace, "Notify", "TelegramOut", 1)
+	Do ..AbortQueued("TelegramOut", trace)
+	Do $$$AssertEquals(+##class(Ens.Queue).GetCount("TelegramOut"), queued, "the item the page notice queued for TelegramOut is removed")
 }
 
 /// With no CSP session to take the OcuTalon session from, both routes answer 500 server_error, and no code row is made.

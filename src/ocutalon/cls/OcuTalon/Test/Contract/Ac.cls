@@ -13,7 +13,7 @@
 ///     the other lane's callers rely on (Delivery.Record and FindByApproval are named by the AC; the cross-lane APIs of
 ///     AD-29, the extension accessor and the extension bases of AD-31 are pinned from Story 0.6 on, and the catalog renderer
 ///     of AD-32 and Data.Time.ForMessage from Story 0.9, the Orders partner's Send from Story 0.10, and the Telegram session side that Lane A calls from
-///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
+///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode, Chat and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
 ///     Ownership.ApprovalKnown and Install.Step.Core.Purge);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
@@ -309,6 +309,7 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Pairing", "method": "RecordChat", "args": "chatId,displayName,*sc", "returns": "%String"},
  {"class": "OcuTalon.Data.Pairing", "method": "TakeReplySlot", "args": "chatRef", "returns": "%Boolean"},
  {"class": "OcuTalon.Data.Pairing", "method": "StoreCode", "args": "sessionRef,codeHash,expiresAt", "returns": "%Status"},
+ {"class": "OcuTalon.Data.Pairing", "method": "Chat", "args": "chatRef", "returns": "OcuTalon.Data.Pairing"},
  {"class": "OcuTalon.Data.Pairing", "method": "Purge", "args": "daysToKeep", "returns": "%Status"},
  {"class": "OcuTalon.Install.Step.Core", "method": "Purge", "args": "daysToKeep", "returns": "%Status"},
  {"class": "OcuTalon.Core.AnswersIn", "method": "FromTelegram", "args": "ref,action,chatRef,*code,*slots", "returns": "%Status"},

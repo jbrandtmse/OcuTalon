@@ -1261,6 +1261,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+- 2026-10-28T23:55:20Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=adjudication note=AnswersIn FromTelegram resolves the session from the live Pairing row and passes Approval.Answer that 22-character Ref, never a ChatRef; a malformed SessionRef answers not_allowed with nothing sent; pinned by Test.Core.AnswersTelegram and AnswersTelegramProduction (FromTelegram rows, DW-200 argument mutation)
 
 ### DW-213: The security overview must list the service role's demo-mode-only Read on %DB_OCUORDERS_DATA (granted by the Demo step with demo mode on, removed with it off or kept), so it never overstates least privilege
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1527,6 +1528,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine Stack row Angular L926; veto U-U-84
 - 2026-10-26T02:35:44Z status=routed owner=burndown by=spec_gate note=move press() and the marker calls into ApiClient once Epic 10 merges; re-own to an Epic 10 story at the burn-down
 - 2026-10-26T02:35:59Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=spec_gate note=Rule_2_copy_forced_by_the_footprint_is_routed_to_the_story_that_unifies_it_(never_burndown_for_a_LOW): 10.3 edits web/src/app/api/** (the Telegram block of StateSnapshot); move break-feed-api.ts press() and the guide-marker calls into ApiClient there
+- 2026-10-28T23:55:20Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=adjudication note=break-feed-api.ts deleted, ApiClient.breakFeed() used by break-feed-box.ts; the guide-marker call was already ApiClient.postGuideMarker (Story 4.7); web/scripts/api-client-sources.test.mjs pins one HttpClient injector; U-84's condition met before 1.0.0
 
 ### DW-232: Story 8.4's acceptance criteria ask for a CI mock scenario keyed by 'Remind me in 1 minute to stretch.' under ci/mock/scenarios/B/, which Story 4.4 adds as guide-reminder.json; the mock loader refuses a repeated prompt (scenarios.mjs), so 8.4 must extend guide-reminder.json rather than add a second scenario
 - source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1860,3 +1862,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/compose.ci.yml sets TELEGRAM_BOT_TOKEN unconditionally and live_key_count counts an empty token as a key; unverified until Story 12.1 enables the Telegram items
 - 2026-10-28T22:30:49Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=harvest note=Story 12.1 decides how a no-token start is made in CI (a start without the override, or an explicit empty value) when it turns the items on
+
+### DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls
+- source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs telegramControl reset sets tg.nextUpdateId = 1 and pendingUpdates drops update_id < offset (Decided 23); Test/Contract/Mock.cls:358-372 resets, then expects update_id 1 and 3 calls; reachable once Story 12.1 runs an enabled TelegramIn poller in CI
+- 2026-10-28T23:35:43Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=cr note=12.1 decides how a live poller and the tests share the mock: keep update_id counting over reset, or reset the offset
+
+### DW-371: Data.Pairing.Purge repeats about 20 of the 22 lines of Lane A's Digest.Data.Item.Purge (the day-count check and the UTC cutoff), a copy forced by AD-29; the purges drift when the day rule changes
+- source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
+- 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
+
+### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
+- source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Test/Core/SessionOps.cls:645-660, SessionOpsProduction.cls:219-290, AnswersTelegramProduction.cls:200-230, Test/Web/PairingApi.cls:312-412; each binds its class's Refs list; Test.Data.Fixture is contended
+- 2026-10-28T23:35:43Z status=wontfix-accepted owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=reopen_if=a change to RecordChat, StoreCode or Commands.Submit needs the same edit in more than two Pairing test classes
+
+### DW-376: flake: OcuTalon.Test.Schedule.Heartbeat TestStoppedThenStarted, 'the task ran while the production was stopped': the Task Manager's RunNow run was not seen within RUNSECONDS
+- source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 10.3 fresh check, lane C, fresh shard lane-b --part 3/3 (e10s3f, 2026-10-29): failed once at 159 s, then passed unchanged on a fresh class run (170 s); the story changes nothing under Schedule/
+- 2026-10-29T00:23:31Z status=routed owner=burndown by=fresh_check note=flake class like DW-349: a fixed wait on the Task Manager's RunNow; a rerun clears it; route to the release-1 flake story at the burn-down gate

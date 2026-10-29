@@ -10,6 +10,9 @@
 ///   - TestAlreadyAnsweredAndExpired: a second press is already_answered with the winner {action, channel telegram, time}, and a request
 ///     past its expiry is expired with {time};
 ///   - TestNotAllowedWithoutTheRole: a session whose user lacks the role gets not_allowed {kind} and the row stays pending;
+///   - TestAnswerFollowsThePairingSessionOpsWrites: the row that SessionOps writes is the row that FromTelegram reads: a chat paired by a
+///     Pair through the production has its press approved; a second chat that takes the session leaves the first chat not_paired with the
+///     request pending; after /stop the second chat is not_paired too;
 ///   - TestUnpairedAndBadChatsLeaveTheRowPending (DW-200): an unpaired chat is not_paired, and a chat whose row holds a chat id as its
 ///     SessionRef is not_allowed; both leave the request pending and write no audit entry. AnswersInProduction.TestMalformedSessionRefIsNotAllowed
 ///     is the other half of DW-200 and stays green.
@@ -113,6 +116,49 @@ Method TestUnpairedAndBadChatsLeaveTheRowPending()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", request).%Size(), 0, "and no Approval audit entry names it")
 }
 
+/// The row that SessionOps writes is the row that FromTelegram reads. A chat that a Pair through the production paired has its press approved.
+/// A second chat that takes the session (a new code) leaves the first chat not_paired: its press answers nothing and the request stays
+/// pending, while the second chat's press is approved. After /stop (Unpair from Telegram) the second chat is not_paired too. Telegram is
+/// not included meanwhile, so the notice to the dropped chat goes nowhere.
+Method TestAnswerFollowsThePairingSessionOpsWrites()
+{
+	If '..Guard() Quit
+	Set had = $Data(^OcuTalonTest("TelegramIncluded"), was)
+	Set ^OcuTalonTest("TelegramIncluded") = 0
+	Try {
+		Set session = ..WebSession("a")
+		Set one = ..NewChat("Dana")
+		Set two = ..NewChat("Sam")
+		Set first = ..Request(session)
+		Set second = ..Request(session)
+		Set third = ..Request(session)
+		Do ..Code(session, .h1)
+		Do $$$AssertEquals(..Submit("Pair", "", h1, one).Outcome, "paired", "control: the first chat pairs through the production")
+		Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(first, "approve", one, .code, .slots)
+		Do $$$AssertEquals(code, "approved", "a press from the chat that SessionOps paired is approved")
+		Do ..Code(session, .h2)
+		Do $$$AssertEquals(..Submit("Pair", "", h2, two).Outcome, "paired", "control: a second chat takes the session")
+		Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(second, "approve", one, .code, .slots)
+		Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_paired|{}", "a press from the dropped chat is not_paired")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(second).State, "pending", "and the request is still pending")
+		Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(second, "approve", two, .code, .slots)
+		Do $$$AssertEquals(code, "approved", "the second chat's press is approved")
+		Do $$$AssertEquals(..Submit("Unpair", "", "", two).Outcome, "unpaired", "/stop unpairs the second chat")
+		Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(third, "approve", two, .code, .slots)
+		Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_paired|{}", "its press is not_paired after /stop")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(third).State, "pending", "and the request is still pending")
+		Do ..RemoveTaskWarnings(first)
+		Do ..RemoveTaskWarnings(second)
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
+	}
+	If had {
+		Set ^OcuTalonTest("TelegramIncluded") = was
+	} Else {
+		Kill ^OcuTalonTest("TelegramIncluded")
+	}
+}
+
 /// --- helpers ---
 /// A fixture session of this process's user.
 Method WebSession(name As %String) As %String [ Private ]
@@ -148,6 +194,38 @@ Method PairedChat(session As %String, Output chatId As %String) As %String [ Pri
 	Do row.%Save()
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(row)
 	Quit chat
+}
+
+/// A chat row with the name that no session has paired, recorded for the clean-up. Returns its ChatRef.
+Method NewChat(name As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Data.Pairing).RecordChat(..NextChatId(), name, .sc)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(##class(OcuTalon.Data.Pairing).Chat(ref))
+	Quit ref
+}
+
+/// Stores a new code for the session (it expires in ten minutes) and records its row for the clean-up. Returns the code, which only the
+/// test holds, and its hash in hash.
+Method Code(session As %String, Output hash As %String) As %String [ Private ]
+{
+	Set code = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set hash = ##class(OcuTalon.Data.Pairing).HashCode(code)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Pairing).StoreCode(session, hash, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)), "a code is stored")
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(##class(OcuTalon.Data.Pairing).ForCode(hash))
+	Quit code
+}
+
+/// Submits a Pair (the hash and the chat) or an Unpair (the chat) from Telegram through Commands.Submit, as the fixture TelegramIn does,
+/// and returns the CommandResult.
+Method Submit(verb As %String, session As %String, hash As %String, chat As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set command = $ClassMethod("OcuTalon.Msg.Command."_verb, "%New")
+	Set command.SessionRef = session
+	If verb = "Pair" Set command.CodeHash = hash
+	Set command.ChatRef = chat
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
+	Do $$$AssertStatusOK(sc, "Submit returns OK")
+	Quit result
 }
 
 /// A fixture request of the owner that this process's user may answer; fields change the defaults. Its Ref is kept for the clean-up.

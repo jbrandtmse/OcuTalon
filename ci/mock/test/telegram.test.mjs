@@ -232,6 +232,23 @@ test('mock updates: with none queued getUpdates waits for the timeout or for an 
   });
 });
 
+test('mock replies: a reply queued for getUpdates while a long poll waits answers that poll at once', async () => {
+  await withServer({ files: { 'A/tg-conflict.json': CONFLICT } }, async ({ base, readLog }) => {
+    const begun = Date.now();
+    const pending = bot(base, DUMMY, 'getUpdates', { verb: 'GET', query: '?timeout=30' });
+    await pollArrived(base, 1);
+    const queued = await control(base, 'replies', 'POST', { scenario: 'tg-conflict' });
+    assert.equal(queued.status, 200);
+    const answered = await pending;
+    assert.ok(Date.now() - begun < 5000, 'the queued reply ended the wait long before the timeout');
+    assert.equal(answered.status, 409);
+    assert.equal(answered.json.error_code, 409);
+    assert.equal(readLog().filter((e) => e.selectedBy === 'queued' && e.scenario === 'tg-conflict').length, 1, 'the log shows the poll answered by the queued reply');
+    const next = await bot(base, DUMMY, 'getUpdates', { verb: 'GET', query: '?timeout=0' });
+    assert.deepEqual(next.json, { ok: true, result: [] }, 'and the reply was used once');
+  });
+});
+
 test('mock replies and calls: queued replies answer a method in order, then the defaults; calls lists every call; reset clears all', async () => {
   await withServer({ files: { 'A/tg-conflict.json': CONFLICT, 'B/tg-limited.json': LIMITED } }, async ({ base }) => {
     const byScenario = await control(base, 'replies', 'POST', { scenario: 'tg-limited' });

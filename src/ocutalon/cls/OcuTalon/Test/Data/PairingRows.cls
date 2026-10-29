@@ -8,7 +8,7 @@
 ///   - TestRecordChatRefusesABadId: "", letters and 21 digits give "" and an error status that never holds the value, and no row;
 ///   - TestChatLookupsAreExact: Chat finds a chat row by its exact Ref only, never by a case-changed Ref, a code row or "";
 ///   - TestTakeReplySlot: 1 and ReplySlotAt = now, then 0 for 59 seconds, then 1 again; 0 for an unknown ref and a code row's Ref;
-///   - TestStoreCodeReplaces: one code row per session, replaced in place with its used mark cleared; no ChatId and no SessionRef, so
+///   - TestStoreCodeReplaces: one code row per session, replaced in place with its used mark cleared and SeenAt renewed; no ChatId and no SessionRef, so
 ///     Ownership.Pairing sees no pairing; an empty session, hash or an expiry that is no UTC time is an error and no row; ForCode is exact;
 ///   - TestPurge: the unpaired chat and code rows that no writer touched for 30 days go (an hour outside the cutoff goes, an hour inside
 ///     stays), with the fallback to CreatedAt, and the paired
@@ -200,15 +200,19 @@ Method TestStoreCodeReplaces()
 	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).IsRef(row.Ref), "the row has its own Ref")
 	Do $$$AssertEquals(row.CodeSessionRef_"|"_row.CodeHash_"|"_row.CodeExpiresAt_"|"_row.CodeUsedAt, session_"|"_h1_"|2030-01-01T00:00:00Z|", "the session, hash and expiry, unused")
 	Do $$$AssertEquals(row.ChatId_"|"_row.SessionRef_"|"_row.DisplayName, "||", "no chat id, session or name")
+	Do $$$AssertEquals(row.SeenAt, row.CreatedAt, "a new code row is seen as it is created")
+	Do $$$AssertTrue(row.SeenAt '= "", "with a time")
 	Set id = row.%Id(), ref = row.Ref
 	Set row = ""
 	Do ..SetColumn(id, "CodeUsedAt", "2030-01-01T00:00:00Z")
+	Do ..SetColumn(id, "SeenAt", "2020-01-01T00:00:00Z")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Pairing(session, .sc), "", "a code row is no pairing")
 	Do $$$AssertStatusOK(sc, "and the read is OK")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Pairing).StoreCode(session, h2, "2031-02-03T04:05:06Z"), "a second code is stored")
 	Do $$$AssertEquals(..CountRows("CodeSessionRef", session), 1, "still one code row of the session")
 	Set row = ##class(OcuTalon.Data.Pairing).ForCode(h2)
 	Do $$$AssertEquals(row.%Id()_"|"_row.Ref_"|"_row.CodeHash_"|"_row.CodeExpiresAt_"|"_row.CodeUsedAt, id_"|"_ref_"|"_h2_"|2031-02-03T04:05:06Z|", "the same row has the new hash and expiry and the used mark is cleared")
+	Do $$$AssertTrue(row.SeenAt ] "2020-01-01T00:00:00Z", "and the replaced row is seen now, so that the purge keeps a code that was just stored: "_row.SeenAt)
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(h1), "", "the old hash finds nothing")
 	Set changed = $Select($ZConvert(h2, "U") '= h2: $ZConvert(h2, "U"), 1: $ZConvert(h2, "L"))
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(changed), "", "a case-changed hash finds nothing")
