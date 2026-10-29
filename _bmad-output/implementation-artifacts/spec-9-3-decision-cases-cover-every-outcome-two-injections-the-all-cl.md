@@ -2,7 +2,7 @@
 title: 'Story 9.3: Decision cases cover every outcome, two injections, the all-clear and a command request (part 1: the item cases and the suspicious-request injection)'
 type: 'feature'
 created: '2026-10-28'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '1ed8ff008bb75c631ae7c6f75f4772ebf80bb508'
 baseline_commit: '1ed8ff008bb75c631ae7c6f75f4772ebf80bb508'
 review_loop_iteration: 0
@@ -318,7 +318,13 @@ Code review, 2026-10-28 (full tier: blind-hunter, edge-case-hunter, verification
 - (edge) `Problems`/`Text` throw on a report without `actions` or `injectionChecks` -- false: `Build` always sets both, and nothing reads a saved report back into them.
 - (edge) Other Unicode spaces and apostrophes are not normalized -- low and theoretical: the normalization is the spec's (straight and curly apostrophes, white space).
 
+### Rework 1 (CI)
+
+- [ ] [CI] iris (image) / shard:lane-b: `OcuTalon.Test.Core.SettingsOps:TestOnlyRunTimeWriter` fails with "OcuTalon.Eval.Report does not write the Setting rows", because the writer scan's SQL alternative `OcuTalon_Data\.Setting` matches ANY mention of the table, and `Report.Actions` (Eval/Report.cls:651) reads it with `SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE UpdatedAt >= ?` — run 40791724398 (https://github.com/jbrandtmse/OcuTalon/actions/runs/40791724398), first red `8bb30dc`. The fix must: narrow ONLY that SQL alternative of the `writer` pattern in `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (`TestOnlyRunTimeWriter`) to SQL writes on the table (`INSERT INTO`, `UPDATE`, `DELETE FROM` with `OcuTalon_Data.Setting`, case-insensitive, embedded or dynamic SQL), keeping every other alternative byte-identical; add scanner self-checks beside the existing ones that a `SELECT ... FROM OcuTalon_Data.Setting` line is NOT flagged and that an `INSERT INTO`, an `UPDATE` and a `DELETE FROM` line ARE flagged (the existing `&sql(UPDATE ...)` check stays); keep `Eval/Report.cls` reading the table as it does (do not disguise the table name). Mutations (Rule 19): revert the narrowing → `TestOnlyRunTimeWriter` red on `OcuTalon.Eval.Report`; drop `INSERT` from the narrowed alternative → the new INSERT self-check red; write the `mutation:` lines. `Test/Core/SettingsOps.cls` is a lead-authorized footprint extension (no open branch touches it; orchestrator ruling of 2026-10-29); change nothing else in it. Verify with a fresh `ci/iris.sh class OcuTalon.Test.Core.SettingsOps` (lane B prefix, tag `e9s3i`) and the `lane-b` shard in parts on a fresh stack.
+
 ## Spec Change Log
+
+- 2026-10-29, rework 1 (CI): re-opened by the lead after CI run 40791724398 went red on `Test.Core.SettingsOps:TestOnlyRunTimeWriter` (the writer scan matches a read-only SELECT of `OcuTalon_Data.Setting`); one `[CI]` item above.
 
 ## Review Triage Log
 

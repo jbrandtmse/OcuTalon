@@ -148,7 +148,7 @@ development_status:
   epic-9: in-progress
   9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
   9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
-  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: in-progress
   9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: 
     ready-for-dev
   9-8-a-stop-watching-injection-leaves-the-watch-unchanged: backlog
