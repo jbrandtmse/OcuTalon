@@ -16,7 +16,7 @@
 ///   - CheckResults is the source of the results that check_status gives for a session: the session's own Kind production
 ///     watches (read through the ownership API, by ID), each as {"result", "entry" (ENTRY with the display name), "finding", "checkedAt"} copied from
 ///     the row's Result, Finding and LastRunAt, so the tool never decides a result (AD-28). Rows of another Kind are left out. A read that fails
-///     answers {"ok": false, "message": CHECKSNOTREAD}. It refuses the owner eval (CHECKSNOTREAD), as before.
+///     answers {"ok": false, "message": CHECKSNOTREAD}. It refuses the owner eval (CHECKSNOTREAD).
 ///   - EvalCheckResults is the eval branch of check_status (Story 9.7, AD-22): it answers 1, with the case's recorded rows in results, only when
 ///     the bridge context's OwnerRef is exactly eval (as the request and the session carry it, never a tool argument) and the newest
 ///     OcuTalon.Eval.Msg.TurnResult of the context's ItemId has RecordedChecks that parse as a JSON array. For every other call, and when

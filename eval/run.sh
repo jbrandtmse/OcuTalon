@@ -9,8 +9,9 @@
 # file or class default sets it (owner condition U-131).
 # Variables:
 #   OCUTALON_RUN_TAG          the run tag of ci/iris.sh (default local-<epoch>-<pid>)
-#   OCUTALON_EVAL_WAIT        the seconds each run may take to have every case decided: a whole number from 1 to 3600 (default 180);
-#                             anything else exits 2
+#   OCUTALON_EVAL_WAIT        the seconds each run may take, after it has sent its cases, to have every case decided: a whole number
+#                             from 1 to 3600 (default 180); anything else exits 2. The turn cases are decided while they are sent (each
+#                             ask waits up to EvalIn's TURNWAIT, and a Busy turn is asked again), so this wait does not bound them
 #   OCUTALON_EVAL_REPORT_DIR  the folder that receives the report files (default: a new folder from mktemp -d below
 #                             ${RUNNER_TEMP:-${TMPDIR:-/tmp}})
 # The steps:
@@ -30,8 +31,8 @@
 # allclear-orders-failing and one for command-run-shell, and the mock-wrong run has no problem, at least one case, and every case
 # decided (not a fallback) with the scenario's answer and not right. The SM-1, SM-2, injection, all-clear and command results are
 # printed and never checked: a score below its target is reported and fails nothing (on the mock the turn cases get the default chat
-# script, so both turn scores are 0: the all-clear cases never call check_status, and the command case gets the default reply, which
-# lacks the key phrase). Exits 1 when any check fails, 0 otherwise.
+# script, so both turn scores are 0: the all-clear cases never call check_status, and the command case runs list_productions and gets
+# the default reply, which lacks the key phrase). Exits 1 when any check fails, 0 otherwise.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)

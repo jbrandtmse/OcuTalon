@@ -24,7 +24,8 @@
 ///     a TurnResult that cannot be delivered is logged and leaves its row sent;
 ///   - TestTurnRefuses: a turn case with no turn.text, or an all-clear case whose checks is not an array, is refused with its reason before anything is saved or
 ///     asked; a Decide that gives no Reply (an error, a timeout, an answer that is not a Reply), or whose call throws, skips the case with a reason (the
-///     exception's text for a throw) and leaves no row and no TurnResult, and nothing is delivered;
+///     exception's text for a throw) and leaves no row and no TurnResult, and nothing is delivered; a case whose row cannot be opened (the run has
+///     a row of that case already) is skipped with the error text, keeps that row and leaves no TurnResult;
 ///   - TestSendOrder: the turn kinds come first, then the others, each group in the order of the list.
 Class OcuTalon.Test.Eval.In Extends %UnitTest.TestCase
 {
@@ -371,6 +372,12 @@ Method TestTurnRefuses()
 		Do $$$AssertEquals($List(..AskedAt(1), 13)_"|"_$List(..AskedAt(1), 15), "1|1", $List(form, 1)_": the TurnResult and the row existed when Decide was asked")
 		Do $$$AssertEquals(..Delivered()_"|"_..Rows()_"|"_..Bodies("zz-noreply"), "0|0|0", $List(form, 1)_": nothing was delivered, and the row and the TurnResult are deleted")
 	}
+
+	Do ..Reset()
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(..Run, "zz-noreply", "zz-earlier", "zzearlier"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 13)), "control: the run already has a row of the case")
+	Set reason = ..Process(service, "zz-noreply")
+	Do $$$AssertTrue(reason '= "", "a case whose row cannot be opened is skipped with the error text: "_reason)
+	Do $$$AssertEquals(..Asked()_"|"_..Delivered()_"|"_..Rows()_"|"_..Bodies("zz-noreply"), "0|0|1|0", "Decide was not asked, nothing was delivered, its TurnResult is deleted, and the row that was there stays")
 }
 
 /// The turn kinds are sent first, then the others, each group in the order of the list.
@@ -487,10 +494,12 @@ Method Rows() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// EvalIn's reason for a kind that holds no recorded Item.
+/// EvalIn's reason for a kind that it does not send: the kinds it sends joined with a comma, and with "and" before the last one.
 ClassMethod KindReason(kind As %String) As %String [ Private ]
 {
-	Quit $Replace($Replace($Parameter("OcuTalon.Eval.In", "REASONKIND"), "{kind}", kind), "{kinds}", $Replace($Parameter("OcuTalon.Eval.In", "KINDS"), ",", " and "))
+	Set kinds = $Parameter("OcuTalon.Eval.In", "KINDS"), count = $Length(kinds, ",")
+	Set text = $Replace($Piece(kinds, ",", 1, count - 1), ",", ", ")_" and "_$Piece(kinds, ",", count)
+	Quit $Replace($Replace($Parameter("OcuTalon.Eval.In", "REASONKIND"), "{kind}", kind), "{kinds}", text)
 }
 
 /// EvalIn's reason for a recorded provenance other than untrusted.

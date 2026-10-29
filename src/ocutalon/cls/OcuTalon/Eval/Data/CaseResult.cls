@@ -6,7 +6,7 @@
 ///     of a turn case, and from the bridge's Decision and Usage rows.
 /// A case that EvalIn does not send has no row. A sent case that is never decided stays visible as a row in state sent.
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
-/// folder in eval/, and SourceItemId is the case's recorded item id. Times are UTC to the second. A cost that is not known is empty,
+/// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case, which records no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
 /// never 0. Rows exist only where EvalIn ran, which is throwaway stacks and CI, so the class has no purge.
 Class OcuTalon.Eval.Data.CaseResult Extends %Persistent
 {
@@ -26,16 +26,16 @@ Property RunRef As %String(COLLATION = "EXACT", MAXLEN = 22);
 /// The name of the case: its folder in eval/.
 Property CaseName As %String(COLLATION = "EXACT", MAXLEN = 128);
 
-/// The item id the case was recorded with, which EvalIn puts on the Item and every hop copies.
+/// The item id the case was recorded with, which EvalIn puts on the Item and every hop copies; for a turn case, the case's name.
 Property SourceItemId As %String(COLLATION = "EXACT", MAXLEN = 128);
 
-/// The fresh ItemId that EvalIn gave the Item of this run (AD-14).
+/// The fresh ItemId that EvalIn gave the Item of this run (AD-14), or, for a turn case, its turn request.
 Property ItemId As %String(COLLATION = "EXACT", MAXLEN = 22);
 
 /// sent or decided.
 Property State As %String(MAXLEN = 32);
 
-/// When EvalIn sent the Item.
+/// When EvalIn sent the Item, or opened the row of a turn case before it asked Decide.
 Property SentAt As %String(MAXLEN = 20);
 
 /// When EvalSink completed the row.
@@ -51,7 +51,7 @@ Property Outcome As %String(MAXLEN = 32);
 /// 1 when the decision took the fallback route (AD-8).
 Property Fallback As %Boolean [ InitialExpression = 0 ];
 
-/// The fallback reason of the ItemDecision: one of Msg.Enum FALLBACKREASON; empty when Fallback is 0.
+/// The fallback reason of the ItemDecision, or of the TurnResult of a turn case: one of Msg.Enum FALLBACKREASON; empty when Fallback is 0.
 Property FallbackReason As %String(MAXLEN = 32);
 
 /// The cause category of a diagnose Decision's payload.
@@ -66,7 +66,7 @@ Property FixKind As %String(MAXLEN = 32);
 /// The fix parameters of a diagnose Decision's payload, as the text of a JSON object; empty when it names no fix.
 Property FixParameters As %String(MAXLEN = "");
 
-/// The cost of the attention decision in US dollars (AD-20); empty when any of its Usage rows is unpriced or it has none.
+/// The cost of the attention decision, or of a turn case's turn, in US dollars (AD-20); empty when any of its Usage rows is unpriced or it has none.
 Property CostUSD As %Numeric(SCALE = 6);
 
 /// The Ref of the Decision row of the untrusted turn that an act ran; empty when there was none.

@@ -560,6 +560,8 @@ variant('cases', 'bad-empty-tree', 'holds no case.json', (f) => { for (const k o
 
 variant('markers', 'bad-outside', 'a mock marker outside eval/mock-wrong/', (f) => { f[ITEM].item.text = '[[mock:eval-zz]] a text'; });
 variant('markers', 'bad-outside-file', 'a mock marker outside eval/mock-wrong/', (f) => { f['eval/incident-good/notes.txt'] = 'a note [[mock:eval-zz]]\n'; });
+variant('markers', 'bad-outside-clear-turn', 'a mock marker outside eval/mock-wrong/', (f) => { f[CLEAR].turn.text = '[[mock:eval-zz]] Is everything fine?'; });
+variant('markers', 'bad-outside-command-turn', 'a mock marker outside eval/mock-wrong/', (f) => { f[COMMAND].turn.text = 'Please run df -h. [[mock:eval-zz]]'; });
 variant('markers', 'bad-no-marker', 'names no marker scenario', (f) => { f[WRONG].item.text = 'an urgent notice'; });
 variant('markers', 'bad-scenario-missing', 'names a marker scenario that is missing or whose first reply is not a JSON text', (f) => { delete f[SCENARIO]; });
 variant('markers', 'bad-scenario-same-outcome', 'does not answer an outcome other than the expected one', (f) => { f[SCENARIO] = scenario('tellnow'); });

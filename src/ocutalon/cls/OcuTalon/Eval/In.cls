@@ -229,7 +229,7 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	}
 	If '$IsObject(case) || 'case.%IsA("%Library.DynamicObject") Quit ..#REASONNOTJSON
 	Set kind = ..Scalar(case, "kind")
-	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", $Replace(..#KINDS, ",", " and "))
+	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", ..KindsText())
 	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name)
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
@@ -261,6 +261,14 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Quit ""
 }
 
+/// The kinds that EvalIn sends, as the text of a reason: joined with a comma, and with "and" before the last one.
+ClassMethod KindsText() As %String [ Private ]
+{
+	Set count = $Length(..#KINDS, ",")
+	If count < 2 Quit ..#KINDS
+	Quit $Replace($Piece(..#KINDS, ",", 1, count - 1), ",", ", ")_" and "_$Piece(..#KINDS, ",", count)
+}
+
 /// The one send of an item case: the Item to the target item, asynchronously, with no answer. Private; a test subclass overrides it.
 Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
@@ -269,7 +277,8 @@ Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 
 /// The steps for one turn case (see the class description); the reason it was not sent, or "" when it was. A case that has no turn.text,
 /// or an all-clear case whose checks is not an array, is refused before anything is saved. Otherwise the case's TurnResult and row are
-/// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again.
+/// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again. A row that cannot be opened (the run already
+/// has a row of that case) is refused with the error text, and only the case's own TurnResult is deleted: the row that is there stays.
 Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %String [ Private ]
 {
 	Set turn = case.turn
@@ -289,7 +298,7 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %St
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
 	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, result.ItemId)
 	If $$$ISERR(sc) {
-		Do ..Discard(result, name)
+		Do ##class(OcuTalon.Eval.Msg.TurnResult).%DeleteId(result.%Id())
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
 	Set ..%SuperSession = ..RunRef

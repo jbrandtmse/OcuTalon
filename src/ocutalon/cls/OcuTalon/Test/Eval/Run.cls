@@ -50,8 +50,9 @@
 ///   - TestTurnSessions (Story 9.7, AC5, DW-110): the first model request of each turn case holds only its own text, in one message, and no other
 ///     case's, and each Reply says that the conversation was moved to a new AI session (SessionRotated) and has a DecisionRef of its own.
 /// OnAfterAllTests clears the mock's countdown, puts the EvalIn row, the runner keys, the case rows, the Decision, Usage and step rows, the
-/// AI sessions, the messages and the fixture folder back as it found them, and fails the class when a case row, message, Decision or Usage row of the runs, or the
-/// fixture folder, is still there.
+/// TurnResult bodies, the AI sessions and their conversation links, the messages and the fixture folder back as it found them, and fails the
+/// class when a case row, message, Decision, Usage or TurnResult row of the runs, an AI session saved since the class began, a conversation
+/// link that names one, or the fixture folder, is still there.
 Class OcuTalon.Test.Eval.Run Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -305,9 +306,10 @@ Method WriteCase(name As %String, text As %String, parent As %String = "") As %S
 }
 
 /// Puts back what OnBeforeAllTests changed: the EvalIn row and the production, the runner keys, the case rows, the Decision, Usage
-/// and step rows of the runs' items, the AI sessions, the warnings, the fixture folder and the runs' messages, then checks that none
-/// of the runs' case rows, messages, Decision or Usage rows or fixture folder is left (Leftovers); then the superclass runs. The status
-/// is the error of the step that could not put its part back, or names what is left.
+/// and step rows of the runs' items, the TurnResult bodies, the AI sessions and their conversation links, the warnings, the fixture folder
+/// and the runs' messages, then checks that none of the runs' case rows, messages, Decision, Usage or TurnResult rows, AI sessions,
+/// conversation links or fixture folder is left (Leftovers); then the superclass runs. The status is the error of the step that could not
+/// put its part back, or names what is left.
 Method OnAfterAllTests() As %Status
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -345,7 +347,7 @@ Method OnAfterAllTests() As %Status
 		Set run = $Property($This, "Run"_number)
 		If run '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(run)
 	}
-	If ..SessionMark '= "" Do $ClassMethod(fixture, "DropSince", ..SessionMark)
+	If ..SessionMark '= "" Set sc = $$$ADDSC(sc, $ClassMethod(fixture, "DropSince", ..SessionMark))
 	If ..LogMark '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	If ..Folder '= "" Do ##class(%File).RemoveDirectoryTree(..Folder)
 	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
@@ -375,10 +377,20 @@ ClassMethod DeleteTurnResults(itemId As %String) [ Private ]
 }
 
 /// OK when the clean-up left nothing of the runs; otherwise an error that names what is left: a run's case rows or messages, the
-/// Decision, Usage or TurnResult rows of an Item of the runs, or the fixture folder.
+/// Decision, Usage or TurnResult rows of an Item of the runs, an AI session saved since the class began (the turn cases' sessions) or a
+/// conversation link that names one, or the fixture folder.
 Method Leftovers(items As %List) As %Status [ Private ]
 {
 	Set left = ""
+	If ..SessionMark '= "" {
+		If ..CountAbove("%AI_Agent.Session", ..SessionMark, "") Set left = left_", AI sessions saved since the class began"
+		Set links = 0
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId FROM OcuTalon_Bridge_Data.ConversationLink")
+		While result.%Next() {
+			If +result.%Get("SessionId") > ..SessionMark Set links = links + 1
+		}
+		If links Set left = left_", conversation links that name such a session"
+	}
 	For number = 1, 2, 3, 4 {
 		Set run = $Property($This, "Run"_number)
 		If run = "" Continue
@@ -976,10 +988,12 @@ ClassMethod Reasons(skipped As %DynamicArray) As %String [ Private ]
 	Quit text
 }
 
-/// EvalIn's reason for a kind that holds no recorded Item.
+/// EvalIn's reason for a kind that it does not send: the kinds it sends joined with a comma, and with "and" before the last one.
 ClassMethod Kind(kind As %String) As %String [ Private ]
 {
-	Quit $Replace($Replace($Parameter("OcuTalon.Eval.In", "REASONKIND"), "{kind}", kind), "{kinds}", $Replace($Parameter("OcuTalon.Eval.In", "KINDS"), ",", " and "))
+	Set kinds = $Parameter("OcuTalon.Eval.In", "KINDS"), count = $Length(kinds, ",")
+	Set text = $Replace($Piece(kinds, ",", 1, count - 1), ",", ", ")_" and "_$Piece(kinds, ",", count)
+	Quit $Replace($Replace($Parameter("OcuTalon.Eval.In", "REASONKIND"), "{kind}", kind), "{kinds}", text)
 }
 
 /// The largest ID of the table, or 0.

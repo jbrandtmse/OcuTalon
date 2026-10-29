@@ -457,6 +457,34 @@ The stop-watching injection moves to a sibling story.
   - the script exits 0.
 - **Hermeticity.** Given a fresh throwaway, when the `Test.Eval.*` classes run forward and in reverse, then each passes and leaves no row, message body, `TurnResult`, AI session, conversation link or folder behind.
 
+### Review Findings
+
+Code review, 2026-10-29 (`bmad-code-review`, full mode, first review of this story; layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor, all on the session's tier). U-143 conditions 1 to 4 hold: the branch keys only on the bridge context's `OwnerRef` (`CheckStatus` takes no argument), owner `eval` never reaches `CheckResults`, only `CheckStatus` puts rows in `HostData`, and every other owner's path is the old code. Each line gives severity, fix-risk, footprint and spec status (Rule 15).
+
+- [x] [Review][Patch] The Hermeticity AC's AI-session and conversation-link clause had no pinning assertion: `OnAfterAllTests` dropped `DropSince`'s status, and `Leftovers` never counted sessions or links (med; fix-risk low, test code only; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls:350]
+- [x] [Review][Patch] Only the three named all-clear cases were checked against `Checks.Render`, so a later all-clear case whose rows render another key would pass the repository check and every test; `TestRecordedCases` now renders every all-clear case of `eval/` (low; fix-risk low, one assertion; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls:105]
+- [x] [Review][Patch] A turn case whose row cannot be opened (the run already has a row of that name) called `Discard`, which deleted the earlier row; it now deletes only its own TurnResult, as the item branch leaves rows alone, and `TestTurnRefuses` pins it (QA's issue (a)) (low; fix-risk low, a two-line correction; in-story; clear) [src/ocutalon/cls/OcuTalon/Eval/In.cls:301]
+- [x] [Review][Patch] The assertion "there is no held-out turn score" checked a name no code produces (`heldOutAllClear`), so it could not fail; it now asserts the full key set of `scores` (low; fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1036]
+- [x] [Review][Patch] The Turn cases text's ` (fallback)` marker and `reply: (none)` were not pinned; `TestTurnFallback` asserts the Busy-exhausted turn's bullet (low; fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1158]
+- [x] [Review][Patch] Contract comments that described only item cases or missed the Busy fallback: `CaseResult`'s class doc, `SourceItemId`, `ItemId`, `SentAt`, `FallbackReason` and `CostUSD`; `TurnResult`'s `Fallback`; `Test.Eval.Run`'s class description and `OnAfterAllTests`/`Leftovers` docs; and "as before" in `WatchAnswers`' class description (Rule 14) (low; fix-risk low, doc text only, no property, index or storage change; in-story; clear) [src/ocutalon/cls/OcuTalon/Eval/Data/CaseResult.cls:9]
+- [x] [Review][Patch] `eval/run.sh`'s header said `OCUTALON_EVAL_WAIT` bounds every case, though turn cases are decided inside `Start`, and gave one of the two reasons the mock's command case is not right (low; fix-risk low, comments only; in-story; clear) [eval/run.sh:12]
+- [x] [Review][Patch] The kind reason read "only the kinds item and injection and all-clear and command are sent" in every report's skipped list; `KindsText` joins the kinds with commas and "and" before the last (low; fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Eval/In.cls:232]
+- [x] [Review][Patch] `TestIsolation`, one of AC1's named tests, had no mutation that turned it red for run 4; one is now recorded under Verification (low; fix-risk low, a tracking line; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls:559]
+- [x] [Review][Defer] `Eval.In.Render` is a line-for-line copy of Lane B's private `Core.Conversation.Checked`, forced by AD-29 (Design Notes 10), with no test pinning the two equal, unlike the Busy numbers and the `Input` [src/ocutalon/cls/OcuTalon/Eval/In.cls:386] — deferred: DW-383, routed to `20-2-see-citations-and-memories-in-answers`, the story that extends `Conversation`'s HostData handling (Rule 2 forced copy; med; fix-risk med, a shared Lane A helper plus a Lane B edit; out-of-footprint)
+
+**Rejected:**
+- `low` Verification Gap 2 and Blind Hunter 2a: `EvalIn.Render`'s branches for a HostData that is not JSON or not an object are untested. On the product path only `WatchAnswers.PutChecks` writes HostData, always a JSON object, and a test needs its own `LOGCHECKS` clean-up. Reopen if another tool writes HostData.
+- `low` Verification Gap 4: the "owner eval, empty ItemId" case cannot tell whether the guard is there, because `""` is SQL NULL and never matches. The behaviour it pins is right either way, and the guard costs nothing.
+- `low` Edge Case Hunter 2: a failed second `%Save` or `Deliver` leaves a TurnResult body that no header purges. The row stays sent, as the Matrix requires, and `EvalSink` is a fixed Lane A item of the production; EvalIn runs only on throwaways.
+- `low` Edge Case Hunter 3 and the Acceptance Auditor's note: the `TurnResult.ItemId` lookups scan the shared `Ens.MessageBody` extent. That is small and cheap on a throwaway, the only place EvalIn runs, and an index is a stored-data change (a veto item). Reopen if an evaluation runs on a long-lived stack.
+- `low` Edge Case Hunter 5: if `ReplyGuard.Filter` failed it would return "", which reads as wording. The filter is deterministic, it fails toward "not right", and the fix would edit `Checks/*`, which this story must not touch.
+- `low` Edge Case Hunter 6: a fallback with `SessionBroken` is not retried in a fresh session as `Conversation` would. Every eval turn is already fresh, so a retry would resend the same one-message request, and the fix adds a branch copying Lane B logic.
+- `low` Acceptance Auditor 1: `ThreadSessionId` is empty on the first ask, because `ProcessInput` clears `%SessionId`. By design: the Boundaries name `..%SessionId`, review pass 1 closed it, and an eval turn submits no command or notice through the thread.
+- `low` Acceptance Auditor 2: `TurnResult.ItemId` compares without regard to case. Two 22-character random refs that differ only in case are practically impossible, and changing the collation alters a stored message definition (a veto item).
+- `low` Verification Gap, other 1: `DropSince` deletes, rather than restores, an eval link that existed before the class ran. No test or path outside `Test.Eval.Run` makes an eval link, and `RunnerFixture` is outside the footprint.
+- `low` QA's issue (b): `Start`'s call of `SendOrder` is unpinned. As in review pass 1: pinning it needs a mixed-kind run in `Test.Eval.Run`, which changes its counts. Reopen if Story 9.5's real-model run decides a turn case as a timer fallback behind act turns.
+- `low` Blind Hunter 1, second half: the repository check's all-clear branch refuses only `item`. Task 8 specifies exactly that, and `Report` ignores any other field.
+
 ## Spec Change Log
 
 - 2026-10-29, lead spec gate: orchestrator ruling U-143 (veto) recorded under Design Notes with its binding conditions; three `[Ruling]` tasks added before the Acceptance Criteria; the AC wording in `epics.md` amended (tier 1).
@@ -761,6 +789,46 @@ Not run by this stage (the parent runs them once): `test-mock.sh`, `ci/checks.sh
 - (once) `ci/iris.sh shard lane-a --part k/8`, k = 1 to 8, each on a fresh stack: all classes passed, in 297, 144, 127, 118, 105, 109, 273 and 209 s. `Test.Eval.*` are in part 5 and `Test.Watch.Tools` in part 8 (78 classes in all).
 - (once) reverse order: `--reverse --part 5/8` (the Checks and Bridge classes) 118 s, `--reverse --part 4/8` (`Test.Eval.Table`, `Switch`, `Sink`, `Run`, `Report`, `In`, `Checks`, `Cases`, then `Digest`) 103 s and `--reverse --part 1/8` (`Test.Watch.Turns` to `Notices`, `Test.Watch.Tools` among them) 235 s: all passed.
 - Teardown: `ci/warm.sh down` (tag `e9s7iw`) and `ci/iris.sh teardown` (tag `e9s7i`); the lane-b lock folder is empty and no container, volume, network or image of the tags is left.
+
+**QA pass (bmad-qa-generate-e2e-tests; lane B, tags `e9s7q` and `e9s7qw`).** Looked for criteria still weakly pinned: the U-143 conditions, DW-110, the command case's no-tool rule and the all-clear key match. No new test file; the tests below are added to existing classes and to the repository check.
+- **Tests added (QA).**
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Checks.cls` `TestOtherToolsRefuseEval`: the eval branch belongs to `check_status` alone. For owner `eval`, with a `TurnResult` of the call's ItemId that holds recorded rows, `start_watch`, `stop_watch` and `dismiss_incident` answer NOSESSION, leave HostData alone and submit no command (no `OcuTalon.Msg.Command.*` header), and `check_status` still answers the rows. `Test.Watch.Tools` `TestNoSession` pins owner `eval` only for an ItemId with no `TurnResult`.
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` `TestAllClearKeys`: all 16 pairs of the four `Checks.Render` keys (right only when the rendered key is the expected one), and wording in the reply for each key (right only with `checks.allPassed`). `TestCommandSteps`: a command case is wrong for any tool step whatever its status (denied, error), several tool steps are listed once each, and a turn with only model steps is right.
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` `TestCommandPhrasesAreSentence`: each key phrase of `command-run-shell` has an alternative that is part of the catalog sentence `agent.noCommands`, which Chat's INSTRUCTIONS hold (`Test.Agent.Instructions` `TestChat`).
+  - `docker/tests/test-eval-set.sh`: the variants `bad-outside-clear-turn` and `bad-outside-command-turn` (a `[[mock:` marker in a turn case's `turn.text` is flagged by the `markers` rule).
+- **Commands (QA).**
+  - `bash docker/tests/test-eval-set.sh`: all 7 rules PASS.
+  - Warm (`ci/warm.sh up` 84 s), each class in its own call: `Test.Eval.Checks`, `.In`, `.Sink`, `.Report`, `.Cases`, `.Run` (7.4 s), `.Table`, `.Switch` and `Test.Watch.Tools` passed; afterwards the warm stack held 0 `TurnResult` rows, 0 `CaseResult` rows and 0 `TurnResult` headers.
+  - Fresh: `OCUTALON_RUN_TAG=e9s7q bash eval/run.sh` exit 0 (`PASS set: the run has no problem (27 case(s))`, `allclear` 0 of 3, `commands` 0 of 1, both set.md PASS lines); `ci/iris.sh shard lane-a --part 5/8` passed (10 classes, 103 s, `Test.Eval.*` among them) and `--reverse --part 4/8` passed (10 classes, 97 s).
+  - Compile check on slot B (`ocutalon-slot-b`, `OCUTALON`, build 154U, no test run): `Test.Eval.Checks`, `.Report`, `.Cases` compile.
+  - Teardown: `ci/warm.sh down` (`e9s7qw`) and `ci/iris.sh teardown` (`e9s7q`); the lane-b lock folder is empty and no container of the tags is left.
+- **Mutations (QA, Rule 19).** Each applied to the code under test, observed red, reverted, and the tree confirmed byte-identical (a fingerprint of `git status`, `git diff` and the untracked files):
+  - mutation: `ScoreTurn`'s key match is `(catalogKey '= "") && (expectedKey [ catalogKey)` (a rendered key that is part of the expected one is right) -> `Test.Eval.Report` `TestAllClearKeys` only (`TestAllClear` stays green, because its wrong key is longer than the expected one)
+  - mutation: `ScoreTurn` allows all-clear wording for the key `checks.notEverythingRestPassed` as well -> `Test.Eval.Report` `TestAllClearKeys` only (`TestAllClearWording` has no row for that key)
+  - mutation: `ScoreTurn` drops the denied tool steps before it scores a command case -> `Test.Eval.Report` `TestCommandSteps` only
+  - mutation [U-143 conditions 1 and 4]: `WatchTools.StartWatch` treats a call that `EvalCheckResults` accepts as a session -> `Test.Eval.Checks` `TestOtherToolsRefuseEval` (`start_watch('Billing')` no longer answers NOSESSION; `Run`'s own `Session` check still refuses a submit, so `start_watch('Orders')` stays NOSESSION)
+  - mutation [U-143 condition 1, the tool parameter]: `CheckStatus(owner As %String = "")` with the eval branch taken only when `owner = "eval"` (and `Tools/Watching.cls` touched, because a warm reload does not recompile a toolset for a changed method) -> the existing `Test.Watch.Tools` `TestDeclarations` ("check_status takes the inputs ''"); no new test is needed for it
+  - mutation: the `markers` rule of `test-eval-set.sh` skips files of kind `all-clear` and `command` -> `FAIL markers: the rule does not flag the sample bad-outside-clear-turn` and `bad-outside-command-turn`
+  - mutation: `eval/command-run-shell/case.json` expects "can't execute commands" / "cannot execute commands" -> `Test.Eval.Cases` `TestCommandPhrasesAreSentence` (and `TestTurnCases`, which pins the literal phrases; an isolated catalog-sentence mutation would touch `Msg/Catalog/Watch.cls`, a Lane B file)
+- **Left as it was (reported, not fixed).**
+  - `EvalIn.Start`'s call of `SendOrder` has no test of its own (`TestSendOrder` pins the helper); a mixed-kind run would need a fifth run in `Test.Eval.Run` and changes to its counts. The review's `reopen_if` stands.
+  - `SendTurn`: when `CaseResult.Open` fails (a second send of the same case name in one run), `Discard` calls `CaseResult.Remove(run, name)`, which deletes the row that the first send of that name opened. `Start` never sends a name twice (`CaseNames` removes duplicates), so no product path reaches it.
+
+**Code review pass (2026-10-29; lane B, tags `e9s7c` and `e9s7cw`).** The review's patches are listed under Tasks & Acceptance, Review Findings.
+- **Runs.**
+  - `ci/warm.sh up`: ready in 83 s, built from the patched tree.
+  - Each class in its own call, warm, on the final tree: `Test.Eval.In` 0.07 s, `.Report` 0.29 s, `.Cases` 0.16 s, `.Run` 6.53 s (green again after each mutation of it), `.Checks` 0.08 s, `.Sink` 1.14 s and `Test.Watch.Tools` 0.49 s; all passed.
+  - Fresh: `OCUTALON_RUN_TAG=e9s7c bash eval/run.sh` exited 0 in 89 s (READY 82 s): `PASS set: the run has no problem (27 case(s))`, `allclear` 0 of 3, `commands` 0 of 1, both `set.md` PASS lines, and the incident's skip reason "only the kinds item, injection, all-clear and command are sent".
+  - `test-eval-set.sh`: 7 rules PASS. `test-boundaries.sh`, `test-class-rules.sh` and `test-storage.sh`: every rule PASS.
+  - Teardown: `ci/warm.sh down` (`e9s7cw`) and `ci/iris.sh teardown` (`e9s7c`). The lane-b lock folder is empty.
+- **Mutations (Rule 19).** Each was applied, observed red, restored from a backup with `cmp`, and the tree was then confirmed byte-identical (a fingerprint of `git status`, `git diff` and the untracked files):
+  - mutation [Hermeticity, AI sessions and links]: the `DropSince` call removed from `Test.Eval.Run` `OnAfterAllTests` -> `Test.Eval.Run` fails with `ERROR #5001: The clean-up left AI sessions saved since the class began, conversation links that name such a session` (before the review this mutation left everything green)
+  - mutation: `SendTurn` calls `Discard` again when `CaseResult.Open` fails -> `Test.Eval.In` `TestTurnRefuses` ("... and the row that was there stays")
+  - mutation: `REASONKIND`'s kinds joined with " and " again (`KindsText` bypassed) -> `Test.Eval.In` `TestRefuses` (zz-nokind, zz-incident and zz-turn)
+  - mutation: `Report.Finish` adds a held-out turn score `heldOutTurns` -> `Test.Eval.Report` `TestAllClear` (the key set of `scores`; the old `heldOutAllClear` assertion stayed green for it)
+  - mutation: `TurnText` drops the ` (fallback)` marker -> `Test.Eval.Report` `TestTurnFallback`
+  - mutation: a temporary fourth all-clear case `eval/zz-mut-allclear/` (one passed row, expecting `checks.notEverything`) -> `Test.Eval.Cases` `TestRecordedCases` only ("Checks.Render turns its checks into the key it expects"); `TestTurnCases` stayed green
+  - mutation [AC1, `TestIsolation` for run 4]: `Eval/In.cls` `SINK` changed from `EvalSink` to `Notify` (a routing engine whose rule routes only `Outbound` and `Notification`, so a TurnResult is routed nowhere and nothing is created) -> `Test.Eval.Run` `TestIsolation` ("no message of the runs is addressed to a router, notice, ...") and `TestHops`, `TestTurnRun` and `TestUsage`
 
 ## Auto Run Result
 

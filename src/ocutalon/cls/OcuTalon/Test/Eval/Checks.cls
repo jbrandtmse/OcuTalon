@@ -9,7 +9,9 @@
 ///     an empty ItemId; an owner that is only like eval in its case; the owner instance; and no context all answer NOSESSION and leave HostData as it was,
 ///     also when a TurnResult with recorded rows exists. This is the ruling's pin that owner eval has no fall-through to live checks;
 ///   - TestSessionOwner: a session's Ref as the owner, with a TurnResult of the call's ItemId, gets the answer of CheckResults for that session, its own
-///     rows, or none, and never the recorded rows (a non-eval owner never reaches the branch).
+///     rows, or none, and never the recorded rows (a non-eval owner never reaches the branch);
+///   - (QA) TestOtherToolsRefuseEval: the branch belongs to check_status alone: for owner eval with a TurnResult of the call's ItemId that holds recorded
+///     rows, start_watch, stop_watch and dismiss_incident still answer NOSESSION, leave HostData alone and submit no command.
 Class OcuTalon.Test.Eval.Checks Extends %UnitTest.TestCase
 {
 
@@ -155,6 +157,29 @@ Method TestSessionOwner()
 	Do $$$AssertEquals(##class(OcuTalon.Tools.WatchAnswers).EvalCheckResults(##class(OcuTalon.Bridge.Context).Current(), .results), 0, "the branch answers 0 for a session's owner")
 }
 
+/// (QA) The eval branch belongs to check_status alone. For owner eval, with a TurnResult of the call's ItemId that holds recorded rows, the tools that
+/// submit commands answer NOSESSION as they do for any call that is not a session's turn, change nothing in HostData and submit no command, so an
+/// evaluation turn can never act; check_status still answers the recorded rows afterwards.
+Method TestOtherToolsRefuseEval()
+{
+	Set rows = [{"result": "failed", "entry": "Orders production", "finding": "a fix waiting for your approval", "checkedAt": "2026-10-16T18:13:00Z"}]
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Record(itemId, rows.%ToJSON())
+	Do ..Begin("eval", itemId)
+	Do ##class(OcuTalon.Bridge.Context).Put("HostData", "{""zz"":1}")
+	Set noSession = {"ok": false, "message": ($Parameter("OcuTalon.Tools.CommandCall", "NOSESSION"))}.%ToJSON()
+	Set mark = ..HeaderMark()
+	For name = "Orders", "Billing" {
+		Do $$$AssertEquals(##class(OcuTalon.Tools.WatchTools).StartWatch(name).%ToJSON(), noSession, "start_watch('"_name_"') answers NOSESSION for owner eval, though its ItemId has recorded rows")
+		Do $$$AssertEquals(##class(OcuTalon.Tools.WatchTools).StopWatch(name).%ToJSON(), noSession, "stop_watch('"_name_"') answers NOSESSION for owner eval, though its ItemId has recorded rows")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Tools.WatchTools).DismissIncident().%ToJSON(), noSession, "dismiss_incident() answers NOSESSION for owner eval, though its ItemId has recorded rows")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "{""zz"":1}", "none of them touches HostData")
+	Do $$$AssertEquals(..CommandsSince(mark), 0, "and no command is submitted")
+	Set answer = ##class(OcuTalon.Tools.WatchTools).CheckStatus()
+	Do $$$AssertEquals(answer.checks.%Size()_"|"_answer.checks.%Get(0).entry, "1|Orders production", "while check_status answers the recorded rows")
+}
+
 /// --- helpers ---
 /// Begins the bridge context of a turn from a request.
 Method Begin(owner As %String, itemId As %String) [ Private ]
@@ -177,6 +202,22 @@ Method Record(itemId As %String, recorded As %String) [ Private ]
 	Set body.SourceItemId = ..#PREFIX_$Increment(^||OcuTalonChecks)
 	Set body.RecordedChecks = recorded
 	Do $$$AssertStatusOK(body.%Save(), "a TurnResult is saved for the ItemId '"_itemId_"'")
+}
+
+/// The largest ID of the message headers, or 0.
+ClassMethod HeaderMark() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens.MessageHeader")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The number of message headers above the mark whose body is a command of the product.
+ClassMethod CommandsSince(mark As %Integer) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName %STARTSWITH ?", mark, "OcuTalon.Msg.Command.")
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// Deletes the TurnResult bodies of these tests.

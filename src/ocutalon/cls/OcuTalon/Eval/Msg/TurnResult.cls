@@ -6,8 +6,8 @@
 ///     RecordedChecks, and saves it again, and sends it, once the reply is in.
 ///   - The two readers are the eval branch of check_status (OcuTalon.Tools.WatchAnswers.EvalCheckResults, which finds the message by the
 ///     ItemId of the call's bridge context and reads RecordedChecks) and OcuTalon.Eval.Report (which scores a turn case from the reply and the rendered key).
-///   - Fallback is true when Decide answered with a fallback, and FallbackReason is then one of Msg.Enum FALLBACKREASON; such a message has
-///     no reply text and no rendered key.
+///   - Fallback is true when Decide answered with a fallback, or when Decide was busy at every ask (EvalIn then sets the reason rate_limited),
+///     and FallbackReason is then one of Msg.Enum FALLBACKREASON; such a message has no reply text and no rendered key.
 Class OcuTalon.Eval.Msg.TurnResult Extends Ens.Request
 {
 
@@ -36,7 +36,7 @@ Property CatalogKey As %String(MAXLEN = 128);
 /// The rendered rows as the text of a JSON array; empty when the reply held none.
 Property CheckRows As %String(MAXLEN = "");
 
-/// True when Decide answered with a fallback.
+/// True when Decide answered with a fallback, or was busy at every ask.
 Property Fallback As %Boolean [ InitialExpression = 0 ];
 
 /// The fallback reason: one of Msg.Enum FALLBACKREASON. Empty when Fallback is false.
