@@ -1796,6 +1796,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: R1 is the first case of rail.spec; R2-R19 use the same open() helper and passed in the same run; actions-runner-8; attempt 2 of the same run green
 - 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
 - 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
+- 2026-10-29T14:54:02Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through note=CI_run_40888894726(cece969)_iris(browser):banners.spec.ts_B17_open():main_data-snapshot_loaded_not_found_after_signIn(same_shape);one_rerun_per_the_flake_rule
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
