@@ -173,3 +173,6 @@
 2026-10-29T13:20:18Z	Story 9.8	committed	sha=4b868bd submodules= ci=pending runs=40880974775,40880974849 pushed_with=756b6b8(build),9.9_spec amendments=spine_Conventions_Background_checks(veto_U-149;written_at_spec_gate) footprint_extensions=src/ocutalon/cls/OcuTalon/Watch/Ops.cls,src/ocutalon/cls/OcuTalon/Watch/FailurePoller.cls,ci/mock/scenarios/A/eval-injection-stop.json(new)
 2026-10-29T13:20:18Z	Story 9.8	story_cycle	plan_to_commit_min=434 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-10-29T13:20:18Z	Epic 9	gap_rule_check	epic7_merged=no action=continue(9.9_next;spec_ready-for-dev)
+2026-10-29T13:48:40Z	Story 9.8	ci_resolved	story=9.8 sha=4b868bd runs=40880974775,40880974849 result=success failed=none via=none resolved_at=next_implement first_ci=success
+2026-10-29T13:48:40Z	Epic 9	gap_rule_check	epic7_merged=no action=continue(9.9_implement)
+2026-10-29T13:48:40Z	Story 9.9	stage_spawned	spawn_at=2026-10-29T13:48:40Z stage=implement model=claude-sonnet agent_name=9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f-implement-1 cycle_iteration=1 story_base=720f8cc
