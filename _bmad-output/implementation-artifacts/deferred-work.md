@@ -1931,3 +1931,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: found by 9.4's code review comparing Redact.Text with key_like; Bridge.Redact is src/bridge (Lane A, Epic 7's contended path while Epic 7 is open); no release-1 recording source contains these shapes
 - 2026-10-29T08:51:48Z status=escalated owner=burndown by=cr note=for the decision sheet: extend Bridge.Redact's key patterns to every key_like shape (security posture; a story of the bridge's owner once Epic 7 merges), or accept with reopen_if a recording or trace shows one
+
+### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
+- source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Data/Ownership.cls:373 selects every SessionRef of Kind production; Data/Session.cls:101 returns it for an instance incident; found by 9.8's plan and four review layers
+- 2026-10-29T12:01:00Z status=wontfix-theoretical owner=9-8-a-stop-watching-injection-leaves-the-watch-unchanged by=harvest note=real only if a session watches the same production on a stack where EvalIn is enabled during a run; EvalIn runs only on throwaways and CI (owner condition U-131), where no session watches; fix would be a Lane B Watchers filter on owner eval (Data/Ownership.cls, contended by Epics 10 and 16)
