@@ -2,15 +2,20 @@
 title: 'Story 16.9: Allowances cap messages, model cost and simulated emails'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c6339034b26342969d6d9964d224b64623a5fe63'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-1, lines 99-111; AD-4, 155-178; AD-12, 330-344; AD-14, 396-407; AD-20, 529-554; AD-30, 813-834; AD-31, 835-852; AD-32, 853-864; AD-33, 865-875; the REST, Live events and Notice cards rows, 921-925; the event table, 1128-1137)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only lines 180, 258, 266-267, 308, 349-351, 436-441, 546, 742-743, 851-856)'
   - '{project-root}/_bmad-output/planning-artifacts/epics.md (read only Story 16.9, lines 4602-4641)'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      The class comment of Core/NoticesIn.cls still says that the daily-cap message of Story 16.9 is a sender "to come". BridgeSink sends it now. Only the comment is stale: the class itself needed no change.
+    evidence: |-
+      Task 0 (a): no bridge context is active in the Decide job that fires decision.recorded and budget.capped, so NoticesIn's two branches already give each notice its own session's TraceRef (D1: S1 and S3 each get their own card from one decision). The Footprint extension lists NoticesIn.cls only if Task 0 (a) needs it, so the comment was left alone.
 ---
 
 <intent-contract>
@@ -414,6 +419,58 @@ All class paths are under `src/ocutalon/cls/OcuTalon/`.
 
 ## Review Triage Log
 
+### 2026-10-29 - Review pass
+- verdicts: 44 findings - high 0, medium 5, low 34, false 5, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` Refused messages are written without limit (one `Turn` per refusal, the full text) - matrix row 3 says "Another refused Turn is recorded" and AD-20 records each refusal; the demo's reset (P10) bounds the rows; spec-bound, not worth a rate limit that the spec does not name.
+    - `[low]` `[reject]` The 429 carries no `Retry-After` header - the 429 body is fixed by row 2 and V2 as `{error, retryAt, limit}`; a header adds a public surface nobody consumes.
+    - `[false]` `[reject]` `Messages()` reads the refusal output less strictly than `MailAccepted` - `WebChatIn` answers an error status when `retryAt` is empty and always writes `retryAt` and `limit` otherwise, so the output the unchecked members come from cannot lack them.
+    - `[low]` `[patch]` `Data/Turn.cls` still says State is "queued, running or done" - one doc line now names `refused` (patched).
+    - `[low]` `[patch]` `incomingMail` is missing from the refusal loop of `Test.Data.Ownership` - added to the loop (patched).
+    - `[low]` `[reject]` The cap fan-out runs inside the bridge's decision call - row 13 defines it; at the demo's capacity (about 6 visitors, P12) it is a few sends, and a lock waits 1 s only when busy.
+    - `[low]` `[reject]` No concurrent-burst test for the row lock - the lock is `Core.Trace`'s established pattern, a held-lock probe pins the busy path, and a multi-job race test costs far more than 15 lines.
+    - `[low]` `[patch]` Two stale comments (the `Test.Core.StatusMonitor` header names methods that do not exist; `playwright.config.ts` says "Nine projects" and lacks `online-allowance`) - both comments corrected (patched).
+    - `[low]` `[patch]` Fixed sleeps and A2's `[true, false]` needing a monitor run inside an about 18 s window - A2's window is now about 30 s (patched); the absence checks keep their fixed waits because an absence cannot be polled.
+    - `[low]` `[reject]` The same values (20, the install URL) are written in several places - each copy is mandated (the REST message, the UX text, `INSTALLLINK`, the independent oracles of the specs); no consumer reads one from another.
+    - `[low]` `[patch]` `DailyCap` ignores a failed revert save - the failure is now a warning (patched, with the Edge Case Hunter's exception finding).
+    - `[low]` `[reject]` The email limit is not rebuilt after a reload - Design Notes decide it: the page learns it from the 429 and `/state` carries no field for it.
+    - `[false]` `[reject]` The spine does not list `email_limit` - the spine's REST row lists `email_limit` and the `limit` member (amended 2026-10-29, veto U-152, line 921), and the Allowances row is there (line 926).
+  - Edge Case Hunter
+    - `[low]` `[reject]` `MailAllowed`'s `retryAt` when the count is above 20 - row 17 fixes `retryAt` as the oldest plus 3600 s, and under the row lock with the flag on the count cannot pass 20.
+    - `[low]` `[patch]` `DailyCap` sends nothing and logs nothing for an unreadable day - a warning that names the day is logged (patched; pinned in `TestBudgetCappedBadInputsSendNothing`).
+    - `[low]` `[patch]` `DailyCap` leaves `DailyCapDay` set when `Notice` throws - the send is wrapped, the day is taken back and a failed take-back is a warning (patched; pinned in `TestFailedDailyCapSendIsRetried`).
+    - `[low]` `[reject]` The `budget.capped` fan-out can stall the firing job - same as the Blind Hunter's fan-out finding.
+    - `[low]` `[reject]` `StatusMonitor`'s allowance first-run flag stays true when `Readings` throws on every run - a persistent `Readings` failure also fails `/state`, so no allowance can show; the first good run recovers.
+    - `[low]` `[reject]` A client clock off from the server's moves the page's clear - the spec puts the clear at `retryAt` on the page's clock.
+    - `[low]` `[reject]` Unbounded refused `Turn` rows from scripted posts - same as the Blind Hunter's first finding.
+    - `[low]` `[reject]` Retry on a failed entry while the window is open posts again and records another refused `Turn` - harmless, not in row 12, and reached only through the "composer holds other text" case.
+    - `[low]` `[reject]` A clientId re-posted before `Conversation` makes its `Turn` counts twice - Design Notes accept it (bounded at one per retry).
+    - `[low]` `[reject]` `Off()`, `RefIndexExists` and `%LockId` sit outside `TryConsume`'s Try - a global read, a generated index lookup and a call that returns a status; none throws on a reachable input.
+    - `[low]` `[patch]` `SimMailboxIn` takes the row lock with the flag off, against "flag off changes nothing" - the lock is taken only on the online demo (patched; pinned by the flag-off busy-row case of `TestEmailLimit`).
+    - `[low]` `[patch]` The `ci/units.sh` comment says no group is expected to pass about 1800 s, which the recorded times do not show - the comment now says only that the Lane B units are spread to even out the times (patched).
+  - Verification Gap
+    - `[medium]` `[patch]` The Composer and DemoGuide guards that ignore presses are pinned by no test - A1 now presses Send (forced, the control is aria-disabled), presses Enter in the field and clicks the guide prompt, and asserts no `POST /messages` and the text kept (patched; mutations on both guards red).
+    - `[medium]` `[patch]` `WebChatIn.Refund` is mocked away in its only test - `TestFailedSendRefundsTheRealAllowance` runs the real forwarder on the real allowance through a `RealRefund` probe option (patched; mutation red).
+    - `[low]` `[patch]` `TestStateSections` asserts `NextDueAt` for `check2` only - `check1` too (patched; mutation line added).
+    - `[medium]` `[patch]` The 429-to-banner wiring is checked only through a race with the monitor's tick - A1 and A2 assert the banner within 2 s of the 429 (patched; mutation red).
+    - `[medium]` `[patch]` `TestActiveVisitors` never observes the ended-session exclusion (an assertion that cannot fail) - it asserts the ended session is absent from the full list (patched; mutation red).
+    - `[medium]` `[patch]` `TestBudgetCappedSendsToEachActiveSessionOnce` is not self-contained (the real read writes `DailyCapDay` into other sessions) - it cuts the real read down to its own fixtures (patched; mutation red).
+    - `[low]` `[reject]` The `StatusMonitor` failed-read test's "nothing remembered" parts cannot fail - the warning count and the final "the run that reads again publishes" carry the case; the stale header is patched with the comments.
+    - `[low]` `[reject]` `TestConversationNamesNoAllowance` is source text - the Tasks name it, it repeats an existing rule, and A1's exact refused-Turn list goes red if `Conversation` counted.
+    - `[low]` `[reject]` Fixed sleeps in the absence checks - an absence cannot be polled; each fails loudly when late.
+    - `[low]` `[reject]` Some mutation lines pin one half of a bundled AC - Rule 19 asks one demonstrated mutation per AC; the patches add lines for the new pins.
+  - Intent Alignment Auditor
+    - `[false]` `[reject]` The page wiring is checked only by the browser specs - the live specs run the real components against the real stack; the node tests cover the pure views.
+    - `[low]` `[reject]` No new test for a guide prompt's 429 ("a guide entry just leaves") or for a 429 with other text in the composer - both reuse `ChatOutbox.refuse`, which Story 16.5's 503 cases pin.
+    - `[low]` `[reject]` AP answers the approval through `Approval.Answer`, not the page's buttons - the spec's AP says so.
+    - `[low]` `[patch]` "Flag off changes nothing" is checked per method, and `SimMailboxIn` locked with the flag off - same patch as the Edge Case Hunter's lock finding; `Messages()` parsing the output on every post gives the same result for an accepted output.
+    - `[low]` `[reject]` Telegram is exercised only as a `TryConsume` fixture - the spec keeps the Telegram cases off until Story 31.3.
+    - `[low]` `[reject]` The daily-cap banner is asserted after a fallback marks the day, not when spend reaches the cap - the spec's D1 says why (`Budget.State()` in a web process counts only the mark and the gateway spend).
+    - `[false]` `[reject]` Seam-level versus composed tests - the composed chain (`TryConsume`, REST, `Notify`, `WebChatOut`, `NoticesIn`) runs in the live A1, D1 and D2.
+    - `[false]` `[reject]` The two REST message literals are outside the contract's text list - veto item V2 (U-152) rules them kept, and the spine's REST row records them.
+    - `[low]` `[reject]` `test-online-allowance.sh` never calls `keys_restore` - the unit's own stack is removed by the EXIT trap, so no key entry outlives it.
+
 ## Design Notes
 
 **Architecture decisions** (each Rule checked; no AC contradicts one; no NFR is unmeasurable):
@@ -568,6 +625,37 @@ Everything else is in the paths_hint or shared by entry.
   - Run 40813183274's `image` job took 40 min, over REL-4's 35. That predates this story and is reported only.
 - **Links left alone:** the splash's and the guide's README links still open `#readme`. Ruling on them is outside DW-361.
 
+**Implement pass** (2026-10-29):
+
+- **Task 0 (a), no bridge context in the Decide job. No `NoticesIn` branch.** Both `daily_cap` paths reach `Decide.RecordFallback` in the Decide business process's own job: the precheck (`OnRequest`, line 260) and the key resend or timer (`Resend` 359, `Classify`'s `daily_cap`). `RecordFallback` fires `decision.recorded` and then `Budget.MarkCapped`, which fires `budget.capped`, both in that job. `OcuTalon.Bridge.Context.Begin` is called only by `Adapter.Agent.Answer` (the runner's job, `Agent.cls:318`), which ends the context on every path, and the context lives in `^||OcuTalonBP.Context`, process-private. So `NoticesIn.Join` takes its second branch: each notice is a session of its own under the notified session's `TraceRef`. Live proof: D1 gives S1 and S3 each their own card from one decision. `Core/NoticesIn.cls` and `Test/Core/NoticesIn.cls` are unchanged.
+- **Task 0 (b), measured locally on lane C `(MEASURED)`:** `live online-allowance` took 244, 241 and 237 s; its browser step 151, 151 and 149 s; the 429 round trip of the 52nd post through the API 3 ms. The unit is far under 8 minutes, so it is not split with `--part`.
+- **DW-220 (residual): the expected job times.** Inputs are CI run 40866408272 (image 2047 s with storage-roundtrip 257, build-inputs 9, compose-start 200, demo-switch 467, shard:lane-b 866, install-script-live 213), install-fresh 1339, install-upgrade 1355, production 942, browser 1464, shards 1896. `shard:lane-b` cannot go to `production`: its Web classes read the built bundle (`Test.Web.Shell`, `Install`, `SignIn`, `Status`, `Splash`, `PublicTexts` name it), and `production` must stay web-bundle-free. No other group has room for its 866 s. So `ci/units.sh` moves `live:demo-switch` (467 s) from `image` to `install-upgrade`, and `live:online-allowance` joins `install-fresh`:
+
+  | group | units now | expected `(inference)` |
+  | --- | --- | --- |
+  | install-fresh | install-start, bundle-folder, online-session, online-allowance | 1339 s plus the new unit's CI time (about 1740 s if it costs 400 s, which is its 237 s here plus a stack start on the runner) |
+  | install-upgrade | install-upgrade, audit, online-demo, demo-switch | about 1355 + 467 = 1822 s |
+  | production | unchanged | 942 s |
+  | browser | unchanged | 1464 s |
+  | shards | unchanged (Lane A's shard, floor, cards) | 1896 s |
+  | image | storage-roundtrip, build-inputs, compose-start, shard:lane-b, install-script-live | about 2047 - 467 = 1580 s |
+
+  This is the best arrangement of Lane B's units that keeps `production` web-bundle-free. `shards` (1896 s, units outside this lane) and `install-upgrade` (about 1822 s) stay near 30 minutes, not under it. `install-fresh` stays under about 1800 s only while `online-allowance` takes less than about 460 s on CI; the spec's earlier inference of 10 to 14 minutes for it would put the group at 1940 to 2180 s, and then the next move is the owner's capacity action (owner-fixed value 9). The lead records the unit's CI seconds after the first push. `test-ci-config.sh` and `test-ci-changes.sh` read the groups from `ci/units.sh`, so neither needed an edit.
+- **Decided in-stage:**
+  - **`DailyCap` needs an open session on both paths** (matrix row 16: an ended session gets nothing on either event). It sets `DailyCapDay`, sends, and takes the day back when the send fails, so the next fallback retries. A busy lock (1 s) is a warning with nothing sent.
+  - **A new test class, `Test.Core.BridgeSinkNoticeProbe`**, records the `Notice` seam and can fail it or the `Visitors` seam. `BridgeSinkProbe` is left alone: its handlers throw on purpose, so it could not reach the real `Recorded` and `Capped`.
+  - **`web/package.json` gained the script `e2e:online-allowance`**, as `e2e:online-session` is the session project's: `playwright-projects.test.mjs` lists a project through its npm script, and the unit runs it through the same script.
+  - **The 429 `allowance` message has `{limit}` filled in** (`MESSAGEALLOWANCE` is the template). The page shows neither REST message.
+  - **An allowed message does not clear `AllowanceUntil`.** A window runs from its first refusal to its `retryAt`, as the intent says. `Until` reads the row fresh and throws on a failed read.
+  - **`AllowanceState`**: when the store's condition and a 429 refusal both hold a future time, the later wins. The composer and the guide render their reason with `allowanceReason` (an exported thin wrapper over `bannerText` in `banner-stack.ts`, whose `FORMAT` stays private).
+  - **One reason paragraph for the email limit**, `#mailbox-email-limit`, above the chips, serves the chips and the form's Send in every view, because the chips are always on the panel.
+  - **`SimMailboxIn` takes the session row's lock only on the online demo** (review patch): the Task's lock is the count's, and with the flag off there is no count, so a local install takes no lock and a busy row can never refuse its email ("flag off changes nothing").
+  - **AP presses Break the feed in the page.** A1's check that its `aria-disabled` is unchanged cannot catch a button that both caps disable, because with no Orders watch the box is inactive already. AP has the watch, reloads, and clicks the button; the AC 8 mutation is caught there.
+  - **A2's window is about 30 s, not 20 s** (review patch): the entries are seeded about 3570 s old. `StatusMonitor` runs every 15 s, and the stream's active and clear events (`[true, false]`) need a run inside the window, which about 18 s left too little room for on a loaded runner. The page's own clear at `retryAt` and the 45 s bound are unchanged.
+  - **`banners.spec.ts` seeds the allowance condition with a future time** (`ALLOWANCE_UNTIL`, 12:00 UTC on 2037-07-01, which the page shows as 17:30 in Asia/Kolkata and 8:00 AM in New York, as `T` did): `AllowanceState` counts the store's condition only while its time is ahead of the page's clock, and the server only ever sends an active `allowance` with a future time. B5, B8 and B12 failed on the past `T` in the first `live sign-in --part 1/2`.
+  - **`TestBudgetCappedSendsToEachActiveSessionOnce` sends to its own fixtures only** (review patch): it takes the real `Ownership.ActiveVisitors` read, keeps the test's own sessions, and gives those to the probe's `Visitors` seam, so that no other open session of the instance is written. `TestActiveVisitors` pins the ended-session exclusion on the full list.
+  - **D2 and AP wait 20 s after the cap is lifted** (`settleMonitor`). `StatusMonitor` publishes a change only, so a cap that is lifted and reached again inside one 15-second tick is no change to it and a page that loaded in between would never get the banner (a reload shows it). This is test timing, not a defect.
+
 ## Verification
 
 **Targets and variables:**
@@ -619,6 +707,24 @@ Everything else is in the paths_hint or shared by entry.
 - AC 9: the seeded-row assertion in each DW-300 method. Mutation: seed one row with no `NextDueAt`.
 - AC 10: `banner-view.test.mjs`. Mutation: target `README_URL`.
 
+- mutation: AC 1, `Allowance.TryConsume` counts `< limit + 1` -> `Test.Core.Allowance` red (`TestTheFiftyFirstIsRefused`, `TestMixedChannelsCountTogether`, `TestNewWindow`, `TestFailedSaveRollsBack`); reverted, tree byte-identical.
+- mutation: AC 2, `Allowance.Refused` returns before it saves the Turn of a telegram call -> `Test.Core.Allowance` red (`TestTelegramFixtureIsRefusedTheSameWay`); reverted.
+- mutation: AC 3, `WebChatIn` sends the notice on every refusal (the `firstRefusal` test removed) -> live `online-allowance` red (A1, `adds no second card`); reverted, tree byte-identical.
+- mutation: AC 4, `AllowanceState`'s timer callback no longer sets the clock or arms the timer again -> live `online-allowance` red (A2, the banner is still there after 45 s); reverted, tree byte-identical.
+- mutation: AC 5, `BridgeSink.DailyCap` without the `DailyCapDay '= day` test -> `Test.Core.BridgeSink` red (`TestBudgetCappedSendsToEachActiveSessionOnce`, `TestDailyCapFallbackSendsToThatSessionOnce`); reverted.
+- mutation: AC 6, `BridgeSink.Capped` without the online-demo flag test -> `Test.Core.BridgeSink` red (`TestDailyCapSendsNothingWithTheFlagOff`); reverted.
+- mutation: AC 7, `Allowance.EMAILLIMIT` 21 -> `Test.Demo.SimMailboxIn` red (`TestEmailLimit`); reverted.
+- mutation: AC 8, `feed/break-feed-box.ts` passes `[inactive]` while `AllowanceState.active()` holds -> live `online-allowance` red (AP, `Break the feed is not disabled by either cap`); A1's check alone stayed green, since the box is inactive there already, so AP presses the button in the page; reverted, tree byte-identical.
+- mutation: AC 9, the `Check` helper of `Test.Core.BridgeSink` seeds its rows with no `NextDueAt` -> `Test.Core.BridgeSink` red in all four methods (`the check row of ... is due more than 23 hours from now`); reverted.
+- mutation: AC 10, the allowance banner's action target back to the README's top (`readme`) -> `banner-view.test.mjs` red (`gives each banner its catalog key, variant, icon, action and closing`, `open the section that the row's target names`); reverted.
+- mutation: AC 4 (presses ignored, review patch), `Composer.send` without its `AllowanceState.active()` guard -> live `online-allowance` red (A1, `a press of Send, Enter in the field and a click on the guide prompt send nothing while the allowance is used up`); `DemoGuide.send` without its guard -> the same assertion red; each reverted, tree byte-identical.
+- mutation: AC 4 (the page's own 429, review patch), `ChatOutbox` without `this.allowance.refused(refusal)` -> live `online-allowance` red (A1 and A2, `the allowance banner shows at once, from the page's own 429`, within 2 s); reverted, tree byte-identical.
+- mutation: AC 1 (matrix row 9, review patch), `WebChatIn.Refund` emptied -> `Test.Core.WebChatMessages` red (`TestFailedSendRefundsTheRealAllowance`); reverted, tree byte-identical.
+- mutation: AC 5 (review patch), `Ownership.ActiveVisitors` without `s.ResumeHash <> ''` -> `Test.Data.Ownership` red (`TestActiveVisitors`, `an ended session (no resume hash) with a turn is not in the list`) and `Test.Core.BridgeSink` red (`TestBudgetCappedSendsToEachActiveSessionOnce`); reverted, tree byte-identical.
+- mutation: AC 5 (review patch), `BridgeSink.DailyCap` without the Try around the `Notice` send -> `Test.Core.BridgeSink` red (`TestFailedDailyCapSendIsRetried`, `the day is taken back to the one before`); without the unreadable-day warning -> `TestBudgetCappedBadInputsSendNothing` red; each reverted, tree byte-identical.
+- mutation: AC 6 / AC 7 (flag off, review patch), the lock of `SimMailboxIn` taken whatever the flag -> `Test.Demo.SimMailboxIn` red (`TestEmailLimit`, `with the flag off the busy row is no obstacle`); reverted, tree byte-identical.
+- mutation: AC 9 (second line, review patch), `TestStateSections` seeding `check1` with no `NextDueAt` -> `Test.Web.Api` red (`check1 is due more than 23 hours from now`); reverted, tree byte-identical.
+
 **Shared surfaces:**
 - **The schema:** the `Session` columns (`Test.Data.Tables`). The new `Turn` State `refused` is read by `RecentTurns`, the chat snapshot and the queue.
 - **The notice card kinds:** `CARDKINDS` and `recentNotices` (`Test.Core.WebChatOut`, `Test.Data.Ownership`, `chat-view.test.mjs`).
@@ -639,9 +745,27 @@ Everything else is in the paths_hint or shared by entry.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- **Plan stage (2026-10-29).** Planned from the cached `epic-16-context.md` and Story 16.8's continuity (16.4's Design Notes too). The dispatch said "Halt after planning", so it halted at the gate. Nothing was implemented and nothing was committed.
-- **Bridge prerequisites are already in the tree.** `Budget.MarkCapped` (once, under a lock) fires `budget.capped`, both `daily_cap` paths reach `Decide.RecordFallback`, and `daily_cap` is never re-sent. So no bridge change is needed.
-- **For the lead's spec gate:** the veto-window items V1 to V3 and the Rule 20 spine notes are under Design Notes. The new CI unit, `live:online-allowance`, joins `install-upgrade`.
+- **Summary.** Story 16.9 is implemented on the Lane C slot's tree. With the online-demo flag set, `Allowance.TryConsume` counts a session's messages over a rolling hour under its `Session` row lock, refuses the 51st with `retryAt`, records a refused `Turn` and flags the window's first refusal; `WebChatIn` turns that into one `allowance` notice and `Web.Api` into a 429. The session's `allowance` condition (`/state` and `StatusMonitor`) drives the banner and the `aria-disabled` composer and guide prompts until `retryAt`. `BridgeSink` sends the daily-cap message once a day to each open session with activity, on `budget.capped` and on a session's `daily_cap` fallback. `SimMailboxIn` refuses the 21st incoming email of the hour with a 429 `email_limit`. DW-300 (the check rows a day ahead), DW-361 (the banner actions open the README's own sections) and DW-220's residual (`ci/units.sh`) are addressed. With the flag off nothing changes.
+- **Files changed (by area).**
+  - IRIS source: `Core/Allowance.cls` (rewritten), `Core/BridgeSink.cls`, `Core/StatusMonitor.cls`, `Channel/WebChat/In.cls` and `Out.cls`, `Channel/SimMailbox/In.cls`, `Data/Ownership.cls`, `Data/Session.cls` (storage values 11 to 13), `Data/Turn.cls` (State doc only), `Live/Payload/Status.cls`, `Web/Api.cls` (429 and `Fail`'s `extra`).
+  - IRIS tests: new `Test/Core/Allowance.cls` and `Test/Core/BridgeSinkNoticeProbe.cls`; changed `Test/Core/{BridgeSink,BridgeSinkProbe,StatusMonitor,StatusMonitorProbe,TelegramCalls,WebChatInProbe,WebChatMessages,WebChatOut}.cls`, `Test/Data/{Ownership,Tables}.cls`, `Test/Demo/SimMailboxIn.cls`, `Test/Live/Status.cls`, `Test/Web/{Api,ApiProbe,MailboxApi}.cls`.
+  - Page: new `live/allowance-view.ts` and `live/allowance-state.ts`; changed `banners/{banner-view,banner-stack}.ts`, `chat/{chat-outbox,chat-view,composer,notice-card}.ts`, `guide/demo-guide.ts`, `mailbox/{mailbox-view,simulated-mailbox}.ts`, `api/api-types.ts`.
+  - Node tests: new `allowance-view.test.mjs`; changed `banner-view`, `chat-view`, `mailbox-view`, `playwright-projects` and `ux-strings` tests.
+  - Browser specs and units: new `web/e2e-online/allowance/{messages,daily-cap}.spec.ts` and `docker/tests/test-online-allowance.sh`; changed `web/e2e-online/{support,busy.spec}.ts`, `web/e2e/banners/banners.spec.ts`, `web/playwright.config.ts`, `web/package.json` (script `e2e:online-allowance`), `docker/tests/{lib-online,test-online-demo}.sh` (`keys_point` moved), `ci/units.sh` (`online-allowance` in `install-fresh` and `BROWSER_UNITS`; `demo-switch` to `install-upgrade`).
+- **Footprint extensions (Rule 11 (b), none contended).** Outside the epic's `paths_hint` and the spec's approved list: `Data/Turn.cls` (one doc comment), `Test/Core/{BridgeSink,BridgeSinkNoticeProbe}.cls`, `web/src/app/chat/{chat-outbox,chat-view,composer,notice-card}.ts` (the Tasks name them), `web/package.json`, `web/playwright.config.ts`, `web/scripts/*.test.mjs`, `web/e2e-online/**`, and `ci/units.sh` (shared by region: the lane's own entries). No contended path was touched, and the spine was not edited.
+- **Review (one pass, 4 layers, 44 findings).** high 0, medium 5, low 34, false 5. Patched: 5 medium and 11 low rows, some sharing one patch (guards pinned by A1; the real `Refund` forwarder tested; the page's own 429 asserted within 2 s; the ended-session exclusion observed; the capped test made hermetic; `check1`'s `NextDueAt` asserted; `DailyCap`'s unreadable day, throwing notice and failed take-back; `SimMailboxIn`'s lock only on the online demo; the `Turn.State` doc, the refusal-loop kind, three stale comments; A2's window widened to about 30 s). Deferred: 1 (the stale `NoticesIn` class comment, in the frontmatter). Rejected: every other finding, each with its reason in the triage log.
+- **Follow-up review recommended: true.** Five medium entries were patched. The unverified risk: the A1 assertions added in the patch press `aria-disabled` controls with a forced click and expect the banner within 2 s of the 429; they passed locally in three runs and failed red under their mutations, but a loaded CI runner has not run them.
+- **Verification (final tree).**
+  - Node: `npm --prefix web test` 1106 pass; `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass.
+  - IRIS classes on the warm stack (`e16s9iw`): all 18 listed classes pass.
+  - `live online-allowance` passes (7 browser cases and the IRIS checks); `MEASURED`: unit 235 to 237 s, browser step 149 s, the 429 round trip 2 to 3 ms (Task 0 (b)).
+  - The `(once)` lines pass: `live online-demo`, `live online-session`, `live sign-in --part 1/2` and `2/2`, `shard lane-b` 1/3 to 3/3 (84 classes) and `shard lane-a` 1/3 to 3/3 (70 classes). `live sign-in --part 1/2` first failed on B5, B8 and B12 (a past time in the allowance fixture, fixed in `banners.spec.ts`) and then on B7 (known flake DW-349: the heartbeat ran the unseeded check row), and passed on the third run.
+  - Mutations (Rule 19): the ten lines of the implement pass and the seven of the review pass in `## Verification`, each red then reverted byte-identical. Teardown: `e16s9i` and `e16s9iw` are gone.
+  - Protocol: two single-class runs were issued in one message by mistake (`TelegramCalls`, `ConversationTurns`); both were run again alone and passed.
+- **Residual risks.**
+  - DW-220 may still fail on CI: `shard:lane-b` cannot move to `production` (its Web classes read the web bundle), so `install-upgrade` is expected at about 1822 s and `shards` (Lane A's units) at 1896 s; `install-fresh` stays under about 1800 s only if `online-allowance` costs less than about 460 s on CI. Beyond that the next step is the owner's capacity action (owner-fixed value 9). The lead records the unit's CI seconds after the first push.
+  - B7 of `banners.spec.ts` still seeds its check row without `nextDueAt` (DW-349).
+  - The cap fan-out in `BridgeSink.Capped` runs inside the bridge's decision call; at about 6 visitors it is a few sends.

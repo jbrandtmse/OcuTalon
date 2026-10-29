@@ -22,6 +22,9 @@
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 /// Story 16.1: TestStateTraceAccount (the snapshot's traceAccount, online demo only).
 /// Story 16.4: TestStateIdleSeconds (the snapshot's idleSeconds, online demo only, the key just before traceAccount).
+/// Story 16.9: TestMessagesAllowanceRefusal (the 429 allowance body and the 500 of a refusal with no retryAt) and
+/// TestStateAllowanceStatus (the allowance condition first in /state's status). DW-300: TestStateSections seeds its check rows a day
+/// ahead, so that no heartbeat tick runs them.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -331,8 +334,11 @@ Method TestStateSections()
 	Set mine = $ClassMethod(fixture, "Session", "zzapisections"_..Number)
 	Set theirs = $ClassMethod(fixture, "Session", "zzapisectionsother"_..Number)
 	Set production = "Zz.Api"_..Number_".Watched"
-	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production)
-	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second")
+	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production, {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
+	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second", {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
+	Set notDue = ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()) + (23 * 3600)
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(check1).NextDueAt) > notDue, "check1 is due more than 23 hours from now, so that no heartbeat tick runs it (DW-300)")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(check2).NextDueAt) > notDue, "check2 is due more than 23 hours from now, so that no heartbeat tick runs it (DW-300)")
 	Set turn1 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
 	Set turnRow = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn1)
 	Set turnRow.TraceHeaderId = 9001, turnRow.TraceItemIndex = 46, turnRow.TraceItemIndexNoEvents = 30
@@ -1022,6 +1028,70 @@ Method TestMessagesServerError()
 	Set csp.Data("OcuTalon.SessionRef") = session
 	Set refused = ..PostMessage(csp, valid, .response)
 	Do $$$AssertEquals(response.Status, "202 Accepted", "the same message is accepted once the production takes it")
+}
+
+/// A message that the session's allowance refuses (Story 16.9, AD-20) answers 429 Too Many Requests with exactly the members
+/// error ({code allowance, message}), retryAt and limit, in that order; WebChatIn sends no Item (the probe records the allowance
+/// and the one allowance notice only). A refusal with no retryAt, which is a lock that stayed busy, is 500 server_error.
+Method TestMessagesAllowanceRefusal()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiAllowance", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set valid = "{""clientId"":""zzallow"",""text"":""zz hello"",""fromGuide"":false}"
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set ^OcuTalonTest("ApiProbe", "refuse") = 1
+	Set body = ..PostMessage(csp, valid, .response)
+	Kill ^OcuTalonTest("ApiProbe", "refuse")
+	Do $$$AssertEquals(response.Status, "429 Too Many Requests", "a refused message: 429")
+	Do $$$AssertEquals(response.ContentType, "application/json", "the content type")
+	Set limit = ##class(OcuTalon.Core.Allowance).Limit()
+	Do $$$AssertEquals(body, "{""error"":{""code"":""allowance"",""message"":""You've used this session's "_limit_" messages for the hour.""},""retryAt"":""2030-01-01T00:00:00Z"",""limit"":"_limit_"}", "exactly error, retryAt and limit, with the limit as a number")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 1, "target"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "target"))_"|"_+$Get(^OcuTalonTest("WebChatIn", ..Number)), "allowed|Notify|2", "the allowance was asked, one notice was sent and no Item")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "refuse") = "busy"
+	Set body = ..PostMessage(csp, valid, .response)
+	Kill ^OcuTalonTest("ApiProbe", "refuse")
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a refusal with no retryAt: 500")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}", "with server_error")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 1, "and only the allowance was asked")
+	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HTTP429TOOMANYREQUESTS"), "429 Too Many Requests", "the 429 status line")
+}
+
+/// With the online-demo flag set and the session's allowance window open, /state's status holds the allowance condition first,
+/// {"condition":"allowance","active":true,"slots":{"limit","time"}}, then the instance conditions as before. It is absent for a
+/// window that has ended, for a session with none and with the flag off.
+Method TestStateAllowanceStatus()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzapiallowance"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ##class(OcuTalon.Live.Payload.Status).Readings(.keys, .budget)
+	Set instance = ##class(OcuTalon.Live.Payload.Status).ActiveOf(##class(OcuTalon.Live.Payload.Status).Computed(keys, budget))
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "no window: the status holds the instance conditions only")
+	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Set session.AllowanceUntil = until
+	Do $$$AssertStatusOK(session.%Save(), "the session has an open window")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size() + 1, "an open window adds one condition")
+	Do $$$AssertEquals(body.status.%Get(0).%ToJSON(), "{""condition"":""allowance"",""active"":true,""slots"":{""limit"":"_##class(OcuTalon.Core.Allowance).Limit()_",""time"":"""_until_"""}}", "the allowance comes first, with its limit and the end of the window")
+	For i = 0:1:instance.%Size() - 1 {
+		Do $$$AssertEquals(body.status.%Get(i + 1).%ToJSON(), instance.%Get(i).%ToJSON(), "then the instance condition "_i_" as before")
+	}
+	Set session.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
+	Do $$$AssertStatusOK(session.%Save(), "the window has ended")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "an ended window is absent")
+	Set session.AllowanceUntil = until
+	Do $$$AssertStatusOK(session.%Save(), "the window is open again")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "with the flag off the allowance is absent")
+	For i = 0:1:body.status.%Size() - 1 {
+		Do $$$AssertTrue(body.status.%Get(i).condition '= "allowance", "and so is every allowance entry")
+	}
 }
 
 /// With no production running, the real Post cannot create WebChatIn and the message is not taken: 500 server_error with the

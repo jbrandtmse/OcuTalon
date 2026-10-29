@@ -444,3 +444,156 @@ export async function pressSignOut(page: Page): Promise<void> {
 export async function confirmSignOut(page: Page): Promise<void> {
   await signOutDialog(page).getByRole('button', { name: 'Sign out', exact: true }).click();
 }
+
+/** The script lines that put the Session row of an epoch in `r` ("" when there is none); the online demo has many rows for one user. */
+function findSession(epoch: string): string {
+  return [
+    `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT ID FROM OcuTalon_Data.Session WHERE Epoch = ?",${quoted(epoch)})`,
+    `Set r="" While rs.%Next() { Set c=##class(OcuTalon.Data.Session).%OpenId(rs.%Get("ID")) If $IsObject(c),c.Epoch=${quoted(epoch)} { Set r=c Quit } }`,
+  ].join('\n');
+}
+
+/** The allowance fields of a session's row (Story 16.9): how many messages it counts, the end of its window and the day of its daily-cap message. */
+export interface AllowanceRow {
+  ref: string;
+  times: number;
+  until: string;
+  dailyCapDay: string;
+}
+
+/** Reads the allowance fields of the row of an epoch. */
+export async function allowanceRow(epoch: string): Promise<AllowanceRow> {
+  const lines = await irisScript(
+    [findSession(epoch), 'If $IsObject(r) { Write !,"CHK|row|",r.Ref,"|",$ListLength(r.AllowanceTimes),"|",r.AllowanceUntil,"|",r.DailyCapDay }'].join('\n'),
+  );
+  const row = chk(lines, 'row');
+  if (row === undefined) throw new Error(`the session of epoch ${epoch} has no row`);
+  const [ref = '', times = '0', until = '', dailyCapDay = ''] = row.split('|');
+  return { ref, times: Number(times), until, dailyCapDay };
+}
+
+/**
+ * Gives the session of an epoch `count` accepted messages one second apart, the oldest being `oldestAge` seconds old, and no window: the
+ * rolling hour of its allowance as if it had sent them. A case with 50 entries about 3580 s old is refused its next message with a retryAt
+ * about 20 s ahead.
+ */
+export async function seedAllowance(epoch: string, count: number, oldestAge: number): Promise<void> {
+  const lines = await irisScript(
+    [
+      findSession(epoch),
+      `Set now=##class(OcuTalon.Data.Time).NowUtc() Set list="" For i=0:1:${count - 1} { Set list=list_$ListBuild(##class(OcuTalon.Data.Time).AddSeconds(now,i-${oldestAge})) }`,
+      'Set r.AllowanceTimes=list Set r.AllowanceUntil="" Set sc=r.%Save()',
+      'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)',
+    ].join('\n'),
+  );
+  if (chk(lines, 'saved') !== '1') throw new Error(`the allowance of epoch ${epoch} could not be seeded (${lines.join(' ')})`);
+}
+
+/** The Turn rows of the session of an epoch, oldest first: their state, ClientId and text. */
+export async function turnRowsOf(epoch: string): Promise<Array<{ state: string; clientId: string; text: string }>> {
+  const lines = await irisScript(
+    [
+      findSession(epoch),
+      'Set t=##class(%SQL.Statement).%ExecDirect(,"SELECT State, ClientId, Text FROM OcuTalon_Data.Turn WHERE SessionRef = ? ORDER BY ID",r.Ref)',
+      'While t.%Next() { Write !,"CHK|turn|",t.%Get("State"),"|",t.%Get("ClientId"),"|",t.%Get("Text") }',
+    ].join('\n'),
+  );
+  return lines
+    .filter((line) => line.startsWith('CHK|turn|'))
+    .map((line) => {
+      const [state = '', clientId = '', ...text] = line.slice('CHK|turn|'.length).split('|');
+      return { state, clientId, text: text.join('|') };
+    });
+}
+
+/** Gives the session of an epoch `count` incoming mailbox emails one second apart, the oldest `oldestAge` seconds old (Fixture rows; removeSession removes them). */
+export async function seedIncomingMail(epoch: string, count: number, oldestAge: number): Promise<void> {
+  const lines = await irisScript(
+    [
+      findSession(epoch),
+      `Set now=##class(OcuTalon.Data.Time).NowUtc() For i=0:1:${count - 1} { Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(r.Ref,{"Kind":"mailbox","Direction":"in","Subject":"zz seeded","Text":"zz seeded","CreatedAt":(##class(OcuTalon.Data.Time).AddSeconds(now,i-${oldestAge}))}) }`,
+      'Write !,"CHK|seeded|1"',
+    ].join('\n'),
+  );
+  if (chk(lines, 'seeded') !== '1') throw new Error(`the emails of epoch ${epoch} could not be seeded (${lines.join(' ')})`);
+}
+
+/** How many incoming mailbox emails, mailbox events and Items to Intake the session of an epoch has so far. */
+export async function mailCounts(epoch: string): Promise<{ rows: number; events: number }> {
+  const lines = await irisScript(
+    [
+      findSession(epoch),
+      'Set m=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = ? AND Direction = ?",r.Ref,"mailbox","in") Do m.%Next()',
+      'Write !,"CHK|counts|",m.%GetData(1),"|",##class(OcuTalon.Test.Core.Observe).Events(r.Ref,"mailbox").%Size()',
+    ].join('\n'),
+  );
+  const [rows = '-1', events = '-1'] = (chk(lines, 'counts') ?? '').split('|');
+  return { rows: Number(rows), events: Number(events) };
+}
+
+/** The local date of today in the instance zone, as the bridge keys the day's cap and a session records its daily-cap day. */
+export async function localToday(): Promise<string> {
+  return chk(await irisScript('Write !,"CHK|day|",##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())'), 'day') ?? '';
+}
+
+/** Whether today's capped mark of the bridge is set (^OcuTalonBP.UsageCapped(day)). */
+export async function cappedMarked(): Promise<boolean> {
+  return chk(await irisScript('Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))'), 'mark') !== '0';
+}
+
+/** Kills today's capped mark of the bridge and returns whether it is gone. */
+export async function unmarkCapped(): Promise<boolean> {
+  return (
+    chk(
+      await irisScript(
+        'Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())) Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))',
+      ),
+      'mark',
+    ) === '0'
+  );
+}
+
+/**
+ * Seeds a Usage row of `amount` US dollars for today (Fixture.Usage, owner instance) and returns its decision Ref, which
+ * Fixture.Clean removes it with. IRIS's own count of the day's spend then reaches the cap (the daily cost cap is $20).
+ */
+export async function seedUsage(amount: number): Promise<string> {
+  const lines = await irisScript(
+    [
+      'Set d=##class(OcuTalon.Bridge.Ids).NewRef()',
+      `Do ##class(OcuTalon.Test.Data.Fixture).Usage(d,"instance",{"CostUSD":${amount}})`,
+      'Write !,"CHK|usage|",d',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'usage');
+  if (!ref) throw new Error(`the Usage row could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** Deletes the Usage row that seedUsage made. */
+export async function removeUsage(ref: string): Promise<void> {
+  await irisScript(`Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(ref)}) Write !,"CHK|removed|1"`);
+}
+
+/** The number of lines of the CI mock's request log that name the text (the log of the mock service, mounted in the container). */
+export async function mockRequests(text: string): Promise<number> {
+  const lines = await irisScript(
+    [
+      'Set n=0 Set f=##class(%Stream.FileCharacter).%New() Set sc=f.LinkToFile("/opt/ocutalon/mock-log/requests.jsonl")',
+      `If $SYSTEM.Status.IsOK(sc) { While 'f.AtEnd { Set l=f.ReadLine() If l[${quoted(text)} Set n=n+1 } }`,
+      'Write !,"CHK|requests|",n',
+    ].join('\n'),
+  );
+  return Number(chk(lines, 'requests') ?? '-1');
+}
+
+/** Answers the session's approval request through the bridge's own API (Approval.Answer) as the demo account; returns its result (done, ...). */
+export async function answerApproval(sessionRef: string, ref: string, action: 'approve' | 'reject'): Promise<string> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Approval).Answer(${quoted(ref)},${quoted(action)},"web",${quoted(fixtureUser('DEMOACCOUNT').user)},${quoted(sessionRef)},.w,"OcuTalon.Bridge.Ext.HostSink")`,
+      'Write !,"CHK|answer|",r',
+    ].join('\n'),
+  );
+  return chk(lines, 'answer') ?? '';
+}

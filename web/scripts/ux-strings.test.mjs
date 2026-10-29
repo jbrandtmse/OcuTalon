@@ -243,6 +243,7 @@ const SOURCES = {
     'Not everything: {whatFailed}.',
     'I\'m not watching any productions yet, so I can\'t say. Ask me to watch one.',
     'You\'ve used this session\'s {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.',
+    'You\'ve simulated 20 emails this hour. You can send more at {time}.',
     'The online demo has used today\'s model allowance. Decisions use fixed rules until {time}.',
     'Can\'t reach OcuTalon. Retrying every 10 seconds.',
     'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.',

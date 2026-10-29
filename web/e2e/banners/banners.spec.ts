@@ -43,7 +43,8 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
-const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
+const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+const SET_KEY = 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key';
 const TELEGRAM = 'https://github.com/jbrandtmse/OcuTalon#telegram';
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';
 
@@ -70,6 +71,12 @@ const PAGE_NOON = (): number => Date.parse(today('12:30:00'));
 
 /** The time of the conditions' slots: 12:00 UTC, which the page shows as 17:30. */
 const T = '2026-10-23T12:00:00Z';
+
+/**
+ * The time of the allowance condition's slots: 12:00 UTC on a July day far ahead, which the page shows as 17:30 and, in New York, as 8:00 AM.
+ * The page counts the allowance condition only while its time is ahead of the page's clock (Story 16.9), so it cannot be a past time as T is.
+ */
+const ALLOWANCE_UNTIL = '2037-07-01T12:00:00Z';
 
 const mainOf = (page: Page): Locator => page.locator('main.main');
 const slot = (page: Page): Locator => page.locator('.banner-slot');
@@ -149,7 +156,7 @@ async function expectAction(one: Locator, name: string, href: string, what: stri
   const link = one.getByRole('link');
   await expect(link, `${what} has one action`).toHaveCount(1);
   await expect(link, `${what}'s action is named, with the new-tab words`).toHaveAccessibleName(`${name} (opens in a new tab)`);
-  await expect(link, `${what}'s action leads to the README`).toHaveAttribute('href', href);
+  await expect(link, `${what}'s action leads to its README section`).toHaveAttribute('href', href);
   await expect(link).toHaveAttribute('target', '_blank');
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(link, `${what}'s action is underlined`).toHaveCSS('text-decoration-line', 'underline');
@@ -186,7 +193,7 @@ test('B1: with no model key the snapshot shows the no-key banner on load, unclos
     await expect(banners(page), 'and it is the only banner').toHaveCount(1);
     await expectLook(page, one, 'warning', 'the no-key banner');
     await expect(one.locator(TRIANGLE), 'with the triangle-alert icon').toHaveCount(1);
-    await expectAction(one, 'How to set a key', README, 'the no-key banner');
+    await expectAction(one, 'How to set a key', SET_KEY, 'the no-key banner');
     await expect(one.getByRole('button'), 'it cannot be closed').toHaveCount(0);
     await expect(slot(page).locator(LIVE_REGIONS), 'no banner is a live region').toHaveCount(0);
     await expect(slot(page), 'and the slot is not one').not.toHaveAttribute('aria-live', /.*/);
@@ -304,7 +311,7 @@ test('B4: the online demo cap shows the danger banner with a page time and Insta
   expect(text, 'the time is the browser\'s, with no zone name and no ET').not.toMatch(/ ET\b|IST|GMT|UTC|Asia|India/);
   await expectLook(page, one, 'danger', 'the online demo banner');
   await expect(one.locator(CIRCLE_ALERT), 'with the circle-alert icon').toHaveCount(1);
-  await expectAction(one, 'Install it yourself', README, 'the online demo banner');
+  await expectAction(one, 'Install it yourself', INSTALL, 'the online demo banner');
   await expect(one.getByRole('button'), 'it cannot be closed').toHaveCount(0);
   expect(await stack(page), 'it is the only banner').toEqual(['dailyCap']);
 
@@ -330,7 +337,7 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
     await turn(page, user, 'heartbeatStalled', true, { time: today('11:00:00') });
     await turn(page, user, 'noModelKey', true);
     await turn(page, user, 'dailyCap', true, { cap: 20, time: T });
-    await turn(page, user, 'allowance', true, { limit: 20, time: T });
+    await turn(page, user, 'allowance', true, { limit: 20, time: ALLOWANCE_UNTIL });
     await expect
       .poll(() => stack(page), { message: 'the local order of the catalog', timeout: ONE_UPDATE_MS })
       .toEqual(['allowance', 'noModelKey', 'costCap', 'heartbeatStalled', 'telegramPaused', 'resetSoon']);
@@ -342,8 +349,8 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
       if (action) await expectAction(one, action[0], action[1], id);
       else await expect(one.getByRole('link'), `${id} has no action`).toHaveCount(0);
     };
-    await look('allowance', 'danger', ['Install it yourself', README]);
-    await look('noModelKey', 'warning', ['How to set a key', README]);
+    await look('allowance', 'danger', ['Install it yourself', INSTALL]);
+    await look('noModelKey', 'warning', ['How to set a key', SET_KEY]);
     await look('costCap', 'warning');
     await look('heartbeatStalled', 'warning');
     await look('telegramPaused', 'warning', ['Set up a bot', TELEGRAM]);
@@ -398,7 +405,7 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
 test('B6: the no-key start shows the banner from the real snapshot and replies that no model key is set', async ({ page }) => {
   await open(page);
   await expect(banner(page, 'noModelKey').locator('.text'), 'the banner shows on load from the real /state').toHaveText(NO_KEY);
-  await expect(banner(page, 'noModelKey').getByRole('link')).toHaveAttribute('href', README);
+  await expect(banner(page, 'noModelKey').getByRole('link')).toHaveAttribute('href', SET_KEY);
 
   const text = unique('B6');
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
@@ -425,7 +432,7 @@ const sixConditions = (): Array<Record<string, unknown>> => [
   { condition: 'heartbeatStalled', active: true, slots: { time: HEARTBEAT } },
   { condition: 'noModelKey', active: true },
   { condition: 'dailyCap', active: true, slots: { cap: 20, time: T } },
-  { condition: 'allowance', active: true, slots: { limit: 20, time: T } },
+  { condition: 'allowance', active: true, slots: { limit: 20, time: ALLOWANCE_UNTIL } },
 ];
 
 /** B7 (QA): a stalled heartbeat that the snapshot holds shows its banner and the late marks on load, silently; a clear takes both away. */

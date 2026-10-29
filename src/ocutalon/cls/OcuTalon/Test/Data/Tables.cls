@@ -280,7 +280,10 @@ XData Contracts [ MimeType = application/json ]
    "ThreadSessionId": "%Integer",
    "ThreadDay": "%String(MAXLEN=10)",
    "ResumeHash": "%String(COLLATION=EXACT,MAXLEN=43)",
-   "CspSessionId": "%String(MAXLEN=64)"
+   "CspSessionId": "%String(MAXLEN=64)",
+   "AllowanceTimes": "%List",
+   "AllowanceUntil": "%String(MAXLEN=20)",
+   "DailyCapDay": "%String(MAXLEN=10)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

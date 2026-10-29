@@ -11,6 +11,8 @@
  * - decisionOf(mail, decisions) is the email's decision: the first decide decision of the store with the email's itemId, else the
  *   entry's own; none for a sent email.
  * - The opened emails are kept per browser as a short list of refs (openedRefs, withOpened); the server records no reading.
+ * - emailLimitText(time) is the reason that the chips and Send show while the online demo's limit of 20 incoming emails an hour holds
+ *   (Story 16.9); the time is a page time.
  */
 import type { StateSnapshot } from '../api/api-types';
 import type { DecisionPayload, MailboxPayload } from '../live/payloads';
@@ -38,7 +40,13 @@ export const MAILBOX_TEXTS = {
   fromPrefill: 'Results Partner IT <it@results-partner.example>',
   errSubject: 'Enter a subject.',
   errBody: 'Enter a body.',
+  emailLimit: "You've simulated 20 emails this hour. You can send more at {time}.",
 } as const;
+
+/** The mailbox's reason while the online demo's email limit holds (EXPERIENCE.md, the compose form): the text with the time sending reopens, a page time. */
+export function emailLimitText(time: string): string {
+  return MAILBOX_TEXTS.emailLimit.replace('{time}', () => time);
+}
 
 /** The sample chips in order: the sample's name, which the server knows, and the chip's visible label. */
 export const SAMPLES: readonly { name: string; label: string }[] = [

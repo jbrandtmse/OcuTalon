@@ -1277,18 +1277,6 @@ conversation_enabled() {
     "If en'=$1 { Set sc=##class(Ens.Director).EnableConfigItem(\"Conversation\",$1) Set en=##class(Ens.Director).IsItemEnabled(\"Conversation\",.st) }" \
     'Write !,"CHK|conv|",$SYSTEM.Status.IsOK(sc),",",en,$Select($SYSTEM.Status.IsOK(sc):"",1:","_$Extract($SYSTEM.Status.GetErrorText(sc),1,120))' 'Halt' | session_value OCUTALON conv
 }
-# keys_point: points the model keys of the three runners at the mock key variable (Test.Agent.RunnerFixture, which exists in throwaways and
-# CI only: a start in the CI override has no key, so every decision would be the no_key fallback) and waits until the runners have recorded
-# it; prints 1 when they have. keys_restore puts the entries back to the Provider step's placeholder and prints 1 when they read as that.
-keys_point() {
-  printf '%s\n' 'Set ok=0 Set fixture="OcuTalon.Test.Agent.RunnerFixture"' \
-    'If $ClassMethod(fixture,"GuardReason")="" { Set sc=$ClassMethod(fixture,"PointKeys") Set ok=$SYSTEM.Status.IsOK(sc) If ok Set ok=$ClassMethod(fixture,"WaitRecords") }' \
-    'Write !,"CHK|keys|",ok' 'Halt' | session_value OCUTALON keys
-}
-keys_restore() {
-  printf '%s\n' 'Set fixture="OcuTalon.Test.Agent.RunnerFixture" Set sc=$ClassMethod(fixture,"RestoreKeys")' \
-    'Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc)&&$ClassMethod(fixture,"KeysAre",##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' 'Halt' | session_value OCUTALON keys
-}
 # capped_mark: $Data of today's capped mark of the bridge. capped_unmark: removes it and prints $Data after.
 capped_mark() { printf '%s\n' 'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' 'Halt' | session_value OCUTALON mark; }
 capped_unmark() { printf '%s\n' 'Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))' 'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' 'Halt' | session_value OCUTALON mark; }

@@ -1,8 +1,9 @@
-/// A subclass of OcuTalon.Core.StatusMonitor for the tests, which overrides its two private seams so that the unit tests run on a
+/// A subclass of OcuTalon.Core.StatusMonitor for the tests, which overrides its private seams so that the unit tests run on a
 /// slot with no production (Story 2.10; AD-22): Readings answers the keys and the budget that the test sets, and Stream answers
 /// the private stream that the test publishes on, so that nothing is read from the bridge and nothing is published on the
-/// instance stream. ThrowReading makes Readings throw, as a bridge that fails would. It has no Test methods and the product never
-/// refers to it.
+/// instance stream. ThrowReading makes Readings throw, as a bridge that fails would. AllowanceSessions (Story 16.9) answers the
+/// list of sessions with an open allowance window that the test sets in HeldReading, and an error status when FailHeld is 1, so that
+/// no run reads the real sessions. It has no Test methods and the product never refers to it.
 Class OcuTalon.Test.Core.StatusMonitorProbe Extends OcuTalon.Core.StatusMonitor
 {
 
@@ -14,6 +15,12 @@ Property BudgetReading As %DynamicObject [ Transient ];
 
 /// The stream that the events are published on.
 Property StreamRef As %String [ Transient ];
+
+/// The sessions with an open allowance window that the next run reads: a list of Refs, empty for none.
+Property HeldReading As %String [ Transient ];
+
+/// 1 when AllowanceSessions answers an error status.
+Property FailHeld As %Boolean [ InitialExpression = 0, Transient ];
 
 /// 1 when Readings throws.
 Property ThrowReading As %Boolean [ InitialExpression = 0, Transient ];
@@ -28,6 +35,16 @@ Method Readings(Output keys As %DynamicObject, Output budget As %DynamicObject) 
 Method Stream() As %String [ Private ]
 {
 	Quit ..StreamRef
+}
+
+Method AllowanceSessions(now As %String, Output sc As %Status) As %List [ Private ]
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ..FailHeld {
+		Set sc = $SYSTEM.Status.Error(5001, "zz the probe's allowance read fails")
+		Quit ""
+	}
+	Quit ..HeldReading
 }
 
 }

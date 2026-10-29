@@ -25,20 +25,23 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
+# Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
+# run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
+# bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-session" ;;
-    install-upgrade) echo "live:install-upgrade live:audit live:online-demo" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance" ;;
+    install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a live:floor live:cards" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b live:install-script-live" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session"
+BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

@@ -19,6 +19,7 @@
     "e2e:floor": "playwright test --project=floor --project=floor-firefox --project=floor-webkit",
     "e2e:online-demo": "playwright test --project=online-demo",
     "e2e:online-session": "playwright test --project=online-session",
+    "e2e:online-allowance": "playwright test --project=online-allowance",
     "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
     "test": "node --test scripts/*.test.mjs"
   },

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { type Observable, of, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
@@ -7,8 +7,9 @@ import { outcomeOf, reasonLines } from '../chat/decision-view';
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { FallbackFlag } from '../chat/fallback-flag';
 import { type Outcome, OutcomeChip } from '../chat/outcome-chip';
-import { pageTimeBeside } from '../chat/page-time';
+import { pageTime, pageTimeBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
+import { refusalOf } from '../live/allowance-view';
 import { LiveState } from '../live/live-state';
 import type { DecisionPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
@@ -20,6 +21,7 @@ import {
   chipName,
   decidedText,
   decisionOf,
+  emailLimitText,
   fieldErrors,
   type MailboxEntry,
   MAILBOX_TEXTS,
@@ -34,6 +36,12 @@ import {
 
 /** The most reason lines the open email shows. */
 const REASON_LINES = 10;
+
+/** The longest delay a browser timer holds (a 32-bit number of milliseconds); a longer wait is armed again when it ends. */
+const LONGEST_TIMER_MS = 2_147_483_647;
+
+/** The id of the paragraph that gives the reason while the email limit holds, which the chips and Send are described by. */
+const LIMIT_ID = 'mailbox-email-limit';
 
 /** The label of each outcome, as its chip shows it. */
 const LABELS: Readonly<Record<Outcome, string>> = {
@@ -92,19 +100,29 @@ function messageOf(error: unknown): string {
  * once its row is in the list it is announced; a decision that lands after the page loaded is announced once (the snapshot's own
  * decisions, at load or reload, are silent); a send moves focus to the new row; opening an email focuses its heading, Back from it
  * focuses its row and Back from the form focuses the Simulate button. What was opened is kept per browser (OPENED_KEY).
+ *
+ * The online demo's email limit (Story 16.9; FR-40): an answer 429 with the code email_limit, to a chip press or to Send, holds the limit
+ * until its retryAt, on the page's own clock. While it holds, the three chips and the form's Send are inactive (aria-disabled, never
+ * disabled, a press does nothing) and described by the paragraph #mailbox-email-limit above the chips, "You've simulated 20 emails this
+ * hour. You can send more at {time}." with the time as a page time. No error text is shown for it. A timer clears the limit at the time.
+ * The page learns the limit from a refused press only: after a reload the next press learns it again.
  */
 @Component({
   selector: 'app-simulated-mailbox',
   imports: [FallbackFlag, Icon, OutcomeChip, ServerButton, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (limited()) {
+      <p class="limit" id="mailbox-email-limit">{{ limitText() }}</p>
+    }
     <div class="chips">
       @for (sample of samples; track sample.name) {
         <app-server-button
           variant="chip"
           [label]="nameOf(sample.label)"
           [action]="samplePress(sample.name)"
-          [describedBy]="chipError() === '' ? [] : ['mailbox-chip-error']"
+          [inactive]="limited()"
+          [describedBy]="chipDescribed()"
         >
           <app-icon name="mail" [size]="16" />
           {{ sample.label }}
@@ -159,7 +177,7 @@ function messageOf(error: unknown): string {
             }
           </div>
           <div class="actions">
-            <app-server-button variant="primary" [action]="send" [describedBy]="sendError() === '' ? [] : ['mailbox-send-error']">{{ texts.send }}</app-server-button>
+            <app-server-button variant="primary" [action]="send" [inactive]="limited()" [describedBy]="sendDescribed()">{{ texts.send }}</app-server-button>
             <button type="button" class="button button-secondary" (click)="backFromForm()">{{ texts.back }}</button>
           </div>
           @if (sendError() !== '') {
@@ -252,6 +270,12 @@ function messageOf(error: unknown): string {
       color: var(--ink-muted);
       font-size: var(--type-caption-font-size);
       line-height: var(--type-caption-line-height);
+    }
+    .limit {
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: var(--type-body-sm-font-size);
+      line-height: var(--type-body-sm-line-height);
     }
     .simulate {
       align-self: flex-start;
@@ -446,6 +470,22 @@ export class SimulatedMailbox {
   protected readonly sendError = signal('');
   protected readonly chipError = signal('');
 
+  /** The UTC ISO time when the email limit ends, from the last 429 email_limit answer; empty when no limit holds. */
+  private readonly limitUntil = signal('');
+  private limitTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** True while the email limit holds: the chips and Send are inactive. */
+  protected readonly limited = computed(() => this.limitUntil() !== '');
+
+  /** The reason while the limit holds: the UX's text with the time sending reopens as a page time. */
+  protected readonly limitText = computed(() => emailLimitText(pageTime(this.limitUntil())));
+
+  /** The ids that describe the chips: the limit's reason while it holds, else the chip error. */
+  protected readonly chipDescribed = computed<readonly string[]>(() => (this.limited() ? [LIMIT_ID] : this.chipError() === '' ? [] : ['mailbox-chip-error']));
+
+  /** The ids that describe Send: the limit's reason while it holds, else the send error. */
+  protected readonly sendDescribed = computed<readonly string[]>(() => (this.limited() ? [LIMIT_ID] : this.sendError() === '' ? [] : ['mailbox-send-error']));
+
   /** The refs of the emails opened in this browser, space-separated: the stored text, or what this page opened when storage fails. */
   private readonly opened = signal(readText(() => localStorage, OPENED_KEY));
 
@@ -493,6 +533,39 @@ export class SimulatedMailbox {
       const rows = this.rows();
       untracked(() => this.note(snapshot, rows));
     });
+    inject(DestroyRef).onDestroy(() => this.disarmLimit());
+  }
+
+  /** The answer 429 email_limit holds the limit until its retryAt; true when the failure was that answer. */
+  private limit(error: unknown): boolean {
+    const refusal = refusalOf(error, 'email_limit');
+    if (refusal === undefined) {
+      return false;
+    }
+    this.limitUntil.set(refusal.retryAt);
+    this.armLimit();
+    return true;
+  }
+
+  /** Clears the limit at its time, on the page's clock; a time that is not ahead clears it at once. */
+  private armLimit(): void {
+    this.disarmLimit();
+    const wait = Date.parse(this.limitUntil()) - Date.now();
+    if (!(wait > 0)) {
+      this.limitUntil.set('');
+      return;
+    }
+    this.limitTimer = globalThis.setTimeout(() => {
+      this.limitTimer = undefined;
+      this.armLimit();
+    }, Math.min(wait, LONGEST_TIMER_MS));
+  }
+
+  private disarmLimit(): void {
+    if (this.limitTimer !== undefined) {
+      globalThis.clearTimeout(this.limitTimer);
+      this.limitTimer = undefined;
+    }
   }
 
   protected nameOf(label: string): string {
@@ -517,7 +590,11 @@ export class SimulatedMailbox {
             this.awaiting.add(accepted.ref);
             this.note(this.live.snapshot(), this.rows());
           },
-          error: (error: unknown) => this.chipError.set(messageOf(error)),
+          error: (error: unknown) => {
+            if (!this.limit(error)) {
+              this.chipError.set(messageOf(error));
+            }
+          },
         }),
       );
     };
@@ -535,7 +612,11 @@ export class SimulatedMailbox {
     return this.api.postMailboxIncoming({ from: this.from(), subject: this.subject(), body: this.body() }).pipe(
       tap({
         next: (accepted) => this.sent(accepted.ref),
-        error: (error: unknown) => this.sendError.set(messageOf(error)),
+        error: (error: unknown) => {
+          if (!this.limit(error)) {
+            this.sendError.set(messageOf(error));
+          }
+        },
       }),
     );
   };

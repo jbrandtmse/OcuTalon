@@ -34,6 +34,7 @@ test.skip(process.env['OCUTALON_ONLINE_PROXIED'] === '1', 'runs in the browser s
 test.use({ channel: 'chromium', launchOptions: { ignoreDefaultArgs: ['--disable-popup-blocking'] } });
 
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
+const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const CONVERSATION_NAME = 'Open my conversation in Visual Trace (opens in a new tab)';
 const TRACE_NAME = 'Trace (opens in a new tab)';
 const BANNER = '[data-banner="demoBusy"]';
@@ -71,7 +72,7 @@ async function expectBanner(page: Page, label: string): Promise<void> {
   await expect(banner, `${label}: the Demo busy banner shows`).toHaveCount(1);
   await expect(banner.locator('.text'), `${label}: with the busy text`).toHaveText(DEMO_BUSY_TEXT);
   const action = banner.getByRole('link', { name: 'Install it yourself (opens in a new tab)', exact: true });
-  await expect(action, `${label}: and the README action`).toHaveAttribute('href', README);
+  await expect(action, `${label}: and the README action, to its install section`).toHaveAttribute('href', INSTALL);
   await expect(action).toHaveAttribute('target', '_blank');
 }
 

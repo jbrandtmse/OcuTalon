@@ -4,24 +4,37 @@ import { CHAT_TEXTS } from '../chat/chat-view';
 import { formatCost } from '../chat/decision-view';
 import { pageTime } from '../chat/page-time';
 import { Icon } from '../icon/icon';
+import { AllowanceState } from '../live/allowance-state';
+import type { AllowanceWindow } from '../live/allowance-view';
 import { DemoBusyState } from '../live/demo-busy-state';
 import { LiveState } from '../live/live-state';
+import type { StatusPayload } from '../live/payloads';
 import { README_URL } from '../links';
 import { renderPageText } from '../msg/catalog';
 import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
-import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed } from './banner-view';
+import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, bannerText, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed } from './banner-view';
+
+/** The anchors of the README sections that "Install it yourself" and "How to set a key" open (DW-361). */
+const INSTALL_ANCHOR = 'install-it-yourself';
+const SET_KEY_ANCHOR = 'set-a-model-key';
 
 /** The values banner-view.ts reuses, from the real modules. */
 const FORMAT: BannerFormat = {
   text: (key, slots) => renderPageText(key, slots),
   time: (iso) => pageTime(iso),
   cost: (amount) => formatCost(amount),
-  readmeUrl: README_URL,
+  installUrl: readmeSection(README_URL, INSTALL_ANCHOR),
+  setKeyUrl: readmeSection(README_URL, SET_KEY_ANCHOR),
   telegramUrl: readmeSection(README_URL, TELEGRAM_ANCHOR),
 };
+
+/** The allowance banner's own text for a window: the reason that the composer and the demo guide show beside their disabled controls (Story 16.9). */
+export function allowanceReason(window: AllowanceWindow): string {
+  return bannerText('banner.allowance', { limit: window.limit, time: window.time }, FORMAT);
+}
 
 /** The attribute that marks a banner's element with its id. */
 const BANNER_ID = 'data-banner';
@@ -63,6 +76,9 @@ const FOCUS_RULE: FocusRule = {
  *   main region. Nothing else here moves focus.
  * - Reconnecting and Unreachable are the page's own conditions (Story 2.11): the stack shows the one that LiveState.contact
  *   names, if any. Unreachable replaces Reconnecting, and the clear of either is not announced.
+ * - The allowance condition comes from AllowanceState (Story 16.9), not straight from the store: the store's condition or the last
+ *   429 refusal, whichever holds a time that is still ahead on the page's clock, so the banner clears at that time. Its action and
+ *   the "How to set a key" one open the README's own sections (DW-361).
  */
 @Component({
   selector: 'app-banner-stack',
@@ -155,6 +171,7 @@ const FOCUS_RULE: FocusRule = {
 export class BannerStack {
   private readonly live = inject(LiveState);
   private readonly demoBusy = inject(DemoBusyState);
+  private readonly allowance = inject(AllowanceState);
   private readonly announcer = inject(Announcer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -177,7 +194,7 @@ export class BannerStack {
     if (this.demoBusy.busy()) {
       own.push('demoBusy');
     }
-    return { status: store.status, own, onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
+    return { status: this.withAllowance(store.status), own, onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
   });
 
   /** Every banner whose condition holds, closed or not. */
@@ -214,6 +231,13 @@ export class BannerStack {
       this.banners();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
+  }
+
+  /** The store's conditions with the allowance one that AllowanceState says holds now, or without one when none does. */
+  private withAllowance(status: Readonly<Record<string, StatusPayload>>): Readonly<Record<string, StatusPayload>> {
+    const { allowance: _stored, ...rest } = status;
+    const window = this.allowance.active();
+    return window === undefined ? rest : { ...rest, allowance: { condition: 'allowance', active: true, slots: { ...(window.limit === undefined ? {} : { limit: window.limit }), time: window.time } } };
   }
 
   protected close(banner: BannerView): void {

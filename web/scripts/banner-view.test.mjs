@@ -12,19 +12,24 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannersView, closeBanner, closeName, retainClosed } = await import(app('banners', 'banner-view.ts'));
+const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannerText, bannersView, closeBanner, closeName, retainClosed } = await import(app('banners', 'banner-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { pageTime } = await import(app('chat', 'page-time.ts'));
 const { formatCost } = await import(app('chat', 'decision-view.ts'));
 const { README_URL } = await import(app('links.ts'));
 const { TELEGRAM_ANCHOR, readmeSection } = await import(app('rail', 'rail-view.ts'));
 
+/** The addresses of the README's sections that the actions open (DW-361): the install section and the model-key section. */
+const INSTALL_URL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+const SET_KEY_URL = 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key';
+
 /** The format the component builds, with the browser's locale and zone named. */
 const formatIn = (zone = 'UTC', locale = 'en-GB') => ({
   text: (key, slots) => renderPageText(key, slots),
   time: (iso) => pageTime(iso, locale, zone),
   cost: (amount) => formatCost(amount),
-  readmeUrl: README_URL,
+  installUrl: INSTALL_URL,
+  setKeyUrl: SET_KEY_URL,
   telegramUrl: readmeSection(README_URL, TELEGRAM_ANCHOR),
 });
 const format = formatIn();
@@ -67,11 +72,11 @@ describe('the table of banners', () => {
       const banner = BANNERS.find((one) => one.id === id);
       return [banner.key, banner.variant, banner.icon, banner.action?.key ?? null, banner.action?.target ?? null, banner.closable];
     };
-    assert.deepEqual(row('allowance'), ['banner.allowance', 'danger', 'circle-alert', 'bannerAction.installYourself', 'readme', false]);
-    assert.deepEqual(row('dailyCap'), ['banner.dailyCap', 'danger', 'circle-alert', 'bannerAction.installYourself', 'readme', false]);
+    assert.deepEqual(row('allowance'), ['banner.allowance', 'danger', 'circle-alert', 'bannerAction.installYourself', 'install', false]);
+    assert.deepEqual(row('dailyCap'), ['banner.dailyCap', 'danger', 'circle-alert', 'bannerAction.installYourself', 'install', false]);
     assert.deepEqual(row('unreachable'), ['banner.unreachable', 'danger', 'circle-alert', null, null, false]);
-    assert.deepEqual(row('demoBusy'), ['banner.demoBusy', 'warning', 'triangle-alert', 'bannerAction.installYourself', 'readme', false]);
-    assert.deepEqual(row('noModelKey'), ['banner.noModelKey', 'warning', 'triangle-alert', 'bannerAction.howToSetKey', 'readme', false]);
+    assert.deepEqual(row('demoBusy'), ['banner.demoBusy', 'warning', 'triangle-alert', 'bannerAction.installYourself', 'install', false]);
+    assert.deepEqual(row('noModelKey'), ['banner.noModelKey', 'warning', 'triangle-alert', 'bannerAction.howToSetKey', 'setKey', false]);
     assert.deepEqual(row('costCap'), ['banner.costCap', 'warning', 'triangle-alert', null, null, false]);
     assert.deepEqual(row('heartbeatStalled'), ['banner.heartbeatStalled', 'warning', 'triangle-alert', null, null, false]);
     assert.deepEqual(row('telegramPaused'), ['banner.telegramPaused', 'warning', 'triangle-alert', 'bannerAction.setUpBot', 'telegram', false]);
@@ -177,6 +182,15 @@ describe('the texts', () => {
     assert.equal(view([on('allowance', { limit: -1, time: 'x' })])[0].text.slice(0, 40), "You've used this session's  messages for");
   });
 
+  it('are rendered by bannerText, which the composer and the guide reuse for the allowance reason (Story 16.9)', () => {
+    const banner = only(on('allowance', { limit: 50, time: T }));
+    assert.equal(bannerText('banner.allowance', { limit: 50, time: T }, format), banner.text, 'the banner\'s text is bannerText\'s');
+    assert.equal(bannerText('banner.allowance', { limit: 50, time: T }, format), "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 12:00.");
+    assert.equal(bannerText('banner.allowance', { limit: 50, time: T }, formatIn('Europe/Berlin', 'en-GB')), "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 14:00.", 'the time is a page time, in the browser\'s zone');
+    assert.equal(bannerText('banner.allowance', {}, format).slice(0, 40), "You've used this session's  messages for", 'a slot that is missing is empty');
+    assert.equal(bannerText('banner.dailyCap', { time: T }, format), "The online demo has used today's model allowance. Decisions use fixed rules until 12:00.");
+  });
+
   it('show a value that names a placeholder as it is, filled in once', () => {
     assert.equal(only(on('dailyCap', { cap: 20, time: '{cap}' })).text, "OcuTalon has reached today's cost limit of $20.00. Decisions use fixed rules until .");
   });
@@ -185,10 +199,27 @@ describe('the texts', () => {
 describe('the actions', () => {
   const action = (payload, over) => view([payload], over)[0].action;
 
-  it('are "Install it yourself" to the README for the allowance and the online demo\'s cap, and "How to set a key" to the README', () => {
-    assert.deepEqual(action(on('allowance', { limit: 20, time: T })), { text: 'Install it yourself', href: README_URL });
-    assert.deepEqual(action(on('dailyCap', { cap: 20, time: T }), { onlineDemo: true }), { text: 'Install it yourself', href: README_URL });
-    assert.deepEqual(action(on('noModelKey')), { text: 'How to set a key', href: README_URL });
+  it('are "Install it yourself" to the README\'s install section for the allowance and the online demo\'s cap, and "How to set a key" to its model-key section (DW-361)', () => {
+    assert.deepEqual(action(on('allowance', { limit: 20, time: T })), { text: 'Install it yourself', href: INSTALL_URL });
+    assert.deepEqual(action(on('dailyCap', { cap: 20, time: T }), { onlineDemo: true }), { text: 'Install it yourself', href: INSTALL_URL });
+    assert.deepEqual(action(on('noModelKey')), { text: 'How to set a key', href: SET_KEY_URL });
+  });
+
+  it('open the section that the row\'s target names, for every row with an action, and never the top of the README', () => {
+    const hrefs = { install: INSTALL_URL, setKey: SET_KEY_URL, telegram: `${README_URL.slice(0, README_URL.indexOf('#'))}#telegram` };
+    const rows = BANNERS.filter((banner) => banner.action !== undefined);
+    assert.deepEqual(
+      rows.map((banner) => banner.id),
+      ['allowance', 'dailyCap', 'demoBusy', 'noModelKey', 'telegramPaused'],
+      'the five banners with an action',
+    );
+    for (const banner of rows) {
+      const own = banner.id === 'demoBusy' ? { own: ['demoBusy'] } : {};
+      const online = banner.onlineDemo === true ? { onlineDemo: true } : {};
+      const shown = view(banner.id === 'demoBusy' ? [] : [on(banner.condition, { limit: 20, cap: 20, time: T })], { ...own, ...online }).find((one) => one.id === banner.id);
+      assert.equal(shown?.action?.href, hrefs[banner.action.target], `${banner.id}: its action opens its own section`);
+      assert.notEqual(shown?.action?.href, README_URL, `${banner.id}: and not the README's top`);
+    }
   });
 
   it('are "Set up a bot" to the README\'s Telegram section for the paused bot', () => {
@@ -211,7 +242,7 @@ describe('the demo busy banner (Story 16.5, row 13)', () => {
     const banners = view([], { own: ['demoBusy'], onlineDemo: true });
     assert.deepEqual(ids(banners), ['demoBusy']);
     assert.equal(banners[0].text, busyText);
-    assert.deepEqual(banners[0].action, { text: 'Install it yourself', href: README_URL });
+    assert.deepEqual(banners[0].action, { text: 'Install it yourself', href: INSTALL_URL });
     assert.deepEqual([banners[0].variant, banners[0].icon, banners[0].closable], ['warning', 'triangle-alert', false]);
     assert.deepEqual(ids(view([on('noModelKey')], { own: ['reconnecting', 'demoBusy', 'unreachable'], onlineDemo: true })), ['unreachable', 'demoBusy', 'noModelKey', 'reconnecting']);
   });

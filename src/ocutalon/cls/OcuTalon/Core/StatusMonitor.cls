@@ -13,6 +13,12 @@
 /// with a silent first run. What the service remembers is not durable (AD-5): a restart of the
 /// job starts again from a silent first run. A publish that fails is logged as a warning and is not remembered, so that the
 /// next run publishes it again. OnProcessInput always returns OK.
+/// On the online demo each run also publishes the allowance condition of the sessions whose view changed (Story 16.9, AD-12):
+/// AllowanceTick reads the sessions with an open allowance window (Ownership.AllowanceHeld) and the ones it published as active
+/// before, builds each one's OcuTalon.Live.Payload.Status.Allowance and publishes it on that session's own stream when its exported
+/// JSON differs from the remembered one: the active view when a refusal opened the window, and a clear (active false, no slots)
+/// once the window has ended. It remembers the active views only, and forgets a session once its clear is published. The first run
+/// only remembers, and a failed read is a warning that remembers nothing. The instance events are unchanged.
 /// While demo mode is on, each run also refreshes the guide of every session with a Break the feed run started less than
 /// GUIDESECONDS ago (Live.Publish.RefreshGuide), which publishes a guide.state event only when the guide changed: the clock
 /// stages of a run move without any row changing (AD-12).
@@ -25,21 +31,27 @@ Parameter LOGPUBLISH = "StatusMonitor could not publish a status event: ";
 
 Parameter LOGRUN = "StatusMonitor could not read the status: ";
 
+Parameter LOGALLOWANCE = "StatusMonitor could not publish the allowance status: ";
+
 /// The exported JSON of each condition at the last run that remembered it, by condition. Empty until the first run.
 Property Remembered [ MultiDimensional, Private ];
 
 /// The next reset at the last run, whether or not it was published; "" until a run has remembered it.
 Property RememberedReset As %String [ Private ];
 
+/// The exported JSON of the allowance condition that was last published or remembered as active, by session Ref. A session that has
+/// no entry was last seen with no open window.
+Property RememberedAllowance [ MultiDimensional, Private ];
+
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
 	Set pOutput = ""
+	Set first = '$Data(..Remembered)
 	Try {
 		Do ..Readings(.keys, .budget)
 		Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget)
 		Do conditions.Insert(..ResetSoon())
 		Set stream = ..Stream()
-		Set first = '$Data(..Remembered)
 		For i = 1:1:conditions.Count() {
 			Set condition = conditions.GetAt(i)
 			Set sc = condition.%JSONExportToString(.json)
@@ -63,8 +75,76 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	} Catch exception {
 		$$$LOGWARNING(..#LOGRUN_exception.DisplayString())
 	}
+	Do ..AllowanceTick(first)
 	Do ..GuideTick()
 	Quit $$$OK
+}
+
+/// The allowance statuses of one run, on the online demo only: for each session that has an open window or was remembered as active,
+/// Status.Allowance is published on the session's own stream when its exported JSON changed, as the class comment says. first is
+/// the run's first-run flag: the first run only remembers the active views. Every error is a warning; nothing throws.
+Method AllowanceTick(first As %Boolean) [ Private ]
+{
+	Try {
+		If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		Set held = ..AllowanceSessions(now, .sc)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#LOGALLOWANCE_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		Kill sessions
+		Set position = 0
+		While $ListNext(held, position, ref) {
+			Set sessions(ref) = ""
+		}
+		Set ref = ""
+		For {
+			Set ref = $Order(..RememberedAllowance(ref))
+			Quit:ref=""
+			Set sessions(ref) = ""
+		}
+		Set ref = ""
+		For {
+			Set ref = $Order(sessions(ref))
+			Quit:ref=""
+			Do ..AllowanceOf(ref, now, first)
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGALLOWANCE_exception.DisplayString())
+	}
+}
+
+/// The allowance status of one session at now: remembered on the first run, otherwise published when it changed. An error is a
+/// warning that remembers nothing.
+Method AllowanceOf(sessionRef As %String, now As %String, first As %Boolean) [ Private ]
+{
+	Try {
+		Set condition = ##class(OcuTalon.Live.Payload.Status).Allowance(sessionRef, now)
+		Set sc = condition.%JSONExportToString(.json)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#LOGALLOWANCE_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		Set before = $Get(..RememberedAllowance(sessionRef))
+		If first {
+			If condition.Active Set ..RememberedAllowance(sessionRef) = json
+			Quit
+		}
+		If $Select(condition.Active: json = before, 1: before = "") Quit
+		Set sc = ##class(OcuTalon.Live.Publish).Publish(sessionRef, "status", condition)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#LOGALLOWANCE_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		If condition.Active {
+			Set ..RememberedAllowance(sessionRef) = json
+		} Else {
+			Kill ..RememberedAllowance(sessionRef)
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGALLOWANCE_exception.DisplayString())
+	}
 }
 
 /// The resetSoon condition (AD-12): active on the online demo while the next reset is at most
@@ -136,6 +216,12 @@ Method GuideTick() [ Private ]
 Method Readings(Output keys As %DynamicObject, Output budget As %DynamicObject) [ Private ]
 {
 	Do ##class(OcuTalon.Live.Payload.Status).Readings(.keys, .budget)
+}
+
+/// The sessions with an open allowance window at now: Ownership.AllowanceHeld. A seam for the tests.
+Method AllowanceSessions(now As %String, Output sc As %Status) As %List [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).AllowanceHeld(now, .sc)
 }
 
 /// The stream that the events are published on: the instance stream. A seam for the tests.

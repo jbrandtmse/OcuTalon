@@ -6,7 +6,15 @@
 ///     ItemId and the session's TraceRef as its SuperSession;
 ///   - TestRepeatClientId: a clientId that the session already has (a done or a queued turn) is a duplicate that sends nothing,
 ///     and another session with that clientId gets its own Item;
-///   - TestRefusalQueuesNothing: a refusal sends nothing and answers an error status;
+///   - TestRefusalQueuesNothing (Story 16.9): a refusal with a retryAt sends no Item and answers an OK status with the refused
+///     output; the first refusal of a window sends Notify the one allowance notice, in a session of its own under the TraceRef, and
+///     a later refusal sends nothing;
+///   - TestRefusalWithNoRetryAtIsAnError: a refusal with no retryAt (a lock that was busy) is an error status and sends nothing;
+///   - TestFailedNoticeStillRefuses: a notice that fails to send is one warning, and the refusal stands;
+///   - TestFailedSendGivesTheMessageBack: a send that fails or throws calls the allowance's Refund for the session once, and an
+///     accepted message or a refusal calls it never;
+///   - TestFailedSendRefundsTheRealAllowance: with the flag set, the service's own Refund takes the failed message's entry out of the
+///     session's AllowanceTimes;
 ///   - TestSendFailureAnswersError: a send that fails answers an error status with no output;
 ///   - TestBadPostRefused: a Post with no session, clientId or text, a session with no row, and any other input are errors that
 ///     ask the allowance nothing and send nothing;
@@ -114,23 +122,122 @@ Method TestRepeatClientId()
 	Do $$$AssertEquals(..Call(2, "sessionRef")_"|"_..Call(2, "clientId"), b_"|zzc"_..Number_"done", "an Item for that session")
 }
 
-/// A refusal of the allowance sends nothing and answers an error status; the allowance is asked with the session, the channel
-/// and the text.
+/// A refusal of the allowance with a retryAt (Story 16.9) queues nothing: the allowance is asked with the session, the channel and
+/// the text, no Item is sent, and the answer is OK with the refused output. The first refusal of a window sends Notify one
+/// allowance Notification, in a session of its own under the session's TraceRef, with the limit, the retryAt and the install link;
+/// a later refusal of the window sends no notice.
 Method TestRefusalQueuesNothing()
 {
 	Set session = ..Session("refuse")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 	Set probe = ..NewProbe()
 	Set probe.Refuse = 1
 	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"refuse", "zz refused", 0), .output)
-	Do $$$AssertStatusNotOK(sc, "a refusal is an error status")
-	Do $$$AssertEquals(..Calls(), 1, "only the allowance was asked")
-	Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "sessionRef")_"|"_..Call(1, "channel")_"|"_..Call(1, "text"), "allowed|"_session_"|web|zz refused", "with the session, the channel and the text")
-	Do $$$AssertEquals(output, "", "and the output is empty")
+	Do $$$AssertStatusOK(sc, "a refusal with a retryAt is answered, not failed")
+	Set answer = {}.%FromJSON(output)
+	Do $$$AssertEquals(answer.accepted_"|"_answer.duplicate_"|"_answer.refused_"|"_answer.retryAt_"|"_answer.limit, "0|0|1|2030-01-01T00:00:00Z|"_##class(OcuTalon.Core.Allowance).Limit(), "the output says refused, with the retryAt and the limit")
+	Do $$$AssertEquals(answer.%GetTypeOf("limit"), "number", "the limit is a number")
+	Do $$$AssertEquals(..Calls(), 2, "the allowance was asked and one notice was sent")
+	Do $$$AssertEquals(..Sends(), 0, "no Item reaches Conversation")
+	Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "sessionRef")_"|"_..Call(1, "channel")_"|"_..Call(1, "text"), "allowed|"_session_"|web|zz refused", "the allowance was asked with the session, the channel and the text")
+	Do $$$AssertEquals(..Call(2, "target")_"|"_..Call(2, "class"), "Notify|OcuTalon.Msg.Notification", "the notice goes to Notify")
+	Do $$$AssertEquals(..Call(2, "sessionRef")_"|"_..Call(2, "kind")_"|"_..Call(2, "catalogKey"), session_"|allowance|conversation.sessionAllowance", "for the session, kind allowance, the session allowance key")
+	Set slots = {}.%FromJSON(..Call(2, "slots"))
+	Do $$$AssertEquals(slots.limit_"|"_slots.time_"|"_slots.readmeLink, ##class(OcuTalon.Core.Allowance).Limit()_"|2030-01-01T00:00:00Z|"_##class(OcuTalon.Core.Allowance).#INSTALLLINK, "with the limit, the retryAt and the install link as slots")
+	Do $$$AssertEquals(..Call(2, "sessionId")_"|"_..Call(2, "superSession"), "|"_trace, "in a session of its own, under the session's TraceRef")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "|", "and no thread was joined or recorded")
+
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set probe = ..NewProbe()
+	Set probe.Refuse = 1
+	Set probe.FirstRefusal = 0
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"refuse", "zz refused again", 0), .output)
+	Do $$$AssertStatusOK(sc, "a later refusal of the window is answered the same way")
+	Do $$$AssertEquals({}.%FromJSON(output).refused, 1, "as refused")
+	Do $$$AssertEquals(..Calls(), 1, "only the allowance was asked: no notice is sent again")
+
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
 	Set probe = ..NewProbe()
 	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"refuse", "zz refused", 0), .output)
 	Do $$$AssertStatusOK(sc, "the same message is accepted when the allowance allows it")
 	Do $$$AssertEquals(output, "{""accepted"":1,""duplicate"":0}", "as a new message, not a duplicate: the refusal left no turn")
 	Do $$$AssertEquals(..Sends(), 1, "and it is sent")
+}
+
+/// A refusal with no retryAt, which is what TryConsume answers for a lock that stayed busy or an exception, is an error status
+/// with no output: nothing is sent, not even a notice.
+Method TestRefusalWithNoRetryAtIsAnError()
+{
+	Set session = ..Session("busy")
+	Set probe = ..NewProbe()
+	Set probe.RefuseBusy = 1
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"busy", "zz busy", 0), .output)
+	Do $$$AssertStatusNotOK(sc, "a refusal with no retryAt is an error status")
+	Do $$$AssertEquals(output, "", "with no output")
+	Do $$$AssertEquals(..Calls(), 1, "only the allowance was asked: nothing is sent")
+}
+
+/// A notice that cannot be sent is logged as one warning, and the refusal stands: the answer is still the refused output.
+Method TestFailedNoticeStillRefuses()
+{
+	Set session = ..Session("nonotice")
+	Set mark = ..LastLog()
+	Set probe = ..NewProbe()
+	Set probe.Refuse = 1
+	Set probe.FailNotice = 1
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"nonotice", "zz refused", 0), .output)
+	Do $$$AssertStatusOK(sc, "the refusal is answered")
+	Do $$$AssertEquals({}.%FromJSON(output).refused, 1, "as refused")
+	Do $$$AssertEquals(..Call(2, "target"), "Notify", "the notice was tried")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Notify", ##class(OcuTalon.Channel.WebChat.In).#LOGNOTICE)
+	Do $$$AssertEquals(count, 1, "one warning is logged: "_text)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Notify", ##class(OcuTalon.Channel.WebChat.In).#LOGNOTICE)
+}
+
+/// A message that was allowed and then could not be sent (the send fails or throws) gives its entry back: the allowance's Refund
+/// is called once for the session, after the send, and the answer is the error. An accepted message and a refused one call it never.
+Method TestFailedSendGivesTheMessageBack()
+{
+	Set session = ..Session("refund")
+	For how = "FailSend", "ThrowSend" {
+		Kill ^OcuTalonTest("WebChatIn", ..Number)
+		Set probe = ..NewProbe()
+		Set $Property(probe, how) = 1
+		Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_how, "zz send fails", 0), .output)
+		Do $$$AssertStatusNotOK(sc, how_": the answer is the error")
+		Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(2, "target")_"|"_..Call(3, "target")_"|"_..Call(3, "sessionRef"), "allowed|Conversation|refund|"_session, how_": Refund follows the failed send, for the session")
+		Do $$$AssertEquals(..Calls(), 3, how_": and nothing else")
+	}
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Do $$$AssertStatusOK(..NewProbe().OnProcessInput(..Post(session, "zzc"_..Number_"fine", "zz fine", 0), .output), "an accepted message")
+	Do $$$AssertEquals(..Calls(), 2, "gives nothing back")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set probe = ..NewProbe()
+	Set probe.Refuse = 1
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"nope", "zz refused", 0), .output), "a refusal")
+	Do $$$AssertEquals(..Calls(), 2, "gives nothing back either: the allowance and the notice only")
+}
+
+/// The service's own Refund gives the entry back through Core.Allowance.Refund: with the flag set, a message that the real allowance
+/// let through and whose send then fails leaves the session's AllowanceTimes as it was before the message.
+Method TestFailedSendRefundsTheRealAllowance()
+{
+	Set session = ..Session("realrefund")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.AllowanceTimes = $ListBuild(now, now)
+	Do $$$AssertStatusOK(row.%Save(), "the session has two messages in the hour")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set probe = ..NewProbe()
+	Set probe.FailSend = 1
+	Set probe.RealRefund = 1
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"realrefund", "zz send fails", 0), .output)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusNotOK(sc, "the send fails: the answer is the error")
+	Do $$$AssertEquals(..Call(3, "target"), "refund", "the service gave the message back")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals($ListLength(row.AllowanceTimes), 2, "and the real allowance has the two messages of before: the entry of the failed one is gone")
 }
 
 /// A send to Conversation that fails answers an error status with no output, after the allowance was asked.
@@ -364,7 +471,8 @@ Method TestRefusedAndDuplicateMessagesTouchNoThread()
 	Set probe = ..NewProbe()
 	Set probe.Refuse = 1
 	Set probe.NewSession = 5150
-	Do $$$AssertStatusNotOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"untouchedrefused", "zz refused", 0), .output), "a refused message is an error status")
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"untouchedrefused", "zz refused", 0), .output), "a refused message is answered")
+	Do $$$AssertEquals({}.%FromJSON(output).refused, 1, "as refused")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "the row's lock is free for another job")
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
 	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "|", "and no thread is recorded")

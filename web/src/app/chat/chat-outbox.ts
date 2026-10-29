@@ -3,6 +3,8 @@ import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { timeout } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
+import { AllowanceState } from '../live/allowance-state';
+import { refusalOf } from '../live/allowance-view';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { BUSY_TIMEOUT_MS } from '../shared/busy-state';
@@ -22,11 +24,15 @@ import { CHAT_TEXTS, newClientId, type OutboxEntry, type OutboxStatus } from './
  * (takeBackTo), which takes it only while its field is empty, and the entry leaves the chat; a guide prompt's entry just leaves; when
  * the composer holds other text, or none is on the page, the entry stays failed as today. None of these says "Message not sent"
  * except that last one.
+ * A 429 whose error code is `allowance` (Story 16.9; the session's message allowance) is handled the same way, after the page learns
+ * the window from it (AllowanceState.refused): the typed text goes back to an empty composer, a guide prompt's entry just leaves, and
+ * when the composer holds other text the entry fails as today ("Message not sent"). The refusal never reaches the chat as a message.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatOutbox {
   private readonly api = inject(ApiClient);
   private readonly live = inject(LiveState);
+  private readonly allowance = inject(AllowanceState);
   private readonly announcer = inject(Announcer);
   private readonly list = signal<readonly OutboxEntry[]>([]);
 
@@ -95,6 +101,13 @@ export class ChatOutbox {
           if (error instanceof HttpErrorResponse && error.status === 503 && this.live.snapshot()?.onlineDemo === true && this.refuse(entry)) {
             return;
           }
+          const refusal = refusalOf(error, 'allowance');
+          if (refusal !== undefined) {
+            this.allowance.refused(refusal);
+            if (this.refuse(entry)) {
+              return;
+            }
+          }
           if (!(error instanceof HttpErrorResponse && error.status === 401)) {
             const unsent = !this.held().has(entry.clientId) && this.list().some((candidate) => candidate.clientId === entry.clientId);
             this.mark(entry.clientId, 'failed');
@@ -107,7 +120,7 @@ export class ChatOutbox {
   }
 
   /**
-   * The online demo's 503 rule: a guide prompt's entry leaves, and a typed message's entry leaves when the composer takes its text back.
+   * The online demo's 503 rule, also the 429 allowance rule: a guide prompt's entry leaves, and a typed message's entry leaves when the composer takes its text back.
    * True when the entry left (so nothing is announced); false leaves the entry to fail as today.
    */
   private refuse(entry: OutboxEntry): boolean {

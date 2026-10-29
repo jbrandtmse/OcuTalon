@@ -1,5 +1,6 @@
 # Helpers shared by the live units that start the online demo's real stack with the online-demo flag on and test start values
-# (test-online-demo.sh and test-online-session.sh, Story 16.4). Sourced after lib-live.sh, not run: it defines functions and nothing else.
+# (test-online-demo.sh, test-online-session.sh and test-online-allowance.sh, Stories 16.4 and 16.9). Sourced after lib-live.sh, not run: it
+# defines functions and nothing else. keys_point and keys_restore point the runners' model keys at the CI mock, and back.
 # A unit calls, in this order:
 #   live_start <label>, live_web_port         (lib-live.sh)
 #   online_values                             sets demo_user, readonly_user, readonly_user_caps, demo_password, readonly_password, anchor and
@@ -100,4 +101,17 @@ online_signin() {
       ;;
   esac
   printf '%s' "$code"
+}
+
+# keys_point: points the model keys of the three runners at the mock key variable (Test.Agent.RunnerFixture, which exists in throwaways and
+# CI only: a start in the CI override has no key, so every decision would be the no_key fallback) and waits until the runners have recorded
+# it; prints 1 when they have. keys_restore puts the entries back to the Provider step's placeholder and prints 1 when they read as that.
+keys_point() {
+  printf '%s\n' 'Set ok=0 Set fixture="OcuTalon.Test.Agent.RunnerFixture"' \
+    'If $ClassMethod(fixture,"GuardReason")="" { Set sc=$ClassMethod(fixture,"PointKeys") Set ok=$SYSTEM.Status.IsOK(sc) If ok Set ok=$ClassMethod(fixture,"WaitRecords") }' \
+    'Write !,"CHK|keys|",ok' 'Halt' | session_value OCUTALON keys
+}
+keys_restore() {
+  printf '%s\n' 'Set fixture="OcuTalon.Test.Agent.RunnerFixture" Set sc=$ClassMethod(fixture,"RestoreKeys")' \
+    'Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc)&&$ClassMethod(fixture,"KeysAre",##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' 'Halt' | session_value OCUTALON keys
 }

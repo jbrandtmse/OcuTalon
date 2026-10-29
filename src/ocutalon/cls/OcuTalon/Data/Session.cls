@@ -7,6 +7,8 @@
 ///   - CspSessionId is the CSP session last attached to the row.
 /// Recipients says which sessions an owner's records go to. The row also keeps the session's trace thread for the day
 /// (AD-26): ThreadSessionId and ThreadDay, which Core.Trace reads and writes under the row's own lock.
+/// Three more fields serve the online demo's allowances (Story 16.9, AD-20), and Core.Allowance and Core.BridgeSink write them
+/// under that same row lock: AllowanceTimes, AllowanceUntil and DailyCapDay. A row that predates them reads as empty.
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -42,6 +44,18 @@ Property ResumeHash As %String(COLLATION = "EXACT", MAXLEN = 43);
 
 /// The id of the CSP session last attached to the row (Ownership.Resume, Ownership.StartVisitor).
 Property CspSessionId As %String(MAXLEN = 64);
+
+/// The UTC times (to the second) of the session's accepted messages in the rolling hour, oldest first, as a list of at most
+/// Allowance.Limit() entries (AD-20). Empty off the online demo.
+Property AllowanceTimes As %List;
+
+/// The retryAt (UTC to the second) of the allowance window that has had a refusal: from the window's first refusal until that
+/// time the session's allowance condition holds. Empty when no window is open.
+Property AllowanceUntil As %String(MAXLEN = 20);
+
+/// The instance-zone local date (YYYY-MM-DD) on which the session was sent the online demo's daily-cap message (AD-20); empty
+/// until it was.
+Property DailyCapDay As %String(MAXLEN = 10);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -200,6 +214,15 @@ Storage Default
 </Value>
 <Value name="10">
 <Value>CspSessionId</Value>
+</Value>
+<Value name="11">
+<Value>AllowanceTimes</Value>
+</Value>
+<Value name="12">
+<Value>AllowanceUntil</Value>
+</Value>
+<Value name="13">
+<Value>DailyCapDay</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SessionD</DataLocation>

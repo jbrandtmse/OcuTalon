@@ -135,6 +135,17 @@ export interface ApiError {
   error: { code: string; message: string };
 }
 
+/**
+ * The body of a 429 answer (Story 16.9; AD-20), which an `HttpErrorResponse.error` carries: `allowance` for a message the session's
+ * allowance refused (with the `limit` beside `retryAt`), `email_limit` for a simulated email the mailbox refused. `retryAt` is the UTC
+ * time when the session may send again.
+ */
+export interface ApiRefusal {
+  error: { code: string; message: string };
+  retryAt: string;
+  limit?: number;
+}
+
 /** GET /ocutalon/public/status: no session; every key is present, null where it is not set. */
 export interface PublicStatus {
   ready: boolean;

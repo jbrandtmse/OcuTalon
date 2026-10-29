@@ -57,6 +57,8 @@ Parameter HandleCorsRequest = 0;
 
 Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
 
+Parameter HTTP429TOOMANYREQUESTS = "429 Too Many Requests";
+
 /// The most entries the snapshot's chat holds: the newest, oldest first (DW-65).
 Parameter CHATMAX = 100;
 
@@ -75,6 +77,12 @@ Parameter MESSAGENOHEADER = "OcuTalon refused this request because it didn't com
 Parameter MESSAGEWRONGORIGIN = "OcuTalon refused this request because it came from another site.";
 
 Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
+
+/// The message of the 429 allowance of POST /messages; {limit} is the session's message allowance.
+Parameter MESSAGEALLOWANCE = "You've used this session's {limit} messages for the hour.";
+
+/// The message of the 429 email_limit of the mailbox routes.
+Parameter MESSAGEEMAILLIMIT = "You've simulated 20 emails this hour.";
 
 Parameter MESSAGEEMPTYSUBJECT = "Enter a subject.";
 
@@ -228,9 +236,12 @@ ClassMethod EndSession() As %Status
 /// POST /v1/messages: the page's message. The body is a JSON object with a clientId (a string of 1 to 128 characters), a text
 /// (a string with a non-space character) and fromGuide (true only when it is the JSON true); anything else, a body that is not
 /// a JSON object included, is 400 bad_message and nothing is sent. The session is the one that Ownership.SessionRef resolves
-/// (AD-4): a sessionRef in the body is ignored. A valid body is handed to WebChatIn (Post) and answers 202 {"clientId"}, a
-/// clientId that the session already used included. A session that can't be read, a production that can't take the message
-/// and an error of WebChatIn are 500 server_error.
+/// (AD-4): a sessionRef in the body is ignored. A valid body is handed to WebChatIn (Post), whose JSON output says what became
+/// of it (as BreakFeed reads its service's output): an accepted message answers 202 {"clientId"}, a clientId that the session
+/// already used included, and a message that the session's allowance refused (the online demo's, AD-20) answers 429
+/// {"error": {"code": "allowance", "message"}, "retryAt", "limit"} with the UTC time when the session may send again and the
+/// limit. A session that can't be read, a production that can't take the message, an error of WebChatIn (a busy allowance
+/// included) and an output that is not a JSON object are 500 server_error.
 ClassMethod Messages() As %Status
 {
 	If '..MessageBody(.clientId, .text, .fromGuide) Quit ..Fail(400, "bad_message", ..#MESSAGEBADMESSAGE)
@@ -243,6 +254,19 @@ ClassMethod Messages() As %Status
 	Set post.FromGuide = fromGuide
 	Set sc = ..Post(post, .output)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
+		Set refused = (answer.refused = 1)
+		If refused {
+			Set retryAt = answer.retryAt
+			Set limit = answer.limit
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If refused Quit ..Fail(429, "allowance", $Replace(..#MESSAGEALLOWANCE, "{limit}", limit), , {"retryAt": (retryAt), "limit": (+limit)})
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = ..#HTTP202ACCEPTED
 	Write {"clientId": (clientId)}.%ToJSON()
@@ -378,8 +402,9 @@ ClassMethod MailboxSample(name As %String = "") As %Status
 	Quit ..MailAccepted(mail)
 }
 
-/// Hands the mail to SimMailboxIn and answers 202 {"ref"} from the service's output; an error, or an output that is not a JSON
-/// object with a ref, is 500 server_error.
+/// Hands the mail to SimMailboxIn and answers from the service's output: 202 {"ref"}, or, for an email that the online demo's
+/// limit refused (AD-20), 429 {"error": {"code": "email_limit", "message"}, "retryAt"} with the UTC time when the session may send
+/// again. An error, or an output that is not a JSON object with a ref or a refusal with a retryAt, is 500 server_error.
 ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ Private ]
 {
 	Set sc = ..Mail(mail, .output)
@@ -387,12 +412,18 @@ ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ 
 	Set sc = $SYSTEM.Status.OK()
 	Try {
 		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
-		Set ref = answer.ref
-		If (answer.%GetTypeOf("ref") '= "string") || (ref = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn answered no ref")
+		If answer.refused = 1 {
+			Set retryAt = answer.retryAt
+			If (answer.%GetTypeOf("retryAt") '= "string") || (retryAt = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn refused the email with no retryAt")
+		} Else {
+			Set ref = answer.ref
+			If (answer.%GetTypeOf("ref") '= "string") || (ref = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn answered no ref")
+		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If answer.refused = 1 Quit ..Fail(429, "email_limit", ..#MESSAGEEMAILLIMIT, , {"retryAt": (retryAt)})
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = ..#HTTP202ACCEPTED
 	Write {"ref": (ref)}.%ToJSON()
@@ -926,9 +957,9 @@ ClassMethod EnvelopeError(method As %String, contentType As %String, header As %
 	Quit ""
 }
 
-/// Writes the status line and the error body {"error": {"code", "message"}}, followed by "approval" when a payload object is given.
-/// status is the number, 400 to 501.
-ClassMethod Fail(status As %Integer, code As %String, message As %String, approval As %DynamicObject = "") As %Status
+/// Writes the status line and the error body {"error": {"code", "message"}}, followed by "approval" when a payload object is given
+/// and then by every member of extra when an object is given (a 429's retryAt and limit). status is the number, 400 to 501.
+ClassMethod Fail(status As %Integer, code As %String, message As %String, approval As %DynamicObject = "", extra As %DynamicObject = "") As %Status
 {
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = $Case(status,
@@ -938,11 +969,18 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String, approv
 		404: ..#HTTP404NOTFOUND,
 		405: ..#HTTP405METHODNOTALLOWED,
 		409: ..#HTTP409CONFLICT,
+		429: ..#HTTP429TOOMANYREQUESTS,
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)
 	Set body = ..ErrorBody(code, message)
 	If $IsObject(approval) Set body.approval = approval
+	If $IsObject(extra) {
+		Set iterator = extra.%GetIterator()
+		While iterator.%GetNext(.name, .value, .type) {
+			Do body.%Set(name, value, type)
+		}
+	}
 	Write body.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }

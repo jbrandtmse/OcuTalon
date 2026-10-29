@@ -1,8 +1,9 @@
 /// The payload of the status live event: one status condition of the closed catalog (AD-12). Lane B publishes it.
 /// The class is also the one computation of the conditions that this build derives from the bridge (AD-12, AD-20):
-/// Readings reads the two bridge APIs, Computed turns the readings into the conditions, and Active answers the active ones
-/// for /state. StatusMonitor publishes what Computed gives when it changes. Both call Computed with the two readings only, so that the
-/// conditions that come from elsewhere (the heartbeat) are computed here, once, for both.
+/// Readings reads the two bridge APIs, Computed turns the readings into the conditions, Allowance computes the session's
+/// allowance condition (Story 16.9), and Active answers the active ones for /state. StatusMonitor publishes what Computed gives
+/// when it changes, and the allowance of each session whose window opens or ends. Both call Computed with the two readings only,
+/// so that the conditions that come from elsewhere (the heartbeat) are computed here, once, for both.
 Class OcuTalon.Live.Payload.Status Extends (%RegisteredObject, %JSON.Adaptor)
 {
 
@@ -73,13 +74,36 @@ ClassMethod TelegramPausedUntil(now As %String = "") As %String
 }
 
 /// The active conditions of a session as an array of JSON objects shaped like the payload's export:
-/// {"condition", "active": true, "slots"?}. They are ActiveOf(Computed(keys, budget)) for the keys and budget of Readings(), and
-/// Computed takes the real heartbeat reading itself. They are the same for every session: sessionRef is not used yet, and Epic 16
-/// adds the conditions that depend on the session (allowance).
+/// {"condition", "active": true, "slots"?}. They are ActiveOf of the session's allowance condition (Allowance) followed by
+/// Computed(keys, budget) for the keys and budget of Readings(), and Computed takes the real heartbeat reading itself. The
+/// allowance condition depends on the session and, when it holds, comes first (the catalog's order); every other condition is the
+/// same for every session. A failed read throws.
 ClassMethod Active(sessionRef As %String) As %DynamicArray
 {
 	Do ..Readings(.keys, .budget)
-	Quit ..ActiveOf(..Computed(keys, budget))
+	Set conditions = ##class(%Library.ListOfObjects).%New()
+	Do conditions.Insert(..Allowance(sessionRef))
+	Set computed = ..Computed(keys, budget)
+	For i = 1:1:computed.Count() Do conditions.Insert(computed.GetAt(i))
+	Quit ..ActiveOf(conditions)
+}
+
+/// The session's allowance condition (AD-20, Story 16.9). It holds when the online-demo flag is set and the session's allowance
+/// window is open at now (UTC, by default the current time): Core.Allowance.Until gives its end. Its slots are Limit
+/// (Allowance.Limit) and Time (the end of the window). It is off, with no slots, with the flag off and with no open window. A failed
+/// read throws.
+ClassMethod Allowance(sessionRef As %String, now As %String = "") As OcuTalon.Live.Payload.Status
+{
+	Set condition = ..%New()
+	Set condition.Condition = "allowance"
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit condition
+	Set until = ##class(OcuTalon.Core.Allowance).Until(sessionRef, now)
+	If until = "" Quit condition
+	Set condition.Active = 1
+	Set condition.Slots = ##class(OcuTalon.Live.Payload.Part.StatusSlots).%New()
+	Set condition.Slots.Limit = ##class(OcuTalon.Core.Allowance).Limit()
+	Set condition.Slots.Time = until
+	Quit condition
 }
 
 /// The active ones of a list of conditions, as an array of JSON objects shaped like the payload's export, in the list's order.

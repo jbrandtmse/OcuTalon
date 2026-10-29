@@ -126,9 +126,9 @@ export interface TurnView {
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
-export type NoticeKind = 'tellnow' | 'reminder';
+export type NoticeKind = 'tellnow' | 'reminder' | 'allowance';
 
-/** One notice card of the chat: a notification of the kind tellnow or reminder. */
+/** One notice card of the chat: a notification of the kind tellnow, reminder or allowance (the session allowance and the daily-cap message, Story 16.9). */
 export interface NoticeView {
   entry: 'notice';
   /** `notification:<ref>`, the key of the entry in the live store's chat. */
@@ -192,13 +192,13 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
   return item.type === 'chat.message' ? item.payload : undefined;
 }
 
-/** The notice card of a chat entry: a notification of the kind tellnow or reminder; undefined for any other entry. */
+/** The notice card of a chat entry: a notification of the kind tellnow, reminder or allowance; undefined for any other entry. */
 export function noticeOf(item: LiveItem): NoticeView | undefined {
   if (item.type !== 'notification') {
     return undefined;
   }
   const payload: NotificationPayload = item.payload;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder') {
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance') {
     return undefined;
   }
   const view: NoticeView = {
