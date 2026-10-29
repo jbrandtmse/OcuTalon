@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { STATE, changeSnapshot } from '../support/api';
 import {
@@ -16,7 +16,7 @@ import {
   sendItemDecision,
   sinkEvent,
 } from '../support/iris';
-import { TRACE_PAGE, drawnMessages, expectDrawn, postTurn, signInToTrace, type Cursor, type Turn } from '../support/trace';
+import { TRACE_PAGE, drawnMessages, expectDrawn, helpSeen, postTurn, signInToTrace, signOutTrace, stubTraces, traceSessions, type Cursor, type Turn } from '../support/trace';
 import { signIn, signInOverHttp } from '../sign-in/helpers';
 
 /**
@@ -40,9 +40,9 @@ import { signIn, signInOverHttp } from '../sign-in/helpers';
  *   and records nothing (V14); an approval request that arrives by event carries its incident's link (V15); a second press on a link
  *   while its help is open opens the link and closes the help (V16).
  * V1, V2 and V8 open the real Visual Trace pages and read what they draw. The other cases only check which address a link opens, so
- * their tabs get a stand-in page (stubTraces), because a run that opened every tab for real starved later cases of the stack; that
- * each tab signed in to a trace application holds one of the stack's licence connections until its session times out is an
- * inference, not a measurement.
+ * their tabs get a stand-in page (stubTraces), because a run that opened every tab for real starved later cases of the stack: a
+ * trace-application page holds one of the stack's licence connections for its user and client address until its session is signed
+ * out or times out (measured, DW-146), so every case also signs its trace session out when it ends.
  * The texts and the storage keys are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 90_000 });
@@ -100,22 +100,19 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
+/**
+ * A trace-application page holds a licence connection for its user until its session ends (DW-146, measured in Story 4.7), so every case
+ * signs its context's trace session out when it ends.
+ */
+test.afterEach(async ({ page }) => {
+  await signOutTrace(page.request);
+});
+
 /** The newest done turn of the user's chat that has a trace link, posting one first when the chat holds none. */
 async function someTurn(): Promise<Turn> {
   const state = (await (await api.get(STATE)).json()) as { chat: Array<{ type: string; payload: Partial<Turn> }> };
   const done = state.chat.filter((item) => item.type === 'chat.message' && item.payload.state === 'done' && item.payload.traceUrl !== undefined);
   return done.length > 0 ? (done[done.length - 1]!.payload as Turn) : postTurn(api, cursor, 0, 'links');
-}
-
-/** Marks the sign-in help as seen in the page's tab session before any script of the page runs. */
-async function helpSeen(page: Page): Promise<void> {
-  await page.addInitScript((key) => {
-    try {
-      window.sessionStorage.setItem(key, '1');
-    } catch {
-      /* The page copes with a storage that fails. */
-    }
-  }, SEEN_KEY);
 }
 
 /** Signs the links user in and waits for the loaded page. */
@@ -138,11 +135,6 @@ async function opensTab(page: Page, action: () => Promise<unknown>): Promise<Pag
   await popup.waitForLoadState('domcontentloaded');
   await signInToTrace(popup, KIND);
   return popup;
-}
-
-/** Gives every trace application page of the context a stand-in answer: the tabs it opens keep the address they were opened at. */
-async function stubTraces(context: BrowserContext): Promise<void> {
-  await context.route('**/ocutalon/trace/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Visual Trace</title>' }));
 }
 
 /** The path and query of the address the page is at. */
@@ -169,6 +161,8 @@ const SETTLE_MS = 1000;
 /** V1: a reply's strip links to its turn, and the link opens Visual Trace on it. */
 test("V1: a reply's strip links to its turn, and the link opens Visual Trace on it", async ({ page }) => {
   const turn = await postTurn(api, cursor, 1, 'links');
+  const { user } = fixtureUser(KIND);
+  const sessions = await traceSessions(user);
   expect(turn.traceUrl, 'the turn has a trace link').toBe(`${TRACE_PAGE}${turn.traceHeaderId}&PAGE=${Math.ceil(turn.traceItemIndex / 40)}`);
   await helpSeen(page);
   await open(page);
@@ -199,6 +193,10 @@ test("V1: a reply's strip links to its turn, and the link opens Visual Trace on 
   const drawn = await drawnMessages(popup);
   expect(drawn.ids, "Visual Trace draws the turn's Item header").toContain(String(turn.traceHeaderId));
   expectDrawn(drawn, turn.traceHeaderId, turn.traceItemIndex, 'the reply strip link');
+
+  // DW-146: the tab held a licence connection for this user; signing the trace session out releases it.
+  await signOutTrace(page.request);
+  await expect.poll(() => traceSessions(user), { message: "the user's CSP connections return to the count before the tab", timeout: 5000 }).toBe(sessions);
 });
 
 /** V1, continued: a notice card's strip links to its decision, after the confidence and the cost. */

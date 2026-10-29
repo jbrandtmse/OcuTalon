@@ -205,10 +205,10 @@ Method TestNote()
 }
 
 /// A class that extends Result is offered to the model with its own methods only: Return, Room, Note and ShownChars are inherited, and AI Hub exposes a
-/// method of the concrete class only. The Watch fixture offers its three, and the test tool of the step cap its own three (it has a helper of its own).
+/// method of the concrete class only. The Watch tools offer its three, and the test tool of the step cap its own three (it has a helper of its own).
 Method TestOwnMethodsAreTools()
 {
-	Do $$$AssertEquals(..ToolNames("OcuTalon.Tools.WatchFixture"), "ReadEventLog ReadFailedMessages ReadItemSettings", "the Watch fixture offers its three methods and none of Result's")
+	Do $$$AssertEquals(..ToolNames("OcuTalon.Tools.WatchReads"), "ReadEventLog ReadFailedMessages ReadItemSettings", "the Watch tools offer their three methods and none of Result's")
 	Do $$$AssertEquals(..ToolNames(..#TOOL), "Filler Object Text", "the test tool offers the methods it defines and none of Result's")
 }
 

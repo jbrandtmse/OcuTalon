@@ -1,0 +1,21 @@
+{
+  "name": "watch-start-unknown",
+  "match": {
+    "marker": "watch-start-unknown"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "Billing"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I can't find a production called 'Billing'. I can see: Orders. Which one did you mean?"
+    }
+  ]
+}

@@ -11,6 +11,9 @@
  * - Each list section carries its count, its visible heading "Background checks (1)" and its spoken heading "Background checks, 1".
  * - While the heartbeat is stalled (the store's heartbeatStalled condition is active, Story 2.10), a check's "Last run {when}" reads
  *   "Last run {when} (late)"; the rest of its meta line is unchanged.
+ * - A request of an incident also carries `jump`, its Ref, and `jumpName`, "Show in the chat: Repair and resend 50 orders", which holds the
+ *   visible title verbatim (WCAG 2.5.3): its title is a button that takes focus to the request's card in the chat (Story 6.3). A
+ *   tool call's request has no card there, so no jump.
  * - Each row carries its key, its title, an optional detail line and its meta parts; a reminder carries its countdown too, and a
  *   decision its chip, fallback flag and reason lines. A row whose payload has a traceUrl carries it, for the trace link that ends
  *   its meta line; a row whose payload has none carries none.
@@ -31,6 +34,7 @@ export const RAIL_TEXTS = {
   headingSpoken: '{label}, {n}',
   emptyApprovals: 'None waiting.',
   emptyChecks: 'Ask OcuTalon to watch a production.',
+  emptyChecksDemo: 'Nothing yet. Step 1 of the guide sets up a watch.',
   emptyReminders: 'None pending.',
   emptyDecisions: 'No decisions yet.',
   hintChecks: 'To stop, ask: "Stop watching Orders."',
@@ -38,6 +42,7 @@ export const RAIL_TEXTS = {
   repair: 'Repair and resend',
   repairCount: 'Repair and resend {n} {noun}',
   runTool: 'Run {toolName}',
+  showInChat: 'Show in the chat: {action}',
   raised: 'Raised {when}',
   expires: 'expires {when}',
   checkTitle: '{name} production',
@@ -107,6 +112,10 @@ export interface RailRow {
   decision?: DecisionRowView;
   /** Where the row's trace link opens, as the payload served it; absent when the payload has none. */
   traceUrl?: string;
+  /** The Ref of the approval request whose card the row's title button jumps to; set only for a request of an incident. */
+  jump?: string;
+  /** The accessible name of that button: "Show in the chat: Repair and resend 50 orders"; it contains the row's visible title with its case and words. */
+  jumpName?: string;
 }
 
 /** One section of the rail. A list section has a count and a spoken heading; Telegram has neither. */
@@ -198,7 +207,12 @@ function approvalRow(approval: ApprovalPayload, format: RailFormat): RailRow {
     meta.push(fill(RAIL_TEXTS.expires, { when: expires }));
   }
   const title = approvalTitle(approval);
-  return withTrace({ key: `approvals:${approval.ref ?? ''}`, kind: 'approval', title, lead: title, meta }, approval.traceUrl);
+  const row: RailRow = { key: `approvals:${approval.ref ?? ''}`, kind: 'approval', title, lead: title, meta };
+  if ((approval.incidentRef ?? '') !== '' && (approval.ref ?? '') !== '') {
+    row.jump = approval.ref;
+    row.jumpName = fill(RAIL_TEXTS.showInChat, { action: title });
+  }
+  return withTrace(row, approval.traceUrl);
 }
 
 function checkRow(check: CheckPayload, format: RailFormat, late: boolean): RailRow {
@@ -301,10 +315,10 @@ export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
   );
 }
 
-/** The rail for the store: the sections in order and whether Telegram is one of them. */
-export function railView(store: LiveStore, format: RailFormat): RailView {
+/** The rail for the store: the sections in order and whether Telegram is one of them. In demo mode the empty checks point at the demo guide. */
+export function railView(store: LiveStore, format: RailFormat, demo = false): RailView {
   const approvals = pendingApprovals(store);
-  const checks = inStoreOrder(store.checks);
+  const checks = inStoreOrder(store.checks).filter((check) => check.stopped !== true);
   const late = Object.hasOwn(store.status, 'heartbeatStalled') && store.status['heartbeatStalled']?.active === true;
   const reminders = sortedBy(
     inStoreOrder(store.reminders).filter((reminder) => reminder.state === 'pending'),
@@ -322,7 +336,7 @@ export function railView(store: LiveStore, format: RailFormat): RailView {
   }
   sections.push(
     listSection('approvals', RAIL_TEXTS.approvals, approvals.map((approval) => approvalRow(approval, format)), RAIL_TEXTS.emptyApprovals, ''),
-    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), RAIL_TEXTS.emptyChecks, RAIL_TEXTS.hintChecks),
+    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), demo ? RAIL_TEXTS.emptyChecksDemo : RAIL_TEXTS.emptyChecks, RAIL_TEXTS.hintChecks),
     listSection('reminders', RAIL_TEXTS.reminders, reminders.map((reminder) => reminderRow(reminder, format)), RAIL_TEXTS.emptyReminders, RAIL_TEXTS.hintReminders),
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );

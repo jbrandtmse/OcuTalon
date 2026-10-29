@@ -328,20 +328,26 @@ describe('no usable report', () => {
 
 // --- the real specs, through Playwright: no browser starts ---
 
-/** The environment of a Playwright run: no report and no stack, whatever the shell holds. */
+/**
+ * The environment of a Playwright run: no report, no stack and a browsers folder that holds no browser (the folder is never created),
+ * whatever the shell holds. A step spec that starts a browser before it skips then fails the run everywhere, not only in the hosted
+ * web job that has no browser.
+ */
 function playwrightEnv() {
-  const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000' };
+  const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000', PLAYWRIGHT_BROWSERS_PATH: join(work, 'no-browsers') };
   delete env.OCUTALON_E2E_JSON;
   delete env.OCUTALON_URL;
+  delete env.OCUTALON_E2E_IRIS_CONTAINER;
   return env;
 }
 
-describe('the real specs, run without their floor test', () => {
+describe('the real specs, run without their floor test and their fixture tests', () => {
+  // The fixture tests (tag @fixtures, Story 6.3) need a stack: they stand in for Lane A's raise and answer paths of steps 4 and 5 until Epic 11.
   it('skip every unbuilt part with a story, so that each step reads skipped', () => {
     const json = join(work, 'real-specs.json');
     const run = spawnSync(
       process.execPath,
-      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, 'real-specs-results')],
+      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor|@fixtures', '--output', join(work, 'real-specs-results')],
       {
         cwd: webDir,
         env: { ...playwrightEnv(), OCUTALON_E2E_JSON: json },
@@ -354,9 +360,12 @@ describe('the real specs, run without their floor test', () => {
     assert.match(printed, /^\s*-\s+\d+ \[demo-path\] \u203a /m, printed.slice(0, 500));
     assert.match(printed, /^\s*\d+ skipped$/m, printed.slice(0, 500));
     const { lines, failures } = summarizeFile(json);
-    assert.deepEqual(failures, ['step 1 page has no @floor test']);
+    // Every part of step 1 is a floor test (Story 4.7), so without the floor the step has no test in the report at all.
+    assert.deepEqual(failures, ['step 1 page has no 01-page.spec.ts in the report']);
     for (const [i, id] of STEPS.entries()) {
+      if (i === 0) continue;
       assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${id}: skipped, 0 passed, [1-9]\\d* skipped \\(Story \\d+\\.\\d+: `));
     }
+    assert.match(lines[2], /^STEP 3 reminder: skipped, 0 passed, 1 skipped \(Story 8\.6: /);
   });
 });

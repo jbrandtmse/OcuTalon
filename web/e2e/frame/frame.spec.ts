@@ -84,11 +84,18 @@ test('F1: landmarks, headings and order', async ({ page }) => {
   await expect(page.getByRole('main')).toHaveCount(1);
   await expect(page.getByRole('navigation'), 'the page has no nav landmark').toHaveCount(0);
 
+  const guide = page.getByRole('region', { name: 'Demo guide' });
+  await expect(guide, 'the demo guide (demo mode on) is the region Demo guide, there once').toHaveCount(1);
+  await expect(page.locator('app-demo-guide'), 'and it sits outside main').toHaveCount(1);
+
   const inOrder = await page.evaluate(() => {
-    const nodes = ['app-header', '.banner-slot', 'section.rail', 'main'].map((selector) => document.querySelector(selector));
+    const nodes = ['app-header', '.banner-slot', 'app-demo-guide', 'section.rail', 'main', 'app-device-panel section'].map((selector) => document.querySelector(selector));
     return nodes.map((node, i) => (i === 0 ? node !== null : !!node && !!nodes[i - 1] && !!(nodes[i - 1]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)));
   });
-  expect(inOrder, 'DOM order: banner, banner slot, Status region, main').toEqual([true, true, true, true]);
+  expect(inOrder, 'DOM order: banner, banner slot, Demo guide, Status region, main, Simulated devices').toEqual([true, true, true, true, true, true]);
+  const devices = page.getByRole('region', { name: 'Simulated devices' });
+  await expect(devices, 'the Simulated devices region (demo mode on) is there once, with no heading of its own').toHaveCount(1);
+  await expect(devices.getByRole('heading'), 'so the page keeps its two h2s').toHaveCount(0);
   await expect(page.locator('[tabindex]:not([tabindex="-1"]):not([tabindex="0"])'), 'tab order is DOM order').toHaveCount(0);
 });
 
@@ -435,7 +442,7 @@ test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and E
   expect(shown - entered, 'absent before 300 ms, then shown').toBeGreaterThanOrEqual(295);
   expect(shown - entered, 'shown once the 300 ms have passed, not seconds later').toBeLessThan(1500);
 
-  await page.mouse.move(640, 400);
+  await page.mouse.move(0, 0);
   await expect(tooltip, 'it hides when the pointer leaves').toHaveCount(0);
 
   await theme.focus();
@@ -497,7 +504,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   await signInReadme(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['user']).toBe(README_ACCOUNT.user);
   expect(body['onlineDemo']).toBe(false);
   expect(body['demoMode']).toBe(true);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { CHAT_TEXTS } from './chat-view';
 import { OutcomeChip, type Outcome } from './outcome-chip';
@@ -14,7 +14,8 @@ const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
 /**
  * The empty chat panel (UX-DR70, UX-DR89), shown in a fresh session until the first message: the headline, the four outcome
  * chips with their meanings, and the panel's remaining lines. The headline is a paragraph, not a heading: the page's heading
- * lists are pinned. The last line is the one for a session outside the demo; Story 4.4 adds the demo mode's line.
+ * lists are pinned. The last line is the demo mode's ("Start with step 1 of the demo guide above.") when `demo` is set, else the one for a session
+ * outside the demo.
  */
 @Component({
   selector: 'app-empty-chat',
@@ -33,7 +34,7 @@ const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
       </ul>
       <p class="line">{{ texts.emptyWatches }}</p>
       <p class="line">{{ texts.emptyRisky }}</p>
-      <p class="line">{{ texts.emptyAsk }}</p>
+      <p class="line">{{ demo() ? texts.emptyDemo : texts.emptyAsk }}</p>
     </div>
   `,
   styles: `
@@ -89,6 +90,9 @@ const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
   `,
 })
 export class EmptyChat {
+  /** True in demo mode, where the demo guide above gives the first step. */
+  readonly demo = input(false);
+
   protected readonly texts = CHAT_TEXTS;
   protected readonly meanings = MEANINGS;
 }

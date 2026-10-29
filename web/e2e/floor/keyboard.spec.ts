@@ -6,6 +6,7 @@ import {
   CARD_MS,
   MOST_STOPS,
   SKIP_CHAT,
+  SKIP_DEVICES,
   SKIP_STATUS,
   addReminder,
   addResetSoon,
@@ -63,7 +64,7 @@ const focusIsInside = (region: Locator): Promise<boolean> =>
   region.evaluate((el) => el !== document.activeElement && el.contains(document.activeElement));
 
 /** K1: the skip links are the first tab stops, show while focused, and move focus to the regions without changing the address. */
-test('K1: Skip to chat and Skip to status are the first tab stops and move focus to their regions', { tag: '@browsers' }, async ({ page }) => {
+test('K1: Skip to chat, Skip to simulated devices and Skip to status are the first tab stops and move focus to their regions', { tag: '@browsers' }, async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   let hold: Awaited<ReturnType<typeof holdState>> | undefined;
@@ -86,19 +87,28 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     expect(reading.ring.top).toBeLessThan(16);
     await expectRing(page, reading, SKIP_CHAT);
     expectRingInside(reading, SKIP_CHAT);
-    await expect(skipLink(page, SKIP_STATUS), 'the other link is hidden').toHaveCSS('clip-path', 'inset(50%)');
+    await expect(skipLink(page, SKIP_DEVICES), 'the second link is hidden').toHaveCSS('clip-path', 'inset(50%)');
+    await expect(skipLink(page, SKIP_STATUS), 'and so is the third').toHaveCSS('clip-path', 'inset(50%)');
 
     await page.keyboard.press(keys.next);
-    await expect(skipLink(page, SKIP_STATUS), 'the second is Skip to status').toBeFocused();
+    await expect(skipLink(page, SKIP_DEVICES), 'the second is Skip to simulated devices (demo mode)').toBeFocused();
+    reading = (await readFocus(page))!;
+    expect(reading.clipPath).toBe('none');
+    await expectRing(page, reading, SKIP_DEVICES);
+    expectRingInside(reading, SKIP_DEVICES);
+    await expect(skipLink(page, SKIP_CHAT), 'and the first is hidden again').toHaveCSS('clip-path', 'inset(50%)');
+
+    await page.keyboard.press(keys.next);
+    await expect(skipLink(page, SKIP_STATUS), 'the third is Skip to status').toBeFocused();
     reading = (await readFocus(page))!;
     expect(reading.clipPath).toBe('none');
     await expectRing(page, reading, SKIP_STATUS);
     expectRingInside(reading, SKIP_STATUS);
-    await expect(skipLink(page, SKIP_CHAT), 'and the first is hidden again').toHaveCSS('clip-path', 'inset(50%)');
 
     await page.keyboard.press(keys.next);
-    await expect(homeLink(page), 'the third is the home link').toBeFocused();
+    await expect(homeLink(page), 'the fourth is the home link').toBeFocused();
 
+    await page.keyboard.press(keys.back);
     await page.keyboard.press(keys.back);
     await page.keyboard.press(keys.back);
     await expect(skipLink(page, SKIP_CHAT)).toBeFocused();
@@ -114,6 +124,7 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(rowOf(page, summary)).toHaveCount(1);
+    await page.keyboard.press(keys.next);
     await page.keyboard.press(keys.next);
     await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_STATUS)).toBeFocused();
@@ -137,8 +148,9 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     await freeze(page);
     await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_CHAT), 'while loading, the first stop is the same').toBeFocused();
+    await expect(skipLink(page, SKIP_DEVICES), 'the link to the devices waits for the snapshot, which says whether demo mode is on').toHaveCount(0);
     await page.keyboard.press(keys.next);
-    await expect(skipLink(page, SKIP_STATUS), 'and so is the second').toBeFocused();
+    await expect(skipLink(page, SKIP_STATUS), 'so the second is Skip to status').toBeFocused();
     await page.keyboard.press(keys.next);
     await expect(homeLink(page)).toBeFocused();
     await page.keyboard.press(keys.back);
@@ -377,7 +389,9 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
       if (await page.locator('app-composer button').evaluate((el) => el === document.activeElement)) break;
     }
     expect(stops[0], 'the walk starts at the first skip link').toContain(SKIP_CHAT);
-    expect(stops[stops.length - 1], 'and ends at Send').toContain('Send');
+    expect(stops[stops.length - 1], 'and ends at Send, the composer\'s (the walk breaks at the button of app-composer)').toContain('Send');
+    expect(stops.filter((one) => one.includes('"Step ')).length, 'it passed the five steps of the demo guide, before main').toBe(5);
+    expect(stops.filter((one) => one === 'button "Send"').length, 'and two Send buttons: the guide\'s prompt bar, then the composer\'s').toBe(2);
     expect(stops.filter((one) => /^a[ #]/.test(one) && one.includes('Trace')).length, 'it passed the Trace link of every rail row').toBeGreaterThanOrEqual(12);
     expect(stops.length, 'at every stop of the page').toBeGreaterThan(30);
 
@@ -405,6 +419,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     await expectInsideRing(page, (await readFocus(page))!, 'main');
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await page.keyboard.press(keys.next);
     await page.keyboard.press(keys.next);
     await page.keyboard.press(keys.next);
     await page.keyboard.press('Enter');

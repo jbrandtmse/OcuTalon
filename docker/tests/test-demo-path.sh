@@ -10,7 +10,7 @@
 #     failed) and a DEMO-PATH line. A skipped step is never reported as passed; a failed test, a skip that names no story, a
 #     @floor test that did not pass, a missing step spec and an unknown spec file fail the unit.
 # The stack holds only what the first start creates: no fixture user, no seeded event, no rebuilt bundle (ci/iris.sh build made
-# it), no model key. No test sends a model request. The project is unique and publishes its web port only on 127.0.0.1, on the
+# it), no model key. Only step 3's spec sends a model request, to the CI mock. The project is unique and publishes its web port only on 127.0.0.1, on the
 # first free port of 52800-52819 (or OCUTALON_TEST_WEB_PORT). An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI); within it, the first start
 # waits up to 900 s for the start's log to end ready and up to 60 s more for Docker to report healthy.

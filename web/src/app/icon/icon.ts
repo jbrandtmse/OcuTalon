@@ -6,11 +6,14 @@ export type IconName =
   | 'bell-ring'
   | 'check'
   | 'chevron-down'
+  | 'chevron-right'
   | 'chevron-up'
   | 'circle-alert'
   | 'circle-check'
   | 'circle-dashed'
+  | 'circle-slash'
   | 'circle-x'
+  | 'clock'
   | 'contrast'
   | 'copy'
   | 'external-link'
@@ -20,6 +23,7 @@ export type IconName =
   | 'info'
   | 'life-buoy'
   | 'loader-circle'
+  | 'mail'
   | 'triangle-alert'
   | 'x'
   | 'zap';
@@ -62,6 +66,9 @@ export type IconName =
         @case ('chevron-down') {
           <path d="m6 9 6 6 6-6" />
         }
+        @case ('chevron-right') {
+          <path d="m9 18 6-6-6-6" />
+        }
         @case ('chevron-up') {
           <path d="m18 15-6-6-6 6" />
         }
@@ -84,10 +91,18 @@ export type IconName =
           <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
           <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
         }
+        @case ('circle-slash') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="m9 15 6-6" />
+        }
         @case ('circle-x') {
           <circle cx="12" cy="12" r="10" />
           <path d="m15 9-6 6" />
           <path d="m9 9 6 6" />
+        }
+        @case ('clock') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
         }
         @case ('contrast') {
           <circle cx="12" cy="12" r="10" />
@@ -117,6 +132,10 @@ export type IconName =
         @case ('inbox') {
           <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
           <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        }
+        @case ('mail') {
+          <path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" />
+          <rect x="2" y="4" width="20" height="16" rx="2" />
         }
         @case ('info') {
           <circle cx="12" cy="12" r="10" />

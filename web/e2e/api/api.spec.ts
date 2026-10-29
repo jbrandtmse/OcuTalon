@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type APIResponse, type Response }
 
 import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
 import { fixtureUser } from '../support/iris';
+import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
 /**
@@ -13,6 +14,10 @@ import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } f
  * required: a test that reads one fails without it. Each is read every time a test uses it, never at import, so that
  * listing the specs (`playwright test --list`) needs none of them.
  * Story 2.4's chat tests sign in as the chat user (OCUTALON_CHAT_USER), whose session no other spec reads.
+ * The instance stream is shared by every user and by every spec, so a spec that ran before this one (heartbeat.spec's onset and
+ * clear, for one) may have added events to it. What this file pins exactly is what the script seeded: the README account's two
+ * session events and the instance stream's first event, instance:1, a noModelKey status. Every other expectation about the instance
+ * stream is relative to the events that the test reads when it starts (instanceBaseline), so the files may run in any order.
  */
 function required(name: string): string {
   const value = process.env[name];
@@ -58,17 +63,9 @@ const ENVELOPE_TEXT = {
   wrong_origin: 'OcuTalon refused this request because it came from another site.',
 } as const;
 
-const NOT_BUILT = "This part of OcuTalon isn't built yet.";
+const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
-
-/** The routes that answer 501 not_built, with the method that each takes. Session/end (Story 2.2) and messages (Story 2.4) are built, and the two routes that name a record answer 404 first. */
-const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
-  ['POST', '/ocutalon/api/v1/demo/break-feed'],
-  ['POST', '/ocutalon/api/v1/mailbox/incoming'],
-  ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
-  ['POST', '/ocutalon/api/v1/guide/markers'],
-];
 
 /** The routes that name a record: a ref the session can't see answers 404 not_found, before the 501 of an unbuilt route. */
 const BY_REF: ReadonlyArray<readonly [method: 'POST', path: (ref: string) => string]> = [
@@ -103,6 +100,20 @@ function ids(events: Array<Record<string, unknown>>): string[] {
   return events.map((event) => `${String(event['stream'])}:${String(event['seq'])}`);
 }
 
+/**
+ * The ids of the instance stream's events as the test starts, read right after it signs in: instance:1 to instance:N with no gap, N >= 1,
+ * the first being the seeded status. The stream is shared with the specs that ran before, so a count or a cursor is taken from this
+ * list and never from the seeded event alone. The poll's session cursor is past any Seq, so it serves the instance events only.
+ */
+async function instanceBaseline(request: APIRequestContext): Promise<string[]> {
+  const response = await request.get(`${EVENTS}?after=999999999999999&afterInstance=0`);
+  expect(response.status(), await response.text()).toBe(200);
+  const baseline = ids(((await response.json()) as { events: Array<Record<string, unknown>> }).events);
+  expect(baseline.length, 'the instance stream holds at least the seeded event').toBeGreaterThanOrEqual(1);
+  expect(baseline, 'the instance stream is instance:1 to instance:N, with no gap').toEqual(baseline.map((_, index) => `instance:${index + 1}`));
+  return baseline;
+}
+
 /** Row 13: the page loads the snapshot, and the snapshot is the seeded session's. */
 test('row 13: the page loads /state and marks the snapshot loaded', async ({ page }) => {
   const answered: Response[] = [];
@@ -110,15 +121,16 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     if (new URL(response.url()).pathname === STATE) answered.push(response);
   });
   await signInReadme(page);
+  const baseline = await instanceBaseline(page.request);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
-  expect(body['streams']).toEqual({ session: 2, instance: 1 });
+  expect(body['streams'], "the session's two seeded events, and the instance stream's events as the test read them").toEqual({ session: 2, instance: baseline.length });
   expect(body['chat']).toEqual([]);
   expect(body['rail']).toEqual({ approvals: [], checks: [], reminders: [], decisions: [] });
   expect(body['user'], "the session row's user, not the client's").toBe(README_ACCOUNT.user);
@@ -134,6 +146,15 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     pausedUntil: '',
   });
   expect(body['status'], 'the computed no-key condition of this stack: the model key is not set (Story 2.10)').toEqual([{ condition: 'noModelKey', active: true }]);
+  expect(body['guide'], "the README session has no rows: the blank guide of Story 4.2, last because demo mode is on").toEqual({
+    runEpoch: 1,
+    step: 1,
+    finished: false,
+    steps: [1, 2, 3, 4, 5].map((step) => ({ step, done: false })),
+    breakFeed: { active: false, reason: 'not_watching' },
+    step4Variant: 'unpaired',
+    telegramRow: false,
+  });
 });
 
 /**
@@ -144,6 +165,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
  */
 test("rows 13 and 14: a user's /state answers the session that sign-in created, and its poll holds the instance events and not another user's session events", async ({ request }) => {
   await signInOverHttp(request, SEEDED.firstCall.user, SEEDED.firstCall.password);
+  const baseline = await instanceBaseline(request);
   const first = await request.get(STATE);
   expect(first.status(), await first.text()).toBe(200);
   const body = (await first.json()) as { epoch: string; streams: { session: number; instance: number } };
@@ -156,13 +178,15 @@ test("rows 13 and 14: a user's /state answers the session that sign-in created, 
   const response = await request.get(`${EVENTS}?after=0&afterInstance=0`);
   expect(response.status(), await response.text()).toBe(200);
   const poll = (await response.json()) as { epoch: string; events: Array<Record<string, unknown>> };
-  expect(ids(poll.events), "the README account's two session events are not here").toEqual(['instance:1']);
+  expect(ids(poll.events), "the README account's two session events are not here").toEqual(baseline);
   expect(poll.epoch, "the user's own epoch, the same as /state's").toBe(body.epoch);
 });
 
 /** Row 14: the poll serves the seeded events, session stream first, and refuses a bad cursor. */
 test('row 14: /events serves the seeded events by cursor', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const baseline = await instanceBaseline(request);
+  const last = baseline.length;
   const poll = async (query: string): Promise<{ epoch: string; events: Array<Record<string, unknown>> }> => {
     const response = await request.get(`${EVENTS}${query}`);
     expect(response.status(), query).toBe(200);
@@ -171,7 +195,8 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
 
   const all = await poll('?after=0&afterInstance=0');
   expect(all.epoch).toBe(SEEDED.epoch);
-  expect(all.events.map((event) => `${String(event['stream'])}:${String(event['seq'])}:${String(event['type'])}`)).toEqual([
+  expect(ids(all.events), 'the session events, then the instance events as the test read them').toEqual(['session:1', 'session:2', ...baseline]);
+  expect(all.events.slice(0, 3).map((event) => `${String(event['stream'])}:${String(event['seq'])}:${String(event['type'])}`)).toEqual([
     'session:1:reminder',
     'session:2:reminder',
     'instance:1:status',
@@ -186,10 +211,11 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
   expect((all.events[1]['payload'] as { text: string }).text).toBe(`${SEEDED.marker}-2`);
   expect(all.events[2]['payload']).toMatchObject({ condition: 'noModelKey', active: true });
 
-  expect((await poll('?after=2&afterInstance=1')).events).toEqual([]);
-  const partial = await poll('?after=1&afterInstance=1');
+  expect((await poll(`?after=2&afterInstance=${last}`)).events).toEqual([]);
+  const partial = await poll(`?after=1&afterInstance=${last}`);
   expect(partial.epoch).toBe(SEEDED.epoch);
   expect(ids(partial.events)).toEqual(['session:2']);
+  expect(ids((await poll('?after=2&afterInstance=1')).events), 'the instance events after the first, which may be none').toEqual(baseline.slice(1));
 
   for (const query of ['', '?after=0', '?afterInstance=0', '?after=-1&afterInstance=0', '?after=0&afterInstance=-1', '?after=x&afterInstance=0', '?after=0&afterInstance=1.5', '?after=&afterInstance=']) {
     await expectError(await request.get(`${EVENTS}${query}`), 400, 'bad_cursor', BAD_CURSOR);
@@ -199,16 +225,17 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
 /** Row 14: each cursor moves its own stream, whatever the other says, and the session's stream is always first. */
 test('row 14: the two cursors are independent, and the session stream is served before the instance stream', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const baseline = await instanceBaseline(request);
   const poll = async (query: string): Promise<string[]> => {
     const response = await request.get(`${EVENTS}${query}`);
     expect(response.status(), query).toBe(200);
     return ids(((await response.json()) as { events: Array<Record<string, unknown>> }).events);
   };
 
-  expect(await poll('?after=2&afterInstance=0'), 'the session cursor at its end leaves the instance stream whole').toEqual(['instance:1']);
-  expect(await poll('?after=0&afterInstance=1'), 'the instance cursor at its end leaves the session stream whole').toEqual(['session:1', 'session:2']);
-  expect(await poll('?after=1&afterInstance=0'), 'a partial session cursor, session first').toEqual(['session:2', 'instance:1']);
-  expect(await poll('?after=001&afterInstance=00'), 'leading zeros are whole numbers').toEqual(['session:2', 'instance:1']);
+  expect(await poll('?after=2&afterInstance=0'), 'the session cursor at its end leaves the instance stream whole').toEqual(baseline);
+  expect(await poll(`?after=0&afterInstance=${baseline.length}`), 'the instance cursor at its end leaves the session stream whole').toEqual(['session:1', 'session:2']);
+  expect(await poll('?after=1&afterInstance=0'), 'a partial session cursor, session first').toEqual(['session:2', ...baseline]);
+  expect(await poll('?after=001&afterInstance=00'), 'leading zeros are whole numbers').toEqual(['session:2', ...baseline]);
   expect(await poll('?after=999999999999999&afterInstance=999999999999999'), 'a cursor of 15 digits, past the last Seq, is an empty poll').toEqual([]);
 
   for (const query of ['?after=0&afterInstance=1234567890123456', '?after=1234567890123456&afterInstance=0', '?after=%2B1&afterInstance=0', '?after=0&afterInstance=1e2', '?after=0x1&afterInstance=0']) {
@@ -234,8 +261,9 @@ test.describe('row 15: the browser envelope', () => {
   });
 
   test('the whole envelope is let through, with or without a charset', async () => {
-    await expectError(await call(signedIn, 'POST', BREAK_FEED), 501, 'not_built', NOT_BUILT);
-    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
+    // README watches nothing on this stack, so a press that gets through the envelope is refused with no side effect (Story 4.3).
+    await expectError(await call(signedIn, 'POST', BREAK_FEED), 409, 'not_watching', NOT_WATCHING);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 409, 'not_watching', NOT_WATCHING);
   });
 
   test('only the Content-Type is wrong: not_json', async () => {
@@ -288,14 +316,14 @@ test.describe('row 15: the browser envelope', () => {
 });
 
 /**
- * Row 16: every route that no story has built answers 501, the pairing routes answer 404, and the two routes that name a record
- * answer 404 for a ref the session can't see (a random ref, here) with the error shape (AD-4).
+ * Row 16: the mailbox routes are built (Story 4.6): an empty email is 400 bad_email and an unknown sample is 404 not_found, each in the
+ * error shape; the pairing routes answer 404, and the two routes that name a record answer 404 for a ref the session can't see (a
+ * random ref, here) with the error shape (AD-4).
  */
-test('row 16: unbuilt routes answer 501 not_built, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
+test('row 16: the mailbox routes answer 400 for an empty email and 404 for an unknown sample, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
-  for (const [, path] of UNBUILT) {
-    await expectError(await call(request, 'POST', path), 501, 'not_built', NOT_BUILT);
-  }
+  await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/incoming'), 400, 'bad_email', 'Enter a subject.');
+  await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/samples/zz'), 404, 'not_found', NOT_FOUND);
   for (const [, path] of BY_REF) {
     await expectError(await call(request, 'POST', path('ZzNoSuchRef0123456789')), 404, 'not_found', NOT_FOUND);
     await expectError(await call(request, 'POST', path('zz')), 404, 'not_found', NOT_FOUND);
@@ -349,6 +377,7 @@ test('row 18: a trace-only user gets 403 no_role from the API, first, and stays 
   await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   const trace = await request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
   expect(await trace.text(), 'the session is not ended: the trace window still opens').toContain('Message Viewer');
+  await signOutTrace(request);
 });
 
 test('row 18: the README account gets 200', async ({ request }) => {

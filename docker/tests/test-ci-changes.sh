@@ -172,10 +172,12 @@ unclassified_case() {
   if [ -z "$unnamed" ]; then pass "classifier: $label: the reason of each group names the unclassified path"; else fail "classifier: $label: the reason of$unnamed does not name $first"; fi
 }
 
-# The script of each live unit runs exactly the group that holds the unit, and no other group.
+# The script of each live unit runs exactly the group that holds the unit, and no other group. The sign-in script also runs the
+# web job, because the web job's e2e-part tests read and run it.
 for grp in $IRIS_GROUPS; do
   for unit in $(group_units "$grp"); do
     case $unit in
+      live:sign-in) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
       live:*) paths_case "the script of $unit runs only $grp" false "$grp" "docker/tests/test-${unit#live:}.sh" ;;
     esac
   done

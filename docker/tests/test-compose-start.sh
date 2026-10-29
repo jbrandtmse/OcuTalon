@@ -9,8 +9,9 @@
 #     and a plain recreate on the same volume, and a stop and start and a recreate that make iris-main
 #     reapply the merge, which then runs without errors.
 # The project is unique, publishes no host port and receives no keys: the test adds a decoy key file
-# of its own, which the throwaway override must drop. An EXIT trap removes the project with its volume
-# and image. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
+# of its own, which the throwaway override must drop. The one bot token it may hold is the CI override's dummy (live_key_count).
+# An EXIT trap removes the project with its volume and image. Every wait ends by an overall deadline, so even a failing run ends
+# within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
@@ -215,9 +216,9 @@ cid=$(dc ps -q iris)
 
 # The throwaway override must leave the container with no published host port and no keys.
 published=$(docker inspect --format '{{len .HostConfig.PortBindings}}' "$cid" 2>/dev/null)
-keys=$(dc exec -T iris sh -c 'env | grep -c "^ANTHROPIC_API_KEY=\|^TELEGRAM_BOT_TOKEN="' 2>/dev/null | tr -d '\r')
+keys=$(live_key_count)
 if [ "$published" = 0 ] && [ "$keys" = 0 ]; then
-  pass "throwaway container publishes no host port and receives no keys"
+  pass "throwaway container publishes no host port and receives no keys (the CI dummy bot token is no key)"
 else
   fail "throwaway container has '$published' published port(s) and '$keys' key variable(s), wanted 0 and 0"
 fi
