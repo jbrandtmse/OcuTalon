@@ -23,9 +23,6 @@
 Class OcuTalon.Test.Fix.Later Extends OcuTalon.Test.Watch.Case
 {
 
-/// The longest a test waits for the later request after the failures, in seconds (a test bound, not NFR-7): the quiet time, the dry run and the raise.
-Parameter WAITLATER = 30;
-
 Method TestLaterFailuresGetTheirOwnRequest()
 {
 	If '..Raised("later", .a, .ref, .first) Quit

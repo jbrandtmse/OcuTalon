@@ -1,4 +1,5 @@
-/// One run of an approved fix (AD-16). Lane A.
+/// One run of an approved fix (AD-16): one row per approved request that FixExecutor takes up, a run that could not start included. Copies holds the header ids of
+/// the copies that the run resent, in resend order, each registered right after its resend, so that a run that was cut off still shows how far it got. Lane A.
 Class OcuTalon.Data.FixRun Extends %Persistent
 {
 
@@ -13,6 +14,9 @@ Property IncidentRef As %String(MAXLEN = 22);
 
 /// When the run started, UTC to the second.
 Property StartedAt As %String(MAXLEN = 20);
+
+/// The header ids of the copies the run resent, in resend order (the production's header ids, as text).
+Property Copies As list Of %String(MAXLEN = 20);
 
 Index ApprovalRefIndex On ApprovalRef;
 
@@ -32,6 +36,9 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>StartedAt</Value>
+</Value>
+<Value name="5">
+<Value>Copies</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FixRunD</DataLocation>

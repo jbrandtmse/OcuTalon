@@ -22,15 +22,12 @@
 ///   - TestItemNounFallback (QA): an incident noun that is no JSON, no object, or lacks a form is not used; the noun of the orders' body class is;
 ///   - TestMissingBodyIsLeftOut (QA): a failed message whose body can no longer be read, the lowest one included, is counted as affected and left out, never as a
 ///     target and never dropped;
-///   - TestOtherRequest: a request that is not a DryRun gets error 5003 from FixExecutor;
+///   - TestOtherRequest: a request that is neither a DryRun nor an Execute gets error 5001 from FixExecutor (Story 7.3: it is no stub any more), which names the
+///     request's class (Ens.StringRequest), and no response;
 ///   - TestServiceUserMayResend (AC 1): the service user may use %Ens_MessageResend and not %Ens_MessageEditResend;
 ///   - TestInvalidRepairTakesTheFallbackRoute (AC 2): a repair that the kind refuses ends in Epic 5's fallback notice of reason invalid; a valid one is stored and its dry run is asked (Story 7.2).
 Class OcuTalon.Test.Fix.DryRun Extends OcuTalon.Test.Watch.Case
 {
-
-Parameter EXECUTOR = "FixExecutor";
-
-Parameter SENDER = "SimMailboxIn";
 
 Parameter SENDWAIT = 60;
 
@@ -130,19 +127,6 @@ ClassMethod SortedNames(names As %String) As %String [ Private ]
 		Set text = text _ $Select(text = "": "", 1: ",") _ key
 	}
 	Quit text
-}
-
-/// Sets the OrderDate of the order that the header holds, in OCUORDERS. The test edits only the orders it made.
-ClassMethod SetOrderDate(headerId As %Integer, value As %String) As %Status [ Private ]
-{
-	New $NAMESPACE
-	Set $NAMESPACE = ..#ORDERS
-	Set header = ##class(Ens.MessageHeader).%OpenId(headerId)
-	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_headerId)
-	Set order = ##class(OcuTalon.Demo.Orders.PartnerOrder).%OpenId(header.MessageBodyId)
-	If '$IsObject(order) Quit $SYSTEM.Status.Error(5001, "No order for header "_headerId)
-	Set order.OrderDate = value
-	Quit order.%Save()
 }
 
 /// The ids of the failed headers whose super session is the given one, in order, as a comma-separated list.
@@ -472,8 +456,9 @@ Method TestOtherRequest()
 	If $$$ISERR(sc) Quit
 	Set sc = service.SendRequestSync(..#EXECUTOR, ##class(Ens.StringRequest).%New("x"), .response, ..#SENDWAIT)
 	Set ..DrySessions = ..DrySessions _ $Select(..DrySessions = "": "", 1: ",") _ service.%SessionId
-	Do $$$AssertStatusNotOK(sc, "FixExecutor refuses a request that is not a DryRun")
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "with error 5003")
+	Do $$$AssertStatusNotOK(sc, "FixExecutor refuses a request that is neither a DryRun nor an Execute")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5001, "with error 5001")
+	Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "Ens.StringRequest") > 0, "which names the class: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertTrue('$IsObject($Get(response)), "and gives no response")
 }
 

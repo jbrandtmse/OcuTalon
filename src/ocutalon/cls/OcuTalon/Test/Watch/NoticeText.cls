@@ -11,6 +11,13 @@
 ///   - TestLaterRequest (Story 7.6; AC 5): WithFixSlots given a count and a time (the round's) replaces the count and time slots; the slots of the UX fixture's
 ///     values render the text of incident.laterRequest in the fixture exactly (telegram, and the page wording on the web), and a count of 0 or one that is no
 ///     whole number and an empty time are refused;
+///   - TestResultKeys (Story 7.3; AC 5): Notice.ResultKey picks the catalog key of a final or interrupted FixResult by the Result texts convention, row by row and in
+///     the order of the convention (a request that is executing first, then an interrupted run, then a run that resent, completed, failed and skipped nothing and
+///     has a reason, then failures with skips, failures, skips, and else all through); Notice.ResultSlots gives the slots that each of the seven keys declares, and
+///     they and the text they render are the UX fixtures' exactly (among them "Nothing was resent: OcuTalon isn't allowed to resend messages in that production.
+///     Nothing was changed." and "All 50 orders went through."); an empty count is 0, remaining is at least 0, and slots that cannot be built (no reason where the
+///     key renders one, a noun without both forms, a key that is no result key) give "" and an error;
+///   - TestApprovedText (Story 7.3; AC 1): answered.approved renders "Approved from the web chat at 14:20 ET." (the page wording has no full stop);
 ///   - TestEveryChannel: every variant renders on web, phone, mailbox and telegram;
 ///   - TestGroupLines: two groups give two lines in order, a group with no NoticeCount is left out, an empty error summary is written as no error text, and each line's
 ///     count is the group's NoticeCount, not its Count that moved on, so the lines add up to the count slot;
@@ -114,6 +121,43 @@ ClassMethod FirstAt(utc As %String) As %String
 ClassMethod Lines() As %String
 {
 	Quit "OrdersFromPartner: 30, '"_..#SENTENCE_"', "_..FirstAt(..#FIRST)_$Char(10)_"OrdersToWarehouse: 20, 'no error text', "_..FirstAt(..#SECOND)
+}
+
+/// A FixResult with the properties of the object set (Final, Interrupted, Total, Resent, Completed, FailedAgain, Skipped, Reason).
+ClassMethod Result(fields As %DynamicObject) As OcuTalon.Fix.Msg.FixResult
+{
+	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+	Set result.ApprovalRef = "zzNoticeTextRequest01"
+	Set result.IncidentRef = "zzNoticeTextRef"
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set $Property(result, name) = value
+	}
+	Quit result
+}
+
+/// Asserts the key that ResultKey gives for the state of the request's row and the result.
+Method AssertKey(state As %String, fields As %DynamicObject, key As %String, label As %String)
+{
+	Do $$$AssertEquals($ClassMethod(..#NOTICE, "ResultKey", state, ..Result(fields)), key, label_": "_key)
+}
+
+/// The members of the object (slots) as "name=value,..." in name order, an object value as its JSON text.
+ClassMethod Flat(slots As %DynamicObject) As %String
+{
+	If '$IsObject(slots) Quit "<none>"
+	Set iterator = slots.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set sorted(name) = $Select($IsObject(value): value.%ToJSON(), 1: value)
+	}
+	Set text = ""
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name), 1, value)
+		Quit:name=""
+		Set text = text _ $Select(text = "": "", 1: ",") _ name _ "=" _ value
+	}
+	Quit text
 }
 
 /// The slots as JSON text of the notice for the row, with the status asserted.
@@ -271,6 +315,90 @@ Method TestLaterRequest()
 	Set none = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun, 3, "")
 	Do $$$AssertStatusNotOK(sc, "an empty time is refused")
 	Do $$$AssertEquals($IsObject(none), 0, "and gives no slots")
+}
+
+Method TestResultKeys()
+{
+	Set fixtures = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures").Data)
+	Set noun = fixtures.%Get("result.allThrough").slots.itemNoun
+	Set reason = "OcuTalon isn't allowed to resend messages in that production"
+
+	// the convention, first match wins
+	Do ..AssertKey("executing", {"Final": 1, "Total": 50, "Completed": 30}, "result.stillResending", "the request is executing")
+	Do ..AssertKey("executing", {"Interrupted": 1, "Total": 50, "Completed": 30}, "result.stillResending", "the request is executing, whatever else the result says")
+	Do ..AssertKey("failed", {"Interrupted": 1, "Total": 50, "Completed": 30}, "result.interrupted", "the run was interrupted")
+	Do ..AssertKey("failed", {"Interrupted": 1, "Total": 3, "Reason": (reason)}, "result.interrupted", "interrupted comes before couldn't start")
+	Do ..AssertKey("failed", {"Final": 1, "Total": 3, "Reason": (reason)}, "result.couldNotStart", "every count 0 and a reason")
+	Do ..AssertKey("done", {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 changed"}, "result.skipped", "a reason with skipped targets is not couldn't start")
+	Do ..AssertKey("done", {"Final": 1, "Total": 3, "Resent": 3, "Reason": "x"}, "result.allThrough", "a reason with resent targets is not couldn't start")
+	Do ..AssertKey("failed", {"Final": 1, "Total": 3}, "result.allThrough", "every count 0 and no reason is not couldn't start")
+	Do ..AssertKey("done", {"Final": 1, "Total": 50, "Completed": 45, "FailedAgain": 2, "Skipped": 3, "Reason": "x"}, "result.failedAndSkipped", "failures and skips")
+	Do ..AssertKey("done", {"Final": 1, "Total": 50, "Completed": 48, "FailedAgain": 2, "Reason": "x"}, "result.failedAgain", "failures")
+	Do ..AssertKey("done", {"Final": 1, "Total": 50, "Completed": 47, "Skipped": 3}, "result.skipped", "skips")
+	Do ..AssertKey("done", {"Final": 1, "Total": 50, "Resent": 50, "Completed": 50}, "result.allThrough", "otherwise all through")
+
+	// the slots and the texts of the UX fixtures
+	Set cases = $ListBuild(
+		$ListBuild("result.allThrough", "done", "{""Final"":1,""Total"":50,""Resent"":50,""Completed"":50}"),
+		$ListBuild("result.failedAgain", "done", "{""Final"":1,""Total"":50,""Resent"":50,""Completed"":48,""FailedAgain"":2,""Reason"":""the order date still wasn't accepted""}"),
+		$ListBuild("result.skipped", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":47,""Skipped"":3,""Reason"":""message 101 changed""}"),
+		$ListBuild("result.failedAndSkipped", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""FailedAgain"":2,""Skipped"":3,""Reason"":""the order date still wasn't accepted""}"),
+		$ListBuild("result.stillResending", "executing", "{""Total"":50,""Resent"":50,""Completed"":30}"),
+		$ListBuild("result.interrupted", "failed", "{""Interrupted"":1,""Total"":50,""Resent"":50,""Completed"":30}"),
+		$ListBuild("result.couldNotStart", "failed", "{""Final"":1,""Total"":3,""Reason"":"""_reason_"""}"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set key = $List(case, 1)
+		Set result = ..Result({}.%FromJSON($List(case, 3)))
+		Do $$$AssertEquals($ClassMethod(..#NOTICE, "ResultKey", $List(case, 2), result), key, key_": the key of the fixture's result")
+		Set slots = $ClassMethod(..#NOTICE, "ResultSlots", key, result, noun, .sc)
+		Do $$$AssertStatusOK(sc, key_": the slots are built")
+		If '$IsObject(slots) Continue
+		Set fixture = fixtures.%Get(key)
+		Do $$$AssertEquals(..Flat(slots), ..Flat(fixture.slots), key_": the slots are the fixture's")
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "telegram", ..#NOW, 1, .sc)
+		Do $$$AssertStatusOK(sc, key_": renders")
+		Do $$$AssertEquals(text, fixture.text, key_": the text is the fixture's exactly")
+	}
+	Set slots = $ClassMethod(..#NOTICE, "ResultSlots", "result.couldNotStart", ..Result({"Final": 1, "Total": 3, "Reason": (reason)}), noun, .sc)
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt("result.couldNotStart", slots.%ToJSON(), "phone", ..#NOW, 0, .sc), "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed.", "couldn't start renders as the UX document has it")
+	Set slots = $ClassMethod(..#NOTICE, "ResultSlots", "result.allThrough", ..Result({"Final": 1, "Total": 50, "Resent": 50, "Completed": 50}), noun, .sc)
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt("result.allThrough", slots.%ToJSON(), "phone", ..#NOW, 0, .sc), "All 50 orders went through.", "all through renders as the UX document has it")
+	Set slots = $ClassMethod(..#NOTICE, "ResultSlots", "result.skipped", ..Result({"Final": 1, "Total": 3, "Skipped": 3, "Reason": "x"}), noun, .sc)
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt("result.skipped", slots.%ToJSON(), "phone", ..#NOW, 0, .sc), "0 of 3 orders went through. 3 had changed since the dry run, so I skipped them; they need a new approval.", "skipped renders with no run copy counted: 0 of 3")
+
+	// an empty count is 0, and remaining is at least 0
+	Set slots = $ClassMethod(..#NOTICE, "ResultSlots", "result.interrupted", ..Result({"Interrupted": 1}), noun, .sc)
+	Do $$$AssertEquals(..Flat(slots), "completed=0,count=0,itemNoun="_noun.%ToJSON()_",remaining=0", "an empty count is 0 and remaining is 0")
+	Set slots = $ClassMethod(..#NOTICE, "ResultSlots", "result.interrupted", ..Result({"Interrupted": 1, "Total": 3, "Completed": 5}), noun, .sc)
+	Do $$$AssertEquals(slots.remaining, 0, "remaining is never below 0")
+	Do $$$AssertEquals(slots.%GetTypeOf("count")_"|"_slots.%GetTypeOf("completed")_"|"_slots.%GetTypeOf("remaining"), "number|number|number", "and the counts are JSON numbers")
+
+	// slots that cannot be built
+	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "result.couldNotStart", ..Result({"Final": 1, "Total": 3}), noun, .sc)
+	Do $$$AssertStatusNotOK(sc, "couldn't start with no reason is refused")
+	Do $$$AssertEquals($IsObject(none), 0, "and gives no slots")
+	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "result.failedAgain", ..Result({"Final": 1, "Total": 3, "FailedAgain": 1}), noun, .sc)
+	Do $$$AssertStatusNotOK(sc, "failures with no reason are refused")
+	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "result.skipped", ..Result({"Final": 1, "Total": 3, "Skipped": 3}), {"one": "order"}, .sc)
+	Do $$$AssertStatusNotOK(sc, "a noun without both forms is refused")
+	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "result.skipped", ..Result({"Final": 1, "Total": 3, "Skipped": 3}), "", .sc)
+	Do $$$AssertStatusNotOK(sc, "so is no noun")
+	Set none = $ClassMethod(..#NOTICE, "ResultSlots", "incident.noFix", ..Result({"Final": 1, "Total": 3}), noun, .sc)
+	Do $$$AssertStatusNotOK(sc, "a key that is no result key is refused")
+}
+
+Method TestApprovedText()
+{
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Set ..ZoneSaved = 1
+	Do $SYSTEM.Process.TimeZone(..#ZONE)
+	Set slots = {"channel": "web", "time": "2026-10-16T18:20:00Z"}
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.approved", slots.%ToJSON(), "phone", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertStatusOK(sc, "answered.approved renders")
+	Do $$$AssertEquals(text, "Approved from the web chat at 14:20 ET.", "as the UX document has it")
+	Set web = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.approved", slots.%ToJSON(), "web", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertEquals(web, "Approved from the web chat at 14:20 ET", "and the page wording has no full stop")
 }
 
 Method TestEveryChannel()

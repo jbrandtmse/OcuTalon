@@ -6,8 +6,15 @@
 ///   - KINDS is the fixed set of kinds that exist, as class names: a class that is not listed is not a kind. A step that adds a kind adds its class here;
 ///   - Check(name, parameters, fields) is what the reply check of a diagnosis calls: an unknown kind is an error, else the kind's CheckParameters, which is given
 ///     the field names of the sample message as the model saw them;
-///   - DryRun works out the targets and the dry run's JSON without changing anything; Recheck (Story 7.3) and Execute (Story 7.3) take the same first three arguments.
-///     Each returns not implemented here.
+///   - NOTALLOWED is the plain reason of a run that cannot start because the service user lacks a pair of RESOURCES ("OcuTalon isn't allowed to ... in that
+///     production"); FixExecutor gives it as the Reason of the FixResult and the message catalog renders it (Story 7.3);
+///   - DryRun works out the targets and the dry run's JSON without changing anything; Recheck and Execute (Story 7.3) take the same first three arguments and
+///     each returns not implemented here:
+///       Recheck re-reads the targets of the approved request before any copy is made and gives the ids that may still be sent (passed, comma-separated and
+///       ascending) and, for every other target, one skipped entry {"id", "reason"}, the reason a plain sentence that names the target. It changes nothing. An
+///       error status means that the production could not be read at all;
+///       Execute carries the fix out for the targets given (those that passed), one by one, and registers each copy on the run (the FixRun row the executor
+///       made for the request). result holds {"resent": the copies made, "skipped": [{"id", "reason"}]} for the targets it left out.
 /// Targets are header ids, comma-separated and ascending. Lane A.
 Class OcuTalon.Fix.Kind [ Abstract ]
 {
@@ -20,6 +27,9 @@ Parameter PARAMETERS;
 
 /// The privileges the kind needs, as resource:permission[,resource:permission...] (Consistency Conventions: Tool resources).
 Parameter RESOURCES;
+
+/// The plain reason of a run that cannot start without RESOURCES (Story 7.3); empty here.
+Parameter NOTALLOWED;
 
 /// The kinds that exist, as class names, comma-separated.
 Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend";
@@ -100,7 +110,8 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Quit $$$ERROR($$$NotImplemented)
 }
 
-/// Story 7.3: re-checks the targets before the run: passed holds the ids that may be sent, skipped the ones that are left out, each with its reason.
+/// Re-checks the targets of an approved request before any copy is made (see the class description): passed holds the ids that may be sent, comma-separated and
+/// ascending, skipped the others as {"id", "reason"} entries. Changes nothing. An error status when the production cannot be read at all. A kind implements it.
 ClassMethod Recheck(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output passed As %String, Output skipped As %DynamicArray) As %Status
 {
 	Set passed = ""
@@ -108,8 +119,9 @@ ClassMethod Recheck(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 	Quit $$$ERROR($$$NotImplemented)
 }
 
-/// Story 7.3: carries the fix out for the targets; result is the run's counts.
-ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject) As %Status
+/// Carries the fix out for the targets (those that passed Recheck) and registers each copy on run, the FixRun row of the request (see the class description).
+/// result is {"resent", "skipped"}. A kind implements it.
+ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
 	Set result = ""
 	Quit $$$ERROR($$$NotImplemented)

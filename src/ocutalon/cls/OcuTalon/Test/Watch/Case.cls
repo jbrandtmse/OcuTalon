@@ -39,6 +39,12 @@ Include Ensemble
 ///   - for the tests that start from a raised request (Story 7.2, lifted here by Story 7.6): Raised (S watches Orders and failing orders tagged with S's trace Ref become an
 ///     incident that is noticed with its fix and one pending request; its trailing argument is the number of orders, 3 by default), Noticed (waits for the diagnosis, the
 ///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
+///   - for the tests that carry an approved request out (Story 7.3): RaisedTwo (Raised, then two more failing orders of S and a second request over them; WAITLATER, lifted
+///     here from Test.Fix.Later), Runs and RunOf (the FixRun rows of an incident as plain objects), WaitRun (a run with copies registered), WaitState (a request in a
+///     state) and WaitIncidentState (an incident in a state), Header (a message header of a namespace with its body's stored properties as plain objects), WaitCompleted (copies that completed), ExecutesOf and FixResultsOf (the
+///     Execute and FixResult headers of the incident's trace session), SetOrderDate (lifted here
+///     from Test.Fix.DryRun) and SendExecute (an Execute to the real FixExecutor from the SimMailboxIn service, whose session is removed after the test).
+///     DropIncidentRows also deletes the FixRun rows of a dropped incident.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -96,6 +102,19 @@ Parameter WAITBATCH = 30;
 Parameter WAITHOLD = 20;
 
 Parameter QUIET = 7;
+
+/// The longest a test waits for the later request after the failures, in seconds (a test bound, not NFR-7): the quiet time, the dry run and the raise.
+Parameter WAITLATER = 30;
+
+/// The longest a test waits for an approved request's run to register its copies, and for the copies to complete, in seconds (test bounds, not NFR-7).
+Parameter WAITRUN = 30;
+
+Parameter WAITCOPY = 30;
+
+/// The service that sends an Execute to FixExecutor in the tests, and the item that handles it.
+Parameter SENDER = "SimMailboxIn";
+
+Parameter EXECUTOR = "FixExecutor";
 
 /// The service that sends the Tick, and the item that handles it.
 Parameter HEARTBEAT = "HeartbeatIn";
@@ -161,6 +180,9 @@ Property IncidentFloor As %Integer;
 
 Property OrdersStopped As %Boolean [ InitialExpression = 0 ];
 
+/// The sessions of the Executes that SendExecute sent, comma-separated, for the clean-up.
+Property ExecuteSessions As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..ClassFloor = ..Top("OcuTalon_Data.Incident", $Namespace)
@@ -197,12 +219,14 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", itemId)
 	}
 	Set ..ItemIds = ""
 	If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() && (..SessionMark '= "") Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ..DropRows()
 	Do ..DropIncidents(..IncidentFloor)
 	Do ..DropMessages()
+	Do ..DropExecuteSessions()
 	Quit sc
 }
 
@@ -217,6 +241,7 @@ Method OnAfterAllTests() As %Status
 	Do ..DropRows()
 	Do ..DropIncidents(..ClassFloor)
 	Do ..DropMessages()
+	Do ..DropExecuteSessions()
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
 
@@ -1436,7 +1461,7 @@ Method DropIncidents(floor As %Integer) [ Private ]
 	If floor '= "" Do ..DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = 'instance' AND ID > ?", floor)
 }
 
-/// Deletes the Incident rows that the select (one bound value, an ID column) gives, with their failure groups, diagnose decisions, usage and steps.
+/// Deletes the Incident rows that the select (one bound value, an ID column) gives, with their failure groups, fix runs, diagnose decisions, usage and steps.
 /// Every ApprovalRequest that names a deleted incident is tracked under ^OcuTalonTest("Approval","refs") first, and Test.Bridge.Approval.Clean then ends the
 /// holds and tasks and deletes the rows (Story 7.2).
 /// Public: the Demo tests that cause real incidents (Test.Demo.Production) call it too.
@@ -1461,9 +1486,233 @@ ClassMethod DropIncidentRows(select As %String, value As %String)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", row.Ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", row.Ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", row.Ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", row.Ref)
 		Do ##class(OcuTalon.Data.Incident).%DeleteId(id)
 	}
 	If $Get(tracked) Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+}
+
+/// The set-up of a test with two raised requests of session S (Story 7.3, Story 7.6): Raised (S's incident is noticed with its fix and the pending request first),
+/// then two more failing orders tagged with S's trace Ref, and the wait for the second request over them (WAITLATER seconds), whose notice is waited for too.
+/// first and second are the requests as Case.Requests gives them. 1 when the set-up is done.
+Method RaisedTwo(name As %String, Output a As %String, Output ref As %String, Output first As %DynamicObject, Output second As %DynamicObject) As %Boolean [ Private ]
+{
+	Set second = ""
+	If '..Raised(name, .a, .ref, .first) Quit 0
+	If '..Fail(2, ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef) Quit 0
+	Set failed = ..WaitFailed(5)
+	If failed.%Size() '= 5 Quit 0
+	Set end = $ZHorolog + ..#WAITLATER
+	For {
+		Set requests = ..Requests(ref)
+		If (requests.%Size() '< 2) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertEquals(requests.%Size(), 2, "a second request names the incident")
+	If requests.%Size() '= 2 Quit 0
+	Do ..WaitNotices(ref, 2)
+	Set second = requests.%Get(1)
+	Quit 1
+}
+
+/// The FixRun rows of the incident, by ID, as a dynamic array of {"id", "approvalRef", "incidentRef", "startedAt", "copies" (an array of the registered header ids)}.
+ClassMethod Runs(incidentRef As %String) As %DynamicArray
+{
+	Set runs = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FixRun WHERE IncidentRef = ? ORDER BY ID", incidentRef)
+	While rs.%Next() {
+		Set row = ##class(OcuTalon.Data.FixRun).%OpenId(rs.%GetData(1))
+		If '$IsObject(row) Continue
+		Set copies = []
+		For i = 1:1:row.Copies.Count() {
+			Do copies.%Push(row.Copies.GetAt(i))
+		}
+		Do runs.%Push({"id": (row.%Id()), "approvalRef": (row.ApprovalRef), "incidentRef": (row.IncidentRef), "startedAt": (row.StartedAt), "copies": (copies)})
+	}
+	Quit runs
+}
+
+/// The FixRun of the request among the incident's runs as Runs gives it, "" when there is none.
+ClassMethod RunOf(incidentRef As %String, approvalRef As %String) As %DynamicObject
+{
+	Set runs = ..Runs(incidentRef)
+	For i = 0:1:runs.%Size() - 1 {
+		If runs.%Get(i).approvalRef = approvalRef Quit
+	}
+	Quit $Select(i < runs.%Size(): runs.%Get(i), 1: "")
+}
+
+/// Waits up to seconds (WAITRUN by default), polling every half second, until the request's FixRun holds at least count copies; the run as Runs gives it, or ""
+/// when the time has passed without a run. A shortfall of copies is the caller's assertion.
+Method WaitRun(incidentRef As %String, approvalRef As %String, count As %Integer, seconds As %Integer = {..#WAITRUN}) As %DynamicObject [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set run = ..RunOf(incidentRef, approvalRef)
+		If ($IsObject(run) && (run.copies.%Size() '< count)) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit run
+}
+
+/// Waits up to seconds (WAITRUN by default), polling every half second, until the request of the incident is in the state; the state then ("" when there is no such request).
+Method WaitState(incidentRef As %String, approvalRef As %String, state As %String, seconds As %Integer = {..#WAITRUN}) As %String [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set found = ""
+		Set requests = ..Requests(incidentRef)
+		For i = 0:1:requests.%Size() - 1 {
+			If requests.%Get(i).ref = approvalRef Set found = requests.%Get(i).state
+		}
+		If (found = state) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit found
+}
+
+/// Waits up to seconds (WAITRUN by default), polling every half second, until the incident's State is the given one; the state then ("" when the incident is gone).
+/// The row is opened afresh each time (see WaitRow).
+Method WaitIncidentState(ref As %String, state As %String, seconds As %Integer = {..#WAITRUN}) As %String [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '$IsObject(row) Quit
+		If (row.State = state) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit $Select($IsObject(row): row.State, 1: "")
+}
+
+/// A message header of the namespace with its body, as {"id", "sessionId", "superSession", "description", "resent", "status" (the code: 8 error, 9 completed), "type",
+/// "source", "target", "bodyClass", "bodyId", "body" (the stored datatype properties of the body, by name)}, or "" when there is no such header. In the namespace,
+/// calling only Ens, % and the body's class while it is there.
+ClassMethod Header(namespace As %String, id As %String) As %DynamicObject
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set header = ##class(Ens.MessageHeader).%OpenId(id)
+	If '$IsObject(header) Quit ""
+	Set body = {}
+	Set bodyClass = header.MessageBodyClassName
+	If (bodyClass '= "") && (header.MessageBodyId '= "") && ##class(%Dictionary.CompiledClass).%ExistsId(bodyClass) && $ClassMethod(bodyClass, "%Extends", "%Library.Persistent") {
+		Set object = $ClassMethod(bodyClass, "%OpenId", header.MessageBodyId)
+		If $IsObject(object) {
+			Set props = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ? AND Private = 0 AND Calculated = 0 AND Transient = 0 AND MultiDimensional = 0 AND Relationship = 0 ORDER BY SequenceNumber", bodyClass)
+			While props.%Next() {
+				Set name = props.%Get("Name")
+				If ##class(%Dictionary.CompiledProperty).%OpenId(bodyClass_"||"_name).Collection '= "" Continue
+				Set type = ##class(%Dictionary.CompiledClass).%OpenId(##class(%Dictionary.CompiledProperty).%OpenId(bodyClass_"||"_name).Type)
+				If '$IsObject(type) || (type.ClassType '= "datatype") Continue
+				Do body.%Set(name, $Property(object, name))
+			}
+		}
+	}
+	Quit {"id": (header.%Id()), "sessionId": (header.SessionId), "superSession": (header.SuperSession), "description": (header.Description), "resent": (header.Resent), "status": (header.Status), "type": (header.Type), "source": (header.SourceConfigName), "target": (header.TargetConfigName), "bodyClass": (bodyClass), "bodyId": (header.MessageBodyId), "body": (body)}
+}
+
+/// Waits up to seconds (WAITCOPY by default), polling every half second, until every header of the comma-separated ids in the namespace is Completed (status 9);
+/// 1 when they all are, 0 when the time has passed.
+Method WaitCompleted(namespace As %String, ids As %String, seconds As %Integer = {..#WAITCOPY}) As %Boolean [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set done = 1
+		For i = 1:1:$Length(ids, ",") {
+			Set header = ..Header(namespace, $Piece(ids, ",", i))
+			If '$IsObject(header) || (header.status '= $$$eMessageStatusCompleted) Set done = 0
+		}
+		If done || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit done
+}
+
+/// The Execute headers from IncidentManager to FixExecutor in the trace session whose body carries the request's Ref, once there is one (up to seconds), as header objects.
+Method ExecutesOf(trace As %String, approvalRef As %String, seconds As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Set found = []
+		Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(trace), 1, ..#MANAGER, ..#EXECUTOR)
+		For i = 0:1:sent.%Size() - 1 {
+			If sent.%Get(i).bodyClass '= "OcuTalon.Fix.Msg.Execute" Continue
+			Set body = ##class(OcuTalon.Fix.Msg.Execute).%OpenId(sent.%Get(i).bodyId)
+			If $IsObject(body) && (body.ApprovalRef = approvalRef) Do found.%Push(sent.%Get(i))
+		}
+		If (found.%Size() '< 1) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
+}
+
+/// The FixResult bodies that FixExecutor sent to IncidentManager in the trace session, once there are count of them (up to WAITINCIDENT seconds), as FixResult objects.
+Method FixResultsOf(trace As %String, count As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set found = []
+		Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(trace), 1, ..#EXECUTOR, ..#MANAGER)
+		For i = 0:1:sent.%Size() - 1 {
+			If sent.%Get(i).bodyClass = "OcuTalon.Fix.Msg.FixResult" Do found.%Push(##class(OcuTalon.Fix.Msg.FixResult).%OpenId(sent.%Get(i).bodyId))
+		}
+		If (found.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
+}
+
+/// Sets the OrderDate of the order that the header holds, in OCUORDERS. The test edits only the orders it made.
+ClassMethod SetOrderDate(headerId As %Integer, value As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set header = ##class(Ens.MessageHeader).%OpenId(headerId)
+	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_headerId)
+	Set order = ##class(OcuTalon.Demo.Orders.PartnerOrder).%OpenId(header.MessageBodyId)
+	If '$IsObject(order) Quit $SYSTEM.Status.Error(5001, "No order for header "_headerId)
+	Set order.OrderDate = value
+	Quit order.%Save()
+}
+
+/// Sends an Execute for the request's Ref to the item FixExecutor by name, synchronously, from the SimMailboxIn service (an adapterless host, in a session of its own),
+/// and waits for the answer. The session of the send is kept for the clean-up and given in session. The status of the send.
+Method SendExecute(approvalRef As %String, Output session As %Integer) As %Status [ Private ]
+{
+	Set session = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#SENDER, .service)
+	If $$$ISERR(sc) Quit sc
+	Set request = ##class(OcuTalon.Fix.Msg.Execute).%New()
+	Set request.ApprovalRef = approvalRef
+	Set sc = service.SendRequestSync(..#EXECUTOR, request, .response, 60)
+	Set session = service.%SessionId
+	Set ..ExecuteSessions = ..ExecuteSessions _ $Select(..ExecuteSessions = "": "", 1: ",") _ session
+	Quit sc
+}
+
+/// Removes the headers, bodies and log rows of the sessions that SendExecute used, in the home namespace.
+Method DropExecuteSessions() [ Private ]
+{
+	For i = 1:1:$Length(..ExecuteSessions, ",") {
+		Set session = $Piece(..ExecuteSessions, ",", i)
+		If session = "" Continue
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ?", session)
+		Kill ids
+		While rs.%Next() {
+			Set ids(rs.%GetData(1)) = $ListBuild(rs.%GetData(2), rs.%GetData(3))
+		}
+		Set id = ""
+		For {
+			Set id = $Order(ids(id), 1, body)
+			Quit:id=""
+			If $List(body, 1) '= "" Do $ClassMethod($List(body, 1), "%DeleteId", $List(body, 2))
+			Do ##class(Ens.MessageHeader).%DeleteId(id)
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
+	}
+	Set ..ExecuteSessions = ""
 }
 
 /// The names of the keys of the object, sorted, comma-separated.

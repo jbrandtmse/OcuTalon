@@ -6,11 +6,15 @@
 ///   - TestRefuses: wrong separators, padding, a value of more than 40 characters, a day that is not on the calendar, a time, digits of other scripts, an empty value,
 ///     two formats of two families or one format twice, and a name that is not registered are refused, each with an error status and no result;
 ///   - TestNeverEvaluates: injection-shaped values are refused by every source format and leave the sentinel global undefined;
-///   - TestStaticScan: the code of Reformat and of RepairResend has no Xecute, no indirection, no $ZF, and no $ClassMethod, $Method or $Property.
+///   - TestStaticScan: the code of Reformat and of RepairResend has no Xecute (the command, as a whole word: RepairResend's own method Execute is none), no indirection,
+///     no $ZF, and no $ClassMethod, $Method or $Property.
 Class OcuTalon.Test.Fix.Reformat Extends %UnitTest.TestCase
 {
 
 Parameter CLASS = "OcuTalon.Fix.Reformat";
+
+/// The pattern of the Xecute command (a whole word, so that a method named Execute does not match).
+Parameter XECUTE = "\bXecute\b";
 
 /// The value, in the order of the DATES formats, of each date of the table, separated by a vertical bar.
 Parameter DATES = "2026-10-16|10/16/2026|16/10/2026|16.10.2026|20261016;2024-02-29|02/29/2024|29/02/2024|29.02.2024|20240229;1840-12-31|12/31/1840|31/12/1840|31.12.1840|18401231;9999-12-31|12/31/9999|31/12/9999|31.12.9999|99991231";
@@ -182,13 +186,14 @@ Method TestStaticScan()
 	For class = "OcuTalon.Fix.Reformat", "OcuTalon.Fix.Kind.RepairResend" {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
 		Do $$$AssertTrue($Length(text) > 1000, class_" source is read")
-		For pattern = "Xecute", "@", "\$ZF\(", "\$ClassMethod\(", "\$Method\(", "\$Property\(" {
+		For pattern = ..#XECUTE, "@", "\$ZF\(", "\$ClassMethod\(", "\$Method\(", "\$Property\(" {
 			Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), class_" has no "_pattern_" in its code")
 		}
 	}
 	Set sample = $Char(9)_"Xecute ""Set x=""_value"_$Char(10)_$Char(9)_"Set y = @name"
-	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(sample, "Xecute") && ##class(OcuTalon.Test.Bridge.Source).Matches(sample, "@"), "the scan is first shown to flag an Xecute and an indirection")
-	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"// Xecute is never used @ all", "Xecute|@"), "and to pass a comment line")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(sample, ..#XECUTE) && ##class(OcuTalon.Test.Bridge.Source).Matches(sample, "@"), "the scan is first shown to flag an Xecute and an indirection")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"// Xecute is never used @ all", ..#XECUTE_"|@"), "and to pass a comment line")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"ClassMethod Execute(incident As OcuTalon.Data.Incident) As %Status", ..#XECUTE), "and a method named Execute, which is no Xecute")
 }
 
 }

@@ -16,8 +16,21 @@
 ///     the same cause ...". It carries the cause slot too, which the catalog ignores.
 ///   - groups holds one {itemName, count, errorSummary, firstAt} per failure group that has a NoticeCount, in Seq order. A group's count is its
 ///     NoticeCount, so the lines add up to the count slot even when failures joined during the diagnosis. An empty error summary is written as NOERRORTEXT.
-/// Slots and WithFixSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
-/// field, before or after or with a resend below 1, a given count below 1 or not a whole number, a given time that is empty).
+///   - The result of a fix run (Story 7.3, Consistency Conventions: Result texts): ResultKey gives the catalog key of the notice for an accepted final or interrupted
+///     FixResult, the first row that matches:
+///       the request's row is executing                      result.stillResending
+///       the run was interrupted                             result.interrupted
+///       Resent, Completed, FailedAgain and Skipped are 0    result.couldNotStart (when Reason is set; Total is the number of targets that were not resent)
+///       FailedAgain and Skipped                             result.failedAndSkipped
+///       FailedAgain                                         result.failedAgain
+///       Skipped                                             result.skipped
+///       otherwise                                           result.allThrough
+///     ResultSlots gives the slots that the key declares, as a dynamic object, from the FixResult and the item noun: count (Total), itemNoun, completed, failedAgain,
+///     skipped, remaining (Total less Completed, at least 0), failReason and reason (both the Reason). An empty count is 0. The result texts (OcuTalon.Msg.Catalog.Watch)
+///     are the experience document's; this class renders nothing.
+/// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
+/// field, before or after or with a resend below 1, a given count below 1 or not a whole number, a given time that is empty; a noun without both forms, an empty
+/// reason where the key needs one, a key that is no result key).
 Class OcuTalon.Watch.Notice
 {
 
@@ -42,6 +55,24 @@ Parameter VARIANTNOFIX = "no_fix";
 Parameter WITHFIXCATEGORY = "data_format_change";
 
 Parameter UNKNOWNCATEGORY = "unknown";
+
+/// The catalog keys of the notice of a fix run's result (Story 7.3).
+Parameter KEYALLTHROUGH = "result.allThrough";
+
+Parameter KEYFAILEDAGAIN = "result.failedAgain";
+
+Parameter KEYSKIPPED = "result.skipped";
+
+Parameter KEYFAILEDANDSKIPPED = "result.failedAndSkipped";
+
+Parameter KEYSTILL = "result.stillResending";
+
+Parameter KEYINTERRUPTED = "result.interrupted";
+
+Parameter KEYCOULDNOTSTART = "result.couldNotStart";
+
+/// The state of an approval request that is still carrying out its fix.
+Parameter EXECUTING = "executing";
 
 /// The fallback reason of a reason that is empty or not one of Msg.Enum FALLBACKREASON.
 Parameter UNUSABLE = "unusable";
@@ -139,6 +170,60 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 		Do slots.%Set("after", after)
 		Do slots.%Set("resendCount", +resend)
 	}
+	Quit slots
+}
+
+/// The catalog key of the notice of a final or interrupted FixResult, for the state of the request's row (see the class description). Pure.
+ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult) As %String
+{
+	If $Get(state) = ..#EXECUTING Quit ..#KEYSTILL
+	If result.Interrupted Quit ..#KEYINTERRUPTED
+	Set failedAgain = +result.FailedAgain
+	Set skipped = +result.Skipped
+	If (+result.Resent = 0) && (+result.Completed = 0) && (failedAgain = 0) && (skipped = 0) && (result.Reason '= "") Quit ..#KEYCOULDNOTSTART
+	If failedAgain && skipped Quit ..#KEYFAILEDANDSKIPPED
+	If failedAgain Quit ..#KEYFAILEDAGAIN
+	If skipped Quit ..#KEYSKIPPED
+	Quit ..#KEYALLTHROUGH
+}
+
+/// The slots of the result key for the FixResult (see the class description) as a dynamic object, or "" with the reason in sc. noun is the item noun, a dynamic
+/// object with both forms {"one", "other"}.
+ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, noun As %DynamicObject, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $$$OK
+	Set reason = ..Text(result.Reason)
+	If key = ..#KEYCOULDNOTSTART {
+		If reason = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no reason")
+			Quit ""
+		}
+		Quit {"reason": (reason)}
+	}
+	If '$ListFind($ListBuild(..#KEYALLTHROUGH, ..#KEYFAILEDAGAIN, ..#KEYSKIPPED, ..#KEYFAILEDANDSKIPPED, ..#KEYSTILL, ..#KEYINTERRUPTED), key) {
+		Set sc = $SYSTEM.Status.Error(5001, "'"_$Get(key)_"' is not the key of a result")
+		Quit ""
+	}
+	If '$IsObject($Get(noun)) || (..Text(noun.one) = "") || (..Text(noun.other) = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no item noun with both forms")
+		Quit ""
+	}
+	If ((key = ..#KEYFAILEDAGAIN) || (key = ..#KEYFAILEDANDSKIPPED)) && (reason = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has failures and no reason")
+		Quit ""
+	}
+	Set count = +result.Total
+	Set completed = +result.Completed
+	Set slots = {}
+	Do slots.%Set("count", count, "number")
+	Do slots.%Set("itemNoun", noun)
+	If key '= ..#KEYALLTHROUGH Do slots.%Set("completed", completed, "number")
+	If (key = ..#KEYFAILEDAGAIN) || (key = ..#KEYFAILEDANDSKIPPED) {
+		Do slots.%Set("failedAgain", +result.FailedAgain, "number")
+		Do slots.%Set("failReason", reason)
+	}
+	If (key = ..#KEYSKIPPED) || (key = ..#KEYFAILEDANDSKIPPED) Do slots.%Set("skipped", +result.Skipped, "number")
+	If key = ..#KEYINTERRUPTED Do slots.%Set("remaining", $Select(count > completed: count - completed, 1: 0), "number")
 	Quit slots
 }
 

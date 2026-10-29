@@ -2,12 +2,20 @@
 title: 'Approved repairs are re-checked and resent'
 type: 'feature'
 created: '2026-10-28'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a0386612c84717f6bc14d81c0f1ff6c25baa2619'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which this story is the first to write.
+    evidence: |-
+      PurgeOne deletes the incident's FailureGroup rows and the incident in one transaction, and nothing else; Fix.Executor now saves one FixRun per approved request (ApprovalRef, IncidentRef, the copies' header ids). After a purge those rows remain, naming a deleted incident. Whether a table follows its incident's retention is a stored-data retention decision (AD-27, veto window), so the review pass did not make it; a fix is one more delete in PurgeOne and an assertion in Test.Watch.Lifecycle.TestPurge.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:1254
+    severity: medium
 ---
 
 <intent-contract>
@@ -314,6 +322,55 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 
 ## Review Triage Log
 
+### 2026-10-28 — Review pass
+- verdicts: 41 findings — high 0, medium 11, low 26, false 4, maybe-false 0
+- findings:
+  - Blind hunter:
+    - `[medium]` `[defer]` A purged incident leaves its `FixRun` rows (`IncidentManager.PurgeOne` deletes the groups and the incident only) — real: this story is the first writer of `FixRun`; whether a table follows its incident's retention is a stored-data retention decision (AD-27, veto window), so it goes to the lead through `deferred:` and is not decided here.
+    - `[low]` `[patch]` `Executor.Run` treats a failed first `FixRun` save as a read failure, and passes `saved` 1 so no row is written — real, rare; patched: `CouldNotStart` gets `saved` only when the row has an Id, so it saves again and logs `LOGRUN`. The NOREAD wording stays (Decided in-stage: any error before the first copy).
+    - `[low]` `[reject]` The skipped targets and their reasons are lost for a run that resent copies, and a failed `Copies` save only warns — the targets that were not copied are derivable (`FixTargets` less the copies' originals, which each `Description` names), `result.skipped` has no reason slot, and the stored counts are Story 7.4's (DW-272); the failed save is residual risk 4 (Story 7.5).
+    - `[low]` `[patch]` A permission check that throws gives the NOTALLOWED reason with no trace — real; patched: `Unchecked` logs one Type 3 warning (`LOGMISSING`) naming the request and the error; the reason stays NOTALLOWED (fail closed). Pinned by `TestCouldNotStartRoutes`.
+    - `[low]` `[reject]` A final `FixResult` whose row still reads executing renders "Still resending" — only when `FinishExecution` itself fails after `StartExecution` (a lock or save error); `ResultKey`'s first row is the convention, and `Reconcile`/`Sweep` (Story 7.5) own a row stuck executing.
+    - `[medium]` `[reject]` `result.skipped` states a false cause for skips that are not data changes (a stopped production) — the finding is V4, ruled and routed to Story 7.4 (DW-368); this story keeps AD-16 and the convention as written and `Runs.TestStoppedProductionSkipsEveryCopy` pins the counts.
+    - `[medium]` `[patch]` `Executor.Resend`'s guards and the `resentBy` parse have no test — real (same as the verification-gap rows); patched: `Recheck.TestChangedTargetsAreSkipped` now drives `Execute`'s re-read and a stale plan through `Resend`, and the parse in both description forms. The warnings `LOGCOPY`, `LOGRUN` and `LOGFINISH` stay untested (rejected below).
+    - `[low]` `[patch]` `TestRefusedStates` only asserts that a refusal line is not empty — real; patched: each case now asserts its own reason ("not approved", "past its expiry", "not a fix", "no approval request").
+    - `[low]` `[reject]` Duplicated test helpers (`Whole`, `Request`, `Flat`) — cosmetic; the harm is only duplication, and a shared helper is more than a direct correction.
+  - Edge case hunter:
+    - `[low]` `[patch]` `ResendDuplicatedMessage` can return an error after the copy was queued (the audit write, `newId` set) and `Resend` would call it skipped — verified in `Ens.MessageHeader`; patched: a set `newId` counts as sent, with one Type 3 warning (`LOGCOPY`). No test (it needs a failing audit write).
+    - `[low]` `[reject]` An `EnQueue` failure leaves the saved copy body behind — only when the target queue disappears between the checks; one unreferenced body, and deleting it is more than a correction.
+    - `[low]` `[patch]` The third argument of `Ens.BusinessOperation.SendRequestAsync` is the description, not "response required" — verified; patched: `SendResult` passes no third argument, so a `FixResult` header has an empty description.
+    - `[low]` `[reject]` A transient `StartExecution` failure leaves the request approved with no result — the spec (step 4) says an error there is refused; the row waits for its expiry.
+    - `[low]` `[patch]` A failed first `FixRun` save ends as a read failure with no row — same root cause as the blind hunter's second row; same patch.
+    - `[low]` `[reject]` A re-check error from refused parameters or a missing failure group is reported as NOREAD — the parameters passed `CheckParameters` at the dry run; the run still ends honestly (nothing resent, nothing changed) and only the reason is less exact.
+    - `[low]` `[patch]` The resources check that throws is swallowed — same root cause as the blind hunter's fourth row; same patch.
+    - `[low]` `[reject]` `FinishExecution` failing leaves "Still resending" — same as the blind hunter's fifth row.
+    - `[false]` `[reject]` The incident can close between the checks and the resend (stale handle) — `Transitions` allows no close event in `fixing`, so an incident cannot close while its request is approved or executing.
+    - `[false]` `[reject]` `Reader.Evidence` throwing makes `Recheck` throw — `Executor.Run` wraps the re-check in a Try and ends the run as NOREAD; `Recheck` has no other caller.
+    - `[false]` `[reject]` Repeated or unordered ids reach `Recheck` and `Execute` — the only caller is `Executor`, whose `AscendingIds` refuses any other list before the run.
+    - `[low]` `[reject]` A failed header with an empty `SessionId` passes the resent test — every Ensemble header has a session id; no reachable path.
+    - `[low]` `[reject]` A result Notification is not sent when its slots cannot be built — the fail-closed behaviour is the recorded decision (one Type 3 warning, the move is made); no 7.3 result can fail to build its slots.
+    - `[low]` `[reject]` AC 6's "body unchanged" is not compared beyond the field — the recorded decision and residual risk 3 (no digest is kept, U-126 fixes the row's columns); closed by design.
+  - Verification gap:
+    - `[medium]` `[patch]` `Resend`'s guards and `RepairResend.Execute`'s re-read are never driven by a changed target — real; patched in `Recheck.TestChangedTargetsAreSkipped` (Execute over the five changed orders resends none; a stale plan through `Resend` is skipped with its own reasons and makes no copy); mutation recorded.
+    - `[medium]` `[patch]` `Plan`'s cannot-read statuses are never reached by a real read — real; patched: `Recheck` of a production that is not the namespace's own gives an error and passes nothing (mutation recorded). The `unreadable` outcome (a revoked role) shares the branch and stays untested.
+    - `[medium]` `[patch]` `Refusal`'s state check is shadowed by `StartExecution` for rows that are also unusable — real: a cancelled request of a closed incident wrote a FixRun and sent a FixResult under the mutation; patched: `TestRefusedStates` gains that case and the unregistered-kind case; the isolating mutation is recorded.
+    - `[medium]` `[patch]` `StartExecution`'s refusal branch (AC 3) is never reached — real; patched: the probe's `RefusalIs` lets a row through the refusal check and `TestStartExecutionRefusesWhatTheRefusalCheckLetsThrough` asserts the end; the isolating mutation is recorded.
+    - `[low]` `[reject]` A run that fails after it registered copies is not tested — `Resend` catches each target's error, so a throw out of `Execute` after a copy is not reachable in practice; the end of such a run is Story 7.4's.
+    - `[low]` `[reject]` The failures of `FinishExecution` and of the `FixRun` save are untested — rare infrastructure paths that need a new probe mode; the documented behaviour (one warning, the result still goes) is also in the class description.
+    - `[medium]` `[patch]` `resentBy` is tested only for "Resent <id>" — real; patched: the hand-resend chain in `Recheck` makes "Resent <id>: note" and "Resent <copy>,<id>: note" and asserts both are found (mutation recorded).
+    - `[low]` `[patch]` The noun precedence (dry run before incident) is not pinned — patched: the `skipped` case of `TestResultNotices` now gives the incident a different noun.
+    - `[low]` `[reject]` The `Reason` redaction and its 1000-character cap are not tested through the executor — today's reasons are built from ids, field words and fixed sentences; `DryRun.TestReasonIsRedactedAndBounded` covers the same helper's behaviour.
+    - `[low]` `[patch]` Pinned ACs have no isolating mutation lines (AC 3's atomic start, AC 4's state check and the compound line) — patched: the isolating mutations were run and are recorded under "Mutations run in the review pass"; every AC has at least one line.
+    - `[low]` `[patch]` The table's expected red for AC 6 is stale (`Runs` stays green) — patched in the table.
+    - `[medium]` `[patch]` `Closing.TestApproveSendsExecuteToFixExecutor` leaves a `FixRun` row of its fixture incident — real: the real executor now writes it; patched: `HeldRequest` tracks the incident and `Case.OnAfterOneTest` deletes the incident's `FixRun` rows.
+    - `[low]` `[patch]` A failed first `FixRun` save blames the read — same root cause as the blind hunter's second row; same patch.
+  - Intent alignment (descriptive; each divergence logged):
+    - `[low]` `[patch]` `Run` assumes the `FixRun` is saved (`saved` 1) — same root cause; same patch.
+    - `[low]` `[reject]` A failure after a registered copy logs the "could not read" warning and leaves the row executing — the end of a run that resent copies is Story 7.4's (V2); only the warning wording is imprecise.
+    - `[false]` `[reject]` `Test/Install/Production.cls` is also edited in a doc comment — the orchestrator's ruling allows the row and the doc clause (Design Notes, spec gate rulings).
+    - `[medium]` `[patch]` The unreadable mapping has no test at either surface — same root cause as the verification-gap row; same patch.
+    - `[medium]` `[patch]` The `Resend` branches are not driven live — same root cause as the verification-gap row; same patch.
+
 ## Design Notes
 
 **V1. `FixRun.Copies` (a schema change, in the veto window; the lead rules it).**
@@ -360,6 +417,17 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Line numbers are as 
 - **The field on the copy** is set through the compiled dictionary's stored, non-calculated datatype property whose `Name` equals the field exactly, so a parameter never names a method or a getter.
 - **The result Notification** carries no `DecisionRef`, as `answered` does not. A progress `FixResult` sends none (Story 30.5).
 - **FixExecutor's other requests** get error 5001, which names the class (IncidentManager's pattern).
+- **Execute reads its plan again.** `Recheck` and `Execute` share one private `Plan` (the target test over the row's targets through `Reader.Evidence` with `resent` 1). `Recheck` runs first over all targets, as the spec says; `Execute` runs it again over the targets that passed, and the value it reads there is the one that `Resend` checks the body against at the switch. A target that changed between the two reads is skipped with its reason. The cost is one more read of the targets (one switch), and the gain is that the check and the resend are close together; the contract of `Recheck` and `Execute` gains no argument.
+- **The first skipped target is the one with the lowest id**, whichever step skipped it (the re-check or the resend); its reason is the `Reason` of a run that resent nothing, and `Skipped` is then `Total`.
+- **Any error before the first copy ends the run as NOREAD**: an error status or an exception from `Recheck` (the Reader gives no `read`, the parameters fail `CheckParameters`, the incident has no group), from the `FixRun` save, or from `Execute` before a copy is registered. After the first registered copy the run just ends there (V2) and logs one Type 3 warning. A resources check that throws counts as a pair missing (NOTALLOWED).
+- **The targets of an approved row** are valid only as positive whole numbers without a leading zero, strictly ascending; an empty list is unusable (`Total` 0).
+- **Skip reasons** are one sentence each that names the message ("message 101 is no longer in the error status"); the stopped production's is "message N was not resent because the production isn't running". They go through `Redact.Text` into the `FixResult`'s `Reason` (at most 1000 characters).
+- **IncidentManager** builds the answered and the result Notification through one private `Compose` (no `DecisionRef`). The noun of a result is the request's dry run's `itemNoun`, else the incident's, else the code noun. Slots that cannot be built (a failure with no reason, a noun without both forms) send no notification and log one Type 3 warning (`LOGRESULT`); the move is made all the same.
+- **New parameters** (no stored data): `Fix.Executor` `MANAGER`, `LOGRECHECK`, `LOGCOPY`, `LOGRUN`, `APPROVED`, `KINDFIX`; `Watch.Notice` the seven `KEY*` result keys and `EXECUTING`; `IncidentManager` `LOGRESULT`.
+- **`resentBy`** is an array of the header ids (as text) of the headers of the failure's session whose `Description` starts with `Resent ` and names the failure's id before any `:`; the SQL reads only the session's headers whose description starts with `Resent `.
+- **Test support.** `Case` gains `ExecutesOf`, `FixResultsOf`, `WaitIncidentState`, `SendExecute` and the clean-up of its sessions, and `SetOrderDate` (lifted from `Test.Fix.DryRun`, with its `EXECUTOR` and `SENDER` parameters now in `Case`). `Lifecycle.SetRequest` also gives a row that leaves pending the answer a row has after `Approval.Answer` (web, 2030-01-01T10:00:00Z). `ExecutorProbe.MissingIs` is empty (the product's check), `none` or `throw`.
+- **WAITRUN and WAITCOPY** keep their default of 30 seconds (Task 0 (e) measured 0.2 s).
+- **Review pass (lead).** `Fix.Executor` logs one Type 3 warning (`LOGMISSING`) for a resources check that throws, passes `saved` to `CouldNotStart` only when the `FixRun` has an Id, counts a copy whose resend returned an error after it was queued as sent (one warning), and sends its result without a description. `Test.Fix.ExecutorProbe` gains `RefusalIs`, which lets a row past the refusal check. `Test.Fix.Executor` gains `TestStartExecutionRefusesWhatTheRefusalCheckLetsThrough`; `Test.Fix.Recheck` drives `Execute`'s re-read, a stale plan through `Resend`, a production that is not the namespace's own, and the two description forms of `resentBy`; `Test.Fix.Reformat` reads the whole word Xecute; `Test.Watch.Case` deletes a tracked incident's `FixRun` rows, and `Closing` tracks its fixture incident. See the Review Triage Log.
 
 **Copy recognition is Story 7.4's.** Its criterion reads "its failure, recognised by its registered header id, is attributed to the fix instead of opening a new failure group or incident". 7.3 registers each id (V1) and pins the registration, and no 7.3 test makes a copy fail again.
 
@@ -457,7 +525,17 @@ Conventions: "Result texts", "Approval requests", "Later requests", "Audit entri
 - `Reader.Evidence`'s new flag defaults to 0, so `Test.Watch.Reader`, `Test.Watch.Evidence` and `EvidencePack` stay unchanged. `Gate.MissingOf`: `Test.Bridge.Gate` stays unchanged.
 - In `Case`: `DropIncidentRows` also deletes FixRun rows, `WAITLATER` moves there (Later inherits it), and `RaisedTwo` is new.
 - The lane-a shard gains five test classes.
+- `Test.Fix.Reformat.TestStaticScan` scans RepairResend's code, which now has a method named `Execute`; its Xecute pattern is the whole word.
 - Every test added or changed passes on a fresh environment, in either order.
+
+**Task 0 results (implement stage, fresh throwaway `e7s3i`, 2026-10-28):**
+- (a) A `ResendDuplicatedMessage(original, , OrdersFromPartner, clone)` copy of failed order header 2 (body 1, `10/16/2026`): header 5 has the original's `SessionId` (2) and `SuperSession`, `Description` "Resent 2", `Resent` 1, body class `OcuTalon.Demo.Orders.PartnerOrder` and a new body id 4 (the clone's `OrderDate` 2026-10-16). Its status is 9 (Completed) and its forward to `OrdersToWarehouse` (header 6) is in the same session and Completed. The original header and body were unchanged, and `Snapshot.Diff` with the originals' sessions allowed gave 0 lines.
+- (b) With Orders stopped: the status is `ERROR <Ens>ErrProductionNotRunning: No production is running`, `newId` stays empty, no header is made (6 headers before and after) and no body is saved.
+- (c) Pinned by `Execute.TestCouldNotStart`, which passes: `RevokeRole("%Ens_MessageResend")` right before the approval is seen by the long-running FixExecutor job (`CheckUserPermission` is 0 there, so the run could not start with the reason NOTALLOWED).
+- (d) Class times (fresh, one class per call; the stack itself needs 90 to 165 s to be ready): `Execute` 31 s, `Runs` 40 s, `Refused` 1 s, `Recheck` 1 s, `Raise` 66 s, `Later` 52 s, `DryRun` 2 s, `Closing` 30 s, `Watch.Reader` 4 s. Warm: `Fix.Executor` 2 s, `Fix.Kind` 0.1 s, `Bridge.Gate` 26 s, `Data.Tables` 0.4 s, `Install.Production` 0.5 s, `Watch.NoticeText` 0.2 s, `Watch.Lifecycle` 0.1 s, `Watch.Tell` 16 s, `Bridge.CodeRules` 1.6 s. No class comes near 180 s, so none is split. The lane-a shard has 83 test classes (five more than before).
+- (e) From the approval to the three registered copies: 0.2 s; to the copies' Completed status: 0.2 s. `WAITRUN` and `WAITCOPY` keep their default of 30 s (bounds, not expectations).
+- (f) A `FixRun` created in OCUTALON, saved after `Set $NAMESPACE` to OCUORDERS and back, saves (id 1) and reads back in OCUTALON.
+- A compile error in a test class made the first throwaway never become healthy (9 minutes); every file is loaded and compiled on slot A before it goes into a throwaway.
 
 **Pinning mutations (Rule 19).** Apply each mutation, observe red, revert byte-identically, and record a `mutation: … → …` line here.
 
@@ -471,7 +549,7 @@ Conventions: "Result texts", "Approval requests", "Later requests", "Audit entri
 | AC 4 | the approved check is dropped and `StartExecution`'s error is ignored | `Refused.TestNoApprovedRowNoRun`, `Executor.TestRefusedStates` |
 | AC 5, notice | `Result` passes no notification | `Execute.TestCouldNotStart`, `Lifecycle.TestResultNotices` |
 | AC 5, finish | couldn't start skips `FinishExecution` | `Executor.TestCouldNotStartRoutes`, `Execute.TestCouldNotStart` |
-| AC 6 | `Recheck` passes every target | `Recheck.TestChangedTargetsAreSkipped`, `Runs` (R1 resends) |
+| AC 6 | `Recheck` passes every target | `Recheck.TestChangedTargetsAreSkipped` (`Execute` reads the targets again, so `Runs` stays green) |
 | AC 6, resent | `Evidence` ignores `resent` | `Recheck` (the target resent by hand passes) |
 | AC 7, repair | `Resend` sends no new body | `Execute` (the copies' `OrderDate`) |
 | AC 7, originals | `Resend` repairs, saves and resends the original body | `Execute` (the Snapshot diff) |
@@ -482,9 +560,45 @@ Conventions: "Result texts", "Approval requests", "Later requests", "Audit entri
 | key order | `ResultKey` tests `Skipped` before `FailedAgain` | `NoticeText.TestResultKeys` |
 | DW-347 | `IncidentManager.Apply` also executes OWN for rejected, and the Executor skips its state check and ignores `StartExecution`'s error | `Raise.TestRejectChangesNothing` ("OCUORDERS did not change") |
 
+**Mutations run (implement stage; each applied, observed red, and restored byte-identically from a backup, then `git status` checked):**
+- mutation: `AnswerNotice` handles only rejected (approved gives "") -> `Test.Watch.Lifecycle.TestApprovalOutcomes` red (warm); `Execute.TestApprovedRepairsAreResent` reads the same notice and was not run with this mutation.
+- mutation: a property `Copies` added to `FixResult` -> `Test.Watch.Lifecycle.TestFixMessages` red (warm).
+- mutation: Executor skips `StartExecution` -> `Test.Fix.Executor.TestResentRunSendsNoResult` and `TestNothingResent` red (warm: the request is not executing; a second Execute adds a run); not run on a fresh stack.
+- mutation: `Missing` always gives "" -> `Test.Fix.Execute.TestCouldNotStart` red (fresh, run together with the "no new body" row below).
+- mutation: Executor drops the approved check and ignores `StartExecution`'s error -> `Test.Fix.Executor.TestRefusedStates` red (warm) and `Test.Fix.Refused.TestNoApprovedRowNoRun` red (fresh).
+- mutation: a run that could not start skips `FinishExecution` -> `Test.Fix.Executor.TestCouldNotStartRoutes` red (warm) and `Test.Fix.Execute.TestCouldNotStart` red (fresh).
+- mutation: `Result` passes no notification -> `Test.Watch.Lifecycle.TestResultNotices` red (warm) and `Test.Fix.Execute.TestCouldNotStart` red (fresh).
+- mutation: `RepairResend.Recheck` passes every target -> `Test.Fix.Recheck.TestChangedTargetsAreSkipped` red; `Runs` stays green because `Execute` tests each target again before it resends (the second read is defence in depth, Design Notes).
+- mutation: `Reader.Evidence` ignores `resent` -> `Test.Fix.Recheck.TestChangedTargetsAreSkipped` red (the order resent by hand passes).
+- mutation: `Resend` sends no new body (the original body goes again) -> `Test.Fix.Execute.TestApprovedRepairsAreResent` red (the copies' `OrderDate`, and they do not complete).
+- mutation: `Resend` repairs, saves and resends the original body (no clone) -> `Test.Fix.Execute.TestApprovedRepairsAreResent` red (the Snapshot diff: headers 2, 3 and 4 changed).
+- mutation: `Copies` is never appended -> `Test.Fix.Execute.TestApprovedRepairsAreResent` red (R1's FixRun holds three copies).
+- mutation: `ErrProductionNotRunning` throws out of `Resend` (ends the run with an error) -> `Test.Fix.Runs.TestStoppedProductionSkipsEveryCopy` red.
+- mutation: a run reuses the incident's first `FixRun` -> `Test.Fix.Runs.TestTwoApprovedRequestsRunOneEach` red.
+- mutation: Executor takes the targets from the incident's groups (`AskedKeys`) instead of `FixTargets` -> `Test.Fix.Runs.TestTwoApprovedRequestsRunOneEach` red (R1 would run R2's targets).
+- mutation: a final `FixResult` is sent after the resend -> `Test.Fix.Executor.TestResentRunSendsNoResult` red (warm); `Execute`'s "no FixResult yet" check not run with it.
+- mutation: `ResultKey` tests `Skipped` before `FailedAgain` -> `Test.Watch.NoticeText.TestResultKeys` red (warm).
+- mutation: DW-347: `IncidentManager.Apply` also executes OWN for rejected, and the Executor skips its state check and ignores `StartExecution`'s error -> `Test.Fix.Raise.TestRejectChangesNothing` red ("OCUORDERS did not change": the three failed orders were resent), so DW-347's reopen probe is met.
+
+**Mutations run in the review pass (each applied, observed red, restored byte-identically from a backup, `git status` and `git diff --stat` checked):**
+- mutation: `Refusal` drops its State check -> `Test.Fix.Executor.TestRefusedStates` red (warm: a cancelled request of a closed incident writes a FixRun and sends a FixResult; the other states say "could not be started" instead of "not approved"). It isolates AC 4's state check from `StartExecution`'s refusal.
+- mutation: `Execute` ignores `StartExecution`'s error -> `Test.Fix.Executor.TestStartExecutionRefusesWhatTheRefusalCheckLetsThrough` red (warm: a pending, a cancelled and an executing request each write a FixRun and call the re-check). It isolates AC 3's atomic start.
+- mutation: `Unchecked` logs no warning for a check that throws -> `Test.Fix.Executor.TestCouldNotStartRoutes` red (warm: "resources throw: one Type 3 warning names the request").
+- mutation: `Resend` drops its Error-status check -> `Test.Fix.Recheck.TestChangedTargetsAreSkipped` red (fresh: "a plan whose entries went stale resends none", the completed order gets a copy, and the Snapshot diff shows new headers).
+- mutation: `RepairResend.Plan` ignores a Reader outcome other than read -> `Test.Fix.Recheck.TestChangedTargetsAreSkipped` red (fresh: "a re-check of a production that is not the namespace's own is an error").
+- mutation: `Reader.Current` reads the whole description for `resentBy` (no cut at the colon) -> `Test.Fix.Recheck.TestChangedTargetsAreSkipped` red (fresh: "the resent order has two headers that resent it" and "has been resent already").
+
+**Verification run (implement stage):** warm `e7s3iw` is up (READY 95 s). Passed on the final code: warm `Fix.Executor`, `Fix.Kind`, `Bridge.Gate`, `Data.Tables`, `Install.Production`, `Watch.NoticeText`, `Watch.Lifecycle`, `Watch.Tell` and `Bridge.CodeRules`; fresh `Fix.Execute`, `Fix.Runs`, `Fix.Refused`, `Fix.Recheck`, `Fix.Raise`, `Fix.Later`, `Fix.DryRun`, `Watch.Closing` and `Watch.Reader`. The static scripts `docker/tests/test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh` and `test-ci-changes.sh` pass.
+
+**Verification run (review pass, after the patches; lead):**
+- `(loop)`, warm `e7s3iw`: `Watch.NoticeText`, `Watch.Lifecycle`, `Watch.Tell`, `Fix.Executor`, `Fix.Kind`, `Bridge.Gate`, `Data.Tables` and `Install.Production` passed (`Bridge.Gate` 23 s, `Watch.Tell` 16 s, the rest under 2 s). `Fix.Reformat` passed after the scan fix below.
+- `(loop)`, fresh `e7s3i`: `Fix.Execute` 29 s, `Fix.Runs` 40 s, `Fix.Refused` 1 s, `Fix.Recheck` 1 s, `Fix.Raise` 64 s, `Fix.Later` 57 s, `Fix.DryRun` 5 s and `Watch.Closing` 30 s passed (each call 85 to 147 s with its stack).
+- `(once)`: `shard lane-a --part k/12` passed for k = 1 to 12 (83 classes in all) in 234, 193, 93, 121, 105, 109, 237 (after the fix; 228 s and red before it), 167, 123, 294, 239 and 124 s. `shard lane-b --part k/3` passed in 154 s (22 classes), 182 s (21) and 114 s (21). `live storage-roundtrip` passed (82 compiled classes' Storage blocks equal their committed blocks). `bash ci/checks.sh` passed (every script).
+- Found by `lane-a` part 7: `Test.Fix.Reformat.TestStaticScan` read RepairResend's code for "Xecute" in any case, which RepairResend's own method `Execute` matches. The scan now looks for the whole word `Xecute` (a `Parameter XECUTE`), still flags the sample command and an indirection, and passes a method named `Execute`; the guarantee (no XECUTE command, no indirection, no `$ZF`, no `$ClassMethod`, `$Method` or `$Property` in `Reformat` and `RepairResend`) is unchanged.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-28).** This story is planned in full against the READY FOR DEVELOPMENT standard. The plan stage made no runtime call (no slot read and no throwaway); Task 0 belongs to the implement stage.
@@ -496,3 +610,22 @@ Four items need the lead's ruling at the spec gate. Each is planned as recommend
 - **V4 (for the owner, not blocking):** a stopped production renders `result.skipped`'s "had changed since the dry run".
 
 There is one footprint extension: `Test/Install/Production.cls`, Lane A's row. There is no AD amendment, no NFR tripwire and no contended path. DW-347's reopen probe is met by the mutation of that name.
+
+**Implement and review (2026-10-28; `bmad-build-auto`, baseline `a0386612c84717f6bc14d81c0f1ff6c25baa2619`).**
+
+*Summary.* An approved fix is now carried out. `IncidentManager` answers an accepted approved outcome with `answered.approved` and every accepted final or interrupted `FixResult` with one `result` Notification (`Notice.ResultKey` and `ResultSlots`). `FixExecutor` is no stub: `Execute` refuses what is not approved and unexpired, ends an unusable row or a missing resource as a couldn't-start result (UNUSABLE, NOTALLOWED), starts the run through `StartExecution`, saves its `FixRun`, re-checks the row's targets through `RepairResend.Recheck` (one shared target test with `DryRun`; `Reader.Evidence` gained the `resent` flag) and resends a repaired copy of each target that passes from its one `New $NAMESPACE` method (`Resend`), registering each copy's header id on `FixRun.Copies`. A run that resent nothing closes `done` and sends its own final result; a run that resent copies ends after its last registration (V2: Story 7.4). V1 to V4 stand as ruled (U-139 to U-141, DW-368).
+
+*Files changed.*
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`: `MissingOf` lifted out of `MissingPrivilege`.
+- `src/ocutalon/cls/OcuTalon/Data/FixRun.cls`: `Copies` (Storage value 5).
+- `src/ocutalon/cls/OcuTalon/Fix/Executor.cls`, `Fix/Kind.cls`, `Fix/Kind/RepairResend.cls`: the executor, the kind contract (`NOTALLOWED`, `Execute`'s `run`), `Recheck` and `Execute`.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`, `Watch/Notice.cls`, `Watch/Reader.cls`: the answered and result notices, `ResultKey` and `ResultSlots`, the `resent` flag.
+- Tests: new `Test/Fix/{Executor,ExecutorProbe,Recheck,Execute,Refused,Runs}.cls`; changed `Test/Fix/{DryRun,Kind,Later,Reformat}.cls`, `Test/Watch/{Case,Closing,Lifecycle,NoticeText}.cls`, `Test/Data/Tables.cls` and, for Lane A's `FixExecutor` row and its doc clause only, `Test/Install/Production.cls`.
+
+*Review findings.* 41 findings from the four layers (high 0, medium 11, low 26, false 4). 21 rows were patched (twelve root causes, six of them medium: the missing tests of `Resend`'s guards, of the unreadable mapping, of the state check, of `StartExecution`'s refusal and of the two `resentBy` forms, and the `FixRun` rows that `Closing` left behind), 1 was deferred (medium: the retention purge leaves `FixRun` rows; a stored-data retention decision for the lead, in `deferred:`), and 19 were rejected with their reasons in the Review Triage Log (V4 and the end of a run that resent copies are Story 7.4's; the rest are unreachable, theoretical or cosmetic).
+
+*Follow-up review recommended: true.* Six medium root causes were patched. The unverified risk is the three error-path edits in `Fix.Executor` that no test reaches: a resend that returns an error after its copy was queued (counted as sent), a failed first `FixRun` save (now saved again and logged), and the `SendResult` call without a description. The tests added by the patches were each shown red by a recorded mutation, except the noun-precedence case and the `Closing` clean-up (no mutation run), and the whole patched tree passed the verification below.
+
+*Verification.* Task 0 (a) to (f) and every `mutation:` line are in `## Verification`. After the patches: every `(loop)` class passed (warm and fresh); `shard lane-a` parts 1 to 12 (83 classes) and `shard lane-b` parts 1 to 3 (64 classes) passed, with one red found and fixed (`Test.Fix.Reformat.TestStaticScan` and RepairResend's method named `Execute`); `live storage-roundtrip` passed; `bash ci/checks.sh` passed. Both throwaway tags (`e7s3i`, `e7s3iw`) are torn down with no leftover.
+
+*Residual risks.* The spec's five stand (a copy that fails again joins its group until Story 7.4; a run that resent copies stays `executing` and `fixing` until Story 7.4; a change to another field since the dry run is not seen; a crash between a resend and its registration loses that id; no `Action` audit entry yet). Added by review: a purged incident leaves its `FixRun` rows until the lead rules on the retention (deferred); `unreadable` (a revoked role) shares `Plan`'s branch with the tested `not_current` but has no test of its own.

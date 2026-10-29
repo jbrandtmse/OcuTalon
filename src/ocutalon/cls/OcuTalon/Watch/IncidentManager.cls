@@ -59,9 +59,14 @@
 ///     incident. An accepted move saves the new state (Move: state, open variant and, for a close, ClosedAt, in one save) and then, for a noticed incident,
 ///     publishes the incident event through Tell, even when the state stays the same, because the payload's requests may have changed; when the table says so
 ///     it then sends one OcuTalon.Fix.Msg.Execute (only the request's Ref) to FixExecutor, asynchronously and in the incident's trace session (AD-26). A failed
-///     send logs one Type 3 warning and the row stays as saved. An accepted rejected or expired outcome also sends one Notification of kind answered
-///     (answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the incident's) to each
-///     recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing. A refused ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
+///     send logs one Type 3 warning and the row stays as saved. An accepted approved, rejected or expired outcome also sends one Notification of kind answered
+///     (answered.approved and answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the
+///     incident's; no DecisionRef) to each recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing, and an
+///     approved one before the Execute goes out (Story 7.3). An accepted final or interrupted FixResult (Story 7.3) sends each recipient one Notification of
+///     kind result the same way (Notice.ResultKey picks the catalog key by the Result texts convention from the request's state and the result's counts, and
+///     Notice.ResultSlots builds the slots, with the item noun of the request's dry run, else the incident's, else the code noun; the request's Ref and the
+///     incident's; no DecisionRef); a progress FixResult, a refused one, and one whose slots cannot be built (one Type 3 warning, LOGRESULT) send none. A refused
+///     ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
 ///     line; a repeat of an outcome is refused because the request's row does not show it any more.
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
 ///     recipient of the incident), not_quiet (a closeQuiet within QUIETSECONDS of LastAt, by the clock that QuietNow gives), not_allowed (the table refuses), failed (the recipients or the save could not be read or made;
@@ -161,12 +166,17 @@ Parameter NOTICEKIND = "incident";
 /// The kind of the notification that carries a later request (Msg.Enum NOTIFICATIONKIND; Story 7.6).
 Parameter APPROVALKIND = "approval";
 
-/// The kind of the notification that answers a request, and the catalog keys of a rejected and an expired one (Msg.Enum NOTIFICATIONKIND; Msg.Catalog.Core).
+/// The kind of the notification that answers a request, and the catalog keys of an approved, a rejected and an expired one (Msg.Enum NOTIFICATIONKIND; Msg.Catalog.Core).
 Parameter ANSWEREDKIND = "answered";
+
+Parameter KEYAPPROVED = "answered.approved";
 
 Parameter KEYREJECTED = "answered.rejected";
 
 Parameter KEYEXPIRED = "answered.expired";
+
+/// The kind of the notification that carries the result of a fix run (Msg.Enum NOTIFICATIONKIND; Story 7.3).
+Parameter RESULTKIND = "result";
 
 /// The live event type of an incident's public view.
 Parameter INCIDENTEVENT = "incident";
@@ -180,6 +190,8 @@ Parameter LOGPROPOSE = "IncidentManager could not propose the fix of incident ";
 Parameter LOGLATER = "IncidentManager could not raise the later request of incident ";
 
 Parameter LOGSEND = "IncidentManager could not send the notice of incident ";
+
+Parameter LOGRESULT = "IncidentManager could not build the result notice of incident ";
 
 Parameter LOGTELL = "IncidentManager could not tell the sessions of incident ";
 
@@ -1113,13 +1125,13 @@ Method Outcome(outcome As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Priv
 	Quit ..Event(incident, event, outcome.ApprovalRef, ..AnswerNotice(incident, event, row))
 }
 
-/// The notification that answers a rejected or an expired request (kind answered): answered.rejected with the channel and time of the answer, or
-/// answered.expired with the request's ExpiresAt, the request's Ref and the incident's, no DecisionRef; "" for any other event (an approved request is
-/// answered by the story that carries it out). SessionRef is set per recipient by Tell.
+/// The notification that answers an approved, a rejected or an expired request (kind answered): answered.approved and answered.rejected with the channel and time of
+/// the answer, or answered.expired with the request's ExpiresAt, the request's Ref and the incident's, no DecisionRef; "" for any other event. SessionRef is set
+/// per recipient by Tell.
 Method AnswerNotice(incident As OcuTalon.Data.Incident, event As %String, row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Msg.Notification [ Private ]
 {
-	If event = "rejected" {
-		Set key = ..#KEYREJECTED
+	If (event = "approved") || (event = "rejected") {
+		Set key = $Select(event = "approved": ..#KEYAPPROVED, 1: ..#KEYREJECTED)
 		Set slots = {"channel": (row.AnsweredChannel), "time": (row.AnsweredAt)}
 	} ElseIf event = "expired" {
 		Set key = ..#KEYEXPIRED
@@ -1127,25 +1139,70 @@ Method AnswerNotice(incident As OcuTalon.Data.Incident, event As %String, row As
 	} Else {
 		Quit ""
 	}
+	Quit ..Compose(incident, ..#ANSWEREDKIND, key, slots, row.Ref)
+}
+
+/// The Notification of the kind with the catalog key and the slots (as JSON) for the approval request's Ref and the incident's Ref, with no DecisionRef: the shape
+/// of the answered and the result notices. SessionRef is set per recipient by Tell.
+Method Compose(incident As OcuTalon.Data.Incident, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String) As OcuTalon.Msg.Notification [ Private ]
+{
 	Set notice = ##class(OcuTalon.Msg.Notification).%New()
-	Set notice.Kind = ..#ANSWEREDKIND
+	Set notice.Kind = kind
 	Set notice.CatalogKey = key
 	Set notice.Slots = slots.%ToJSON()
 	Set notice.IncidentRef = incident.Ref
-	Set notice.ApprovalRef = row.Ref
+	Set notice.ApprovalRef = approvalRef
 	Quit notice
 }
 
-/// A FixResult from FixExecutor: finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests.
+/// A FixResult from FixExecutor: finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. A finished one carries the
+/// result notice (ResultNotice), which goes out with the accepted move.
 Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
-	Set event = $Select(result.Final || result.Interrupted: ##class(OcuTalon.Watch.Transitions).#FINISHED, 1: ##class(OcuTalon.Watch.Transitions).#PROGRESS)
+	Set final = result.Final || result.Interrupted
+	Set event = $Select(final: ##class(OcuTalon.Watch.Transitions).#FINISHED, 1: ##class(OcuTalon.Watch.Transitions).#PROGRESS)
 	Set incident = $Select(result.IncidentRef = "": "", 1: ##class(OcuTalon.Data.Incident).RefIndexOpen(result.IncidentRef))
-	If '$IsObject(incident) || '..Owns(incident, result.ApprovalRef) {
+	If '$IsObject(incident) || '..Owns(incident, result.ApprovalRef, .row) {
 		Do ..Drop(result.IncidentRef, event, $Select($IsObject(incident): incident.State, 1: "none"))
 		Quit $$$OK
 	}
-	Quit ..Event(incident, event, result.ApprovalRef)
+	Quit ..Event(incident, event, result.ApprovalRef, $Select(final: ..ResultNotice(incident, row, result), 1: ""))
+}
+
+/// The notification of kind result for a final or interrupted FixResult of the request (row): the key from Notice.ResultKey, the slots from Notice.ResultSlots with
+/// the item noun of the request's dry run, else the incident's, else the code noun, the request's Ref and the incident's, no DecisionRef. "" with one Type 3
+/// warning (LOGRESULT) when the slots cannot be built.
+Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, result As OcuTalon.Fix.Msg.FixResult) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(row.State, result)
+	Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, ..Noun(incident, row), .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGRESULT_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit ""
+	}
+	Quit ..Compose(incident, ..#RESULTKIND, key, slots, row.Ref)
+}
+
+/// The item noun {"one", "other"} of a request's result: the itemNoun of the request's stored dry run, else the incident's ItemNoun, else the code noun of an
+/// empty body class (the first that is an object with both forms).
+Method Noun(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	For source = 1, 2 {
+		Set noun = ""
+		Try {
+			If source = 1 {
+				If row.DryRun '= "" Set noun = {}.%FromJSON(row.DryRun).itemNoun
+			} ElseIf incident.ItemNoun '= "" {
+				Set noun = {}.%FromJSON(incident.ItemNoun)
+			}
+		} Catch {
+			Set noun = ""
+		}
+		If $IsObject(noun) && noun.%IsA("%Library.DynamicObject") && (noun.one '= "") && (noun.other '= "") Quit
+		Set noun = ""
+	}
+	If '$IsObject(noun) Set noun = {}.%FromJSON(##class(OcuTalon.Watch.ItemNoun).For(""))
+	Quit noun
 }
 
 /// An event of a request of the incident: made when the table accepts it, else refused (Drop). A move that cannot be saved is the error status. The

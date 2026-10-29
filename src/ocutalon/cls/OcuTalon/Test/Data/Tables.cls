@@ -563,7 +563,8 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "ApprovalRef": "%String(MAXLEN=22)",
    "IncidentRef": "%String(MAXLEN=22)",
-   "StartedAt": "%String(MAXLEN=20)"
+   "StartedAt": "%String(MAXLEN=20)",
+   "Copies": "list Of %String(MAXLEN=20)"
   },
   "indexes": {
    "ApprovalRefIndex": "ApprovalRef",

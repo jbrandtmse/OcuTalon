@@ -2,9 +2,10 @@
 /// kind's check of a diagnosis (through Decide.CheckReply and Decide.Conclude, with a ReplyCheck begun). They need no production, so they run anywhere, a slot
 /// included; Conclude records Decision rows in the namespace, and the tests remove the ones they made. That the grant reaches the service user is proved on a fresh start by
 /// OcuTalon.Test.Fix.DryRun.TestServiceUserMayResend.
-///   - TestContract: the base declares NAME, PARAMETERS, RESOURCES and KINDS, and the methods Classes, Names, ForName, Check, CheckParameters, DryRun, Recheck and
-///     Execute (the last three with the same first three arguments); the base's DryRun, Recheck and Execute are not implemented; the registered kinds are exactly
-///     RepairResend, whose NAME, PARAMETERS and RESOURCES are fixed; a class that is not in KINDS (ZzKind) is unknown;
+///   - TestContract: the base declares NAME, PARAMETERS, RESOURCES, NOTALLOWED (Story 7.3: the plain reason of a run that cannot start without the resources) and
+///     KINDS, and the methods Classes, Names, ForName, Check, CheckParameters, DryRun, Recheck and
+///     Execute (the last three with the same first three arguments, and Execute with the run as its last); the base's DryRun, Recheck and Execute are not implemented; the registered kinds are exactly
+///     RepairResend, whose NAME, PARAMETERS, RESOURCES and NOTALLOWED are fixed; a class that is not in KINDS (ZzKind) is unknown;
 ///   - TestSchemaCheck: the base's CheckParameters (through ZzKind) accepts exactly the PARAMETERS keys, each a string that is not blank;
 ///   - TestCheckParameters: RepairResend's matrix: the field must be a member of the fields (exactly), both formats registered, one family, two different formats;
 ///   - TestFieldWords: the words of a property name;
@@ -52,9 +53,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 Method TestContract()
 {
-	Do $$$AssertTrue($Parameter(..#KIND, "NAME") = "" && ($Parameter(..#KIND, "PARAMETERS") = "") && ($Parameter(..#KIND, "RESOURCES") = ""), "the base declares NAME, PARAMETERS and RESOURCES, and sets none")
+	Do $$$AssertTrue($Parameter(..#KIND, "NAME") = "" && ($Parameter(..#KIND, "PARAMETERS") = "") && ($Parameter(..#KIND, "RESOURCES") = "") && ($Parameter(..#KIND, "NOTALLOWED") = ""), "the base declares NAME, PARAMETERS, RESOURCES and NOTALLOWED, and sets none")
 	Do $$$AssertEquals($Parameter(..#KIND, "KINDS"), "OcuTalon.Fix.Kind.RepairResend", "the kinds that exist are listed once, in KINDS")
-	For parameter = "NAME", "PARAMETERS", "RESOURCES", "KINDS" {
+	For parameter = "NAME", "PARAMETERS", "RESOURCES", "NOTALLOWED", "KINDS" {
 		Do $$$AssertTrue(##class(%Dictionary.CompiledParameter).%ExistsId(..#KIND_"||"_parameter), "the base declares "_parameter)
 	}
 	For method = "Classes", "Names", "ForName", "Check", "CheckParameters", "DryRun", "Recheck", "Execute" {
@@ -69,6 +70,7 @@ Method TestContract()
 	}
 	Do $$$AssertEquals($$$ISOK(##class(OcuTalon.Fix.Kind).Recheck("", "", "", .passed, .skipped)), 0, "the base's Recheck is not implemented")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).Execute("", "", "", .result)), 5003, "and so is its Execute (error 5003)")
+	Do $$$AssertEquals($Translate($Piece($Piece(##class(%Dictionary.CompiledMethod).%OpenId(..#KIND_"||Execute").FormalSpec, ",", 5), ":", 1), "*&", ""), "run", "Execute takes the run (the FixRun row) as its fifth argument")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).DryRun("", "", .targets, .dryRun)), 5003, "and its DryRun")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Classes(), $ListBuild(..#REPAIR), "the registered kinds are exactly RepairResend")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Names(), $ListBuild("repair_resend"), "named repair_resend")
@@ -77,6 +79,7 @@ Method TestContract()
 		Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).ForName(name), "", "ForName gives no class for '"_name_"'")
 	}
 	Do $$$AssertEquals($Parameter(..#REPAIR, "NAME")_"|"_$Parameter(..#REPAIR, "PARAMETERS")_"|"_$Parameter(..#REPAIR, "RESOURCES"), "repair_resend|field,sourceFormat,targetFormat|%Ens_MessageResend:U", "RepairResend's name, parameters and resources")
+	Do $$$AssertEquals($Parameter(..#REPAIR, "NOTALLOWED"), "OcuTalon isn't allowed to resend messages in that production", "and the plain reason of a run that cannot start without its resources")
 	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(..#ZZ) && ($Parameter(..#ZZ, "NAME") = "zz_kind"), "the fixture kind exists")
 	Do $$$AssertNotTrue($ListFind(##class(OcuTalon.Fix.Kind).Classes(), ..#ZZ), "and is not a registered kind")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("zz_kind", {"alpha": "a", "beta": "b"}, []), "Check refuses a kind that is not registered")
