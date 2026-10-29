@@ -11,7 +11,9 @@
 #     request and a Break the feed run row; the unit checks that C holds a main and a trace CSP session before it waits to see them gone;
 #   - the browser step: the project online-session of web/playwright.config.ts (web/e2e-online/session/) as the demo account: leave.spec.ts (L1
 #     to L5: a reload, the idle cap, a 401, an epoch change injected, through the snapshot (L4b) and a real one; L4c, the bound of the group
-#     sign-out) and sign-out.spec.ts (O1, the dialog; O2, Sign out ends the session, with a second session untouched; O3, a failed /session/end);
+#     sign-out), idle-activity.spec.ts (L7: pointer movement, a scroll and a focus change are no activity), sign-out.spec.ts (O1, the dialog; O2,
+#     Sign out ends the session, with a second session untouched; O3, a failed /session/end) and sign-out-failed.spec.ts (O4: a Sign out that fails
+#     for real, a reminder row held by another process, keeps the session resumable and the repeat finishes the work);
 #   - row 2 (AD-13: polling keeps the session): at least 150 s after C's last request, K's /state answers 200 with K's epoch while C's CSP session no
 #     longer exists (the unit waits for the rest of the 150 s when the browser step was shorter, then up to 180 s for C's session to go, and names
 #     the elapsed seconds when it fails);

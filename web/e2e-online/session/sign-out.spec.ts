@@ -1,13 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { STATE } from '../../e2e/support/api';
-import { TRACE_PAGE } from '../../e2e/support/trace';
 import {
   accountTrigger,
   auditCount,
   auditMark,
   cleanPopulated,
   confirmSignOut,
+  epochOf,
+  expectTraceSignIn,
+  openTraceTab,
   populate,
   populatedState,
   pressSignOut,
@@ -39,13 +41,6 @@ import {
 test.describe.configure({ timeout: 240_000 });
 
 const mainOf = (page: Page) => page.locator('main.main');
-
-/** The epoch of the page's own /state. */
-async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
-  const response = await page.request.get(STATE);
-  expect(response.status(), 'the state is served').toBe(200);
-  return ((await response.json()) as { epoch: string }).epoch;
-}
 
 /** O1: the dialog. */
 test('O1: Sign out opens a modal dialog named by its sentence, with Cancel focused; Esc, Cancel and the backdrop close it and change nothing', async ({ page, context }) => {
@@ -115,9 +110,7 @@ test('O2: confirming Sign out ends the session through SessionOps.End and leaves
     const rowsB = await populate(rowB.ref);
     populated.push(rowsB);
 
-    const tab = await contextA.newPage();
-    await tab.goto(`${TRACE_PAGE}1`, { waitUntil: 'domcontentloaded' });
-    await tab.close();
+    await openTraceTab(contextA);
     const mark = await auditMark();
 
     await pressSignOut(pageA);
@@ -146,10 +139,7 @@ test('O2: confirming Sign out ends the session through SessionOps.End and leaves
     await expect.poll(() => auditCount(mark, 'Approval', rowsA.approval, 'cancelled//web'), { message: 'an Approval entry cancelled', timeout: 20_000 }).toBe(1);
     await expect.poll(() => auditCount(mark, 'Pairing', rowsA.session, 'unlinked/session_end/web'), { message: 'a Pairing entry unlinked/session_end/web', timeout: 20_000 }).toBe(1);
 
-    const trace = await contextA.newPage();
-    await trace.goto(`${TRACE_PAGE}1`, { waitUntil: 'domcontentloaded' });
-    await expect(trace.locator('input[name=IRISUsername]'), "A's trace address needs a sign-in").toBeVisible();
-    await trace.close();
+    await expectTraceSignIn(contextA, "A's trace address needs a sign-in");
 
     const stateB = await populatedState(rowsB);
     expect(stateB.reminder, "B's reminder is pending").toBe('pending');

@@ -2,12 +2,16 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, STATE } from '../../e2e/support/api';
-import { pageNow, recordTraffic, runUntil, traffic } from '../../e2e/support/clock';
-import { TRACE_PAGE } from '../../e2e/support/trace';
+import { recordTraffic, traffic } from '../../e2e/support/clock';
 import {
+  advance,
   confirmSignOut,
   cspSessionExists,
+  epochOf,
+  expectTraceSignIn,
   fixtureTurn,
+  openSession,
+  openTraceTab,
   pressSignOut,
   recordRequests,
   removeSession,
@@ -44,28 +48,10 @@ const PLACE_FREED = 'You were away for a while, so your place was freed for othe
 const SIGNED_OUT = 'You were signed out.';
 const EVENTS_POLL = /\/ocutalon\/api\/v1\/events\?/;
 const CAP_MS = 600_000;
-const STEP_MS = 5000;
+/** How long after the group sign-out request the page may land on the splash: SIGN_OUT_LIMIT_MS (3 s) and the splash's own load. */
+const SIGN_OUT_BOUND_MS = 5000;
 
 const mainOf = (page: Page) => page.locator('main.main');
-
-/** The epoch of the page's own /state. */
-async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
-  const response = await page.request.get(STATE);
-  expect(response.status(), 'the state is served').toBe(200);
-  return ((await response.json()) as { epoch: string }).epoch;
-}
-
-/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot. */
-async function openSession(page: Page): Promise<string> {
-  await signInFromSplash(page);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-  return epochOf(page);
-}
-
-/** Moves the page's clock on by ms, in steps of STEP_MS, so that the page makes and handles its polls on the way. */
-async function advance(page: Page, ms: number): Promise<void> {
-  await runUntil(page, await pageNow(page), ms, STEP_MS);
-}
 
 /** The splash after a return: the notice reads the place-freed text above both cards, and the address has the page's load time. */
 async function expectPlaceFreed(page: Page, loadedAt: number): Promise<void> {
@@ -117,9 +103,7 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     await page.clock.install();
     epoch = await openSession(page);
     const loadedAt = await page.evaluate(() => Date.now());
-    const tab = await context.newPage();
-    await tab.goto(`${TRACE_PAGE}1`, { waitUntil: 'domcontentloaded' });
-    await tab.close();
+    await openTraceTab(context);
 
     const known = (await traffic(page)).length;
     await advance(page, CAP_MS - 10_000);
@@ -143,10 +127,7 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     await page.waitForURL(/\/ocutalon\/\?since=/, { timeout: 60_000, waitUntil: 'commit' });
     await expectPlaceFreed(page, loadedAt);
     expect((await context.request.get(STATE)).status(), "the context's /state is 401").toBe(401);
-    const other = await context.newPage();
-    await other.goto(`${TRACE_PAGE}1`, { waitUntil: 'domcontentloaded' });
-    await expect(other.locator('input[name=IRISUsername]'), "a new tab's trace address shows the trace sign-in form").toBeVisible();
-    await other.close();
+    await expectTraceSignIn(context, "a new tab's trace address shows the trace sign-in form");
 
     await page.clock.resume();
     await signInFromSplash(page);
@@ -301,13 +282,17 @@ test('L4c: a group sign-out request that is never answered holds the page for 3 
     const log = recordRequests(context);
     epoch = await openSession(page);
     const routes = await routeSnapshotOfAnotherEpoch(page, epoch, secret);
-    await page.route(/IRISLogout=end/, () => undefined);
+    let sentAt = 0;
+    await page.route(/IRISLogout=end/, () => {
+      if (sentAt === 0) sentAt = Date.now();
+    });
     const mark = log.mark();
-    const started = Date.now();
     routes.arm();
     await page.waitForURL(/[?&]ended=1/, { timeout: 30_000, waitUntil: 'commit' });
+    const landedAt = Date.now();
     expect(log.since(mark).some((one) => one.includes('IRISLogout=end')), 'the page sent the group sign-out, which nothing answered').toBe(true);
-    expect(Date.now() - started, 'and left within 3 s of the exit plus the time of the poll and the snapshot').toBeLessThan(12_000);
+    expect(sentAt, 'the held sign-out request was seen').toBeGreaterThan(0);
+    expect(landedAt - sentAt, 'and the page landed on the splash within 3 s of it, plus the splash load').toBeLessThan(SIGN_OUT_BOUND_MS);
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await signOutGroup(page);

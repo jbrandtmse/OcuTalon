@@ -1623,6 +1623,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
 - 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope
 - 2026-10-27T20:43:25Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=merge_gate note=Epic 5 decision sheet (orchestrator, decide): doc-only fix in Epic 16's Test/Web/Api.cls class doc; bullet under 16.4
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=Test/Web/Api.cls class doc now says a check carries its latest run's traceUrl (Story 5.6), none without a run
 
 ### DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is still told OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets no status there
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -1693,12 +1694,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-103 owner's delegate: route to 16.4
 - 2026-10-29T04:27:46Z by=spec_gate note=addressed by 16.4's spec: every leave the page can see (idle cap, epoch change, Sign out) signs the group out at once; a trace tab closed while the page stays open is IRIS's own page, which no OcuTalon code observes, and falls to AD-25's own 120 s backstop (AD-25 Rule: 'with the 120-second timeout as the backstop (Story 16.4)'); the units after that case are measured with DW-286 (29.4)
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=idle cap, epoch change and Sign out sign the group out at once (Task 0: a sign-out ends the trace CSP session at once); a closed page or trace tab falls to the 120 s timeout on all four applications (Test.Web.Install, live online-session rows 1 and 4; closed jar gone 152-153 s); the AD-25 backstop case is measured with DW-286 (29.4)
 
 ### DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-4-sessions-stay-isolated-under-load by=orchestrator note=U-103 owner's delegate: route to 29.4
 - 2026-10-29T04:27:46Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=spec_gate note=also measure the units of a trace tab closed while the OcuTalon page stays open (AD-25's backstop case, Story 16.4 spec gate)
+- 2026-10-29T10:33:42Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi note=16.4 MEASURED (d): a closed jar's sessions went 152-153 s after its last request; AD-13 says 5-15 s past the 120 s
 
 ### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1908,10 +1911,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: R1 is the first case of rail.spec; R2-R19 use the same open() helper and passed in the same run; actions-runner-8; attempt 2 of the same run green
 - 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
 - 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=rail.spec.ts open() waits for the GET /state answer (200) instead of main.main within 10 s; DW-333 mutation (12 s /state delay) recorded in the spec
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
 - 2026-10-27T06:44:53Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-107 condition: tracked on 16.4 before it is planned; whichever of 8.4 and 16.4 merges second turns the real path on
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=Test.Core.SessionOpsProduction and e2e-online/session/sign-out.spec.ts cancel reminders through the real ReminderOps (ReminderFixture.WaitEnded), no double
 
 ### DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh (TestHookPublishesOnChange, TestEventsBodyServesTheGuide) and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide: a new session watching Orders sees a step past the expected one
 - source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2009,3 +2014,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
+
+### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: 16.4 QA: 2 of 9 warm runs with QA tests, 1 of 4 runs at HEAD 247dfad without them; Story 10.3 methods in the class 16.4 extends
+- 2026-10-29T09:38:55Z status=open owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=harvest note=found by 16.4 QA; the class is in this story's footprint extension, so 16.4's code review makes the wait deterministic
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=16.4 code review: every audit mark in Test.Core.SessionOpsProduction is taken past the newest audit entry (Mark); 4 of 4 warm runs green; mutation recorded
+
+### DW-388: The idle cap counts only the OcuTalon page's key presses and clicks, so a visitor who reads Visual Trace for 10 minutes without going back to the page is signed out of the trace tab too
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: session-gate.ts:64-66 listens on the OcuTalon document only, and leave('idle') runs the group sign-out (:164), which Task 0 (a) measured ends the trace CSP session at once; the trace pages are IRIS's own, so the page cannot see activity there
+- 2026-10-29T10:33:41Z status=by-design owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=spec-bound: AD-13 and the spec count only key presses, clicks and sends in the page; IRIS's trace pages can't be watched
+
+### DW-389: After an unscheduled restart, a resume cookie set before it still makes the splash show the place-freed notice ('pick up where you left off'), though signing in starts a fresh session
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Splash.InfoNotice shows PLACEFREED on the cookie alone when there is no since; the cookie expires at the next scheduled reset, which an unscheduled restart does not shift (AD-25), and the restored golden copy holds no session
+- 2026-10-29T10:33:41Z status=decision-pending owner=burndown by=cr note=product call: accept; or no PLACEFREED while the period's last reset was unscheduled; or a reset id in the cookie (veto)
+
+### DW-390: SessionOps.End sends CancelReminder and StopWatch straight to ReminderOps and WatchOps, so CommandsIn's origin check for those two verbs is not applied to them
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.Carry sends them with SendRequestSync and the EndSession's origin (spec Design Notes, Direct messages); CommandsIn's Routes accept every EndSession origin for both verbs today, so nothing is bypassed now
+- 2026-10-29T10:33:41Z status=wontfix-theoretical owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=theoretical: real only if CommandsIn's Routes drop an EndSession origin from CancelReminder or StopWatch
+
+### DW-391: Test.Web.SessionEndApi repeats Test.Web.PairingApi's private Guard, Session, ErrorBody and clean-up helpers instead of sharing them (the spec's one stated copy, Rule 2)
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: SessionEndApi.cls Guard, Session, ErrorBody and OnBefore/AfterAllTests match PairingApi.cls's; sharing them means a route-test base class and an edit of Epic 10's merged PairingApi
+- 2026-10-29T10:33:41Z status=wontfix-accepted owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=reopen_if=a third route test class copies PairingApi's Guard, Session and ErrorBody helpers

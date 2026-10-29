@@ -14,12 +14,18 @@ import { fakeClock } from './fake-clock.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const { IdleCap } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'session', 'idle-cap.ts')).href);
 
-/** A cap on a fake clock whose wall clock is the clock's own, unless the test moves `skew` (the wall clock running ahead of the timers). */
+/** The longest delay a browser timer holds (2^31 - 1 ms): a browser runs a timer with a longer delay at once, and so does setup's timer. */
+const BROWSER_TIMER_MAX_MS = 2_147_483_647;
+
+/**
+ * A cap on a fake clock whose wall clock is the clock's own, unless the test moves `skew` (the wall clock running ahead of the timers). Its
+ * setTimeout treats a delay above BROWSER_TIMER_MAX_MS as a browser does, as no delay.
+ */
 function setup() {
   const clock = fakeClock();
   const state = { idle: 0, skew: 0 };
   const cap = new IdleCap({
-    setTimeout: (handler, ms) => clock.setTimeout(handler, ms),
+    setTimeout: (handler, ms) => clock.setTimeout(handler, ms > BROWSER_TIMER_MAX_MS ? 0 : ms),
     clearTimeout: (id) => clock.clearTimeout(id),
     now: () => clock.now + state.skew,
     onIdle: () => {

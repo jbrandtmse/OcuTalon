@@ -21,8 +21,13 @@
 ///   - TestEndAgainChangesNothing: a repeat of EndSession answers ended and sends, audits and publishes nothing;
 ///   - TestEndWithAHeldReminderFails: a reminder row that another process holds makes End answer failed after it unlinked, stopped and
 ///     cancelled all the rest, with the resume hash kept so that the session stays resumable, and once the row is free the same End cancels
-///     it, clears the hash and answers ended.
-/// The reminders, the watches and the waiters that the tests make are removed in OnAfterAllTests.
+///     it, clears the hash and answers ended;
+///   - TestEndWithAHeldWatchFails and TestEndWithAHeldRequestFails: the same for the other two owners. A watch whose session lock another
+///     process holds (WatchOps), or a request whose lock another process holds (Approval.Cancel), makes End answer failed after every other
+///     step ran; the session's resume reference still resumes it, and once the lock is free the same End finishes the work, clears the hash
+///     and the reference resumes nothing.
+/// Every audit mark is taken past the newest entry already in the audit log (Mark), so that the entries of an earlier command never count as
+/// the next one's. The reminders, the watches and the waiters that the tests make are removed in OnAfterAllTests.
 Class OcuTalon.Test.Core.SessionOpsProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -86,7 +91,7 @@ Method TestPairAndStopThroughTheProduction()
 	Set chat = ##class(OcuTalon.Data.Pairing).RecordChat(chatId, "Dana", .sc)
 	Do ..KeepChat(chat)
 	Set code = ..Code(session, .hash)
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set headerMark = ..HeaderMark()
 	Set result = ..Submit("Pair", "telegram", "", hash, chat)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "Pair is Ok 1, paired")
@@ -113,7 +118,7 @@ Method TestPairAndStopThroughTheProduction()
 	Set view = ##class(OcuTalon.Demo.Guide).Compute(session)
 	Do $$$AssertEquals(view.Step4Variant_"|"_view.TelegramRow, "paired|0", "the guide reads it as paired, with no Telegram row")
 
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set headerMark = ..HeaderMark()
 	Set result = ..Submit("Unpair", "telegram", "", "", chat)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|unpaired", "/stop is Ok 1, unpaired")
@@ -149,7 +154,7 @@ Method TestRejectedPairsAreAudited()
 	Set session = ..Session("a")
 	Set chat = ..NewChat("Dana")
 	Set other = ..NewChat("Sam")
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set result = ..Submit("Pair", "telegram", "", ##class(OcuTalon.Data.Pairing).HashCode("zz-nocode-"_..Number), chat)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|unknown_code", "an unknown code: Ok 0, unknown_code")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Pairing", "Pairing", "", "", 1, ..#EVENTSECONDS)
@@ -157,7 +162,7 @@ Method TestRejectedPairsAreAudited()
 	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change_"|"_entries.%Get(0).data.reason_"|"_entries.%Get(0).data.sessionRef_"|"_entries.%Get(0).data.channel, "rejected|unknown||telegram", "rejected, unknown, no session, telegram")
 	Set past = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -5)
 	Do ..Code(session, .expired, past)
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set result = ..Submit("Pair", "telegram", "", expired, chat)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|expired_code", "an expired code: Ok 0, expired_code")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Pairing", "Pairing", session, "", 1, ..#EVENTSECONDS)
@@ -165,7 +170,7 @@ Method TestRejectedPairsAreAudited()
 	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change_"|"_entries.%Get(0).data.reason, "rejected|expired", "rejected, expired")
 	Do ..Code(session, .good)
 	Do $$$AssertEquals(..Submit("Pair", "telegram", "", good, chat).Outcome, "paired", "control: a good code pairs")
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set result = ..Submit("Pair", "telegram", "", good, other)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|used_code", "a used code: Ok 0, used_code")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Pairing", "Pairing", session, "", 1, ..#EVENTSECONDS)
@@ -186,7 +191,7 @@ Method TestPageUnpairSendsTheNotice()
 	Set chat = ..NewChat("Dana")
 	Do ..Code(session, .hash)
 	Do $$$AssertEquals(..Submit("Pair", "telegram", "", hash, chat).Outcome, "paired", "control: the chat is paired")
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set headerMark = ..HeaderMark()
 	Set result = ..Submit("Unpair", "web_user", session, "", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|unpaired", "the page's Unpair is Ok 1, unpaired")
@@ -222,7 +227,7 @@ Method TestEndThroughTheProduction()
 	If '..Ready() Quit
 	Set a = ..Populate("ea", 2, 2)
 	Set b = ..Populate("eb", 1, 1)
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set headerMark = ..HeaderMark()
 	Set result = ..Submit("EndSession", "web_user", a.session, "", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "EndSession is Ok 1, ended: "_result.Message)
@@ -267,7 +272,7 @@ Method TestEndAgainChangesNothing()
 	Set first = ..Submit("EndSession", "web_user", a.session, "", "")
 	Do $$$AssertEquals(first.Ok_"|"_first.Outcome, "1|ended", "control: the first End is ended: "_first.Message)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a.session, "pairing", 1, ..#EVENTSECONDS).%Size(), 1, "one pairing event so far")
-	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set mark = ..Mark()
 	Set headerMark = ..HeaderMark()
 	Set again = ..Submit("EndSession", "web_user", a.session, "", "")
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|ended", "the repeat is Ok 1, ended")
@@ -279,8 +284,9 @@ Method TestEndAgainChangesNothing()
 }
 
 /// A reminder row that another process holds (concurrency 4, past the ReminderOps job's lock timeout) makes End answer Ok 0, failed, after
-/// every other step ran: the chat is unlinked, the watch is stopped, the other reminder and the request are cancelled, the resume hash is
-/// cleared; the held reminder is still pending. Once the row is free, the same End cancels it and answers ended.
+/// every other step ran: the chat is unlinked, the watch is stopped, the other reminder and the request are cancelled, and the resume hash is
+/// kept; the held reminder, read again once the test has let go of its row, is still pending. Once the row is free, the same End cancels it,
+/// clears the hash and answers ended.
 Method TestEndWithAHeldReminderFails()
 {
 	If '..Ready() Quit
@@ -289,8 +295,8 @@ Method TestEndWithAHeldReminderFails()
 	Do $$$AssertTrue($IsObject(held), "the test holds the first reminder's row")
 	Set result = ..Submit("EndSession", "web_user", a.session, "", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "End answers Ok 0, failed: "_result.Message)
-	Do $$$AssertEquals(held.State, "pending", "the held reminder is still pending")
 	Set held = ""
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(a.reminders.%Get(0)).State, "pending", "the held reminder, read from its stored row, is still pending")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(a.reminders.%Get(1)).State, "cancelled", "the other reminder is cancelled")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(a.session).Count(), 0, "the watch is stopped")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(a.approvals.%Get(0)).State, "cancelled", "the request is cancelled")
@@ -302,7 +308,124 @@ Method TestEndWithAHeldReminderFails()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(a.reminders.%Get(0)).State, "cancelled", "and the first reminder is cancelled")
 }
 
+/// A watch whose session lock another process holds (WatchOps waits 5 seconds for ^OcuTalon.Watch(session)) makes End answer Ok 0, failed,
+/// and the steps after it still run: the chat is unlinked, the reminder and both requests are cancelled, the watch row is still there. The
+/// resume reference of the session still resumes it (the hash is kept). Once the lock is free, the same End stops the watch, clears the
+/// hash and answers ended, and the reference resumes nothing.
+Method TestEndWithAHeldWatchFails()
+{
+	If '..Ready() Quit
+	Set a = ..Populate("hw", 1, 2)
+	Set session = a.session
+	Set reference = ..NewReference(session, .sc)
+	Do $$$AssertStatusOK(sc, "the session holds the hash of a resume reference")
+	Do $$$AssertEquals(..Resumes(reference), session, "control: the reference resumes the session before the End")
+	Lock +^OcuTalon.Watch(session)
+	Try {
+		Set result = ..Submit("EndSession", "web_user", session, "", "")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "End ran without an exception")
+		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	}
+	Lock -^OcuTalon.Watch(session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "End answers Ok 0, failed: "_result.Message)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 1, "the watch row is still there")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Pairing(session, .sc), "", "the chat is unlinked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(a.reminders.%Get(0)).State, "cancelled", "the reminder is cancelled")
+	For i = 0:1:a.approvals.%Size() - 1 {
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(a.approvals.%Get(i)).State, "cancelled", "request "_(i + 1)_", a step after the watch's, is cancelled")
+	}
+	Do $$$AssertEquals(..Resumes(reference), session, "the reference still resumes the session: it stays resumable")
+
+	Set again = ..Submit("EndSession", "web_user", session, "", "")
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|ended", "with the lock free, End is ended: "_again.Message)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 0, "and the watch is stopped")
+	Do $$$AssertEquals(..Resumes(reference), "", "and the reference resumes nothing")
+}
+
+/// A request whose lock another process holds (Approval.Cancel waits 7 seconds for ^OcuTalon.Bridge.Approval(ref)) makes End answer Ok 0,
+/// failed, after the unlink, the reminder, the watch and the other request were done: the held request is still pending. The resume reference
+/// of the session still resumes it. Once the lock is free, the same End cancels the request, clears the hash and answers ended.
+Method TestEndWithAHeldRequestFails()
+{
+	If '..Ready() Quit
+	Set a = ..Populate("hr", 1, 2)
+	Set session = a.session
+	Set held = a.approvals.%Get(0)
+	Set reference = ..NewReference(session, .sc)
+	Do $$$AssertStatusOK(sc, "the session holds the hash of a resume reference")
+	Do $$$AssertEquals(..Resumes(reference), session, "control: the reference resumes the session before the End")
+	Lock +^OcuTalon.Bridge.Approval(held)
+	Try {
+		Set result = ..Submit("EndSession", "web_user", session, "", "")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "End ran without an exception")
+		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	}
+	Lock -^OcuTalon.Bridge.Approval(held)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "End answers Ok 0, failed: "_result.Message)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(held).State, "pending", "the held request is still pending")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(a.approvals.%Get(1)).State, "cancelled", "the other request is cancelled")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(a.reminders.%Get(0)).State, "cancelled", "the reminder is cancelled")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 0, "the watch is stopped")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Pairing(session, .sc), "", "the chat is unlinked")
+	Do $$$AssertEquals(..Resumes(reference), session, "the reference still resumes the session: it stays resumable")
+
+	Set again = ..Submit("EndSession", "web_user", session, "", "")
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|ended", "with the lock free, End is ended: "_again.Message)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(held).State, "cancelled", "and the held request is cancelled")
+	Do $$$AssertEquals(..Resumes(reference), "", "and the reference resumes nothing")
+}
+
 /// --- helpers ---
+/// Gives the session a resume reference of the real form (22 characters, as the cookie holds it): the session's ResumeHash becomes the hash of
+/// a new reference, which is returned, and sc is the status of the row's save. Session.ForResume, which the sign-in's resume goes through,
+/// finds the session by it. Test.Web.SessionEndApi uses it too.
+ClassMethod NewReference(session As %String, Output sc As %Status) As %String
+{
+	Set reference = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash(reference)
+	Set sc = row.%Save()
+	Quit reference
+}
+
+/// The Ref of the session that the resume reference opens (Session.ForResume), "" when it opens none. Test.Web.SessionEndApi uses it too.
+ClassMethod Resumes(reference As %String) As %String
+{
+	Set row = ##class(OcuTalon.Data.Session).ForResume(reference)
+	Quit $Select($IsObject(row): row.Ref, 1: "")
+}
+
+/// The audit mark for the call that follows: Test.Bridge.AuditLog's Now, taken once the clock is past the stamp of the newest entry already
+/// in the audit log, so that no entry written before the call (the previous command's, also one written in the same millisecond) is at or
+/// after the mark. It waits at most a second.
+Method Mark() As %String [ Private ]
+{
+	Set newest = ..NewestAudit()
+	Set end = $ZHorolog + 1
+	For {
+		Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		If (mark ] newest) || ($ZHorolog > end) Quit
+		Hang 0.001
+	}
+	Quit mark
+}
+
+/// The UTCTimeStamp of the newest audit entry of the last two seconds, "" when there is none; an older entry is before any mark taken now.
+/// It reads %SYS.Audit in %SYS through its IDKEY, which is current at once (Test.Bridge.AuditLog).
+ClassMethod NewestAudit() As %String [ Private ]
+{
+	Set now = $ZTimeStamp, days = +now, seconds = $Piece(now, ",", 2) - 2
+	If seconds < 0 Set days = days - 1, seconds = seconds + 86400
+	Set floor = $ZDateTime(days_","_seconds, 3, 1, 3)
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(UTCTimeStamp) FROM %SYS.Audit WHERE UTCTimeStamp >= ?", floor)
+	If (result.%SQLCODE < 0) || 'result.%Next() Quit ""
+	Quit result.%GetData(1)
+}
+
 /// 1 when the test may run: Guard, and the Orders production that the real watch needs (Test.Watch.Case.Reason). Otherwise it fails with
 /// the reason, and the test quits.
 Method Ready() As %Boolean [ Private ]

@@ -27,8 +27,8 @@
 ///   - TestUnlinkStandsWhenTheSideEffectsFail: a failed audit entry or notice is a warning and the chat is unlinked;
 ///   - TestEndUnlinksWithoutNotice and TestEndNeedsTheSession (Story 16.4, the unit part of EndSession): the session's chat is unlinked
 ///     with one unlinked entry (session_end, on the channel of the origin) and no notice, its resume hash is cleared, and the answer is
-///     ended, also for a repeat that changes nothing; a failed step is answered failed after the later steps still ran; a session with no
-///     row is no_session. The reminders, watches and requests of End are TestEndThroughTheProduction's (Test.Core.SessionOpsProduction);
+///     ended, also for a repeat that changes nothing; a refused unlink is answered failed after the later steps still ran (the session's
+///     pending request is cancelled) and keeps the resume hash; a session with no row is no_session. The reminders, watches and requests of End are TestEndThroughTheProduction's (Test.Core.SessionOpsProduction);
 ///   - TestOtherMessagesAreRefused.
 Class OcuTalon.Test.Core.SessionOps Extends %UnitTest.TestCase
 {
@@ -625,10 +625,13 @@ Method TestEndUnlinksWithoutNotice()
 	Do ..Pair(probe, hash2, chat2)
 	Set probe = ..Probe()
 	Do ..SetResumeHash(second, "zzsessops"_..Number_"endfail")
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(second)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_request
 	Set warnings = ..Logged("the chat could not be unlinked at the end of session "_second)
 	Set result = ..End(probe, "bogus", second)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an origin with no audit channel: Ok 0, failed")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat2).SessionRef, second, "the chat stays, because the unlink was refused")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "cancelled", "a later step still ran: the session's pending request is cancelled")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(second).ResumeHash, ##class(OcuTalon.Data.Session).Hash("zzsessops"_..Number_"endfail"), "the resume hash is kept: a failed End leaves the session resumable")
 	Do $$$AssertEquals(..Logged("the chat could not be unlinked at the end of session "_second), warnings + 1, "and one warning names the session")
 }

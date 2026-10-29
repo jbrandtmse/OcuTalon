@@ -3,7 +3,7 @@
 /// web_user), CommandsIn sends it to the real SessionOps, which cancels the session's reminder through the real ReminderOps. THIS CLASS RUNS
 /// IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): where OcuTalon.Production does not run every test fails with that reason, so that a broken
 /// stack can never give a green shard. The public setting onlineDemo is set to 1 for each test and put back in OnAfterAllTests; the fixture
-/// rows, the reminders and the sessions' messages are removed. The flag-off route is Test.Web.Api.TestEndSession's.
+/// rows, the reminders and the sessions' messages are removed. The flag-off route's answer is also Test.Web.Api.TestEndSession's.
 /// Guard, Call and the clean-up are copies of Test.Web.PairingApi's private helpers, because they are private to that story's class.
 ///   - TestEndRoute: a CSP session attached to a visitor's row, which has a pending real reminder: 204 with no body, the resume cookie is
 ///     expired (name OcuTalonResume, empty value, an RFC 1123 date in the past, path /ocutalon/, no domain, Secure, HttpOnly, SameSite
@@ -11,7 +11,11 @@
 ///     the reminder is cancelled;
 ///   - TestFailedEndKeepsTheSession: a session whose End fails (the test holds its pending reminder row open) is 500 server_error, with no
 ///     cookie, no logout and the CSP session not ending; once the row is free, the same call ends it;
-///   - TestNoAttachedSession: a CSP session with no OcuTalon session is a sign-out alone, 204, with no cookie and no command to SessionOps.
+///   - TestNoAttachedSession: a CSP session with no OcuTalon session is a sign-out alone, 204, with no cookie and no command to SessionOps;
+///   - TestFailedEndKeepsTheResume: after the failed sign-out the session's resume reference (the cookie's value) still resumes the
+///     session, and after the successful one it resumes nothing (the reference helpers are Test.Core.SessionOpsProduction's);
+///   - TestEndRouteOffTheOnlineDemo: with the flag 0 the route only signs out: 204, the logout, no cookie, no command to SessionOps and
+///     the attached session's reminder still pending.
 Class OcuTalon.Test.Web.SessionEndApi Extends %UnitTest.TestCase
 {
 
@@ -106,11 +110,52 @@ Method TestFailedEndKeepsTheSession()
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", ##class(OcuTalon.Web.Api).#MESSAGESERVERERROR), "500 server_error")
 	Do $$$AssertEquals($Order(response.Cookies("")), "", "no cookie is set")
 	Do $$$AssertEquals(loggedOut_"|"_endSession, "0|0", "the CSP session is not logged out and does not end")
-	Do $$$AssertEquals(held.State, "pending", "and the reminder is still pending")
 	Set held = ""
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder).State, "pending", "and the reminder, read from its stored row, is still pending")
 	Set body = ..Call(.response, .endSession, .loggedOut)
 	Do $$$AssertEquals(response.Status_"|"_loggedOut_"|"_endSession, "204 No Content|1|1", "with the row free, the same call is 204 and signs out")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder).State, "cancelled", "and the reminder is cancelled")
+}
+
+/// The sign-out that fails leaves the session resumable and the one that succeeds does not (AD-4): the session's row holds the hash of a
+/// resume reference, as the sign-in's cookie does. While the test holds the pending reminder's row the route is 500, and the reference still
+/// opens the session (Session.ForResume, which the sign-in's resume uses); with the row free the same call is 204, and the reference opens
+/// nothing.
+Method TestFailedEndKeepsTheResume()
+{
+	If '..Guard() Quit
+	Set session = ..Session()
+	Set reference = ##class(OcuTalon.Test.Core.SessionOpsProduction).NewReference(session, .sc)
+	Do $$$AssertStatusOK(sc, "the session holds the hash of a resume reference")
+	Set reminder = ..Remind(session)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SessionOpsProduction).Resumes(reference), session, "control: the reference resumes the session before the sign-out")
+	Set held = ##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder, 4)
+	Do $$$AssertTrue($IsObject(held), "the test holds the reminder's row")
+	Set body = ..Call(.response, .endSession, .loggedOut)
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "the sign-out is 500")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SessionOpsProduction).Resumes(reference), session, "and the reference still resumes the session")
+	Set held = ""
+	Set body = ..Call(.response, .endSession, .loggedOut)
+	Do $$$AssertEquals(response.Status, "204 No Content", "with the row free, the same call is 204")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SessionOpsProduction).Resumes(reference), "", "and the reference resumes nothing")
+}
+
+/// Off the online demo (the flag 0, as on a local install) the route is the sign-out alone, as before Story 16.4: 204 with no body and the
+/// CSP session logged out, while no cookie is set, no command goes to SessionOps and the attached session's pending reminder stays pending.
+Method TestEndRouteOffTheOnlineDemo()
+{
+	If '..Guard() Quit
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Set session = ..Session()
+	Set trace = ..TraceOf(session)
+	Set reminder = ..Remind(session)
+	Set body = ..Call(.response, .endSession, .loggedOut)
+	Do $$$AssertEquals(response.Status_"|"_body, "204 No Content|", "204 with no body")
+	Do $$$AssertEquals(loggedOut_"|"_endSession, "1|1", "the CSP session is logged out and is to end")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "no cookie is set")
+	Hang 1
+	Do $$$AssertEquals(..Hops(trace, "CommandsIn", "SessionOps"), 0, "no command went to SessionOps")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder).State, "pending", "and the session's reminder is still pending")
 }
 
 /// A CSP session that no OcuTalon session resolves for (the attach failed at sign-in): the route signs it out and answers 204, with no

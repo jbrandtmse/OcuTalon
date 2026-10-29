@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 
 import { expect, type APIRequestContext, type BrowserContext, type Cookie, type Locator, type Page, type PlaywrightWorkerArgs, type Response } from '@playwright/test';
 
+import { STATE } from '../e2e/support/api';
+import { pageNow, runUntil } from '../e2e/support/clock';
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
+import { TRACE_PAGE } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
 /**
@@ -34,8 +37,10 @@ export async function signOutGroup(target: Page | BrowserContext): Promise<void>
 }
 
 let probes = 0;
-/** The splash's address with a probe that no other request of the run used (the unit's test discipline). */
-const probedSplash = (): string => `/ocutalon/?probe=${Date.now()}${(probes += 1)}`;
+/** The address with a probe that no other request of the run used (the unit's test discipline: the web gateway keeps the answer to a URL). */
+export const probed = (path: string): string => `${path}${path.includes('?') ? '&' : '?'}probe=${Date.now()}${(probes += 1)}`;
+/** The splash's address with a fresh probe. */
+const probedSplash = (): string => probed('/ocutalon/');
 
 /**
  * Signs in from the splash at path (by default the splash with a fresh probe): it opens the page, fills a field only when its value is
@@ -50,6 +55,48 @@ export async function signInFromSplash(page: Page, user?: string, password?: str
   const answered = page.waitForResponse((response) => response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Sign in and start', exact: true }).click();
   return answered;
+}
+
+/** The epoch of the page's own /state (Story 16.4): the request carries the page's cookies. */
+export async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
+  const response = await page.request.get(STATE);
+  expect(response.status(), 'the state is served').toBe(200);
+  return ((await response.json()) as { epoch: string }).epoch;
+}
+
+/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot. */
+export async function openSession(page: Page): Promise<string> {
+  await signInFromSplash(page);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  return epochOf(page);
+}
+
+/** How far advance moves the page's clock in one step: five seconds, so that the page makes and handles its polls on the way. */
+const CLOCK_STEP_MS = 5000;
+
+/** Moves the page's clock on by ms, in steps of CLOCK_STEP_MS (a clock that the case installed before the page loaded). */
+export async function advance(page: Page, ms: number): Promise<void> {
+  await runUntil(page, await pageNow(page), ms, CLOCK_STEP_MS);
+}
+
+/**
+ * Opens a Visual Trace page of the OCUTALON trace application in a new tab of the context, at a fresh probe, checks that the page itself
+ * was served (status 200 and no sign-in form), so that the context holds a trace CSP session, and closes the tab.
+ */
+export async function openTraceTab(context: BrowserContext): Promise<void> {
+  const tab = await context.newPage();
+  const response = await tab.goto(probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
+  expect(response?.status(), 'the trace page is served').toBe(200);
+  await expect(tab.locator('input[name=IRISUsername]'), 'with no sign-in form: the context holds a trace session').toHaveCount(0);
+  await tab.close();
+}
+
+/** Opens the trace address in a new tab of the context, at a fresh probe, and checks that it shows the trace sign-in form. */
+export async function expectTraceSignIn(context: BrowserContext, message: string): Promise<void> {
+  const tab = await context.newPage();
+  await tab.goto(probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
+  await expect(tab.locator('input[name=IRISUsername]'), message).toBeVisible();
+  await tab.close();
 }
 
 /**
