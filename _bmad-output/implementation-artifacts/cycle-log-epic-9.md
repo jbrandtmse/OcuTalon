@@ -92,3 +92,5 @@
 2026-10-29T00:05:19Z	Story 9.3	fresh_check	env=recipe(ci/iris.sh_fresh_throwaway_per_call,tag_e9s3f,lock=lane-b,port_52802) tests=lane-a_part_5/8(10_incl_7_Eval;171s)+lane-a_--reverse_part_4/8(10_incl_7_Eval;158s)+test-eval-set.sh(7_rules) result=pass order=forward,reverse leftovers=none model=claude-opus-5-5
 2026-10-29T00:05:33Z	Story 9.3	committed	sha=8bb30dc submodules= ci=pending runs=40791724398,40791724399 pushed_with=5dbca6a(build) amendments=epics.md(9.3_split_marker;Story_9.7_block;DW-110_bullet_moved) footprint_extensions=ci/mock/scenarios/A/eval-injection-denied.json(new_file)
 2026-10-29T00:05:33Z	Story 9.3	story_cycle	plan_to_commit_min=244 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-29T00:06:04Z	Epic 9	epic_context_compiled	reason=continuity(9.3_as_built) mode=lead_patch header=ok model=claude-opus-5-5
+2026-10-29T00:06:04Z	Story 9.7	stage_spawned	spawn_at=2026-10-29T00:06:04Z stage=plan model=claude-opus agent_name=9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto-plan-1 cycle_iteration=1
