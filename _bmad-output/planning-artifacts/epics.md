@@ -4500,6 +4500,7 @@ So that other visitors can get in while my session waits for me.
 - DW-291: The sign-out test exercises the real `ReminderOps` cancel path that Story 8.4 delivers (U-65). If Story 8.4 has merged when this story is planned, the test uses the real path from the start, with no double. Otherwise it uses the recording double, and whichever of 8.4 and this story merges second turns the real path on, with a test that asserts a real cancel. Either way, the merged sign-out test runs the real cancel (ledger; routed by orchestrator 2026-10-27, inbox U-107, kept by the Contest Planner under the owner's delegation)
 - DW-290: `Test.Web.Api`'s class doc no longer says that a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue (doc-only) (ledger; routed by merge_gate 2026-10-27)
 - DW-333: flake: `live:sign-in` rail.spec.ts R1 (`open()`: main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun; the shared `open()` helper's sign-in readiness wait is made deterministic (ledger; routed by merge_gate 2026-10-28)
+- DW-220: The image CI job took 2369 s and then timed out at 40 minutes with this story's classes (run 40866408272): move `live:online-demo` from the `image` group to `install-upgrade`, with the expectations that pin the groups (ledger; routed by spec_gate 2026-10-29, CI rework of this story)
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 

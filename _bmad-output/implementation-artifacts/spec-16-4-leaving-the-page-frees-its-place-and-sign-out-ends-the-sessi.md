@@ -2,7 +2,7 @@
 title: 'Story 16.4: Leaving the page frees its place, and Sign out ends the session'
 type: 'feature'
 created: '2026-10-29'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '25aab4984a05dc4b6daa879568c565689e7f9a4b'
 baseline_commit: '25aab4984a05dc4b6daa879568c565689e7f9a4b'
 review_loop_iteration: 0
@@ -401,7 +401,14 @@ Rejected:
 - `false` Task 0's PASS line uses OR (VG): both paths are pinned by L2 and O2.
 - `low` The Always list's End step 5 reads before the review pass's "a failed End keeps the resume hash" (IA): the fix is an edit of the spec's intent; Design Notes records the decision and the code and tests follow it.
 
+### CI rework (iteration 1)
+
+- [ ] [CI] iris (image) timed out at 40 minutes on 0af9742 (run 40866408272, cancelled in `live:install-script-live`): `shard:lane-b` grew from 706 s to 866 s on CI with this story's classes, and the group was already 2369 s on b582ed4 (DW-220's reopen_if met). Fix: move `live:online-demo` from the `image` group to `install-upgrade` in `ci/units.sh` (its own unit entry; the online demo's 556 s on CI joins install-upgrade's 794 s), with every expectation that pins the groups (`docker/tests/test-ci-config.sh`, `test-ci-changes.sh`, the group input patterns of `ci/changes.sh` if a unit's inputs are per group) updated to match; the image group then runs about 1900 s, under its 40-minute `timeout-minutes`. Cite DW-220. — `ci/units.sh` — every IRIS group's units still run exactly once, and `bash ci/checks.sh` passes.
+- [ ] [CI] `live:online-session` L5 went red on CI (run 40866408272, job iris (install-fresh)): `page.goto: net::ERR_ABORTED` at `web/e2e-online/support.ts:52` (`signInFromSplash(second)`, `leave.spec.ts:321`), because `second.waitForURL(..., { waitUntil: 'commit' })` returns while the sign-out's own navigation is still loading, and the next `goto` is aborted by it. Fix: wait for the splash to have loaded (for example `waitUntil: 'load'`, or the splash form being visible) before the next navigation, in L5 and in every other place of the session specs and `support.ts` that navigates right after a `commit` wait; keep L5's assertions. — `web/e2e-online/session/leave.spec.ts`, `web/e2e-online/support.ts` — L5 passes on a fresh `live online-session` run.
+
 ## Spec Change Log
+
+- 2026-10-29, rework iteration 1 (trigger ci, run 40866408272 on 0af9742): two [CI] items under Tasks & Acceptance (the image job's timeout, DW-220; L5's navigation race).
 
 - 2026-10-29, lead spec gate: the `(once)` `shard lane-a` run is split into `--part 1/3` to `3/3` (70 classes; 40 lane-b classes took 587 s in one call, so one call cannot hold the whole shard).
 
