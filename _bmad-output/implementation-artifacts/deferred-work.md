@@ -1910,3 +1910,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Re-review (rework 1): after the patch a split DELETE is flagged when its FROM starts the line or a string; '&sql(DELETE' then '%NOLOCK FROM OcuTalon_Data.Setting' still passes (by reading the pattern; no product class has it).
 - 2026-10-29T01:51:30Z status=wontfix-theoretical owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=real if a product class writes a split DELETE with a %keyword opening the table line; fix-risk med: needs a statement-level scan
+
+### DW-382: The committed Story 9.4 spec held a local absolute path (the worktree root, line 402) and a real-looking home-folder sample (line 72), which docker/tests/test-boundaries.sh's paths rule refuses, so the hosted checks job would go red on the next push
+- source: spec-9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: bash ci/checks.sh FAIL paths on spec-9-4-ten-incidents-are-recorded-from-real-failures.md:72,402 (committed at 139e048 by the lead)
+- 2026-10-29T04:54:37Z status=resolved-by:9-4-ten-incidents-are-recorded-from-real-failures owner=9-4-ten-incidents-are-recorded-from-real-failures by=harvest note=the lead rewrote line 72's samples as /Users/<name>/ placeholders (tests build samples by concatenation) and line 402 as the epic-9 worktree root without its path; test-boundaries.sh passes on the whole tree

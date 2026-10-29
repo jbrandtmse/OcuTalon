@@ -69,7 +69,7 @@ The nine feed incidents (AC3 and its "And") move to a sibling story.
 | Replay | The file just written | `Build(Load(file))` equals the live pack, exactly | — |
 | Committed current | `eval/orders-date-format/snapshot.json`, and a fresh capture of its recipe | Both packs are equal once `VOLATILE` is removed | — |
 | Sensitive value | A snapshot whose failure body holds `"Password": "zz-secret-1"` and whose error holds `token=zzsecret0123456789` | The file holds `[redacted]` and neither secret. Its replay pack equals `Build` of the raw snapshot | — |
-| Local path | A body or error holding `/Users/zz/x`, `/home/zz/x` or `C:\Users\zz` (`/home/irisowner/` is allowed) | Refused: "a local machine path". Nothing written | error status |
+| Local path | A body or error holding a home-folder path such as `/Users/<name>/x`, `/home/<name>/x` or `C:\Users\<name>` (`/home/irisowner/` is allowed; tests build such samples by concatenation, as `docker/tests/test-boundaries.sh` does, so no committed file holds a real-looking local path) | Refused: "a local machine path". Nothing written | error status |
 | Not ASCII | A body value holding `$Char(233)` | Refused: "a character that is not ASCII". Nothing written | error status |
 | Bad case | A name that is not lower-case kebab; an unknown `causeCategory`; a blank `elementAtFault`; a `fixKind` for a category with no fix, or none for `data_format_change` | Refused, naming the field. Nothing written | error status |
 | Nothing to record | A production that is not the namespace's own (`not_current`), or keys that give no failure | Refused: "nothing to record: <outcome or no failure>". Nothing written | error status |
@@ -399,7 +399,7 @@ OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-commo
 
 QA and review use their own stage names and tags: `e9s4q`/`e9s4qw` and `e9s4c`/`e9s4cw`.
 
-- **Run discipline:** run every command from the worktree `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-9`, in the foreground of its own call with `timeout: 600000`. Prefer calls under 3 minutes. A call that the harness moves to the background is waited on by reading its output file in short calls, never by starting a second copy. Only one `iris_execute_tests` per message.
+- **Run discipline:** run every command from the epic-9 worktree root (the lead names its absolute path in each stage prompt; never write it into a committed file), in the foreground of its own call with `timeout: 600000`. Prefer calls under 3 minutes. A call that the harness moves to the background is waited on by reading its output file in short calls, never by starting a second copy. Only one `iris_execute_tests` per message.
 - **IRIS MCP:** only to compile-check `Eval/Record.cls` and the test classes on slot B (`server` `ocutalon-slot-b`, namespace `OCUTALON`, after `iris_server_info` shows build 154U). Run no test there, and induce nothing.
 - **Tags:** fresh `e9s4i`, warm `e9s4iw`.
 
