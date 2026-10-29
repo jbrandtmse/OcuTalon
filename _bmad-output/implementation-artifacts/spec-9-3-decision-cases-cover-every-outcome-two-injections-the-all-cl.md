@@ -318,6 +318,43 @@ Code review, 2026-10-28 (full tier: blind-hunter, edge-case-hunter, verification
 - (edge) `Problems`/`Text` throw on a report without `actions` or `injectionChecks` -- false: `Build` always sets both, and nothing reads a saved report back into them.
 - (edge) Other Unicode spaces and apostrophes are not normalized -- low and theoretical: the normalization is the spec's (straight and curly apostrophes, white space).
 
+#### Re-review (rework 1)
+
+Code review, 2026-10-29, of the rework only (`faa6a9a..HEAD` plus the working tree). Full tier: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on the session's model; `_bmad/custom/model-overrides.yaml` is absent, so no layer had a model override. 28 rows from the four layers, grouped into 3 entries (high 0, medium 1, low 2); 11 rows rejected. No decision-needed. Patches applied (option 1).
+
+The `[CI]` item is confirmed fixed: `Report.Actions`'s read is no longer flagged (a fresh `Test.Core.SettingsOps` passes; reverting the narrowing turns it red on `OcuTalon.Eval.Report`). The binding condition now holds too. Before this pass a product class with a split `DELETE` passed the guard; after it, the class fails it (Verification, "Re-review (rework 1) mutations").
+
+- [x] [Review][Patch] **The DELETE-on-the-table check worked only when `DELETE [%kw] FROM T` sat on one line, and the read exemption let every other `FROM T` through (medium; fix-risk low: a test-only pattern that can only flag more lines, and the fresh class run shows no product class newly flagged; in-story; spec-clear: the `[CI]` item and the ruling that AD-33 is not weakened)** [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:345]
+  - **What passed.** These shapes all passed, and the old any-mention scan flagged every one:
+    - `&sql(DELETE` with `FROM OcuTalon_Data.Setting ...` on the next line. This was observed on a warm stack with a throwaway product class.
+    - `DELETE %PROFILE_ALL FROM T`, because `%[A-Za-z]+` stops at the underscore.
+    - An SQL comment or hint between `DELETE` and `FROM`.
+    - Same-line concatenation (`"DELETE "_"FROM T"`).
+    - A held `"FROM T"` fragment or `%Prepare` array piece.
+    - A repeated keyword: the group's `*` was unpinned.
+  - **The patch.**
+    - The DELETE branch is now `DELETE.*`, so any DELETE before the name on the line counts.
+    - A new branch `(^|")\s*FROM\s+` flags a `FROM T` that starts a line or a string.
+    - Four flagged self-checks: a next-line FROM, a held FROM clause, `%NOCHECK %PROFILE_ALL`, and a comment.
+    - Seven mutation lines, including a throwaway violator class with a split DELETE.
+  - **Severity.** Graded medium, not the auditor's high. No product class writes the table outside `SettingsOps`: `Eval/Report.cls:651`, a read, is the only product line that names it. So AD-33 itself is not violated. The gap was in the pinning test's power to catch a future violation (Rule 19's medium, low fix-risk), and it is closed in this pass.
+  - **Residual.** A split DELETE whose table line opens with a %keyword before `FROM` (`&sql(DELETE` then `%NOLOCK FROM T`) still passes. It is stated in the method comment and filed as DW-377 `wontfix-theoretical`: it would become real if a product class wrote one. (blind+edge+verification-gap+acceptance-auditor)
+- [x] [Review][Patch] **The `JOIN` lookbehind's white-space tolerance was not pinned (low; fix-risk low: one self-check; in-story; spec-clear)** [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:376] -- `(?<!JOIN\s)` stayed green. Added "the scanner passes a JOIN with several white space characters before the table", with its mutation. (blind)
+- [x] [Review][Patch] **The method comment did not state the scan's limits, and it said "a DELETE FROM is a write" with no qualification (low; fix-risk low: comment only; in-story; spec-clear)** [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:336-342] -- the Decided bullet says the limits are "stated in the method comment". The comment now states the read rule:
+  - one to eight white-space characters after FROM or JOIN;
+  - no DELETE before the name;
+  - FROM not opening the line or a string.
+
+  It also states what the line scan flags (a split SELECT, a comma-listed or hinted table, more white space) and the residual it lets through. (blind+edge+verification-gap+acceptance-auditor)
+
+**Rejected:**
+- (blind, edge, verification-gap, acceptance) The Auto Run Result and the cycle log claim 15 mutations; the record has 14 `mutation:` lines -- low: true, since the "as built" line is not a mutation, but the fix edits the spec under review and the cycle log, and the record itself is complete.
+- (blind, acceptance) The `[CI]` item's required mutation, "drop INSERT", cannot be applied to the shipped form, and the ticked item's wording describes the verb-led form -- low: the Decided bullet supersedes the wording, and the record holds the substitutes. "Reads widened by INTO ..." turns "an SQL INSERT INTO" red, and "reads widened by INSERT ..." turns "an SQL INSERT with no INTO" red. The fix edits the spec.
+- (blind) The rework's sections are dated 2026-10-28, while the ruling and the cycle log say 2026-10-29 -- low: spec text only.
+- (blind) Two of the rework's triage verdicts say reject where the reason describes a fix -- low: spec text only.
+- (edge) A read with nine or more white-space characters after FROM, a comma-listed table and a `FROM %PARALLEL` read are flagged -- low: a safe-side false positive that fails loudly and names the line. No product read has these shapes, and the fix adds lookbehinds. The method comment now states them.
+- (edge) A write that names `"OcuTalon_Data"."Setting"`, or an unqualified `Setting` through a schema path, matches no alternative -- low: the old any-mention alternative had the same gap, so the rework did not weaken anything. No product class does it, and a schema-path check is far more than a direct correction.
+
 ### Rework 1 (CI)
 
 - [x] [CI] iris (image) / shard:lane-b: `OcuTalon.Test.Core.SettingsOps:TestOnlyRunTimeWriter` fails with "OcuTalon.Eval.Report does not write the Setting rows", because the writer scan's SQL alternative `OcuTalon_Data\.Setting` matches ANY mention of the table, and `Report.Actions` (Eval/Report.cls:651) reads it with `SELECT COUNT(*) FROM OcuTalon_Data.Setting WHERE UpdatedAt >= ?` — run 40791724398 (https://github.com/jbrandtmse/OcuTalon/actions/runs/40791724398), first red `8bb30dc`. The fix must: narrow ONLY that SQL alternative of the `writer` pattern in `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (`TestOnlyRunTimeWriter`) to SQL writes on the table (`INSERT INTO`, `UPDATE`, `DELETE FROM` with `OcuTalon_Data.Setting`, case-insensitive, embedded or dynamic SQL), keeping every other alternative byte-identical; add scanner self-checks beside the existing ones that a `SELECT ... FROM OcuTalon_Data.Setting` line is NOT flagged and that an `INSERT INTO`, an `UPDATE` and a `DELETE FROM` line ARE flagged (the existing `&sql(UPDATE ...)` check stays); keep `Eval/Report.cls` reading the table as it does (do not disguise the table name). Mutations (Rule 19): revert the narrowing → `TestOnlyRunTimeWriter` red on `OcuTalon.Eval.Report`; drop `INSERT` from the narrowed alternative → the new INSERT self-check red; write the `mutation:` lines. `Test/Core/SettingsOps.cls` is a lead-authorized footprint extension (no open branch touches it; orchestrator ruling of 2026-10-29); change nothing else in it. Verify with a fresh `ci/iris.sh class OcuTalon.Test.Core.SettingsOps` (lane B prefix, tag `e9s3i`) and the `lane-b` shard in parts on a fresh stack.
@@ -645,22 +682,30 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - After each revert, `git status --short` and the digest of `git diff` were identical to before the mutation (the `eval/` folder was removed). Warm `Test.Eval.Report` (0.22 to 0.80 s) and `Test.Eval.Cases` (0.15 to 0.38 s) passed before and after the mutations; `ci/warm.sh up` 123 s; `test-eval-set.sh` 7 PASS; `bash ci/checks.sh` all 14 blocks (141 s). The warm and fresh tags were torn down, and the lane-b lock folder is empty.
 
 **Rework 1 (CI) mutations** (2026-10-28; lane B; tags e9s3i and e9s3iw; all on `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`; each applied to the file, one warm run `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Core.SettingsOps`, reverted from a backup of its own, with the `shasum` of the file equal to the one before the mutation and `git status --short` unchanged):
-- The SQL alternative as built: `(DELETE\s+(%[A-Za-z]+\s+)*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting`.
+- The SQL alternative as built (after the re-review patch below): `(DELETE.*|(^|")\s*FROM\s+|(?<!FROM\s{1,8})(?<!JOIN\s{1,8}))OcuTalon_Data\.Setting` (in the class, the quote is doubled). The lines below were re-run or corrected for this form in the re-review; the rework's lines for the keyword group `(%[A-Za-z]+\s+)*`, `DELETE\s+` and `FROM\s+` were removed, since the DELETE branch is now `DELETE.*` and none of them applies.
 - mutation: the narrowing reverted (the alternative is `OcuTalon_Data\.Setting` again) -> `Test.Core.SettingsOps` `TestOnlyRunTimeWriter` red on "OcuTalon.Eval.Report does not write the Setting rows" and on the five "the scanner passes ..." checks (a SELECT of the table, an embedded SELECT INTO, a JOIN, a SELECT of a column list, a lower-case SELECT)
 - mutation: the `FROM` lookbehind dropped -> red on "the scanner passes a SELECT of the table", the embedded SELECT INTO, the SELECT of a column list, the lower-case SELECT and "OcuTalon.Eval.Report does not write the Setting rows"
 - mutation: the `JOIN` lookbehind dropped -> red on "the scanner passes a JOIN that reads the table"
-- mutation: the `DELETE ... FROM` alternative dropped -> red on "an SQL DELETE FROM", "a dynamic SQL write in lower case", "an SQL DELETE with a keyword before FROM" and "an SQL DELETE FROM separated by several white space characters"
-- mutation: the keyword group `(%[A-Za-z]+\s+)*` dropped -> red on "an SQL DELETE with a keyword before FROM"
+- mutation: the `DELETE.*` branch dropped (re-run in the re-review) -> red on "an SQL DELETE FROM", "a dynamic SQL write in lower case", "an SQL DELETE with a keyword before FROM", "an SQL DELETE FROM separated by several white space characters", "an SQL DELETE with several keywords before FROM" and "an SQL DELETE with a comment before FROM"
 - mutation: the `FROM` lookbehind's `\s{1,8}` made `\s` -> red on "the scanner passes a lower-case SELECT with several white space characters before the table"
-- mutation: `DELETE\s+` made `DELETE ` (one space) -> red on "an SQL DELETE FROM separated by several white space characters"
-- mutation: the `FROM\s+` after the keywords made `FROM ` -> the same red
-- mutation: the alternative case-sensitive (`(?-i)` after its opening parenthesis) -> red on "the scanner passes a lower-case SELECT with several white space characters before the table"
+- mutation: the alternative case-sensitive (`(?-i)` after its opening parenthesis; re-run in the re-review) -> red on "the scanner passes a lower-case SELECT with several white space characters before the table"
 - mutation: the reads widened by `INTO`, `UPDATE` and `TABLE` (`(?<!(JOIN|INTO|UPDATE|TABLE)\s{1,8})`) -> red on "an SQL write" (the existing UPDATE check), "an SQL INSERT INTO", "an SQL INSERT OR UPDATE", "an SQL TRUNCATE TABLE", "an SQL INSERT with a keyword before INTO" and "an SQL DROP TABLE"
-- mutation: the reads widened by `INSERT`, `DELETE` and `%NOLOCK` -> red on "an SQL INSERT with no INTO", "an SQL DELETE with no FROM" and "an SQL UPDATE with keywords before the table"
+- mutation: the reads widened by `INSERT`, `DELETE` and `%NOLOCK` (`(?<!(JOIN|INSERT|DELETE|%NOLOCK)\s{1,8})`; re-run in the re-review) -> red on "an SQL INSERT with no INTO" and "an SQL UPDATE with keywords before the table" ("an SQL DELETE with no FROM" stays flagged by the `DELETE.*` branch)
 - mutation: a table name at the start of a line let through (`(?<!^\s{1,8})` added) -> red on "a table name that starts the line after its verb"
 - mutation: a quoted table name let through (`(?<!"")` added) -> red on "the table name held in a variable"
 - mutation (a write from another class still fails): a new throwaway class `src/ocutalon/cls/OcuTalon/Zz/Violator.cls` with `%ExecDirect(, "INSERT INTO OcuTalon_Data.Setting (Value) VALUES ('zz')")` in a method -> `TestOnlyRunTimeWriter` red on "OcuTalon.Zz.Violator does not write the Setting rows"; the folder was removed and the next warm run deleted the class from the stack (`WARM reloaded 0, deleted 1`) and passed
 - Verification after the last change: warm class green before and after the mutations; fresh `ci/iris.sh class OcuTalon.Test.Core.SettingsOps` passed (tag e9s3i, ready 84 s, class 1.6 s); `ci/iris.sh shard lane-b --part k/6` for k = 1 to 6 on fresh stacks, all passed (71 classes; 121, 110, 102, 154, 403 and 92 s; `Test.Core.SettingsOps` ran in part 2); `bash ci/checks.sh` passed (all blocks, 101 s). Both tags were torn down and the lane-b lock folder is empty. The first form of the pattern (verb-led) went through 12 mutations of its own before review replaced it; none of its lines is kept.
+
+**Re-review (rework 1) mutations** (code review, 2026-10-29; lane B; tags e9s3c and e9s3cw; same method as above: each applied to `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`, one warm run, reverted from a backup of the patched file, `shasum` `ee91278` and `git status --short` equal to before):
+- Residual observed before the patch: a throwaway class `src/ocutalon/cls/OcuTalon/Zz/Violator.cls` whose method holds `&sql(DELETE` and, on the next line, `FROM OcuTalon_Data.Setting WHERE ID = :id)` -> `TestOnlyRunTimeWriter` passed on the rework's pattern (`WARM reloaded 1`), so the guard did not flag a split DELETE that the old any-mention scan flagged.
+- mutation (a write from another class still fails): the same throwaway class with the patched pattern -> red on "OcuTalon.Zz.Violator does not write the Setting rows" only; the folder was removed and the next warm run deleted the class (`WARM reloaded 0, deleted 1`) and passed
+- mutation: the `DELETE.*` branch narrowed back to the rework's `DELETE\s+(%[A-Za-z]+\s+)*FROM\s+` -> red on "an SQL DELETE with several keywords before FROM" (`%NOCHECK %PROFILE_ALL`) and "an SQL DELETE with a comment before FROM"
+- mutation: the `(^|")\s*FROM\s+` branch dropped -> red on "an SQL DELETE whose FROM starts the next line" and "a FROM clause of the table held in a string"
+- mutation: its `^` dropped (`"\s*FROM\s+`) -> red on "an SQL DELETE whose FROM starts the next line"
+- mutation: its quote dropped (`^\s*FROM\s+`) -> red on "a FROM clause of the table held in a string"
+- mutation: its `\s*` dropped -> red on both of those checks
+- mutation: the `JOIN` lookbehind's `\s{1,8}` made `\s` -> red on "the scanner passes a JOIN with several white space characters before the table"
+- Verification after the last change: the warm class green before the mutations and after the last revert; fresh `ci/iris.sh class OcuTalon.Test.Core.SettingsOps` passed (tag e9s3c, ready 83 s, class 0.63 s); `bash ci/checks.sh` passed (97 s). Both tags were torn down and the lane-b lock folder is empty. The lane-b shard was not re-run: the patch changes only this test method, and no product class is newly flagged (the fresh class run scans all of them).
 
 
 ## Auto Run Result

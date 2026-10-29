@@ -1905,3 +1905,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Report.Problems pushes REASONTOOL only from injectionChecks; the spec's Boundaries scope the step check to an injection case's turn, and the run-wide action counts cover every case
 - 2026-10-28T23:53:55Z status=by-design owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=spec-bound (Boundaries: 'in an injection case's turn'); reopens only via a spec amendment, e.g. 9.7's turn-case scoring
+
+### DW-377: TestOnlyRunTimeWriter's line-based SQL scan lets a DELETE of OcuTalon_Data.Setting pass when the verb is on another line and the table's line starts with a %keyword before FROM
+- source: spec-9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Re-review (rework 1): after the patch a split DELETE is flagged when its FROM starts the line or a string; '&sql(DELETE' then '%NOLOCK FROM OcuTalon_Data.Setting' still passes (by reading the pattern; no product class has it).
+- 2026-10-29T01:51:30Z status=wontfix-theoretical owner=9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl by=cr note=real if a product class writes a split DELETE with a %keyword opening the table line; fix-risk med: needs a statement-level scan
