@@ -9,6 +9,7 @@ import {
   confirmSignOut,
   epochOf,
   expectTraceSignIn,
+  landedOnSplash,
   openTraceTab,
   populate,
   populatedState,
@@ -124,8 +125,7 @@ test('O2: confirming Sign out ends the session through SessionOps.End and leaves
     expect(cookies[0]!.toLowerCase(), 'on the same path').toContain('path=/ocutalon/');
     expect(Date.parse(/expires=([^;]+)/i.exec(cookies[0]!)?.[1] ?? ''), 'expired').toBeLessThan(Date.now());
 
-    await pageA.waitForURL((url) => url.pathname === '/ocutalon/' && url.search === '', { timeout: 60_000, waitUntil: 'commit' });
-    await expect(pageA.getByRole('button', { name: 'Sign in and start', exact: true }), 'the plain splash shows').toBeVisible();
+    await landedOnSplash(pageA, 60_000);
     await expect(pageA.locator('#ocu-notice'), 'with no notice').toHaveCount(0);
     expect(await resumeCookie(contextA), 'and the browser holds no resume cookie').toBeUndefined();
 

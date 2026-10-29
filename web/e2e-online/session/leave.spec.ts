@@ -10,6 +10,8 @@ import {
   epochOf,
   expectTraceSignIn,
   fixtureTurn,
+  landedOn,
+  landedOnSplash,
   openSession,
   openTraceTab,
   pressSignOut,
@@ -124,7 +126,7 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     } catch {
       /* The page leaves while the clock runs, which ends its execution context. */
     }
-    await page.waitForURL(/\/ocutalon\/\?since=/, { timeout: 60_000, waitUntil: 'commit' });
+    await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     await expectPlaceFreed(page, loadedAt);
     expect((await context.request.get(STATE)).status(), "the context's /state is 401").toBe(401);
     await expectTraceSignIn(context, "a new tab's trace address shows the trace sign-in form");
@@ -157,7 +159,7 @@ test('L3: a 401 returns the page to the splash with the place-freed notice, neve
     const probe = `${Date.now()}l3`;
     const mark = log.mark();
     await context.request.get(`/ocutalon/?IRISLogout=end&probe=${probe}`);
-    await page.waitForURL(/\/ocutalon\/\?since=/, { timeout: 60_000, waitUntil: 'commit' });
+    await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     await expectPlaceFreed(page, loadedAt);
     expect(at401, 'the poll was answered 401').toBeGreaterThanOrEqual(0);
     expect(api.length, 'no API request follows the 401').toBe(at401);
@@ -204,7 +206,7 @@ test('L4: a poll of another epoch is never applied: the page signs the group out
     const loadedAt = await page.evaluate(() => Date.now());
     const mark = log.mark();
     armed = true;
-    await page.waitForURL(/[?&]ended=1/, { timeout: 60_000, waitUntil: 'commit' });
+    await landedOn(page, /[?&]ended=1/, 60_000);
     const url = new URL(page.url());
     expect(url.pathname, 'the splash').toBe('/ocutalon/');
     expect(Math.abs(Date.parse(url.searchParams.get('since') ?? '') - loadedAt), 'with the time the page loaded').toBeLessThan(5000);
@@ -259,7 +261,7 @@ test('L4b: a snapshot of another epoch is never applied either: the page signs t
     const routes = await routeSnapshotOfAnotherEpoch(page, epoch, secret);
     const mark = log.mark();
     routes.arm();
-    await page.waitForURL(/[?&]ended=1/, { timeout: 60_000, waitUntil: 'commit' });
+    await landedOn(page, /[?&]ended=1/, 60_000);
     const url = new URL(page.url());
     expect(url.pathname, 'the splash').toBe('/ocutalon/');
     expect(Math.abs(Date.parse(url.searchParams.get('since') ?? '') - loadedAt), 'with the time the page loaded').toBeLessThan(5000);
@@ -288,6 +290,7 @@ test('L4c: a group sign-out request that is never answered holds the page for 3 
     });
     const mark = log.mark();
     routes.arm();
+    // The case times the landing, so it waits for the commit and navigates nowhere afterwards (landedOn waits for the load).
     await page.waitForURL(/[?&]ended=1/, { timeout: 30_000, waitUntil: 'commit' });
     const landedAt = Date.now();
     expect(log.since(mark).some((one) => one.includes('IRISLogout=end')), 'the page sent the group sign-out, which nothing answered').toBe(true);
@@ -317,7 +320,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     await page.route(EVENTS_POLL, (route) => route.abort('connectionrefused'));
     await pressSignOut(second);
     await confirmSignOut(second);
-    await second.waitForURL((url) => url.pathname === '/ocutalon/' && url.search === '', { timeout: 60_000, waitUntil: 'commit' });
+    await landedOnSplash(second, 60_000);
     await signInFromSplash(second);
     await expect(mainOf(second)).toHaveAttribute('data-snapshot', 'loaded');
     const next = await epochOf(second);
@@ -329,7 +332,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
 
     const mark = log.mark();
     await page.unroute(EVENTS_POLL);
-    await page.waitForURL(/[?&]ended=1/, { timeout: 90_000, waitUntil: 'commit' });
+    await landedOn(page, /[?&]ended=1/, 90_000);
     const url = new URL(page.url());
     expect(url.pathname, 'the first page is on the splash').toBe('/ocutalon/');
     expect(Math.abs(Date.parse(url.searchParams.get('since') ?? '') - loadedAt), 'with the time it loaded').toBeLessThan(5000);

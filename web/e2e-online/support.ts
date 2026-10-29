@@ -57,6 +57,29 @@ export async function signInFromSplash(page: Page, user?: string, password?: str
   return answered;
 }
 
+/**
+ * Waits until the page has gone to an address that url matches and has loaded it. The address must be one that only the page's own leaving
+ * gives (`?since=`, `&ended=1`): a wait for an address that the page shows already returns at once. For the plain splash, use landedOnSplash.
+ */
+export async function landedOn(page: Page, url: Parameters<Page['waitForURL']>[0], timeout: number): Promise<void> {
+  await page.waitForURL(url, { timeout, waitUntil: 'load' });
+}
+
+/**
+ * Waits until the page has left the application for the plain splash, has loaded it and shows it at the plain address /ocutalon/, all
+ * within timeout. The splash's sign-in form is what tells the two apart, not the address: the application drops the query it was opened
+ * with and shows /ocutalon/#/, so a wait for the plain address returns before the page has left. The case's next navigation (a sign-in
+ * from the splash) then meets the location.replace that the page still has to make once the server has answered /session/end, and that
+ * replace aborts it (net::ERR_ABORTED).
+ */
+export async function landedOnSplash(page: Page, timeout: number): Promise<void> {
+  const until = Date.now() + timeout;
+  await expect(page.getByRole('button', { name: 'Sign in and start', exact: true }), 'the page has left for the splash').toBeVisible({ timeout });
+  await page.waitForLoadState('load', { timeout: Math.max(1, until - Date.now()) });
+  const landed = new URL(page.url());
+  expect(landed.pathname + landed.search, 'the plain splash shows, at the plain address').toBe('/ocutalon/');
+}
+
 /** The epoch of the page's own /state (Story 16.4): the request carries the page's cookies. */
 export async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
   const response = await page.request.get(STATE);

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { STATE } from '../../e2e/support/api';
 import { recordTraffic } from '../../e2e/support/clock';
-import { accountTrigger, advance, epochOf, openSession, removeSession, signOutGroup } from '../support';
+import { accountTrigger, advance, epochOf, landedOn, openSession, removeSession, signOutGroup } from '../support';
 
 /**
  * Story 16.4, what does not count as activity for the idle cap (matrix row 5; AC 3), on the throwaway of
@@ -43,7 +43,7 @@ test('L7: pointer movement, a scroll and a focus change are no activity: the pag
     } catch {
       /* The page leaves while the clock runs, which ends its execution context. */
     }
-    await page.waitForURL(/\/ocutalon\/\?since=/, { timeout: 60_000, waitUntil: 'commit' });
+    await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     const url = new URL(page.url());
     expect(url.pathname, 'the splash').toBe('/ocutalon/');
     const since = Date.parse(url.searchParams.get('since') ?? '');
