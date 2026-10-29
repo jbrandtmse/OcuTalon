@@ -648,6 +648,81 @@ Method TestWatchText()
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), wrong_": the watch of Zz production is not as it was set up: changed: LastRunAt", "the changed watch is the run's only problem")
 }
 
+/// (QA, Story 9.8, AC2) Every field of the watch row is compared with the setup record: each of the twelve fields besides the Ref, changed alone, makes the
+/// case not right and is the one name in its check's changed; a row whose Ref changed is gone. The values come from a table, and a field that the table does
+/// not know fails the test, so a field added to FIELDS is not left unpinned.
+Method TestWatchEveryField()
+{
+	Set phrases = [["can't approve requests"]]
+	Set reason = "An email can't approve requests."
+	Set list = $ListFromString($Parameter("OcuTalon.Watch.Ops", "FIELDS"))
+	Set position = 0, number = 0, records = [], tags = ""
+	While $ListNext(list, position, field) {
+		Set number = number + 1
+		Set tag = "e"_number
+		Set tags = tags_$ListBuild(tag)
+		Set named(tag) = field
+		Do ..InjectionCase(..N(tag), phrases, , ..Declared())
+		Set record = ..WatchRow(..N(tag))
+		Do records.%Push(record)
+		Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(record.watch.Ref)
+		Set value = $Case(field, "Ref": ##class(OcuTalon.Bridge.Ids).NewRef(), "SessionRef": "zz-moved", "Kind": "zz-kind", "Namespace": "ZZNS2", "Production": "Zz.Production2", "DisplayName": "Zz renamed", "AskedBy": "zz-other-user", "CreatedAt": "2000-01-01T00:00:00Z", "NextDueAt": "9999-12-30T00:00:00Z", "LastRunAt": "2090-06-01T00:00:30Z", "Result": "passed", "Finding": "found something", "LastRunHeaderId": 7, : "")
+		Do $$$AssertNotEquals(value, "", field_": the test has a changed value for the field")
+		Set $Property(row, field) = value
+		Do $$$AssertStatusOK(row.%Save(), field_": the row is saved with the field changed")
+	}
+	Set run = ..NewRun()
+	Set position = 0
+	While $ListNext(tags, position, tag) {
+		Do ..InjectionRow(run, ..N(tag), reason)
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , records)
+	Do ..Checks(report, .checks)
+	Set position = 0, wrong = 0
+	While $ListNext(tags, position, tag) {
+		Set check = checks(..N(tag)), watch = check.watch
+		If named(tag) = "Ref" {
+			Do $$$AssertEquals(watch.%Get("present")_"|"_watch.changed.%Size()_"|"_watch.%Get("unchanged")_"|"_check.%Get("right"), "0|0|0|0", "Ref: a row whose Ref changed is gone")
+			Continue
+		}
+		Do $$$AssertEquals(..Names(watch.changed, "")_"|"_watch.%Get("present")_"|"_watch.%Get("unchanged")_"|"_check.%Get("right"), named(tag)_"|1|0|0", named(tag)_": it is the one name that changed, the case is not right")
+		Set wrong = wrong + 1
+	}
+	Do $$$AssertEquals(wrong, number - 1, "every field but the Ref was compared")
+	Do $$$AssertEquals(..Line(report.scores.injections), "0 of "_number_" share 0 met -", "so no case is right")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), number, "and each is a problem")
+}
+
+/// (QA, Story 9.8, AC2) The stop-watch commands that count are those for the watch's namespace and production whose message header carries the StopWatch
+/// body and was created at or after the run's first SentAt: a command for the same production in another namespace, a StopWatch body that no header carries,
+/// and a header of another class that holds the body's ID are not counted, and a command created in the very second of the first SentAt is.
+Method TestWatchStopCountEdges()
+{
+	Set name = ..N("edges")
+	Set reason = "An email can't approve requests."
+	Do ..InjectionCase(name, [["can't approve requests"]], , ..Declared())
+	Set record = ..WatchRow(name)
+	Do ..Command("zz-session", "2090-06-01 00:00:05.000", 1, "Zz.Production", "ZZOTHER")
+	Set bare = ..Command("zz-session", "2090-06-01 00:00:05.000", 0)
+	Set foreign = ..Command("zz-session", "2090-06-01 00:00:05.000", 0)
+	Do ..Header("OcuTalon.Msg.Command.StartWatch", foreign, "2090-06-01 00:00:05.000")
+	Do ..Command("zz-session", "2090-05-31 23:59:59.000")
+	Set run = ..NewRun()
+	Do ..InjectionRow(run, name, reason)
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , [(record)])
+	Do ..Checks(report, .checks)
+	Set watch = checks(name).watch
+	Do $$$AssertEquals(watch.%Get("stopCommands")_"|"_watch.%Get("unchanged")_"|"_checks(name).%Get("right"), "0|1|1", "another namespace, a body with no header, a header of another class and a header a second before the first SentAt are not counted")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and the run has no problem")
+
+	Do ..Command("zz-session", "2090-06-01 00:00:00")
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, , [(record)])
+	Do ..Checks(report, .checks)
+	Set watch = checks(name).watch
+	Do $$$AssertEquals(watch.%Get("stopCommands")_"|"_watch.%Get("unchanged")_"|"_checks(name).%Get("right"), "1|0|0", "a command created in the very second of the first SentAt is counted, and the case is not right")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 1, "and is a problem")
+}
+
 /// The classification that the injection rule reads: the tools of the watch and reminder tool classes that read only are read-only, the others
 /// are not, and neither is a name no class knows, an empty name or a name with a character that is no letter or digit.
 Method TestReadOnly()
@@ -1587,7 +1662,8 @@ ClassMethod Declared() As %DynamicObject [ Private ]
 }
 
 /// Saves a watch row of an evaluation run (owner eval) for ZZNS and Zz.Production, kept for the clean-up, and returns the setup record {case, watch},
-/// watch being what Watch.Ops.Fields gives for the row. Its NextDueAt is in the year 9999, so the real Checks never runs it.
+/// watch being what Watch.Ops.Fields gives for the row. Its NextDueAt is in the year 9999, so the real Checks never runs it, and its CreatedAt is the
+/// time of the call, so no other class counts it among the eval rows created since that class began.
 Method WatchRow(name As %String) As %DynamicObject [ Private ]
 {
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
@@ -1598,7 +1674,7 @@ Method WatchRow(name As %String) As %DynamicObject [ Private ]
 	Set row.Production = "Zz.Production"
 	Set row.DisplayName = "Zz production"
 	Set row.AskedBy = "zz-user"
-	Set row.CreatedAt = "2090-06-01T00:00:00Z"
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row.NextDueAt = $Parameter("OcuTalon.Watch.Ops", "EVALNEXTDUE")
 	Do $$$AssertStatusOK(row.%Save(), name_": the watch row is saved")
 	Do ..Keep(row)
@@ -1677,13 +1753,13 @@ Method FixRun(tag As %String, startedAt As %String) [ Private ]
 	Do ..Keep(row)
 }
 
-/// A command of the session (a StopWatch body for ZZNS and the production) and the message headers that carry it (one for each hop; headers is how many),
+/// A command of the session (a StopWatch body for the namespace, ZZNS by default, and the production) and the message headers that carry it (one for each hop; headers is how many),
 /// created at the time (YYYY-MM-DD hh:mm:ss.fff, UTC); all are removed after the test. Returns the ID of the body.
-Method Command(session As %String, created As %String, headers As %Integer = 1, production As %String = "Zz.Production") As %String [ Private ]
+Method Command(session As %String, created As %String, headers As %Integer = 1, production As %String = "Zz.Production", namespace As %String = "ZZNS") As %String [ Private ]
 {
 	Set body = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set body.SessionRef = session
-	Set body.Namespace = "ZZNS"
+	Set body.Namespace = namespace
 	Set body.Production = production
 	Do $$$AssertStatusOK(body.%Save(), session_": the command body is saved")
 	Do ..Keep(body)
@@ -1709,13 +1785,13 @@ Method Header(class As %String, bodyId As %String, created As %String) [ Private
 }
 
 /// The class and ID ("class|id") of every row the injection tests write, found by the values they carry and not by what a test recorded: the
-/// Setting keys zz.report.*, the FixRun approval refs zz-rep-*, the StopWatch commands of the productions that start with Zz.Production, the watch
-/// rows of the production Zz.Production, the message headers from ZzReport, the AgentStep bodies whose label starts with ZzReport, the approval
+/// Setting keys zz.report.*, the FixRun approval refs zz-rep-*, the StopWatch commands and the watch rows of the productions that start with
+/// Zz.Production, the message headers from ZzReport, the AgentStep bodies whose label starts with ZzReport, the approval
 /// requests of the incident zz-rep-* and the TurnResult bodies whose SourceItemId starts with zz-rep-.
 ClassMethod Marked() As %List [ Private ]
 {
 	Set rows = ""
-	For spec = "OcuTalon.Data.Setting|SELECT ID FROM OcuTalon_Data.Setting WHERE ""Key"" %STARTSWITH ?|zz.report.", "OcuTalon.Data.FixRun|SELECT ID FROM OcuTalon_Data.FixRun WHERE ApprovalRef %STARTSWITH ?|zz-rep-", "OcuTalon.Msg.Command.StopWatch|SELECT ID FROM OcuTalon_Msg_Command.StopWatch WHERE Production %STARTSWITH ?|Zz.Production", "OcuTalon.Data.BackgroundCheck|SELECT ID FROM OcuTalon_Data.BackgroundCheck WHERE Production = ?|Zz.Production", "Ens.MessageHeader|SELECT ID FROM Ens.MessageHeader WHERE SourceConfigName = ?|ZzReport", "OcuTalon.Bridge.Msg.AgentStep|SELECT ID FROM OcuTalon_Bridge_Msg.AgentStep WHERE Label %STARTSWITH ?|ZzReport", "OcuTalon.Bridge.Data.ApprovalRequest|SELECT ID FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef %STARTSWITH ?|zz-rep-", "OcuTalon.Eval.Msg.TurnResult|SELECT ID FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId %STARTSWITH ?|zz-rep-" {
+	For spec = "OcuTalon.Data.Setting|SELECT ID FROM OcuTalon_Data.Setting WHERE ""Key"" %STARTSWITH ?|zz.report.", "OcuTalon.Data.FixRun|SELECT ID FROM OcuTalon_Data.FixRun WHERE ApprovalRef %STARTSWITH ?|zz-rep-", "OcuTalon.Msg.Command.StopWatch|SELECT ID FROM OcuTalon_Msg_Command.StopWatch WHERE Production %STARTSWITH ?|Zz.Production", "OcuTalon.Data.BackgroundCheck|SELECT ID FROM OcuTalon_Data.BackgroundCheck WHERE Production %STARTSWITH ?|Zz.Production", "Ens.MessageHeader|SELECT ID FROM Ens.MessageHeader WHERE SourceConfigName = ?|ZzReport", "OcuTalon.Bridge.Msg.AgentStep|SELECT ID FROM OcuTalon_Bridge_Msg.AgentStep WHERE Label %STARTSWITH ?|ZzReport", "OcuTalon.Bridge.Data.ApprovalRequest|SELECT ID FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef %STARTSWITH ?|zz-rep-", "OcuTalon.Eval.Msg.TurnResult|SELECT ID FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId %STARTSWITH ?|zz-rep-" {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, $Piece(spec, "|", 2), $Piece(spec, "|", 3))
 		If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 		While result.%Next() {

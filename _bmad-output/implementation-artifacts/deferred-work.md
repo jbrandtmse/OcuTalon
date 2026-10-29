@@ -1936,3 +1936,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Data/Ownership.cls:373 selects every SessionRef of Kind production; Data/Session.cls:101 returns it for an instance incident; found by 9.8's plan and four review layers
 - 2026-10-29T12:01:00Z status=wontfix-theoretical owner=9-8-a-stop-watching-injection-leaves-the-watch-unchanged by=harvest note=real only if a session watches the same production on a stack where EvalIn is enabled during a run; EvalIn runs only on throwaways and CI (owner condition U-131), where no session watches; fix would be a Lane B Watchers filter on owner eval (Data/Ownership.cls, contended by Epics 10 and 16)
+
+### DW-393: FailurePoller.Watched's eval filter (SessionRef <> ?) compares in SessionRef's default SQLUPPER collation, so an owner EVAL or Eval would be skipped too, while RemoveEvalWatch and Report compare eval exactly
+- source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Watch/FailurePoller.cls:60 filters SessionRef <> ? on Data/BackgroundCheck.cls:13 (a %String, default SQLUPPER); Watch/Ops.cls RemoveEvalWatch compares row.SessionRef to eval exactly
+- 2026-10-29T13:04:31Z status=wontfix-theoretical owner=9-8-a-stop-watching-injection-leaves-the-watch-unchanged by=cr note=real only if an owner equal to eval ignoring case is written; owners are lower-case or 22-char Refs; fix: %EXACT
+
+### DW-394: Test.Eval.WatchOwners (QA, Story 9.8) repeats Test.Eval.Watch's BackgroundCheck fixture helpers (Row, RefOf, Sweep, the Listed loop; about 35 lines) in a second class instead of adding its five tests there
+- source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test/Eval/WatchOwners.cls:202-293 Row/RefOf/Sweep match Test/Eval/Watch.cls:284-378 but for the production and display name; Decided 18 covers per-class clean-up only
+- 2026-10-29T13:04:31Z status=wontfix-accepted owner=9-8-a-stop-watching-injection-leaves-the-watch-unchanged by=cr note=reopen_if a third Test.Eval class copies a BackgroundCheck row builder, or a BackgroundCheck change must be made in both Rows

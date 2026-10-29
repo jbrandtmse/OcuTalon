@@ -593,7 +593,7 @@ Method TestRefusals()
 	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run5), 1, "EvalIn", "Intake")
 	Do $$$AssertEquals(sent.%Size(), 1, "run 5 sent one message")
 	Set mark = ..LogMark
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 5, "each of the five cases not sent was logged as a warning, and run 4 skipped none")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 5, "each of the five cases not sent was logged as a warning, and runs 4 and 5 skipped none")
 }
 
 /// The two sendable cases of run 2 are two trace sessions under the run's one SuperSession, each with its own Item, row and decision.

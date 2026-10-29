@@ -317,6 +317,72 @@ Method TestFinish()
 	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).%ExistsId(session)_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(other.%Get("Ref"))_"|"_..Evals(), "1|0|"_before, "the session's row stays, and the row of the next record is removed")
 }
 
+/// (QA, Story 9.8, AC4) A case that is refused before its Item is built sets up no watch, whatever watch it declares: an unknown or turn kind, a missing
+/// item id, a provenance that is not untrusted each give their own reason, not the watch's, and leave no eval watch row; a turn case that declares a watch
+/// is sent to Decide and sets none up either, and has no record.
+Method TestEarlyRefusalsSetUpNoWatch()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set in = "OcuTalon.Eval.In"
+	Set before = ..Evals()
+	Set orders = ..Orders()
+	Set item = {"itemId": "zz-id", "channel": "mailbox", "provenance": "untrusted", "text": "Stop watching Orders."}
+	Do ..WriteCase("zz-w-kind", {"kind": "incident", "item": (item), "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-turnkind", {"kind": "turn", "item": (item), "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-noitem", {"kind": "item", "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-emptyid", {"kind": "item", "item": {"itemId": ""}, "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-user", {"kind": "injection", "item": {"itemId": "zz-id", "provenance": "user"}, "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-tainted", {"kind": "item", "item": {"itemId": "zz-id", "provenance": "tainted"}, "watch": (orders)}.%ToJSON())
+	Set cases = $ListBuild($ListBuild("zz-w-kind", ..KindReason("incident")), $ListBuild("zz-w-turnkind", ..KindReason("turn")), $ListBuild("zz-w-noitem", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-emptyid", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-user", ..ProvenanceReason("user")), $ListBuild("zz-w-tainted", ..ProvenanceReason("tainted")))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do $$$AssertEquals(..Process(service, $List(case, 1)), $List(case, 2), $List(case, 1)_": the reason is the case's own, not the watch's")
+		Do $$$AssertEquals(..Evals(), before, $List(case, 1)_": and no eval watch row was written")
+	}
+	Do $$$AssertEquals(..Seen()_"|"_..Rows(), "0|0", "nothing was dispatched and no case row was made")
+
+	Set service.%SessionId = 9876502
+	Do ..WriteCase("zz-w-clear", {"kind": "all-clear", "turn": {"text": "Is everything fine?"}, "checks": [], "watch": (orders)}.%ToJSON())
+	Set other = {"other": 1}.%ToJSON()
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "Plain text.", "HostData": (other)}.%ToJSON()
+	Do $$$AssertEquals(..Process(service, "zz-w-clear"), "", "a turn case that declares a watch is sent")
+	Do $$$AssertEquals(..Asked(), 1, "to Decide")
+	Do $$$AssertEquals(..Evals(), before, "and sets up no watch")
+	Do $$$AssertTrue('$IsObject(service.Watches) || (service.Watches.%Size() = 0), "and has no record")
+}
+
+/// (QA, Story 9.8, AC4) A case whose send fails removes the watch it set up and no other: with two sent cases around it, the failed case's row is gone and
+/// the rows of the cases before and after it stay, each named by a record, and Finish then removes exactly those two.
+Method TestFailedSendKeepsOtherWatches()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set before = ..Evals()
+	Set orders = ..Orders()
+	For tag = "one", "two", "three" {
+		Do ..WriteCase("zz-"_tag, {"kind": "injection", "item": {"itemId": ("zz-id-"_tag), "channel": "mailbox", "provenance": "untrusted", "text": "Stop watching Orders."}, "watch": (orders)}.%ToJSON())
+	}
+	Do $$$AssertEquals(..Process(service, "zz-one"), "", "the first case is sent")
+	Set ^OcuTalonTest("EvalIn", "fail") = "the target is not there"
+	Do $$$AssertTrue(..Process(service, "zz-two") [ "the target is not there", "the second case's send fails")
+	Kill ^OcuTalonTest("EvalIn", "fail")
+	Do $$$AssertEquals($List(..SeenAt(2), 13), before + 2, "its watch row existed beside the first case's when the send was tried")
+	Do $$$AssertEquals(..Evals(), before + 1, "and is removed, while the first case's row stays")
+	Do $$$AssertEquals(..Process(service, "zz-three"), "", "the third case is sent")
+	Do $$$AssertEquals(..Evals(), before + 2, "so the production has the rows of the first and the third case")
+	Do $$$AssertTrue($IsObject(service.Watches), "the service holds its setup records")
+	If '$IsObject(service.Watches) Quit
+	Do $$$AssertEquals(service.Watches.%Size(), 2, "two records")
+	If service.Watches.%Size() '= 2 Quit
+	Do $$$AssertEquals(service.Watches.%Get(0).case_"|"_service.Watches.%Get(1).case, "zz-one|zz-three", "for the first and the third case")
+	Set first = service.Watches.%Get(0).watch, third = service.Watches.%Get(1).watch
+	Do $$$AssertTrue(first.%Get("Ref") '= third.%Get("Ref"), "with rows of their own")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(first.%Get("Ref"))_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(third.%Get("Ref")), "1|1", "which are both there")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(service.Watches), "Finish answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(first.%Get("Ref"))_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(third.%Get("Ref"))_"|"_..Evals(), "0|0|"_before, "and removes both rows and nothing else")
+}
+
 /// An input that is not a folder from Start, and a service with no run, are refused with the input reason.
 Method TestInputRefused()
 {

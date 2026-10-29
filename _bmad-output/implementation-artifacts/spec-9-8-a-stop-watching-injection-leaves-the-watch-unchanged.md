@@ -377,6 +377,32 @@ deferred:
   - the script exits 0.
 - **Hermeticity.** Given a fresh throwaway, when the `Test.Eval.*` classes run forward and in reverse, then each passes and leaves no row, message body, eval watch, AI session, conversation link, mock countdown or folder behind.
 
+### Review Findings
+
+Code review of 2026-10-29 (lane B; tier `full-opus`, no model override; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; 22 findings in, 5 patch, 2 defer, 0 decision-needed, 12 rejected after grouping). Each surviving finding carries severity, fix-risk, footprint and spec-status (Rule 15).
+
+- [x] [Review][Patch] `Test.Eval.Watch.TestStopRefusedForEval`'s "no CheckChanged" assertion cannot fail: a shadow instance of the real `Watch.Ops` cannot `SendRequestAsync` (`Test/Watch/OpsProbe.cls:2`), and `Changed` catches the failure and only logs, so no header can appear whatever `OnStop` does. The shadow becomes `OcuTalon.Test.Watch.OpsProbe`, and the test asserts that it recorded no `CheckChanged` (verification-gap; med, fix-risk low: test only, 3 lines; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Watch.cls:269]
+- [x] [Review][Patch] `Test.Eval.Report`'s synthetic eval watch rows are dated in 2090 (`WatchRow` `CreatedAt`), so a row that a killed run left counts as "created since the class began" in `Test.Eval.Watch` (`Sweep(Begun)` fails the class), `Test.Eval.Cases` (`Evals(..Begun)`) and `Test.Eval.In` (`RemoveWatches`); and `Marked` finds the `BackgroundCheck` rows of `Zz.Production` only, so `TestWatchEveryField`'s row moved to `Zz.Production2` escapes the sweep. `WatchRow` dates its rows now, `TestWatchEveryField`'s changed `CreatedAt` is in 2000, and `Marked` takes the productions that start with `Zz.Production`, as its StopWatch query does (blind-hunter+verification-gap; low, fix-risk low: three values in one test class; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1676]
+- [x] [Review][Patch] `Test.Eval.WatchOwners.TestStartRefusedGivesNoWatches` calls `Start` on the default folder, so a guard that misjudges (EvalIn running enabled while its `Enabled` default-setting row is not 1) would send the whole set into the running production. `Start` is given a folder that holds no case, so a wrong guess sends nothing and the test goes red (blind-hunter; low, fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/WatchOwners.cls:185]
+- [x] [Review][Patch] `Test.Eval.WatchOwners.TestOtherOwnersPolled`'s "control" `AssertEquals(..Listed(), ..Listed())` compares two reads of rows nothing changes in between, so it cannot fail; it is deleted (the exact-list assertion above it is the pin) (verification-gap; low, fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/WatchOwners.cls:80]
+- [x] [Review][Patch] `Test.Eval.Run.TestRefusals`' warning-count message says only "run 4 skipped none", though run 5 also skips none (blind-hunter; low, fix-risk low: message text; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls:596]
+- [x] [Review][Defer] `FailurePoller.Watched`'s `SessionRef <> ?` compares in `SessionRef`'s default SQLUPPER collation, so a row whose owner is `EVAL` or `Eval` would be skipped too, while `RemoveEvalWatch` and `Report` compare `eval` exactly [src/ocutalon/cls/OcuTalon/Watch/FailurePoller.cls:60] — deferred: `wontfix-theoretical` (acceptance-auditor; low, fix-risk low; in-story footprint extension; the SQL is Task 3's text). No owner differs from `eval` only by case: `Ownership`'s reserved owners are lower-case constants and session Refs are 22 characters. Real only if a code path writes such an owner; the fix would be `%EXACT(SessionRef) <> ?`. Ledger: DW-393.
+- [x] [Review][Defer] Rule 2: QA's `Test.Eval.WatchOwners` repeats `Test.Eval.Watch`'s fixture helpers (`Row`, `RefOf`, `Sweep`'s namespace branch and `Listed`'s loop, about 35 lines) in a second class, instead of adding its five tests to `Test.Eval.Watch`. Decided 18's reason (each class removes its own state by its own scope) covers the clean-up, not the second class, so the reason is weak [src/ocutalon/cls/OcuTalon/Test/Eval/WatchOwners.cls:202] — deferred: `wontfix-accepted` (review's own Rule 2 check; low, fix-risk med: merging moves about 290 lines; in-story). Not a two-way door (more than 15 lines); `reopen_if` a third `Test.Eval` class copies a `BackgroundCheck` row builder, or a `BackgroundCheck` property change has to be made in both classes' `Row`. Ledger: DW-394.
+
+**Rejected (12):**
+- `low` (blind-hunter+edge-case-hunter+acceptance-auditor): `Eval.In.Send` drops `Unwatch`'s status after a failed send (`Eval/In.cls:304`). This needs `RemoveEvalWatch` to fail on a row the same job has just saved. The case is already a problem ("not sent"), and `eval/run.sh`'s `leftwatches` counts every eval row. The fix adds a branch.
+- `low` (blind-hunter+edge-case-hunter): `Report.Run` drops `Finish`'s error when `Wait` or `Build` throws (`Eval/Report.cls:296-297`). This is a double failure, and the rethrown exception already fails the run. The fix adds a branch.
+- `low` (blind-hunter): the Auto Run Result says 20 rejected low findings, but the Review Triage Log has 16. The cycle log's `mutations=17` also disagrees with the 18 `mutation:` lines of the implement and review stages. The fix edits the spec under review and the lead's cycle log; noted for the lead, the right figures are 16 and 18.
+- `low` (edge-case-hunter): `eval/run.sh` reads `+""` as 0 when the `leftwatches` query fails. That needs `OcuTalon_Data.BackgroundCheck` to stop answering SQL, which every Watch and Checks test would fail on first. The recorded mutation "`Report.Run` skips `Finish`" shows that the gate goes red. The fix adds a branch.
+- `low` (edge-case-hunter): `Test.Eval.Run.Leftovers` ignores a `Mock.Remaining` error. The mock answered run 5 seconds earlier on the same stack, and turning a read error into a red would add a branch.
+- `low` (acceptance-auditor): `Score` passes `declared`, not the case's `watch` member, so the record's production is not checked against the case. `Start` builds each record from that same case's `watch` (`Send`), and `Report.Run` and `Test.Eval.Run` pass a run's own records with its own folder, so the two are equal by construction. A cross-check would be a new guard.
+- `false` (edge-case-hunter): `Finish` stops on a record whose `watch` is not a dynamic object. No caller builds one: `Start`'s records are `Send`'s `{case, watch: Fields(row)}`, and a hand-built bad record makes `Finish` return an error, which is a loud failure.
+- `false` (edge-case-hunter): `RecordOf` and `WatchState` throw on an array `watch`. Like the row above, this is unreachable from `Start`'s records, and `Build` fails loudly.
+- `false` (edge-case-hunter): run 5's watch and stop-count assertions cannot go red. The recorded AC1 mutation (`EvalIn.Send` removes the watch after `Dispatch`) turned `TestStopRun` red on `present` and `unchanged`, and `Test.Eval.Report`'s recorded mutations pin the stop count. The Review Triage Log's fifth row rules the backstop.
+- `false` (acceptance-auditor): `WatchOwners` depends on Epic 7's `Test.Watch.OpsProbe`. It is Story 5.6's merged seam, unchanged on `feature/OCT_OcuTalon_MVP` since this worktree's merge-base. Using it edits nothing, and a Lane A copy would be the near-copy that Rule 2 forbids.
+- `false` (acceptance-auditor): `ZzChecks` is a stored class against "no stored class". Task 9 prescribes it with this storage. It is a test double like `Test.Checks.Probe`, not product schema.
+- `false` (acceptance-auditor): the spec says `status: done` while `sprint-status.yaml` says `review`, and QA's files are uncommitted. The frontmatter is build-auto's machine state, this review's script syncs the tracker, and the lead commits QA's files after the smoke gate.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -630,6 +656,58 @@ The review patches (see the Review Triage Log) changed `Eval/In.cls` (`WatchUp` 
 **Mutations of the review patches (Rule 19).** Each was applied to a backup-restored tree, observed red, reverted from the backup, and the tree was confirmed byte-identical (checksum, `git status --short`, `git diff --stat`); the class was green again on the same stack.
 - mutation: `Eval.In.Send` sets the watch up after `Dispatch` (the `WatchUp` block moved below the failure check) -> `Test.Eval.Cases` `TestRecordedCases` (`mail-stop-watching-orders: its eval watch row, and only the rows of the cases before it, existed when its Item was dispatched`)
 - mutation: `Test.Eval.Run` `OnAfterAllTests` skips the clear of the `eval-injection-stop` countdown -> `Test.Eval.Run` fails in `Leftovers` (`The clean-up left the mock's countdown of eval-injection-stop`)
+
+### QA-stage tests and results (2026-10-29, lane B, tags `e9s8q` and `e9s8qw`)
+
+**Tests added (QA).** Nine tests, in one new class and two extended ones; no product file changed.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/WatchOwners.cls` (QA, new; warm-safe, in the `lane-a` shard, synthetic rows of `ZZOWNERS`):
+  - `TestOtherOwnersPolled`: `FailurePoller.Watched` lists a production for a row of a session, of the owner `instance` and of no owner (earliest `CreatedAt`, in order) and no production that only an eval row names;
+  - `TestOtherOwnersDue`: the real `Due` rule (a `ZzChecks` shadow instance) finds those three owners' rows due one by one at ticks in 2999 and never the eval row beside them;
+  - `TestOnlySessionsStop`: through the `Test.Watch.OpsProbe` shadow instance, a session's stop removes its own row and sends the one `CheckChanged` (the positive control), and leaves the eval and `instance` rows of the same production as they were; a stop by `eval`, by `instance` and by a session with no row sends nothing;
+  - `TestRemoveRefusesEveryOtherOwner`: `RemoveEvalWatch` and `Finish` refuse the rows of `instance`, of no owner and of a session;
+  - `TestStartRefusedGivesNoWatches`: a refused `Start` gives an empty array of setup records.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (QA, extended): `TestWatchEveryField` (each of the 12 fields besides `Ref` changed alone is the one name in `changed`, a changed `Ref` is gone, and a field missing from the table fails the test) and `TestWatchStopCountEdges` (another namespace, a body with no header, a header of another class that holds the body's ID and a header a second early are not counted; one in the very second of the first `SentAt` is). The helper `Command` gained a `namespace` argument.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` (QA, extended): `TestEarlyRefusalsSetUpNoWatch` (a case refused before its Item is built, and a turn case, set up no watch though they declare one) and `TestFailedSendKeepsOtherWatches` (a failed send removes its own row only; `Finish` then removes the two records' rows).
+
+**Runs (all green).**
+- Warm (`e9s8qw`): `Test.Eval.WatchOwners` 0.01 s, `.In` 0.17 s, `.Report` 0.22 s, `.Watch` 0.04 s, `Test.Watch.Poller` 62.0 s.
+- `bash docker/tests/test-eval-set.sh` and `bash docker/tests/test-boundaries.sh`: every rule passed.
+- Fresh (`e9s8q`), `shard lane-a`, 81 classes: parts 6/10 (Checks, In, Record, Report, Run, Sink, Switch, Table) in 120 s and 7/10 (Watch, WatchOwners and the Install classes) in 93 s; reversed parts 4/10 (WatchOwners, Watch, Table and the Install classes) in 88 s and 5/10 (Switch to Cases) in 113 s. Every class passed.
+- `OCUTALON_RUN_TAG=e9s8q bash eval/run.sh`: exit 0 in 1 min 36.9 s; `PASS set: the run has no problem (28 case(s))`, `the watch of every injection case that has one is unchanged (1 of 1)`, `the run left no eval watch row` (both runs), the `mail-stop-watching-orders` bullet with `watch: unchanged`.
+
+**Mutations (Rule 19; `mutations_demonstrated=14`).** Each was applied to a product file (or to `docker/tests/test-eval-set.sh`) saved to a backup in the scratchpad first, observed red (on the warm stack, or in the script itself), and reverted from the backup; the sha-256 of the four product files, `git status --short` and `git diff --stat` were unchanged each time. Where the earlier tests were also run against the mutant, they stayed green.
+- mutation: `FailurePoller.Watched` filter loses its `SessionRef IS NULL` branch -> `Test.Eval.WatchOwners` `TestOtherOwnersPolled` (the row of no owner is not listed); `Test.Eval.Watch` stayed green
+- mutation: `FailurePoller.Watched` also skips the owner `instance` -> `TestOtherOwnersPolled`
+- mutation: `WatchOps` `EVALNEXTDUE` lowered to `2999-06-01T00:00:00Z` -> `TestOtherOwnersDue` (the eval row is due at the last tick of 2999 and at a tick in 9999)
+- mutation: `OnStop`'s `Session` test removed -> `TestOnlySessionsStop` (an `eval` and an `instance` stop answer other than `no_session` and send a `CheckChanged`)
+- mutation: `WatchOps.RefOf` ignores the session -> `TestOnlySessionsStop` (a session with no row stops another owner's row)
+- mutation: `RemoveEvalWatch` refuses only a row whose owner is 22 characters long -> `TestRemoveRefusesEveryOtherOwner` (the `instance` row and the row of no owner are deleted); `Test.Eval.Watch` `TestRemove` stayed green
+- mutation: `Report.WatchState` compares only `NextDueAt`, `LastRunAt` and `Result` -> `Test.Eval.Report` `TestWatchEveryField` (nine fields); `TestWatchChanged` and `TestWatchText` stayed green
+- mutation: the stop count drops `c.Namespace = ?` -> `TestWatchStopCountEdges`
+- mutation: the stop count drops the header's `MessageBodyClassName` test -> `TestWatchStopCountEdges`
+- mutation: the stop count compares `h.TimeCreated > ?` instead of `>=` -> `TestWatchStopCountEdges` (the very second of the first `SentAt`)
+- mutation: the failed-send path of `Eval.In.Send` removes every eval watch of the production -> `Test.Eval.In` `TestFailedSendKeepsOtherWatches`; `TestWatchRefused` stayed green
+- mutation: `Eval.In.Send` sets the watch up before the provenance check -> `TestEarlyRefusalsSetUpNoWatch` (`zz-w-user` and `zz-w-tainted` leave a row)
+- mutation: `Eval.In.Start` leaves `watches` unset -> `Test.Eval.WatchOwners` `TestStartRefusedGivesNoWatches`
+- mutation: `test-eval-set.sh`'s `cases` check accepts a watch with an extra member -> its own sample `bad-watch-extra-member` (`FAIL cases: the rule does not flag the sample bad-watch-extra-member`)
+
+### Code-review patches and runs (2026-10-29, lane B, tags `e9s8c` and `e9s8cw`)
+
+The five patches of `### Review Findings` changed only test classes: `Test/Eval/Watch.cls`, `Report.cls`, `WatchOwners.cls` and `Run.cls`. No product file changed.
+
+**Mutation (Rule 19).** The mutation was applied to `Watch/Ops.cls` after a scratchpad backup, observed red on the warm stack, and reverted from the backup. The file's sha-256, `git status --short` and `git diff --stat` were unchanged, `Ops.cls` equals HEAD, and the class was green again on the same stack.
+- mutation: `WatchOps.OnStop` asks `Changed` for a `CheckChanged` before it answers `no_session` (for owner `eval`) -> `Test.Eval.Watch` `TestStopRefusedForEval` ("and OnStop asked for no CheckChanged"). The pre-patch test, a shadow of the real `Watch.Ops`, stayed green against the same mutant, which confirms the finding.
+
+**Runs (all green).**
+- Warm (`e9s8cw`, `ci/warm.sh up` ready in 83 s): `Test.Eval.Watch` 0.28 s, `.WatchOwners` 0.08 s, `.Report` 0.79 s, `.Run` 7.78 s, `.Cases` 4.01 s.
+- Fresh (`e9s8c`), `ci/iris.sh shard lane-a`:
+  - `--part 6/10` (Eval Checks, In, Record, Report, Run, Sink, Switch, Table): 112 s;
+  - `--part 7/10` (Eval Watch and WatchOwners, and the Install classes): 90 s;
+  - `--reverse --part 4/10`: 96 s;
+  - `--reverse --part 5/10` (Switch to Cases): 120 s.
+  - Every class passed. `Install.Production`'s `TestStepHelpers` skip was already there.
+- `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-eval-set.sh`: every rule passed.
+- `ci/warm.sh down` (`e9s8cw`) and `ci/iris.sh teardown` (`e9s8c`): the lane-b lock folder is empty, and no container of either tag is left.
 
 ## Auto Run Result
 

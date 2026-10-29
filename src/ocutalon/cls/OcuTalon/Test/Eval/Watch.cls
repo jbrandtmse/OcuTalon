@@ -12,8 +12,9 @@
 ///     row, which stays;
 ///   - TestNotPolled: FailurePoller.Watched lists no production that only an eval row names, and counts only the other rows' CreatedAt;
 ///   - TestNeverDue: the Checks rule (a ZzChecks shadow instance) finds an eval watch due at no tick, and a row due in 2999 at a tick of 2999;
-///   - TestStopRefusedForEval: a StopWatch with the SessionRef eval, given to OnStop of a Watch.Ops shadow instance, answers no_session and leaves
-///     the row as it was.
+///   - TestStopRefusedForEval: a StopWatch with the SessionRef eval, given to the real OnStop through a shadow instance of the WatchOps probe
+///     (OcuTalon.Test.Watch.OpsProbe, which records each CheckChanged it is asked to send), answers no_session, leaves the row as it was and sends
+///     no CheckChanged.
 Class OcuTalon.Test.Eval.Watch Extends %UnitTest.TestCase
 {
 
@@ -21,6 +22,9 @@ Class OcuTalon.Test.Eval.Watch Extends %UnitTest.TestCase
 Parameter CHECKS = "OcuTalon.Test.Eval.ZzChecks";
 
 Parameter OPS = "OcuTalon.Watch.Ops";
+
+/// The WatchOps whose sends to Checks are recorded: a shadow instance of the real WatchOps cannot send, so only the probe shows an attempted send.
+Parameter PROBE = "OcuTalon.Test.Watch.OpsProbe";
 
 /// The namespace and the production of the synthetic rows.
 Parameter NAMESPACE = "ZZWATCH";
@@ -243,8 +247,8 @@ Method TestNeverDue()
 	Do $$$AssertEquals($Find(due, ","_fields.%Get("Ref")_","), 0, "nor at a tick in the last year")
 }
 
-/// A StopWatch of the owner eval for the Orders production, given to OnStop of a Watch.Ops shadow instance, answers no_session with Ok 0, and the eval
-/// watch row is as it was.
+/// A StopWatch of the owner eval for the Orders production, given to the real OnStop of a shadow instance of the WatchOps probe, answers no_session with
+/// Ok 0, the eval watch row is as it was, and the probe recorded no CheckChanged.
 Method TestStopRefusedForEval()
 {
 	Set demo = "OcuTalon.Install.Step.Demo"
@@ -253,8 +257,8 @@ Method TestStopRefusedForEval()
 	Do $$$AssertStatusOK(sc, "an Orders watch is set up")
 	If '$IsObject(fields) Quit
 	Do ..Track(fields.%Get("Ref"))
-	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#OPS, .sc)
-	Do $$$AssertStatusOK(sc, "a shadow instance of WatchOps is made")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the WatchOps probe is made")
 	If '$IsObject(host) Quit
 	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set command.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL
@@ -266,7 +270,7 @@ Method TestStopRefusedForEval()
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(fields.%Get("Ref"))
 	Do $$$AssertTrue($IsObject(row), "the eval watch is still there")
 	If $IsObject(row) Do $$$AssertEquals(##class(OcuTalon.Watch.Ops).Fields(row).%ToJSON(), fields.%ToJSON(), "and equals its setup record")
-	Do $$$AssertEquals(..CheckChanged(), 0, "no CheckChanged message header was created")
+	Do $$$AssertEquals($Select($IsObject(host.Changes): host.Changes.%Size(), 1: 0), 0, "and OnStop asked for no CheckChanged")
 }
 
 /// --- helpers ---
