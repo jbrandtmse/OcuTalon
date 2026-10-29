@@ -149,8 +149,7 @@ development_status:
   9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
   9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
   9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
-  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: 
-    ready-for-dev
+  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: in-progress
   9-8-a-stop-watching-injection-leaves-the-watch-unchanged: backlog
   9-4-ten-incidents-are-recorded-from-real-failures: ready-for-dev
   9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: backlog
