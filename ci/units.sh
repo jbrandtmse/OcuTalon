@@ -14,30 +14,81 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Install Tools Digest Watch" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
 }
 
 # The IRIS groups, in the order of the matrix of .github/workflows/ci.yml.
-IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
+IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
+# A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
+# one piece, so every test class runs once. lane-a runs in two pieces (DW-337): Checks, Install and Watch beside live:floor in
+# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. live:cards runs in
+# install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
 # Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
 # run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
 # bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
     install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a live:floor live:cards" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
+    shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
+}
+
+# shard_unit_areas <shard>[@<piece>]: the areas that the shard unit shard:<shard>[@<piece>] runs, on one line. With no piece they are
+# every area of the shard. A piece is a comma-separated list of areas of the shard, or rest: the areas of the shard that no other
+# piece of it in group_units names. Returns 1 for an unknown shard, an area that is not the shard's, an area named twice, or a piece
+# with no area.
+shard_unit_areas() {
+  local shard=${1%%@*} piece areas a g u named="" out=""
+  areas=$(shard_areas "$shard") || return 1
+  case $1 in
+    *@*) piece=${1#*@} ;;
+    *)
+      printf '%s\n' "$areas"
+      return 0
+      ;;
+  esac
+  if [ "$piece" = rest ]; then
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        case $u in
+          "shard:$shard@rest") ;;
+          "shard:$shard@"*) named="$named $(printf '%s' "${u#"shard:$shard@"}" | tr ',' ' ')" ;;
+        esac
+      done
+    done
+    for a in $areas; do
+      case " $named " in
+        *" $a "*) ;;
+        *) out="$out $a" ;;
+      esac
+    done
+  else
+    for a in $(printf '%s' "$piece" | tr ',' ' '); do
+      case " $areas " in
+        *" $a "*) ;;
+        *) return 1 ;;
+      esac
+      case " $out " in
+        *" $a "*) return 1 ;;
+      esac
+      out="$out $a"
+    done
+  fi
+  out=${out# }
+  [ -n "$out" ] || return 1
+  printf '%s\n' "$out"
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.

@@ -23,6 +23,10 @@
 ///     owner's TraceRef as SuperSession (empty for instance), in the process's session, with its own SuperSession put back; none for a recent or a closed
 ///     one; a failed send, and a send that IncidentManager did not answer in time, each log one warning that names the incident, and the others still go out;
 ///     the sweep is handed the clock's now (the probe's SweptAt), and the quiet rule runs against TICK;
+///   - TestTickSendsTheSweptResults (Story 7.5; AC 2; "Checks sends the results"): the FixResults that Fix.Run Sweep gives (canned by the probe) are each sent to IncidentManager after the
+///     quiet sweep, in the trace session of the result's incident (a result whose incident has none keeps the process's session) with the request's TraceRef as the SuperSession, and the
+///     process's own session and SuperSession are put back after each send; a send that fails logs one warning that names the request and the next result is still sent; a Sweep that throws logs
+///     one warning, and the due checks still run;
 ///   - TestRunThrows (Always, "A Tick"): a run that throws outside the read logs one warning (LOGRUN) that names the check, records nothing, and the next due row still runs;
 ///   - TestChanged ("Start and stop"): a CheckChanged for a start publishes FromRow of the row (nothing when the row is gone), one for a stop a payload with
 ///     stopped true and the message's name, on the message's session stream; a failed publish logs one warning;
@@ -59,6 +63,9 @@ Property Checks As %String(MAXLEN = "");
 /// The Refs of the incidents of the test being run, comma-separated (the probe's OnlyIncidents).
 Property Incidents As %String(MAXLEN = "");
 
+/// The Refs of the approval requests of the test being run, comma-separated (the Refs that the warnings of the fixes name).
+Property Requests As %String(MAXLEN = "");
+
 /// The Ref of the other session of the cases of the test being run, "" before the first needs one.
 Property Other As %String;
 
@@ -80,6 +87,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Set ..Refs = ""
 	Set ..Checks = ""
 	Set ..Incidents = ""
+	Set ..Requests = ""
 	Set ..Other = ""
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
@@ -353,6 +361,65 @@ Method TestQuietSweep()
 	Do $$$AssertTrue(text [ awaiting, "which names its incident: "_text)
 }
 
+Method TestTickSendsTheSweptResults()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("fixes")
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -960)
+	Set short = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -840)
+	Set quiet = ..Incident(a, "resolved", "Zz.Fixes", {"LastAt": (long)})
+	Set i1 = ..Incident(a, "fixing", "Zz.Fixes1", {"LastAt": (short), "TraceHeaderId": 4242001})
+	Set i2 = ..Incident(a, "fixing", "Zz.Fixes2", {"LastAt": (short), "TraceHeaderId": 4242002})
+	Set i3 = ..Incident(a, "fixing", "Zz.Fixes3", {"LastAt": (short)})
+	Set trace1 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set trace2 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set trace3 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set r1 = ##class(OcuTalon.Test.Data.Fixture).Approval(a, i1, "failed", , {"TraceRef": (trace1)})
+	Set r2 = ##class(OcuTalon.Test.Data.Fixture).Approval(a, i2, "failed", , {"TraceRef": (trace2)})
+	Set r3 = ##class(OcuTalon.Test.Data.Fixture).Approval(a, i3, "failed", , {"TraceRef": (trace3)})
+	Set ..Refs = ..Refs_","_r1_","_r2_","_r3
+	Set ..Requests = r1_","_r2_","_r3
+	Set host.QuietAt = ..#TICK
+	Set host.%SuperSession = "zzown"
+	Set host.Swept = ##class(%ListOfObjects).%New()
+	Do host.Swept.Insert(..Result(r1, i1))
+	Do host.Swept.Insert(..Result(r2, i2))
+	Do host.Swept.Insert(..Result(r3, i3))
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(host.Sent.%Size(), 3, "the three results are each sent")
+	If host.Sent.%Size() = 3 {
+		Do $$$AssertEquals(host.Sent.%Get(0).approvalRef_"|"_host.Sent.%Get(0).sessionId_"|"_host.Sent.%Get(0).superSession, r1_"|4242001|"_trace1, "the first goes in its incident's trace session with its request's TraceRef")
+		Do $$$AssertEquals(host.Sent.%Get(1).approvalRef_"|"_host.Sent.%Get(1).sessionId_"|"_host.Sent.%Get(1).superSession, r2_"|4242002|"_trace2, "the second in its own")
+		Do $$$AssertEquals(host.Sent.%Get(2).approvalRef_"|"_host.Sent.%Get(2).sessionId_"|"_host.Sent.%Get(2).superSession, r3_"|"_..#SESSIONID_"|"_trace3, "an incident with no trace session keeps the process's session, with its request's TraceRef")
+	}
+	Do $$$AssertEquals(host.Order.%Size(), 4, "four sends in all")
+	If host.Order.%Size() = 4 Do $$$AssertEquals(host.Order.%Get(0)_","_host.Order.%Get(1)_","_host.Order.%Get(2)_","_host.Order.%Get(3), "quiet:"_quiet_",fix:"_r1_",fix:"_r2_",fix:"_r3, "the quiet sweep comes first, then the fixes in order")
+	Do $$$AssertEquals(host.%SessionId_"|"_host.%SuperSession, ..#SESSIONID_"|zzown", "the process's own session and SuperSession are put back")
+
+	// a send that fails: one warning that names the request, and the others still go
+	Set host.Sent = ""
+	Set host.Order = ""
+	Set host.FailFix = r1
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(host.Sent.%Size(), 3, "with the first send failing, all three are still tried")
+	Do $$$AssertEquals(..Warnings("Fixes", $Parameter(..#PROBE, "LOGFIX"), .text, ..Requests), 1, "and one warning is logged")
+	Do $$$AssertTrue(text [ r1, "which names the request: "_text)
+	Do $$$AssertEquals(host.%SessionId_"|"_host.%SuperSession, ..#SESSIONID_"|zzown", "the session and the SuperSession are put back after a failed send too")
+
+	// a Sweep that throws: one warning, and the due checks still run
+	Set host.FailFix = ""
+	Set host.Sent = ""
+	Set host.SweepThrows = "zzchk"_..Number_" sweep refused"
+	Set production = "Zz.FixesDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "a Sweep that throws sends nothing")
+	Do $$$AssertEquals(..Fixed(), 1, "and logs one warning")
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due check still ran")
+}
+
 Method TestChanged()
 {
 	Set host = ..Host()
@@ -579,6 +646,27 @@ Method Case(host As OcuTalon.Test.Checks.Probe, session As %String, label As %St
 	Quit ref
 }
 
+/// A final FixResult of the request for the incident, as Sweep returns it.
+ClassMethod Result(approvalRef As %String, incidentRef As %String) As OcuTalon.Fix.Msg.FixResult
+{
+	Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+	Set result.ApprovalRef = approvalRef
+	Set result.IncidentRef = incidentRef
+	Set result.Final = 1
+	Set result.Total = 3
+	Set result.Resent = 3
+	Set result.Completed = 3
+	Quit result
+}
+
+/// The number of warnings since the test began that Tick logged for a Sweep that threw this test's own text.
+Method Fixed() As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGFIXES"), "zzchk"_..Number_" sweep refused")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// The check row of the Ref, as stored now (an object that the test opened before is reloaded: Checks changes the row with SQL).
 ClassMethod Row(ref As %String) As OcuTalon.Data.BackgroundCheck
 {
@@ -667,6 +755,12 @@ Method RemoveLogs()
 		If ref = "" Continue
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter(..#PROBE, "LOGQUIET")_ref)
 	}
+	For i = 1:1:$Length(..Requests, ",") {
+		Set ref = $Piece(..Requests, ",", i)
+		If ref = "" Continue
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Fixes", $Parameter(..#PROBE, "LOGFIX")_ref)
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGFIXES"), "zzchk"_..Number_" sweep refused")
 }
 
 }

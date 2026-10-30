@@ -1,5 +1,7 @@
 /// Tests of the pure parts of Story 5.4's diagnosis: the checked payload OcuTalon.Watch.Msg.DiagnosisPayload (as Decide checks a diagnose reply with it,
 /// Decide.CheckReply) and the item noun of OcuTalon.Watch.ItemNoun. They need no production and no namespace, so they run anywhere, a slot included.
+/// Each test runs with a ReplyCheck begun (OcuTalon.Bridge.ReplyCheck, as Decide begins it) for a diagnose request whose input is an evidence pack with the sample
+/// body of an order (OrderNumber, OrderDate 10/16/2026, Sku, Quantity), so that the fix kind can check the usable reply's field and formats (Story 7.1); OnAfterOneTest ends it.
 ///   - TestPayloadAccepted (row Payload check): a usable data-format reply with its fix and noun, a usable partner_outage without a fix or a noun, an
 ///     unknown, and a connection_failure whose cause names an address with a port (10.0.0.5:1972, no time of day), are accepted and keep their values;
 ///   - TestPayloadRefused (row Payload check): outcome tellnow, an unlisted category, a fixKind on partner_outage, a data-format change without fixKind,
@@ -14,6 +16,28 @@ Class OcuTalon.Test.Watch.Payload Extends %UnitTest.TestCase
 Parameter CLASS = "OcuTalon.Watch.Msg.DiagnosisPayload";
 
 Parameter DECIDE = "OcuTalon.Bridge.Process.Decide";
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "diagnose"
+	Set request.ItemId = "zzpayload"
+	Set request.OwnerRef = "instance"
+	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(..Pack())
+	Quit ##class(OcuTalon.Bridge.ReplyCheck).Begin(request)
+}
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+	Quit $$$OK
+}
+
+/// An evidence pack whose sample is an order of the Orders demo.
+ClassMethod Pack() As %DynamicObject
+{
+	Quit {"format": "ocutalon.evidencePack/1", "namespace": "OCUORDERS", "production": "OcuTalon.Demo.Orders.Production", "item": "OrdersFromPartner", "count": 50, "sample": {"headerId": 2, "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder", "body": {"OrderNumber": "A-1001", "OrderDate": "10/16/2026", "Sku": "SKU-1", "Quantity": "3"}, "error": "The order date was not in the expected format."}}
+}
 
 /// A usable data-format diagnosis, as a dynamic object.
 ClassMethod Usable() As %DynamicObject

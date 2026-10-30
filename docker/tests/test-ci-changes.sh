@@ -6,8 +6,8 @@
 # that runs this test never leaks in.
 #   - row 9, the web classifier: web is true for each web input and false for other paths, so a change to DESIGN.md runs web;
 #   - the group classifier: the script of each live unit (group_units) runs exactly its own group; the web-only set runs every group
-#     but production; a change to ci/ or the workflow runs all six, and each product source is claimed by a pattern; each declared
-#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all six, naming the path;
+#     but production; a change to ci/ or the workflow runs all seven, and each product source is claimed by a pattern; each declared
+#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all seven, naming the path;
 #   - row 10, the base: the first commit of the history with a green push run (HEAD itself on a re-run of a green run); no
 #     base, web true and every group running, on a pull request, with no run, with no green run in the history, with a run that is not
 #     a push, and when the answer cannot be read or holds no run list;
@@ -40,6 +40,8 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 changes="$root/ci/changes.sh"
 . "$root/ci/units.sh"
+# The number of IRIS groups, one GROUP line each.
+group_count=$(printf '%s\n' $IRIS_GROUPS | grep -c .)
 
 fails=0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-cc.XXXXXX") || exit 1
@@ -127,7 +129,7 @@ expect() {
   esac
   want=$(sorted $want)
   ran=$(sorted $out_ran)
-  if [ "$rc" -eq 0 ] && [ "$out_base" = "$2" ] && [ "$out_web" = "$3" ] && [ "$ran" = "$want" ] && [ "$out_lines" = 6 ]; then
+  if [ "$rc" -eq 0 ] && [ "$out_base" = "$2" ] && [ "$out_web" = "$3" ] && [ "$ran" = "$want" ] && [ "$out_lines" = "$group_count" ]; then
     pass "$1"
   else
     fail "$1 (rc=$rc base='$out_base' web='$out_web', groups that ran '$ran' of $out_lines GROUP lines, wanted base='$2' web='$3' groups '$want'; $out_reason)"
@@ -141,7 +143,7 @@ runs "$tmp/green-c0.json" "success:$c0"
 # --- row 9: the classifier, with the paths given ---
 
 # The groups that a web change runs: every group but production, whose units never check the built web bundle.
-web_groups="install-fresh install-upgrade browser shards image"
+web_groups="install-fresh install-upgrade browser shards shards-2 image"
 
 paths_case() { # paths_case <label> <web> <groups that run: all, none or names> <path>...
   local label=$1 web=$2 groups=$3 f="$tmp/paths.txt"
@@ -495,7 +497,7 @@ else
   fail "outputs: the reason of browser is '$out_reason'"
 fi
 classify "$tmp/green-b1.json" pull_request --group shards
-if [ "$out_run" = true ] && [ "$out_lines" = 6 ] && grep -qx 'run=true' "$tmp/github-output" && printf '%s\n' "$out_reason" | grep -q 'pull_request.*everything runs'; then
+if [ "$out_run" = true ] && [ "$out_lines" = "$group_count" ] && grep -qx 'run=true' "$tmp/github-output" && printf '%s\n' "$out_reason" | grep -q 'pull_request.*everything runs'; then
   pass "outputs: --group on a fallback answers run=true with the fallback's reason"
 else
   fail "outputs: --group on a pull request answered run='$out_run' with reason '$out_reason'"
@@ -525,7 +527,7 @@ export GITHUB_OUTPUT="$tmp/leaked-output"
   cd "$repo" || exit 1
   GITHUB_OUTPUT="" GITHUB_EVENT_PATH="$push_event" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY="" GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
-if grep -qx 'web=true' "$tmp/stdout" && [ "$(grep -c '^GROUP .* run=true: ' "$tmp/stdout")" = 6 ] && grep -qx 'base=' "$tmp/stdout" && grep -qx 'reason=GITHUB_REPOSITORY is not set: everything runs' "$tmp/stdout"; then
+if grep -qx 'web=true' "$tmp/stdout" && [ "$(grep -c '^GROUP .* run=true: ' "$tmp/stdout")" = "$group_count" ] && grep -qx 'base=' "$tmp/stdout" && grep -qx 'reason=GITHUB_REPOSITORY is not set: everything runs' "$tmp/stdout"; then
   pass "API failure: with no repository to ask, everything runs"
 else
   fail "API failure: the script did not fail open without a repository"
@@ -534,7 +536,7 @@ fi
   cd "$repo" || exit 1
   GITHUB_OUTPUT="" GITHUB_EVENT_PATH="$push_event" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY=o/r GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
-if grep -qx 'web=true' "$tmp/stdout" && [ "$(grep -c '^GROUP .* run=true: ' "$tmp/stdout")" = 6 ] && grep -qx 'base=' "$tmp/stdout" && grep -qx 'reason=the runs API failed: everything runs' "$tmp/stdout"; then
+if grep -qx 'web=true' "$tmp/stdout" && [ "$(grep -c '^GROUP .* run=true: ' "$tmp/stdout")" = "$group_count" ] && grep -qx 'base=' "$tmp/stdout" && grep -qx 'reason=the runs API failed: everything runs' "$tmp/stdout"; then
   pass "API failure: an API that does not answer fails open, and everything runs"
 else
   fail "API failure: the script did not fail open when the API did not answer"

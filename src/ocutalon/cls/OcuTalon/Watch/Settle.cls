@@ -10,6 +10,8 @@
 ///   - Quiet says whether an incident has been quiet for longer than a number of seconds: 1 when lastAt is more than that before now, 0 when it is not or a
 ///     stamp is not one (IncidentManager's closeQuiet).
 ///   - Hold gives a group's Seen set after a batch, and which of the batch's keys were new. A key already in the set is never counted again.
+///   - Window gives the keys of a Seen set that one dry-run ask covers (Story 7.6): those after the ask's from mark up to and including its to mark. The first ask
+///     has no from mark and starts at the first key; a window with no end, or one that ends before it starts, holds no key.
 /// A stamp is UTC, YYYY-MM-DDTHH:MM:SSZ, as the failures of a batch carry it.
 Class OcuTalon.Watch.Settle
 {
@@ -92,8 +94,9 @@ ClassMethod Alarm(seconds As %Integer) As %Integer
 	Quit $Select(seconds > ..#LONGESTALARM: ..#LONGESTALARM, 1: seconds)
 }
 
-/// A stamp as seconds since the start of the IRIS calendar, "" when it is not a stamp.
-ClassMethod Seconds(stamp As %String) As %Integer [ Private ]
+/// A stamp (UTC to the second, as OcuTalon.Data.Time gives it) as seconds since the start of the IRIS calendar, "" when it is not a stamp. The deadline of a
+/// wait (Fix.Executor) is read with it, as the settle rule is.
+ClassMethod Seconds(stamp As %String) As %Integer
 {
 	If stamp '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
 	Set seconds = ""
@@ -125,6 +128,28 @@ ClassMethod Hold(seen As %String, keys As %String, Output fresh As %String) As %
 	Set all = seen_$Select(seen = "": "", 1: ",")_fresh
 	Set count = $Length(all, ",")
 	Quit $Select(count > ..#SEENMAX: $Piece(all, ",", count - ..#SEENMAX + 1, count), 1: all)
+}
+
+/// The keys of seen (comma-separated, oldest first) after the key from up to and including the key to, comma-separated, in order. from empty, or not in seen,
+/// starts at the first key. to empty, not in seen, or not after the start gives "": an ask with no end covers nothing.
+ClassMethod Window(seen As %String, from As %String, to As %String) As %String
+{
+	Set seen = $Get(seen)
+	Set from = $Get(from)
+	Set to = $Get(to)
+	Set count = $Length(seen, ",")
+	Set start = 1
+	Set end = ""
+	Set foundFrom = ""
+	For i = 1:1:count {
+		Set key = $Piece(seen, ",", i)
+		If key = "" Continue
+		If (from '= "") && (key = from) && (foundFrom = "") Set foundFrom = i
+		If (to '= "") && (key = to) && (end = "") Set end = i
+	}
+	If foundFrom '= "" Set start = foundFrom + 1
+	If (end = "") || (end < start) Quit ""
+	Quit $Piece(seen, ",", start, end)
 }
 
 }

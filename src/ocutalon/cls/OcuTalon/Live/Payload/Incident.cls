@@ -67,8 +67,9 @@ Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFI
 ///     incident has no group and no sample;
 ///   - traceTargets: diagnosis (the row's TraceHeaderId in the current namespace), sample (SampleHeaderId) and firstFailure (FirstHeaderId), the
 ///     last two in the watched namespace; each is left out when its id is empty;
-///   - requests: one {ref, state} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result stays
-///     empty, as no table keeps a request's counts yet.
+///   - requests: one {ref, state, result} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result is the stored
+///     result of the request's run (Data.FixRun OfRequest: total, resent, completed, failedAgain, skipped, interrupted and reason) once that run has ended
+///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended.
 /// A row without any of them gives a payload without the four fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
 {
@@ -137,6 +138,17 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 		Set part = ##class(OcuTalon.Live.Payload.Part.IncidentRequest).%New()
 		Set part.Ref = request.Ref
 		Set part.State = request.State
+		Set run = ##class(OcuTalon.Data.FixRun).OfRequest(request.Ref)
+		If $IsObject(run) && (run.EndedAt '= "") {
+			Set part.Result = ##class(OcuTalon.Live.Payload.Part.IncidentRequestResult).%New()
+			Set part.Result.Total = run.Total
+			Set part.Result.Resent = run.Resent
+			Set part.Result.Completed = run.Completed
+			Set part.Result.FailedAgain = run.FailedAgain
+			Set part.Result.Skipped = run.Skipped
+			Set part.Result.Interrupted = run.Interrupted
+			Set part.Result.Reason = run.Reason
+		}
 		Do payload.Requests.Insert(part)
 	}
 }

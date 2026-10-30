@@ -3032,14 +3032,26 @@ So that I approve or reject exactly the change I can see.
 **Then** the incident moves per AD-15's transition table (to Open when no other request is pending and no fix is running; otherwise it stays awaiting approval or fixing), an `answered` notification, carrying the request's `ApprovalRef` and `IncidentRef`, gives the rejected status ("Rejected from {channel} at {time}. Nothing was changed.") or the expired one ("Expired at {time}. Nothing was changed."), no `Execute` request is sent, and nothing in the watched production changes (FR-8, FR-24, NFR-13, AD-15, AD-32, UX-DR76, UX-DR118)
 **And** a cancelled request sends no `ApprovalOutcome` and the incident stays as it is (AD-15)
 
+[AMENDED 2026-10-28, Story 7.2 spec gate, Epic 7 runner, unattended ruling (split, decide): the later-request criterion and both of its And clauses moved verbatim to Story 7.6, planned next, because 7.2 was too large for one implement pass.]
+
+- DW-270: Moved from Story 5.8 (U-92, R2): for a usable data-format diagnosis (outcome act, its proposed fix), IncidentManager first sends the with-fix incident notice here, through Epic 5's notice delivery and with Raise: one `OcuTalon.Msg.Notification` per recipient session of kind incident, the incident notice's catalog key, Slots with the count, the start time as UTC ISO 8601, the item noun as itemNoun {one, other} from the diagnosis, the agent's cause and fix summary as plain sentences without times, plus 7.2's dry-run slots and the first request's ApprovalRef; it sets NoticedAt; and for the live case the recorded date-format snapshot records (50 orders sent as `MM/DD/YYYY` through `Partner.Send`) and the mock's diagnosis scenario [AMENDED 2026-10-28, Story 7.2 spec gate, Rule 5 apply-and-report: IncidentManager builds evidence only from live incidents, so a recorded snapshot cannot drive a dry run] the notification's slots give 50 orders and the first failure's time, with CI seeing noticed, settling, diagnosing, then the notice, in that order (ledger; routed by merge_gate 2026-10-27)
+- DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's `Incident.RequestRefs`, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13) (ledger; routed by merge_gate 2026-10-27)
+
+### Story 7.6: Later failures in the same incident get their own dry run and approval request
+
+[ADDED 2026-10-28, Story 7.2 spec gate, Epic 7 runner, unattended ruling (split, decide): split from Story 7.2, whose later-request criterion and its two And clauses are moved here verbatim; planned next in Epic 7, after 7.2 and before 7.3.]
+
+As a user,
+I want failures that arrive after the notice to get their own dry run and approval request in the same incident,
+So that I never approve more than I was shown, and later failures are not lost.
+
+**Acceptance Criteria:**
+
 **Given** same-cause failures that join the incident after its notice, while it is awaiting approval, fixing or resolved
 **When** `IncidentManager` updates the incident's count
-**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156)
+**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: 7.6 delivers IncidentManager's half, one `Execute` per approved request, one at a time per incident; the `FixRun` row of each approved request is written by `Execute` and pinned in Story 7.3]
 **And** a test that renders the later-request entry of `OcuTalon.Msg.Catalog.Watch` with fixture slots gets "{count} more {item noun} failed since {time}, with the same cause. I can {fix summary}. Approve?" filled in (fixture "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?"), then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page." (FR-8, P27, UX-DR156)
 **And** failures that join an Open incident (fallback, no fix, rejected or expired) only update its count (FR-8, P27)
-
-- DW-270: Moved from Story 5.8 (U-92, R2): for a usable data-format diagnosis (outcome act, its proposed fix), IncidentManager first sends the with-fix incident notice here, through Epic 5's notice delivery and with Raise: one `OcuTalon.Msg.Notification` per recipient session of kind incident, the incident notice's catalog key, Slots with the count, the start time as UTC ISO 8601, the item noun as itemNoun {one, other} from the diagnosis, the agent's cause and fix summary as plain sentences without times, plus 7.2's dry-run slots and the first request's ApprovalRef; it sets NoticedAt; and for the recorded date-format snapshot and its mock scenario the notification's slots give 50 orders and the first failure's time, with CI seeing noticed, settling, diagnosing, then the notice, in that order (ledger; routed by merge_gate 2026-10-27)
-- DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's `Incident.RequestRefs`, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13) (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 7.3: Approved repairs are re-checked and resent
 
@@ -3076,6 +3088,10 @@ So that the broken orders are delivered without the originals being touched or a
 **And** a test finds every original header and body unchanged, each copy in its original's trace session with the same `SuperSession`, and the incident's trace linking to the copies by their registered header ids (FR-25, NFR-20, AD-16, AD-26)
 **And** when the target production isn't running, each copy it couldn't take is reported as skipped with a plain reason (AD-16)
 
+**Given** two approved requests of one incident (a first request and a later one, Story 7.6)
+**When** `IncidentManager` sends their `Execute` requests one at a time
+**Then** each run writes its own `FixRun` row with its own `ApprovalRef`, and each request's result is its own (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: moved from Story 7.6, whose `Execute` ordering is pinned there]
+
 ### Story 7.4: OcuTalon reports how many orders went through
 
 As a user,
@@ -3102,8 +3118,16 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **When** one approval request covers them and is approved
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
+**Given** two approved requests of one incident whose runs resent copies (Story 7.6's later request)
+**When** each run's copies have completed or failed again within `FixExecutor`'s wait
+**Then** each request's final `FixResult`, its `FixRun` and its result notice carry its own counts and its own `ApprovalRef`, and neither run's copies count in the other's result (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.3 spec gate, Epic 7 runner, unattended ruling (veto U-140): moved from Story 7.3, which pins the results it sends itself]
+
 - DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
+- DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so (ledger; routed by harvest 2026-10-27)
 - DW-292: `/state`'s incident entries carry what the incident's live events carry: `Live.Payload.Incident.FromRow` fills its groups, requests, evidence and traceTargets, so a reloaded or resynced incident card shows its request cards, results, Show details evidence and diagnosis link (AD-12) (ledger; routed by merge_gate 2026-10-28)
+- DW-368: A stopped target production renders as 'had changed since the dry run' (AD-16 counts its refused copies as Skipped and the Result texts convention picks result.skipped); give it an honest result: its plain reason, or a key of its own (new wording is a veto-window item) (ledger; routed by spec_gate 2026-10-28)
+- DW-380: An approved request whose ExpiresAt passes before FixExecutor takes its Execute, or whose StartExecution fails, is refused with an info line only, so it stays approved and its incident stays fixing with no result; give it an ending (its wording is a veto-window item) (ledger; routed by cr 2026-10-29)
+- DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait in its job would hold other incidents' notices past AD-15's 35 s; run the wait where it cannot block a dry run (ledger; routed by cr 2026-10-29)
 
 ### Story 7.5: A resend cut short by a restart says how far it got
 
@@ -3125,6 +3149,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Given** the three catalog keys
 **When** the catalog test runs
 **Then** each key, created in Epic 0 (Story 0.9 [AMENDED 2026-10-19, split for size, Rule 22]), exists in `OcuTalon.Msg.Catalog.Watch` with its slots and renders through the same `*Out` path as the other results, and its wording is P16's, accepted by the author on October 17 (EXPERIENCE.md › Results) (AD-16, AD-29, AD-32)
+
+- DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed) leaves every run still in its 60-second wait executing and its incident fixing with no result; the Sweep (or a waiter restart) must end them (ledger; routed by cr 2026-10-29)
 
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 

@@ -41,7 +41,7 @@ XData ProductionDefinition
   <Item Name="WatchOps" ClassName="OcuTalon.Watch.Ops" PoolSize="1" Enabled="true"/>
   <Item Name="EvalIn" ClassName="OcuTalon.Eval.In" PoolSize="0" Enabled="false"/>
   <Item Name="EvalSink" ClassName="OcuTalon.Eval.Sink" PoolSize="1" Enabled="true"/>
-  <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="1" Enabled="true"/>
+  <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="2" Enabled="true"/>
   <Item Name="Checks" ClassName="OcuTalon.Checks.Process" PoolSize="1" Enabled="true"/>
   <Item Name="DigestStore" ClassName="OcuTalon.Digest.Store" PoolSize="1" Enabled="true"/>
   <!-- lane A: end -->

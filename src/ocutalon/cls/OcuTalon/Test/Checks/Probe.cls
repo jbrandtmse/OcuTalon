@@ -14,6 +14,9 @@
 ///   - Quiet records the time it was given in SweptAt, then selects against QuietAt when that is set (a time that only the probe's tests reach), else against
 ///     the time it was given.
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
+///   - FixRunSweep (Story 7.5) gives the FixResults in Swept (none by default, so that a Tick never sweeps the fix runs of a stack) or throws the text in SweepThrows. SendFixResult cannot reach
+///     IncidentManager from a shadow instance, so it records {approvalRef, sessionId, superSession} in Sent and answers OK, or an error for a request that FailFix names (comma-separated Refs).
+///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
 Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 {
 
@@ -44,6 +47,19 @@ Property SilentQuiet As %String(MAXLEN = "") [ Transient ];
 /// 1 to make the read of the incidents throw.
 Property FailUnclosed As %Boolean [ InitialExpression = 0, Transient ];
 
+/// The FixResults that FixRunSweep gives, in order (a %ListOfObjects), and the text of the error that it throws instead when it is not empty.
+Property Swept As %ListOfObjects [ Transient ];
+
+Property SweepThrows As %String(MAXLEN = "") [ Transient ];
+
+/// The sends of SendFixResult in order, each {approvalRef, sessionId, superSession}, and the Refs of the requests whose send answers an error, comma-separated.
+Property Sent As %DynamicArray [ Transient ];
+
+Property FailFix As %String(MAXLEN = "") [ Transient ];
+
+/// Each send in order, as text.
+Property Order As %DynamicArray [ Transient ];
+
 Method Read(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String) As %String [ Private ]
 {
 	Set rows = []
@@ -66,10 +82,35 @@ Method SendQuiet(command As OcuTalon.Msg.IncidentCommand, Output answer As OcuTa
 	Set answer = ""
 	If '$IsObject(..Quieted) Set ..Quieted = []
 	Do ..Quieted.%Push({"incidentRef": (command.IncidentRef), "verb": (command.Verb), "origin": (command.Origin), "sessionRef": (command.SessionRef), "superSession": (..%SuperSession), "sessionId": (..%SessionId)})
+	Do ..Ordered("quiet:"_command.IncidentRef)
 	If (..FailQuiet = "*") || $ListFind($ListFromString(..FailQuiet), command.IncidentRef) Quit $SYSTEM.Status.Error(5001, "The send of closeQuiet is refused")
 	If $ListFind($ListFromString(..SilentQuiet), command.IncidentRef) Quit $$$OK
 	Set answer = ##class(OcuTalon.Msg.CommandResult).%New()
 	Quit $$$OK
+}
+
+/// Gives Swept (none when it is empty), or throws SweepThrows.
+Method FixRunSweep() As %ListOfObjects [ Private ]
+{
+	If ..SweepThrows '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..SweepThrows))
+	Quit $Select($IsObject(..Swept): ..Swept, 1: ##class(%ListOfObjects).%New())
+}
+
+/// Records the send with the session and the SuperSession it was made in, and answers OK, or an error for a request that FailFix names.
+Method SendFixResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
+{
+	If '$IsObject(..Sent) Set ..Sent = []
+	Do ..Sent.%Push({"approvalRef": (result.ApprovalRef), "sessionId": (..%SessionId), "superSession": (..%SuperSession)})
+	Do ..Ordered("fix:"_result.ApprovalRef)
+	If $ListFind($ListFromString(..FailFix), result.ApprovalRef) Quit $SYSTEM.Status.Error(5001, "The send of the result of "_result.ApprovalRef_" is refused")
+	Quit $$$OK
+}
+
+/// Adds the text to Order.
+Method Ordered(text As %String) [ Private ]
+{
+	If '$IsObject(..Order) Set ..Order = []
+	Do ..Order.%Push(text)
 }
 
 Method Due(tickAt As %String) As %DynamicArray [ Private ]

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 02:55
+last_updated: 10-30-2026 03:45
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -127,12 +127,13 @@ development_status:
   6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: done
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: backlog
-  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: backlog
-  7-3-approved-repairs-are-re-checked-and-resent: backlog
-  7-4-ocutalon-reports-how-many-orders-went-through: backlog
-  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: backlog
+  epic-7: done
+  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: done
+  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: done
+  7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an: done
+  7-3-approved-repairs-are-re-checked-and-resent: done
+  7-4-ocutalon-reports-how-many-orders-went-through: done
+  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
   epic-7-retrospective: optional
 
   epic-8: done

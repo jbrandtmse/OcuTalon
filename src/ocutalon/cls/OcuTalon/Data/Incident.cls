@@ -80,6 +80,14 @@ Property SampleError As %String(MAXLEN = 1000);
 /// The Refs of the incident's approval requests, comma-separated, in the order they were raised.
 Property RequestRefs As %String(MAXLEN = "");
 
+/// When the first of the same-cause failures that joined after a dry-run ask arrived (UTC, the earliest FailedAt of them); empty while none waits. It starts
+/// a later round and is the round's {time} (Story 7.6). Written by IncidentManager only.
+Property LaterSince As %String(MAXLEN = 20);
+
+/// While a later round's dry run is on its way: the round's {time}, moved here from LaterSince when the ask was made (UTC); empty otherwise. One ask is on its
+/// way at a time (Story 7.6). Written by IncidentManager only.
+Property AskingSince As %String(MAXLEN = 20);
+
 Index RefIndex On Ref [ Unique ];
 
 Index OwnerRefIndex On OwnerRef;
@@ -164,6 +172,12 @@ Storage Default
 </Value>
 <Value name="26">
 <Value>RequestRefs</Value>
+</Value>
+<Value name="27">
+<Value>LaterSince</Value>
+</Value>
+<Value name="28">
+<Value>AskingSince</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.IncidentD</DataLocation>

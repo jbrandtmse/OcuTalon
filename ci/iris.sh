@@ -6,7 +6,9 @@
 #
 #   ci/iris.sh list                       the check scripts, the web scripts, the shards and the groups with their units
 #   ci/iris.sh groups                     the group names, one per line (the matrix of .github/workflows/ci.yml)
-#   ci/iris.sh classes [shard]            the test classes of a shard (of every shard), one per line, in name order
+#   ci/iris.sh classes [shard]            the test classes of a shard (of every shard), one per line, in name order; a shard
+#                                         here and in `shard` may be a piece, <shard>@<Area>,... or <shard>@rest (shard_unit_areas
+#                                         of ci/units.sh), which keeps only those areas of the shard
 #   ci/iris.sh port                       the web port that the browser units would publish: 52810 + n (runners 0 to 9), 52819 - n (10 to 19), or auto
 #   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout
 #   ci/iris.sh shard <name> [--reverse] [--part k/n]
@@ -304,13 +306,14 @@ cmd_list() {
 }
 
 cmd_classes() {
-  local shard
+  local areas
   if [ $# -gt 0 ]; then
-    shard_areas "$1" >/dev/null || {
-      echo "unknown shard '$1'; shards: $SHARDS"
+    areas=$(shard_unit_areas "$1") || {
+      echo "unknown shard '$1'; shards: $SHARDS (a piece is <shard>@<Area>,... with areas of the shard, or <shard>@rest)"
       exit 2
     }
-    test_classes $(shard_areas "$1")
+    # shellcheck disable=SC2086
+    test_classes $areas
   else
     test_classes $(all_areas)
   fi
@@ -346,7 +349,7 @@ shard_part() {
 }
 
 cmd_shard() {
-  local name="" reverse=0 part="" part_given=0 arg classes part_k part_n count
+  local name="" reverse=0 part="" part_given=0 arg classes part_k part_n count areas
   while [ $# -gt 0 ]; do
     arg=$1
     shift
@@ -372,8 +375,8 @@ cmd_shard() {
       *) name=$arg ;;
     esac
   done
-  if [ -z "$name" ] || ! shard_areas "$name" >/dev/null; then
-    echo "unknown shard '$name'; shards: $SHARDS"
+  if [ -z "$name" ] || ! areas=$(shard_unit_areas "$name"); then
+    echo "unknown shard '$name'; shards: $SHARDS (a piece is <shard>@<Area>,... with areas of the shard, or <shard>@rest)"
     exit 2
   fi
   if [ "$part_given" -eq 1 ]; then
@@ -389,7 +392,8 @@ cmd_shard() {
     fi
   fi
   setup_tag
-  classes=$(test_classes $(shard_areas "$name"))
+  # shellcheck disable=SC2086
+  classes=$(test_classes $areas)
   if [ -z "$classes" ]; then
     echo "FAIL shard $name: no test class found below src/*/cls/OcuTalon/Test/<area>/"
     exit 1
@@ -406,7 +410,7 @@ cmd_shard() {
     title="$title part $part_k/$part_n"
   fi
   # shellcheck disable=SC2086
-  run_classes "shard-$name" "$title" $classes
+  run_classes "shard-${name%%@*}" "$title" $classes
 }
 
 cmd_class() {
