@@ -1,0 +1,442 @@
+---
+title: 'Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody'
+type: 'feature'
+created: '2026-10-29'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
+warnings: ['multiple-goals', 'oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** EvalIn still skips the ten recorded incident cases (kind `incident`, reported as `notRunYet`). So no cause score has ever measured the product's diagnosis, and Story 9.5's demo-incident gate has no path to run through. The live `IncidentManager` path, as Epic 7 left it, also asks for a dry run, raises an approval request and delivers a notice after every diagnosis. An evaluation incident must reach none of those.
+
+**Approach:**
+- EvalIn sends each incident case to `IncidentManager` as a new Lane A message, `OcuTalon.Eval.Msg.IncidentCase`, carrying a fresh Ref, the case name and the recorded snapshot.
+- A separate evaluation branch of `IncidentManager` then:
+  - builds the pack with `EvidencePack.Build(snapshot)`;
+  - calls `Decide` (`diagnose`, owner `eval`), with that Ref as `ItemId`;
+  - sends `EvalSink` one `ItemDecision`;
+  - writes no row, starts no waiter, and sends or publishes nothing else.
+- The Diagnosis agent's read tools answer from the same recorded snapshot for owner `eval`, so the measured diagnosis is the product's.
+- Two ledger entries are folded in:
+  - DW-353: the row is opened with the Ref EvalIn minted.
+  - DW-385: the Orders-definition fixture becomes one shared test helper.
+
+## Boundaries & Constraints
+
+**Always:**
+- **The eval branch has a single output.** It is reached only by an `IncidentCase`. Its only sends are:
+  - one `OcuTalon.Bridge.Msg.Request` to `Decide`;
+  - one `OcuTalon.Msg.ItemDecision` to `EvalSink`.
+- **The request to Decide** is built exactly as `Diagnose` builds one, by the shared builder:
+  - Kind `diagnose`, Provenance `untrusted`;
+  - `ItemId` = the case's `IncidentRef`, `OwnerRef` = `OcuTalon.Data.Ownership.#EVAL`;
+  - `TraceRef` = `..%SuperSession` (the run Ref), `ThreadSessionId` = `..%SessionId`;
+  - `Summary` = `<pack.count> failures at <pack.item>`, cut to `SUMMARYMAX`;
+  - `Input` = `EvidencePack.Input(pack)`.
+- **The ItemDecision** carries:
+  - `ItemId` = `IncidentRef` (the incident's Ref, AD-30) and the case's `SourceItemId`;
+  - `OwnerRef` `eval`, the request's `Summary`, and an empty `Channel`;
+  - `DecisionRef`, `Outcome`, `Fallback` and `FallbackReason` as Decide answered.
+- **Every failure ends the case as a fallback.** These all send a fallback `ItemDecision` (`Fallback` 1, `FallbackReason` `error`, `Outcome` `tellnow`, no `DecisionRef`) with one Type 3 warning (redacted):
+  - a snapshot that does not parse or builds no pack;
+  - a send to Decide that fails;
+  - an error answer;
+  - an answer that is not a `DecisionResponse`.
+
+  So a case row never stays `sent` silently. A failed send to EvalSink logs one Type 3 warning.
+- **EvalIn mints the case's `IncidentRef`** with `OcuTalon.Bridge.Ids.NewRef()`, the same way it mints every case's fresh id (AD-22).
+  - `SourceItemId` is the case's folder name, as for turn cases.
+  - The case's `CaseResult` row is opened with `ItemId` = `IncidentRef` before the send.
+  - A failed send removes the row again.
+- **The read tools' eval branch (AD-6) has strict limits:**
+  - It is reached only when `EvidencePack.Scope()` finds no incident, the context's `OwnerRef` is exactly `eval`, and the newest `IncidentCase` whose `IncidentRef` is the context's `ItemId` holds a snapshot of `SNAPSHOTFORMAT`.
+  - It reads that table with SQL only, so no `OcuTalon.Eval` class is named in callback code.
+  - It never throws, and writes nothing.
+  - Its answers have the live answers' shape, at most `MAXMESSAGES` failures and `MAXLOG` log rows, and the item's settings without credential names.
+- **These stay as they are:**
+  - every other path through IncidentManager, which keeps its existing tests green;
+  - every other tool answer and every other owner's answer;
+  - every cross-lane signature.
+
+**Never:**
+- **Never in the eval branch:**
+  - write an `Incident` or `FailureGroup` row;
+  - start a `Settle` waiter, or call `Tell`, `Notice`, `Propose`, `Ask`, `SendDryRun`, `RaiseRequest`, `Deliver`, `SendNotice` or `SendExecute`;
+  - publish `incident` or `watch.progress`;
+  - reach `OutcomeRouter`, `Notify`, `FixExecutor`, `ApprovalHold` or any `*Out` item.
+- Never diagnose outside `IncidentManager` (U-130). Never use `EnsLib.Testing.Service` or the testing switch.
+- **Never edit these:**
+  - a contended path: `Data/**`, `Core/**`, `Msg/**`, `Test/{Web,Data,Msg}/**`, `Install/**`, `docs/**`, `src/module.xml`;
+  - Lane B's mock behaviour, or `ARCHITECTURE-SPINE.md` (the lead writes the spine).
+- Never put a `[[mock:` marker in `eval/` outside `eval/mock-wrong/`. Never commit a local absolute path.
+- Never make `eval/run.sh` fail on a score.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Demo incident through the product (AC1, AC2) | A run names `orders-date-format` on a stack with EvalIn on and the CI mock | EvalIn>IncidentManager, IncidentManager>Decide (DiagnosisAgent), IncidentManager>EvalSink. The row ends `decided` with `DecisionRef` (a `diagnose` Decision, owner `eval`), `CauseCategory`, `ElementAtFault`, `FixKind`, `FixParameters`, `CostUSD` and `LargestRequestTokens`. No `Incident`, `FailureGroup`, `Notification`, `Delivery`, live event, `DryRun`, `ApprovalRequest` or `FixRun`. | No error expected |
+| Usable diagnosis with a fix | `DecisionResponse` with `act`, `Fallback` 0 and `repair_resend` | Exactly one `ItemDecision` to EvalSink (Outcome `act`). No dry run, raise, notice, waiter or alarm. | No error expected |
+| Usable diagnosis, no fix or `unknown` | `DecisionResponse` with `act` and an empty `fixKind` | The same single `ItemDecision`. No no-fix notice. | No error expected |
+| Fallback answer | `DecisionResponse` with `Fallback` 1 and `tellnow` | `ItemDecision` with Fallback 1, its reason and its `DecisionRef` | No error expected |
+| Decide refuses | `OnError` for an `IncidentCase` | `ItemDecision` with fallback `error` and no `DecisionRef` | One Type 3 warning; `OnError` answers OK |
+| Bad snapshot at IncidentManager | `Snapshot` not JSON, not `SNAPSHOTFORMAT`, or with no failure | No request to Decide; fallback `error` `ItemDecision` | One Type 3 warning |
+| Send to Decide fails | `SendDiagnose` errors | fallback `error` `ItemDecision` | One Type 3 warning |
+| Empty `IncidentRef` | An `IncidentCase` with no `IncidentRef` | `OnRequest` answers an error status that names the missing Ref. Nothing is sent. | Framework logs it |
+| Incident case cannot be sent (EvalIn) | No `snapshot`, a name with `/`, `\` or `..`, a missing file, or not a reader snapshot (`EvidencePack.Load`) | Skipped with `REASONNOSNAPSHOT` or `REASONSNAPSHOT`; no row, nothing sent | Warning `LOGSKIPPED` |
+| Dispatch fails (EvalIn) | `DispatchIncident` errors or throws | The row is removed; the case is skipped with the error text | Warning `LOGSKIPPED` |
+| Read tool, eval incident | Context: owner `eval`, `ItemId` = a saved `IncidentCase`'s `IncidentRef` | The three tools answer from its snapshot. `read_failed_messages` gives `{count: failures size, items: first ≤5}`; `read_event_log` gives ≤20 rows; `read_item_settings` gives `{item, settings}` without credentials. | Never throws |
+| Read tool, anything else | Another owner, no `IncidentCase` for the ItemId, no context, or a live incident in `Scope` | Unchanged: `{"items": []}`, or the live answer | Unchanged |
+| EvalSink receives the incident decision (DW-353) | `ItemDecision.ItemId` = the `IncidentRef` the row was opened with | `CaseResult.Pending(ItemId)` finds the row and completes it as today | Unchanged |
+
+</intent-contract>
+
+## Code Map
+
+All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
+
+**Product**
+- `Watch/IncidentManager.cls`. Lane A, Epic 7's as-built (a footprint extension).
+  - `OnRequest` :209-220 dispatches by class; any other class is a 5001 error at :219.
+  - `OnResponse` :226-243 and `OnError` :248-262 return early unless the request is a `Settle` (:228, :250). The eval route must come before that check.
+  - `Diagnose` :610-644 builds the request inline at :632-641 and sends it at :641 with `SendRequestAsync(..#DECIDE, request, 1, ..#DIAGNOSEKEY)`. A shadow instance cannot `SendRequestAsync`, so the seam matters for tests.
+  - `Tell` :1305 is the only publisher. Session.Recipients gives nothing for owner `eval`, but the eval branch must not call it at all.
+  - The BP's storage persists `%SuperSession` (irislib `Ens/BusinessProcess.cls`:260, :1394), so `OnResponse` still has the run Ref.
+- `Watch/EvidencePack.cls`. Lane A (a footprint extension). It is scanned by the callback rule (`Test/Bridge/CodeRules.cls` `WATCHREADS` :79, `CALLBACKHELPERS` :72, which includes `OcuTalon.Bridge.Context` and `OcuTalon.Data.Ownership`).
+  - `Scope` :37-45.
+  - `Build(source)` :84-101, which already accepts an Incident or a snapshot: the pattern to mirror.
+  - `Recorded` :119-136, which requires the format and at least one failure.
+  - Shaping helpers: `Message` :163, `LogMessage` :176, `Settings` :188.
+  - `Load(file)` :287.
+  - The tool reads take an Incident only: `FailedMessages` :305, `EventLog` :329, `ItemSettings` :347. Their only caller is `Tools/WatchReads.cls`.
+- `Tools/WatchReads.cls` :39-58. Each tool calls `Scope()` and otherwise answers `{"items": []}`. A footprint extension. The mock's default `diagnosis` script calls `read_failed_messages` first (`ci/mock/scenarios/A/diagnosis.json`).
+- `Tools/WatchAnswers.cls` `EvalCheckResults` :218-240. The sibling eval branch (Story 9.7): owner exactly `eval`, SQL read of an Eval message by `ItemId`, never throws.
+- `Eval/In.cls`
+  - `KINDS` :53, `REASONKIND` :85.
+  - `Send` :257-312: the item path, `Open` :293, `%SuperSession` :296, `Dispatch` :297.
+  - `Dispatch` seam :346-349.
+  - `SendTurn` :355-386: the precedent of `SourceItemId` = the case name (:368, :372).
+  - `SendOrder` :207: incidents go with "the others".
+  - `Scalar` :503.
+- `Eval/Msg/TurnResult.cls`: the precedent for a Lane A eval message (`Ens.Request`, no `DEFAULTGLOBAL`, no `short-names.tsv` row; its storage is the generated block).
+- `Eval/Data/CaseResult.cls`
+  - `Open` requires `itemId`; `Pending(itemId)` is how Sink finds the row.
+  - No storage change; doc comment only.
+- `Eval/Sink.cls`
+  - `Complete` finds the row by `Pending(request.ItemId)` and reads the cause fields from the Decision when `Kind` is `diagnose` (already tested on synthetic rows: `Test/Eval/Sink.cls` `TestIncident` :127).
+  - Doc comment only.
+- `Eval/Report.cls`
+  - Doc :42-45 and `NOTRUNYET` :151-152.
+  - `AddSkipped` :815-828: `notRunYet` = in `CASEKINDS` (:58) and not in `In.#KINDS`, so it turns 0 once `incident` is in `KINDS`.
+  - `Problems` :179-209.
+  - `Complete` :303-330 already requires a `DecisionRef`, a cost and a size on every row.
+  - Case entries carry `kind` (:402).
+- `eval/run.sh`
+  - `eval_run` :77-100 prints `CHK|case|name|right|got|fallback`, with an object `got` printed empty (:89), and `CHK|incidents|` (:90), which nothing checks.
+  - Run 1's checks are at :150-207. Run 2 parses `$5`/`$6` (:220).
+- Unchanged:
+  - `.github/workflows/lane-a.yml` `evaluation` job :44-63 (30-minute timeout, existing push triggers);
+  - `docker/tests/test-eval-set.sh`: the `markers` rule allows only `item` cases in `mock-wrong/`;
+  - `src/ocutalon/cls/OcuTalon/Production.cls`: `IncidentManager`, `DiagnosisAgent`, `EvalSink` and `FixExecutor` already exist at :28, :40, :43 and :44.
+- Bridge, read-only (`src/bridge/cls/OcuTalon/Bridge/`):
+  - `Msg/Request.cls`, which has no `HostData`.
+  - `Msg/DecisionResponse.cls`, extending `Msg/Result.cls` (`Outcome`, `Fallback`, `FallbackReason`, `DecisionRef`) with `Payload`.
+  - `Process/Decide.cls`: `Admit` :481-495 refuses an empty ItemId, OwnerRef or Input; `RecordFallback` :887-907 answers `tellnow`; one row per (ItemId, Kind).
+  - `Context.cls` `Begin(request, superSession)` :59, `End` :78, `Current` :90.
+  - `Budget.cls`:141 excludes `eval` from the daily cap. `Data/Ownership.cls` `Rows` :637-642 refuses owner `eval` for session totals.
+
+**Tests**
+- `Test/Eval/Run.cls`. The in-production isolation test: real production, with EvalIn switched on by `Prepare` :198-256 and restored in `OnAfterAllTests` :364.
+  - Cases and allow-list: `RUN1CASES` :73 already names `orders-date-format`; `ITEMPATH` :100.
+  - Tests to update: `TestItemPath` :483 (:486, :490), `TestRefusals` :571 (:575, :582, :596), `TestIsolation` :627-661 (the deny list :637 names IncidentManager; the Incident filter :648), `TestHops` :666-701 (:699), `TestUsage` :706-735 (`decisions = 14` :729), `TestReport` :738 (:757-760).
+  - Helpers: cleanup :386-401, `Leftovers` :438, `RowsOf` :1090, `Refs` :1101, `MaxId` :1146, `CountAbove` :1154.
+- `Test/Eval/In.cls`
+  - `TestRefuses` :152-183: case `zz-incident` → `KindReason("incident")`.
+  - `TestEarlyRefusalsSetUpNoWatch` :323-353: `zz-w-kind`, kind incident.
+  - `TestSendOrder` :599-617: stays valid.
+  - `KindReason` :743-748.
+- `Test/Eval/ZzIn.cls`: the `Dispatch` override at :20 records an Item under `^OcuTalonTest("EvalIn","seen",n)`, with the `fail` and `throw` globals.
+- `Test/Eval/Cases.cls` `TestRecordedCases` :106-160: the incident else-branch :147-148 expects a skip.
+- `Test/Eval/Report.cls`: `TestSkipped` :931-958 (:943, :949, :953-955) and `TestText` :1013 (:1035).
+- `Test/Watch/IncidentProbe.cls` :19. The shadow-instance subclass of IncidentManager whose send seams record into `Sent`, `DryRuns`, `Raised`, `Executed`, `Started`, `Alarms` and `Cancelled`. It is made with `Ens.Host.GetShadowInstance("class||<class>")` (`Test/Watch/Lifecycle.cls` :1010-1015). `Test/Watch/Lifecycle.cls` `TestUnknownRequest` :998-1006 must stay green.
+- `Test/Eval/Checks.cls`: the pattern for a callback-branch test. `Begin(owner, itemId)` :185 starts a bridge context from a Request, `Record` :198 saves a message body, and cleanup is by a SourceItemId prefix.
+- `Test/Contract/Mock.cls` `LogMark` :471, `LogSince` :484. These read `/opt/ocutalon/mock-log/requests.jsonl`, whose entries keep `messages` in full, with key-like text redacted (`ci/mock/mock.mjs` :40-46, :176-179).
+- DW-385 pair:
+  - `Test/Watch/Evidence.cls` `FixtureSettings` :60-87 and `DefinedSettings` :90-111 (all five names get `FIXTUREVALUE`; asserted at :362; callers :53, :350-372).
+  - `Test/Eval/Record.cls` `FixtureSettings` :973-1005 and `DefinedSettings` :1008-1030 (the credentials get `SECRET`, the note gets `NOTEVALUE`; asserted at :775, :785; callers :153, :540-554, :743-792).
+  - Both target `OCUORDERS` / `OcuTalon.Demo.Orders.Production` / `OrdersFromPartner`, with the names `Credentials,SMTPPassword,BotToken,ApiKey,ZzFixtureNote`.
+  - Public ClassMethods not named `Test*` are not run as tests (irislib `%UnitTest/Manager.cls` :1333-1351).
+- CI: `ci/units.sh`:17 puts the area `Eval` in `lane-a`, run by `shards-2` (`shard:lane-a@rest`). New `Test.Eval.*` TestCases are found by area, and non-TestCase helpers are ignored (`ci/iris.sh` :141-149).
+
+## Tasks & Acceptance
+
+**Execution:**
+
+**Product**
+- `src/ocutalon/cls/OcuTalon/Eval/Msg/IncidentCase.cls` (new) -- An `Ens.Request` with:
+  - `IncidentRef` (`%String`, MAXLEN 22);
+  - `SourceItemId` (MAXLEN 128);
+  - `Snapshot` (`%String`, MAXLEN "", the recorded reader snapshot's JSON text).
+
+  Its doc comment names its one writer (EvalIn) and its readers (`IncidentManager`'s eval branch, `EvidencePack.EvalSnapshot`). Commit the generated `Storage Default` block. -- This is the message the spine leaves unnamed. It carries the text, so IncidentManager reads no file.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls` --
+  - Add `Parameter EVALSINK = "EvalSink"` and a `LOGEVAL` warning prefix.
+  - `OnRequest`: dispatch `OcuTalon.Eval.Msg.IncidentCase` to a new private `EvalCase`.
+  - `OnResponse` and `OnError`: route an `IncidentCase` request to the eval handler before the `Settle` check.
+  - Extract the request build of `Diagnose` (:632-640) into a private `DiagnoseRequest(itemId, owner, count, pack)`. Extract the send into a private seam `SendDiagnose(request)`, which is `SendRequestAsync(..#DECIDE, request, 1, ..#DIAGNOSEKEY)`. `Diagnose` uses both, with its behaviour unchanged.
+  - Add a private seam `SendEval(decision)`, which is `SendRequestAsync(..#EVALSINK, decision, 0)`.
+  - `EvalCase`, `EvalAnswered` and `EvalRefused` implement the Always and Never rules and the matrix rows.
+  - Add one class-doc bullet for the evaluation incident (the contract, not the history). -- AC1, AC2; extend, don't copy.
+- `src/ocutalon/cls/OcuTalon/Eval/In.cls` --
+  - `KINDS` gains `incident`. Add the parameters `INCIDENTKIND`, `INCIDENTTARGET = "IncidentManager"`, `REASONNOSNAPSHOT` and `REASONSNAPSHOT` (with `{why}`).
+  - `Send` routes the kind to a private `SendIncident(case, folder, name)`, which:
+    - validates the `snapshot` member and loads it with `EvidencePack.Load`;
+    - builds the `IncidentCase` (fresh `IncidentRef`; `SourceItemId` = name; `Snapshot` = `snapshot.%ToJSON()`);
+    - opens the row with `ItemId` = `IncidentRef`, sets `%SuperSession` = `RunRef` and calls a private seam `DispatchIncident(case)`, which is `SendRequestAsync(..#INCIDENTTARGET, case)`;
+    - removes the row on an error.
+  - Update the class doc. -- AC1, AC3, DW-353.
+- `src/ocutalon/cls/OcuTalon/Watch/EvidencePack.cls` --
+  - Add `ClassMethod EvalSnapshot() As %DynamicObject`, the eval read under the Always limits. It is an SQL `SELECT Snapshot FROM OcuTalon_Eval_Msg.IncidentCase WHERE IncidentRef = ? ORDER BY ID DESC`, parsed and format-checked, returning "" otherwise.
+  - Make `FailedMessages`, `EventLog` and `ItemSettings` accept, like `Build`, either an Incident (live, unchanged) or a recorded snapshot. The answer shaping is shared, so both sources give one shape. A recorded snapshot answers:
+    - `count` = the size of `failures`, with `items` = the first `MAXMESSAGES` failures (or event-log rows when it has none);
+    - the first `MAXLOG` event-log rows;
+    - `item` = `Clean(failures[0].targetConfigName)` with `Settings(snapshot, item)`.
+
+  Name only classes that `CodeRules` allows. -- The Diagnosis agent's tools read the recorded failures (AD-22 Prevents).
+- `src/ocutalon/cls/OcuTalon/Tools/WatchReads.cls` -- Each of the three tools uses `Scope()`, then, when that finds no incident, `EvidencePack.EvalSnapshot()`. Otherwise it answers `{"items": []}` as today. Update the class doc. -- Same as above.
+- `src/ocutalon/cls/OcuTalon/Eval/Data/CaseResult.cls`, `Eval/Sink.cls` and `Eval/Report.cls` -- Doc comments only:
+  - an incident row is opened by EvalIn with the `IncidentRef` and completed from IncidentManager's `ItemDecision`;
+  - an incident's `SourceItemId` is the case name;
+  - `notRunYet` marks a kind of `CASEKINDS` that EvalIn does not send, which is now none.
+
+  There is no storage or behaviour change. -- Contract accuracy.
+- `eval/run.sh` --
+  - In `eval_run`, print an object `got` as `causeCategory/elementAtFault/fixKind`, and append the case's `kind` as a seventh field of `CHK|case|`.
+  - Run 1 must check that:
+    - the number of `incident` case lines equals the number of top-level `eval/*/case.json` of kind `incident`, and is greater than 0;
+    - every incident line has `fallback` 0 and a `got` with a non-empty cause category and element.
+  - Update the header comment. There is no score check. -- AC3.
+
+**DW-385**
+- `src/ocutalon/cls/OcuTalon/Test/Watch/OrdersDefinition.cls` (new, not a TestCase) -- It holds:
+  - `Parameter CREDENTIALS = "Credentials,SMTPPassword,BotToken,ApiKey"` and `Parameter NOTE = "ZzFixtureNote"`;
+  - `ClassMethod Put(on As %Boolean, credentialValue As %String, noteValue As %String) As %Status`, the one open/remove/insert/save loop on `OCUORDERS`'s Orders production definition (item `OrdersFromPartner`; namespace and production from `OcuTalon.Install.Step.Demo`'s parameters, as Evidence reads them);
+  - `ClassMethod Defined() As %String`. -- DW-385.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls` and `src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` -- Delete the private `FixtureSettings` and `DefinedSettings` and call the helper:
+  - Evidence passes `FIXTUREVALUE` for both values;
+  - Record passes `SECRET` and `NOTEVALUE`;
+  - their name parameters reference the helper's.
+
+  Assertions and values are unchanged. -- DW-385; no drift.
+
+**Tests**
+- `src/ocutalon/cls/OcuTalon/Test/Eval/ZzIncident.cls` (new) -- Extends `OcuTalon.Test.Watch.IncidentProbe`, overriding:
+  - `SendDiagnose`, which records the Request's fields in `Asked` and answers OK, or an error when `FailDiagnose` is set;
+  - `SendEval`, which records the ItemDecision's fields in `Delivered` and answers OK, or an error when `FailEval` is set.
+
+  The inherited seams record any forbidden send. -- A shadow-instance double; extends the sibling.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Incident.cls` (new TestCase, warm-safe, no production) -- Shadow-instance tests of every IncidentManager matrix row. The inputs are the demo snapshot from `/opt/ocutalon/eval/orders-date-format/snapshot.json`, and synthetic `DecisionResponse`s and errors.
+  - Each test asserts that `Sent`, `DryRuns`, `Raised`, `Executed`, `Started`, `Alarms` and `Cancelled` stay empty. It also asserts that the counts of the `Incident`, `FailureGroup`, `ApprovalRequest`, `FixRun` and `Live.Event` tables are unchanged.
+  - `TestRequest` pins the request's fields, with `Input` equal to `EvidencePack.Input` of `Build` of the same snapshot.
+  - Read-tool tests (the `Test.Eval.Checks` pattern) cover the eval branch and every non-eval row of the matrix, comparing each answer with `EvidencePack`'s answer for the snapshot.
+  - It deletes its `IncidentCase` bodies (SourceItemId prefix `zz-incident-`) and ends the context. -- AC1, AC2, tools.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/ZzIn.cls` and `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls`:
+  - ZzIn: add a `DispatchIncident` override that records `IncidentRef`, `SourceItemId`, the snapshot's format and failure count, whether the row was open, and the SuperSession, under `^OcuTalonTest("EvalIn","incident",n)`, with the same `fail` and `throw`.
+  - In: move the refused-kind cases to an unknown kind such as `zz-kind`.
+  - In: add tests that an incident case is sent once, with a 22-character fresh `IncidentRef`, `SourceItemId` = folder, and the row open with that ItemId.
+  - In: add tests for each EvalIn matrix row (skips and dispatch failure leave no row). -- AC1, DW-353.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- In `TestRecordedCases`, every recorded incident case is sent through `ZzIn`, with a snapshot of the format and at least one failure, and none is skipped. -- AC3.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` --
+  - `TestSkipped` and `TestText`: an incident skip is now a problem, and `notRunYet` is 0 for every kind.
+  - Add `TestEveryKindSent`: `Eval.In.#KINDS` covers every kind of `Report.#CASEKINDS`. -- AC3.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls` --
+  - `Prepare` also takes `Mock.LogMark()` and marks for `FixRun` and `FailureGroup`.
+  - `TestIsolation`:
+    - the deny list drops `IncidentManager` and adds `FixExecutor`;
+    - no header has a body of `OcuTalon.Fix.Msg.DryRun`, `.Execute` or `OcuTalon.Watch.Msg.Settle`;
+    - no `Incident` or `FailureGroup` row of any owner and no `FixRun` above its mark.
+  - `TestHops`: `ITEMPATH` adds `IncidentManager` and `DiagnosisAgent`. The control requires the hops `EvalIn>IncidentManager`, `IncidentManager>Decide` and `IncidentManager>EvalSink`. EvalIn's requests are exactly ` EvalIn>Decide EvalIn>EvalSink EvalIn>IncidentManager EvalIn>Intake`, and IncidentManager's exactly ` IncidentManager>Decide IncidentManager>EvalSink`.
+  - `TestUsage`: 15 decisions (six decide, one diagnose, eight turn).
+  - `TestItemPath`: run 1 sends 2 rows.
+  - `TestRefusals`: only `zz-missing`; four warnings.
+  - `TestReport`: incidents `1 of 1`; one skip; `notRunYet` 0.
+  - New `TestIncidentPath` covers the demo row's fields (first matrix row). In `LogSince`, a diagnose request has a `tool_result` that holds the snapshot's first failure's `bodyClass`, and no `tool_result` is `{"items":[]}`.
+  - Cleanup and `Leftovers` include the runs' `IncidentCase` bodies. Update the header. -- AC1, AC2, Integration.
+
+**Acceptance Criteria:**
+- **AC1.** Given the recorded incident `orders-date-format`, when a run sends it, then:
+  - `IncidentManager` builds the pack with `EvidencePack.Build` from the snapshot and calls `Decide` (`diagnose`) with owner `eval`;
+  - it sends `EvalSink` one `ItemDecision` with `IncidentRef` as `ItemId`, the diagnosis's `DecisionRef` and `SourceItemId` `orders-date-format`;
+  - nothing goes to `FixExecutor`, `ApprovalHold` or `Notify` (`Test.Eval.Run` `TestIncidentPath`, `TestHops`; `Test.Eval.Incident`).
+- **AC2.** Given a completed run that includes an incident case, when the isolation test checks what it wrote, then:
+  - there is no `Notification`, `Delivery`, live event holding a run Ref, `DryRun` or `Execute`, `ApprovalRequest`, `FixRun`, `Incident` or `FailureGroup`;
+  - every `Usage` row of the run's ItemIds has owner `eval`, and the daily spend is unchanged (`Test.Eval.Run` `TestIsolation`, `TestUsage`).
+- **AC3.** Given the evaluation job's command `eval/run.sh` on the CI mock, when run 1 sends the set, then:
+  - all ten incident cases run with the item and turn cases;
+  - each ends `decided`, with no fallback, a cause category and element, a cost and a request size;
+  - the run exits 0 with `eval/run: all checks passed` and no problem.
+- **Integration (Rule 1).** Given the eval branch's `ItemDecision`, when the real `EvalSink` and `Report` consume it in the running production, then:
+  - the case row is completed by its `ItemId` (DW-353);
+  - the report scores the incident;
+  - the Diagnosis agent's real `read_failed_messages`, called by the mock's default script, gives the model the recorded failures (the mock log).
+- **DW-385.** Given the two Orders-definition fixtures, when `Test.Watch.Evidence` and `Test.Eval.Record` run, then:
+  - both call `OcuTalon.Test.Watch.OrdersDefinition`, with no private copy left (`rg -n 'Method (FixtureSettings|DefinedSettings)' src` finds none);
+  - both classes pass unchanged in what they assert.
+
+## Spec Change Log
+
+- 2026-10-30, lead spec gate: Design Notes gained "Lead gate rulings" (DW-353 by construction accepted; U-162 veto for IncidentCase and the read-tool eval branch; spine row and diagram edge written by the lead). No intent change.
+
+## Review Triage Log
+
+## Design Notes
+
+**Architecture decisions (Rule 6).**
+
+| AD | What it binds here |
+|---|---|
+| AD-15 | The only writer is IncidentManager, and the eval branch writes no row. The pack goes in the first request. |
+| AD-16 | No dry run or Execute without approval: the eval branch asks for none. |
+| AD-20 | Usage owner `eval`, which no session total or cap counts. The filters are owner-only and so kind-agnostic: `Budget.cls`:141, `Ownership.Rows`. |
+| AD-22 | EvalIn, the product path and `EvidencePack.Build`. Its Prevents line, "a different path from the product", is why the read tools answer from the recording. |
+| AD-26 | Each case is its own trace session, and the run Ref is the SuperSession. |
+| AD-30 | IncidentManager sends EvalSink an `ItemDecision` with the incident's Ref as `ItemId`. |
+| AD-6, AD-10 | The tool methods write nothing and make no AI Hub or Python call. Answers are bounded and read-only, and a read tool's output taints, as it does today. |
+| AD-29, AD-33 | Every touched class is Lane A. |
+
+No AC contradicts an AD's Rule.
+
+**Decided in-stage:**
+1. **The message.** `OcuTalon.Eval.Msg.IncidentCase` is in Eval, beside `TurnResult`, and carries the snapshot text, not a path: IncidentManager reads no file named by a message, and the trace shows what was diagnosed. The demo snapshot is 71 KB, which fits a `%String(MAXLEN="")` as `TurnResult`'s fields do.
+2. **DW-353 is addressed by construction.** EvalIn mints the case's Ref, as AD-22 has it mint every case's fresh id, and IncidentManager uses it as the incident's Ref. So EvalIn knows the `ItemId` the `ItemDecision` will carry, and the existing `ItemId` match of `CaseResult.Pending` completes the row.
+   - The entry's proposed `RunRef` + `SourceItemId` match and index would add a second match path, a storage change and an index for a case that no longer arises.
+   - The entry's root cause, an incident row EvalSink cannot complete, is closed and tested (Integration AC). Flagged for the lead's gate, since the bullet named a mechanism.
+3. **`SourceItemId` = the case's folder name**, as for turn cases (`In.cls`:368, the `CaseResult` doc).
+4. **No `Incident` or `FailureGroup` row, settle wait or `watch.progress`** for an evaluation incident. A recorded batch has already settled. This is stricter than AC2's "owned by a session or instance", and the tests pin "none of any owner".
+5. **The read tools' eval branch.** It mirrors 9.7's `EvalCheckResults`. Without it the mock's own script, and Haiku in 9.5's gate, would get `{"items": []}` against a pack showing 50 failures, which is a different path from the product. It is reachable only for owner `eval`, which only EvalIn and this branch set, and is read-only.
+6. **Every failure ends the case as a fallback `ItemDecision`.** So `Report.Complete` lists it (no `DecisionRef`) and a mock run fails on it instead of waiting out `Wait`.
+7. **No `mock-wrong` incident case.** The mock's default diagnosis already answers `data_format_change`/`OrderDate` for every incident, so 9 of 10 score wrong on every push, which proves the scoring can say "wrong". The `markers` rule would also need a kind change.
+8. **`Report` keeps the `notRunYet` field.** It is in the shape that 9.5 and 11.4 will read, and it now reads 0; `TestEveryKindSent` pins that it stays 0.
+9. **`lane-a.yml` is unchanged.** Its existing push triggers stand (decided in 9.1 and 9.2), and `run.sh` carries AC3's checks.
+10. **The ItemDecision's `Channel` is empty**, as the live diagnose request sets none.
+11. **The send seams.** `DispatchIncident` is a sibling of `Dispatch`, not a generalised one, because `ZzIn` records typed fields per message.
+
+**Siblings (extend, don't copy):**
+- `DiagnoseRequest` and `SendDiagnose` are extracted from `Diagnose`.
+- `ZzIncident` extends `Test.Watch.IncidentProbe`.
+- `EvalSnapshot` follows `WatchAnswers.EvalCheckResults`.
+- The tool reads take a source, like `EvidencePack.Build`.
+- `Test.Eval.Incident`'s context tests follow `Test.Eval.Checks`.
+- `OrdersDefinition` replaces two copies (DW-385).
+
+**Integration and linkage (Rules 1 and 2).**
+- **Consumes:**
+  - `EvidencePack.Build`, `Load` and `Input` (Stories 0.10 and 5.4);
+  - Decide (`diagnose`) and DiagnosisAgent (Epics 1 and 5);
+  - `OcuTalon.Msg.ItemDecision` (Lane B, Story 0.4);
+  - `EvalSink` and `CaseResult` (9.1), `Report` (9.2);
+  - the ten recorded incidents (9.4, 9.9);
+  - `Test.Watch.IncidentProbe` (Stories 5.3 to 7.6) and `Test.Contract.Mock.LogMark`/`LogSince` (Story 0.11).
+
+  The integration AC exercises the real production, not a mock of these.
+- **Consumed-by:**
+  - Story 9.5: the demo-incident gate runs `Report.DEMOCASE` ten times on Haiku through this path, and reads `CaseResult`'s cause fields and `FixParameters` for `RepairResend.CheckParameters`.
+  - Story 17.7: setting-change incidents recorded through `Eval.Record.Capture` run as incident cases.
+  - Story 11.4: indirectly, through 9.5's result file.
+
+**Ledger inbox:**
+- DW-353 is addressed: Decided in-stage 2, and the tasks for `Eval/In.cls` and `Test/Eval/In.cls`, and the Integration AC.
+- DW-385 is addressed: the `OrdersDefinition` tasks and the DW-385 AC.
+
+**Footprint extensions:** none of these is a contended path.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`
+- `src/ocutalon/cls/OcuTalon/Watch/EvidencePack.cls`
+- `src/ocutalon/cls/OcuTalon/Tools/WatchReads.cls`
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls`
+- `src/ocutalon/cls/OcuTalon/Test/Watch/OrdersDefinition.cls` (new)
+
+**Veto-window items, for the lead's classification:**
+- the new stored message class `IncidentCase` (a new message body; compare U-144);
+- the read tools' eval branch (a new answer path for owner `eval`; read-only, no grant).
+
+**Proposed spine text (for the lead).** No AD's Rule, Binds or Prevents changes.
+- AD-33's ownership tables, "Cross-area classes and APIs", after the `TurnResult` row:
+  `| \`OcuTalon.Eval.Msg.IncidentCase\` (AD-22): \`IncidentRef\`, \`SourceItemId\`, \`Snapshot\`, from \`EvalIn\` to \`IncidentManager\`; the Diagnosis agent's read tools read its \`Snapshot\` for owner \`eval\` | A | Story 9.6 |`
+- Optional, in the Production diagram after `EVI["EvalIn (disabled)"] -->|"eval Item"| INT` (spine line 1049): `  EVI -->|"incident case"| INC`
+
+**Lead gate rulings (2026-10-30, spec gate).**
+- DW-353 by construction (Decided in-stage 2): accepted (decide). The entry's root cause, an incident row EvalSink cannot complete, is closed by EvalIn minting the `IncidentRef` and opening the row with it as `ItemId`; the bullet's `RunRef` + `SourceItemId` match and index are not built. The epics.md bullet carries the amendment.
+- `OcuTalon.Eval.Msg.IncidentCase` (a new stored message body) and the read tools' eval branch: kept as planned, a veto-window ruling (inbox U-162), consistent with U-143 and U-144. Reversal is a fix story.
+- The proposed spine text is written by the lead: the `IncidentCase` row in the Structural Seed's cross-area table and the `EVI -->|"incident case"| INC` diagram edge (no AD block changed). Do not edit the spine.
+
+**CI time (inference).**
+- `shards-2` gains about 10 to 20 s: one more diagnosis in `Test.Eval.Run`, and the shadow-instance and context tests at under 2 s.
+- The `evaluation` job (lane-a workflow) gains about 30 to 60 s: ten diagnoses of two mock requests each on DiagnosisAgent's one job. That is inside `Wait`'s 180 s and the job's 30 minutes. `shards` is unchanged.
+
+## Verification
+
+`<B>` stands for:
+```
+OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=9 stage=implement'
+```
+
+**Run discipline.**
+- Tags: fresh `e9s6i`, warm `e9s6iw`. QA and review use their own stage names and tags.
+- Run every command from the epic-9 worktree root, in the foreground of its own call with `timeout: 600000`.
+- Make one `iris_execute_tests` call per message, and pass `server` and `namespace` on every IRIS MCP call.
+
+**Runtime targets.**
+- Slot B: `server` `ocutalon-slot-b`, namespace `OCUTALON`, for `iris_server_info` and compile checks only. Never run a test, `EvalIn` or a fixture there.
+- Every test runs on throwaways through `ci/iris.sh` with `<B>`.
+- Tear down only `e9s6i` and `e9s6iw`.
+- `Test.Eval.Run` asserts "no incident", so it runs on fresh stacks only.
+
+**Shared surfaces:**
+- `Eval.In.#KINDS`, read by `Report.AddSkipped` and `Test.Eval.In` `KindReason`.
+- `Test.Eval.Run`'s counts, hops, deny list and `ITEMPATH`.
+- `eval/run.sh`'s `CHK|case|` line (a seventh field) and its run-1 checks.
+- The run's headers, the DiagnosisAgent queue and the mock log during a run.
+- `EvidencePack`'s tool reads, read by `Test.Watch.Evidence` and `Test.Watch.Diagnose`, with live answers unchanged.
+- The Orders definition's fixture settings, used by `Test.Watch.Evidence` and `Test.Eval.Record`.
+- `IncidentManager.OnRequest`'s handled classes, pinned by `Test.Watch.Lifecycle` `TestUnknownRequest`.
+
+Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**Commands:**
+- (once, first) `iris_server_info` on `ocutalon-slot-b`, then load and compile every new or changed class on slot B, namespace `OCUTALON`. Copy `IncidentCase`'s generated `Storage Default` into its file. -- expected: build 154, port 1991, every class compiles.
+- (once) `<B> OCUTALON_RUN_TAG=e9s6iw ci/warm.sh up` -- expected: ready, `LOCK acquired warm-iris`.
+- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s6iw ci/iris.sh class OcuTalon.Test.Eval.Incident`, and then, each in its own call, `OcuTalon.Test.Eval.In`, `.Test.Eval.Cases`, `.Test.Eval.Report`, `.Test.Eval.Record`, `.Test.Watch.Evidence`, `.Test.Watch.Diagnose`, `.Test.Watch.Lifecycle` and `.Test.Bridge.CodeRules` -- expected: each passed.
+- (loop) `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh class OcuTalon.Test.Eval.Run` -- expected: passed on a fresh stack, about 2 to 4 min. Record the demo diagnosis's `DurationMs`.
+- (loop) `bash docker/tests/test-eval-set.sh` -- expected: every rule passes.
+- (once) `<B> OCUTALON_RUN_TAG=e9s6i bash eval/run.sh` -- expected: `eval/run: all checks passed`, ten incident lines with fallback 0 and `data_format_change/OrderDate/repair_resend`, about 3 to 5 min. Record the wall time.
+- (once) Fresh shard parts, each in its own call. Use `ci/iris.sh classes lane-a@rest` and `ci/iris.sh classes lane-a@Watch` to find the parts of `--part k/8` that hold the changed classes. Run `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh shard lane-a@rest --part k/8` for each such part, then `--reverse`, and the same for `lane-a@Watch`. -- expected: every class passes, each call under about 8 min. Record the times.
+- (once) `bash ci/checks.sh` -- expected: every block passes, including `storage`, `boundaries`, `eval-set`, `class-rules` and `ci-config`.
+- (once, last; also after a failure) `<B> OCUTALON_RUN_TAG=e9s6iw ci/warm.sh down`, then `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh teardown` -- expected: no lock of this stage is left in the lane-b folder.
+
+**Planned mutations (Rule 19).** Apply each, observe the red, revert, confirm `git status --short` and `git diff --stat` are as before, then write the `mutation:` line.
+
+| AC | Mutation | Expected red |
+|---|---|---|
+| AC1 | `EvalAnswered` calls `..Propose(...)` with the fix | `Test.Eval.Incident` (`DryRuns` not empty) |
+| AC1 | The eval request's `Input` is the raw snapshot text | `Test.Eval.Incident` `TestRequest` |
+| AC1 | The ItemDecision's `ItemId` is the `SourceItemId` | `Test.Eval.Run` `TestIncidentPath` (the row stays sent) |
+| AC2 | `EvalCase` saves an `Incident` row with owner `instance` | `TestIsolation`, and the `Test.Eval.Incident` counts |
+| AC2 | The request's `OwnerRef` is `instance` | `TestUsage` (`others` > 0) |
+| AC3 | `KINDS` without `incident` | `eval/run.sh` (the incident count check) and `TestEveryKindSent` |
+| Tools | `EvalSnapshot` drops its owner check | `Test.Eval.Incident`, the non-eval read-tool test |
+| Integration | `WatchReads` skips `EvalSnapshot` | `TestIncidentPath` (the `tool_result` is `{"items":[]}`) |
+| DW-385 | `OrdersDefinition.Put` writes `credentialValue` to the note | `Test.Eval.Record` (the note value) |
+| Hermeticity | `Test.Eval.Incident` keeps its `IncidentCase` bodies | its leftover check |
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none

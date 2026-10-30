@@ -1047,6 +1047,7 @@ flowchart LR
   ASI -->|"start"| AH
   AH -->|"tool (replay)"| DEC
   EVI["EvalIn (disabled)"] -->|"eval Item"| INT
+  EVI -->|"incident case"| INC
   INT -->|"ItemDecision (eval)"| EVS["EvalSink"]
   INC -->|"ItemDecision (eval)"| EVS
   AH -->|TaskRequest| WF
@@ -1121,6 +1122,7 @@ flowchart LR
 | `OcuTalon.Fix.Msg.Execute`, `.FixResult` (AD-16), sent and handled by `IncidentManager`, `FixExecutor` and `Checks` | A | Story 5.5 (senders and handlers in Stories 7.3 to 7.5) |
 | `OcuTalon.Checks.Msg.CheckChanged` (AD-33): `CheckRef`, `SessionRef`, `Stopped`, `Kind`, `Namespace`, `Production`, `DisplayName`, sent by `WatchOps` after it starts or stops a watch, handled by `Checks`, the `check` event's single publisher | A | Story 5.6 [ADDED 2026-10-27, Story 5.6 spec gate] |
 | `OcuTalon.Eval.Msg.TurnResult` (AD-22), from `EvalIn` to `EvalSink` | A | Story 9.3 |
+| `OcuTalon.Eval.Msg.IncidentCase` (AD-22): `IncidentRef`, `SourceItemId`, `Snapshot` (the recorded reader snapshot's text), from `EvalIn` to `IncidentManager`; the Diagnosis agent's read tools read its `Snapshot` for owner `eval` only [AMENDED 2026-10-30, Story 9.6, unattended ruling (veto)] | A | Story 9.6 |
 | `OcuTalon.Docs.DropSession(sessionRef)`, `OcuTalon.Memory.DropSession(sessionRef)` (AD-21), called by `SessionOps.End` | A | Story 19.5 (the call in Story 34.2 (was 20.1)) |
 | `OcuTalon.Core.SettingsOps.RestartRunners()` (AD-21), called by `McpOps` (Lane A, step 4) | B | Story 35.2 (was 21.1) |
 | `OcuTalon.Mcp.Ops.Tools(server)` (AD-21), read by the settings page (Story 21.4) | A | fixed by Story 35.1 (was 22.1) (stub), built in Story 22.2 |
