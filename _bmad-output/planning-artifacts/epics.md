@@ -6447,7 +6447,7 @@ So that updates arrive at once.
 **Given** the CI demo-path environment
 **When** the WebSocket tests run
 **Then** an event published while the socket is open reaches the page through it; with the socket blocked, polling still delivers it; the 2-second delivery bound is measured in the rehearsal (NFR-9, AD-12) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the banner half of this criterion stays in Story 2.11]
-- DW-457: A WebSocket keeps serving its session for up to its 60 s lifetime after sign-out (the socket's CSP session never sees the sign-out); add a server-side sign-out check, a mark set at sign-out and read on each socket loop, once Epic 29 has merged and `Data/Session.cls` is free (ledger; routed by spec_gate 2026-10-30, orchestrator ruling U-174)
+- DW-457: A WebSocket keeps serving its session after sign-out (the socket's CSP session never sees the sign-out); this story adds a server-side sign-out check, a mark the sign-out sets and each socket loop reads, so an open socket sends no further frame within one loop after sign-out, with the 60 s socket lifetime kept as a backstop; only if another open epic holds `Data/Session.cls` when this story resumes does it stay a ledger entry, due before 1.0.0 (ledger; routed by spec_gate 2026-10-30, orchestrator ruling U-174, owner answer U-174 of 2026-10-30)
 
 ### Story 31.2: A tool call's approval request reaches the phone with Approve and Reject
 
