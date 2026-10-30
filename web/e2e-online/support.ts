@@ -156,7 +156,7 @@ export async function resumeCookie(context: BrowserContext): Promise<Cookie | un
   return (await context.cookies()).find((cookie) => cookie.name === RESUME_COOKIE);
 }
 
-/** The SHA-256 of the text, base64url without padding: the form in which OcuTalon.Data.Session.Hash stores a reference or an address. */
+/** The SHA-256 of the text, base64url without padding: the form in which OcuTalon.Data.Session.Hash stores a resume reference (a client address is stored as an HMAC instead, AddressCounter.AddressHash). */
 export function sha256url(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('base64url');
 }

@@ -31,6 +31,11 @@
 #     reference searches' controls: the three log sources are readable and not empty, and each searched record (the event log, the live
 #     events, the production message headers, the audit log, each of the three databases of the global scan) holds something the search
 #     can find, so that a count of 0 cannot come from a search that sees nothing;
+#   - the address counter's key (Story 29.5; AD-3, AD-5, AD-25): none exists after the start, the splash checks and row 12's exempt
+#     sign-ins; phase 2 removes the node row 12's lookups made, and its first counted sign-in makes it, with the start's last reset as its
+#     marker and no row under the plain SHA-256; row 13 adds a counter row before the restart, and after it the row still counts, the marker
+#     is unchanged, and no node of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the key but its own, raw or base64url (counts
+#     only; the key is never printed);
 #   - the browser (rows 7 to 12, Story 16.8's reset.spec.ts (the last ten minutes before a reset on a controlled clock, and a real reset four
 #     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b, and Story 16.3's R1, R2, R4 and R5; the REL-2 online run
 #     has its own unit, test-online-demo-path.sh): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
@@ -584,7 +589,7 @@ session_rows() {
 }
 counter_rows() {
   if [ -n "${1:-}" ]; then
-    printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$1\")) Do rs.%Next() Write !,\"CHK|rows|\",rs.%GetData(1)" 'Halt' | session_value OCUTALON rows
+    printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$1\")) Do rs.%Next() Write !,\"CHK|rows|\",rs.%GetData(1)" 'Halt' | session_value OCUTALON rows
   else
     printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
   fi
@@ -614,6 +619,11 @@ for i in 1 2 3 4 5 6; do
   if [ "$outcome" = shell ] && [ -n "$(set_cookie_value "$jar.h")" ]; then exempt_ok=$((exempt_ok + 1)); fi
   logout_all "$jar" /ocutalon/
 done
+# The start, the splash checks and these exempt sign-ins make no key (Story 29.5): the counter makes it at its first counted sign-in.
+check_session "row 12: the start, the splash checks and six exempt sign-ins made no address key" OCUTALON \
+  "CHK|key|0" \
+  'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Write !,"CHK|key|",$Data(@k)' \
+  'Halt'
 if [ "$exempt_ok" = 6 ] && [ "$(counter_rows)" = "$counter_before" ] && [ "$(counter_rows "$a0")" = 0 ]; then
   pass "row 12: six sign-ins from one forwarded address, not from the proxy, all give the shell and a cookie, and write no counter row"
 else
@@ -813,8 +823,21 @@ if [ -n "$host_ip" ] && [ "$(set_proxy "$host_ip")" = "$host_ip" ]; then
   precondition="zz-phase2-precondition"
   jar="$tmp/jar.precondition"
   : > "$jar"
+  # Row 12's lookups made a key: remove it, so that this counted sign-in is the first use (Story 29.5).
+  check_session "phase 2: the key is removed before the first counted sign-in" OCUTALON \
+    "CHK|key|0" \
+    'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Kill @k Write !,"CHK|key|",$Data(@k)' \
+    'Halt'
   online_signin "$jar" "$precondition" "" > /dev/null
   logout_all "$jar" /ocutalon/
+  check_session "phase 2: the first counted sign-in made the key with the start's marker, and wrote no row under the plain SHA-256" OCUTALON \
+    "CHK|key|1
+CHK|marker|1
+CHK|sha|0" \
+    'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Write !,"CHK|key|",$Data(@k)' \
+    'Set v=$Get(@k) Write !,"CHK|marker|",$ListValid(v)&&($ListLength(v)=2)&&($List(v,1)=##class(OcuTalon.Data.Public.Settings).Get("lastReset"))&&($Length($List(v,2))=32)' \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$precondition\")) Do rs.%Next() Write !,\"CHK|sha|\",rs.%GetData(1)" \
+    'Halt'
   if [ "$(counter_rows "$precondition")" = 1 ]; then
     proxied_ok=1
     pass "phase 2: one proxied sign-in wrote a counter row for its forwarded address (the proxy address is $host_ip)"
@@ -844,12 +867,12 @@ if [ "$proxied_ok" = 1 ]; then
     logout_all "$jar" /ocutalon/
   done
   # The first creation is aged to 50 minutes: the window is the past hour, so it still counts and the sixth is refused until ten minutes from now.
-  aged=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 ID FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ? ORDER BY ID\",##class(OcuTalon.Data.Session).Hash(\"$addr_a\")) Set ok=0 If rs.%Next() { Set r=##class(OcuTalon.Data.AddressCounter).%OpenId(rs.%Get(\"ID\")) Set r.CreatedAt=##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(),-3000) Set ok=\$SYSTEM.Status.IsOK(r.%Save()) } Write !,\"CHK|aged|\",ok" 'Halt' | session_value OCUTALON aged)
+  aged=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 ID FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ? ORDER BY ID\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$addr_a\")) Set ok=0 If rs.%Next() { Set r=##class(OcuTalon.Data.AddressCounter).%OpenId(rs.%Get(\"ID\")) Set r.CreatedAt=##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(),-3000) Set ok=\$SYSTEM.Status.IsOK(r.%Save()) } Write !,\"CHK|aged|\",ok" 'Halt' | session_value OCUTALON aged)
   rows_before=$(session_rows)
   jar="$tmp/jar.limit.6"
   : > "$jar"
   code=$(online_signin "$jar" "$addr_a" "")
-  oldest=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$addr_a\")) Do rs.%Next() Write !,\"CHK|oldest|\",##class(OcuTalon.Data.AddressCounter).Shift(rs.%GetData(1),3600)" 'Halt' | session_value OCUTALON oldest)
+  oldest=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$addr_a\")) Do rs.%Next() Write !,\"CHK|oldest|\",##class(OcuTalon.Data.AddressCounter).Shift(rs.%GetData(1),3600)" 'Halt' | session_value OCUTALON oldest)
   state_status=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar" -c "$jar" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
   refused_page=$(tr -d '\n' < "$jar.b")
   refused_ok=1
@@ -959,7 +982,7 @@ drop_session() {
     'Halt' | session_value OCUTALON dropped > /dev/null
 }
 drop_counter() {
-  printf '%s\n' "Do ##class(%SQL.Statement).%ExecDirect(,\"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$1\"))" 'Write !,"CHK|dropped|1"' 'Halt' | session_value OCUTALON dropped > /dev/null
+  printf '%s\n' "Do ##class(%SQL.Statement).%ExecDirect(,\"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$1\"))" 'Write !,"CHK|dropped|1"' 'Halt' | session_value OCUTALON dropped > /dev/null
 }
 # marker_in <headers file>: 1 when the headers hold X-OcuTalon-Busy: 1.
 marker_in() { if tr -d '\r' < "$1" 2>/dev/null | grep -qi '^x-ocutalon-busy: 1$'; then printf 1; else printf none; fi; }
@@ -1792,6 +1815,10 @@ check_logs_clean "after the first start"
 
 # --- row 13: every start, a restart ---
 
+check_session "row 13: a counter row is added before the restart" OCUTALON \
+  "CHK|added|1" \
+  'Write !,"CHK|added|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.AddressCounter).Add("zz-row13-restart"))' \
+  'Halt'
 dc stop iris > /dev/null 2>&1
 dc start iris > /dev/null 2>&1
 if ! wait_started_ready 200; then
@@ -1819,6 +1846,18 @@ else
   fail "row 13: after the restart the read-only account's sign-in gives '$restart_readonly', wanted norole"
 fi
 check_logs_clean "after the restart"
+# The same restart keeps the key and the row, and the key sits in its own node only, raw and base64url (counts only, Story 29.5).
+check_session "row 13: after the restart the row still counts, the key's marker is the start's, and only the key's own node holds the key" OCUTALON \
+  "CHK|counted|1
+CHK|marker|1
+CHK|raw|1
+CHK|b64|0" \
+  'Write !,"CHK|counted|",##class(OcuTalon.Data.AddressCounter).Recent("zz-row13-restart")' \
+  'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Set v=$Get(@k) Write !,"CHK|marker|",$ListValid(v)&&($ListLength(v)=2)&&($List(v,1)=##class(OcuTalon.Data.Public.Settings).Get("lastReset"))&&($Length($List(v,2))=32)' \
+  'Write !,"CHK|raw|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($List(v,2))' \
+  'Write !,"CHK|b64|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($Translate($SYSTEM.Encryption.Base64Encode($List(v,2),1),"+/=","-_"))' \
+  'Halt'
+drop_counter "zz-row13-restart"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-online-demo: $fails check(s) failed (project $P)"

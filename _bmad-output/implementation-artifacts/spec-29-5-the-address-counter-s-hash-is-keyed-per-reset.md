@@ -2,9 +2,10 @@
 title: "Story 29.5: The address counter's hash is keyed per reset"
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '115abb74e451d458b14ec4ffe43c11982f99924b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: [oversized]
@@ -164,6 +165,39 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 29 findings - high 0, medium 8, low 17, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter: an unset `lastReset` is a valid marker "" - real only off the online demo (the `Public` step requires `OCUTALON_LAST_RESET` as a time at every online start); the golden copy still holds no key, so the reset renews it; refusing "" would force every counter test to set `lastReset`, more than a direct correction.
+  - `[medium]` `[patch]` Blind Hunter: Add, Recent and Unlock with no key have no test - `TestKeyBusyFailsClosed` now runs `ClosedInAnotherJob` (Add answers an error that names no address and writes no row, Recent 0, Unlock raises nothing, still no node); mutation recorded.
+  - `[medium]` `[patch]` Blind Hunter: nothing ties `AddressHash` to the key - `TestAddStoresOnlyTheHash` compares the stored hash with an independent HMAC under the node's key; mutation recorded.
+  - `[low]` `[reject]` Blind Hunter: Lock and Unlock each derive the lock name - the key changes only at a start, which ends every process and lock, so the two names cannot differ within one run.
+  - `[low]` `[patch]` Blind Hunter: `Clean` null subscript, cost and stale rows - the null subscript is real (a row with an empty hash, which the AC6 mutation left, made `Clean` raise); `Clean` now skips an empty hash and deletes rows with none. Cost (microseconds per hash, n in the tens) and rows of an aborted run (removed by the hourly purge) are not worth more.
+  - `[low]` `[patch]` Blind Hunter: H17 names no namespace - the check now says namespace OCUTALON. The note about a key captured off procedure is already Design Notes' marker guard.
+  - `[false]` `[reject]` Blind Hunter: `^OcuTalonP.AddrCountK` is missing from `src/short-names.tsv` - the registry has one row per class and the key global sits under `AddrCount`'s prefix (Design Notes, AD-3); the spine's AD-3 wording is the lead's call (Rule 20).
+  - `[medium]` `[patch]` Blind Hunter: live checks unproven, the phase 2 kill unchecked, a boundary flake and a leftover row - the live unit ran green and both live mutations went red (rows 12 and 13); the kill is now a `check_session` that prints `CHK|key|0`; a restart keeps the environment, so no boundary is crossed; the row-13 fixture lives in a throwaway.
+  - `[low]` `[reject]` Edge Case Hunter: Unlock may release another name - same root cause as the Lock and Unlock finding above.
+  - `[low]` `[reject]` Edge Case Hunter: Recent answers 0 after Lock when Key then fails, so a session row is left - Lock succeeding proves a valid key, and Key fails afterwards only if `lastReset` becomes unreadable, which it cannot at run time.
+  - `[low]` `[reject]` Edge Case Hunter: an unset `lastReset` gives a non-renewing key - same as the first finding.
+  - `[low]` `[reject]` Edge Case Hunter: the `Key()` catch is silent - the live phase 2 proves the demo account makes the key; a log line would add public surface the spec does not ask for.
+  - `[medium]` `[patch]` Edge Case Hunter: the phase 2 kill is unchecked - same fix as above.
+  - `[false]` `[reject]` Edge Case Hunter: row 13's `Recent` runs first and may renew the key - a renewal would leave the row under the old key, so `CHK|counted|1` would be 0; the AC5 mutation went red there.
+  - `[low]` `[patch]` Edge Case Hunter: H17 needs a namespace - same fix as above.
+  - `[low]` `[reject]` Edge Case Hunter (claim): Recent 0 reads as under the limit when the key is lost mid-request - same as the second finding.
+  - `[low]` `[reject]` Edge Case Hunter (claim): an unreadable `lastReset` - same as the first finding.
+  - `[medium]` `[patch]` Verification Gap: the lock name is never observed - new `TestLockNameIsTheKeyedHash` (a second job cannot take the lock named by `AddressHash` while `Lock` is held, and takes the one named by the SHA-256); mutation recorded.
+  - `[medium]` `[patch]` Verification Gap: the in-lock re-read has no test (filed as a defer) - new `TestKeyMadeOnceUnderContention` (a job waits on the key lock, the test stores a key and releases, the job must keep it); mutation recorded.
+  - `[medium]` `[patch]` Verification Gap: the fail-closed branches of Add, Recent and Unlock - same fix as the second finding.
+  - `[medium]` `[patch]` Verification Gap: the phase 2 removal is unchecked - same fix as above.
+  - `[low]` `[reject]` Verification Gap: the first assertion of `TestKeyBusyFailsClosed` also holds if the probe never ran - the later "= 1" pair and the node check fail in that case.
+  - `[low]` `[patch]` Verification Gap: `Clean` null subscript - same fix as above.
+  - `[low]` `[reject]` Verification Gap: `Clean` cannot delete rows of an earlier key - same as above (aborted runs only; purged within the hour).
+  - `[low]` `[reject]` Verification Gap: `Clean` cost grows with the run number - same as above.
+  - `[false]` `[reject]` Verification Gap: helper tests leave a key in place - nothing reads "no key" except the tests that set it themselves.
+  - `[false]` `[reject]` Intent Alignment: the lifecycle claim (no key at start, one at the first counted sign-in, a restart keeps it) is proven only by the live unit - the live unit ran green (rows 12 and 13, phase 2) and went red under the two live mutations.
+  - `[low]` `[reject]` Intent Alignment: a reset between Lock and Unlock - same as the Lock and Unlock finding.
+  - `[low]` `[reject]` Intent Alignment: no `SessionEvents`-level test of the no-key case - `AttachVisitor` is unchanged and its refusal is the Lock-answers-0 case, pinned at the class level.
+
 ## Design Notes
 
 **Owner decision for Epic 29** (`owner_decision id=epic29_brief`, 2026-10-30, decided by the Contest Planner under the owner's delegation; DW-233 is kept by veto ruling U-156). It binds, and is planned as given:
@@ -208,6 +242,9 @@ No AC contradicts an AD's Rule.
 **footprint_extensions:** none. Every file is in Epic 29's footprint: `Data/AddressCounter.cls`, `Test/Data/**`, `Test/Web/**`, `docker/tests/test-online-demo.sh`, `web/e2e-online/**`, and `release/demo-host-checks.md`, a `release/` file new in this epic (Story 29.3).
 
 **Decided in-stage:**
+9. (implement) The wait of `Key()` and `Lock` is a class parameter `WAIT` (5 s), so the key lock and the address lock name one number.
+10. (implement) An unset `lastReset` is a marker like any other (""). The online demo's start always writes it, and the golden copy holds no key, so a reset still renews it.
+11. (implement) MEASURED: `live online-demo` took 383 s (the 29.4 head: about 360 s) with the warm stack up beside it, and 378 s in the mutation run; the key scans together took about 0.5 s. `bash ci/checks.sh` 264 s. `shard lane-b@Data,Web` 148 s forward and 147 s reversed (28 classes). `Test.Data.AddressCounter` takes about 29 s (the busy case waits three times 5 s in its job, and the contention case 1.5 s).
 1. The lazy key with a marker guard: the owner's second option, read by lifecycle (above).
 2. HMAC-SHA-256, base64url without padding. It is 43 characters, as before, so the Tables contract and storage stay as they are.
 3. The key global is a parameter of the class (`KEYGLOBAL`). Tests and the live unit read it through the parameter, so a mutation that moves it is followed and caught.
@@ -252,10 +289,27 @@ Every call runs in the foreground with `timeout: 600000`, one test call per mess
 - AC4: `AttachVisitor` calls `##class(OcuTalon.Data.AddressCounter).AddressHash(address)` before its proxied branch, so an exempt sign-in makes a key. Red: `live online-demo` row 12 (`CHK|key|1`, wanted 0).
 - AC5: `KEYGLOBAL` becomes `^IRIS.Temp.OcuTalonAddrCountK` (IRISTEMP, which a start clears; inference). Red: `live online-demo` row 13 (`CHK|counted|0`, wanted 1). `TestKeyIsPrivate` also goes red. AC4's and AC5's mutations may share one live run, since each turns a different row red. If either row stays green, run them apart.
 - AC6: `Key()` ignores a lock timeout and makes the key anyway. Red: `TestKeyBusyFailsClosed` (`FreeInAnotherJob` answers 1, wanted 0), on a warm class run.
+- mutation: AC1 applied on the warm stack (`AddressHash` returns `Session.Hash(address)`): red in `TestAddStoresOnlyTheHash` ("not the address's SHA-256"), also `TestRecentWindow` ("a row stored as the address's SHA-256 is not counted"), `TestKeyBusyFailsClosed` and `TestKeyPerReset`; reverted, the class green again on the same stack, the file byte-identical to its backup.
+- mutation: AC2 applied (`Key()` also sets `^OcuTalonP.AddrCountK("copy")` to the key's base64url): red in `TestKeyIsPrivate` ("the node has no descendant, so no subscripted node holds the key") and `TestKeyBusyFailsClosed` ("and makes the key"); reverted, the class green again on the same stack, the file byte-identical.
+- mutation: AC3 applied (`Key()` answers a stored 32-byte key whatever its marker): red in `TestKeyPerReset` at the first reset ("the first reset gives a new key", then the hash, marker and "the row of T1 no longer counts" lines); reverted, green again.
+- mutation: AC6 applied (`Key()` ignores a lock timeout): red in `TestKeyBusyFailsClosed` ("Lock answers 0 while the key lock is held elsewhere", "and no node is made"); reverted, green again, and `git status --short` and `git diff --stat` unchanged by the mutation round.
+- mutation: AC1 (lock name) applied: `Lock` names its lock by `Session.Hash(address)`; red in `TestLockNameIsTheKeyedHash` ("the lock named by AddressHash is held" and "the lock named by the plain SHA-256 is not"); reverted, green again.
+- mutation: AC1 (HMAC under the key) applied: `AddressHash` keys the HMAC with the reversed key; red in `TestAddStoresOnlyTheHash` ("it is the HMAC-SHA-256 of the UTF-8 address under the node's key"); reverted, green again.
+- mutation: AC3 (one key per reset under contention) applied: the in-lock re-read in `Key()` is removed; red in `TestKeyMadeOnceUnderContention` ("the job did not replace the stored key"); reverted, green again.
+- mutation: AC6 (fail closed for `Add`) applied: `Add` has no no-key guard; red in `TestKeyBusyFailsClosed` ("Add answers an error" and "and writes no row"); reverted, green again, `git status --short` unchanged by the round.
+- mutation: AC4 and AC5 applied together in one live run: `AttachVisitor` calls `AddressHash` before its proxied branch, and `KEYGLOBAL` is `^IRIS.Temp.OcuTalonAddrCountK`; red in `live online-demo` row 12 (`CHK|key|1`, wanted 0) for AC4, and in row 13 (`CHK|counted|0`, wanted 1; also `CHK|raw|0`) for AC5; reverted from backups, the tree byte-identical (`git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-30, runner C, unattended).** Planned only; nothing implemented. The key is made lazily, at its first use after a start whose `lastReset` differs from the node's marker. That use is always a counted sign-in, so no golden copy holds a key: the owner's second option, "it lives outside what the golden copy captures", read by lifecycle (Design Notes, "Which option"). The marker guard renews even a key that a copy did hold. Task 0 on slot C (build 154U) measured HMACSHA(256) against RFC 4231, `GenCryptRand(32)`, the 43-character base64url form, and that `^OcuTalonP.AddrCountK` resolves to the private database. It made no node and printed no random value. No live unit or CI group is added; the live checks go into `live:online-demo`'s rows 12, 13 and phase 2. DW-233 is addressed by AC1 to AC6. footprint_extensions: none.
+
+**Implement stage (2026-10-30, runner C, unattended).**
+- Summary: `AddressCounter.AddressHash` is the HMAC-SHA-256 of the address under a 32-byte key in `^OcuTalonP.AddrCountK` (`$ListBuild(lastReset, key)`), made by the private `Key()` at its first use after a start with a new marker; `Recent`, `Add`, `Lock` and `Unlock` use it and fail closed with no key. Rows keep their form.
+- Files: `Data/AddressCounter.cls` (the change); `Test/Data/AddressCounter.cls` (all hashes moved; new `TestKeyIsPrivate`, `TestKeyPerReset`, `TestKeyBusyFailsClosed`, `TestKeyMadeOnceUnderContention`, `TestLockNameIsTheKeyedHash`); `Test/Web/SessionEvents.cls` and `Test/Web/Install.cls` (hash helpers); `docker/tests/test-online-demo.sh` (rows 12 and 13, phase 2, header); `web/e2e-online/address-limit.spec.ts` and `support.ts` (L1 hashes inside IRIS); `release/demo-host-checks.md` (H17's check, status still `pending`).
+- Review: 29 findings from four layers - high 0, medium 8, low 17, false 4. Patches applied: 8 medium (fail-closed Add/Recent/Unlock test, independent HMAC assertion, lock-name test, contention test for the in-lock re-read, the phase 2 key removal checked) and 3 low (`Clean` robust to an empty hash, H17 namespace). Deferred: none. Rejected with reasons: see the Review Triage Log (empty `lastReset`, Lock/Unlock name drift, a silent catch, `short-names.tsv`, and others).
+- Follow-up review recommended: true. Patched medium entries: 8 (two or more). The unverified risk: the new tests of the contention case rely on a 1.5 s wait for the job to reach the key lock, and the busy case adds about 20 s to `Test.Data.AddressCounter`; a slow runner could make the contention case pass vacuously (never red falsely).
+- Verification: warm classes `Test.Data.AddressCounter`, `Test.Web.SessionEvents` (`TestLimit` included), `Test.Web.Install`, `Test.Data.Tables` pass; `bash -n` and `npm --prefix web run lint` clean; `live online-demo` passes (rows 12, 10, 11, 13, phase 2, L1, the new `CHK` lines); `test-online-host.sh` and `ci/checks.sh` pass; `shard lane-b@Data,Web` passes forward and reversed on fresh stacks; the greps give no line and `0`. Every AC has a recorded mutation, applied and observed red (AC4 and AC5 together in one live run).
+- Residual risks: the demo account's right to write and lock `^OcuTalonP.AddrCountK` is proven only on the throwaway (phase 2), not on the host; the host's capture check is H17, pending (the Contest Planner's). The lead may want one line under AD-19 for the key's home (Design Notes).

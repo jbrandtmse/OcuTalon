@@ -657,7 +657,7 @@ Method Address(case As %String) As %String [ Private ]
 /// The number of counter rows of an address.
 ClassMethod CounterRows(address As %String) As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
@@ -673,7 +673,7 @@ ClassMethod CounterTotal() As %Integer [ Private ]
 /// The earliest CreatedAt among the counter rows of an address.
 ClassMethod OldestCounter(address As %String) As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
@@ -681,7 +681,7 @@ ClassMethod OldestCounter(address As %String) As %String [ Private ]
 /// Deletes the counter rows of an address.
 ClassMethod DropCounter(address As %String) [ Private ]
 {
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 }
 
 /// Deletes the visitor rows (those with a resume hash) of the user that runs the tests: what an earlier run that failed may have left, which
