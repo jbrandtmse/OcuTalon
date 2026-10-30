@@ -1313,6 +1313,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: AddressCounter.Add stores Session.Hash(address), a plain SHA-256 (AD-13: a hashed address); the 2^32 IPv4 values can be enumerated in minutes; rows live one hour, in OCUTALON_PRIVATE
 - 2026-10-26T04:26:20Z status=decision-pending owner=burndown by=cr note=veto (stored data, security): recommend an HMAC with a per-instance key in the private DB, renewed at each reset
+- 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-156 (Epic 16 decision sheet): before the launch, replace the plain SHA-256 with an HMAC keyed by a per-instance secret in the private database, renewed at each reset
 
 ### DW-234: On the online demo a proxy address that is unset or not equal to REMOTE_ADDR exactly (a changed proxy IP, another address form) exempts every sign-in, so the per-address limit silently stops
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1329,6 +1330,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ref_script repeats iris_script's retry loop and CHK filter (docker/tests/lib-live.sh:307-317) adding -e; lib-live.sh is a contended path, so 16.3 could not extend it
 - 2026-10-26T04:26:20Z status=escalated owner=burndown by=cr note=Rule 2: give iris_script an env pass-through and let ref_script/check_ref_session delegate (contended file)
+- 2026-10-30T03:14:28Z status=routed owner=29-4-sessions-stay-isolated-under-load by=merge_gate note=Epic 16 decision sheet (decide): Rule 2, give iris_script an environment pass-through and let ref_script and check_ref_session delegate, when 29.4 edits the online test scripts
 
 ### DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1372,6 +1374,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Story 16.6 implement: on a stack with no model key the probe logs 'healthy ... fallback=no_key'; the AC defines healthy as 'a decision' and only daily_cap as capped
 - 2026-10-26T11:11:47Z status=decision-pending owner=burndown by=harvest note=product call for the decision sheet: should a non-daily_cap fallback (no_key, timeout, rate_limit) alert the author without counting toward a reset? Recommended: yes, as an alert-only outcome like busy, if the owner agrees (it changes the AC's outcome list)
+- 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-157 (Epic 16 decision sheet): an alert-only probe outcome for no_key, timeout and rate_limit fallbacks, which alerts the author and never counts toward a reset, like busy
 
 ### DW-268: The probe never signs out a sign-in IRIS accepted (3xx) when the redirect GET is not the shell (busy, timeout, other page), so the CSP session holds its connection until its 120 s timeout
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: med | footprint: in-story
@@ -2046,6 +2049,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Splash.InfoNotice shows PLACEFREED on the cookie alone when there is no since; the cookie expires at the next scheduled reset, which an unscheduled restart does not shift (AD-25), and the restored golden copy holds no session
 - 2026-10-29T10:33:41Z status=decision-pending owner=burndown by=cr note=product call: accept; or no PLACEFREED while the period's last reset was unscheduled; or a reset id in the cookie (veto)
+- 2026-10-30T03:14:28Z status=wontfix-accepted by=merge_gate note=Epic 16 decision sheet (decide): LOW, high fix-risk; reopen_if=a judge or the probe reports the place-freed notice after an unscheduled restart
 
 ### DW-390: SessionOps.End sends CancelReminder and StopWatch straight to ReminderOps and WatchOps, so CommandsIn's origin check for those two verbs is not applied to them
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: in-story

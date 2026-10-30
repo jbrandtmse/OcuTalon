@@ -6226,6 +6226,10 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 **And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
 - DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 - DW-287: At 8 licence units `iris session` terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy (AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+- DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS (ledger; routed by cr 2026-10-26)
+- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
+- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
+- DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path (ledger; routed by harvest 2026-10-25)
 
 ### Story 29.4: Sessions stay isolated under load
 
@@ -6259,6 +6263,10 @@ So that what I see is my own work.
 **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
 **Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
 - DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference (inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
+- DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test (ledger; routed by burndown 2026-10-30)
+- DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable (ledger; routed by merge_gate 2026-10-30)
+- DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red (ledger; routed by burndown 2026-10-30)
 
 ## Epic 30: Lane A post-demo hardening
 
@@ -6364,6 +6372,7 @@ So that a stopped production or a disabled item reaches me once.
 **When** the check finds it
 **Then** the finding becomes one Item sent to `Intake`, whose `CatalogKey` and `Slots` are the production state-change key from `OcuTalon.Msg.Catalog.Watch` and its slots ("The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."), which `Intake` copies to the `ItemDecision` so `OutcomeRouter`'s notification uses them (Story 2.7), and the same finding is never sent again (FR-23, FR-33, AD-14, AD-30, AD-32, UX-DR112)
 **And** a test sends two Ticks after stopping a test production and finds exactly one finding Item (FR-33)
+- DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight (ledger; routed by burndown 2026-10-30)
 
 ### Story 30.5: Mixed and unfinished resends say how far they got
 
