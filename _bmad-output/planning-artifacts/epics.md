@@ -3897,16 +3897,42 @@ So that no message is lost or repeated and two installs never fight over one bot
 **Given** Telegram answers `getUpdates` with 409 Conflict because another process polls the same token
 **When** `TelegramIn` receives it
 **Then** it stops polling for 5 minutes, logs the event without the token, and records the pause and its retry time through `OcuTalon.Data.StatusMark.Record` (Lane B's API from Story 10.3), from which `StatusMonitor` and `/state` turn on the `telegramPaused` condition with that time (FR-22, AD-12, AD-18)
-**And** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
 
 **Given** the pause has lasted 5 minutes
 **When** `TelegramIn` polls again
-**Then** on success the condition clears and the banner leaves within one live update, and on another 409 it pauses again for 5 minutes (FR-22, UX-DR34)
+**Then** on success the condition clears, and on another 409 it pauses again for 5 minutes (FR-22)
 
 **Given** a Telegram test run against the mock
-**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
+**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry and live event for the dummy token
 **Then** it finds none (NFR-11, AD-14)
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): the page side moved verbatim to Story 12.8, planned next: the third criterion's And clause (the banner and the card's paused state), "the banner leaves within one live update" from the fourth, and "the page" from the fifth's search; the server side stays here.]
+
 - DW-422: TelegramIn's kept update offset (`$$$EnsStaticAppData("TelegramIn", "offset")`, Story 12.1's `Test.Channel.BotApi`) is pinned only against that helper; this story's tests prove its poller keeps its offset in that node (ledger; routed by harvest 2026-10-30)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.8: The page shows when Telegram is paused, and when it will try again
+
+[ADDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): split from Story 12.2, whose page-side clauses are moved here verbatim; planned next in Epic 12, after 12.2 and before 12.3.]
+
+As a user,
+I want the page to tell me when Telegram is paused because another process polls my bot, and when OcuTalon will try again,
+So that I know why Telegram is quiet and what to do about it.
+
+**Acceptance Criteria:**
+
+**Given** `TelegramIn` has stopped polling after a 409 Conflict and recorded the pause and its retry time (Story 12.2), so that `/state` carries the `telegramPaused` condition with that time
+**When** the page shows it
+**Then** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
+
+**Given** the pause has lasted 5 minutes and `TelegramIn` polls again with success, so the condition clears (Story 12.2)
+**When** the page receives the next live update
+**Then** the banner leaves within one live update (FR-22, UX-DR34)
+
+**Given** a Telegram test run against the mock
+**When** a test searches the page for the dummy token
+**Then** it finds none (NFR-11, AD-14)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
