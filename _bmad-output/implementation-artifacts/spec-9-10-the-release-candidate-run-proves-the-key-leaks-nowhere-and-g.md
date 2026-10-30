@@ -2,7 +2,7 @@
 title: 'Story 9.10: The release-candidate run proves the key leaks nowhere and gates the maximum decision cost'
 type: 'feature'
 created: '2026-10-30'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'ef9e6fe67e963bef016451633ae691cf7da8c060'
 review_loop_iteration: 0
 followup_review_recommended: true
@@ -312,6 +312,12 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
 
 - [x] [Gate] `eval/run.sh`: the `--key-path` switch as the lead gate ruling describes (opt-in key path under `--on-mock`; the key unset for the whole run otherwise), `eval/key-proof.sh` passes it, and `rc-stack` pins both forms (veto U-168).
 
+**U-168 (the owner's conditions on the opt-in switch, 2026-10-30; rework iteration 1)** -- each with a pinning test and its `mutation:` line:
+- [ ] [U-168] (1) `--key-path` is refused with exit 2 and a usage line, and no throwaway is started (no container call at all), unless `--release-candidate --on-mock` are both given; a real release-candidate run (no `--on-mock`) takes the key path without the switch, as built. Test: the stub of the container tool records no call for `--key-path` alone, `--key-path --on-mock` without `--release-candidate`, and `--release-candidate --key-path` without `--on-mock`, each exit 2.
+- [ ] [U-168] (2) `eval/key-proof.sh` never uses an inherited key: it unsets `ANTHROPIC_API_KEY` before it builds and exports its own fake one (an inherited value, a fake marker built in the test, never reaches the run), and it refuses (non-zero, before any throwaway starts, naming the endpoint but never a key) unless the model endpoint resolves to the CI mock. Tests: an inherited marker value never appears in the stubbed run's environment, and a refusal test with a non-mock endpoint (for example `OCUTALON_MODEL_BASE_URL` pointing anywhere but the mock, or however the harness resolves it). Resolve the endpoint without `docker compose config` (only with `--quiet`) and without `docker inspect` of `.Config.Env` (the boundaries rules forbid both).
+- [ ] [U-168] (3) The proof's pass line is counts only: the fake key found in the throwaway's `iris` environment exactly 1 time, and found 0 times in the run's output, its logs, the result files, the trace and the web bundle (the built bundle the run served, `src/ocutalon/csp/` in the checkout and the copy inside the throwaway), with the value never printed. Add the web bundle to the places the proof scans, with a positive control like the others. Test: the pass line's shape (fields and their order, no value) is pinned, and a planted key in the bundle fails the proof.
+- [ ] [Lead] AC2's last clause: after the run, the harness itself lists `docker ps -a` and `docker volume ls` filtered by the run's own compose project name and requires both empty, besides the teardown's line (`ci/iris.sh teardown` counts only the removals that succeed: DW-445). Pin it with a stubbed leftover.
+
 **Acceptance Criteria:**
 - **AC1 (U-166 (a)).** Given a release-candidate attempt whose item decisions have a mean under $0.001 and one decision at $0.001 or more, when `Gate.Attempt` evaluates NFR-4, then:
   - NFR-4 is not met, the decision is listed in `flagged`, and the attempt is below target;
@@ -333,12 +339,15 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
   - `--override` refuses a key-like reason.
 
   Evidence: `rc-flow`, `rc-override` and `key-like`, and `test-boundaries.sh`'s keys rules.
+- **AC6 (U-168).** Given the opt-in rehearsal, when `--key-path` is misused, `eval/key-proof.sh` inherits a key or meets a non-mock endpoint, or the proof passes, then: `--key-path` without `--release-candidate --on-mock` exits 2 with no throwaway; the harness never uses an inherited key and refuses a non-mock endpoint before any throwaway; and its pass line reports counts only (the fake key 1 time in the `iris` environment, 0 times in the run's output, logs, result files, trace and web bundle), never the value. Evidence: the rules and tests named in the `[U-168]` items.
 - **AC5 (no regression).** Given the push run and the no-key rehearsal, when they run fresh, then their checks pass as in 9.5. The rehearsal adds only its key-like PASS line, and `git status --short eval/` stays empty.
 - **Integration (Rule 1).**
   - Given a push, when Lane A's `evaluation` job (the consumer) runs `bash eval/key-proof.sh` after `bash eval/run.sh`, then the step ends with `eval/key-proof: all checks passed` and the job's teardown removes nothing of the proof. This applies unless Task 0's rule made the proof local.
   - Given `docker/tests/test-boundaries.sh` (a consumer of `lib-keys.sh`), when it runs, then its keys rules pass with the shared definition.
 
 ## Spec Change Log
+
+- 2026-10-30, rework iteration 1 (trigger: the owner's U-168 conditions, answer 2026-10-30T16:50:24Z#513, and the lead's teardown item from DW-445): status `in-progress`; three `[U-168]` items and one `[Lead]` item under Tasks & Acceptance; AC6 added. The owner's words: "keep the opt-in switch, with three conditions. An environment variable that silently changes what a mock rehearsal does is the risk U-166 was about; an explicit switch removes it."
 
 - 2026-10-30, lead spec gate: the key-path rehearsal is opt-in (`--key-path`, veto U-168), overriding Decided in-stage 3; without the switch `--on-mock` unsets the key for the whole run. AD-22 text to the orchestrator (DW-431). No intent change.
 

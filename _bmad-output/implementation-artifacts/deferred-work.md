@@ -2452,3 +2452,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-445: ci/iris.sh teardown counts a leftover container, volume, network or image only when its removal succeeds, so an object it cannot remove reads as zero leftovers
+- source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/iris.sh:555-566 cmd_teardown increments c/v/n/i only inside if docker rm ...; then; found by Story 9.10's implement review
+- 2026-10-30T18:25:27Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=harvest note=Story 9.10's proof checks docker ps -a and docker volume ls by its project itself, so it does not rely on the count; reopen_if=a teardown line reports 0 leftovers while docker ps -a or docker volume ls still show the tag's project
