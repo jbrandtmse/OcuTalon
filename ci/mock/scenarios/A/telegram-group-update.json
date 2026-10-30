@@ -1,0 +1,26 @@
+{
+  "name": "telegram-group-update",
+  "match": {
+    "telegram": "getUpdates"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "result": [
+          {
+            "update_id": 1,
+            "message": {
+              "message_id": 102,
+              "date": 1790000000,
+              "from": { "id": 7002, "is_bot": false, "first_name": "Ci Member" },
+              "chat": { "id": -7100, "type": "group", "title": "Ci Group" },
+              "text": "ocutalon-ci group update"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

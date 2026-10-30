@@ -2,13 +2,21 @@
 title: 'Story 12.1: Telegram stays off without a token, and CI mocks the Telegram API'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7f0a6fdbe4f2ec53bc034b2de603d40ec86c2e01'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, AD-5, AD-14, AD-19, AD-22, AD-23, AD-29 and AD-33)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The kept-offset location (`$$$EnsStaticAppData("TelegramIn", "offset")`) is pinned only against the helper that writes it.
+    evidence: |-
+      `TelegramMock.TestResetClearsKeptOffset` sets, reads and clears the node through `BotApi` alone; `TelegramIn` is still the stub and keeps no offset, so a Story 12.2 poller that stored its offset elsewhere would leave every test here green and DW-370's Lane A half doing nothing. Story 12.2's tests must prove that its poller's offset node is `BotApi.Offset()`'s node.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls
+    severity: medium
 ---
 
 <intent-contract>
@@ -184,6 +192,31 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 34 findings - high 0, medium 3, low 28, false 2, maybe-false 1
+- findings:
+  - `[low]` `[patch]` TestPollerCheck needs a live `Decide` job and has no explicit precondition (blind, edge, verification-gap, intent: one root cause, four rows) - patched: the test fails with a message naming the missing production when `PollerReason("Decide")` is empty, and the refusal assertions run only in the `Else` branch.
+  - `[low]` `[reject]` `live_key_count` counts an empty `ANTHROPIC_API_KEY` but not an empty bot token (blind, edge: two rows) - the spec limits the change to the empty-token rule (DW-367); the model key's rule is out of this story's intent.
+  - `[low]` `[reject]` `BotApi.BotReply` repeats `BotCall`'s request (blind) - the copy is named and justified in the spec's Design Notes (Rule 2); the unification is the Lane B ask.
+  - `[low]` `[reject]` `Reset` kills the offset before the mock answers, so a non-200 leaves the offset gone (blind, edge: two rows) - the spec states the order; the offset is test state with no consumer until 12.2, and the error status is returned.
+  - `[low]` `[reject]` Untested claims in `Telegram.cls` (a `WriteDefault` failure, the registry order, a whitespace-only token, an always-empty status text on an OK status) (blind, verification-gap: three rows) - "set means not empty" is a decision in the spec; the registry order is pinned by `Test.Install.Registry`; the row, description and mark parts of the leak check are falsifiable (mutation demonstrated).
+  - `[low]` `[patch]` `check_telegram_off` hard-codes the mark name (blind, edge: two rows) - patched: it reads `StatusMark`'s `#TELEGRAMMARK`.
+  - `[low]` `[patch]` Fixed `Hang 0.2` before reading the mock's log (blind, edge, verification-gap: three rows) - patched: `TestCallsAndLog` polls `LogSince` up to 5 s until the four Bot API lines are in.
+  - `[low]` `[patch]` `Safe()` drops all text after the token (blind) - patched: the token is replaced with `[token]`, so the diagnostics stay.
+  - `[low]` `[reject]` No node test for the new scenario files (blind) - `scenarios.test.mjs` row 15 already loads and validates every committed file, and a change to `ci/mock/test/**` is Lane B's; `TelegramMock` pins the content.
+  - `[maybe-false]` `[reject]` `PollerReason` counts only `Alive`, not a job in `Starting` (edge) - it follows `Install.Step.Production.NotRunning()`; no CI start runs `TelegramIn` until Story 12.7, whose own change would need the check; a low if true.
+  - `[low]` `[reject]` A live `TelegramOut` or another Bot API caller would add calls to `TestCallsAndLog` (edge) - `TelegramOut` is not a poller and sends only on a message; no Bot API caller runs at any start through 12.6.
+  - `[low]` `[reject]` `BotReply` has no guard for a non-JSON body or a base with no port (edge, blind: two rows) - `TELEGRAMBASE` is a fixed constant with a port, and the mock answers JSON.
+  - `[medium]` `[patch]` Row 19's empty-token start has no recorded mutation and no proof that the seam survives the recreate (verification-gap, two rows) - demonstrated: `Apply` ignoring `tokenSet` turns `production-restart` red at row 19 (the rows are 1), which also proves the seam survives; the line is in `## Verification`.
+  - `[medium]` `[patch]` `TestCallsAndLog` and three of the five scenario files have no mutation line (verification-gap) - demonstrated: the private, button, conflict and rate-limited files each turn their test red; the lines are in `## Verification`. The duplication with Lane B's `TestTelegramBotApi` is by design (it is the ruling's reading of AC 4).
+  - `[medium]` `[defer]` The kept-offset node is pinned only against the helper (verification-gap, intent: two rows) - nothing reads the node until Story 12.2; deferred with the evidence to carry into 12.2's tests.
+  - `[false]` `[reject]` The stored `off` mark could change `/state` or the card (verification-gap) - `StatusMark.TelegramState` returns `off` for no mark and for a stored `off`, so readers see the same value; `Test.Web.Api` and `Test.Web.PairingApi` ran green.
+  - `[low]` `[reject]` `TestRun` takes the seam-1 path only when the stack holds a token (verification-gap) - the spec says `Run()` runs in the stack's own environment; the enable path is pinned by `TestApply` in any environment.
+  - `[low]` `[reject]` `TestRun`'s `TokenSet()` assertion recomputes the same expression (verification-gap) - a one-line contract check; the rows are what pins the behavior.
+  - `[low]` `[reject]` The "prepared" session reads back what it wrote (verification-gap) - the mutation run of row 19 shows the seam and mark survive the recreate.
+  - `[low]` `[reject]` Enabled items never run in any test; `Run()` is not tested through the registry; `TelegramMock` is throwaway-only; the empty token is a helper, not a CI mode; the poller check uses `Decide` as the live item (intent: five rows) - each is the spec's stated design (Design Notes "Why no enabled stub runs", the Task list, the Lane B ask); the docker start runs the real step.
+  - `[false]` `[reject]` `Run()` is not exercised in a real start (intent) - `production-restart` runs the real step in three real starts.
+
 ## Design Notes
 
 **Spec-gate rulings (orchestrator, 2026-10-30; binding on the re-plan).**
@@ -350,9 +383,42 @@ deferred: []
 | DW-367: the file | `live_no_bot_token` writes the dummy | `production-restart` row 19's "set and empty" check and `TokenSet` 0; `test-lib-live.sh`'s row |
 | `Included()` unchanged | `Included()` returns 1 | `test-readme.sh` |
 
+**Mutations demonstrated (implement stage; each applied, red observed, reverted byte for byte, and green again on the same stack).**
+- mutation: `Apply` ignores `tokenSet` (`Select(included: 1, 1: 0)`) -> `TelegramSwitch.TestApply` red at `Apply(1, 0)` (rows 1, mark not off).
+- mutation: `Apply` ignores `included` (`Select(tokenSet: 1, 1: 0)`) -> `TelegramSwitch.TestApply` red at `Apply(0, 1)`, and `TestRun` and `TestStructural` red.
+- mutation: the disabled path records nothing -> `TelegramSwitch.TestApply` red ("the mark is off", "the mark has a row").
+- mutation: `Apply` records `off` on both paths -> `TelegramSwitch.TestApply` red at `Apply(1, 1)` ("the mark is left as it was").
+- mutation: `Run` writes nothing when the rows exist -> `TelegramSwitch.TestRun` (seam at 1) and `TestStructural` red.
+- mutation: the row description carries the token -> `TelegramSwitch.TestRun` red ("no row value, description, status text or mark holds the token").
+- mutation: `Apply` ignores `tokenSet` (live) -> `production-restart` red at row 19, no token ("every enabled item runs" and "Telegram is off": the rows are 1 and the mark stays on, so the seam survives the recreate).
+- mutation: `Run` makes one Bot API call (`getMe`) -> `production-restart` red at the three `check_telegram_off` lines (the calls value: 1 call).
+- mutation: `telegram-group-update.json`'s chat type `private` -> `TelegramMock.TestUpdateScenarios` red ("a text message in a group chat").
+- mutation: `telegram-rate-limited.json` without `parameters` -> `TelegramMock.TestReplyScenarios` red ("429 with retry_after 2").
+- mutation: `telegram-private-update.json`'s chat type `group`, `telegram-button-update.json`'s `data` changed, `telegram-conflict.json`'s status `200` -> `TelegramMock.TestUpdateScenarios` red for the private and button scenarios and `TestReplyScenarios` red for the 409.
+- mutation: `telegram-rate-limited.json`'s status `200` -> `TelegramMock.TestCallsAndLog` red ("the first sendMessage is limited"), and `TestReplyScenarios` red.
+- mutation: `BotApi.Reset` leaves the kept offset -> `TelegramMock.TestResetClearsKeptOffset` red ("has cleared the kept offset").
+- mutation: `BotApi.PollerReason` always `""` -> `TelegramMock.TestPollerCheck` red (names the item; refusal).
+- mutation: `BotApi.Reset` skips `PollerReason` -> `TelegramMock.TestPollerCheck` red (refusal, offset kept, queued update).
+- mutation: `live_key_count` counts an empty token (`+x`) -> `test-lib-live.sh` red ("an empty bot token counts 0").
+- mutation: `live_no_bot_token` writes a non-empty token -> `test-lib-live.sh` red ("live_no_bot_token does not add the empty-token file").
+- mutation: `Included()` returns 1 -> `test-readme.sh` red (`product-links`).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-planned (cycle iteration 2) and halted after planning (`Halt after planning.`). The intent block is kept verbatim. Following the orchestrator's spec-gate rulings, the plan no longer edits `ci/mock/*.mjs`, `ci/mock/test/**` or `Test/Contract/Mock.cls`. DW-370 is met from Lane A's side by the new helper `Test.Channel.BotApi`, with the kept offset at `$$$EnsStaticAppData("TelegramIn", "offset")`. Its residual is a Lane B mock ask that Story 12.7 needs first. The switch, the DW-367 work and the verification arrangement are as before.
+**Implemented.** `Install/Step/Telegram.cls` is the one Telegram switch: `Run()` is `Apply(Included(), TokenSet())`; `Apply` writes both `Enabled` rows through `WriteDefault` (1 only when included and the token is not empty), and records `off` only when it leaves them disabled. Five Lane A scenario files; `Test.Channel.BotApi` (the offset at `$$$EnsStaticAppData("TelegramIn", "offset")`, the poller check, `Reset`, `BotReply`); `Test.Channel.TelegramSwitch` and `Test.Channel.TelegramMock`; `live_no_bot_token` and the empty-token rule of `live_key_count`; `production-restart` row 19 covers the no-token start; `Channel` joins `lane-a`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Install/Step/Telegram.cls`: the switch (footprint extension into Epic 15's `Install/**`, ruling Q1).
+- `src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls`, `TelegramSwitch.cls`, `TelegramMock.cls`: new.
+- `ci/mock/scenarios/A/telegram-{private-update,group-update,button-update,conflict,rate-limited}.json`: new.
+- `docker/tests/lib-live.sh`, `test-lib-live.sh`, `test-production-restart.sh`: DW-367 (ruling Q2).
+- `ci/units.sh`: `Channel` appended to `lane-a`.
+
+**Review.** 34 findings: high 0, medium 3, low 28, false 2, maybe-false 1. Patches applied: 6 entries (Decide precondition, mark constant, log poll, `Safe`, and two mutation demonstrations); deferred 1 (the kept-offset location, for Story 12.2); the rest rejected with reasons in the triage log. Patched by verdict: medium 2, low 4, so the follow-up recommendation is true.
+
+**Verification.** `test-mock.sh` 117 of 117; `test-lib-live.sh` all checks; warm `TelegramSwitch`, `TelegramMock`, `Contract.Mock`, `Install.Production`, `Install.Registry`, `Web.PairingApi`, `Web.Api` passed; fresh `shard lane-a@Channel` forward and reverse passed; `shard lane-b@Contract` passed; `live production-restart`, `live production` and `live compose-start` passed; `test-ci-config.sh`, `test-ci-changes.sh`, `test-readme.sh`, `ci/changes.sh` and `ci/checks.sh` passed; the Lane B files are untouched. Fifteen-plus pinning mutations were demonstrated red and reverted byte for byte (listed in `## Verification`).
+
+**Residual risks.** The log-redaction assertions of `TestCallsAndLog` have no mutation of their own (the redaction is Lane B's mock code, which this story does not change). `TestPollerCheck` needs a running production in the stack and fails with an explicit message otherwise. The Lane B mock ask and the one-client residual of DW-370 stand as in the Design Notes. The kept-offset location is proven only when Story 12.2 builds `TelegramIn`.

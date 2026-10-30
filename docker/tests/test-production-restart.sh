@@ -24,6 +24,11 @@
 #     each with both decision Refs set, the first turn's triage row and the second turn's turn row the fallback (tellnow,
 #     Fallback, no_key), and the session's stream holds exactly one done chat.message for each, the first turn's Seq below
 #     the second's. The rows are removed afterwards.
+#     Story 12.1 adds the Telegram switch to row 19: the first start (the seam off, the CI dummy token) leaves both Telegram rows
+#     0 and the mark off, with no job for TelegramIn and TelegramOut and no Bot API call at the mock. The OCUTALON_EVAL=1 start
+#     runs with the seam at 1, the mark on and TELEGRAM_BOT_TOKEN set and empty (live_no_bot_token, which is what a .env copied
+#     from .env.example holds): it ends ready, the no-key check passes, both rows are 0, the mark is off, and every enabled item
+#     runs. The last start has the seam off and the dummy token again, and leaves the rows 0 and the mark off.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -65,6 +70,37 @@ CHK|refused|1" \
   fi
 }
 
+# check_telegram_off <label> <tokenset 1|0>: in one session, both Telegram rows are 0, the mark row exists and says off, TokenSet()
+# is the given value, neither Telegram item has a job, and the mock's list of Bot API calls answers 200 with no call. It prints
+# no token value.
+check_telegram_off() {
+  check_session "$1: Telegram is off: both rows 0, the mark off, no job, no Bot API call" OCUTALON \
+    "CHK|rows|0|0
+CHK|mark|1|off
+CHK|tokenset|$2
+CHK|jobs|0
+CHK|calls|200|0" \
+    'Set pf="OcuTalon.Production||",sf="||*||Enabled"' \
+    'Write !,"CHK|rows|",##class(Ens.Config.DefaultSettings).%OpenId(pf_"TelegramIn"_sf).SettingValue,"|",##class(Ens.Config.DefaultSettings).%OpenId(pf_"TelegramOut"_sf).SettingValue' \
+    'Write !,"CHK|mark|",($Length(##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Data.StatusMark).#TELEGRAMMARK))>0),"|",##class(OcuTalon.Data.StatusMark).TelegramState()' \
+    'Write !,"CHK|tokenset|",##class(OcuTalon.Install.Step.Telegram).TokenSet()' \
+    'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute(),nj=0 While rs.Next() { If (rs.Get("ConfigName")="TelegramIn")||(rs.Get("ConfigName")="TelegramOut") { Set nj=nj+1 } }' \
+    'Write !,"CHK|jobs|",nj' \
+    'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Get("/_mock/telegram/calls")' \
+    'Write !,"CHK|calls|",rq.HttpResponse.StatusCode,"|",{}.%FromJSON(rq.HttpResponse.Data).calls.%Size()' \
+    'Halt'
+}
+
+# check_token_empty <label>: the iris container's TELEGRAM_BOT_TOKEN is set and empty. Prints no value.
+check_token_empty() {
+  # shellcheck disable=SC2016 # the script is the container shell's, which expands its own variables
+  if dc exec -T iris sh -c '[ -n "${TELEGRAM_BOT_TOKEN+x}" ] && [ -z "$TELEGRAM_BOT_TOKEN" ]' >/dev/null 2>&1; then
+    pass "$1: TELEGRAM_BOT_TOKEN is set and empty in the container"
+  else
+    fail "$1: TELEGRAM_BOT_TOKEN is not set and empty in the container"
+  fi
+}
+
 # restart_snapshot <session ref>: the epoch, the chat and the rail that Web.Api.StateBody builds for the session, as one line of
 # JSON ("" when the session or the body is missing).
 restart_snapshot() {
@@ -93,9 +129,19 @@ check_start "first start"
 check_no_key "first start"
 check_clean_start "first start"
 check_eval "first start, no variable" 0
+check_telegram_off "first start" 1
 
 # --- row 19: OCUTALON_EVAL=1, then without it ---
 
+# The Telegram seam at 1 and the mark on, as an earlier start of a release that includes Telegram would leave them, and then a
+# start with no bot token: the step must switch Telegram off and record it.
+check_session "row 19: the Telegram seam is 1 and the mark is on before the start with no token" OCUTALON \
+  "CHK|prepared|on|ocutalon_ci_bot" \
+  'Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1)' \
+  'Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on","ocutalon_ci_bot")' \
+  'Write !,"CHK|prepared|",##class(OcuTalon.Data.StatusMark).TelegramState(.bot),"|",bot' \
+  'Halt'
+live_no_bot_token
 if ! OCUTALON_EVAL=1 dc up -d >/dev/null 2>&1; then
   die "row 19 recreate with OCUTALON_EVAL=1 failed"
 fi
@@ -106,7 +152,17 @@ if ! wait_started_ready 200; then
 fi
 check_start "row 19, OCUTALON_EVAL=1"
 check_eval "row 19, OCUTALON_EVAL=1" 1
+check_token_empty "row 19, no token"
+check_no_key "row 19, no token"
+check_items_run "row 19, no token"
+check_telegram_off "row 19, no token" 0
 
+check_session "row 19: the Telegram seam is back to 0 before the start with the dummy token" OCUTALON \
+  "CHK|seam|1" \
+  'Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(0)' \
+  'Write !,"CHK|seam|",(##class(OcuTalon.Channel.Telegram.In).Included()=0)' \
+  'Halt'
+live_pop_file
 if ! dc up -d >/dev/null 2>&1; then
   die "row 19 recreate without OCUTALON_EVAL failed"
 fi
@@ -117,6 +173,7 @@ if ! wait_started_ready 200; then
 fi
 check_start "row 19, no variable"
 check_eval "row 19, no variable" 0
+check_telegram_off "row 19, no variable" 1
 
 # --- row 20: an unclean stop ---
 

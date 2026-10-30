@@ -610,6 +610,14 @@ check_log() {
 # live_pop_file removes the compose file that live_add_file added last.
 live_pop_file() { unset 'LIVE_FILES[${#LIVE_FILES[@]}-1]'; }
 
+# live_no_bot_token: adds the compose file that leaves TELEGRAM_BOT_TOKEN set and empty in the iris service, which is what a
+# .env copied from .env.example holds: the CI override's other settings (the mock, the endpoint overrides) stay, so a start under
+# it shows every other feature working with no bot token. The file is added last, after the CI override; live_pop_file removes it.
+live_no_bot_token() {
+  printf '%s\n' 'services:' '  iris:' '    environment:' '      TELEGRAM_BOT_TOKEN: ""' > "$tmp/no-bot-token.yml"
+  live_add_file "$tmp/no-bot-token.yml"
+}
+
 # --- the production's items (Story 0.6) ---
 
 # item_jobs <file> [<namespace>]: the alive jobs of the running production of the namespace (default OCUTALON), one line per item
@@ -650,21 +658,23 @@ live_ci_bot_token() {
   awk '/^      TELEGRAM_BOT_TOKEN:/ { print $2; exit }' "$root/ci/compose.ci.yml" 2>/dev/null
 }
 
-# live_key_count: how many key variables the iris container's environment holds: ANTHROPIC_API_KEY, and TELEGRAM_BOT_TOKEN unless it is
-# exactly the CI dummy (live_ci_bot_token), which the CI override sets so that the Telegram service can call the mock. The dummy is
-# compared inside the container, and only the count is printed.
+# live_key_count: how many key variables the iris container's environment holds: ANTHROPIC_API_KEY, and TELEGRAM_BOT_TOKEN when it is
+# not empty and is not exactly the CI dummy (live_ci_bot_token), which the CI override sets so that the Telegram service can call the
+# mock. An empty token holds no secret and counts 0 (live_no_bot_token sets one). The dummy is compared inside the container, and only
+# the count is printed.
 live_key_count() {
   # shellcheck disable=SC2016 # the script is the container shell's, which expands its own variables
   dc exec -T iris env CHECK_DUMMY="$(live_ci_bot_token)" sh -c 'n=0
     if [ -n "${ANTHROPIC_API_KEY+x}" ]; then n=$((n + 1)); fi
-    if [ -n "${TELEGRAM_BOT_TOKEN+x}" ]; then
+    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
       if [ -z "$CHECK_DUMMY" ] || [ "$TELEGRAM_BOT_TOKEN" != "$CHECK_DUMMY" ]; then n=$((n + 1)); fi
     fi
     echo "$n"' 2>/dev/null | tr -d '\r'
 }
 
-# check_no_key <label>: the iris container's environment holds no model key and no bot token but the CI dummy. A start that succeeds in
-# it is a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a count is printed.
+# check_no_key <label>: the iris container's environment holds no model key and no bot token but the CI dummy (an empty token is no
+# token). A start that succeeds in it is a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a
+# count is printed.
 check_no_key() {
   local n
   n=$(live_key_count)

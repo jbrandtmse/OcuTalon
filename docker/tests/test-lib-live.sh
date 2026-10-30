@@ -24,7 +24,9 @@
 #     this run's, a foreign lock kept, no lock when OCUTALON_LOCK_DIR names no folder (also where the main checkout has one),
 #     and the folder derived from the main checkout; and through live_start itself: the lock is held when the first thing after
 #     the claim runs, names the project, is deleted by the exit trap, a lock that another run holds makes live_start exit 75
-#     before anything starts, and after a wait for the lock the deadline and acquired_at count from the moment it is held.
+#     before anything starts, and after a wait for the lock the deadline and acquired_at count from the moment it is held;
+#   - live_key_count (Story 10.3, Story 12.1): the CI dummy bot token and an empty one count 0, a model key and any other bot token
+#     count 1; live_no_bot_token adds the compose file that sets the token to the empty value, last.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 15 s: the waits sleep 3 s each.
 set -u
 
@@ -715,10 +717,29 @@ check_count "a model key with the dummy counts 1" 1 anything fixture-dummy-token
 check_count "the decoy bot token counts 1" 1 - decoy
 check_count "a bot token of the dummy plus a character counts 1" 1 - fixture-dummy-token-x
 check_count "a bot token of the dummy less a character counts 1" 1 - fixture-dummy-toke
-check_count "an empty bot token counts 1" 1 - ""
+check_count "an empty bot token counts 0" 0 - ""
 check_count "a model key and the decoy bot token count 2" 2 decoy decoy
 check_count "any bot token counts 1 when the CI override sets no dummy" 1 - fixture-dummy-token "$tmp/keyroot-none"
 check_count "a case-changed dummy counts 1" 1 - FIXTURE-DUMMY-TOKEN
+# live_no_bot_token adds one compose file, last, that sets the iris service's token to the empty value, and live_pop_file takes it off.
+LIVE_FILES=(a b)
+live_no_bot_token
+if [ "${#LIVE_FILES[@]}" -eq 3 ] && [ "${LIVE_FILES[2]}" = "$tmp/no-bot-token.yml" ] \
+  && [ "$(cat "$tmp/no-bot-token.yml")" = 'services:
+  iris:
+    environment:
+      TELEGRAM_BOT_TOKEN: ""' ]; then
+  pass "live_no_bot_token: adds one file, last, that sets the iris service's TELEGRAM_BOT_TOKEN to the empty value"
+else
+  fail "live_no_bot_token does not add the empty-token file as the last compose file (${#LIVE_FILES[@]} files)"
+fi
+live_pop_file
+if [ "${#LIVE_FILES[@]}" -eq 2 ] && [ "${LIVE_FILES[1]}" = b ]; then
+  pass "live_pop_file: takes the empty-token file off again"
+else
+  fail "live_pop_file does not take the empty-token file off (${#LIVE_FILES[@]} files)"
+fi
+LIVE_FILES=()
 out=$( ( dc() { echo 0; }; pass() { echo "VERDICT PASS $*"; }; fail() { echo "VERDICT FAIL $*"; }; check_no_key probe ) 2>&1)
 if [ "$out" = "VERDICT PASS probe: the container holds no model key and no bot token but the CI dummy" ]; then
   pass "check_no_key: a count of 0 passes"

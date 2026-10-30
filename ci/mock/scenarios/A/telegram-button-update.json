@@ -1,0 +1,31 @@
+{
+  "name": "telegram-button-update",
+  "match": {
+    "telegram": "getUpdates"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "result": [
+          {
+            "update_id": 1,
+            "callback_query": {
+              "id": "ocutalon-ci-callback-1",
+              "from": { "id": 7001, "is_bot": false, "first_name": "Ci Private" },
+              "message": {
+                "message_id": 103,
+                "date": 1790000000,
+                "chat": { "id": 7001, "type": "private", "first_name": "Ci Private" },
+                "text": "ocutalon-ci button message"
+              },
+              "chat_instance": "ocutalon-ci-instance",
+              "data": "ocutalon-ci-unknown-press"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
