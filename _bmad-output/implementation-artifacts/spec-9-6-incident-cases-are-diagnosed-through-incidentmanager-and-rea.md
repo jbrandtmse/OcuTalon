@@ -2,7 +2,8 @@
 title: 'Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'in-review'
+baseline_revision: '7aacb9ff5e3c1932105cd7db8bd2e952a8fd0b9e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -271,6 +272,11 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
   - New `TestIncidentPath` covers the demo row's fields (first matrix row). In `LogSince`, a diagnose request has a `tool_result` that holds the snapshot's first failure's `bodyClass`, and no `tool_result` is `{"items":[]}`.
   - Cleanup and `Leftovers` include the runs' `IncidentCase` bodies. Update the header. -- AC1, AC2, Integration.
 
+**U-162 (the owner's condition on the veto ruling, 2026-10-30)** -- mirror 9.7's `check_status` guard tests (`Test/Eval/Checks.cls` `TestNotEvalBranch`, `TestSessionOwner`), each with a demonstrated mutation and its `mutation:` line:
+- [ ] [U-162] (1) The three read tools (`read_failed_messages`, `read_event_log`, `read_item_settings`) never take the eval branch for any owner but `eval`: a test where an `IncidentCase` of the call's `ItemId` exists and the context's owner is a session's Ref as a chat turn sets it, and one where the context comes from a tool call (the bridge context a tool-originated request begins), plus the owner `instance` and an owner only like `eval` (for example `eval ` or `EVAL`); each gets the live answer, never the recorded snapshot. Mutation: the branch's owner check dropped or widened.
+- [ ] [U-162] (2) With a live incident in scope, the tools answer live even for owner `eval`: a test that makes `EvidencePack.Scope()` find a live incident (its own throwaway rows, removed after) while an `IncidentCase` of the call's `ItemId` exists, and asserts the three answers are the live ones. Mutation: `WatchReads` tries `EvalSnapshot()` before `Scope()`.
+- [ ] [U-162] (3) The branch writes nothing: around eval-branch calls of all three tools, no new row in the message tables (`Ens.MessageHeader`, `Ens.MessageBody`, the `IncidentCase` table), the session tables (`Session`, `Turn`, `Live.Event`) or the watch tables (`Incident`, `FailureGroup`, `BackgroundCheck`), and no change to the `^OcuTalon*` globals the branch could touch (counts or a checksum taken before and after). Mutation: the branch saves a row or sets a global.
+
 **Acceptance Criteria:**
 - **AC1.** Given the recorded incident `orders-date-format`, when a run sends it, then:
   - `IncidentManager` builds the pack with `EvidencePack.Build` from the snapshot and calls `Decide` (`diagnose`) with owner `eval`;
@@ -280,18 +286,22 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
   - there is no `Notification`, `Delivery`, live event holding a run Ref, `DryRun` or `Execute`, `ApprovalRequest`, `FixRun`, `Incident` or `FailureGroup`;
   - every `Usage` row of the run's ItemIds has owner `eval`, and the daily spend is unchanged (`Test.Eval.Run` `TestIsolation`, `TestUsage`).
 - **AC3.** Given the evaluation job's command `eval/run.sh` on the CI mock, when run 1 sends the set, then:
-  - all ten incident cases run with the item and turn cases;
-  - each ends `decided`, with no fallback, a cause category and element, a cost and a request size;
-  - the run exits 0 with `eval/run: all checks passed` and no problem.
+  - all ten incident cases run through `IncidentManager` with the item and turn cases, and each ends with a completed result row: a recorded diagnosis (its `DecisionRef`), a cost and a request size in the report (the epic's AC3);
+  - the demo incident (`Report.DEMOCASE`, `orders-date-format`) ends `decided`, with no fallback, a cause category and an element;
+  - each of the other nine ends `decided` or as a fallback the product's own validation chose (on the CI mock the one `diagnosis` scenario answers `repair_resend` on `OrderDate`, which `RepairResend.CheckParameters` refuses where the sample body has no such field), and `eval/run.sh` reports their fallbacks without failing on them;
+  - the run exits 0 with `eval/run: all checks passed` and no problem. [AMENDED 2026-10-30, implement-stage intent gap, lead ruling (decide): it read "each ends `decided`, with no fallback, a cause category and element, a cost and a request size", which the CI mock cannot reach; the epic's AC3 and the product promise are unchanged]
 - **Integration (Rule 1).** Given the eval branch's `ItemDecision`, when the real `EvalSink` and `Report` consume it in the running production, then:
   - the case row is completed by its `ItemId` (DW-353);
   - the report scores the incident;
   - the Diagnosis agent's real `read_failed_messages`, called by the mock's default script, gives the model the recorded failures (the mock log).
+- **U-162.** Given the read tools' eval branch, when the tests of the three U-162 items run, then: no owner but `eval` (a chat turn's session, a tool call's context, `instance`, a near-`eval` string) reaches it; owner `eval` with a live incident in scope gets the live answers; and the branch adds no row and changes no global (`Test.Eval.Incident`, with mutation lines).
 - **DW-385.** Given the two Orders-definition fixtures, when `Test.Watch.Evidence` and `Test.Eval.Record` run, then:
   - both call `OcuTalon.Test.Watch.OrdersDefinition`, with no private copy left (`rg -n 'Method (FixtureSettings|DefinedSettings)' src` finds none);
   - both classes pass unchanged in what they assert.
 
 ## Spec Change Log
+
+- 2026-10-30, implement-stage intent gap (AC3 unreachable on the CI mock), lead ruling (decide): AC3 restated as the epic's AC3 (every incident case completes with a recorded diagnosis, cost and request size; the demo incident decided with no fallback, a cause and an element; the other nine decided or a validated fallback, reported); design note 7 corrected. The owner's U-162 condition added as three open `[U-162]` tasks and the U-162 acceptance criterion. Status reset to `in-review` (the implementation is in the tree, uncommitted; re-dispatch resumes at review).
 
 - 2026-10-30, lead spec gate: Design Notes gained "Lead gate rulings" (DW-353 by construction accepted; U-162 veto for IncidentCase and the read-tool eval branch; spine row and diagram edge written by the lead). No intent change.
 
@@ -323,7 +333,7 @@ No AC contradicts an AD's Rule.
 4. **No `Incident` or `FailureGroup` row, settle wait or `watch.progress`** for an evaluation incident. A recorded batch has already settled. This is stricter than AC2's "owned by a session or instance", and the tests pin "none of any owner".
 5. **The read tools' eval branch.** It mirrors 9.7's `EvalCheckResults`. Without it the mock's own script, and Haiku in 9.5's gate, would get `{"items": []}` against a pack showing 50 failures, which is a different path from the product. It is reachable only for owner `eval`, which only EvalIn and this branch set, and is read-only.
 6. **Every failure ends the case as a fallback `ItemDecision`.** So `Report.Complete` lists it (no `DecisionRef`) and a mock run fails on it instead of waiting out `Wait`.
-7. **No `mock-wrong` incident case.** The mock's default diagnosis already answers `data_format_change`/`OrderDate` for every incident, so 9 of 10 score wrong on every push, which proves the scoring can say "wrong". The `markers` rule would also need a kind change.
+7. **No `mock-wrong` incident case.** The mock's default diagnosis already answers `data_format_change`/`OrderDate` for every incident, so on every push the other 9 of 10 score wrong or end as a fallback (measured at implement: the nine end as fallback `invalid`, because `RepairResend.CheckParameters` refuses `OrderDate` where their sample bodies lack it), which proves the scoring can say "wrong" [AMENDED 2026-10-30, lead ruling with the AC3 amendment]. The `markers` rule would also need a kind change.
 8. **`Report` keeps the `notRunYet` field.** It is in the shape that 9.5 and 11.4 will read, and it now reads 0; `TestEveryKindSent` pins that it stays 0.
 9. **`lane-a.yml` is unchanged.** Its existing push triggers stand (decided in 9.1 and 9.2), and `run.sh` carries AC3's checks.
 10. **The ItemDecision's `Channel` is empty**, as the live diagnose request sets none.
@@ -375,6 +385,8 @@ No AC contradicts an AD's Rule.
 **Lead gate rulings (2026-10-30, spec gate).**
 - DW-353 by construction (Decided in-stage 2): accepted (decide). The entry's root cause, an incident row EvalSink cannot complete, is closed by EvalIn minting the `IncidentRef` and opening the row with it as `ItemId`; the bullet's `RunRef` + `SourceItemId` match and index are not built. The epics.md bullet carries the amendment.
 - `OcuTalon.Eval.Msg.IncidentCase` (a new stored message body) and the read tools' eval branch: kept as planned, a veto-window ruling (inbox U-162), consistent with U-143 and U-144. Reversal is a fix story.
+- **The owner's U-162 condition (answer 2026-10-30T07:39:17Z#494, applied by the lead):** keep the `IncidentCase` message and the read tools' eval branch, with tests proving that (1) the three read tools never take the eval branch for any owner but `eval`, including an owner set from chat or a tool call, (2) with a live incident in scope they answer live even for owner `eval`, and (3) the branch writes nothing: the same guard as 9.7's `check_status` (U-143). Folded in as the three `[U-162]` tasks and the U-162 acceptance criterion (tier-1, inside the story's intent).
+- AC3 (implement-stage intent gap, 2026-10-30): restated as the epic's own AC3, decided by the lead; see the Spec Change Log.
 - The proposed spine text is written by the lead: the `IncidentCase` row in the Structural Seed's cross-area table and the `EVI -->|"incident case"| INC` diagram edge (no AD block changed). Do not edit the spine.
 
 **CI time (inference).**
@@ -436,7 +448,23 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | DW-385 | `OrdersDefinition.Put` writes `credentialValue` to the note | `Test.Eval.Record` (the note value) |
 | Hermeticity | `Test.Eval.Incident` keeps its `IncidentCase` bodies | its leftover check |
 
+**Demonstrated mutations (implement stage; each applied, red observed, reverted with the tree byte-identical).**
+- mutation: `EvalAnswered` also calls `SendDryRun` (the Propose seam) -> `Test.Eval.Incident` `TestUsableAnswers`, `TestFallbackAnswer`, `TestEvalSendFails` (DryRuns not empty).
+- mutation: the eval request's `Input` is `case.Snapshot` -> `Test.Eval.Incident` `TestRequest` (Input and not-raw-text asserts).
+- mutation: the ItemDecision's `ItemId` is the `SourceItemId` -> `Test.Eval.Run` `TestIncidentPath` (the row stays sent; also `TestItemPath`, `TestReport`, `TestUsage`).
+- mutation: `EvalCase` saves an `Incident` row with owner `instance` -> `Test.Eval.Incident` row counts in every test (`TestIsolation` not run for this one).
+- mutation: the eval request's `OwnerRef` is `instance` -> `Test.Eval.Run` `TestUsage` (Usage rows not owned by eval) and `TestIncidentPath`.
+- mutation: `In.KINDS` without `incident` -> `Test.Eval.Report` `TestEveryKindSent`, `TestSkipped`, `TestText`, and `eval/run.sh` ("0 incident case(s) were run, but eval/ holds 10").
+- mutation: `EvalSnapshot` drops its owner check -> `Test.Eval.Incident` `TestToolsNotEval`.
+- mutation: `WatchReads.ReadFailedMessages` skips `EvalSnapshot` -> `Test.Eval.Run` `TestIncidentPath` (no tool result holds the body class).
+- mutation: `OrdersDefinition.Put` writes `credentialValue` to the note -> `Test.Eval.Record` `TestCaptureDropsCredentialSettings`.
+- mutation: `Test.Eval.Incident.Sweep` does nothing -> its leftover asserts in `TestToolsEval` and `TestToolsNotEval`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: AC3 (and its I/O row "Demo incident"/design note 7) cannot hold as worded on the CI mock. AC3 requires all ten incident cases to end `decided` with no fallback. On the CI mock 9 of the 10 end as a fallback with reason `invalid`: the mock's one `diagnosis` scenario (matched by mockkey `diagnosis`, so no new scenario under `ci/mock/scenarios/A/` can tell the incidents apart, and changing the mock is Lane B) answers `repair_resend` on field `OrderDate`, and `RepairResend.CheckParameters` (`Fix/Kind/RepairResend.cls`:50) accepts a field only when the pack's sample body holds it, which only `orders-date-format` does. Design note 7 assumed these nine would "score wrong", not fall back. Recommended amendment (restates an observable so it is reachable, product promise unchanged): AC3 reads "all ten incident cases run through IncidentManager and each ends with a result row; the demo incident `Report.DEMOCASE` ends `decided`, no fallback, with a cause category and element; the other nine may end `decided` or as a fallback, and the run has no problem", and design note 7 says the nine are scored wrong or fall back on the mock. The implementation already enforces exactly this in `eval/run.sh` (incident line count equals the number of top-level `eval/*/case.json` of kind incident; demo line fallback 0 with cause category and element; INFO count of the other fallbacks). If the owner wants strict "all ten, no fallback", it needs a Lane B mock change (a scenario that selects by incident) or a different mock key per eval incident, both outside this story.
+
+Implementation state: complete and verified by the handoff subagent on throwaways (tags e9s6h/e9s6hw, torn down): all new/changed classes compile on slot B; warm Test.Eval.Incident, In, Cases, Report, Record, Test.Watch.Evidence, Diagnose, Lifecycle, Test.Bridge.CodeRules passed; fresh Test.Eval.Run passed; docker/tests/test-eval-set.sh passed; eval/run.sh "all checks passed" (about 99 s); fresh shard parts (rest 5/8, 4/8 and 3/8 reversed; Watch 1/8, 2/8, 7/8 reversed) passed; ci/checks.sh passed. All ten planned mutations demonstrated (lines in `## Verification`), with one limit (the Incident-row mutation went red in Test.Eval.Incident counts, not in TestIsolation). The work is UNCOMMITTED in the epic-9 worktree (HEAD still 7aacb9f); the review layers, the lead's `(once)` verification pass (fresh `e9s6i` runs, shard parts, ci/checks) and the finalize commit have not run. Suggested resume: amend AC3 and note 7, set `status: in-review`, re-dispatch the build skill (step-04 review onward). Not recorded: the demo diagnosis `DurationMs`.
+
+Decided in-stage (handoff): ZzIncident helpers CaseRequest/CaseAnswer/CaseRefuse (names avoid the probe's Answer/Refuse); WatchReads inlines Scope()/EvalSnapshot() in the three tools (no helper that %Discover could offer as a tool); Evidence and Record carry DependsOn OrdersDefinition; OrdersDefinition has an extra ITEM parameter used by Record; Run.cls takes IncidentLogMark before run 1 and TestReport asserts the largest request is the incident's.
