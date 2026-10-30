@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-30'
 status: 'done'
 baseline_revision: 'c548f0b69136416a964fb73ebb4963cdb470eb24'
+baseline_commit: 'ef9e6fe67e963bef016451633ae691cf7da8c060'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -346,6 +347,8 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
   - Given `docker/tests/test-boundaries.sh` (a consumer of `lib-keys.sh`), when it runs, then its keys rules pass with the shared definition.
 
 ## Spec Change Log
+
+- 2026-10-30, lead after rework 1: the proof now has nine scans (U-168 (3) added the web bundle) where the intent contract says eight; the intent is unchanged. `baseline_commit` is the story's first baseline (ef9e6fe6) so QA and the first code review cover the whole story; `baseline_revision` stays the rework's.
 
 - 2026-10-30, rework iteration 1 (trigger: the owner's U-168 conditions, answer 2026-10-30T16:50:24Z#513, and the lead's teardown item from DW-445): status `in-progress`; three `[U-168]` items and one `[Lead]` item under Tasks & Acceptance; AC6 added. The owner's words: "keep the opt-in switch, with three conditions. An environment variable that silently changes what a mock rehearsal does is the risk U-166 was about; an explicit switch removes it."
 
