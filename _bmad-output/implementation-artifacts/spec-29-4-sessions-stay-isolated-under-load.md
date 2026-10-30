@@ -198,7 +198,7 @@ The online run is `web/e2e-online/demo-path/demo-path.spec.ts`, in the unit `liv
 
 ## Spec Change Log
 
-- 2026-10-30, lead, re-dispatch 1 of the plan: the plan HALTed on AD-13 (the busy rule against the fourth criterion's case 1) and proposed a split. The lead ruled (Design Notes, "Lead rulings"): the split into Story 29.7 accepted; DW-236's decline accepted; the AD-13 question sent to the orchestrator, not blocking this story. Status reset to `draft` for the re-plan.
+- 2026-10-30, lead, re-dispatch 1 of the plan: the plan HALTed on AD-13 (the busy rule against the fourth criterion's case 1) and proposed a split. The lead ruled (Design Notes, "Lead rulings"): the split into Story 29.7 accepted; DW-236's decline accepted; the AD-13 question sent to the orchestrator, not blocking this story. Status reset to `draft` for the re-plan. Then the orchestrator's rulings: Story 29.7 parked (U-163); DW-236 back in this story (only `iris_script` / `check_session` in `lib-live.sh` and `test-online-demo.sh`).
 
 ## Review Triage Log
 
@@ -212,8 +212,8 @@ The online run is `web/e2e-online/demo-path/demo-path.spec.ts`, in the unit `liv
 
 **Lead rulings (re-dispatch 1, 2026-10-30; runner C, unattended policy 6df0676). Re-plan around them:**
 1. **The split is accepted (decide; doctrine U5, Rule 5 tier 2 within `split_children`).** Story 29.7, "The author's load run measures the demo's capacity" (key `29-7-the-author-s-load-run-measures-the-demo-s-capacity`), now holds this story's former fourth criterion verbatim with DW-286 and DW-251 (re-owned to it; the measured facts of this plan's Task 0 are in their ledger notes and stay in the "Task 0" notes below for 29.7's plan). This story keeps criteria 1 to 3 (the third stays skipped for Story 31.4), DW-252, DW-333 and DW-413. Remove the "HALT" section's intent gap and the split proposal from this spec, keep the Task 0 measurement notes (marked as 29.7's input), and plan only what this story keeps.
-2. **DW-236's decline is accepted:** `docker/tests/lib-live.sh` is changed by Epic 12's unmerged branch (verified: `git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic12 -- docker/tests/lib-live.sh` is not empty), so the dedupe waits; the lead re-owns DW-236 at adjudication.
-3. **The AD-13 question (busy against signed-in visitors) is with the orchestrator** (doctrine U14: AD amendments are the orchestrator's). It does not block this story: criteria 1 to 3 do not depend on the busy rule. Do not plan Option A or B here.
+2. **DW-236 is back in this story (orchestrator ruling, 2026-10-30, decide; it replaces the lead's earlier acceptance of the decline).** `docker/tests/lib-live.sh` is not contended in practice: Epic 12's unmerged branch changes it only at lines 18-19, after `check_log` (its new `live_no_bot_token`, around line 610) and in `live_ci_bot_token` (around line 650), and Epic 12 was ruled to keep to its own functions. Make DW-236's change ONLY in `iris_script` and `check_session` of `lib-live.sh` (for example an optional environment pass-through they gain) and in `docker/tests/test-online-demo.sh` (remove `ref_script` / `check_ref_session` in favour of the extended siblings); touch nothing near Epic 12's three spots, so a later integrate-forward is a plain union. List `docker/tests/lib-live.sh` under `footprint_extensions:`. Address DW-236 as a Tasks & Acceptance item (it is no longer declined).
+3. **The AD-13 question (busy against signed-in visitors) is parked with Story 29.7 as owner-only inbox item U-163 (orchestrator ruling, 2026-10-30).** It does not block this story: criteria 1 to 3 do not depend on the busy rule. Do not plan Option A or B here, and do not change AD-13, AD-25 or `OWNCONNECTIONS`.
 
 ### HALT: an intent gap on AD-13, and a proposed split
 
