@@ -843,3 +843,5 @@
 2026-10-30T05:25:30Z	Epic 7	ledger_routed_planned	story=30-4-a-stopped-production-or-a-disabled-item-is-reported-once entries=1(DW-368) excess=0 by=merge_gate
 2026-10-30T05:25:30Z	Epic 7	ledger_routed_planned	story=30-5-mixed-and-unfinished-resends-say-how-far-they-got entries=2(DW-384,DW-419) excess=0 by=merge_gate
 2026-10-30T05:25:30Z	Epic 7	deps_hash_rerecorded	reason=ledger_routed hash=754135e2
+2026-10-30T05:25:39Z	Epic 7	inbox_resolved	id=U-158,U-159(veto_kept),U-160,U-161(applied_6c9cbe8)
+2026-10-30T05:27:18Z	Epic 12	ruling	q=slot_A_free_after_Epic_7_merge;Lane_A_own_next=11(needs_9),17/22/23/28(step_epics,no_v0.1.1_tag) choice=dispatch_Epic_12_on_runner_A(first_eligible_in_lanes.pool.order:12,deps[10]_merged;12.1-12.6_runnable,12.7_waits_11;merge_gate_v0.1.0) rejected=leave_A_idle(policy:take_first_eligible_pool_epic),Epic_30(after_12_in_pool_order) note=Epic_11_exception:when_9_merges_A_ends_12_at_its_next_story_boundary(reason_waiting)_and_takes_11 category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
