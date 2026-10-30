@@ -56,14 +56,16 @@
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
 #     before the password-log checks, with the three runners' model keys pointed at the mock key variable for the phase
-#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back after it: eight runs on one state folder
+#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back after it: nine runs on one state folder
 #     with stub alert and reset commands that append "alert <outcome> <line>" or "reset" to one record file: P1 healthy (row 1: exit 0,
 #     no alert or reset, exactly one new Session row whose CSP session
 #     no longer exists), P2 a wrong password (row 2, auth_failed count=1), P3 the online-demo flag "0" (row 3, no_splash), P4 the cap at the
 #     HTTP view plus the reserve (row 4, busy, today's line of busy-per-day, no new Session row), P5 the Conversation item disabled with a
 #     10 s wait (row 5, no_decision count=2, the reset line right before the alert line), P6 a wrong password (row 6, the count starts
 #     again), P7 the mock's daily-cap marker (row 7, capped with fallback=daily_cap, the day's mark removed), P8 a wrong password (row 8,
-#     capped cleared the count); row 9: the eight log lines in order, six alert lines and one reset line in the record, the AddressCounter
+#     capped cleared the count), P9 (Story 29.6) the runners' keys put back to the Provider step's placeholder first, so that the turn is
+#     a no_key fallback: degraded count=1 fallback=no_key, exit 1, one more alert line, no reset and the count unchanged;
+#     row 9: the nine log lines in order, seven alert lines and one reset line in the record, the AddressCounter
 #     rows unchanged, neither password anywhere, and the flag, the cap, the Conversation item and the capped mark read back. Task 0's
 #     MEASURED lines (a) to (f) give a healthy turn's events, the capped mark, the disabled Conversation item, the sign-out (a control
 #     session, then the probe's), the splash cookie and the phase's time. The phase starts only with 150 s of the deadline left;
@@ -1212,10 +1214,11 @@ fi
 
 # docker/probe.sh runs against this unit's own throwaway, directly (no request is proxied: the proxy address is back at its start value),
 # with the demo account and its published password, a state folder of its own and two stub commands that append one line per call to one
-# record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Eight runs on one state folder:
+# record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Nine runs on one state folder:
 # P1 healthy, P2 wrong password, P3 online-demo flag "0", P4 cap lowered to the boundary, P5 Conversation disabled, P6 wrong password,
-# P7 the daily-cap mock marker, P8 wrong password. Every setting a run changes is put back at once and read back at the end of the phase;
-# the runners' model keys, pointed at the mock key variable before P1, are put back and read back after the phase.
+# P7 the daily-cap mock marker, P8 wrong password, P9 (Story 29.6) the runners' keys back at the placeholder, so the turn falls back with
+# no_key. Every setting a run changes is put back at once and read back at the end of the phase; the runners' model keys, pointed at the
+# mock key variable before P1, are put back and read back before P9 and again after the phase.
 probe_started=$SECONDS
 probe_state="$tmp/probe-state"
 probe_record="$tmp/probe-record"
@@ -1247,27 +1250,28 @@ probe_run() {
   ) > "$tmp/probe.$label.out" 2> "$tmp/probe.$label.err" < /dev/null
   probe_rc=$?
 }
-# probe_expect <label> <label of the check> <exit> <text>: the run's exit code, one stdout line that is also the log's last line, and the
-# text after the time.
+# probe_expect <label> <label of the check> <exit> <text> [<story>]: the run's exit code, one stdout line that is also the log's last line,
+# and the text after the time. The story named in the check's lines is 16.6 unless given.
 probe_expect() {
-  local out="$tmp/probe.$1.out" got last lines
+  local out="$tmp/probe.$1.out" got last lines story=${5:-16.6}
   got=$(sed 's/^[^ ]* //' "$out")
   last=$(tail -n 1 "$probe_state/probe.log" 2> /dev/null)
   lines=$(wc -l < "$out" | tr -d ' ')
   if [ "$probe_rc" = "$3" ] && [ "$got" = "$4" ] && [ "$lines" = 1 ] && [ "$(cat "$out")" = "$last" ] && grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ' "$out"; then
-    pass "Story 16.6, $2: exit $3, the log's last line and stdout are '<time> $4'"
+    pass "Story $story, $2: exit $3, the log's last line and stdout are '<time> $4'"
   else
-    fail "Story 16.6, $2: exit $probe_rc (wanted $3), '$got' (wanted '$4'), $lines stdout line(s), the log's last line is '$(printf '%s' "$last" | sed 's/^[^ ]* //')'"
+    fail "Story $story, $2: exit $probe_rc (wanted $3), '$got' (wanted '$4'), $lines stdout line(s), the log's last line is '$(printf '%s' "$last" | sed 's/^[^ ]* //')'"
   fi
 }
 # probe_counts: "<alert lines> <reset lines>" of the command record so far.
 probe_counts() { printf '%s %s' "$(grep -c '^alert ' "$probe_record")" "$(grep -c '^reset$' "$probe_record")"; }
-# probe_calls_ok <check label> <alerts> <resets>: the record holds this many alert and reset lines.
+# probe_calls_ok <check label> <alerts> <resets> [<story>]: the record holds this many alert and reset lines.
 probe_calls_ok() {
+  local story=${4:-16.6}
   if [ "$(probe_counts)" = "$2 $3" ]; then
-    pass "Story 16.6, $1: the record holds $2 alert line(s) and $3 reset line(s)"
+    pass "Story $story, $1: the record holds $2 alert line(s) and $3 reset line(s)"
   else
-    fail "Story 16.6, $1: the record holds '$(probe_counts)' alert and reset lines, wanted '$2 $3'"
+    fail "Story $story, $1: the record holds '$(probe_counts)' alert and reset lines, wanted '$2 $3'"
   fi
 }
 
@@ -1523,21 +1527,41 @@ if [ "$probe_ok" = 1 ]; then
   probe_expect p8 "row 8" 1 "auth_failed count=1"
   probe_calls_ok "row 8" 6 1
 
+  # P9 (Story 29.6, row 6): the runners' keys go back to the Provider step's placeholder, so the next turn is a no_key fallback, which the
+  # probe reports as degraded: an alert, exit 1, and the count of counted failures (1 after P8) unchanged, with no reset.
+  p9_keys=0
+  if [ "$(keys_restore)" = 1 ]; then
+    p9_keys=1
+    pass "Story 29.6, row 6: the runners' model keys are back to the Provider step's placeholder before P9"
+  else
+    fail "Story 29.6, row 6: the runners' model keys could not be put back to the placeholder, so P9 is not run"
+  fi
+  if [ "$p9_keys" = 1 ]; then
+    probe_run p9
+    probe_expect p9 "row 6" 1 "degraded count=1 fallback=no_key" 29.6
+    probe_calls_ok "row 6" 7 1 29.6
+    if [ "$(cat "$probe_state/counted-failures" 2> /dev/null)" = 1 ]; then
+      pass "Story 29.6, row 6: degraded left the stored count at 1"
+    else
+      fail "Story 29.6, row 6: the stored count reads '$(cat "$probe_state/counted-failures" 2> /dev/null)' after degraded (wanted 1)"
+    fi
+  fi
+
   # Row 9: the phase as a whole.
-  if [ "$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')" = "healthy auth_failed no_splash busy no_decision auth_failed capped auth_failed " ]; then
-    pass "Story 16.6, row 9: probe.log holds exactly eight lines: healthy, auth_failed, no_splash, busy, no_decision, auth_failed, capped, auth_failed"
+  if [ "$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')" = "healthy auth_failed no_splash busy no_decision auth_failed capped auth_failed degraded " ]; then
+    pass "Story 16.6, row 9: probe.log holds exactly nine lines: healthy, auth_failed, no_splash, busy, no_decision, auth_failed, capped, auth_failed, degraded"
   else
     fail "Story 16.6, row 9: probe.log's outcomes are '$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')'"
   fi
   : > "$tmp/probe-expected"
-  for label in p2 p3 p4 p5 p6 p8; do
+  for label in p2 p3 p4 p5 p6 p8 p9; do
     if [ "$label" = p5 ]; then echo reset >> "$tmp/probe-expected"; fi
     printf 'alert %s %s\n' "$(sed 's/^[^ ]* //; s/ .*//' "$tmp/probe.$label.out")" "$(cat "$tmp/probe.$label.out")" >> "$tmp/probe-expected"
   done
   if cmp -s "$tmp/probe-expected" "$probe_record"; then
-    pass "Story 16.6, row 9: the record holds six alert lines (each with its outcome and its run's line) and one reset line, in the order of the runs"
+    pass "Story 16.6, row 9: the record holds seven alert lines (each with its outcome and its run's line) and one reset line, in the order of the runs"
   else
-    fail "Story 16.6, row 9: the command record is not the six alerts and the one reset of the runs ($(grep -c '^alert ' "$probe_record") alert, $(grep -c '^reset$' "$probe_record") reset line(s))"
+    fail "Story 16.6, row 9: the command record is not the seven alerts and the one reset of the runs ($(grep -c '^alert ' "$probe_record") alert, $(grep -c '^reset$' "$probe_record") reset line(s))"
   fi
   counter_phase_after=$(counter_rows)
   if [ "$counter_phase_after" = "$counter_phase_before" ]; then

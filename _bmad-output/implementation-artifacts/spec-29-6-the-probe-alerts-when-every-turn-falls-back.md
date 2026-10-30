@@ -2,7 +2,8 @@
 title: 'Story 29.6: The probe alerts when every turn falls back'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f2eec5c36636c4f6788224c98b34df9eb6ac71de'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -143,6 +144,29 @@ Rows 1 to 5 run in the hermetic `docker/tests/test-probe.sh` (a Node stub stands
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 19 findings - high 0, medium 0, low 11, false 8, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: a string body with no Content-Type is served as application/json, which the format header hid - the header now says "application/json when the reply names none" (`ci/mock/scenarios.mjs`); Edge repeats it as a guard suggestion, rejected as a guard (the spec forbids touching `mock.mjs`).
+  - `[low]` `[reject]` Blind: `degraded` alerts every 15 min while the cause lasts - spec-bound: the owner's ruling is an alert-only outcome like `busy`, which also repeats.
+  - `[low]` `[reject]` Blind: the three reasons are an allow-list not tied to the enum - Decided in-stage 3 and 7 name the three; `Test.Msg.Contracts` pins the spellings; a new reason is a future story.
+  - `[low]` `[reject]` Blind: no tests for `body: ""` or `null` - `null` is refused by the same branch as `5`, and the empty string is a string; the extra rows add nothing a user meets.
+  - `[low]` `[reject]` Blind and Edge: "Story 29.6, row 6" labels beside Story 16.6's row 6, and row 9's text stays 16.6 - the spec says P9's lines name Story 29.6 and row 9 stays Story 16.6's.
+  - `[false]` `[reject]` Blind and Edge: P9 runs before the runners record the restore - `Keys.Absent` is Decide's live read (Design Notes); `keys_restore` prints 1 only after `KeysAre` read the placeholder; the live unit passed, and with the match mutated P9 read `healthy ... fallback=no_key`, so the turn is a no_key fallback.
+  - `[false]` `[reject]` Edge: the day's cap mark could survive P7 and make P9 `capped` - P7 removes the mark and row 9 reads it back as 0; the live unit passed with P9 `degraded`.
+  - `[low]` `[reject]` Blind: the 150 s deadline guard and the phase time were not revisited - the phase starts under the same guard and the live unit passed inside the deadline; P9 adds one probe run.
+  - `[low]` `[reject]` Blind: the probe header's table alignment and one long line - cosmetic.
+  - `[low]` `[reject]` Blind: the spec's mutation lines mix expectation and result - Rule 19 asks for the mutation and the red observed on one line.
+  - `[false]` `[reject]` Edge: the outcome follows a substring match while `fallback=` is the first token - the event line carries one reason, in the payload and in `decision`, and both are the same value.
+  - `[low]` `[reject]` Edge: a future enum member reports healthy - the DW-260 ruling names three reasons; Decided in-stage 3.
+  - `[low]` `[reject]` Edge: the stub takes the first of several `decision_*` flags - no test sets two.
+  - `[false]` `[reject]` Edge (claim): "after keys_restore the next turn is no_key" is unverified - the live run measured exactly that (P9 `degraded count=1 fallback=no_key`).
+  - `[false]` `[reject]` Verification-gap: no findings (all four ACs have `mutation:` lines; the hermetic suites passed when it ran them).
+  - `[false]` `[reject]` Intent-alignment: it describes the diff as implementing reading A with live coverage for C; the divergences it lists (stub-level `timeout` and `rate_limited`, P9 results outside the diff) are Decided in-stage 7 and are covered by the live run.
+  - `[false]` `[reject]` Intent-alignment: the `ci/mock/scenarios.mjs` change is not named in the Never list - it is in the spec's footprint_extensions and its Tasks.
+  - `[false]` `[reject]` Intent-alignment: the spec file's own edits sit outside the listed surfaces - the mutation lines are the Rule 19 tracking section.
+  - `[low]` `[reject]` Intent-alignment: DW-94 classification is shown only by `TestDailyCapPlainText` - that is the only test through the real AI Hub, and it passed on a fresh throwaway.
+
 ## Design Notes
 
 **Owner decision for Epic 29** (`owner_decision id=epic29_brief`, 2026-10-30, decided by the Contest Planner under the owner's delegation; DW-260 is kept by veto ruling U-157). It binds, quoted:
@@ -242,15 +266,33 @@ The implement stage searches `docker/tests`, `ci/mock/test`, `release/` and `src
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order. Each probe case uses a fresh state folder. P9 runs inside the live phase's own state folder. `TestDailyCapPlainText` starts from an unmarked day, because `OnAfterOneTest` kills the mark. Each mock case makes its own fixture tree or reads the committed one.
 
 **Mutations (Rule 19), one per AC.** Apply each one, observe red, revert, and confirm that `git status --short` and `git diff --stat` are byte-identical to before:
-- AC1: mutation: drop `no_key` from the `degraded` match in `docker/probe.sh`. Expected red: row 13's `no_key` case (`healthy count=0 fallback=no_key` instead of `degraded count=1 fallback=no_key`). Second mutation: put `degraded` in the `auth_failed | no_decision` branch. Expected red: the new QA sequence (its first `degraded` run reads `count=2 reset=0` and runs the reset) and row 13's three cases (`count=2 reset=0`).
-- AC2: mutation: the same `no_key` drop. Expected red: `live online-demo`'s P9 (`healthy count=0 fallback=no_key`) and row 9's outcome list. Runs once, about 6 min.
-- AC3: mutation: `ci/mock/scenarios/B/daily-cap-text.json`'s body becomes "daily cost cap exceeded". Expected red: `TestDailyCapPlainText` (reason `error`, the day unmarked) on a fresh class run, and `server.test.mjs` row 13's committed check in `test-mock.sh`.
-- AC4: mutation: `checkReply` refuses a string body again. Expected red: `test-mock.sh`'s committed-tree load test (it names `B/daily-cap-text.json` and the body rule) and the limits test.
+- AC1: mutation: drop `no_key` from the `degraded` match in `docker/probe.sh`. Expected red: row 13's `no_key` case (`healthy count=0 fallback=no_key` instead of `degraded count=1 fallback=no_key`). Second mutation: put `degraded` in the `auth_failed | no_decision` branch. Expected red: the new QA sequence (its first `degraded` run reads `count=2 reset=0` and runs the reset) and row 13's three cases (`count=2 reset=0`). Run in the implement stage: the first mutation gave 12 red checks (row 13's `no_key` case reads `healthy count=0 fallback=no_key`, the QA path and the QA sequence follow), the second gave 19 (row 13's three cases read `degraded count=2 ... reset=0`, with a reset and no stored count of 1); each was reverted from a backup and the tree was byte-identical.
+- AC2: mutation: the same `no_key` drop. Expected red: `live online-demo`'s P9 (`healthy count=0 fallback=no_key`) and row 9's outcome list. Runs once, about 6 min. Run in the implement stage on a fresh throwaway: P9 read `healthy count=0 fallback=no_key` (exit 0, stored count 0, 6 alert lines) and row 9's outcome list and alert record went red (5 FAIL lines); reverted from a backup, the tree byte-identical, and the unmutated unit passed.
+- AC3: mutation: `ci/mock/scenarios/B/daily-cap-text.json`'s body becomes "daily cost cap exceeded". Expected red: `TestDailyCapPlainText` (reason `error`, the day unmarked) on a fresh class run, and `server.test.mjs` row 13's committed check in `test-mock.sh`. Run in the implement stage on a warm throwaway restarted for the mock change: `test-mock.sh` failed only row 13 (1 of 117), and the class failed only `TestDailyCapPlainText` (three asserts: the fallback guarantees, the day marked, the sink events); reverted from a backup, the throwaway torn down and the tree byte-identical.
+- AC4: mutation: `checkReply` refuses a string body again. Expected red: `test-mock.sh`'s committed-tree load test (it names `B/daily-cap-text.json` and the body rule) and the limits test. Run in the implement stage: the committed-tree load, the limits test and every server test that loads the committed tree went red (41 of 117); reverted from a backup and the tree was byte-identical.
 
 **Manual checks:**
 - H13 and H20 of `release/demo-host-checks.md` and its probe section read as the release-check task says. Both statuses are unchanged, and no row reads as a pass.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The probe has a new alert-only outcome, `degraded`, for `no_key`, `timeout` and `rate_limited` fallbacks (DW-260). It alerts, exits 1 and changes no count. DW-94 needed no bridge change; the repository pins the planning measurement with a plain-text mock scenario (a mock reply's `body` may now be a string) and `TestDailyCapPlainText`. The check list names the 403 body and the new outcome.
+
+**Files changed.**
+- `docker/probe.sh`: the `degraded` branch, its state branch beside `no_splash`, and the header text.
+- `docker/tests/test-probe.sh`: the stub's three reason flags, row 13's three cases, a QA path per reason, and the degraded QA sequence.
+- `docker/tests/test-online-demo.sh`: P9 after `keys_restore`, and row 9 at nine log lines and seven alert lines.
+- `ci/mock/scenarios.mjs`: a string reply body is accepted.
+- `ci/mock/scenarios/B/daily-cap-text.json`: the plain-text 403 scenario (new).
+- `ci/mock/test/scenarios.test.mjs` and `ci/mock/test/server.test.mjs`: the string-body rule, the committed tree and row 13.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls`: the `GatewayCap` helper and `TestDailyCapPlainText`.
+- `release/demo-host-checks.md`: H13, H20 and the probe section.
+
+**Review.** 19 findings from four layers: 1 patched (low: the mock format header now states the default Content-Type), 0 deferred, 18 rejected with their reasons in the triage log. Patched by verdict: high 0, medium 0, low 1. Follow-up review recommended: false.
+
+**Verification.** `bash -n` of the three scripts clean. `test-probe.sh` all checks passed. `test-mock.sh` 117 of 117 (after the last edit too). `Test.Agent.Decide` on a fresh lane-C throwaway passed (106.7 s). `ci/iris.sh build` matched. `live online-demo` passed, with P9 `degraded count=1 fallback=no_key`, 7 alert lines, 1 reset line, and row 9's nine log lines. `test-online-host.sh` and `ci/checks.sh` passed. The four AC mutations each went red and were reverted byte-identical (AC2 on the live unit). The tags `e29s6i` and `e29s6iw` are torn down.
+
+**Residual risks.** `timeout` and `rate_limited` are pinned only hermetically (Decided in-stage 7). An `error` fallback stays healthy, and H13's host check covers a gateway 403 with an empty body. The lead may amend AD-25's probe bullet to add `no_splash` and `degraded` (Design Notes).

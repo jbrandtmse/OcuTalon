@@ -8,7 +8,8 @@
 #   row 10  the request discipline of a healthy run, with and without a session token on the splash form;
 #   row 11  busy from an HTTP 503 at each step, and from the marker header;
 #   row 12  no_splash: the local sign-in page, a 404, nothing listening;
-#   row 13  the other endings, the command conventions and the state files;
+#   row 13  the other endings, the command conventions and the state files, and degraded (a no_key, timeout or rate_limited fallback)
+#           with its own sequence: it alerts, exits 1 and changes no count;
 #   row 14  configuration errors: exit 2, one line naming the variable, no request, nothing written;
 #   row 15  the file itself.
 # The test password is random per run and is never printed. Starts no container. Needs Node and curl.
@@ -151,7 +152,7 @@ const server = http.createServer((req, res) => {
           event(3, "session", "chat.message", { ref: "r9", clientId: "other-client", state: "done", fallbackReason: "", decision: decision("") }),
           event(7, "instance", "status.conditions", {}),
         ];
-        const reason = f.has("decision_daily_cap") ? "daily_cap" : f.has("decision_error") ? "error" : "";
+        const reason = ["daily_cap", "error", "no_key", "timeout", "rate_limited"].find((r) => f.has("decision_" + r)) || "";
         if (!f.has("events_nodecision") && (polls >= 2 || f.has("decision_first"))) {
           events.push(event(4, "session", "chat.message", { ref: "r1", clientId: client, state: "done", replyText: "ok", fallbackReason: reason, decision: decision(reason) }));
         }
@@ -424,6 +425,24 @@ probe_run "decision_error decision_first"
 expect_run "row 13: a decision with the fallback reason error" 0 "healthy count=0 fallback=error"
 if [ ! -s "$commands" ]; then pass "row 13: a fallback with another reason alerts nothing"; else fail "row 13: a healthy fallback called a command"; fi
 
+# degraded: a no_key, timeout or rate_limited fallback alerts with the run's line, exits 1, runs no reset and leaves the count and the busy file alone.
+for reason in no_key timeout rate_limited; do
+  new_state
+  printf '1\n' > "$state/counted-failures"
+  probe_run "decision_$reason decision_first"
+  expect_run "row 13: a decision with the fallback reason $reason" 1 "degraded count=1 fallback=$reason"
+  if [ "$(n_calls alert)" = 1 ] && [ "$(n_calls reset)" = 0 ] && [ "$(sed -n 1p "$commands")" = "alert degraded $(tr -d '\n' < "$tmp/out")" ]; then
+    pass "row 13: $reason is degraded: one alert with the outcome and the run's log line, and no reset"
+  else
+    fail "row 13: $reason: $(n_calls alert) alert(s), $(n_calls reset) reset(s), record '$(head -n 1 "$commands")'"
+  fi
+  if [ "$(stored_count)" = 1 ] && [ ! -e "$state/busy-per-day" ]; then
+    pass "row 13: $reason leaves the stored count at 1 and writes no busy-per-day"
+  else
+    fail "row 13: $reason: stored count '$(stored_count)', busy-per-day $([ -e "$state/busy-per-day" ] && echo present || echo absent)"
+  fi
+done
+
 new_state
 printf '1\n' > "$state/counted-failures"
 probe_run "decision_daily_cap decision_first"
@@ -635,6 +654,9 @@ qa_path() {
 qa_path "a healthy run" decision_first 0 "healthy count=0" 1
 qa_path "a capped run" "decision_daily_cap decision_first" 0 "capped count=0 fallback=daily_cap" 1
 qa_path "a healthy run with the fallback error" "decision_error decision_first" 0 "healthy count=0 fallback=error" 1
+qa_path "a degraded run, fallback no_key" "decision_no_key decision_first" 1 "degraded count=0 fallback=no_key" 1
+qa_path "a degraded run, fallback timeout" "decision_timeout decision_first" 1 "degraded count=0 fallback=timeout" 1
+qa_path "a degraded run, fallback rate_limited" "decision_rate_limited decision_first" 1 "degraded count=0 fallback=rate_limited" 1
 qa_path "a decision timeout" events_nodecision 1 "no_decision count=1" 1
 qa_path "a 500 at the message POST" msg_500 1 "no_decision count=1" 1
 qa_path "a 503 at the message POST" msg_503 1 "busy count=0" 1
@@ -731,6 +753,15 @@ seq_step "counted failure 1 after a healthy run" signin_form_back 1 "auth_failed
 seq_step "counted failure 2 (auth_failed): the second reset" signin_form_back 1 "auth_failed count=2 reset=0" 8 2 0
 seq_step "counted failure 1 after the second reset" msg_500 1 "no_decision count=1" 9 2 1
 seq_step "capped clears the count" "decision_daily_cap decision_first" 0 "capped count=0 fallback=daily_cap" 9 2 0
+
+# degraded never counts: on a fresh state, a counted failure, then one degraded run per reason, then the second counted failure resets once.
+new_state
+seq_step "degraded sequence, counted failure 1 (auth_failed)" signin_form_back 1 "auth_failed count=1" 1 0 1
+seq_step "degraded sequence, no_key leaves the count" "decision_no_key decision_first" 1 "degraded count=1 fallback=no_key" 2 0 1
+seq_step "degraded sequence, timeout leaves the count" "decision_timeout decision_first" 1 "degraded count=1 fallback=timeout" 3 0 1
+seq_step "degraded sequence, rate_limited leaves the count" "decision_rate_limited decision_first" 1 "degraded count=1 fallback=rate_limited" 4 0 1
+seq_step "degraded sequence, counted failure 2 (no_decision): the reset runs once" events_nodecision 1 "no_decision count=2 reset=0" 5 1 0
+if [ ! -e "$state/busy-per-day" ]; then pass "QA sequence, degraded: no busy-per-day was written"; else fail "QA sequence, degraded: busy-per-day exists"; fi
 
 new_state
 printf '5\n' > "$state/counted-failures"
