@@ -1270,6 +1270,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 16.1 implement stage, live online-demo on lane C: signed in, %25CSP.PasswordChange.cls answers 200 at both trace apps; a change through it (F12) succeeds for a non-public user and is refused for both public accounts by the guard
 - 2026-10-25T19:05:03Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=harvest note=29.3 blocks every password-change page: include /ocutalon/trace/*/%CSP.PasswordChange.cls (any letter case, percent-encoded) in the proxy's blocked list and its test
+- 2026-10-30T04:03:21Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-81 measured on the gated host by the Contest Planner 2026-10-30 after the Epic 16 deploy: the host filter answers 404 to every %CSP.PasswordChange.cls path form (encoded, double-encoded, any letter case, with a query, signed in or out, trace apps and /csp/broker/); IRIS alone serves it 200; controls 200. 29.3's host check script carries these cases; close at 29.3's adjudication
 
 ### DW-217: Web/Api.cls's class comment and StateBody's comment do not name the new traceAccount key (only TraceAccount()'s own comment does)
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
