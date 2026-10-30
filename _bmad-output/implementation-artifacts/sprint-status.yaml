@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 09:47
+last_updated: 10-30-2026 10:02
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -293,7 +293,7 @@ development_status:
 
   epic-29: in-progress
   29-3-the-demo-host-is-adapted-for-the-launch: done
-  29-4-sessions-stay-isolated-under-load: ready-for-dev
+  29-4-sessions-stay-isolated-under-load: in-progress
   29-5-the-address-counter-s-hash-is-keyed-per-reset: backlog
   29-6-the-probe-alerts-when-every-turn-falls-back: backlog
   29-7-the-author-s-load-run-measures-the-demo-s-capacity: backlog
