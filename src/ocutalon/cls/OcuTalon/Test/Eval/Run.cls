@@ -41,7 +41,7 @@
 ///     decisions: six decide, one diagnose and eight turn);
 ///   - TestHops (AC3): the messages of the runs go from and to the items of the item path only, EvalIn sends requests only to Intake, Decide (the
 ///     turn cases' asks), EvalSink (their TurnResults) and IncidentManager (the incident cases), IncidentManager sends requests only to Decide and
-///     EvalSink, and EvalSink sends nothing.
+///     EvalSink and gets them only from EvalIn, and EvalSink sends nothing.
 ///   - TestReport (Story 9.2): the report of each run, built from its real rows (Eval.Report.Build): the newsletter is scored wrong with
 ///     its cost, model and request size, the incident case is scored right (incidents 1 of 1, no skip is notRunYet) and the case that is not there is
 ///     the run's only problem; run 2 scores the act case right and the plain case wrong, lists the act case's two decisions and has the three refused
@@ -819,7 +819,7 @@ Method TestHops()
 	Do $$$AssertTrue($Data(pairs("EvalIn>Decide")) && $Data(pairs("EvalIn>EvalSink")), "and the two hops of the turn path (a control): "_list)
 	Do $$$AssertTrue($Data(pairs("EvalIn>IncidentManager")) && $Data(pairs("IncidentManager>Decide")) && $Data(pairs("IncidentManager>EvalSink")), "and the three hops of the incident path (a control): "_list)
 	Do $$$AssertEquals(outside, "", "every message of the runs is between items of the item path: "_list)
-	Set fromIn = "", fromSink = "", fromIncident = ""
+	Set fromIn = "", fromSink = "", fromIncident = "", toIncident = ""
 	Set pair = ""
 	For {
 		Set pair = $Order(requests(pair))
@@ -827,9 +827,11 @@ Method TestHops()
 		If $Piece(pair, ">", 1) = "EvalIn" Set fromIn = fromIn_" "_pair
 		If $Piece(pair, ">", 1) = "EvalSink" Set fromSink = fromSink_" "_pair
 		If $Piece(pair, ">", 1) = "IncidentManager" Set fromIncident = fromIncident_" "_pair
+		If $Piece(pair, ">", 2) = "IncidentManager" Set toIncident = toIncident_" "_pair
 	}
 	Do $$$AssertEquals(fromIn, " EvalIn>Decide EvalIn>EvalSink EvalIn>IncidentManager EvalIn>Intake", "EvalIn sends requests only to Decide and EvalSink (the turn cases), IncidentManager (the incident cases) and Intake (the others)")
 	Do $$$AssertEquals(fromIncident, " IncidentManager>Decide IncidentManager>EvalSink", "IncidentManager sends requests only to Decide and EvalSink")
+	Do $$$AssertEquals(toIncident, " EvalIn>IncidentManager", "and no item but EvalIn sends IncidentManager a request")
 	Do $$$AssertEquals(fromSink, "", "EvalSink sends no request")
 }
 

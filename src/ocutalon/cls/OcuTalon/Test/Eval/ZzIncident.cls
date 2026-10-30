@@ -5,7 +5,9 @@
 ///     or an error when FailDiagnose is set.
 ///   - SendEval records the ItemDecision to EvalSink in Delivered as {itemId, sourceItemId, ownerRef, channel, summary, decisionRef, outcome, fallback,
 ///     fallbackReason}, and answers OK, or an error when FailEval is set.
-///   - CaseRequest, CaseAnswer and CaseRefuse are OnRequest, OnResponse and OnError with the diagnose key, as the framework calls them for an IncidentCase.
+///   - CaseRequest, CaseAnswer and CaseRefuse are OnRequest, OnResponse and OnError with the diagnose key, as the framework calls them for an IncidentCase:
+///     CaseRefuse is OnError under an error response header and then, when OnError answers OK, OnResponse with no answer under the same header, which is
+///     what Ens.BusinessProcess does after an error that OnError handled.
 Class OcuTalon.Test.Eval.ZzIncident Extends OcuTalon.Test.Watch.IncidentProbe
 {
 
@@ -49,10 +51,18 @@ Method CaseAnswer(case As %Library.Persistent, response As %RegisteredObject) As
 	Quit ..OnResponse(case, , "", response, ..#DIAGNOSEKEY)
 }
 
-/// The error handler of the diagnose request of the case, as the framework calls it when Decide refuses the request.
+/// The error handler of the diagnose request of the case, as the framework calls it when Decide refuses the request: OnError, then, when it answers OK,
+/// OnResponse with no answer, both under an error response header of the error.
 Method CaseRefuse(case As %Library.Persistent, error As %Status) As %Status
 {
-	Quit ..OnError(case, , "", error, ..#DIAGNOSEKEY)
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.IsError = 1
+	Set header.ErrorStatus = error
+	Set ..%CurrentResponseHeader = header
+	Set sc = ..OnError(case, , "", error, ..#DIAGNOSEKEY)
+	If $$$ISOK(sc) Set sc = ..OnResponse(case, , "", "", ..#DIAGNOSEKEY)
+	Set ..%CurrentResponseHeader = ""
+	Quit sc
 }
 
 Storage Default

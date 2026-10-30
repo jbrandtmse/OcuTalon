@@ -32,7 +32,8 @@
 # or 0 fails), the number of incident case lines of run 1 (the seventh field of CHK|case| is the case's kind) equals the number of top-level
 # eval/*/case.json of kind incident and is above 0, and the demo incident's line (Report DEMOCASE, CHK|democase|) has fallback 0 and a got of the form
 # causeCategory/elementAtFault/fixKind whose first two parts are not empty (Story 9.6: the incident cases are diagnosed through IncidentManager; the
-# other incident lines are printed with an INFO count of their fallbacks and checked for nothing more than the run having no problem, because the
+# other incident lines are printed with an INFO line of their fallbacks, each case with its reason (CHK|fallback|), and checked for nothing more
+# than the run having no problem, because the
 # mock's one diagnosis answers a repair-and-resend of OrderDate, which Decide accepts only for a sample body that holds that field), the
 # set's Markdown has the score lines All-clear and Command and the section "Turn cases" with a bullet for
 # allclear-orders-failing and one for command-run-shell, the set has at least one injection case with a watch and every such watch is
@@ -92,7 +93,8 @@ eval_run() {
     'For i=0:1:problems.%Size()-1 { Write !,"CHK|problem|",$Translate(problems.%Get(i),$Char(13,10),"  ") }' \
     'Write !,"CHK|democase|",##class(OcuTalon.Eval.Report).#DEMOCASE' \
     'Write !,"CHK|cases|",report.cases.%Size()' \
-    'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):c.got.causeCategory_"/"_c.got.elementAtFault_"/"_c.got.fixKind,1:c.got),"|",c.%Get("fallback"),"|",c.%Get("kind") }' \
+    'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Translate($Select($IsObject(c.got):c.got.causeCategory_"/"_c.got.elementAtFault_"/"_c.got.fixKind,1:c.got),"|"_$Char(13,10),"   "),"|",c.%Get("fallback"),"|",c.%Get("kind") }' \
+    'For i=0:1:report.fallbacks.%Size()-1 { Set f=report.fallbacks.%Get(i) Write !,"CHK|fallback|",f.case,"|",$Translate(f.reason,"|"_$Char(13,10),"   ") }' \
     'For g="items","incidents" { Set s=report.scores.%Get(g) Write !,"CHK|",g,"|",s.right," of ",s.total,"|",$Select(s.%GetTypeOf("met")="null":"not measured",s.%Get("met"):"met",1:"not met") }' \
     'Set s=report.scores.injections Write !,"CHK|injections|",s.right," of ",s.total' \
     'Set s=report.scores.allClear Write !,"CHK|allclear|",s.right," of ",s.total' \
@@ -168,7 +170,7 @@ if run_started set; then
   elif [ "$got_incidents" -ne "$want_incidents" ]; then
     fail "set: $got_incidents incident case(s) were run, but eval/ holds $want_incidents"
   else
-    pass "set: all $got_incidents incident case(s) were run, each with a completed result row (the run has no problem)"
+    pass "set: all $got_incidents incident case(s) were run"
   fi
   demo_name=$(chk_value set democase)
   demo_line=$(printf '%s\n' "$incident_lines" | awk -F'|' -v name="$demo_name" '$3 == name')
@@ -181,7 +183,8 @@ if run_started set; then
     pass "set: the demo incident '$demo_name' was diagnosed, with no fallback and a cause category and element"
   fi
   incident_fallbacks=$(printf '%s\n' "$incident_lines" | awk -F'|' 'NF && $6 != "0" { n++ } END { print n + 0 }')
-  echo "INFO set: $incident_fallbacks of $got_incidents incident case(s) ended as a fallback (the mock names the demo's field OrderDate, which a repair-and-resend fix accepts only for a sample body that holds it)"
+  fallback_reasons=$(awk -F'|' 'NR == FNR { if ($1 == "CHK" && $2 == "case" && $7 == "incident" && $6 != "0") want[$3] = 1; next } $1 == "CHK" && $2 == "fallback" && ($3 in want) { printf "%s%s (%s)", sep, $3, $4; sep = ", " }' "$tmp/set.chk" "$tmp/set.chk")
+  echo "INFO set: $incident_fallbacks of $got_incidents incident case(s) ended as a fallback${fallback_reasons:+: $fallback_reasons} (on the CI mock the one diagnosis names the demo's field OrderDate, which a repair-and-resend fix accepts only for a sample body that holds it)"
   injections=$(chk_value set injections)
   case ${injections##* of } in
     '' | *[!0-9]* | 0) fail "set: no injection case was scored by the injection rule (injections: ${injections:-no score})" ;;

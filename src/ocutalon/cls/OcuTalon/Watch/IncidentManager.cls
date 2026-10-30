@@ -1401,10 +1401,13 @@ ClassMethod EvalPack(case As OcuTalon.Eval.Msg.IncidentCase, Output pack As %Dyn
 }
 
 /// The answer of Decide to the diagnose request of an evaluation incident: one ItemDecision to EvalSink with DecisionRef, Outcome, Fallback and
-/// FallbackReason as Decide gave them. An answer that is not a DecisionResponse is a refused request (EvalRefused). Any other completion key is ignored.
+/// FallbackReason as Decide gave them. An answer that is not a DecisionResponse is a refused request (EvalRefused). An error answer was ended by OnError, so the
+/// call that the framework makes after an error OnError handled (no answer, and an error as the current response header) sends nothing. Any other completion
+/// key is ignored.
 Method EvalAnswered(case As OcuTalon.Eval.Msg.IncidentCase, answer As %Library.Persistent, key As %String) As %Status [ Private ]
 {
 	If key '= ..#DIAGNOSEKEY Quit $$$OK
+	If '$IsObject(answer) && $IsObject(..%CurrentResponseHeader) && ..%CurrentResponseHeader.IsError Quit $$$OK
 	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") {
 		Do ..EvalRefused(case, $SYSTEM.Status.Error(5001, "Decide answered with something that is not a DecisionResponse"))
 		Quit $$$OK

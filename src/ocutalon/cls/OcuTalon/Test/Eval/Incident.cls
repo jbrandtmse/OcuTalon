@@ -2,8 +2,9 @@
 /// probe of IncidentManager with the two sends of the evaluation branch recorded) is handed OcuTalon.Eval.Msg.IncidentCase messages that carry the demo
 /// incident's recorded snapshot (/opt/ocutalon/eval/orders-date-format/snapshot.json) or a bad one, and the answers of Decide are made by the test. The read
 /// tests begin a bridge context from a request, save IncidentCase bodies whose SourceItemId starts with zz-incident-, and call the tool methods of
-/// OcuTalon.Tools.WatchReads in this process. Every test asserts that none of the sends the branch must never make was recorded (the probe's Sent, DryRuns,
-/// Raised, Executed, Started, Alarms and Cancelled) and that the number of Incident, FailureGroup, ApprovalRequest, FixRun and Live.Event rows is unchanged.
+/// OcuTalon.Tools.WatchReads in this process. Every test of the shadow instance (TestRequest to TestEvalSendFails) asserts that none of the sends the branch
+/// must never make was recorded (the probe's Sent, DryRuns, Raised, Executed, Started, Alarms and Cancelled) and that the number of Incident, FailureGroup,
+/// ApprovalRequest and FixRun rows and of incident and watch.progress events is unchanged; the TestTools tests assert on the tools' answers instead.
 ///   - TestRequest: the request to Decide has kind diagnose, provenance untrusted, the case's Ref as ItemId, owner eval, the SuperSession as TraceRef, the
 ///     session as ThreadSessionId, the code-written Summary, and as Input the EvidencePack.Input of the pack that Build gives the snapshot; nothing goes
 ///     to EvalSink yet;
@@ -11,7 +12,8 @@
 ///     ItemId, the case's name as SourceItemId, owner eval, no Channel and the answer's DecisionRef and Outcome;
 ///   - TestFallbackAnswer: an answer with Fallback 1 gives an ItemDecision with Fallback 1, its reason and its DecisionRef, and no warning;
 ///   - TestRefused, TestBadSnapshot, TestSendFails, TestNotDecisionResponse: each ends the case as a fallback ItemDecision (error, tellnow, no DecisionRef)
-///     with one Type 3 warning, and the handler answers OK;
+///     with one Type 3 warning, and the handler answers OK; TestRefused counts across the OnResponse call that the framework makes after an error that
+///     OnError handled, and TestNotDecisionResponse covers an answer of another class and no answer;
 ///   - TestEmptyRef: an IncidentCase with no Ref is an error that names IncidentRef, and nothing is sent; TestEvalSendFails: a failed send to EvalSink logs
 ///     one Type 3 warning;
 ///   - TestToolsEval: in the context of owner eval and the Ref of a saved IncidentCase, the three read tools give what EvidencePack gives for its snapshot
@@ -23,8 +25,9 @@
 ///     while owner eval gets it;
 ///   - TestToolsLiveWins: for owner eval, with a live incident (its own throwaway row) in scope and an IncidentCase of the same ItemId saved, the three tools
 ///     give the answers of EvidencePack for the live incident and not those for the snapshot;
-///   - TestToolsWriteNothing: around eval-branch calls of the three tools, the rows of the message, session and watch tables and the contents of the
-///     ^OcuTalon* globals (all but the test scratch ^OcuTalonTest and the bridge's caches ^OcuTalonBP*), are as they were.
+///   - TestToolsWriteNothing: around eval-branch calls of the three tools, the rows of the message, bridge, session and watch tables and the contents of
+///     the ^OcuTalon* globals (all but the test scratch ^OcuTalonTest and the bridge's ^OcuTalonBP*, whose tables are counted by rows) are as they were, in
+///     one of up to ATTEMPTS windows: a write of the running production's own jobs lands in one window, a write of the branch in every one.
 Class OcuTalon.Test.Eval.Incident Extends %UnitTest.TestCase
 {
 
@@ -36,6 +39,9 @@ Parameter PREFIX = "zz-incident-";
 
 /// The tool class.
 Parameter TOOLS = "OcuTalon.Tools.WatchReads";
+
+/// The most windows TestToolsWriteNothing takes before and after the three tool calls.
+Parameter ATTEMPTS = 3;
 
 /// The number of the newest row of the event log when the test began.
 Property LogMark As %Integer;
@@ -226,9 +232,13 @@ Method TestNotDecisionResponse()
 	Do ..AssertFallback(host, case, "not a DecisionResponse")
 	Do ..AssertNothingElse(host, counts)
 	Set again = ..Host()
-	Do again.CaseRequest(case)
-	Do $$$AssertStatusOK(again.CaseAnswer(case, ""), "an empty answer is taken")
-	Do $$$AssertEquals(..Size(again.Delivered), 1, "and it also ends the case as a fallback")
+	If '$IsObject(again) Quit
+	Set other = ..Case(text)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do again.CaseRequest(other)
+	Do $$$AssertStatusOK(again.CaseAnswer(other, ""), "an empty answer is taken")
+	Do ..AssertFallback(again, other, "not a DecisionResponse", mark)
+	Do ..AssertNothingElse(again, counts)
 }
 
 /// A case with no Ref is an error and sends nothing.
@@ -414,16 +424,19 @@ Method TestToolsWriteNothing()
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Save(ref, text, "w")
 	Do ..Begin("eval", ref)
-	Set before = ..Footprint()
-	Do $$$AssertTrue(($Length(..Globals(), ",") > 1) && (before '[ "[error") && (before '[ "[none]"), "the footprint reads every table and some ^OcuTalon* globals: "_before)
-	Set taken = 0
-	For tool = "ReadFailedMessages", "ReadEventLog", "ReadItemSettings" {
-		Set answer = $ClassMethod(..#TOOLS, tool)
-		If answer.%ToJSON() '= "{""items"":[]}" Set taken = taken + 1
+	For attempt = 1:1:..#ATTEMPTS {
+		Set before = ..Footprint()
+		Set taken = 0
+		For tool = "ReadFailedMessages", "ReadEventLog", "ReadItemSettings" {
+			Set answer = $ClassMethod(..#TOOLS, tool)
+			If answer.%ToJSON() '= "{""items"":[]}" Set taken = taken + 1
+		}
+		Set after = ..Footprint()
+		If after = before Quit
 	}
-	Set after = ..Footprint()
+	Do $$$AssertTrue(($Length(..Globals(), ",") > 1) && (before '[ "[error") && (before '[ "[none]") && (+$Piece(before, "|", 2) > 0), "the footprint reads every table, counts the test's own IncidentCase body and reads some ^OcuTalon* globals: "_before)
 	Do $$$AssertEquals(taken, 3, "all three tools took the eval branch")
-	Do $$$AssertEquals(after, before, "and no row and no node of any ^OcuTalon* global changed")
+	Do $$$AssertEquals(after, before, "and no row and no node of any ^OcuTalon* global changed (window "_attempt_" of at most "_..#ATTEMPTS_")")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ..Sweep()
 }
@@ -480,7 +493,7 @@ Method AssertNothingElse(host As OcuTalon.Test.Eval.ZzIncident, counts As %Strin
 		If ..Size($Property(host, name)) Set sends = sends_" "_name
 	}
 	Do $$$AssertEquals(sends, "", "no notice, dry run, request, order, waiter, alarm or cancel was recorded")
-	Do $$$AssertEquals(..Counts(), counts, "and the Incident, FailureGroup, ApprovalRequest, FixRun and Live.Event rows are as they were")
+	Do $$$AssertEquals(..Counts(), counts, "and the Incident, FailureGroup, ApprovalRequest and FixRun rows and the incident and watch.progress events are as they were")
 }
 
 /// The number of elements of a dynamic array, 0 for what is not one (a probe property nothing was recorded in).
@@ -489,16 +502,19 @@ ClassMethod Size(array) As %Integer [ Private ]
 	Quit $Select($IsObject(array): array.%Size(), 1: 0)
 }
 
-/// The numbers of rows of the tables that the live path writes, separated with a bar.
+/// The numbers of rows of the tables that the live path writes and of the events of the two types it publishes (incident and watch.progress, so that the
+/// events that the running production's other jobs publish do not count), separated with a bar.
 ClassMethod Counts() As %String [ Private ]
 {
 	Set counts = ""
-	For table = "OcuTalon_Data.Incident", "OcuTalon_Data.FailureGroup", "OcuTalon_Bridge_Data.ApprovalRequest", "OcuTalon_Data.FixRun", "OcuTalon_Live.Event" {
+	For table = "OcuTalon_Data.Incident", "OcuTalon_Data.FailureGroup", "OcuTalon_Bridge_Data.ApprovalRequest", "OcuTalon_Data.FixRun" {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_table)
 		Do result.%Next()
 		Set counts = counts_$Select(counts = "": "", 1: "|")_+result.%GetData(1)
 	}
-	Quit counts
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Type = ? OR Type = ?", $Parameter("OcuTalon.Watch.IncidentManager", "INCIDENTEVENT"), "watch.progress")
+	Do result.%Next()
+	Quit counts_"|"_+result.%GetData(1)
 }
 
 /// Begins the bridge context of a request of the kind and provenance (a diagnose request by default) for the owner and ItemId.
@@ -545,14 +561,15 @@ Method AssertEmpty(label As %String) [ Private ]
 	}
 }
 
-/// What the eval branch must leave alone, as one text: the numbers of rows of the message, session and watch tables (the message tables only for the
-/// product's own classes, so that the engine's traffic does not count), and the count and checksum of the nodes of every ^OcuTalon* global except the test
-/// scratch ^OcuTalonTest and the bridge's caches ^OcuTalonBP.*, which the running production's Decide job writes.
+/// What the eval branch must leave alone, as one text: the numbers of rows of the message, bridge, session and watch tables (the message tables only for the
+/// product's own classes, so that the engine's traffic does not count; a body's own class is the last of its x__classname, as %CLASSNAME names only the table
+/// queried), and the count and checksum of the nodes of every ^OcuTalon* global except the test scratch ^OcuTalonTest and the bridge's ^OcuTalonBP.*, which
+/// the running production's Decide job writes and whose tables Decision, Usage, ApprovalRequest and ConversationLink are counted by rows.
 ClassMethod Footprint() As %String [ Private ]
 {
 	Set out = ""
-	Set queries = $ListBuild("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName %STARTSWITH 'OcuTalon.'", "SELECT COUNT(*) FROM Ens.MessageBody WHERE %CLASSNAME %STARTSWITH 'OcuTalon.'")
-	Set tables = $ListBuild("OcuTalon_Eval_Msg.IncidentCase", "OcuTalon_Data.Session", "OcuTalon_Data.Turn", "OcuTalon_Live.Event", "OcuTalon_Data.Incident", "OcuTalon_Data.FailureGroup", "OcuTalon_Data.BackgroundCheck")
+	Set queries = $ListBuild("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName %STARTSWITH 'OcuTalon.'", "SELECT COUNT(*) FROM Ens.MessageBody WHERE x__classname [ '~OcuTalon.'")
+	Set tables = $ListBuild("OcuTalon_Eval_Msg.IncidentCase", "OcuTalon_Bridge_Data.Decision", "OcuTalon_Bridge_Data.Usage", "OcuTalon_Bridge_Data.ApprovalRequest", "OcuTalon_Bridge_Data.ConversationLink", "OcuTalon_Data.Session", "OcuTalon_Data.Turn", "OcuTalon_Live.Event", "OcuTalon_Data.Incident", "OcuTalon_Data.FailureGroup", "OcuTalon_Data.BackgroundCheck")
 	Set position = 0
 	While $ListNext(tables, position, table) {
 		Set queries = queries_$ListBuild("SELECT COUNT(*) FROM "_table)

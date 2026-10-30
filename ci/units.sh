@@ -27,19 +27,23 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 # A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
 # one piece, so every test class runs once. lane-a runs in two pieces (DW-337): Checks, Install and Watch beside live:floor in
-# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. live:cards runs in
-# install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
+# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. The CI rebalance of 2026-10-30
+# (an owner decision, taken by the Contest Planner under the owner's delegation, carried by Story 9.6) moved two units out of the
+# two install groups, the longest, without a new group: live:cards from install-fresh to shards, and live:audit from
+# install-upgrade to shards-2 (live:demo-switch, the first candidate for shards-2, would have taken shards-2, which also runs the
+# Eval area, past about 1,700 s). Each unit runs in its own project, so neither depended on its old group's install. live:audit
+# reads no web bundle and live:cards does, so production, whose units all read none, took neither.
 # Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
 # run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
 # bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
-    install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance" ;;
+    install-upgrade) echo "live:install-upgrade live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
-    shards-2) echo "shard:lane-a@rest" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch live:floor live:cards" ;;
+    shards-2) echo "shard:lane-a@rest live:audit" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
