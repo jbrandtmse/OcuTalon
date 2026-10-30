@@ -38,7 +38,10 @@
 ///   - Cost and size come from the rows. Every priced decision (the decide or diagnose decision, and the untrusted turn) is listed with its
 ///     model, which is read from OcuTalon.Bridge.Data.Decision. The mean and the maximum are taken over the priced decisions, and a decision at
 ///     or above FLAGUSD is flagged. The largest request is the bridge's estimate, and a case over FLAGTOKENS is flagged.
-///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5).
+///   - An incident case's entry also holds fixParameters, the fix parameters of its decision as a JSON object (null when it has none), and
+///     each decision of the cost lists holds durationMs, the Decision row's DurationMs (null when it has none). OcuTalon.Eval.Gate reads both.
+///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5), and Gate runs it. Save writes through WriteFiles, as
+///     Gate.Save does, and ScoreLine, Percent, Money and Cell are public for Gate's text.
 ///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind of CASEKINDS that EvalIn does not send
 ///     (none now: its KINDS holds every kind) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
 ///     not score) is listed as unscored.
@@ -163,10 +166,10 @@ ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray
 	Set report.size = {"largestTokens": null, "largestCase": "", "flagOverTokens": null, "flagged": [], "unknown": []}
 	Do report.size.%Set("flagOverTokens", ..#FLAGTOKENS, "number")
 	Kill tally
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT CaseName, ItemId, State, DecisionRef, Outcome, Fallback, FallbackReason, CauseCategory, ElementAtFault, FixKind, CostUSD, TurnDecisionRef, TurnCostUSD, LargestRequestTokens FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ? ORDER BY CaseName", runRef)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT CaseName, ItemId, State, DecisionRef, Outcome, Fallback, FallbackReason, CauseCategory, ElementAtFault, FixKind, FixParameters, CostUSD, TurnDecisionRef, TurnCostUSD, LargestRequestTokens FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ? ORDER BY CaseName", runRef)
 	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 	While result.%Next() {
-		Set row = {"case": (result.%Get("CaseName")), "itemId": (result.%Get("ItemId")), "state": (result.%Get("State")), "decisionRef": (result.%Get("DecisionRef")), "outcome": (result.%Get("Outcome")), "fallback": (+result.%Get("Fallback")), "fallbackReason": (result.%Get("FallbackReason")), "causeCategory": (result.%Get("CauseCategory")), "elementAtFault": (result.%Get("ElementAtFault")), "fixKind": (result.%Get("FixKind")), "costUSD": (..Number(result.%Get("CostUSD"))), "turnDecisionRef": (result.%Get("TurnDecisionRef")), "turnCostUSD": (..Number(result.%Get("TurnCostUSD"))), "tokens": (..Number(result.%Get("LargestRequestTokens")))}
+		Set row = {"case": (result.%Get("CaseName")), "itemId": (result.%Get("ItemId")), "state": (result.%Get("State")), "decisionRef": (result.%Get("DecisionRef")), "outcome": (result.%Get("Outcome")), "fallback": (+result.%Get("Fallback")), "fallbackReason": (result.%Get("FallbackReason")), "causeCategory": (result.%Get("CauseCategory")), "elementAtFault": (result.%Get("ElementAtFault")), "fixKind": (result.%Get("FixKind")), "fixParameters": (result.%Get("FixParameters")), "costUSD": (..Number(result.%Get("CostUSD"))), "turnDecisionRef": (result.%Get("TurnDecisionRef")), "turnCostUSD": (..Number(result.%Get("TurnCostUSD"))), "tokens": (..Number(result.%Get("LargestRequestTokens")))}
 		Do ..Complete(report, row, .tally)
 		Do ..Score(report, row, folder, watches, .tally)
 	}
@@ -268,14 +271,22 @@ ClassMethod Text(report As %DynamicObject, title As %String = "") As %String
 ClassMethod Save(report As %DynamicObject, title As %String, directory As %String, name As %String) As %Status
 {
 	If '$IsObject(report) Quit $SYSTEM.Status.Error(5001, ..#PROBLEMNOREPORT)
+	Quit ..WriteFiles(directory, name, report.%ToJSON(), ..Text(report, title))
+}
+
+/// Writes <name>.json (the JSON text) and, when the text is not empty, <name>.md into the directory, which is made when it is missing. The name
+/// is a file name without a path. Save and Eval.Gate.Save write through it.
+ClassMethod WriteFiles(directory As %String, name As %String, json As %String, text As %String = "") As %Status
+{
 	If (name = "") || (name [ "/") || (name [ "\") Quit $SYSTEM.Status.Error(5001, "The report needs a file name without a path")
 	Set directory = ##class(%File).NormalizeDirectory(directory)
 	If '##class(%File).DirectoryExists(directory) && '##class(%File).CreateDirectoryChain(directory) {
 		Quit $SYSTEM.Status.Error(5001, "The report folder "_directory_" cannot be made")
 	}
-	Set sc = ..Write(##class(%File).NormalizeFilename(name_".json", directory), report.%ToJSON())
+	Set sc = ..Write(##class(%File).NormalizeFilename(name_".json", directory), json)
 	If $$$ISERR(sc) Quit sc
-	Quit ..Write(##class(%File).NormalizeFilename(name_".md", directory), ..Text(report, title))
+	If text = "" Quit $$$OK
+	Quit ..Write(##class(%File).NormalizeFilename(name_".md", directory), text)
 }
 
 /// A run: Eval.In.Start over the folder and the names, Wait for the seconds, the report of the run, and then Eval.In.Finish, which removes the
@@ -334,6 +345,11 @@ ClassMethod AddDecision(report As %DynamicObject, name As %String, ref As %Strin
 {
 	Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
 	Set entry = {"case": (name), "kind": ($Select($IsObject(decision) && (decision.Kind '= ""): decision.Kind, 1: defaultKind)), "ref": (ref), "model": ($Select($IsObject(decision): decision.Model, 1: ""))}
+	If $IsObject(decision) && (decision.DurationMs '= "") {
+		Do entry.%Set("durationMs", decision.DurationMs, "number")
+	} Else {
+		Do entry.%Set("durationMs", "", "null")
+	}
 	If cost = "" {
 		Do report.cost.unpriced.%Push(entry)
 		Quit
@@ -404,9 +420,29 @@ ClassMethod Score(report As %DynamicObject, row As %DynamicObject, folder As %St
 	Do entry.%Set("state", row.state)
 	Set entry.expected = expected
 	Set entry.got = got
+	If kind = ..#INCIDENTKIND Do ..SetParameters(entry, row.fixParameters)
 	Do entry.%Set("fallback", row.fallback, "boolean")
 	Do entry.%Set("right", right, "boolean")
 	Do report.cases.%Push(entry)
+}
+
+/// Puts the incident's fix parameters on the case entry as fixParameters: the JSON object that the row holds, or null when it is empty or is
+/// not a JSON object.
+ClassMethod SetParameters(entry As %DynamicObject, json As %String) [ Private ]
+{
+	Set parameters = ""
+	If json '= "" {
+		Try {
+			Set parameters = ##class(%DynamicAbstractObject).%FromJSON(json)
+		} Catch exception {
+			Set parameters = ""
+		}
+	}
+	If $IsObject(parameters) && parameters.%IsA("%Library.DynamicObject") {
+		Set entry.fixParameters = parameters
+	} Else {
+		Do entry.%Set("fixParameters", "", "null")
+	}
 }
 
 /// Lists a row that cannot be scored, with the reason.
@@ -884,7 +920,7 @@ ClassMethod First(sql As %String, args...) As %String [ Private ]
 
 /// --- the parts of Text and Save ---
 /// A row of the scores table.
-ClassMethod ScoreLine(label As %String, score As %DynamicObject) As %String [ Private ]
+ClassMethod ScoreLine(label As %String, score As %DynamicObject) As %String
 {
 	Set share = $Select(score.%GetTypeOf("share") = "null": "not measured", 1: ..Percent(score.share, 1))
 	Set target = "", result = ""
@@ -980,19 +1016,19 @@ ClassMethod List(array As %DynamicArray, template As %String) As %String [ Priva
 }
 
 /// The share as a percentage with the decimals.
-ClassMethod Percent(share As %Numeric, decimals As %Integer) As %String [ Private ]
+ClassMethod Percent(share As %Numeric, decimals As %Integer) As %String
 {
 	Quit $FNumber(share * 100, "", decimals)_"%"
 }
 
 /// A cost with a leading 0.
-ClassMethod Money(value As %Numeric) As %String [ Private ]
+ClassMethod Money(value As %Numeric) As %String
 {
 	Quit $Select($Extract(value, 1) = ".": "0"_value, 1: value)
 }
 
 /// The text for a cell or a bullet: no pipe and no line break.
-ClassMethod Cell(value As %String) As %String [ Private ]
+ClassMethod Cell(value As %String) As %String
 {
 	Quit $Translate(value, "|"_$Char(10, 13), "/  ")
 }

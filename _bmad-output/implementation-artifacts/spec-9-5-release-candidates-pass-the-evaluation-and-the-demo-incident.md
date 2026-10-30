@@ -2,8 +2,9 @@
 title: 'Story 9.5: Release candidates pass the evaluation and the demo incident gate'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
+baseline_revision: '414e2cc322c4a1b5c8eb0a2b13b52dffaed48141'
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
@@ -329,6 +330,51 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
 
 ## Review Triage Log
 
+### 2026-10-30 — Review pass
+- verdicts: 41 findings — high 0, medium 5, low 32, false 3, maybe-false 1
+- findings:
+  - `[low]` `[reject]` (blind) An override reason that looks like a `Verdict:` line adds a second such line — the override path refuses a blank, multi-line, non-ASCII or long reason, the JSON stays the reader's source, and a second override is refused by the JSON verdict; a guard for this is more than a correction.
+  - `[low]` `[reject]` (blind) The override writes the JSON and then the Markdown, so a failed second write leaves them apart — needs a full disk or a permission fault between two writes; the fix is temp-and-rename machinery.
+  - `[low]` `[reject]` (blind) The tree check does not tie the committed Markdown to the JSON — no result is committed yet, and `--override` already refuses a pair whose Markdown lacks its single `Verdict: blocked` line.
+  - `[medium]` `[patch]` (blind) The model target is met with no decision observed, and a demo run can pass with no diagnose decision — confirmed in `ModelTarget`; patched with E7, E8 and E9 below.
+  - `[low]` `[reject]` (blind) The `--release-candidate` loop and exit codes have no CI test — the spec names the `--on-mock` run as its evidence and forbids a new workflow or job; the rehearsal was run in this pass (exit 0, 3 attempts, blocked).
+  - `[low]` `[reject]` (blind) No fail-fast on a bad key — a revoked key yields fallbacks, which the clean target counts as problems; the verdict is a plain `blocked`, and the spec asks for no probe.
+  - `[low]` `[reject]` (blind) The push run adds work with no time estimate, and `attempt_run` runs after a failed demo check — the spec's Design Notes carry the time estimate; the push run measured 110 s against 99 s; a second failure line is cosmetic.
+  - `[low]` `[reject]` (blind) `--override` checks less than the tree check (format, `onMock`) — the generator writes the file and the override needs a `blocked` verdict; thin audit data is the spec's `{reason, at}`.
+  - `[low]` `[reject]` (blind) The override's invalid-JSON, non-object and two-line branches are untested — defensive refusals that the Matrix does not list; same as the verification-gap row on the override guards.
+  - `[low]` `[reject]` (blind) `Verdict` counts can disagree with `attempts[]` when attempt 1 met — `run.sh` never passes such an input and the tests pin the pattern.
+  - `[low]` `[reject]` (edge) A whitespace-only key passes the guard — the Matrix says unset or empty; a whitespace key makes fallbacks that the clean target reports.
+  - `[low]` `[reject]` (edge) A finished run replaces an existing pair — by-design: a finished run is the new result (it carries its commit), and the spec says a failed run writes nothing.
+  - `[maybe-false]` `[reject]` (edge) Demo runs may leave watch rows behind — `Report.Problems` already flags a run that acted; a leftover-rows check is not in the spec; it would be worth a probe only if a real run showed rows.
+  - `[low]` `[reject]` (edge) No overall time bound on a release-candidate run — every wait is bounded by `OCUTALON_EVAL_WAIT`, and the run is the author's, at the terminal.
+  - `[low]` `[reject]` (edge) A run passes with valid parameters for another sample field — by-design: the spec's pass rule is the case, `repair_resend` and `Fix.Kind.Check` (AD-16).
+  - `[low]` `[reject]` (edge) `causeRight` takes `Report`'s lenient `Same()` — by-design: the spec says `right` is the report's own match.
+  - `[medium]` `[patch]` (edge) A decided demo run with no diagnose decision has no model — same root cause as the blind row; `ModelTarget` now lists a decided run with an empty model.
+  - `[medium]` `[patch]` (edge) A set with no decision at all meets the model target — `ModelTarget` now lists "(the set has no decision)".
+  - `[medium]` `[patch]` (edge) NFR-4 is met with no attention decision measured — `CostTarget` now lists "(the set has no attention decision)" as unpriced.
+  - `[low]` `[reject]` (edge) A JSON array or string for the set or the demo can throw in `Attempt` — `run.sh` writes both files itself with `Report.WriteFiles`.
+  - `[low]` `[reject]` (edge) A Markdown reason can render as a heading — printable ASCII is what the Matrix allows, and the reason lands under its own `## Override`.
+  - `[low]` `[reject]` (edge) A blocked file without the `override` key is refused as "already overridden" — the generator always writes null.
+  - `[low]` `[reject]` (edge) `WriteFiles` with empty text leaves an old `.md` — no caller writes the same name with and without text.
+  - `[false]` `[reject]` (edge, claim) Parameters are checked against the recorded snapshot's fields, not the live pack — the spec says so: the fields are those of the pack built from the demo snapshot, which are what Decide's reply check gets.
+  - `[low]` `[reject]` (edge, claim) The causeRight match is not an exact comparison — same as the `Same()` row, by-design.
+  - `[low]` `[reject]` (edge, claim) After a failed run the previous pair stays in `eval/` — by-design: a failed run writes nothing, and each pair names its commit.
+  - `[low]` `[reject]` (verification-gap) The rc loop, exit codes and `eval/` isolation have no automated test — the spec's evidence is the `--on-mock` run, run again in this pass; no workflow change is allowed.
+  - `[low]` `[reject]` (verification-gap) The real-key readiness `check_session` has no executing test — it needs a key; the spec makes the real leg the author's first run.
+  - `[low]` `[reject]` (verification-gap) The override's `override !== null` and count guards have no isolating fixture — defensive, outside the Matrix.
+  - `[low]` `[patch]` (verification-gap) `Attempt`'s null-size normalisation is unasserted — added the assertion and its mutation line.
+  - `[low]` `[patch]` (verification-gap) The model target's `unpriced` list is untested — added the case and its mutation line.
+  - `[medium]` `[patch]` (verification-gap) In `TestDemoRunFails`, the `{}` assertion could not tell a throw from a failure — confirmed: `Report.Problems({})` throws and `DemoRun` catches it; both lines now use `Fails` and name their reason ("the run did not finish", "the fix parameters were refused: ").
+  - `[low]` `[patch]` (verification-gap) The no-sample-fields assertion would pass for any reason — folded into the row above.
+  - `[low]` `[patch]` (verification-gap) AC5 has no `mutation:` line — written from the mutations demonstrated against run 3.
+  - `[low]` `[reject]` (verification-gap) The tests read the shipped `eval/` mount with no "not mounted" message — they run in a throwaway and fail loudly outside it.
+  - `[low]` `[reject]` (verification-gap) The tree check of `eval/release-candidate.json` is vacuous until a pair exists — its bad samples pin the checker; the first real run adds the file.
+  - `[low]` `[reject]` (intent-alignment) The loop and exit codes are tested only by a manual run — same as the verification-gap row.
+  - `[low]` `[reject]` (intent-alignment) The failure branches of the demo gate are exercised through synthetic reports — a mock answer is fixed; the real leg is the author's.
+  - `[low]` `[reject]` (intent-alignment) The readiness block that checks the key's presence runs only in the real mode — same as the verification-gap row.
+  - `[false]` `[reject]` (intent-alignment) The push run fails when the demo gate is not 10 of 10 — the spec requires exactly that structural check on the mock, and the attempt's targets stay INFO.
+  - `[false]` `[reject]` (intent-alignment) `incomplete` is not named in AC3 — the spec's `Verdict` defines it and the Matrix row "RC structural failure" maps it to exit 1 with nothing written.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).**
@@ -474,7 +520,50 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | AC4 | The real-tree result check accepts `onMock` true | `rc-override` (its bad sample) |
 | Integration | `Report` stops setting `fixParameters` | `Test.Eval.Report` `TestGateReadsTheReport`, and `eval/run.sh` run 3 (valid 0) |
 
+**Mutation results (implement stage, each applied, observed red and reverted; tree byte-identical afterwards).**
+- mutation: AC1 `--release-candidate` accepts an empty `ANTHROPIC_API_KEY` (`-z "${ANTHROPIC_API_KEY+x}"`) -> `test-eval-set.sh` rule `rc-guard` red ("--release-candidate with the key empty is not refused with exit 2"); reverted.
+- mutation: AC1 the override file loses its base-URL line -> `rc-guard` red ("the code lines are not exactly the six lines of the override"); reverted.
+- mutation: AC1 `Attempt` counts a null `met` of SM-1 as met -> `Test.Eval.Gate` `TestTargets` red ("a null met of SM-1 counts as not met", and SM-2's); reverted.
+- mutation: AC1 the model target accepts any model -> `TestTargets` red (set and demo-run model rows); reverted.
+- mutation: AC2 `DemoRun` skips `Fix.Kind.Check` -> `TestDemoRunFails` red (a field not in the sample, an unregistered format, one format twice); reverted.
+- mutation: AC2 `Demo` makes `RUNS - 1` calls -> `TestDemoLoop` red ("the run is called exactly ten times") and `eval/run.sh` run 3 red ("the demo gate is '9|10|0' with 9 run line(s)"); reverted.
+- mutation: AC2 `DemoRun` drops `durationMs` -> `TestDemoTiming` and `TestDemoRunPasses` red, and `eval/run.sh` run 3 red ("10 of the 10 runs has no pass, a fallback, invalid fix parameters or no diagnosis time"); reverted.
+- mutation: AC3 `Verdict` passes at 1 of 3 (`count '< 1`) -> `TestVerdict` red (`nnm`, `nmn`); reverted.
+- mutation: AC3 `--override` accepts a `pass` file (the verdict check removed) -> `rc-override` red ("a result whose verdict is pass is not refused with exit 2"); reverted.
+- mutation: AC4 `Result`'s summary drops `heldOutItems` (`SCORES` without it) -> `TestResult` red ("it holds all eight scores", "a held-out score keeps its figures") and `TestTargets` red; reverted.
+- mutation: AC4 the real-tree result check accepts `onMock` true -> `rc-override` red (the sample `bad-json-on-mock` is not flagged); reverted.
+- mutation: Integration `Report` stops setting `fixParameters` -> `Test.Eval.Report` `TestGateReadsTheReport` and `TestIncidents` red, and `eval/run.sh` run 3 red (valid 0: "the parameters of repair_resend are not a JSON object", "the demo gate is '0|10|0'"); reverted.
+- mutation: AC5 `Demo` makes `RUNS - 1` calls, or `Report` stops setting `fixParameters` (the same two mutations as AC2 and the Integration row) -> `eval/run.sh` run 3 red ("the demo gate is '9|10|0' with 9 run line(s)", "the demo gate is '0|10|0'"): the push run fails on a structural check, and on the mock it stays green with the attempt's `met 0` (SM-1, SM-2 below), which it only prints as INFO.
+- mutation: AC1 (review patch) `Attempt` drops the null normalisation of `size.largestTokens` -> `TestTargets` red ("a size that is not known is a JSON null in the attempt"); reverted.
+- mutation: AC1 (review patch) `ModelTarget` reads only `cost.decisions`, not `cost.unpriced` -> `TestTargets` red ("another model in the unpriced list does not meet the model target"); reverted.
+- mutation: AC1 (review patch) `ModelTarget` met on a set with no decision -> `TestTargets` red ("a set with no decision has nothing measured...", "an empty set reports the targets it cannot meet"); reverted.
+- mutation: AC1 (review patch) `ModelTarget` met on a decided demo run with no diagnose decision -> `TestTargets` red ("a decided demo run with no diagnose decision has no model observed"); reverted.
+- mutation: AC1 (review patch) `CostTarget` met on a set with no attention decision -> `TestTargets` red ("a set with no decision has nothing measured, so NFR-4 and the model are not met"); reverted.
+
+**Measured (implement stage, tags e9s5h and e9s5hw).**
+- `eval/run.sh` (push run): all checks passed, 20 PASS lines, wall 105 s (ready 89 s); 10 `CHK|demo|` lines with `repair_resend`, valid 1 and a time of 272 to 277 ms on the mock; `CHK|demogate|10|10|1`; `INFO attempt on the CI mock: met 0; below: SM-1,SM-2`. Before this story 99 s.
+- `eval/run.sh --release-candidate --on-mock`: 3 attempts, `VERDICT blocked`, exit 0, wall 120 s (ready 89 s); `release-candidate-on-mock.json` and `.md` in the report folder with `onMock` true; no result file written in `eval/`.
+- `Test.Eval.Run` fresh: passed (8.4 s in the class, 100 s wall). Shard `lane-a@rest --part 5/8` (holds Gate and Report): passed, 169 s wall; `--part 4/8 --reverse` (holds both): passed, 161 s wall. `bash ci/checks.sh`: all 17 blocks passed (232 s). `bash docker/tests/test-eval-set.sh`: every rule passed, 22 s.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `OcuTalon.Eval.Gate` holds the 10-run demo-incident gate over `Report.Run`, one attempt's targets (SM-1, SM-2 with the demo gate, NFR-3, NFR-4, model, no problem), REL-5's verdict, and the result document and its text. `Eval.Report` gains `fixParameters` and `durationMs` and the shared `WriteFiles`, and its four text helpers are public. `eval/run.sh` gains `--release-candidate`, `--release-candidate --on-mock` and `--override`, and the push run gains run 3 (the demo gate, plus the attempt's targets as INFO). No real key was used and no `--release-candidate` run without `--on-mock` was made.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Eval/Gate.cls` (new): the gate.
+- `src/ocutalon/cls/OcuTalon/Eval/Report.cls`: the two fields, `WriteFiles`, public helpers.
+- `eval/run.sh`: the three modes, run 3, the header.
+- `eval/compose.release-candidate.yml` (new): the key by interpolation, an empty base URL, mock header 0.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls`, `ZzGate.cls` (new), `Report.cls`, `Run.cls`: the tests.
+- `docker/tests/test-eval-set.sh`: the `rc-guard` and `rc-override` rules.
+
+**Review.** 41 findings from four layers: high 0, medium 5, low 32, false 3, maybe-false 1. Patches applied: 5 entries (the model and NFR-4 targets met with nothing observed, in `Gate.ModelTarget` and `Gate.CostTarget`; the weak `TestDemoRunFails` assertions; the unasserted null size; the untested `unpriced` list; the AC5 mutation line), each with a test and a demonstrated mutation. Deferred: none. Every rejected finding and its reason is in the Review Triage Log.
+
+**Follow-up review recommended:** false (one medium entry patched, no high).
+
+**Verification.** After the patches: `Test.Eval.Gate`, `Test.Eval.Report` and `Test.Bridge.CodeRules` passed on the warm stack; `test-eval-set.sh` all rules passed; the push run passed (110 s); the on-mock rehearsal ended with 3 attempts, `VERDICT blocked`, exit 0 and nothing written in `eval/`; `Test.Eval.Run` fresh passed; `lane-a@rest` parts 5/8 forward and 4/8 reverse passed; `bash ci/checks.sh` passed. Throwaways `e9s5i`, `e9s5iw` torn down; the lane-b lock folder is empty.
+
+**Residual risks.** The real-key leg (key by compose interpolation to the throwaway, an empty base URL, the readiness lines with a real key, the real endpoint) is untested by design and is the author's first release-candidate run (Story 11.5). The `--release-candidate` loop and its exit codes are proved by the `--on-mock` run, not by a CI test. Pre-existing and unchanged: `Test.Eval.Report.TestSave` builds its directory with `NormalizeDirectory`, which returned an empty string in a probe, so its "directory not there yet" assertion looks vacuous.

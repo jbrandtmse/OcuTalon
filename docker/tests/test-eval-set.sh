@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.7, 9.8 and 9.9; AD-22, AD-29; CON-3, CON-5). It is a unit of the hosted `checks` job
+# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.5, 9.7, 9.8 and 9.9; AD-22, AD-19, AD-29; CON-3, CON-5). It is a unit of the hosted `checks` job
 # (CHECK_SCRIPTS of ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below
 # ci/mock/scenarios/A/, the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh, the
 # enumerations of the classes and, for the rule feed, every file that git tracks or has not ignored. A failure prints `file: rule` and never the
@@ -77,6 +77,18 @@
 #   record-guard  docker/tests/record-eval.sh (Story 9.9) refuses every argument but the single word feed with exit 2, before it sources
 #                 lib-live.sh, and goes on to lib-live.sh with no argument and with feed. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
+#   rc-guard      (Story 9.5) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock and --override <reason>
+#                 with exit 2 before it calls the container tool; --release-candidate (not --on-mock) with ANTHROPIC_API_KEY unset or empty is refused
+#                 the same way and the refusal names the variable; --release-candidate with a key (a value that is not a key) and --release-candidate
+#                 --on-mock with none go on to the container tool, and that value is never in the output or in a call. eval/compose.release-candidate.yml
+#                 has exactly six code lines: the key by interpolation, an empty OCUTALON_MODEL_BASE_URL and OCUTALON_MOCK_KEY_HEADER 0. The script
+#                 runs with the same stub as run-guard;
+#   rc-override   (Story 9.5) eval/run.sh --override runs from a copy of the script in a folder with no ci/, beside result files that the check writes:
+#                 a blocked result becomes overridden with the reason and the time, its Markdown gets the changed verdict line and the section Override,
+#                 and a result that is missing, has no Markdown, has no Verdict: blocked line, is a pass or already overridden, or a reason that is
+#                 blank, has a line break, is not ASCII or is over 500 characters is refused with exit 2 and both files unchanged. When the tree holds
+#                 eval/release-candidate.json, it is a result of the format ocutalon.evalResult/1, not an on-mock one, with a verdict of pass, blocked
+#                 or overridden and a non-blank override.reason exactly when it is overridden, and eval/release-candidate.md is there.
 # Each bad sample of a rule carries the reason it must be flagged for (expect.txt in its folder): a sample that another rule flags does
 # not count.
 set -u
@@ -1067,6 +1079,88 @@ variant('record-guard', 'bad-accepts-extra', 'is not refused with exit 2', (f) =
 variant('record-guard', 'bad-refuses-feed', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
 variant('record-guard', 'bad-refuses-none', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = `${RECORDER_HEAD}if [ "$#" -eq 0 ]; then\n  exit 2\nfi\n${RECORDER_TAIL}`; });
 variant('run-guard', 'bad-no-report-dir', 'OCUTALON_EVAL_REPORT_DIR is not made', (f) => { f['eval/run.sh'] = guarded({ folder: false }); });
+
+// Stand-ins for the rules rc-guard and rc-override (Story 9.5). rcGuarded is eval/run.sh's guard of its arguments and of the model key: the forms
+// none, --release-candidate, --release-candidate --on-mock and --override <reason> go on (to the preflight, which calls the container tool), anything
+// else exits 2, and --release-candidate without --on-mock exits 2 unless ANTHROPIC_API_KEY is exported and not empty. The options break it.
+const RC_COMPOSE = (extra = {}) => [
+  '# The override of a release-candidate run (a stand-in).',
+  'services:',
+  '  iris:',
+  '    environment:',
+  extra.key || '      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?the release-candidate run needs ANTHROPIC_API_KEY in its environment}',
+  ...(extra.baseUrl === false ? [] : ['      OCUTALON_MODEL_BASE_URL: ""']),
+  '      OCUTALON_MOCK_KEY_HEADER: "0"',
+  '',
+].join('\n');
+const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '[ "$onmock" -eq 0 ] && ', leak = '', before = '' } = {}) =>
+  '#!/usr/bin/env bash\nset -u\n' + before + 'mode=push\nonmock=0\n' +
+  'if [ $# -eq 0 ]; then\n  :\n' +
+  'elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then\n  mode=rc\n' +
+  (onMockForm ? 'elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ]; then\n  mode=rc\n  onmock=1\n' : '') +
+  'elif [ $# -eq 2 ] && [ "$1" = --override ]; then\n  mode=override\n' +
+  'else\n  echo "usage"\n  exit 2\nfi\n' +
+  'if [ "$mode" = rc ] && ' + mockCond + keyTest + '; then\n  echo "FAIL ANTHROPIC_API_KEY is not set"\n  exit 2\nfi\n' + leak +
+  `${D} image inspect --format x base > /dev/null 2>&1 || exit 1\n`;
+// The override of a blocked result file, in Node, with the checks as options (pass: a pass file is accepted; md: the Markdown line is not required;
+// ascii, length, blank: the reason is not checked for these; again: an overridden file is accepted).
+const overrideProgram = ({ pass = false, md = true, ascii = true, length = true, blank = true, again = false } = {}) => [
+  'const fs = require("node:fs");',
+  'const [jf, mf, reason, at] = process.argv.slice(1);',
+  'const refuse = (why) => { console.log("FAIL " + why); process.exit(2); };',
+  blank ? 'if (reason.trim() === "") refuse("the reason is blank");' : '',
+  ascii ? 'if (!/^[ -~]*$/.test(reason)) refuse("the reason must be one line of printable ASCII");' : '',
+  length ? 'if (reason.length > 500) refuse("the reason is over 500 characters");' : '',
+  'if (!fs.existsSync(jf) || !fs.existsSync(mf)) refuse("there is no result to override");',
+  'const result = JSON.parse(fs.readFileSync(jf, "utf8"));',
+  pass ? '' : 'if (result.verdict !== "blocked") refuse("only a blocked result can be overridden");',
+  again ? '' : 'if (result.override !== null) refuse("already overridden");',
+  'const markdown = fs.readFileSync(mf, "utf8");',
+  md ? 'if (markdown.split("\\n").filter((l) => l === "Verdict: blocked").length !== 1) refuse("no Verdict: blocked line");' : '',
+  'result.verdict = "overridden"; result.override = { reason, at };',
+  'fs.writeFileSync(jf, JSON.stringify(result));',
+  'fs.writeFileSync(mf, markdown.split("\\n").map((l) => (l === "Verdict: blocked" ? "Verdict: overridden (blocked; the author overrode it)" : l)).join("\\n") + "\\n## Override\\n\\n" + reason + "\\n\\nRecorded at " + at + ".\\n");',
+].filter(Boolean).join('\n');
+const overrider = (options = {}) =>
+  '#!/usr/bin/env bash\nset -u\nroot=$(cd "$(dirname "$0")/.." && pwd)\n[ $# -eq 2 ] && [ "$1" = --override ] || exit 2\n' +
+  "node -e '" + overrideProgram(options) + "' \"$root/eval/release-candidate.json\" \"$root/eval/release-candidate.md\" \"$2\" \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\nexit $?\n";
+const RC_FILE = 'eval/release-candidate.json';
+const RC_MD = 'eval/release-candidate.md';
+const rcJson = (extra = {}) => ({ format: 'ocutalon.evalResult/1', onMock: false, verdict: 'pass', override: null, ...extra });
+const rcText = '# Release-candidate result\n\nVerdict: pass\n';
+const GOODOVERRIDE = { reason: 'The owner accepts the risk.', at: '2026-10-30T10:00:00Z' };
+
+variant('rc-guard', 'good', '', (f) => { f['eval/run.sh'] = rcGuarded(); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-compose', 'eval/compose.release-candidate.yml: the file is missing', (f) => { f['eval/run.sh'] = rcGuarded(); });
+variant('rc-guard', 'bad-empty-key', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyTest: '[ -z "${ANTHROPIC_API_KEY+x}" ]' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-key-check', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyTest: 'false' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-on-mock', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ onMockForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-mock-needs-key', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ mockCond: '' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-prints-key', 'appears in the output', (f) => { f['eval/run.sh'] = rcGuarded({ leak: 'echo "key $ANTHROPIC_API_KEY"\n' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-calls-before-guard', 'reached the container tool before they were refused', (f) => { f['eval/run.sh'] = rcGuarded({ before: `${D} version > /dev/null 2>&1\n` }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-compose-no-base-url', 'the code lines are not exactly', (f) => { f['eval/run.sh'] = rcGuarded(); f['eval/compose.release-candidate.yml'] = RC_COMPOSE({ baseUrl: false }); });
+variant('rc-guard', 'bad-compose-literal-key', 'the code lines are not exactly', (f) => { f['eval/run.sh'] = rcGuarded(); f['eval/compose.release-candidate.yml'] = RC_COMPOSE({ key: '      ANTHROPIC_API_KEY: zz-literal-key-value' }); });
+
+variant('rc-override', 'good', '', (f) => { f['eval/run.sh'] = overrider(); });
+variant('rc-override', 'good-json-pass', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson(); f[RC_MD] = rcText; });
+variant('rc-override', 'good-json-blocked', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'blocked' }); f[RC_MD] = rcText; });
+variant('rc-override', 'good-json-overridden', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'overridden', override: GOODOVERRIDE }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; });
+variant('rc-override', 'bad-accepts-pass', 'a result whose verdict is pass is not refused', (f) => { f['eval/run.sh'] = overrider({ pass: true }); });
+variant('rc-override', 'bad-no-md-check', 'a Markdown file without its Verdict: blocked line is not refused', (f) => { f['eval/run.sh'] = overrider({ md: false }); });
+variant('rc-override', 'bad-accepts-non-ascii', 'a reason that is not printable ASCII is not refused', (f) => { f['eval/run.sh'] = overrider({ ascii: false }); });
+variant('rc-override', 'bad-accepts-long', 'a reason of 501 characters is not refused', (f) => { f['eval/run.sh'] = overrider({ length: false }); });
+variant('rc-override', 'bad-accepts-blank', 'a blank reason is not refused', (f) => { f['eval/run.sh'] = overrider({ blank: false, ascii: false }); });
+variant('rc-override', 'bad-accepts-again', 'an overridden result is not refused', (f) => { f['eval/run.sh'] = overrider({ pass: true, again: true, md: false }); });
+variant('rc-override', 'bad-json-on-mock', 'onMock is not false', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ onMock: true }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-format', 'format is not ocutalon.evalResult/1', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ format: 'other/1' }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-verdict', 'verdict is not pass, blocked or overridden', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'maybe' }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-overridden-no-reason', 'override.reason is not there exactly when', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'overridden' }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-overridden-blank-reason', 'override.reason is not there exactly when', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'overridden', override: { reason: '  ', at: 'x' } }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-reason-on-pass', 'override.reason is not there exactly when', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ override: GOODOVERRIDE }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-json-no-md', 'eval/release-candidate.md: the file is missing', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson(); });
+variant('rc-override', 'bad-json-invalid', 'is not valid JSON', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = '{'; f[RC_MD] = rcText; });
 EOF
 
 # --- the rules ---
@@ -1249,6 +1343,225 @@ check_record_guard() {
   done
 }
 
+# rc_run <dir> <script> <key> <args...>: runs the script from the folder with a stub in place of the container tool (calls in $tmp/stub-rc.calls),
+# and the key as given: "unset" removes ANTHROPIC_API_KEY from its environment, "empty" sets it to nothing, anything else is its value. The output is
+# in <dir>/out.log. It prints the exit code.
+rc_run() {
+  local dir=$1 script=$2 key=$3 rc=0
+  shift 3
+  : > "$tmp/stub-rc.calls"
+  case $key in
+    unset) (cd "$dir" && env -u RUNNER_TEMP -u ANTHROPIC_API_KEY OCUTALON_LOCK_DIR="$dir/no-locks" PATH="$tmp/stub:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-guard-check bash "$script" "$@" > "$dir/out.log" 2>&1) || rc=$? ;;
+    empty) (cd "$dir" && env -u RUNNER_TEMP ANTHROPIC_API_KEY= OCUTALON_LOCK_DIR="$dir/no-locks" PATH="$tmp/stub:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-guard-check bash "$script" "$@" > "$dir/out.log" 2>&1) || rc=$? ;;
+    *) (cd "$dir" && env -u RUNNER_TEMP ANTHROPIC_API_KEY="$key" OCUTALON_LOCK_DIR="$dir/no-locks" PATH="$tmp/stub:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-guard-check bash "$script" "$@" > "$dir/out.log" 2>&1) || rc=$? ;;
+  esac
+  echo "$rc"
+}
+
+# check_rc_guard <root>: the violations of eval/run.sh of the tree in its use of the arguments --release-candidate, --on-mock and --override and of the
+# model key, and of eval/compose.release-candidate.yml. The script runs with a stub in place of the container tool that records its call and fails: a form
+# it accepts goes on to the preflight, calls the stub and ends with exit 1; one it refuses ends with exit 2 before any call. The key is a value that is
+# not a key, and it must never appear in the output or in a call. The override file's code lines are exactly the six lines of the contract.
+check_rc_guard() {
+  local script="$1/eval/run.sh" compose="$1/eval/compose.release-candidate.yml" dir="$tmp/guard-rc" calls="$tmp/stub-rc.calls" rc args key fake want code
+  fake="zz-not-a-key-$RANDOM$RANDOM"
+  if [ ! -f "$script" ]; then
+    echo "eval/run.sh: the script is missing"
+  else
+    rm -rf "$dir"
+    mkdir -p "$tmp/stub" "$dir"
+    local tool=doc
+    tool=${tool}ker
+    printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$calls" > "$tmp/stub/$tool"
+    chmod +x "$tmp/stub/$tool"
+    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate'; do
+      # shellcheck disable=SC2086
+      rc=$(rc_run "$dir" "$script" "$fake" $args)
+      if [ "$rc" -ne 2 ]; then
+        echo "eval/run.sh: the arguments '$args' are not refused with exit 2 (exit $rc)"
+      elif [ -s "$calls" ]; then
+        echo "eval/run.sh: the arguments '$args' reached the container tool before they were refused"
+      fi
+    done
+    for key in unset empty; do
+      rc=$(rc_run "$dir" "$script" "$key" --release-candidate)
+      if [ "$rc" -ne 2 ]; then
+        echo "eval/run.sh: --release-candidate with the key $key is not refused with exit 2 (exit $rc)"
+      elif [ -s "$calls" ]; then
+        echo "eval/run.sh: --release-candidate with the key $key reached the container tool before it was refused"
+      elif ! grep -q 'ANTHROPIC_API_KEY' "$dir/out.log"; then
+        echo "eval/run.sh: the refusal of --release-candidate with the key $key does not name ANTHROPIC_API_KEY"
+      fi
+    done
+    for args in '--release-candidate' '--release-candidate --on-mock'; do
+      for key in "$fake" unset; do
+        if [ "$args" = '--release-candidate' ] && [ "$key" = unset ]; then continue; fi
+        # shellcheck disable=SC2086
+        rc=$(rc_run "$dir" "$script" "$key" $args)
+        if [ "$rc" -eq 2 ] || [ ! -s "$calls" ]; then
+          echo "eval/run.sh: the arguments '$args' (key $([ "$key" = unset ] && echo unset || echo set)) are not accepted (exit $rc)"
+        elif grep -qF -- "$fake" "$dir/out.log" "$calls"; then
+          echo "eval/run.sh: the value of the key appears in the output or in a call of '$args'"
+        fi
+      done
+    done
+  fi
+  if [ ! -f "$compose" ]; then
+    echo "eval/compose.release-candidate.yml: the file is missing"
+  else
+    code=$(grep -Ev '^[[:space:]]*(#|$)' "$compose")
+    want=$(cat <<'YML'
+services:
+  iris:
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?the release-candidate run needs ANTHROPIC_API_KEY in its environment}
+      OCUTALON_MODEL_BASE_URL: ""
+      OCUTALON_MOCK_KEY_HEADER: "0"
+YML
+    )
+    if [ "$code" != "$want" ]; then
+      echo "eval/compose.release-candidate.yml: the code lines are not exactly the six lines of the override"
+    fi
+  fi
+}
+
+cat > "$tmp/rc-verify.mjs" <<'EOF'
+import fs from 'node:fs';
+
+const [jsonFile, mdFile, original, reason] = process.argv.slice(2);
+const out = [];
+const result = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
+const before = fs.readFileSync(original, 'utf8');
+const md = fs.readFileSync(mdFile, 'utf8');
+if (result.verdict !== 'overridden') out.push('the verdict is not overridden');
+if (!result.override || result.override.reason !== reason) out.push('override.reason is not the reason');
+if (!result.override || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(result.override.at || '')) out.push('override.at is not a UTC time');
+if (result.format !== 'ocutalon.evalResult/1' || result.onMock !== false) out.push('another member of the result changed');
+const line = 'Verdict: overridden (blocked; the author overrode it)';
+if (md.split('\n').includes('Verdict: blocked')) out.push('the Markdown still has the line Verdict: blocked');
+const at = result.override ? result.override.at : '';
+if (md !== `${before.replace('Verdict: blocked', line)}\n## Override\n\n${reason}\n\nRecorded at ${at}.\n`) out.push('the Markdown is not the original with the verdict line changed and the section Override appended');
+console.log(out.join('; '));
+EOF
+
+cat > "$tmp/rc-result.mjs" <<'EOF'
+import fs from 'node:fs';
+
+const [root] = process.argv.slice(2);
+const file = `${root}/eval/release-candidate.json`;
+const out = [];
+const bad = (why) => out.push(`eval/release-candidate.json: ${why}`);
+if (fs.existsSync(file)) {
+  let result;
+  try {
+    result = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    bad('is not valid JSON');
+  }
+  if (result !== undefined) {
+    if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+      bad('is not a JSON object');
+    } else {
+      if (result.format !== 'ocutalon.evalResult/1') bad('format is not ocutalon.evalResult/1');
+      if (result.onMock !== false) bad('onMock is not false');
+      if (!['pass', 'blocked', 'overridden'].includes(result.verdict)) bad('verdict is not pass, blocked or overridden');
+      const reason = result.override && typeof result.override === 'object' ? result.override.reason : undefined;
+      const has = typeof reason === 'string' && reason.trim() !== '';
+      if (has !== (result.verdict === 'overridden')) bad('override.reason is not there exactly when the verdict is overridden');
+    }
+    if (!fs.existsSync(`${root}/eval/release-candidate.md`)) out.push('eval/release-candidate.md: the file is missing');
+  }
+}
+console.log(out.join('\n'));
+EOF
+
+# ro_put <dir> <json verdict> <json override> <md verdict line>: a result pair in the folder: the JSON with the verdict and the override (as JSON text),
+# and a Markdown text whose verdict line is the fourth argument. The pair is also kept in <dir>/original.json and original.md.
+ro_put() {
+  printf '{"format":"ocutalon.evalResult/1","onMock":false,"verdict":"%s","override":%s,"attempts":[]}' "$2" "$3" > "$1/eval/release-candidate.json"
+  printf '# Release-candidate result\n\nCommit abc.\n\n%s\n\nA text.\n' "$4" > "$1/eval/release-candidate.md"
+  cp "$1/eval/release-candidate.json" "$1/original.json"
+  cp "$1/eval/release-candidate.md" "$1/original.md"
+}
+
+# ro_run <dir> <reason>: eval/run.sh --override <reason> from the copy tree; prints the exit code. The output is in <dir>/out.log.
+ro_run() {
+  local rc=0
+  (cd "$1" && bash eval/run.sh --override "$2" > "$1/out.log" 2>&1) || rc=$?
+  echo "$rc"
+}
+
+# ro_refused <dir> <label> <reason>: the run of the override must exit 2 with a FAIL line and leave both files as they were (a file that was not there stays
+# not there).
+ro_refused() {
+  local dir=$1 label=$2 rc
+  rc=$(ro_run "$dir" "$3")
+  if [ "$rc" -ne 2 ]; then
+    echo "eval/run.sh --override: $label is not refused with exit 2 (exit $rc)"
+  elif ! grep -q '^FAIL ' "$dir/out.log"; then
+    echo "eval/run.sh --override: the refusal of $label prints no FAIL line"
+  fi
+  for ext in json md; do
+    if [ -f "$dir/original.$ext" ]; then
+      cmp -s "$dir/original.$ext" "$dir/eval/release-candidate.$ext" || echo "eval/run.sh --override: $label changed eval/release-candidate.$ext"
+    elif [ -e "$dir/eval/release-candidate.$ext" ]; then
+      echo "eval/run.sh --override: $label made eval/release-candidate.$ext"
+    fi
+  done
+}
+
+# check_rc_override <root>: the violations of eval/run.sh --override of the tree, and of the result file of the tree. The script runs from a copy in a
+# folder of the check's own that has no ci/ (it must not need one), beside result files that the check writes; the real tree's result file is never
+# touched. A blocked result is overridden as the contract says (the JSON, the verdict line of the Markdown and the appended section), a reason of 500
+# characters is accepted, and everything else is refused with exit 2 and both files unchanged: no result, no Markdown, a Markdown without the line
+# Verdict: blocked, a verdict of pass or overridden, and a reason that is blank, has a line break, is not ASCII or is over 500 characters. When the
+# tree holds eval/release-candidate.json, it is a JSON object of the format ocutalon.evalResult/1 that is not an on-mock result, whose verdict is
+# pass, blocked or overridden and has a non-blank override.reason exactly when it is overridden, and eval/release-candidate.md is there.
+check_rc_override() {
+  local script="$1/eval/run.sh" dir="$tmp/guard-override" rc reason long label verify
+  if [ ! -f "$script" ]; then
+    echo "eval/run.sh: the script is missing"
+  else
+    rm -rf "$dir"
+    mkdir -p "$dir/eval"
+    cp "$script" "$dir/eval/run.sh"
+    reason='Needs a human look: the NFR-4 case is flaky'
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    rc=$(ro_run "$dir" "$reason")
+    if [ "$rc" -ne 0 ]; then
+      echo "eval/run.sh --override: a blocked result is not overridden (exit $rc)"
+    else
+      verify=$(node "$tmp/rc-verify.mjs" "$dir/eval/release-candidate.json" "$dir/eval/release-candidate.md" "$dir/original.md" "$reason" 2>&1)
+      if [ -n "$verify" ]; then echo "eval/run.sh --override: the overridden result is wrong: $verify"; fi
+    fi
+    long=$(printf 'a%.0s' $(seq 1 500))
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    rc=$(ro_run "$dir" "$long")
+    if [ "$rc" -ne 0 ]; then echo "eval/run.sh --override: a reason of 500 characters is not accepted (exit $rc)"; fi
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    rm -f "$dir/eval/release-candidate.json" "$dir/eval/release-candidate.md" "$dir/original.json" "$dir/original.md"
+    ro_refused "$dir" 'no result file' "$reason"
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    rm -f "$dir/eval/release-candidate.md" "$dir/original.md"
+    ro_refused "$dir" 'a result with no Markdown file' "$reason"
+    ro_put "$dir" blocked null 'Verdict: pass'
+    ro_refused "$dir" 'a Markdown file without its Verdict: blocked line' "$reason"
+    ro_put "$dir" pass null 'Verdict: blocked'
+    ro_refused "$dir" 'a result whose verdict is pass' "$reason"
+    ro_put "$dir" overridden '{"reason":"x","at":"2026-10-30T10:00:00Z"}' 'Verdict: blocked'
+    ro_refused "$dir" 'an overridden result' "$reason"
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    ro_refused "$dir" 'a blank reason' '   '
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    ro_refused "$dir" 'a reason with a line break' "$(printf 'two\nlines')"
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    ro_refused "$dir" 'a reason that is not printable ASCII' "$(printf 'caf\303\251')"
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    ro_refused "$dir" 'a reason of 501 characters' "${long}a"
+  fi
+  node "$tmp/rc-result.mjs" "$1"
+}
+
 # rule <label> <description> <checker>: every sample bad-* of the label must be flagged, and flagged for the reason in its expect.txt, the
 # sample good and every sample good-* (a tree on the edge of the rule, which keeps it) must not be flagged, and then the real tree must have no
 # violation.
@@ -1375,6 +1688,8 @@ rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its ow
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
 rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
+rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key and --on-mock without one, never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
+rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override
 
 if [ "$fails" -ne 0 ]; then
   echo "test-eval-set: $fails rule(s) failed"

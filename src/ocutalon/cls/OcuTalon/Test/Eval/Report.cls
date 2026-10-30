@@ -52,6 +52,9 @@
 ///     not counted), TestWatchNotSetUp (no record: unscored, a problem) and TestWatchText (the bullet, the expected text and the problem; a case with no
 ///     watch is as Story 9.3 gives it);
 ///   - TestRunRefused: Run returns the error of a disabled EvalIn and no report;
+///   - (Story 9.5) TestIncidents and TestCost also pin the entry members that Eval.Gate reads (an incident entry's fixParameters, a cost entry's
+///     durationMs), TestWriteFiles pins the shared writer (no Markdown for an empty text, Save's refusals) and TestGateReadsTheReport pins the field
+///     names between Report and Gate: a decided incident row and a diagnose Decision go through Build and Gate.DemoRun, which passes;
 ///   - (QA) TestMatchRules, TestNotDecidedNotRight, TestZeroCost, TestTextEmpty, TestSaveRefusals, TestCaseNameStaysInFolder and
 ///     TestFolderWithoutSeparator: the match rules at their edges (an incident's category ignoring case, a near element, an item's outcome
 ///     exactly), a row not decided or an incident fallback that matches is not right and is no tell-now case missed, a cost of 0 is priced,
@@ -781,7 +784,7 @@ Method TestIncidents()
 		Do ..IncidentCase(name, "data_format_change", "OrderDate", "repair_resend")
 	}
 	Set run = ..NewRun()
-	Do ..Row(run, a, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": " orderdate ", "FixKind": "repair_resend"})
+	Do ..Row(run, a, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": " orderdate ", "FixKind": "repair_resend", "FixParameters": ("{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""}")})
 	Do ..Row(run, b, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "CustomerId", "FixKind": "repair_resend"})
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
 	Do $$$AssertEquals(..Line(report.scores.incidents), "1 of 2 share .5 met 0", "one of two incidents is right, and SM-2 is not met")
@@ -791,11 +794,14 @@ Method TestIncidents()
 	Set first = report.cases.%Get(0)
 	Do $$$AssertEquals(first.expected.causeCategory_"|"_first.expected.elementAtFault_"|"_first.expected.fixKind, "data_format_change|OrderDate|repair_resend", "an incident shows its expected cause, element and fix")
 	Do $$$AssertEquals(first.got.causeCategory_"|"_first.got.elementAtFault_"|"_first.got.fixKind, "data_format_change| orderdate |repair_resend", "and what the row holds")
+	Do $$$AssertEquals(first.%GetTypeOf("fixParameters")_"|"_first.fixParameters.field_"|"_first.fixParameters.sourceFormat_"|"_first.fixParameters.targetFormat, "object|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "an incident entry holds the fix parameters as the parsed object")
+	Do $$$AssertEquals(report.cases.%Get(1).%GetTypeOf("fixParameters"), "null", "an incident row with no fix parameters has null")
 	Set second = ..NewRun()
-	Do ..Row(second, c, {"Outcome": "", "CauseCategory": "connection_failure", "ElementAtFault": "OrderDate", "FixKind": ""})
-	Do ..Row(second, d, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "FixKind": ""})
+	Do ..Row(second, c, {"Outcome": "", "CauseCategory": "connection_failure", "ElementAtFault": "OrderDate", "FixKind": "", "FixParameters": "not json"})
+	Do ..Row(second, d, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "FixKind": "", "FixParameters": "[1,2]"})
 	Set report = ##class(OcuTalon.Eval.Report).Build(second, ..Folder)
 	Do $$$AssertEquals(..Rights(report), c_":0;"_d_":1", "the category must match too, and the fix kind is not scored")
+	Do $$$AssertEquals(report.cases.%Get(0).%GetTypeOf("fixParameters")_"|"_report.cases.%Get(1).%GetTypeOf("fixParameters"), "null|null", "parameters that are not JSON, or not a JSON object, are null")
 }
 
 /// SM-1 is met at 9 of 10 items and not at 8 of 9; SM-2 is met at 8 of 10 incidents and not at 7 of 10; a kind with no row is not measured.
@@ -873,8 +879,8 @@ Method TestCost()
 	For name = a, b, c, d {
 		Do ..ItemCase(name, "digest")
 	}
-	Set decideA = ..Decision("decide", "claude-haiku-5-5"), turnA = ..Decision("turn", "claude-sonnet-5-5")
-	Set decideB = ..Decision("decide", "claude-haiku-5-5"), decideC = ..Decision("diagnose", "claude-haiku-5-5"), decideD = ..Decision("decide", "claude-haiku-5-5")
+	Set decideA = ..Decision("decide", "claude-haiku-5-5", , {"DurationMs": 1500}), turnA = ..Decision("turn", "claude-sonnet-5-5", , {"DurationMs": 0})
+	Set decideB = ..Decision("decide", "claude-haiku-5-5"), decideC = ..Decision("diagnose", "claude-haiku-5-5", , {"DurationMs": 4200}), decideD = ..Decision("decide", "claude-haiku-5-5", , {"DurationMs": 900})
 	Set run = ..NewRun()
 	Do ..Row(run, a, {"DecisionRef": (decideA), "CostUSD": (0.0002), "TurnDecisionRef": (turnA), "TurnCostUSD": (0.0004)})
 	Do ..Row(run, b, {"DecisionRef": (decideB), "CostUSD": (0.001)})
@@ -892,6 +898,11 @@ Method TestCost()
 	Do $$$AssertEquals(..Names(cost.decisions, "kind"), "decide,turn,decide,diagnose", "with the kind of their Decision rows, a diagnose decision included")
 	Do $$$AssertEquals(..Names(cost.decisions, "model"), "claude-haiku-5-5,claude-sonnet-5-5,claude-haiku-5-5,claude-haiku-5-5", "and their models")
 	Do $$$AssertEquals(..Names(cost.decisions, "ref"), decideA_","_turnA_","_decideB_","_decideC, "and their Refs")
+	Do $$$AssertEquals(cost.decisions.%Get(0).%GetTypeOf("durationMs")_"|"_cost.decisions.%Get(0).durationMs, "number|1500", "a priced decision holds the Decision row's duration in milliseconds")
+	Do $$$AssertEquals(cost.decisions.%Get(1).%GetTypeOf("durationMs")_"|"_cost.decisions.%Get(1).durationMs, "number|0", "a duration of 0 is a duration")
+	Do $$$AssertEquals(cost.decisions.%Get(2).%GetTypeOf("durationMs"), "null", "a decision whose row has no duration has null")
+	Do $$$AssertEquals(cost.decisions.%Get(3).durationMs, 4200, "the diagnose decision holds its duration")
+	Do $$$AssertEquals(cost.unpriced.%Get(0).%GetTypeOf("durationMs")_"|"_cost.unpriced.%Get(0).durationMs, "number|900", "an unpriced decision holds its duration too")
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), d_": no cost", "the unpriced decision is the problem")
 	Set only = ..NewRun()
 	Do ..Row(only, d, {"DecisionRef": (decideD), "CostUSD": ""})
@@ -1553,6 +1564,50 @@ Method TestCommandSteps()
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size(), 0, "and a tool call in a command case is a wrong case, not a problem")
 }
 
+/// WriteFiles writes <name>.json always and <name>.md only for a text that is not empty, makes the directory, and refuses Save's names (an empty
+/// one and one with a path) before it makes anything.
+Method TestWriteFiles()
+{
+	Set directory = ##class(%File).SubDirectoryName(..Folder, "zz-files")
+	Do $$$AssertTrue('##class(%File).DirectoryExists(directory), "the directory is not there yet")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Report).WriteFiles(directory, "plain", "{""a"":1}"), "WriteFiles with no text succeeds")
+	Do $$$AssertTrue(##class(%File).Exists(##class(%File).NormalizeFilename("plain.json", directory)), "the JSON is written")
+	Do $$$AssertTrue('##class(%File).Exists(##class(%File).NormalizeFilename("plain.md", directory)), "and there is no Markdown for an empty text")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Report).WriteFiles(directory, "both", "{""a"":1}", "# A text"), "WriteFiles with a text succeeds")
+	Do $$$AssertTrue(##class(%File).Exists(##class(%File).NormalizeFilename("both.json", directory)) && ##class(%File).Exists(##class(%File).NormalizeFilename("both.md", directory)), "both files are written")
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set stream.Filename = ##class(%File).NormalizeFilename("both.md", directory)
+	Set stream.TranslateTable = "UTF8"
+	Do $$$AssertEquals(stream.Read(1000), "# A text", "the Markdown holds the text")
+	Set refused = ##class(%File).SubDirectoryName(..Folder, "zz-files-refused")
+	For name = "", "a\b", "a/b", "../b" {
+		Do $$$AssertTrue($$$ISERR(##class(OcuTalon.Eval.Report).WriteFiles(refused, name, "{}", "text")), "the name '"_name_"' is refused")
+	}
+	Do $$$AssertTrue('##class(%File).DirectoryExists(refused), "and no directory was made for them")
+}
+
+/// The pin between Report and Gate: a decided incident row whose FixParameters are the mock's, with a diagnose Decision that has a duration and a model,
+/// goes through Build and then through Gate.DemoRun, which passes and reads the fix parameters, the duration and the model from the report's
+/// fields. The sample fields are those of the recorded demo snapshot.
+Method TestGateReadsTheReport()
+{
+	Set fieldsStatus = ##class(OcuTalon.Eval.Gate).SampleFields(##class(OcuTalon.Eval.In).#FOLDER, .fields)
+	Do $$$AssertStatusOK(fieldsStatus, "the demo snapshot gives its sample fields")
+	Set name = ##class(OcuTalon.Eval.Report).#DEMOCASE
+	Do ..IncidentCase(name, "data_format_change", "OrderDate", "repair_resend")
+	Set diagnose = ..Decision("diagnose", ##class(OcuTalon.Eval.Gate).#MODEL, , {"DurationMs": 4321})
+	Set run = ..NewRun()
+	Do ..Row(run, name, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "FixKind": "repair_resend", "DecisionRef": (diagnose), "FixParameters": ("{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""}")})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Set result = ##class(OcuTalon.Eval.Gate).DemoRun(report, fields, 3)
+	Do $$$AssertEquals(result.reason, "", "the run has no failing reason")
+	Do $$$AssertTrue(result.pass, "the demo run passes")
+	Do $$$AssertEquals(result.run_"|"_result.runRef, "3|"_run, "it names its number and the report's run")
+	Do $$$AssertEquals(result.fixKind_"|"_result.fixParameters.field_"|"_result.fixParameters.sourceFormat_"|"_result.fixParameters.targetFormat, "repair_resend|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "the fix comes from the incident entry's fixParameters")
+	Do $$$AssertEquals(result.durationMs_"|"_result.model, "4321|"_##class(OcuTalon.Eval.Gate).#MODEL, "the diagnosis time and model come from the cost entry of the diagnose decision")
+	Do $$$AssertEquals(result.validation, "OK", "and Fix.Kind.Check accepted the parameters")
+}
+
 /// --- helpers ---
 /// The name of a case of the test.
 ClassMethod N(short As %String) As %String [ Private ]
@@ -1658,9 +1713,16 @@ Method TurnRow(run As %String, name As %String, turn As %DynamicObject, fields A
 }
 
 /// A Decision row of the owner eval with the model and the reasons (one per line), kept for the clean-up. Returns its Ref.
-Method Decision(kind As %String, model As %String, reasons As %String = "") As %String [ Private ]
+Method Decision(kind As %String, model As %String, reasons As %String = "", fields As %DynamicObject = "") As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Decision("eval", kind, , {"Model": (model), "Reasons": (reasons)})
+	Set values = {"Model": (model), "Reasons": (reasons)}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.key, .value) {
+			Do values.%Set(key, value)
+		}
+	}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Decision("eval", kind, , values)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Set ..AllRefs = ..AllRefs_$Select(..AllRefs = "": "", 1: ",")_ref
 	Quit ref

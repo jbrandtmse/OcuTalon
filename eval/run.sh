@@ -1,27 +1,40 @@
 #!/usr/bin/env bash
-# The evaluation run against the CI mock (Stories 9.2, 9.3, 9.7 and 9.8; AD-22, AD-29, AD-30; CON-3). It is the script of the evaluation job of
+# The evaluation run (Stories 9.2, 9.3, 9.5, 9.7 and 9.8; AD-22, AD-19, AD-29, AD-30; CON-3; REL-5). It is the script of the evaluation job of
 # .github/workflows/lane-a.yml and runs the same way on a developer machine:
-#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh
-# It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own with the CI override and
-# its model mock, and reaches the container only through the functions of those files (stack_start, stack_ready, check_session,
-# iris_script, dc exec). It never pulls the base image, never runs warm, and its exit trap removes its project, its volume and its
-# lock. It exports OCUTALON_EVAL=1 for its own process only: that switch enables EvalIn in this throwaway, and no workflow, compose
-# file or class default sets it (owner condition U-131).
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh                                      the push run, on the CI mock
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate                  a release candidate, on the real model
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --on-mock        the same sequence on the CI mock: no key, no spend
+#   bash eval/run.sh --override "<reason>"                                       the author's override of a blocked result
+# Any other argument prints a usage line and exits 2, before any call to the container tool. Every mode but --override sources ci/iris.sh
+# (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own that is built from this checkout, and reaches the
+# container only through the functions of those files (stack_start, stack_ready, check_session, iris_script, dc exec). It never pulls the
+# base image, never runs warm, and its exit trap removes its project, its volume, its images and its lock. It exports OCUTALON_EVAL=1 for
+# its own process only: that switch enables EvalIn in this throwaway, and no workflow, compose file or class default sets it (owner
+# condition U-131).
 # Variables:
 #   OCUTALON_RUN_TAG          the run tag of ci/iris.sh (default local-<epoch>-<pid>)
 #   OCUTALON_EVAL_WAIT        the seconds each run may take, after it has sent its cases, to have every case decided: a whole number
-#                             from 1 to 3600 (default 180); anything else exits 2. The turn cases are decided while they are sent (each
-#                             ask waits up to EvalIn's TURNWAIT, and a Busy turn is asked again), so this wait does not bound them
+#                             from 1 to 3600 (default 180, and 900 with --release-candidate); anything else exits 2. The turn cases are
+#                             decided while they are sent (each ask waits up to EvalIn's TURNWAIT, and a Busy turn is asked again), so this
+#                             wait does not bound them
 #   OCUTALON_EVAL_REPORT_DIR  the folder that receives the report files (default: a new folder from mktemp -d below
 #                             ${RUNNER_TEMP:-${TMPDIR:-/tmp}})
-# The steps:
+#   ANTHROPIC_API_KEY         --release-candidate only, without --on-mock: the model key, which must be set and not empty in the environment
+#                             of this script, or the script exits 2 before any call to the container tool. The key reaches only the iris
+#                             service of the throwaway, by the interpolation of eval/compose.release-candidate.yml (AD-19). The script never
+#                             prints it, never writes it to a file and never puts it in a session
+# The push run (no argument):
 #   1. the throwaway starts and the production runs with every item (RunnerFixture.ReadyReason() is empty); the runners' keys are
 #      pointed at the mock with RunnerFixture.PointKeys(), as the live units do;
 #   2. run 1, the set: OcuTalon.Eval.Report.Run over /opt/ocutalon/eval/, saved in the container as set.json and set.md;
 #   3. run 2, the test-only cases of eval/mock-wrong/, which the mock answers wrongly on purpose: saved as mock-wrong.json and
 #      mock-wrong.md. Both runs print a first CHK line before they call Report.Run, because iris_script runs a session again when it
 #      printed no CHK line, and that early line keeps it from starting a second run;
-#   4. the four files are copied out into the report folder, both Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
+#   3b. run 3, the demo gate: OcuTalon.Eval.Gate.Demo runs the demo incident 10 times through IncidentManager's evaluation path and saves
+#      demo.json; then Gate.Attempt reads set.json and demo.json and saves attempt.json. The checks are structural (the mock's one diagnosis
+#      is the demo's right answer): 10 runs, 10 passed, no fallback, valid parameters and a diagnosis time for each. The attempt's
+#      targets are printed as an INFO line and never fail the run;
+#   4. the files are copied out into the report folder, the Markdown texts are printed and appended to $GITHUB_STEP_SUMMARY when
 #      that is set, and "REPORT <folder>" is printed before the closing line "eval/run: all checks passed" (or "... check(s) failed").
 # The checks print one PASS or FAIL line each: each run started and finished (a disabled EvalIn fails with the director's text, and so
 # does a removal of the run's watches that failed: the run did not start or did not finish), no run left an eval watch row behind (the
@@ -44,12 +57,119 @@
 # printed and never checked: a score below its target is reported and fails nothing (on the mock the turn cases get the default chat
 # script, so both turn scores are 0: the all-clear cases never call check_status, and the command case runs list_productions and gets
 # the default reply, which lacks the key phrase). Exits 1 when any check fails, 0 otherwise.
+# The release-candidate run (--release-candidate, Story 9.5; REL-5):
+#   1. without --on-mock the key is checked first, then the throwaway starts with eval/compose.release-candidate.yml layered last (the shell's key
+#      by interpolation, no base-URL override, no mock header), and the readiness check requires every item running, every runner's key present, an
+#      empty OCUTALON_MODEL_BASE_URL, no mock header and the model claude-haiku-5-5 for the three runners. With --on-mock the throwaway is the push
+#      run's, with PointKeys, and no key is needed;
+#   2. attempt k (k = 1; then 2 and 3 when attempt 1 did not meet every target) is the set over /opt/ocutalon/eval/ (set-k.json and .md), the demo
+#      gate (demo-k.json) and Gate.Attempt (attempt-k.json) with its targets SM-1, SM-2, the demo gate, NFR-3, NFR-4, the model and no problem;
+#   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1);
+#   4. the files are copied out into the report folder. Without --on-mock a finished run (verdict pass or blocked, no structural failure)
+#      also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is release-candidate-on-mock.* in the report
+#      folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke test is not run (Story 30.1).
+# Exit codes: 0 pass (and a finished --on-mock run), 1 a structural failure (a session that printed nothing, a run that did not start or
+# finish, a file that was not saved, a verdict of incomplete: nothing is written in eval/), 2 a refused argument or key, 3 blocked.
+# --override "<reason>" records the author's override of a blocked result: it rewrites eval/release-candidate.json (verdict overridden,
+# override {reason, at}) and eval/release-candidate.md (the line "Verdict: blocked" becomes "Verdict: overridden (blocked; the author overrode
+# it)" and a section Override is appended). It refuses, with exit 2 and both files unchanged, a result that is missing or is not blocked, a
+# result already overridden, and a reason that is blank, has a line break, is not printable ASCII or is over 500 characters. It needs Node,
+# and it starts no container.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 
-limit=${OCUTALON_EVAL_WAIT:-180}
+# --- the arguments ---
+
+mode=push
+onmock=0
+override_reason=
+if [ $# -eq 0 ]; then
+  :
+elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then
+  mode=rc
+elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ]; then
+  mode=rc
+  onmock=1
+elif [ $# -eq 2 ] && [ "$1" = --override ]; then
+  mode=override
+  override_reason=$2
+else
+  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock] | --override "<reason>"]'
+  exit 2
+fi
+
+# --- --override: the author's override of a blocked result file ---
+
+# override_result <reason>: see the header. Exit 2 with a FAIL line for every refusal; the files are written last and only when every check holds.
+override_result() {
+  local reason=$1 json="$root/eval/release-candidate.json" md="$root/eval/release-candidate.md" at program
+  if [ -z "$(printf '%s' "$reason" | LC_ALL=C tr -d '[:space:]')" ]; then
+    echo "FAIL the override reason is blank"
+    exit 2
+  fi
+  if [ "$(printf '%s' "$reason" | LC_ALL=C tr -d '[:print:]' | wc -c | tr -d ' ')" -ne 0 ]; then
+    echo "FAIL the override reason must be one line of printable ASCII"
+    exit 2
+  fi
+  if [ "$(printf '%s' "$reason" | LC_ALL=C wc -c | tr -d ' ')" -gt 500 ]; then
+    echo "FAIL the override reason is over 500 characters"
+    exit 2
+  fi
+  if ! command -v node > /dev/null 2>&1; then
+    echo "FAIL node is not installed"
+    exit 2
+  fi
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  program=$(cat << 'EOF'
+const fs = require('node:fs');
+const [jsonFile, mdFile, reason, at] = process.argv.slice(1);
+const refuse = (why) => {
+  console.log('FAIL ' + why);
+  process.exit(2);
+};
+if (!fs.existsSync(jsonFile)) refuse('eval/release-candidate.json does not exist: there is no result to override');
+if (!fs.existsSync(mdFile)) refuse('eval/release-candidate.md does not exist: the result has no text to override');
+let result;
+try {
+  result = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
+} catch {
+  refuse('eval/release-candidate.json is not valid JSON');
+}
+if (result === null || typeof result !== 'object' || Array.isArray(result)) refuse('eval/release-candidate.json is not a JSON object');
+if (result.verdict !== 'blocked') refuse('the verdict of eval/release-candidate.json is not blocked: only a blocked result can be overridden');
+if (result.override !== null) refuse('eval/release-candidate.json is already overridden');
+const markdown = fs.readFileSync(mdFile, 'utf8');
+const lines = markdown.split('\n');
+if (lines.filter((line) => line === 'Verdict: blocked').length !== 1) refuse('eval/release-candidate.md has not exactly one line "Verdict: blocked"');
+result.verdict = 'overridden';
+result.override = { reason, at };
+const changed = lines.map((line) => (line === 'Verdict: blocked' ? 'Verdict: overridden (blocked; the author overrode it)' : line)).join('\n');
+const text = changed + '\n## Override\n\n' + reason + '\n\nRecorded at ' + at + '.\n';
+fs.writeFileSync(jsonFile, JSON.stringify(result));
+fs.writeFileSync(mdFile, text);
+console.log('OVERRIDE recorded in eval/release-candidate.json and eval/release-candidate.md');
+EOF
+  )
+  node -e "$program" "$json" "$md" "$reason" "$at"
+  exit $?
+}
+
+if [ "$mode" = override ]; then override_result "$override_reason"; fi
+
+# --- the key of a release candidate (AD-19) ---
+
+# The key must be in this script's own environment, exported and not empty. Its value is never printed or stored.
+if [ "$mode" = rc ] && [ "$onmock" -eq 0 ] && [ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]; then
+  echo "FAIL ANTHROPIC_API_KEY is not set in the environment of this run: a release-candidate run needs the model key there (or use --on-mock)"
+  exit 2
+fi
+
+limit=${OCUTALON_EVAL_WAIT:-}
+if [ -z "$limit" ]; then
+  if [ "$mode" = rc ]; then limit=900; else limit=180; fi
+fi
 case $limit in
   '' | *[!0-9]*)
     echo "FAIL OCUTALON_EVAL_WAIT '$limit' must be a whole number of seconds from 1 to 3600"
@@ -74,6 +194,7 @@ else
 fi
 
 CONTAINER_REPORTS=/tmp/ocutalon-eval
+EVAL_FOLDER=/opt/ocutalon/eval/
 
 # The outcome that the mock's scenario eval-tellnow-ignored answers to the test-only case (ci/mock/scenarios/A/eval-tellnow-ignored.json).
 MOCK_WRONG_ANSWER=ignore
@@ -107,6 +228,66 @@ eval_run() {
   sed 's/^/  /' "$tmp/$name.chk"
 }
 
+# demo_run <name>: the demo gate in its own IRIS session: Gate.Demo runs the demo incident OcuTalon.Eval.Gate RUNS times through
+# IncidentManager's evaluation path, the session prints CHK|demogate|<passed>|<runs>|<pass> and a line
+# CHK|demo|<n>|<pass>|<cause>/<element>/<fix kind>|<fallback>|<parameters valid>|<diagnosis ms>|<reason> for each run, and saves the gate as
+# <name>.json. The early CHK line keeps iris_script from starting the runs a second time. The lines are in $tmp/<name>.chk.
+demo_run() {
+  local name=$1 begun=$SECONDS
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set sc=##class(OcuTalon.Eval.Gate).Demo(\"$EVAL_FOLDER\",$limit,.gate)" \
+    'Write !,"CHK|demorun|",$SYSTEM.Status.IsOK(sc)' \
+    'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
+    'Write !,"CHK|demogate|",gate.passed,"|",gate.runs,"|",gate.pass' \
+    'For i=0:1:gate.results.%Size()-1 { Set r=gate.results.%Get(i) Write !,"CHK|demo|",r.run,"|",r.pass,"|",$Translate(r.causeCategory_"/"_r.elementAtFault_"/"_r.fixKind,"|"_$Char(13,10),"   "),"|",r.fallback,"|",r.parametersValid,"|",r.durationMs,"|",$Translate(r.reason,"|"_$Char(13,10),"   ") }' \
+    "Set sc=##class(OcuTalon.Eval.Report).WriteFiles(\"$CONTAINER_REPORTS/\",\"$name\",gate.%ToJSON())" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name $((SECONDS - begun))s"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# attempt_run <name> <set name> <demo name> <number>: one attempt in its own IRIS session: it reads <set name>.json and <demo name>.json,
+# calls Gate.Attempt, prints CHK|met|, CHK|below| (the labels of the targets not met) and a line CHK|target|<label>|<met> for each target,
+# and saves the attempt as <name>.json. The lines are in $tmp/<name>.chk.
+attempt_run() {
+  local name=$1 set_name=$2 demo_name=$3 number=$4
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set sd=##class(%DynamicAbstractObject).%FromJSONFile(\"$CONTAINER_REPORTS/$set_name.json\")" \
+    "Set dd=##class(%DynamicAbstractObject).%FromJSONFile(\"$CONTAINER_REPORTS/$demo_name.json\")" \
+    "Set at=##class(OcuTalon.Eval.Gate).Attempt(sd,dd,$number)" \
+    'Write !,"CHK|met|",at.met' \
+    'Set below="" For i=0:1:at.below.%Size()-1 { Set below=below_$Select(i:",",1:"")_at.below.%Get(i) } Write !,"CHK|below|",$Translate(below,"|"_$Char(13,10),"   ")' \
+    'For n="sm1","sm2","demoGate","nfr3","nfr4","model","clean" { Set t=at.targets.%Get(n) Write !,"CHK|target|",t.label,"|",t.met }' \
+    "Set sc=##class(OcuTalon.Eval.Report).WriteFiles(\"$CONTAINER_REPORTS/\",\"$name\",at.%ToJSON())" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# verdict_run <attempts> <name> <commit> <branch> <tree clean 0|1> <on mock 0|1>: Gate.Result over attempt-1.json to attempt-<attempts>.json
+# with the context, saved as <name>.json and <name>.md; prints CHK|verdict|, CHK|attempts| (run and met) and CHK|saved|. The lines are in
+# $tmp/<name>.chk.
+verdict_run() {
+  local count=$1 name=$2 commit=$3 branch=$4 clean=$5 mock=$6
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    'Set as=[]' \
+    "For k=1:1:$count { Do as.%Push(##class(%DynamicAbstractObject).%FromJSONFile(\"$CONTAINER_REPORTS/attempt-\"_k_\".json\")) }" \
+    "Set cx={\"commit\":\"$commit\",\"branch\":\"$branch\",\"treeClean\":$clean,\"onMock\":$mock}" \
+    'Set rs=##class(OcuTalon.Eval.Gate).Result(as,cx)' \
+    'Write !,"CHK|verdict|",rs.verdict' \
+    'Write !,"CHK|attempts|",rs.attemptsRun,"|",rs.attemptsMet' \
+    "Set sc=##class(OcuTalon.Eval.Gate).Save(rs,\"$CONTAINER_REPORTS/\",\"$name\")" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
 # chk_value <name> <key>: the value of the first CHK|<key>| line of the run.
 chk_value() {
   sed -n "s/^CHK|$2|//p" "$tmp/$1.chk" | head -n 1
@@ -126,36 +307,200 @@ run_started() {
   pass "$name: the run started"
 }
 
-# fetch <name>: copies the report files of the run out of the container into the report folder.
+# fetch <name> [<extension>...]: copies the files of the run (json and md unless the extensions are given) out of the container into the
+# report folder.
 fetch() {
-  local name=$1 ext
-  for ext in json md; do
+  local name=$1 exts ext
+  shift
+  exts=${*:-json md}
+  for ext in $exts; do
     if ! dc exec -T iris cat "$CONTAINER_REPORTS/$name.$ext" > "$report_dir/$name.$ext" 2> "$tmp/cat.log"; then
       fail "$name: $name.$ext could not be copied out of the container"
     fi
   done
 }
 
+# demo_checks <name>: the structural checks of a demo gate session. The demo gate is a score of the attempt and never one of these checks, except
+# on the push run, where the mock's diagnosis is fixed and demo_pushed adds its own.
+demo_checks() {
+  local name=$1
+  if [ ! -s "$tmp/$name.chk" ]; then
+    fail "$name: the IRIS session printed nothing"
+    return 1
+  fi
+  if [ "$(chk_value "$name" demorun)" != 1 ]; then
+    fail "$name: the demo gate did not run: $(chk_value "$name" error)"
+    return 1
+  fi
+  if [ "$(chk_value "$name" saved)" != 1 ]; then
+    fail "$name: the demo gate could not be saved"
+    return 1
+  fi
+  pass "$name: the demo gate ran ($(chk_value "$name" demogate | awk -F'|' '{ print $1 " of " $2 " passed" }'))"
+}
+
+# attempt_checks <name>: the structural checks of an attempt session: it printed its met line, its seven targets and saved its file.
+attempt_checks() {
+  local name=$1 targets
+  if [ ! -s "$tmp/$name.chk" ]; then
+    fail "$name: the IRIS session printed nothing"
+    return 1
+  fi
+  targets=$(grep -c '^CHK|target|' "$tmp/$name.chk" || true)
+  case $(chk_value "$name" met) in
+    0 | 1) ;;
+    *)
+      fail "$name: the attempt printed no met line"
+      return 1
+      ;;
+  esac
+  if [ "$targets" -ne 7 ]; then
+    fail "$name: the attempt printed $targets target line(s), not 7"
+    return 1
+  fi
+  if [ "$(chk_value "$name" saved)" != 1 ]; then
+    fail "$name: the attempt could not be saved"
+    return 1
+  fi
+  pass "$name: the attempt met $(chk_value "$name" met) (below: $(chk_value "$name" below))"
+}
+
 begun=$SECONDS
 stack_start eval
+if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then live_add_file "$root/eval/compose.release-candidate.yml"; fi
 stack_ready "evaluation" "$begun"
 
 keys_begun=$SECONDS
-check_session "the production runs with every item, and the runners' keys point at the CI mock" OCUTALON \
-  "CHK|ready|
+if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then
+  # The real endpoint: the runners hold the key that the override passed, and no part of the mock is in the way. Presence only: Keys.Status
+  # never reads the key. PointKeys, RestoreKeys and ReadyReason (the mock's guard) are never called here.
+  check_session "the production runs with every item, every runner has its key, no mock is in the way and the model is claude-haiku-5-5" OCUTALON \
+    "CHK|running|
+CHK|items|1
+CHK|records|1
+CHK|keys-TriageAgent|1
+CHK|keys-DiagnosisAgent|1
+CHK|keys-ChatAgent|1
+CHK|baseurl|
+CHK|mockheader|0
+CHK|model-TriageAgent|claude-haiku-5-5
+CHK|model-DiagnosisAgent|claude-haiku-5-5
+CHK|model-ChatAgent|claude-haiku-5-5" \
+    'Write !,"CHK|running|",##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()' \
+    'Write !,"CHK|items|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitAllRun()' \
+    'Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()' \
+    'For i=1:1:3 { Set a=$Piece("TriageAgent,DiagnosisAgent,ChatAgent",",",i) Write !,"CHK|keys-",a,"|",##class(OcuTalon.Bridge.Keys).Status(a) }' \
+    'Write !,"CHK|baseurl|",$SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL")' \
+    'Write !,"CHK|mockheader|",($SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER")=1)' \
+    'For i=1:1:3 { Set a=$Piece("TriageAgent,DiagnosisAgent,ChatAgent",",",i) Write !,"CHK|model-",a,"|",##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(a) }' \
+    'Halt'
+  if [ "$fails" -ne 0 ]; then
+    die "the stack is not ready for the release-candidate run"
+  fi
+  echo "READY runners, keys and model $((SECONDS - keys_begun))s"
+else
+  check_session "the production runs with every item, and the runners' keys point at the CI mock" OCUTALON \
+    "CHK|ready|
 CHK|keys|1" \
-  'Write !,"CHK|ready|",##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' \
-  'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys() Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|why|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ")' \
-  'Halt'
-if [ "$fails" -ne 0 ]; then
-  sed -n 's/^CHK|why|/  /p' "$tmp/actual.chk"
-  die "the stack is not ready for the evaluation set"
+    'Write !,"CHK|ready|",##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' \
+    'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys() Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|why|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ")' \
+    'Halt'
+  if [ "$fails" -ne 0 ]; then
+    sed -n 's/^CHK|why|/  /p' "$tmp/actual.chk"
+    die "the stack is not ready for the evaluation set"
+  fi
+  echo "KEYS ready and keys $((SECONDS - keys_begun))s"
 fi
-echo "KEYS ready and keys $((SECONDS - keys_begun))s"
+
+# --- the release-candidate run ---
+
+if [ "$mode" = rc ]; then
+  if [ "$onmock" -eq 1 ]; then result_name=release-candidate-on-mock; else result_name=release-candidate; fi
+  attempts=0
+  number=1
+  while [ "$number" -le 3 ] && [ "$fails" -eq 0 ]; do
+    eval_run "set-$number" "$EVAL_FOLDER" "Evaluation set, attempt $number"
+    if run_started "set-$number"; then
+      left=$(chk_value "set-$number" leftwatches)
+      if [ "$left" != 0 ]; then fail "set-$number: the run left eval watch rows (leftwatches: ${left:-no count})"; fi
+      if [ "$(chk_value "set-$number" saved)" = 1 ]; then fetch "set-$number"; else fail "set-$number: the report could not be saved"; fi
+    fi
+    if [ "$fails" -eq 0 ]; then
+      demo_run "demo-$number"
+      if demo_checks "demo-$number"; then fetch "demo-$number" json; fi
+    fi
+    if [ "$fails" -eq 0 ]; then
+      attempt_run "attempt-$number" "set-$number" "demo-$number" "$number"
+      if attempt_checks "attempt-$number"; then fetch "attempt-$number" json; fi
+    fi
+    if [ "$fails" -eq 0 ]; then
+      attempts=$number
+      if [ "$number" -eq 1 ] && [ "$(chk_value attempt-1 met)" = 1 ]; then break; fi
+    fi
+    number=$((number + 1))
+  done
+
+  verdict=
+  if [ "$fails" -eq 0 ]; then
+    commit=$(git rev-parse HEAD 2> /dev/null || true)
+    case $commit in
+      *[!0-9a-f]* | '') commit=unknown ;;
+    esac
+    if [ "${#commit}" -ne 40 ]; then commit=unknown; fi
+    branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || true)
+    case $branch in
+      *[!A-Za-z0-9._/-]* | '') branch=unknown ;;
+    esac
+    tree_clean=0
+    if status=$(git status --porcelain -- . ':(exclude)eval/release-candidate.json' ':(exclude)eval/release-candidate.md' 2> /dev/null) && [ -z "$status" ]; then
+      tree_clean=1
+    fi
+    verdict_run "$attempts" "$result_name" "$commit" "$branch" "$tree_clean" "$onmock"
+    if [ ! -s "$tmp/$result_name.chk" ]; then
+      fail "$result_name: the IRIS session printed nothing"
+    elif [ "$(chk_value "$result_name" saved)" != 1 ]; then
+      fail "$result_name: the result could not be saved"
+    else
+      verdict=$(chk_value "$result_name" verdict)
+      case $verdict in
+        pass | blocked) pass "$result_name: the verdict is $verdict ($(chk_value "$result_name" attempts | awk -F'|' '{ print $2 " of " $1 " attempt(s) met every target" }'))" ;;
+        *) fail "$result_name: the verdict is '${verdict:-none}', not pass or blocked" ;;
+      esac
+    fi
+  fi
+  if [ "$fails" -eq 0 ]; then fetch "$result_name"; fi
+
+  if [ "$fails" -eq 0 ] && [ -s "$report_dir/$result_name.md" ]; then
+    echo "==== result $result_name"
+    cat "$report_dir/$result_name.md"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      { cat "$report_dir/$result_name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+    fi
+  fi
+  echo "REPORT $report_dir"
+
+  if [ "$fails" -ne 0 ]; then
+    echo "eval/run: $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  if [ "$onmock" -eq 1 ]; then
+    echo "VERDICT $verdict"
+    echo "eval/run: all checks passed"
+    exit 0
+  fi
+  if ! cp "$report_dir/release-candidate.json" "$root/eval/release-candidate.json" || ! cp "$report_dir/release-candidate.md" "$root/eval/release-candidate.md"; then
+    echo "FAIL the result could not be copied into eval/"
+    exit 1
+  fi
+  echo "VERDICT $verdict"
+  echo "RESULT eval/release-candidate.json"
+  if [ "$verdict" = pass ]; then exit 0; fi
+  exit 3
+fi
 
 # --- run 1: the set ---
 
-eval_run set /opt/ocutalon/eval/ "Evaluation set against the CI mock"
+eval_run set "$EVAL_FOLDER" "Evaluation set against the CI mock"
 if run_started set; then
   if [ "$(chk_value set problems)" = 0 ]; then
     pass "set: the run has no problem ($(chk_value set cases) case(s))"
@@ -265,6 +610,29 @@ if run_started mock-wrong; then
     fail "mock-wrong: the run left eval watch rows (leftwatches: ${left:-no count})"
   fi
   if [ "$(chk_value mock-wrong saved)" = 1 ]; then fetch mock-wrong; else fail "mock-wrong: the report could not be saved"; fi
+fi
+
+# --- run 3: the demo gate and the attempt's targets (Story 9.5) ---
+
+demo_run demo
+if demo_checks demo; then
+  demo_gate=$(chk_value demo demogate)
+  demo_lines=$(awk -F'|' '$1 == "CHK" && $2 == "demo"' "$tmp/demo.chk")
+  demo_count=$(printf '%s' "$demo_lines" | grep -c . || true)
+  demo_bad=$(printf '%s\n' "$demo_lines" | awk -F'|' 'NF && ($4 != "1" || $6 != "0" || $7 != "1" || $8 == "") { n++ } END { print n + 0 }')
+  if [ "$demo_gate" != "10|10|1" ] || [ "$demo_count" -ne 10 ]; then
+    fail "demo: the demo gate is '$demo_gate' with $demo_count run line(s), not 10 of 10 runs passed"
+  elif [ "$demo_bad" -ne 0 ]; then
+    fail "demo: $demo_bad of the 10 runs has no pass, a fallback, invalid fix parameters or no diagnosis time"
+  else
+    pass "demo: all 10 runs of the demo incident passed, with a valid repair-and-resend fix and a diagnosis time"
+  fi
+  fetch demo json
+fi
+attempt_run attempt set demo 1
+if attempt_checks attempt; then
+  echo "INFO attempt on the CI mock: met $(chk_value attempt met); below: $(chk_value attempt below)"
+  fetch attempt json
 fi
 
 # --- the reports ---

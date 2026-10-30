@@ -888,12 +888,14 @@ Method TestReport()
 	Do $$$AssertEquals(first.expected_"|"_first.got_"|"_first.%Get("right"), "ignore|digest|0", "the newsletter is listed as wrong")
 	Do $$$AssertEquals(incident.kind_"|"_incident.%Get("right")_"|"_incident.%Get("fallback")_"|"_incident.got.causeCategory_"/"_incident.got.elementAtFault_"/"_incident.got.fixKind, "incident|1|0|data_format_change/OrderDate/repair_resend", "and the incident is right: the mock's diagnosis is the recorded cause, element and fix")
 	Do $$$AssertEquals(..Line(report.scores.incidents), "1 of 1 share 1 met 1", "so incidents are 1 of 1")
+	Do $$$AssertEquals(incident.%GetTypeOf("fixParameters")_"|"_incident.fixParameters.field_"|"_incident.fixParameters.sourceFormat_"|"_incident.fixParameters.targetFormat, "object|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "and its entry holds the mock's fix parameters, which Eval.Gate reads")
 	Do $$$AssertEquals(report.cost.decisions.%Size(), 2, "run 1 has two priced decisions")
 	Kill kinds, refs
 	Set iterator = report.cost.decisions.%GetIterator()
 	While iterator.%GetNext(, .decision) {
 		Set kinds(decision.case) = decision.kind, refs(decision.case) = decision.ref
 		Do $$$AssertTrue(decision.costUSD > 0 && (decision.model '= ""), decision.case_" "_decision.kind_": a cost above 0 and a model")
+		Do $$$AssertTrue((decision.%GetTypeOf("durationMs") = "number") && (decision.durationMs '< 0), decision.case_" "_decision.kind_": a duration in milliseconds, which Eval.Gate reads")
 	}
 	Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run1, "mail-newsletter")
 	Do $$$AssertEquals($Get(kinds("mail-newsletter"))_"|"_$Get(kinds("orders-date-format")), "decide|diagnose", "the newsletter's is its decide decision and the incident's its diagnose decision")
