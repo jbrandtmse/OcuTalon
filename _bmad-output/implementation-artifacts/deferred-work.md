@@ -2348,3 +2348,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 30.3 implement (before its review patches); the test seeds a fix approval row with no ResultTarget in OCUORDERS, which Reconcile's new pass does not select; cause unknown
 - 2026-10-30T21:56:21Z status=routed owner=burndown by=harvest note=flake: first occurrence (local, not CI); watch for a CI recurrence
+
+### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.3 re-dispatch: the sentence is the Reasons of the bridge's fallback Decision row of kind tool (Decide.HeldBeforeUpdate); showing it on the card or a notice needs Lane B's payload and notice classes (AD-33) and a catalog text
+- 2026-10-30T22:33:52Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route with DW-443 to Story 31.2 (Lane B: the approval reaches the phone; card and notice wiring); Lane A side done in 30.3
+
+### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Decide.FailUnroutable returns 0 on a refused close and OnRequest passes empty reasons; already true for an empty Runner before U-170; forcing it needs a second job holding the row lock
+- 2026-10-30T22:33:52Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=for the 30.3 code review: patch (retry the close, or no Decision row until the close succeeds) or close with a probe
+
+### DW-456: TestReplayOpensTheThrowawaySession (DW-452's pin) reads the call order in Replay.Run's source text, so a release moved under a condition or a NewSession wrapped in If 0 keeps it green
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the scan counts textual NewSession, ExecuteTool, ReleaseThrowaway lines in order; a behavioural seam (a spy adapter counting the calls in a real replay) would close the rest
+- 2026-10-30T22:33:52Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=for the 30.3 code review: behavioural seam or wontfix-accepted with a probe
