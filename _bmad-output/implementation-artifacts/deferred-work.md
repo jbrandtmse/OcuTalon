@@ -2294,3 +2294,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-420: AD-22's as-built shard list does not name the lane-a area Channel that Story 12.1 adds to ci/units.sh
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
+- 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
