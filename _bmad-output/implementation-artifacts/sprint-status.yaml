@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 14:36
+last_updated: 10-30-2026 15:23
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -146,7 +146,7 @@ development_status:
   8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
-  epic-9: in-progress
+  epic-9: done
   9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
   9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
   9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done

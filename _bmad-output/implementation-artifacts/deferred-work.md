@@ -2241,6 +2241,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Fixture.cls RemoveSystem (about 65 of its 95 lines) vs Demo.cls System off branch, Revoke vs Demo.ServiceRole(0); Install/** and Test/Demo/* are read-only for 9.9 and both siblings are fixed to OCUORDERS
 - 2026-10-29T17:55:09Z status=routed owner=burndown by=cr note=Rule 2 forced copy: a namespace-parameterised Demo.System helper unifies it when Epic 15 touches Demo.cls (cf. DW-223)
+- 2026-10-30T15:23:33Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow: the fix (a namespace-parameterised Install.Step.Demo System helper that Test.Eval.Feed.Fixture calls) needs Install/Step/Demo.cls, Epic 15's contended path; Story 15.2 touches Demo.cls and already owns the sibling copy DW-223
 ### DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); recheck every README link and GitHub's heading slugs on the public page before the release
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
