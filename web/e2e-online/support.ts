@@ -10,9 +10,9 @@ import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
 /**
- * What the specs of web/e2e-online/ share: the online-demo, online-session, online-allowance and online-demo-path projects (Stories 16.1,
- * 16.4, 16.9 and 29.4). Each project runs on the throwaway that its unit (docker/tests/test-online-demo.sh, test-online-session.sh,
- * test-online-allowance.sh or test-online-demo-path.sh) starts with the online-demo flag on and the test start values; the unit gives the
+ * What the specs of web/e2e-online/ share: the online-demo, online-session, online-allowance, online-demo-path and online-visitors projects
+ * (Stories 16.1, 16.4, 16.9, 29.4 and 29.7). Each project runs on the throwaway that its unit (docker/tests/test-online-demo.sh,
+ * test-online-session.sh, test-online-allowance.sh, test-online-demo-path.sh or test-online-visitors.sh) starts with the online-demo flag on and the test start values; the unit gives the
  * two public accounts' names and passwords as OCUTALON_DEMOACCOUNT_* and OCUTALON_READONLYACCOUNT_* (fixtureUser reads them).
  */
 
@@ -343,17 +343,27 @@ export async function removeCounterRows(address: string): Promise<void> {
   );
 }
 
-/** The number of Session rows. */
+/** The number of Session rows; a count that cannot be read throws, so that two failed reads never compare equal. */
 export async function sessionRowCount(): Promise<number> {
   const lines = await irisScript('Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)');
-  return Number(chk(lines, 'rows') ?? '-1');
+  const rows = chk(lines, 'rows') ?? '';
+  if (!/^[0-9]+$/.test(rows)) throw new Error(`the Session rows could not be counted (read '${rows}')`);
+  return Number(rows);
+}
+
+/** The page's trace check asks the status with exactly the keys for (trace) and t (a time in milliseconds, so that no cache answers). */
+export function expectTraceQuery(check: URL, label: string): void {
+  expect([...check.searchParams.keys()], `${label}: the query holds exactly for and t`).toEqual(['for', 't']);
+  expect(check.searchParams.get('for'), `${label}: for is trace`).toBe('trace');
+  expect(check.searchParams.get('t'), `${label}: t is a time in milliseconds`).toMatch(/^\d{13}$/);
 }
 
 /**
- * The HTTP view of the instance's licence connections: what /ocutalon/public/status counts, which is one less than the count that an
- * iris_script reads (its own process holds one). It is found by the flip of Task 0 (a): with r the script's count, the cap is set to
- * r plus the reserve, and a busy status means the view is r, otherwise it is r - 1 (checked with the cap at r - 1 plus the reserve). The
- * cap is put back to what it was and read back, on every path. `api` must carry no session.
+ * The HTTP view of the instance's licence connections: what the connection check of /ocutalon/public/status counts, which is one less than
+ * the count that an iris_script reads (its own process holds one). It is found by the flip of Task 0 (a) on the status's trace form, whose
+ * busy comes from the connection check alone (so live visitors never move it): with r the script's count, the cap is set to r plus the
+ * reserve, and a busy status means the view is r, otherwise it is r - 1 (checked with the cap at r - 1 plus the reserve). The cap is put
+ * back to what it was and read back, on every path. `api` must carry no session.
  */
 export async function httpConnections(api: APIRequestContext): Promise<number> {
   const savedCap = await publicValue('connectionCap');
@@ -364,9 +374,9 @@ export async function httpConnections(api: APIRequestContext): Promise<number> {
   if (!Number.isInteger(r)) throw new Error(`InstanceConnections() read '${count ?? '<nothing>'}'`);
   try {
     await setPublic('connectionCap', String(r + reserve));
-    if ((await readStatus(api)).busy) return r;
+    if ((await readStatus(api, 'trace')).busy) return r;
     await setPublic('connectionCap', String(r - 1 + reserve));
-    if (!(await readStatus(api)).busy) throw new Error(`the HTTP view of the connections is neither ${r} nor ${r - 1}`);
+    if (!(await readStatus(api, 'trace')).busy) throw new Error(`the HTTP view of the connections is neither ${r} nor ${r - 1}`);
     return r - 1;
   } finally {
     await setPublic('connectionCap', savedCap);

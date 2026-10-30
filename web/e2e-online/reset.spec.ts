@@ -683,7 +683,7 @@ test('R9: the resetting view asks the public status with no cookie', async ({ pa
     const reset = iso(Date.now() + 12_000);
     await routeLivePath(page, reset, { blocked: () => false, inject: () => undefined, epoch: (value) => (epoch = value) });
 
-    await loadedAfter(page, () => signInFromSplash(page));
+    await signInFromSplash(page);
     await expect(page.locator('app-resetting-view'), 'the page enters the resetting view at its pending reset').toBeVisible({ timeout: 90_000 });
     const control = documents.at(-1);
     expect(control, 'the signed-in page was a document request to /ocutalon/').toBeTruthy();

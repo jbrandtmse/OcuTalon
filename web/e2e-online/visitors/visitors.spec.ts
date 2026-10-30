@@ -9,6 +9,7 @@ import {
   counterRows,
   DEMO_BUSY_TEXT,
   expectOpenedDirectly,
+  expectTraceQuery,
   landedOnSplash,
   leaveVisitor,
   openVisitor,
@@ -52,9 +53,9 @@ import {
  * - row 9: with the full house, the plain status answers the query forms; only exactly one `for=trace` reports not busy, every answer is
  *   200 with exactly the five keys and no Set-Cookie.
  * `finally` signs every context out of the whole sign-in group, removes every session row and counter row it made, and puts the proxy
- * address back. The file runs in full Chromium with its popup blocker on (as busy.spec.ts does), so a window that the page opens after the
- * click's activation has run out is blocked, as in a visitor's browser. The texts are written out here, as the independent oracle of the
- * page's own.
+ * address back; a step that fails there does not stop the steps after it. The file runs in full Chromium with its popup blocker on (as
+ * busy.spec.ts does), so a window that the page opens after the click's activation has run out is blocked, as in a visitor's browser.
+ * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 360_000 });
 test.use({ channel: 'chromium', launchOptions: { ignoreDefaultArgs: ['--disable-popup-blocking'] } });
@@ -172,7 +173,7 @@ test('V1: the 6th visitor gets in and the 7th sees Demo busy, a place leaves at 
     expect(directState.status(), 'row 3: /state answers 200').toBe(200);
     epochs.push(((await directState.json()) as { epoch: string }).epoch);
     expect(await counterRows(ADDRESS.direct), 'row 3: it writes no counter row').toBe(0);
-    expect((await readStatus(status)).busy, 'row 3: the plain status is still busy with six counted visitors, and the direct sign-in is not a seventh').toBe(true);
+    expect((await readStatus(status)).busy, 'row 3: the plain status is still busy with six counted visitors').toBe(true);
 
     // Row 4: a sign-out leaves the count at once, while the direct sign-in is still signed in.
     await pressSignOut(sixth.page);
@@ -205,10 +206,7 @@ test('V1: the 6th visitor gets in and the 7th sees Demo busy, a place leaves at 
     await expectOpenedDirectly(opened, turn, 'row 5');
     await expect(first.page.locator(BANNER), 'row 5: no Demo busy banner shows').toHaveCount(0);
     expect(asked.length, 'row 5: the page asked the status').toBeGreaterThan(0);
-    const check = new URL(asked[0] ?? 'http://stack.invalid/none');
-    expect([...check.searchParams.keys()], 'row 5: with exactly the keys for and t').toEqual(['for', 't']);
-    expect(check.searchParams.get('for'), 'row 5: for is trace').toBe('trace');
-    expect(check.searchParams.get('t'), 'row 5: t is a time in milliseconds').toMatch(/^\d{13}$/);
+    expectTraceQuery(new URL(asked[0] ?? 'http://stack.invalid/none'), 'row 5');
 
     // Row 6: T leaves the count at its timeout, which another application's session does not move.
     const keepAlive = async (): Promise<void> => {
@@ -256,7 +254,7 @@ test('V1: the 6th visitor gets in and the 7th sees Demo busy, a place leaves at 
       expect(answered, `row 9: ?${query}`).toEqual({ code: 200, keys: KEYS, busy, header: busy ? '1' : undefined, setCookie: false });
     }
   } finally {
-    for (const visitor of visitors) await leaveVisitor(visitor);
+    for (const visitor of visitors) await leaveVisitor(visitor).catch(() => undefined);
     for (const context of contexts) {
       await signOutGroup(context).catch(() => undefined);
       await context.close().catch(() => undefined);
@@ -265,9 +263,9 @@ test('V1: the 6th visitor gets in and the 7th sees Demo busy, a place leaves at 
       await api.get(SIGN_OUT).catch(() => undefined);
       await api.dispose().catch(() => undefined);
     }
-    for (const epoch of epochs) await removeSession(epoch);
-    for (const address of addresses) await removeCounterRows(address);
-    await status.dispose();
+    for (const epoch of epochs) await removeSession(epoch).catch(() => undefined);
+    for (const address of addresses) await removeCounterRows(address).catch(() => undefined);
+    await status.dispose().catch(() => undefined);
     await setPublic('proxyAddress', savedProxy);
   }
 });

@@ -14,7 +14,8 @@
 # control_password and resume_ref), next_probe (sets probes to a number that no request of this run used, also across subshells: the
 # counter lives in a file), logout_all and online_signin. Four more stack helpers sit after keys_restore
 # (Story 29.7): set_proxy (sets the public proxy address and prints what it reads back), host_address (the address that IRIS sees for the
-# host's requests), counter_rows (AddressCounter rows, all or one address's) and status_read (the public status's busy, marker header and code).
+# host's requests), counter_rows (AddressCounter rows, all or one address's) and status_read (the public status's busy, marker header and
+# code, in the plain or the trace form).
 # No password is ever printed. Every request that signs in ends with
 # ?IRISLogout=end on its application and on /ocutalon/, each with its own cookie jar, so that no form leaves a licence connection held;
 # every page request carries a unique probe=<n> query parameter, because the web gateway keeps the answer to a URL (test-bundle-folder.sh).
@@ -124,7 +125,7 @@ keys_restore() {
 # --- the stack's address, the proxy setting and the status (Story 29.7; test-online-demo.sh and test-online-visitors.sh) ---
 # These need the stack (lib-live.sh sourced, live_start called) and base, tmp and the probe counter (online_values).
 
-# The public proxy address is set to the address that IRIS sees for this host's requests, and put back to the start value on every path.
+# set_proxy <address>: sets the public proxy address and prints what it reads back. Putting the start value back is the caller's job.
 set_proxy() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"proxyAddress\",\"$1\")" "Write !,\"CHK|proxy|\",##class(OcuTalon.Data.Public.Settings).Get(\"proxyAddress\")" 'Halt' | session_value OCUTALON proxy; }
 # host_address: the container's default gateway, from /proc/net/route (little-endian hex), which is the source address of a request that the
 # host publishes a port for; nothing when the table has no default route.
@@ -141,12 +142,14 @@ counter_rows() {
   fi
 }
 
-# status_read: GETs /ocutalon/public/status on no jar with a unique probe, leaves the headers in $tmp/status.h and the body in $tmp/status.b, and
-# prints "<busy: true, false or unreadable> <marker header: 1 or none> <HTTP status>".
+# status_read [trace]: GETs /ocutalon/public/status on no jar with a unique probe (in its trace form, for=trace, when the argument is trace),
+# leaves the headers in $tmp/status.h and the body in $tmp/status.b, and prints "<busy: true, false or unreadable> <marker header: 1 or
+# none> <HTTP status>".
 status_read() {
-  local code busy marker
+  local code busy marker form=""
+  [ "${1:-}" = trace ] && form="for=trace&"
   next_probe
-  code=$(curl -s --max-time 30 -D "$tmp/status.h" -o "$tmp/status.b" -w '%{http_code}' "$base/ocutalon/public/status?probe=$probes")
+  code=$(curl -s --max-time 30 -D "$tmp/status.h" -o "$tmp/status.b" -w '%{http_code}' "$base/ocutalon/public/status?${form}probe=$probes")
   case $(cat "$tmp/status.b") in
     *'"busy":true'*) busy=true ;;
     *'"busy":false'*) busy=false ;;

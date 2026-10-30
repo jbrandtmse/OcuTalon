@@ -34,8 +34,8 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. live:online-session (shards) and
 # live:online-allowance (shards-2) left install-fresh after its job took 39.9 min of the 40-min timeout (run 41088697760, 2026-10-30;
 # each unit starts its own throwaway and needs no install state). live:online-visitors (Story 29.7: the visitor count at a full house,
-# expected 8 to 10 min on CI) joined install-fresh, which then takes about 35 to 37 min. shard:lane-b cannot go to production,
-# whose units read no web bundle, because its Web classes check the built bundle.
+# expected 8 to 10 min on CI, inference) joined install-fresh, measured at 21 min on CI before it (run 41116344208), so about 29 to 31 min with it
+# (inference). shard:lane-b cannot go to production, whose units read no web bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder live:cards live:online-visitors" ;;

@@ -11,8 +11,9 @@
 #   - the browser step: the project online-visitors of web/playwright.config.ts (web/e2e-online/visitors/), case V1: the 6th visitor gets
 #     in and the 7th sees Demo busy, the probe's path never counts, a sign-out and the CSP timeout leave the count, Visual Trace opens at a
 #     full house through the trace form of the status, and the status answers each query form (matrix rows 1 to 6 and 9);
-#   - row 7, every reset starts at 0: IRIS's ClearSessionsOnRestart reads 1; the timeout of /ocutalon is set to 3600 s, so that only an
-#     emptied session store can read 0; six proxied curl sign-ins from six addresses make the plain status busy; the timeout goes back to
+#   - row 7, every reset starts at 0: IRIS's ClearSessionsOnRestart reads 1; the plain status is not busy before the row's own sign-ins
+#     (a session that the browser step left signed in leaves the count at its 120 s timeout, so the read is repeated for up to 150 s);
+#     the timeout of /ocutalon is set to 3600 s, so that only an emptied session store can read 0; six proxied curl sign-ins from six addresses make the plain status busy; the timeout goes back to
 #     120 s and is read back; IRIS restarts; after ready the plain status is not busy with no marker header, a proxied sign-in gets the
 #     shell once the proxy address is set again, and the six jars' /state answer 401;
 #   - the proxy address goes back to its start value and is read back, and the timeout is back at 120 s, on every path that reaches
@@ -118,6 +119,19 @@ if [ "$clear_flag" = 1 ]; then
   pass "row 7: IRIS's ClearSessionsOnRestart reads 1"
 else
   fail "row 7: ClearSessionsOnRestart reads '$clear_flag' (wanted 1)"
+fi
+
+waited=0
+start_state=$(status_read)
+while [ "$start_state" != "false none 200" ] && [ "$waited" -lt 150 ] && [ $((deadline - SECONDS)) -gt 180 ]; do
+  sleep 5
+  waited=$((waited + 5))
+  start_state=$(status_read)
+done
+if [ "$start_state" = "false none 200" ]; then
+  pass "row 7: before the row's sign-ins the plain status is not busy (read after $waited s)"
+else
+  fail "row 7: before the row's sign-ins the plain status read '$start_state' after $waited s, so the browser step left visitors counted"
 fi
 
 six_jars=()

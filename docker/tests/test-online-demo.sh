@@ -929,7 +929,8 @@ public_value() { printf '%s\n' "Write !,\"CHK|v|\",##class(OcuTalon.Data.Public.
 set_cap() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"connectionCap\",\"$1\")" 'Write !,"CHK|cap|",##class(OcuTalon.Data.Public.Settings).Get("connectionCap")' 'Halt' | session_value OCUTALON cap; }
 # script_connections: InstanceConnections() as an iris_script reads it (its own process holds one connection).
 script_connections() { printf '%s\n' 'Write !,"CHK|conn|",$SYSTEM.License.InstanceConnections()' 'Halt' | session_value OCUTALON conn; }
-# http_view: the HTTP view of the licence connections, which is what the status counts, by the flip of Task 0 (a): with r what script_connections
+# http_view: the HTTP view of the licence connections, which is what the status's connection check counts, by the flip of Task 0 (a) on the
+# status's trace form (its busy comes from the connection check alone, so live visitors never move it): with r what script_connections
 # reads, the cap is set to r plus the reserve, and a busy status means the view is r; otherwise it is r - 1, which a cap of r - 1 plus the
 # reserve must confirm. The cap is put back to what it was. It prints the view, or nothing when neither r nor r - 1 held.
 http_view() {
@@ -938,11 +939,11 @@ http_view() {
   r=$(script_connections)
   case $r in '' | *[!0-9]*) set_cap "$saved" > /dev/null; return 1 ;; esac
   set_cap "$((r + reserve_start))" > /dev/null
-  if [ "$(status_read | cut -d' ' -f1)" = true ]; then
+  if [ "$(status_read trace | cut -d' ' -f1)" = true ]; then
     view=$r
   else
     set_cap "$((r - 1 + reserve_start))" > /dev/null
-    if [ "$(status_read | cut -d' ' -f1)" = true ]; then view=$((r - 1)); fi
+    if [ "$(status_read trace | cut -d' ' -f1)" = true ]; then view=$((r - 1)); fi
   fi
   set_cap "$saved" > /dev/null
   printf '%s' "$view"
@@ -1149,7 +1150,12 @@ if [ "$busy_ok" = 1 ]; then
     else
       fail "row 6: the sign-in past the boundary was refused=$s3_ok, and with the cap at $cap_free a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s) (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5)"
     fi
-    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)' and the one at cap $cap_free gave '$s5_outcome'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, so a new session holds no connection when OnLogin runs"
+    if [ "${s3_ok:-0}" = 1 ] && [ "$s5_outcome" = shell ]; then
+      own_reading="so a new session holds no connection when OnLogin runs"
+    else
+      own_reading="so this run does not show whether a new session holds a connection when OnLogin runs"
+    fi
+    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)' and the one at cap $cap_free gave '$s5_outcome'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, $own_reading"
     for epoch in "$s5_epoch"; do drop_session "$epoch"; done
   fi
   logout_all "$jar_s2" /ocutalon/

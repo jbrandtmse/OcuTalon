@@ -389,6 +389,7 @@ Method TestVisitorMarker()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "")
 	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerNoProxy", "192.0.2.10", ..Address("markernoproxy"), .noproxy, .response), "a sign-in with no proxy set answers OK")
 	Do ..AdoptRef($Get(noproxy.Data(sessionKey)))
+	Do $$$AssertTrue($Get(noproxy.Data(sessionKey)) '= "", "it is let in")
 	Do $$$AssertEquals($Data(noproxy.Data(key)), 0, "and is not marked either")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
 

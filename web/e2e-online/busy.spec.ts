@@ -4,7 +4,7 @@ import { EVENTS, MESSAGES, STATE } from '../e2e/support/api';
 import { loadedAfter } from '../e2e/support/floor';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { postTurn, type Cursor, type Turn } from '../e2e/support/trace';
-import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, removeSession, setPublic, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
+import { BUSY_HEADER, DEMO_BUSY_TEXT, expectTraceQuery, httpConnections, publicValue, readStatus, removeSession, setPublic, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
 
 /**
  * Story 16.5, the demo's busy state on the page (B1 to B3; matrix rows 7 and 9 to 12). The project runs on the online-demo throwaway, with
@@ -68,13 +68,6 @@ async function expectAtTrace(popup: Page, turn: Turn, label: string): Promise<vo
   const want = new URL(turn.traceUrl, 'http://stack.invalid');
   await expect.poll(() => new URL(popup.url()).pathname, { message: `${label}: the tab is at the link's page`, timeout: 30_000 }).toBe(want.pathname);
   expect(new URL(popup.url()).searchParams.get('SESSIONID'), `${label}: and at the link's session`).toBe(want.searchParams.get('SESSIONID'));
-}
-
-/** The page's trace check asks the status with exactly the keys for (trace) and t (a time in milliseconds, so that no cache answers). */
-function expectTraceQuery(check: URL, label: string): void {
-  expect([...check.searchParams.keys()], `${label}: the query holds exactly for and t`).toEqual(['for', 't']);
-  expect(check.searchParams.get('for'), `${label}: for is trace`).toBe('trace');
-  expect(check.searchParams.get('t'), `${label}: t is a time in milliseconds`).toMatch(/^\d{13}$/);
 }
 
 /** The banner shows the busy text, with the README action that opens a new tab. */
