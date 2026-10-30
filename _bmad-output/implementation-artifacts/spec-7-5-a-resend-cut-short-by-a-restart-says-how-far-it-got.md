@@ -2,7 +2,7 @@
 title: 'A resend cut short by a restart says how far it got'
 type: 'feature'
 created: '2026-10-29'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'f84b5474b99faa7b52f71bea26b198df972e07af'
 baseline_commit: 'f84b5474b99faa7b52f71bea26b198df972e07af'
 review_loop_iteration: 0
@@ -388,9 +388,14 @@ Rejected:
 - (false) AC 3's "real heartbeat" Ticks are only approximated: `RealTick` sends through HeartbeatIn asynchronously, as the task does, and the task's own minute Ticks also run during the test (acceptance-auditor).
 - (false) `End`'s `interrupted` argument has no default: the spec's "(interrupted defaults to 0)" means the counts member, which `End` reads as `+counts.interrupted` (acceptance-auditor).
 
+### CI (rework iteration 1 of 3)
+
+- [ ] [CI] iris (shards-2): `OcuTalon.Test.Fix.DryRun` `TestFiftyOrdersChangeNothing` went red twice on 17bb839 (run 40978098377, attempt 1 and its unchanged rerun, https://github.com/jbrandtmse/OcuTalon/actions/runs/40978098377): "nothing in OCUTALON or OCUORDERS changed but the request's own session: [OCUTALON headers 1240 changed, OCUTALON header 1302 is new: session 1238, from Ens.Alarm to Decide]" (rerun: 1241 and 1303 in session 1239). The cause is not the dry run: `OcuTalon.Bridge.Process.Decide` arms a `SetTimer` alarm (TimerSeconds, 60 s by default) on every model call, and the alarm still fires after the session has ended. Since the DW-337 split (3308237) the piece `shard:lane-a@rest` runs `Fix.DryRun` about 20 s after the Bridge and Digest classes, with no Checks classes in between, so an older `Decide` session's alarm wakes up inside the dry run's snapshot window. Fix it in the shared helper `src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls`, which seven Fix classes use (Refused, DryRun, Recheck, Execute, SnapshotDiff, Raise, Runs; all of them now run in `shards-2`), so that a timer that was already pending when the "before" snapshot was taken is not counted as a change. Keep it narrow: only the `Ens.Alarm` request and wake-up of a session whose `Ens.Alarm` request was pending (not yet completed) at the "before" snapshot, in OCUTALON; every other change, and any alarm armed after the snapshot, still counts. Pin it with a test in `Test.Fix.SnapshotDiff` (hermetic: it builds the snapshots or the headers it needs, Rule 19) and a demonstrated mutation (the exemption removed → red; widened to every Ens.Alarm header → red on a case where an alarm armed after the snapshot must count). Reproduce the CI order on a fresh throwaway before and after the fix with `ci/iris.sh shard lane-a@rest --part 2/2` (it holds the last Bridge classes, Digest and the Fix classes), and run `Test.Fix.DryRun`, `Test.Fix.SnapshotDiff` and the other six users fresh. Do not change product code, the CI recipe (`ci/units.sh`, `ci/iris.sh`, `ci.yml`) or the class order.
+
 ## Spec Change Log
 
 - 2026-10-29, spec gate (lead): V1 and V2 ruled as veto items U-153 and U-154 (kept as planned); the spine gains the Conventions row "Fix runs"; kept as one story.
+- 2026-10-30, CI rework iteration 1 of 3 (lead): `[CI]` item under Tasks & Acceptance (Test.Fix.Snapshot hermetic against an older Decide session's pending Ens.Alarm; iris shards-2 red twice on 17bb839).
 
 ## Review Triage Log
 
