@@ -190,7 +190,8 @@ Method Visitor(name As %String) As %String [ Private ]
 	Quit ref
 }
 
-/// Gives the session count entries in its rolling hour, one second apart, the oldest being oldestAge seconds old.
+/// Gives the session count entries in its rolling hour, one second apart, the oldest being oldestAge seconds old; a negative
+/// oldestAge puts them ahead of now, which the window keeps too (it has a lower bound only).
 Method Seed(ref As %String, count As %Integer, oldestAge As %Integer) [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()

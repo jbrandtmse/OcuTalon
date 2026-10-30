@@ -410,24 +410,30 @@ Method TestNoticeOnAnotherDay()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_clock_"1"_tail, head, tail, retryAt), "", "and a clock that is not the time's is no form of it")
 }
 
-/// Observe.TimeReads reads the clock alone and the clock with a weekday or a date, in the joined form ("at ..." and "on <day> at ...") and
-/// in the form that follows its head directly, and takes no text whose head, tail or clock is not the one asked for.
+/// Observe.TimeReads reads the clock alone and the clock with the time's own weekday or date, in the joined form ("at ..." and
+/// "on <day> at ...") and in the form that follows its head directly, and takes no text whose head, tail, clock or day is not the
+/// one asked for. The expected weekday and date are worked out here from the time's local date, apart from Data.Time.ForMessage.
 Method TestTimeReadsForms()
 {
 	Set utc = "2030-06-17T10:00:00Z"
-	Set clock = $Extract(##class(OcuTalon.Data.Time).ToLocal(utc), 12, 16)
+	Set local = ##class(OcuTalon.Data.Time).ToLocal(utc)
+	Set clock = $Extract(local, 12, 16)
+	Set weekday = $Piece(##class(OcuTalon.Data.Time).#WEEKDAYS, ",", $ZDate($ZDateH($Piece(local, "T", 1), 3), 10) + 1)
+	Set date = $Piece(##class(OcuTalon.Data.Time).#MONTHS, ",", +$Extract(local, 6, 7))_" "_(+$Extract(local, 9, 10))
 	Set head = "until ", tail = " ET."
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Oct 9 at "_clock_tail, head, tail, utc), "otherday", "a date reads as another day")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Dec 30, 2025 at "_clock_tail, head, tail, utc), "otherday", "a date with its year reads as another day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on "_date_" at "_clock_tail, head, tail, utc), "otherday", "its date reads as another day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on "_date_", "_$Extract(local, 1, 4)_" at "_clock_tail, head, tail, utc), "otherday", "its date with its year reads as another day")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_clock_tail, head, tail, utc, 0), "sameday", "joined 0: the clock follows the head")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"Saturday at "_clock_tail, head, tail, utc, 0), "otherday", "joined 0: the day follows the head")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_weekday_" at "_clock_tail, head, tail, utc, 0), "otherday", "joined 0: its weekday follows the head")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Oct 9 at "_clock_tail, head, tail, utc), "", "a date that is not its own is no form of it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_$Select(weekday = "Saturday": "Sunday", 1: "Saturday")_" at "_clock_tail, head, tail, utc, 0), "", "nor is a weekday that is not its own")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_clock_tail, head, tail, utc, 0), "", "joined 0 takes no 'at' before the clock")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads("since "_clock_tail, head, tail, utc, 0), "", "another head is no form")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_clock_" UTC.", head, tail, utc, 0), "", "another tail is no form")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_clock_" XT.", head, tail, utc, 0), "", "another tail of the same length is no form")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads("until", head, tail, utc, 0), "", "a text shorter than its head and tail is no form")
 	Set other = $Extract(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(utc, 3600)), 12, 16)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_other_tail, head, tail, utc, 0), "", "the clock of another time is no form of it")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Oct 9 at "_other_tail, head, tail, utc), "", "nor is it with a day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on "_date_" at "_other_tail, head, tail, utc), "", "nor is it with its day")
 }
 
 /// The rolling hour keeps the newest entries when the limit has been lowered below the number held (QA): with 8 entries and a limit

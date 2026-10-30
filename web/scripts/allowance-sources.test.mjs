@@ -187,7 +187,7 @@ describe('the browser case\'s notice card text holds at any time of day (Story 1
   });
 
   it('takes no other shape', () => {
-    for (const text of [`${head}at Friday at 00:09${tail}`, `${head}at Oct 9 at 00:09${tail}`, `${head}at 15:02`, `${head}at 15:02 UTC, or install`, `${head}on Friday 00:09${tail}`, `${head}at 5:02${tail}`, `${head}at 105:02${tail}`]) {
+    for (const text of [`${head}at Friday at 00:09${tail}`, `${head}at Oct 9 at 00:09${tail}`, `${head}at 15:02`, `${head}at 15:02 UTC, or install`, `${head}on Friday 00:09${tail}`, `${head}at 5:02${tail}`, `${head}at 105:02${tail}`, `${head}on Today at 00:09${tail}`, `${head}on Oct at 00:09${tail}`, `${head}on Friday 9 at 00:09${tail}`, `${head}on October 9 at 00:09${tail}`]) {
       assert.doesNotMatch(text, card, text);
     }
   });
