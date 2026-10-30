@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { signIn } from '../sign-in/helpers';
+import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
 import {
   cleanFixtureRows,
@@ -144,6 +144,11 @@ export async function loadedAfter(page: Page, signInAction: () => Promise<unknow
   await signInAction();
   expect((await state).status(), 'the snapshot is served').toBe(200);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+}
+
+/** Signs the README account in (signInReadme) and waits until the page has loaded its snapshot (loadedAfter, DW-333). */
+export async function signInReadmeLoaded(page: Page): Promise<void> {
+  await loadedAfter(page, () => signInReadme(page));
 }
 
 /** Signs the floor user in and waits for the loaded page with its composer. */

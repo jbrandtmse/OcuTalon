@@ -9,6 +9,8 @@
 ///   - On the online demo the sign-in hook (OcuTalon.Web.SessionEvents) may record a refusal in the CSP session, under REFUSALKEY, as
 ///     $ListBuild(state, until). A signed-in request that finds it ends the CSP session at once, as the no-role request does, and
 ///     is answered with the sign-in page in that state (Login.Show, the splash's field error for "addressLimit" and for "busy").
+///   - On the online demo the same hook marks the CSP session of a proxied visitor under VISITORKEY (value 1), which
+///     Web.Public.Status counts as a live visitor (AD-13).
 ///   - The POST that signs in is answered with a redirect to the same URL and query, so the page that was asked
 ///     for is the page that loads.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP and its own package (AD-3).
@@ -25,6 +27,11 @@ Parameter ROLE = "OcuTalonUser";
 /// The key of the CSP session's data that holds a sign-in refusal, $ListBuild(state, until): the sign-in hook writes it and
 /// OnPreDispatch reads it, so the key lives in this public class, which the hook may name (AD-3).
 Parameter REFUSALKEY = "OcuTalon.Refused";
+
+/// The key of the CSP session's data that marks a counted visitor (AD-13, Story 29.7): the sign-in hook sets it to 1 for a
+/// proxied visitor whose sign-in attaches, and Web.Public.Status counts the sessions that hold it. Like REFUSALKEY it lives
+/// in this public class, which both the hook and the status may name (AD-3).
+Parameter VISITORKEY = "OcuTalon.Visitor";
 
 /// The name of the online demo's resume cookie (AD-4): its one definition. The splash reads it here (it may name only %CSP and
 /// its own package, AD-3), and Web.SessionEvents answers it as its own RESUMECOOKIE.

@@ -3,6 +3,7 @@ import { expect, test, type Page, type Request, type Route } from '@playwright/t
 import { pageTime } from '../src/app/chat/page-time';
 import { EVENTS, STATE, type LiveEvent } from '../e2e/support/api';
 import { freeze, pageNow, recordTraffic, runUntil } from '../e2e/support/clock';
+import { loadedAfter } from '../e2e/support/floor';
 import { chk, irisScript } from '../e2e/support/iris';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { publicValue, recordSplashAnnouncements, removeSession, setPublic, signInFromSplash, signOutGroup, splashAnnouncements } from './support';
@@ -157,7 +158,7 @@ test('R1: the pill turns urgent at 10 minutes, the banner comes at 5, the resett
       await route.fulfill(answer());
     });
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await freeze(page);
 
@@ -292,7 +293,7 @@ test('R2: with a reset four minutes away /state, the public status and the ancho
     const status = (await (await page.request.get(`${STATUS}?probe=${Date.now()}`)).json()) as { nextReset: string };
     expect(status.nextReset, 'the public status gives the anchor as the next reset').toBe(anchor);
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown> & { epoch: string; status: Array<{ condition: string; active: boolean }> };
     epochs.push(state.epoch);
@@ -405,7 +406,7 @@ test('R3: a 401 after the pending reset shows the resetting view and does not si
     await routeLivePath(page, lastReset, { blocked: () => blocked, inject: () => undefined, epoch: (value) => (epoch = value) });
     await page.route(`**${STATUS}*`, (route) => route.fulfill({ status: 200, json: { ready: false, nextReset: null, busy: false, lastReset: null, lastResetKind: null } }));
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(pill(page)).toBeVisible();
     await expect(page.locator('app-resetting-view'), 'four minutes before the reset the page is still the page').toHaveCount(0);
@@ -438,7 +439,7 @@ test('R3b: lost contact after the pending reset shows the resetting view', async
     await routeLivePath(page, lastReset, { blocked: () => false, dropped: () => dropped, inject: () => undefined, epoch: (value) => (epoch = value) });
     await page.route(`**${STATUS}*`, (route) => route.fulfill({ status: 200, json: { ready: false, nextReset: null, busy: false, lastReset: null, lastResetKind: null } }));
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(page.locator('app-resetting-view'), 'four minutes before the reset the page is still the page').toHaveCount(0);
 
@@ -464,7 +465,7 @@ test('R3c: an answer of the live path after the pending reset shows the resettin
     await routeLivePath(page, lastReset, { blocked: () => false, inject: () => undefined, epoch: (value) => (epoch = value) });
     await page.route(`**${STATUS}*`, (route) => route.fulfill({ status: 200, json: { ready: false, nextReset: null, busy: false, lastReset: null, lastResetKind: null } }));
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(page.locator('app-resetting-view'), 'four minutes before the reset the page is still the page').toHaveCount(0);
 
@@ -499,7 +500,7 @@ test('R4: a reset event with a later time moves the pill', async ({ page }) => {
       },
       epoch: (value) => (epoch = value),
     });
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(pillShown(page)).toHaveText(new RegExp(`^Next reset ${pageTime(next, 'en-GB', 'Asia/Kolkata')} \u00b7 in 1 h \\d+ min$`));
     send = true;
@@ -568,7 +569,7 @@ test('R6: a 401 before the pending reset signs the page out and does not show th
     });
     await routeBeforeReset(page, lastReset, { blocked: () => blocked, epoch: (value) => (epoch = value) });
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(pill(page), 'the page has its pending reset, four minutes ahead').toBeVisible();
     await expect(page.locator('app-resetting-view')).toHaveCount(0);
@@ -599,7 +600,7 @@ test('R7: the resetting view shows the logo of the page\'s theme and follows a c
     await page.clock.install({ time: new Date(reset - 240_000) });
     await routeBeforeReset(page, lastReset, { blocked: () => blocked, epoch: (value) => (epoch = value) });
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     blocked = true;
     await page.clock.setSystemTime(new Date(reset + 2000));
@@ -634,7 +635,7 @@ test('R8: the pill sits after the Status button and before the Visual Trace butt
     );
   try {
     await page.setViewportSize({ width: 1100, height: 800 });
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     epoch = ((await (await page.request.get(STATE)).json()) as { epoch: string }).epoch;
     await expect(pill(page), 'the online demo has its pill (the unit\'s reset is two hours ahead)').toBeVisible();
@@ -682,7 +683,7 @@ test('R9: the resetting view asks the public status with no cookie', async ({ pa
     const reset = iso(Date.now() + 12_000);
     await routeLivePath(page, reset, { blocked: () => false, inject: () => undefined, epoch: (value) => (epoch = value) });
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(page.locator('app-resetting-view'), 'the page enters the resetting view at its pending reset').toBeVisible({ timeout: 90_000 });
     const control = documents.at(-1);
     expect(control, 'the signed-in page was a document request to /ocutalon/').toBeTruthy();

@@ -61,12 +61,12 @@ export default defineConfig({
     { name: 'floor-webkit', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Safari'] } },
     // online-demo: the specs of e2e-online/ (the online-demo unit, docker/tests/test-online-demo.sh, on a flag-on throwaway), Desktop Chrome,
     // except those of e2e-online/session/, which are the online-session project's, those of e2e-online/allowance/, which are the
-    // online-allowance project's, and those of e2e-online/demo-path/, which are the online-demo-path project's. Its folder lies outside
-    // e2e/, so the chromium project never runs either.
+    // online-allowance project's, those of e2e-online/demo-path/, which are the online-demo-path project's, and those of
+    // e2e-online/visitors/, which are the online-visitors project's. Its folder lies outside e2e/, so the chromium project never runs either.
     {
       name: 'online-demo',
       testDir: './e2e-online',
-      testIgnore: ['**/e2e-online/session/**', '**/e2e-online/allowance/**', '**/e2e-online/demo-path/**'],
+      testIgnore: ['**/e2e-online/session/**', '**/e2e-online/allowance/**', '**/e2e-online/demo-path/**', '**/e2e-online/visitors/**'],
       use: { ...devices['Desktop Chrome'] },
     },
     // online-session: the specs of e2e-online/session/ (the online-session unit, docker/tests/test-online-session.sh, on its own flag-on
@@ -78,5 +78,8 @@ export default defineConfig({
     // online-demo-path: the specs of e2e-online/demo-path/ (the online-demo-path unit, docker/tests/test-online-demo-path.sh, on its own
     // flag-on throwaway with the runners' model keys at the CI mock), Desktop Chrome.
     { name: 'online-demo-path', testDir: './e2e-online/demo-path', use: { ...devices['Desktop Chrome'] } },
+    // online-visitors: the specs of e2e-online/visitors/ (the online-visitors unit, docker/tests/test-online-visitors.sh, on its own flag-on
+    // throwaway whose proxy address is the address IRIS sees for the host's requests, Story 29.7), Desktop Chrome.
+    { name: 'online-visitors', testDir: './e2e-online/visitors', use: { ...devices['Desktop Chrome'] } },
   ],
 });

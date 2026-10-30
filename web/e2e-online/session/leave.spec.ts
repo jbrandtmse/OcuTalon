@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, STATE } from '../../e2e/support/api';
+import { loadedAfter } from '../../e2e/support/floor';
 import { recordTraffic, traffic } from '../../e2e/support/clock';
 import {
   advance,
@@ -132,7 +133,7 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     await expectTraceSignIn(context, "a new tab's trace address shows the trace sign-in form");
 
     await page.clock.resume();
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'signing in from the splash gives the same epoch').toBe(epoch);
   } finally {
@@ -164,7 +165,7 @@ test('L3: a 401 returns the page to the splash with the place-freed notice, neve
     expect(at401, 'the poll was answered 401').toBeGreaterThanOrEqual(0);
     expect(api.length, 'no API request follows the 401').toBe(at401);
     expect(log.since(mark).filter((url) => url.includes('IRISLogout') || url.includes('/session/end')), 'and the page sent no sign-out after it').toEqual([]);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'signing in gives the same epoch').toBe(epoch);
   } finally {
@@ -321,7 +322,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     await pressSignOut(second);
     await confirmSignOut(second);
     await landedOnSplash(second, 60_000);
-    await signInFromSplash(second);
+    await loadedAfter(second, () => signInFromSplash(second));
     await expect(mainOf(second)).toHaveAttribute('data-snapshot', 'loaded');
     const next = await epochOf(second);
     epochs.push(next);
@@ -340,7 +341,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     expect(seen.seen(), "it never showed the new session's turn").toBe(false);
     await expect(page.locator('#ocu-notice'), 'and the splash has no notice').toHaveCount(0);
     await second.close();
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), "a sign-in from the first page gives an epoch other than its first one").not.toBe(first);
   } finally {

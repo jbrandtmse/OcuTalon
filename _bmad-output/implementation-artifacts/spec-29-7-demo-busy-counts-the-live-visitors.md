@@ -2,7 +2,8 @@
 title: 'Story 29.7: Demo busy counts the live visitors'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'aa0027824465948397eff87c84e6d557a2f01501'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -232,6 +233,34 @@ Line numbers are at `85719c93`.
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 24 rows (the layers' findings, one row per root cause with the layers named) - high 0, medium 4, low 20, false 0, maybe-false 0; 5 patched, 19 rejected with reasons
+- findings:
+  - `[medium]` `patch` (edge-case) `web/scripts/playwright-projects.test.mjs` pins the four online scripts and goes red with the new project - confirmed by `npm --prefix web test` (2 failures, CI's `web` job); the test now lists the fifth project, with its own case; green (1127 pass).
+  - `[medium]` `patch` (verification-gap) `Busy`'s fail-closed catch and its no-cap short-circuit have no observing test - added `TestBusyStoreFailure` (one unparseable node in the instance's store; removed also on a throw); two mutations red, recorded.
+  - `[low]` `patch` (verification-gap) a resume that is not proxied is never checked for the marker - added the case to `TestVisitorMarker`; mutation red, recorded.
+  - `[low]` `patch` (blind-hunter, edge-case, verification-gap) `Include %cspBuild` sits between the class description and `Class` in `Web/Public/Status.cls` and `Test/Web/Status.cls`, where the repo puts `Include` first - moved to line 1 of both; both classes compile and pass.
+  - `[low]` `patch` (blind-hunter) `test-online-visitors.sh` header says the proxy address and timeout are put back "on every path" but a `die` before the restore skips it - the header now states the paths.
+  - `[medium]` `reject` (blind-hunter, edge-case, verification-gap) `live:online-visitors` in `install-fresh` leaves little headroom against the 40-minute timeout - the group is the lead's CI ruling named in the spec's task and Design Notes 14; the expected 35 to 37 min is an inference the next full CI run measures (local run: 240 s). Spec-bound, closed by-design; to be watched at the CI run.
+  - `[medium]` `reject` (blind-hunter) `OWNCONNECTIONS` 1 to 0 rests on thin evidence - the spec rules it (U-163; Story 29.4's measurement, row 13) and the re-pinned rows 5 and 6 observe the boundary live (185 PASS in `live:online-demo`). By-design.
+  - `[low]` `reject` (blind-hunter, edge-case) a store node that is not a list makes the status busy with no log - fail-closed is Design Notes 4 (no false all-clear, the probe's `busy` alert tells the author); every `^%cspSession(id)` node is a `$ListBuild` that IRIS writes. wontfix-theoretical; the path is now tested.
+  - `[low]` `reject` (blind-hunter, edge-case) `Visitors` scans the whole session store per unauthenticated request - a demo instance holds a few dozen sessions, and the derived-on-read count with no new storage is the ruled design (lead ruling 2). wontfix-theoretical.
+  - `[low]` `reject` (blind-hunter, edge-case) two sign-ins at 5 visitors can both get in - Design Notes 8 (AD-13's "about 6"). By-design.
+  - `[low]` `reject` (blind-hunter) `visitors.spec.ts` reads the session list at positions 13 and 3 as a literal - the helper's doc names the positions, and an oracle that does not share the product's macro is the point of a live check. Cosmetic.
+  - `[low]` `reject` (blind-hunter, edge-case) DW-333 edits ~20 existing specs in this change - the spec's task item routes it here. By-design.
+  - `[low]` `reject` (blind-hunter, verification-gap) V1 row 1's `sessionRowCount() >= 6` is weak - row 2 pins the count by equality across the 7th's sign-in (`rowsBefore`), so a vacuous row 1 cannot hide a defect.
+  - `[low]` `reject` (edge-case) a re-save of a session's data briefly drops the key (`SaveData` kills and merges node 0) - a window of microseconds that can undercount by one in a count that is "about 6"; wontfix-theoretical.
+  - `[low]` `reject` (edge-case) other callers of `signInReadme` (demo-switch, frame) keep the DW-333 race - the spec names the demo-path specs and the online specs; the other callers are outside the footprint and no red is recorded for them.
+  - `[low]` `reject` (verification-gap) AC9 and AC10 have no `mutation:` line - neither has a pinning test that could be mutated (a diff listing; run order). By-design.
+  - `[low]` `reject` (verification-gap) `TestTraceForm`'s not-busy cases read the real store and need fewer than 6 live marked sessions - no test class creates a marked session in the real store; the throwaway starts empty. wontfix-theoretical.
+  - `[low]` `reject` (intent-alignment, descriptive) the splash and the login page are exercised only by the live units, not by a unit - the splash is unchanged by AC9 and live row 1 and the 7th's splash pin it.
+  - `[low]` `reject` (intent-alignment, descriptive) a `?for` parsing contract, fail-closed, row 7 and the CI group go beyond the intent's words - each is named in the spec (U-169, Design Notes 4, task list).
+  - `[low]` `reject` (intent-alignment, descriptive) `signInReadmeLoaded` edits are unrelated to the visitor count - DW-333.
+  - `[low]` `reject` (intent-alignment, descriptive) the unit tests use a private store and `ForceBusy`, not six real visitors - the live unit's V1 is the real-visitor proof (AC1).
+  - `[low]` `reject` (intent-alignment, descriptive) the real store layout is exercised only live - Task 0 measured it and V1's row 6 and row 7 observe it.
+  - `[low]` `reject` (intent-alignment, descriptive) the page's trace query is asserted only by Playwright - B3 and V1 row 5 observe it on the real bundle.
+  - `[low]` `reject` (intent-alignment, descriptive) assumptions about `^%cspSession` and `%session.Data` at OnLogin were not run by the auditor - they are the live unit's passing marker and count, measured.
+
 ## Design Notes
 
 **Owner decision U-163** (`apply U-163 at=2026-10-30T09:33:18Z#496`, the Contest Planner under the owner's delegation). It binds, quoted:
@@ -303,11 +332,17 @@ Task 0 result: all four points of ruling 2 held (Code Map, MEASURED (a) to (d)),
   - set-up and teardown.
 - `install-fresh` (about 27 min expected after the lead's move) becomes about 35 to 37 min (inference). That is inside the 40-minute job timeout and at or below `install-upgrade`'s measured 37, which already sets the run's wall-clock. It returns to about 29 to 31 min when Epic 9's merge moves `live:cards` (346 s on run 40961979510) to `shards`.
 - `live:online-demo` gains about 5 s (B1's two status reads).
+- MEASURED locally (lane C, `OCUTALON_LIVE_DEADLINE=1200`, as CI sets it; implement stage):
+  - `live:online-visitors`: the unit took 240 s, of which the start took about 90 s; the browser step took 129 s (V1 2.1 min); `MEASURED V1: T left the count 121 s after its last request`; the restart took 18 s to ready. So the unit is about 4 min locally, under the 8 to 10 min CI inference above (the inference stays for the slower CI host);
+  - `live:online-demo`: 7 min 22 s end to end locally (the browser step 206 s, 362 s at that point), all checks passing with rows 5 and 6 re-pinned;
+  - `live:demo-path` 2 min 42 s and `live:online-session` 5 min 40 s locally, with DW-333's `loadedAfter` waits.
 - The push changes `src/`, `ci/` and `web/`, so every IRIS group runs.
 
 **footprint_extensions:** none of these is contended:
 - `web/playwright.config.ts`: one project, and one `testIgnore` entry of online-demo;
 - `web/package.json`: one script.
+- `web/scripts/playwright-projects.test.mjs`: the node test that pins the Playwright projects' listing gains the `online-visitors` project and its case (the story's config change turns it red otherwise).
+- `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls`: pins each public class's parameters, so it lists `VISITORKEY` and `VISITORCAP`.
 
 The rest is in the footprint: `Web/Public/**`, `Web/SessionEvents.cls`, `Test/Web/**`, `web/src/app/**`, `web/e2e-online/**`, `docker/tests/test-online-*.sh` and `lib-online.sh`. `ci/units.sh` changes only its own entries.
 
@@ -337,15 +372,31 @@ Run every call in the foreground with `timeout: 600000`, one test call per messa
 
 **Mutations (Rule 19), one per AC, recorded as `mutation: <change> → <test red>` when run:**
 - AC1: `VISITORCAP = 7`. V1 goes red at "plain busy after the sixth"; so does `TestIsBusy`'s 6 case.
+  - mutation: `VISITORCAP = 7` -> `Test.Web.Status` red at `TestIsBusy` ("6 visitors are busy", "the visitor cap is 6"), observed on the warm stack; tree restored byte-identical.
 - AC1, the post-sign-in check: `AttachVisitor` calls `Busy(..#OWNCONNECTIONS, "trace")`. V1 goes red at "the seventh gets the busy splash".
+  - mutation: `AttachVisitor` calls `Busy(..#OWNCONNECTIONS, "trace")` -> V1 red at row 2, "the sign-in is answered with 200" (received 303, the shell); tree restored byte-identical.
 - AC2: mark every attach, the exempt ones included. V1 goes red at "not busy after V6's sign-out while D is signed in"; so does `TestVisitorMarker`.
+  - mutation: also mark the not-proxied creation -> V1 red at row 4, "the plain status is not busy at the first read after V6 lands on the splash" (live), and `TestVisitorMarker` red ("a sign-in that is not proxied is not marked", warm); tree restored byte-identical.
 - AC3, sign-out: the step's mutation is that V6 closes its context without Sign out. V1 goes red at "not busy at once". The condition rests on IRIS deleting the node, so no product line can keep a signed-out session.
+  - mutation: V6 closes its context in place of pressing Sign out -> V1 red at row 4, "the plain status is not busy at the first read after V6 lands on the splash" (the session stays counted until its timeout; row 7 of that run also read 5 of 6 shells for the same reason); the spec file restored byte-identical.
 - AC3, the timeout: `AttachVisitor` also sets `%session.AppTimeout = 900` with the marker. V1 goes red at "not busy by 140 s". `TestVisitorCount` without the timeout comparison goes red too.
+  - mutation: `%session.AppTimeout = 900` set with each marker -> V1 red at row 6, "by 140 s the plain status reports not busy" (live); `Visitors` without the `> now` comparison -> `TestVisitorCount` red ("the marked sessions whose timeout is ahead are counted, and nothing else", warm); tree restored byte-identical.
 - AC4: a temporary line in the unit, after its `ClearSessionsOnRestart` check and before the restart, runs `$SYSTEM.CSP.SetConfig("ClearSessionsOnRestart", 0)` in %SYS. Row 7 goes red: plain is busy after the restart.
+  - mutation: that line added to `test-online-visitors.sh` -> V1 passed and row 7 red: "after the restart the plain status read 'true 1 200'", no shell for the proxied sign-in, 0 of 6 jars answering 401; script restored byte-identical.
 - AC5: `Form()` always answers `""`. V1 goes red at "the trace window opens". `publicStatus` without `for=trace` turns B3's keys red.
+  - mutation: `Form()` always answers `""` -> V1 red already at row 1, "with the sixth in ... the trace form is not busy" (before the trace window is reached); `publicStatus` without `for=trace` -> B3 red at "the press: the query holds exactly for and t"; tree restored byte-identical (the web bundle was rebuilt after the restore).
 - AC6: `Busy` answers 0 in the trace form. B1 goes red: the trace form is not busy, and a window opens.
+  - mutation: `Busy` answers 0 in the trace form before the connection check -> B1 red at "the trace form is busy as well, with the marker header and the status code 200" (run together with the AC5 web and AC8 mutations in one `live online-demo` run, each failing in its own test); tree restored byte-identical.
 - AC7: `Form()` compares with `$ZConvert(...,"L")`. `TestTraceForm` (the `for=Trace` case) and V1's row 9 go red. A sixth key in `Body` turns `TestTraceForm`'s keys red.
+  - mutation: `Form()` compares with `$ZConvert(...,"L")` -> `TestTraceForm` red ("for=Trace is the plain form", warm) and V1 red at row 9 (`?for=Trace`, live); a sixth key `extra` in `Body` -> `TestTraceForm` red ("exactly the five keys in the form ''" and 'trace', also `TestBodyWithSettings` and `TestBodyWithoutSettings`); tree restored byte-identical.
 - AC8: `OWNCONNECTIONS = 1`. `test-online-demo.sh` row 6 goes red: at `cap_busy` the proxied sign-in is let in.
+  - mutation: `OWNCONNECTIONS = 1` -> `test-online-demo.sh` rows 5 and 6 red: at `cap_busy` S3 and the cookie sign-in (S4) are let in ("status '303'"), so "the sign-in past the boundary was refused=0"; tree restored byte-identical.
+- AC2, a resume that is not proxied (review patch): `AttachVisitor`'s resume line without the `proxied` condition.
+  - mutation: the resume marks every attach, the exempt included -> `TestVisitorMarker` red ("a resume that is not proxied is not marked", warm); tree restored byte-identical.
+- Fail-closed and no-cap (Design Notes 3 and 4; review patch): `Busy`'s `Catch` sets busy to 0, or its no-cap early return is removed.
+  - mutation: `Catch` sets `busy = 0` -> `TestBusyStoreFailure` red ("a store that cannot be read counts as busy"); the no-cap early return removed -> `TestBusyStoreFailure` red ("without a valid cap the store is not read"), both on the warm stack; tree restored byte-identical.
+- The projects list (review patch): `web/scripts/playwright-projects.test.mjs` without the `online-visitors` case and listing failed on the first `npm --prefix web test` after the story's config change (two cases red: online-demo's list and "every spec file ... is listed"); green after.
+- DW-333: the old wait (`signInReadme`, then `main.main` `data-snapshot` loaded at the default 10 s) with a GET `/state` held for 12 s goes red (10.2 s); `signInReadmeLoaded` (`loadedAfter`) with the same held `/state` stays green (12.3 s). Observed with a scratch spec in `live demo-path`, removed afterwards; tree byte-identical.
 
 **Shared surfaces:**
 - `/status`'s shape and query, read by:
@@ -371,7 +422,7 @@ The implement stage searches `docker/tests`, `web/e2e-online`, `web/e2e`, `relea
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage, re-dispatch 1 (2026-10-30, runner C, unattended).** Planned only; nothing was implemented.
@@ -379,3 +430,12 @@ Blocking condition: none
 - All four points of lead ruling 2, and the timeout, held (Code Map, MEASURED lines).
 - The throwaway was torn down by its EXIT trap, and nothing tagged `e29s7plan` remains.
 - No slot or MCP target was used.
+
+**Implement and review (2026-10-30, runner C, unattended; the stage that finalizes this spec).**
+- Summary: the visitor count. `Shell.VISITORKEY` marks the CSP session of a proxied attach (resume and creation); `Status` gains `VISITORCAP = 6`, `Form()`, `Body(form)`, `Busy(own, form)`, the visitor clause of `IsBusy` and `Visitors(store)`; `SessionEvents.OWNCONNECTIONS` is 0; the page's trace check asks `?for=trace`. New unit `live:online-visitors` (case V1: rows 1 to 6 and 9; row 7 in the bash part) in `install-fresh`; the four bash helpers moved to `lib-online.sh`; `test-online-demo.sh` rows 5 and 6 re-pinned; B1 and B3 extended. DW-333: `signInReadmeLoaded` (floor.ts) and the sign-ins of the demo-path and online specs wait for the loaded snapshot.
+- Files changed: `Web/Public/Shell.cls`, `Web/Public/Status.cls`, `Web/SessionEvents.cls`; `Test/Web/Status.cls`, `Test/Web/SessionEvents.cls`, `Test/Web/PublicTexts.cls`; `web/src/app/api/api-client.ts`, `web/src/app/live/demo-busy-state.ts`; `web/e2e-online/support.ts`, `busy.spec.ts`, `visitors/visitors.spec.ts` (new), and the sign-ins of `reset`, `resume`, `splash`, `session/*`; `web/e2e/support/floor.ts` and `web/e2e/demo-path/*`; `web/playwright.config.ts`, `web/package.json`, `web/scripts/playwright-projects.test.mjs`; `docker/tests/lib-online.sh`, `test-online-demo.sh`, `test-online-visitors.sh` (new, executable); `ci/units.sh`.
+- Review: 5 patches applied (the projects node test, the fail-closed/no-cap test, the non-proxied resume case, `Include` placement, the unit header) and 19 rows rejected with reasons (Review Triage Log). Patched by verdict: medium 2, low 3. Nothing deferred.
+- Follow-up review recommended: false (no HIGH patched; two MEDs patched, both test-side).
+- Verification (all green): `bash -n`, `npm --prefix web run lint`, `npm --prefix web test` (1127 pass), `test-ci-config.sh`; warm `Test.Web.Status`, `Test.Web.SessionEvents`, `Test.Web.PublicTexts`; fresh `Test.Web.Status` and `Test.Web.SessionEvents` after the last patch; `live online-visitors` (240 s), `live online-demo` (185 PASS, 7 min 22 s), `live demo-path`, `live online-session` and `test-online-host.sh` (before the review patches, which touch only tests, `Include` placement and a header comment); `ci/checks.sh` after the last patch; AC9's `git diff --stat` empty. Every AC has a recorded mutation.
+- footprint_extensions: `web/playwright.config.ts`, `web/package.json`, `web/scripts/playwright-projects.test.mjs`, `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls`, and for DW-333 `web/e2e/demo-path/**`, `web/e2e/support/floor.ts`, and the sign-ins of `web/e2e-online/**`.
+- Residual risks: `install-fresh` is expected at 35 to 37 min against its 40-minute timeout (inference; the next full CI run measures it). `live:online-visitors` is unmeasured on CI. Row 7 assumes V1 signed every context out; a silent sign-out failure could skew its reading. The live units were run with `OCUTALON_LIVE_DEADLINE=1200`, as CI sets it.

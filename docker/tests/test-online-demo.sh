@@ -50,9 +50,10 @@
 #     on build 154, so the cap, set from the baseline, brings the status to the boundary in place of more sessions); with S1 and S2 signed in,
 #     a cap of the baseline plus the reserve plus 1 gives a status that is not busy with no X-OcuTalon-Busy header and the baseline plus the
 #     reserve gives busy with the header and status 200 (row 1), the splash of a fresh jar shows the busy error and link with the header and
-#     the splash's exact policy, and with the cap one higher a fresh splash shows no busy error and no header (row 2); at that boundary a proxied sign-in is allowed, because the check leaves out the new session's own
-#     connection (row 6), and with the cap one lower (so that row 6 pins OWNCONNECTIONS at 1) a proxied sign-in and one with a valid resume cookie are refused with the busy splash,
-#     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
+#     the splash's exact policy, and with the cap one higher a fresh splash shows no busy error and no header (row 2); with the status busy
+#     a proxied sign-in and one with a valid resume cookie are refused with the busy splash, the header, no resume cookie, no session, no
+#     counter row and no attach (row 5), and with the cap one higher a proxied sign-in is let in: the boundary is the status's own, because
+#     the check leaves out no own connection (OWNCONNECTIONS is 0, Story 29.7; row 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
 #     before the password-log checks, with the three runners' model keys pointed at the mock key variable for P1 to P8
@@ -585,16 +586,9 @@ row_field() {
     'Halt' | session_value OCUTALON field
 }
 
-# session_rows: the number of Session rows. counter_rows: the number of AddressCounter rows; with an address, those of its hash.
+# session_rows: the number of Session rows (counter_rows is lib-online.sh's).
 session_rows() {
   printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
-}
-counter_rows() {
-  if [ -n "${1:-}" ]; then
-    printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$1\")) Do rs.%Next() Write !,\"CHK|rows|\",rs.%GetData(1)" 'Halt' | session_value OCUTALON rows
-  else
-    printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
-  fi
 }
 
 # --- row 14 (live): the seeded address limit ---
@@ -811,13 +805,6 @@ fi
 
 # --- Story 16.3, the proxied phase (rows 10 and 11, Task 0 (c)) ---
 
-# The public proxy address is set to the address that IRIS sees for this host's requests, and put back to the start value on every path.
-set_proxy() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"proxyAddress\",\"$1\")" "Write !,\"CHK|proxy|\",##class(OcuTalon.Data.Public.Settings).Get(\"proxyAddress\")" 'Halt' | session_value OCUTALON proxy; }
-# host_address: the container's default gateway, from /proc/net/route (little-endian hex), which is the source address of a request that the
-# host publishes a port for; nothing when the table has no default route.
-host_address() {
-  dc exec -T iris sh -c "awk '\$2 == \"00000000\" { print \$3; exit }' /proc/net/route" 2>/dev/null | tr -d '\r' | node -e 'const h = require("fs").readFileSync(0, "utf8").trim(); if (/^[0-9A-Fa-f]{8}$/.test(h)) console.log([6, 4, 2, 0].map((i) => parseInt(h.slice(i, i + 2), 16)).join("."));'
-}
 host_ip=$(host_address)
 echo "MEASURED REMOTE_ADDR of the host's requests, derived from the container's default gateway: ${host_ip:-<none>}"
 proxied_ok=0
@@ -942,20 +929,6 @@ public_value() { printf '%s\n' "Write !,\"CHK|v|\",##class(OcuTalon.Data.Public.
 set_cap() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"connectionCap\",\"$1\")" 'Write !,"CHK|cap|",##class(OcuTalon.Data.Public.Settings).Get("connectionCap")' 'Halt' | session_value OCUTALON cap; }
 # script_connections: InstanceConnections() as an iris_script reads it (its own process holds one connection).
 script_connections() { printf '%s\n' 'Write !,"CHK|conn|",$SYSTEM.License.InstanceConnections()' 'Halt' | session_value OCUTALON conn; }
-# status_read: GETs /ocutalon/public/status on no jar with a unique probe, leaves the headers in $tmp/status.h and the body in $tmp/status.b, and
-# prints "<busy: true, false or unreadable> <marker header: 1 or none> <HTTP status>".
-status_read() {
-  local code busy marker
-  next_probe
-  code=$(curl -s --max-time 30 -D "$tmp/status.h" -o "$tmp/status.b" -w '%{http_code}' "$base/ocutalon/public/status?probe=$probes")
-  case $(cat "$tmp/status.b") in
-    *'"busy":true'*) busy=true ;;
-    *'"busy":false'*) busy=false ;;
-    *) busy=unreadable ;;
-  esac
-  if tr -d '\r' < "$tmp/status.h" | grep -qi '^x-ocutalon-busy: 1$'; then marker=1; else marker=none; fi
-  printf '%s %s %s' "$busy" "$marker" "$code"
-}
 # http_view: the HTTP view of the licence connections, which is what the status counts, by the flip of Task 0 (a): with r what script_connections
 # reads, the cap is set to r plus the reserve, and a busy status means the view is r; otherwise it is r - 1, which a cap of r - 1 plus the
 # reserve must confirm. The cap is put back to what it was. It prints the view, or nothing when neither r nor r - 1 held.
@@ -1116,9 +1089,52 @@ if [ "$busy_ok" = 1 ]; then
     cache_busy_of() { case $1 in *'"busy":true'*) printf true ;; *'"busy":false'*) printf false ;; *) printf unreadable ;; esac; }
     echo "MEASURED Task 0 (f): two GETs of one /ocutalon/public/status URL with the cap changed between them answered busy=$(cache_busy_of "$cache_first") and then busy=$(cache_busy_of "$cache_second") (the gateway $([ "$cache_first" = "$cache_second" ] && echo 'repeated the first answer' || echo 'did not cache'))"
 
-    # Row 6, the boundary: the status is busy (the connections have reached cap minus reserve), yet a proxied sign-in is allowed, because the
-    # check leaves out the new session's own connection (OWNCONNECTIONS): the shell, a cookie and a counter row. Task 0 (d).
+    # Rows 5 and 6, at the status's own boundary (OWNCONNECTIONS = 0: the new session holds no connection, so the check leaves none out):
+    # with the cap at cap_busy the status is busy, so a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are
+    # refused with the busy splash.
     own=$(printf '%s\n' 'Write !,"CHK|own|",##class(OcuTalon.Web.SessionEvents).#OWNCONNECTIONS' 'Halt' | session_value OCUTALON own)
+    conn_before_s3=$(script_connections)
+    rows_before=$(session_rows)
+    csp_before=$(row_field "$s2_epoch" CspSessionId)
+    jar_s3="$tmp/jar.busy.s3"
+    : > "$jar_s3"
+    s3_code=$(online_signin "$jar_s3" "$addr_s3" "")
+    s3_state=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar_s3" -c "$jar_s3" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
+    s3_ok=1
+    s3_why=""
+    [ "$s3_code" = 200 ] || { s3_ok=0; s3_why="$s3_why status"; }
+    [ "$(busy_page "$jar_s3.b")" = 1 ] || { s3_ok=0; s3_why="$s3_why page"; }
+    [ "$(marker_in "$jar_s3.h")" = 1 ] || { s3_ok=0; s3_why="$s3_why header"; }
+    [ -z "$(set_cookie_value "$jar_s3.h")" ] || { s3_ok=0; s3_why="$s3_why cookie-post"; }
+    [ -z "$(set_cookie_value "$jar_s3.g")" ] || { s3_ok=0; s3_why="$s3_why cookie-get"; }
+    [ "$s3_state" = 401 ] || { s3_ok=0; s3_why="$s3_why state"; }
+    [ "$(session_rows)" = "$rows_before" ] || { s3_ok=0; s3_why="$s3_why rows"; }
+    [ "$(counter_rows "$addr_s3")" = 0 ] || { s3_ok=0; s3_why="$s3_why counter"; }
+    logout_all "$jar_s3" /ocutalon/
+    [ -n "$s2_cookie" ] || { s4_cookie_missing=1; }
+    jar_s4="$tmp/jar.busy.s4"
+    : > "$jar_s4"
+    s4_code=$(online_signin "$jar_s4" "$addr_s4" "$s2_cookie")
+    s4_ok=1
+    s4_why=""
+    [ -z "${s4_cookie_missing:-}" ] || { s4_ok=0; s4_why="$s4_why no-resume-cookie-from-S2"; }
+    [ "$s4_code" = 200 ] || { s4_ok=0; s4_why="$s4_why status"; }
+    [ "$(busy_page "$jar_s4.b")" = 1 ] || { s4_ok=0; s4_why="$s4_why page"; }
+    [ "$(marker_in "$jar_s4.h")" = 1 ] || { s4_ok=0; s4_why="$s4_why header"; }
+    [ -z "$(set_cookie_value "$jar_s4.h")" ] || { s4_ok=0; s4_why="$s4_why cookie"; }
+    [ "$(row_field "$s2_epoch" CspSessionId)" = "$csp_before" ] || { s4_ok=0; s4_why="$s4_why attached"; }
+    [ "$(session_rows)" = "$rows_before" ] || { s4_ok=0; s4_why="$s4_why rows"; }
+    [ "$(counter_rows "$addr_s4")" = 0 ] || { s4_ok=0; s4_why="$s4_why counter"; }
+    logout_all "$jar_s4" /ocutalon/
+    if [ "$s3_ok" = 1 ] && [ "$s4_ok" = 1 ]; then
+      pass "row 5: with the status busy (the cap at the baseline plus the reserve) a proxied sign-in and a proxied sign-in with a valid resume cookie each get 200 and the busy splash with X-OcuTalon-Busy: 1, no resume cookie, no session, no new Session row, no counter row, and the cookie's row is not attached"
+    else
+      fail "row 5: S3 (status '$s3_code', session state '$s3_state') ok=$s3_ok, failed:${s3_why:- none}; the cookie sign-in (status '$s4_code') ok=$s4_ok, failed:${s4_why:- none}; the script read ${conn_before_s3:-<unknown>} connections before S3 (view $view_base)"
+    fi
+
+    # Row 6, one cap higher: the status is not busy, and a proxied sign-in is let in (the shell, a cookie and a counter row), so the
+    # boundary is the status's own (OWNCONNECTIONS = 0, Task 0 (d)).
+    set_cap "$cap_free" > /dev/null
     jar_s5="$tmp/jar.busy.s5"
     : > "$jar_s5"
     conn_before_s5=$(script_connections)
@@ -1128,64 +1144,12 @@ if [ "$busy_ok" = 1 ]; then
     s5_epoch=$(jar_epoch "$jar_s5")
     s5_counter=$(counter_rows "$addr_s5")
     logout_all "$jar_s5" /ocutalon/
-    if [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
-      pass "row 6: with the status busy at the baseline plus the reserve, a proxied sign-in is allowed (the shell, a cookie, one counter row), because its own connection is left out (OWNCONNECTIONS = $own)"
+    if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
+      pass "row 6: the boundary is the status's own (the check leaves out no own connection, OWNCONNECTIONS = $own): refused with the status busy at the cap $cap_busy, and with the cap $cap_free a proxied sign-in is let in (the shell, a cookie, one counter row)"
     else
-      fail "row 6: with the cap at $cap_busy a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s); the script read ${conn_before_s5:-<unknown>} connections before it (view $view_base, OWNCONNECTIONS $own)"
+      fail "row 6: the sign-in past the boundary was refused=$s3_ok, and with the cap at $cap_free a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s) (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5)"
     fi
-
-    # Rows 5 and 6, past the boundary: with the cap one below the allowed one, the connections without the new session's own (OWNCONNECTIONS
-    # = 1) are at cap minus reserve, so a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are refused with the busy
-    # splash. The allowed sign-in above needs OWNCONNECTIONS >= 1 and this refusal OWNCONNECTIONS <= 1, so row 6 pins it at 1.
-    cap_refuse=$((cap_busy - 1))
-    if [ "$cap_refuse" -lt 1 ] || [ "$(set_cap "$cap_refuse")" != "$cap_refuse" ]; then
-      fail "row 5: the connection cap could not be set to $cap_refuse (one below $cap_busy, the baseline $view_base plus the reserve)"
-    else
-      conn_before_s3=$(script_connections)
-      rows_before=$(session_rows)
-      csp_before=$(row_field "$s2_epoch" CspSessionId)
-      jar_s3="$tmp/jar.busy.s3"
-      : > "$jar_s3"
-      s3_code=$(online_signin "$jar_s3" "$addr_s3" "")
-      s3_state=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar_s3" -c "$jar_s3" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
-      s3_ok=1
-      s3_why=""
-      [ "$s3_code" = 200 ] || { s3_ok=0; s3_why="$s3_why status"; }
-      [ "$(busy_page "$jar_s3.b")" = 1 ] || { s3_ok=0; s3_why="$s3_why page"; }
-      [ "$(marker_in "$jar_s3.h")" = 1 ] || { s3_ok=0; s3_why="$s3_why header"; }
-      [ -z "$(set_cookie_value "$jar_s3.h")" ] || { s3_ok=0; s3_why="$s3_why cookie-post"; }
-      [ -z "$(set_cookie_value "$jar_s3.g")" ] || { s3_ok=0; s3_why="$s3_why cookie-get"; }
-      [ "$s3_state" = 401 ] || { s3_ok=0; s3_why="$s3_why state"; }
-      [ "$(session_rows)" = "$rows_before" ] || { s3_ok=0; s3_why="$s3_why rows"; }
-      [ "$(counter_rows "$addr_s3")" = 0 ] || { s3_ok=0; s3_why="$s3_why counter"; }
-      logout_all "$jar_s3" /ocutalon/
-      [ -n "$s2_cookie" ] || { s4_cookie_missing=1; }
-      jar_s4="$tmp/jar.busy.s4"
-      : > "$jar_s4"
-      s4_code=$(online_signin "$jar_s4" "$addr_s4" "$s2_cookie")
-      s4_ok=1
-      s4_why=""
-      [ -z "${s4_cookie_missing:-}" ] || { s4_ok=0; s4_why="$s4_why no-resume-cookie-from-S2"; }
-      [ "$s4_code" = 200 ] || { s4_ok=0; s4_why="$s4_why status"; }
-      [ "$(busy_page "$jar_s4.b")" = 1 ] || { s4_ok=0; s4_why="$s4_why page"; }
-      [ "$(marker_in "$jar_s4.h")" = 1 ] || { s4_ok=0; s4_why="$s4_why header"; }
-      [ -z "$(set_cookie_value "$jar_s4.h")" ] || { s4_ok=0; s4_why="$s4_why cookie"; }
-      [ "$(row_field "$s2_epoch" CspSessionId)" = "$csp_before" ] || { s4_ok=0; s4_why="$s4_why attached"; }
-      [ "$(session_rows)" = "$rows_before" ] || { s4_ok=0; s4_why="$s4_why rows"; }
-      [ "$(counter_rows "$addr_s4")" = 0 ] || { s4_ok=0; s4_why="$s4_why counter"; }
-      logout_all "$jar_s4" /ocutalon/
-      if [ "$s3_ok" = 1 ] && [ "$s4_ok" = 1 ]; then
-        pass "row 5: past the boundary a proxied sign-in and a proxied sign-in with a valid resume cookie each get 200 and the busy splash with X-OcuTalon-Busy: 1, no resume cookie, no session, no new Session row, no counter row, and the cookie's row is not attached"
-      else
-        fail "row 5: S3 (status '$s3_code', session state '$s3_state') ok=$s3_ok, failed:${s3_why:- none}; the cookie sign-in (status '$s4_code') ok=$s4_ok, failed:${s4_why:- none}; the script read ${conn_before_s3:-<unknown>} connections before S3 (view $view_base)"
-      fi
-      if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ]; then
-        pass "row 6: one connection lower than the allowed sign-in the proxied sign-in is refused: the boundary lies between the caps $cap_refuse and $cap_busy, so the check leaves out exactly one own connection (OWNCONNECTIONS = $own)"
-      else
-        fail "row 6: the sign-in at the boundary gave '$s5_outcome' and the one past it refused=$s3_ok (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3)"
-      fi
-    fi
-    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy gave '$s5_outcome' and the one at cap $cap_refuse was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, so whether OnLogin counts the new session itself is not measurable on this stack"
+    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)' and the one at cap $cap_free gave '$s5_outcome'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, so a new session holds no connection when OnLogin runs"
     for epoch in "$s5_epoch"; do drop_session "$epoch"; done
   fi
   logout_all "$jar_s2" /ocutalon/

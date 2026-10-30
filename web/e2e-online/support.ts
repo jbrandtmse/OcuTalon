@@ -223,11 +223,15 @@ export interface Visitor {
 
 /**
  * Opens a new browser context on the stack, signs the demo account in from the splash and waits for the page's snapshot (loadedAfter), and
- * returns the visitor with its session row's Ref and TraceRef. A visitor that cannot be opened is signed out and closed before the error
- * goes on. The caller ends it with leaveVisitor.
+ * returns the visitor with its session row's Ref and TraceRef. With an address, every request of the context carries it as X-Forwarded-For,
+ * so that a proxied stack counts the visitor under it (Story 29.7). A visitor that cannot be opened is signed out and closed before the
+ * error goes on. The caller ends it with leaveVisitor.
  */
-export async function openVisitor(browser: Browser): Promise<Visitor> {
-  const context = await browser.newContext({ baseURL: process.env['OCUTALON_URL'] });
+export async function openVisitor(browser: Browser, address?: string): Promise<Visitor> {
+  const context = await browser.newContext({
+    baseURL: process.env['OCUTALON_URL'],
+    ...(address === undefined ? {} : { extraHTTPHeaders: { 'X-Forwarded-For': address } }),
+  });
   try {
     const page = await context.newPage();
     await loadedAfter(page, () => signInFromSplash(page));
@@ -291,12 +295,58 @@ export interface StatusReading {
   code: number;
 }
 
-/** GET /ocutalon/public/status with a query that no other request of the run used, so that no cache answers; the request carries no session. */
-export async function readStatus(api: APIRequestContext): Promise<StatusReading> {
+/**
+ * GET /ocutalon/public/status, in its trace form (`for=trace`) when form is 'trace', with a query that no other request of the run used,
+ * so that no cache answers; the request carries no session.
+ */
+export async function readStatus(api: APIRequestContext, form?: 'trace'): Promise<StatusReading> {
   publicProbes += 1;
-  const response = await api.get(`/ocutalon/public/status?probe=${Date.now()}${publicProbes}`);
+  const response = await api.get(`/ocutalon/public/status?${form === 'trace' ? 'for=trace&' : ''}probe=${Date.now()}${publicProbes}`);
   const body = (await response.json()) as { busy: boolean };
   return { busy: body.busy, header: response.headers()[BUSY_HEADER], code: response.status() };
+}
+
+/** What GET /ocutalon/public/status answered to a query: its status code, the parsed body's keys, busy, the marker header and whether it set a cookie. */
+export interface StatusAnswer {
+  code: number;
+  keys: string[];
+  busy: boolean | undefined;
+  header: string | undefined;
+  setCookie: boolean;
+}
+
+/** GET /ocutalon/public/status with the query as given (it carries the probe the run needs: pass it in the query), and the answer's parts. */
+export async function statusAnswer(api: APIRequestContext, query: string): Promise<StatusAnswer> {
+  const response = await api.get(`/ocutalon/public/status?${query}`);
+  const body = (await response.json()) as Record<string, unknown>;
+  return {
+    code: response.status(),
+    keys: Object.keys(body),
+    busy: typeof body['busy'] === 'boolean' ? body['busy'] : undefined,
+    header: response.headers()[BUSY_HEADER],
+    setCookie: response.headers()['set-cookie'] !== undefined,
+  };
+}
+
+/** The AddressCounter rows of an address (the table holds its hash). */
+export async function counterRows(address: string): Promise<number> {
+  const lines = await irisScript(
+    `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)})) Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)`,
+  );
+  return Number(chk(lines, 'rows') ?? '-1');
+}
+
+/** Removes the AddressCounter rows of an address, so that a case's sign-ins leave no trace on the address limit. */
+export async function removeCounterRows(address: string): Promise<void> {
+  await irisScript(
+    `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)}))\nWrite !,"CHK|dropped|1"`,
+  );
+}
+
+/** The number of Session rows. */
+export async function sessionRowCount(): Promise<number> {
+  const lines = await irisScript('Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)');
+  return Number(chk(lines, 'rows') ?? '-1');
 }
 
 /**

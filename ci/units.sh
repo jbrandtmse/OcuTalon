@@ -33,11 +33,12 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # run times (DW-220; the expected times are in the spec of Story 16.9). live:online-demo-path (Story 29.4: REL-2's online run and the
 # second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. live:online-session (shards) and
 # live:online-allowance (shards-2) left install-fresh after its job took 39.9 min of the 40-min timeout (run 41088697760, 2026-10-30;
-# each unit starts its own throwaway and needs no install state). shard:lane-b cannot go to production,
+# each unit starts its own throwaway and needs no install state). live:online-visitors (Story 29.7: the visitor count at a full house,
+# expected 8 to 10 min on CI) joined install-fresh, which then takes about 35 to 37 min. shard:lane-b cannot go to production,
 # whose units read no web bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:cards" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:cards live:online-visitors" ;;
     install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
@@ -95,7 +96,7 @@ shard_unit_areas() {
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance online-demo-path"
+BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

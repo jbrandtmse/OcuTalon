@@ -5,7 +5,8 @@
 /// Shell.HasRole(). The session row that the test may create for the running user is removed by Test.Data.Fixture.Clean.
 /// Story 16.3 adds the online demo's branch (TestFirstSignIn, TestResume, TestUnknownCookie, TestLimit, TestLimitIsTheSetting,
 /// TestExempt, TestClientAddress, TestFlagOff, TestNoRoleOnTheOnlineDemo, and QA's TestTamperedCookie,
-/// TestFlagOffIgnoresTheCookie and TestClientAddressEdges): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
+/// TestFlagOffIgnoresTheCookie and TestClientAddressEdges) and Story 29.7's TestVisitorMarker (the counted visitor's marker, set only on a
+/// proxied attach, and OWNCONNECTIONS = 0): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
 /// resetAnchor, resetIntervalHours and the address limit's row, and removes its session rows and counter rows after, also
 /// when it failed. The sign-ins are in process, with a stand-in request and response, as the user that runs the tests.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
@@ -355,6 +356,66 @@ Method TestFlagOffIgnoresBusy()
 	}
 	Do $$$AssertEquals(..CounterTotal(), counters, "no counter row is written")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), $Select(before = 0: 1, 1: before), "the user keeps one row")
+}
+
+/// The visitor marker (Story 29.7, matrix row 10): a proxied create and a proxied resume set Shell.VISITORKEY to 1 in the CSP session's
+/// data. It is not set on a sign-in that is not proxied, a busy refusal, an address-limit refusal, with the flag off, or for a user without
+/// the role. The new session leaves no own connection out (OWNCONNECTIONS is 0).
+Method TestVisitorMarker()
+{
+	Set key = ##class(OcuTalon.Web.Public.Shell).#VISITORKEY
+	Set sessionKey = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Do $$$AssertEquals(##class(OcuTalon.Web.SessionEvents).#OWNCONNECTIONS, 0, "the busy check leaves no own connection out")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Set address = ..Address("marker")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerCreate", "192.0.2.10", address, .created, .response), "a proxied create answers OK")
+	Set ref = $Get(created.Data(sessionKey))
+	Do ..AdoptRef(ref)
+	Do $$$AssertTrue(ref '= "", "it attaches a row")
+	Do $$$AssertEquals($Get(created.Data(key)), 1, "a proxied create sets the marker to 1")
+	Set cookie = $Get(response.Cookies(1, "v"))
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzMarkerResume", "192.0.2.10", address, .resumed, .response), "a proxied resume answers OK")
+	Do $$$AssertEquals($Get(resumed.Data(sessionKey)), ref, "it attaches the cookie's row")
+	Do $$$AssertEquals($Get(resumed.Data(key)), 1, "a proxied resume sets the marker to 1")
+
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerOther", "192.0.2.77", ..Address("markerother"), .other, .response), "a request from a remote other than the proxy answers OK")
+	Do ..AdoptRef($Get(other.Data(sessionKey)))
+	Do $$$AssertTrue($Get(other.Data(sessionKey)) '= "", "it is let in")
+	Do $$$AssertEquals($Data(other.Data(key)), 0, "a sign-in that is not proxied is not marked")
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzMarkerResumeDirect", "192.0.2.77", address, .direct, .response), "a resume that is not proxied answers OK")
+	Do $$$AssertEquals($Get(direct.Data(sessionKey)), ref, "it attaches the cookie's row")
+	Do $$$AssertEquals($Data(direct.Data(key)), 0, "a resume that is not proxied is not marked")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerNoProxy", "192.0.2.10", ..Address("markernoproxy"), .noproxy, .response), "a sign-in with no proxy set answers OK")
+	Do ..AdoptRef($Get(noproxy.Data(sessionKey)))
+	Do $$$AssertEquals($Data(noproxy.Data(key)), 0, "and is not marked either")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+
+	Do ..ForceBusy()
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerBusy", "192.0.2.10", ..Address("markerbusy"), .busy, .response), "a busy refusal answers OK")
+	Do $$$AssertEquals($Get(busy.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "it records the busy refusal")
+	Do $$$AssertEquals($Data(busy.Data(key)), 0, "a busy refusal is not marked")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("connectionCap", "")
+
+	Do ..SetLimit(1)
+	Set limited = ..Address("markerlimit")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerLimitOne", "192.0.2.10", limited, .first, .response), "the first creation of a limited address answers OK")
+	Do ..AdoptRef($Get(first.Data(sessionKey)))
+	Do $$$AssertEquals($Get(first.Data(key)), 1, "and is marked")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerLimitTwo", "192.0.2.10", limited, .second, .response), "the second answers OK")
+	Do $$$AssertEquals($List($Get(second.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 1), "addressLimit", "it records the address-limit refusal")
+	Do $$$AssertEquals($Data(second.Data(key)), 0, "an address-limit refusal is not marked")
+
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerNoRole", "192.0.2.10", ..Address("markernorole"), .norole, .response, 0), "a user without the role answers OK")
+	Do $$$AssertEquals($Data(norole.Data(key)), 0, "a user without the role is not marked")
+
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerFlagOff", "192.0.2.10", ..Address("markeroff"), .off, .response), "with the flag off a proxied sign-in answers OK")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen($Get(off.Data(sessionKey)))
+	If $IsObject(row), before = 0 Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Do $$$AssertEquals($Data(off.Data(key)), 0, "with the flag off nothing is marked")
 }
 
 /// Forces the busy state: a reserve larger than the cap is always busy, whatever the connections are.

@@ -1,5 +1,5 @@
 # Helpers shared by the live units that start the online demo's real stack with the online-demo flag on and test start values
-# (test-online-demo.sh, test-online-session.sh and test-online-allowance.sh, Stories 16.4 and 16.9). Sourced, not run: it defines
+# (test-online-demo.sh, test-online-session.sh, test-online-allowance.sh and test-online-visitors.sh, Stories 16.4, 16.9 and 29.7). Sourced, not run: it defines
 # functions and a few constants and nothing else. The stack helpers need lib-live.sh sourced first; keys_point and keys_restore point the
 # runners' model keys at the CI mock, and back. The password-change forms and the host check's probes, at the end of this file
 # (Story 29.3), need no stack and no lib-live.sh: the live unit, test-online-host.sh and release/demo-host-check.sh all source them here.
@@ -12,7 +12,10 @@
 #                                             passwords reach compose by ${VAR} interpolation, so they are in no file
 # and then uses redact (replaces every password of the run, and the control user's and the resume reference's when the unit sets
 # control_password and resume_ref), next_probe (sets probes to a number that no request of this run used, also across subshells: the
-# counter lives in a file), logout_all and online_signin. No password is ever printed. Every request that signs in ends with
+# counter lives in a file), logout_all and online_signin. Four more stack helpers sit after keys_restore
+# (Story 29.7): set_proxy (sets the public proxy address and prints what it reads back), host_address (the address that IRIS sees for the
+# host's requests), counter_rows (AddressCounter rows, all or one address's) and status_read (the public status's busy, marker header and code).
+# No password is ever printed. Every request that signs in ends with
 # ?IRISLogout=end on its application and on /ocutalon/, each with its own cookie jar, so that no form leaves a licence connection held;
 # every page request carries a unique probe=<n> query parameter, because the web gateway keeps the answer to a URL (test-bundle-folder.sh).
 
@@ -116,6 +119,41 @@ keys_point() {
 keys_restore() {
   printf '%s\n' 'Set fixture="OcuTalon.Test.Agent.RunnerFixture" Set sc=$ClassMethod(fixture,"RestoreKeys")' \
     'Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc)&&$ClassMethod(fixture,"KeysAre",##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' 'Halt' | session_value OCUTALON keys
+}
+
+# --- the stack's address, the proxy setting and the status (Story 29.7; test-online-demo.sh and test-online-visitors.sh) ---
+# These need the stack (lib-live.sh sourced, live_start called) and base, tmp and the probe counter (online_values).
+
+# The public proxy address is set to the address that IRIS sees for this host's requests, and put back to the start value on every path.
+set_proxy() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"proxyAddress\",\"$1\")" "Write !,\"CHK|proxy|\",##class(OcuTalon.Data.Public.Settings).Get(\"proxyAddress\")" 'Halt' | session_value OCUTALON proxy; }
+# host_address: the container's default gateway, from /proc/net/route (little-endian hex), which is the source address of a request that the
+# host publishes a port for; nothing when the table has no default route.
+host_address() {
+  dc exec -T iris sh -c "awk '\$2 == \"00000000\" { print \$3; exit }' /proc/net/route" 2>/dev/null | tr -d '\r' | node -e 'const h = require("fs").readFileSync(0, "utf8").trim(); if (/^[0-9A-Fa-f]{8}$/.test(h)) console.log([6, 4, 2, 0].map((i) => parseInt(h.slice(i, i + 2), 16)).join("."));'
+}
+
+# counter_rows [<address>]: the number of AddressCounter rows; with an address, those of its hash.
+counter_rows() {
+  if [ -n "${1:-}" ]; then
+    printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$1\")) Do rs.%Next() Write !,\"CHK|rows|\",rs.%GetData(1)" 'Halt' | session_value OCUTALON rows
+  else
+    printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
+  fi
+}
+
+# status_read: GETs /ocutalon/public/status on no jar with a unique probe, leaves the headers in $tmp/status.h and the body in $tmp/status.b, and
+# prints "<busy: true, false or unreadable> <marker header: 1 or none> <HTTP status>".
+status_read() {
+  local code busy marker
+  next_probe
+  code=$(curl -s --max-time 30 -D "$tmp/status.h" -o "$tmp/status.b" -w '%{http_code}' "$base/ocutalon/public/status?probe=$probes")
+  case $(cat "$tmp/status.b") in
+    *'"busy":true'*) busy=true ;;
+    *'"busy":false'*) busy=false ;;
+    *) busy=unreadable ;;
+  esac
+  if tr -d '\r' < "$tmp/status.h" | grep -qi '^x-ocutalon-busy: 1$'; then marker=1; else marker=none; fi
+  printf '%s %s %s' "$busy" "$marker" "$code"
 }
 
 # --- the password-change forms and the host check's refusal probes (Story 29.3) ---

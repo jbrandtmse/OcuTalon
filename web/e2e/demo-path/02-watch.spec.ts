@@ -7,8 +7,8 @@ notBuilt('the "Orders production" check row shows a real last run', '8.2');
 
 import { expect as heartbeatExpect, test as heartbeatTest } from '@playwright/test';
 
-import { signInReadme as heartbeatSignIn } from '../sign-in/helpers';
 import { changeSnapshot as heartbeatSnapshot } from '../support/api';
+import { signInReadmeLoaded as heartbeatSignIn } from '../support/floor';
 
 /**
  * Story 8.2, with a fixture row (AD-29: Checks is not built here): the page's /state is the real answer with one "Orders production"

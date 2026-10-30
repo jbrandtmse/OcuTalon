@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Response } from '@playwright/test';
 
 import { notBuilt } from '../e2e/demo-path/not-built';
 import { EVENTS, holdState, MESSAGES, post, sessionEvents, STATE } from '../e2e/support/api';
+import { loadedAfter } from '../e2e/support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
 import { postTurn, signInToTrace, type Cursor } from '../e2e/support/trace';
 import { RESUME_COOKIE, removeSession, resumeCookie, sessionRow, sha256url, signInFromSplash, signOutGroup, SIGN_OUT } from './support';
@@ -56,7 +57,10 @@ const unknownReference = (): string => randomBytes(16).toString('base64url');
 test('R1: the first sign-in sets the resume cookie and opens a session of its own on an empty chat', async ({ page, context }) => {
   let epoch = '';
   try {
-    const answered = await signInFromSplash(page);
+    let answered!: Response;
+    await loadedAfter(page, async () => {
+      answered = await signInFromSplash(page);
+    });
     const headers = await answered.allHeaders();
     const cookieLine = (headers['set-cookie'] ?? '').split('\n').find((line) => line.startsWith(`${RESUME_COOKIE}=`)) ?? '';
     expect(cookieLine, "the sign-in POST's answer sets the resume cookie").not.toBe('');
@@ -107,7 +111,7 @@ test('R2: the same browser signs in again and resumes its conversation, approval
   let fixtures: string[] = [];
   let runId = '';
   try {
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     epoch = (await readState(page)).epoch;
     const first = (await sessionRow(epoch))!;
@@ -196,7 +200,7 @@ test('R4: an unknown resume cookie gives a fresh session and a new cookie', asyn
     const unknown = unknownReference();
     await context.addCookies([{ name: RESUME_COOKIE, value: unknown, domain: new URL(process.env['OCUTALON_URL']!).hostname, path: '/ocutalon/', httpOnly: true, secure: true, sameSite: 'Strict' }]);
     expect((await resumeCookie(context))?.value, 'the context holds the unknown cookie').toBe(unknown);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     epoch = (await readState(page)).epoch;
     const row = await sessionRow(epoch);
@@ -221,8 +225,8 @@ test('R5: two browsers each get their own session, and no request chooses anothe
   const pageB = await b.newPage();
   const epochs: string[] = [];
   try {
-    await signInFromSplash(pageA);
-    await signInFromSplash(pageB);
+    await loadedAfter(pageA, () => signInFromSplash(pageA));
+    await loadedAfter(pageB, () => signInFromSplash(pageB));
     await expect(mainOf(pageA)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(mainOf(pageB)).toHaveAttribute('data-snapshot', 'loaded');
     const stateA = await readState(pageA);

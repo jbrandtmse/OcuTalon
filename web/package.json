@@ -21,6 +21,7 @@
     "e2e:online-session": "playwright test --project=online-session",
     "e2e:online-allowance": "playwright test --project=online-allowance",
     "e2e:online-demo-path": "playwright test --project=online-demo-path",
+    "e2e:online-visitors": "playwright test --project=online-visitors",
     "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
     "test": "node --test scripts/*.test.mjs"
   },
