@@ -66,7 +66,7 @@
 #     proxy, each item on a jar of its own ended with logout_all, the section prints one "MEASURED host probe" line per host_probes probe
 #     and pins its status and whether the page holds an IRIS form field against the line's <iris> field; a signed-in trace page loads the
 #     /csp/broker/ file the check reads, which IRIS serves with 200; the splash's three-field POST and the trace page's four-field POST
-#     (dummy values) come back as IRIS's sign-in page, refused;
+#     (dummy values) come back as IRIS's sign-in page: the splash's refused (aria-invalid), the trace page's the page a plain GET gives;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -302,8 +302,8 @@ form_request() {
         token=$(page_token "$jar" "$url")
         [ -n "$token" ] || fail "row 5: $form for $user at $path: the password-change page gave no session token, so the request cannot sign in"
         next_probe
-        curl "${common[@]}" --data-urlencode "IRISSessionToken=$token" --data-urlencode "IRISUsername=$user" --data-urlencode "IRISOldPassword=$old" \
-          --data-urlencode "IRISPassword=$new" --data-urlencode "IRISRepeatPassword=$new" --data-urlencode 'IRISLogin=Login' "$base$path?probe=$probes"
+        password_form F12 "$user" "$old" "$new" "$token"
+        curl "${common[@]}" "${form_args[@]}" "$base$path?probe=$probes"
         logout_all "$jar" "$app"
         return 0
       fi
@@ -1566,29 +1566,20 @@ echo "MEASURED Task 0 (f): the probe phase took $((SECONDS - probe_started)) s; 
 # every item signed out with no proxy, each on a jar of its own ended with logout_all, prints one MEASURED line per item, and pins:
 # (a) each host_probes line's <iris> (the status and whether the page holds an IRIS form field); (b) the static /csp/broker/ file the
 # check reads, which a signed-in trace page loads and IRIS serves with 200; (c) the two dummy-value sign-in POSTs of the guard checks,
-# which IRIS refuses with its sign-in page.
+# which come back as IRIS's sign-in page (the splash's with aria-invalid). Each item signs out on its application (host_app, the
+# script's mapping too). The probes stop at the unit's deadline.
 host_started=$SECONDS
 
-# host_app <target>: the application whose session an answer to the target can open.
-host_app() {
-  case $1 in
-    /ocutalon/trace/ocutalon/*) printf '%s' /ocutalon/trace/ocutalon/ ;;
-    /ocutalon/trace/ocuorders/*) printf '%s' /ocutalon/trace/ocuorders/ ;;
-    /ocutalon/api/*) printf '%s' /ocutalon/api/ ;;
-    *) printf '%s' /ocutalon/ ;;
-  esac
-}
-
 # host_send <target> [<curl argument>...]: one request signed out on a jar of its own, with a unique probe parameter and the path sent as
-# is; leaves the status in host_code and the body in $tmp/host.body, then ends the jar's sessions.
+# is; leaves the status in host_code (000 for no answer) and the body in $tmp/host.body (empty for no answer), then ends the jar's sessions.
 host_send() {
   local target=$1 jar sep='?'
   shift
   next_probe
   jar="$tmp/jar.$probes"
   : > "$jar"
+  : > "$tmp/host.body"
   case $target in *\?*) sep='&' ;; esac
-  next_probe
   host_code=$(curl -s --max-time 30 --path-as-is -c "$jar" -b "$jar" -o "$tmp/host.body" -w '%{http_code}' ${1+"$@"} "$base$target${sep}probe=$probes" < /dev/null)
   logout_all "$jar" "$(host_app "$target")"
 }
@@ -1608,6 +1599,10 @@ host_count=0
 host_wrong=0
 while IFS= read -r host_line; do
   [ -n "$host_line" ] || continue
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    fail "Story 29.3: the deadline passed after $host_count host_probes probes"
+    break
+  fi
   if ! host_probe_args "$host_line"; then
     fail "Story 29.3: the host_probes line '$host_line' cannot be built"
     host_wrong=$((host_wrong + 1))
@@ -1646,7 +1641,7 @@ else
   curl -s --max-time 30 -o "$tmp/host.trace" -c "$host_jar" -b "$host_jar" "$base$trace_page?probe=$probes" < /dev/null
   host_refs=$(grep -oE '/csp/broker/[A-Za-z0-9_./-]+' "$tmp/host.trace" | sort -u | tr '\n' ' ')
   echo "MEASURED the signed-in trace page's /csp/broker/ references: ${host_refs% }"
-    host_broker=$(host_broker_file)
+  host_broker=$(host_broker_file)
   next_probe
   host_broker_code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$base$host_broker?probe=$probes" < /dev/null)
   echo "MEASURED $host_broker answers $host_broker_code with no session"
@@ -1658,7 +1653,8 @@ else
 fi
 logout_all "$host_jar" /ocutalon/trace/ocutalon/
 
-# (c) the two dummy-value sign-in POSTs of the guard checks come back as IRIS's sign-in page, refused.
+# (c) the two dummy-value sign-in POSTs of the guard checks come back as IRIS's sign-in page: the splash's refused (aria-invalid), the trace
+# page's as the same page a plain GET gives (the Login form), which shows the POST reached IRIS and no more.
 host_signin 3
 host_send "$signin_target" "${signin_args[@]}"
 host_splash_flag=$(grep -c 'aria-invalid="true"' "$tmp/host.body")
@@ -1669,14 +1665,14 @@ else
   fail "Story 29.3 (c): the splash's three-field POST gives $host_code with $host_splash_flag aria-invalid marker(s)"
 fi
 host_send "$trace_page"
-host_plain_marker=$(grep -cF -- "$(host_trace_refused_marker)" "$tmp/host.body")
+host_plain_marker=$(grep -cF -- "$(host_trace_signin_marker)" "$tmp/host.body")
 echo "MEASURED the trace application's sign-in page, a plain GET: $host_code, $(host_form_flag), Login form markers: $host_plain_marker"
 host_signin 4
 host_send "$signin_target" "${signin_args[@]}"
-host_marker=$(host_trace_refused_marker)
+host_marker=$(host_trace_signin_marker)
 echo "MEASURED the trace page's four-field POST: $host_code, $(host_form_flag), text: $(host_text)"
 if [ "$host_code" = 200 ] && [ "$(host_form_flag)" = form ] && grep -qF -- "$host_marker" "$tmp/host.body"; then
-  pass "Story 29.3 (c): the trace page's four-field POST with dummy values is IRIS's sign-in page (200, a password field) with the refused marker"
+  pass "Story 29.3 (c): the trace page's four-field POST with dummy values comes back as IRIS's sign-in page (200, a password field, its Login form; a plain GET gives the same page, so this shows the POST reached IRIS, not that IRIS refused the token)"
 else
   fail "Story 29.3 (c): the trace page's four-field POST gives $host_code, $(host_form_flag), and the marker '$host_marker' is $(grep -qF -- "$host_marker" "$tmp/host.body" && echo present || echo absent)"
 fi

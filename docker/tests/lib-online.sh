@@ -134,10 +134,20 @@ HOST_DUMMY_TOKEN=dummy-token
 # host_broker_file: the path of the static /csp/broker/ file that the host check reads, one that IRIS's trace pages load (Task 0 (b)).
 host_broker_file() { printf '%s' '/csp/broker/images/cut.png'; }
 
-# host_trace_refused_marker: a text that IRIS's own sign-in page of a trace application holds: its Login form (Task 0 (c)). With a dummy
-# session token IRIS answers the four-field POST with that same page, the typed user name not put back, so the page is all that tells
-# IRIS's refusal from a proxy's: a proxy's block holds no such form.
-host_trace_refused_marker() { printf '%s' '<form name="Login" method="post"'; }
+# host_trace_signin_marker: a text that IRIS's own sign-in page of a trace application holds: its Login form (Task 0 (c)). With a dummy
+# session token IRIS answers the four-field POST with that same page, the typed user name not put back, which a plain GET gives too: the
+# page shows that the POST reached IRIS, not that IRIS refused it. A proxy's block holds no such form.
+host_trace_signin_marker() { printf '%s' '<form name="Login" method="post"'; }
+
+# host_app <target>: the IRIS application whose session an answer to the target can open, where its sign-out (?IRISLogout=end) goes.
+host_app() {
+  case $1 in
+    /ocutalon/trace/ocutalon/*) printf '%s' /ocutalon/trace/ocutalon/ ;;
+    /ocutalon/trace/ocuorders/*) printf '%s' /ocutalon/trace/ocuorders/ ;;
+    /ocutalon/api/*) printf '%s' /ocutalon/api/ ;;
+    *) printf '%s' /ocutalon/ ;;
+  esac
+}
 
 # pct <text>: every byte of the text as %XX.
 pct() {
@@ -148,11 +158,12 @@ pct() {
   printf '%s' "$out"
 }
 
-# password_form <F1..F11> <user> <old> <new> [<token>]: the S17 form for the three values (and a trace sign-in page's session token for
+# password_form <F1..F12> <user> <old> <new> [<token>]: the S17 form for the three values (and a trace sign-in page's session token for
 # F1 and F3, when one is given). Sets form_method (GET or POST), form_query (text for the request's query string, empty when none) and
 # the array form_args (curl arguments, empty for F7; expand it as ${form_args[@]+"${form_args[@]}"} under set -u on bash 3.2), and nothing else. The values must need no URL encoding where they land in a query string or a
 # raw body (F5 to F7, F10, F11): hex or the dummy values of the host check. F1 to F4 are urlencoded, F5 posts nothing, F6 and F7 name
-# the fields percent-encoded, F8 and F9 are multipart, F10 is chunked, and F11 has the names in mixed case and a repeat password.
+# the fields percent-encoded, F8 and F9 are multipart, F10 is chunked, F11 has the names in mixed case and a repeat password, and F12
+# is the password-change page's own form, which always carries the page's session token.
 password_form() {
   local form=$1 user=$2 old=$3 new=$4 token=${5-} u o p l plain
   case $form in
@@ -182,6 +193,10 @@ password_form() {
     F8 | F9) form_args=(-F "$u=$user" -F "$o=$old" -F "$p=$new" -F "$l=Sign in") ;;
     F10) form_args=(-H 'Transfer-Encoding: chunked' --data-raw "$plain") ;;
     F11) form_args=(--data-raw "$plain&IRISRepeatPassword=$new") ;;
+    F12)
+      form_args=(--data-urlencode "IRISSessionToken=$token" --data-urlencode "IRISUsername=$user" --data-urlencode "IRISOldPassword=$old"
+        --data-urlencode "IRISPassword=$new" --data-urlencode "IRISRepeatPassword=$new" --data-urlencode 'IRISLogin=Login')
+      ;;
     *) return 1 ;;
   esac
 }
@@ -290,36 +305,38 @@ PROBES
 }
 
 # host_probe_args <line of host_probes>: sets probe_id, probe_iris, probe_method, probe_target (the path and query as sent, a body's
-# query text included) and the array probe_args (curl arguments for the body) for one probe. F1 and F3 at a trace application carry
-# the dummy session token.
+# query text included) and the array probe_args (curl arguments for the body) for one probe. F1 and F3 at a trace application, and
+# F12, carry the dummy session token. Returns 1 for a form it does not know, and for a line whose method is not the one its body is sent
+# with (GET for none and query, POST for the other bodies).
 host_probe_args() {
-  local target body="" token="" pad
+  local target body="" token="" pad want=POST
   read -r probe_id probe_iris probe_method target body <<< "$1"
   probe_args=()
   form_query=
   case $body in
-    '') ;;
+    '') want=GET ;;
     case) probe_args=(--data-raw "irisusername=$HOST_DUMMY_USER&IrisOldPassword=$HOST_DUMMY_OLD&irispassword=$HOST_DUMMY_NEW&irislogin=Sign+in") ;;
     extra) probe_args=(--data-raw "IRISUsername=$HOST_DUMMY_USER&IRISPassword=$HOST_DUMMY_OLD&IRISLogin=Sign+in&x=1") ;;
     big)
       pad=$(head -c 66000 /dev/zero | tr '\0' a)
       probe_args=(--data-raw "IRISUsername=$HOST_DUMMY_USER&IRISPassword=$pad&IRISLogin=Sign+in")
       ;;
-    query) form_query="IRISPassword=$HOST_DUMMY_NEW" ;;
-    api) probe_args=(--data-raw "text=$HOST_DUMMY_USER&IRISPassword=$HOST_DUMMY_NEW") ;;
-    F12)
-      probe_args=(--data-urlencode "IRISSessionToken=$HOST_DUMMY_TOKEN" --data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISOldPassword=$HOST_DUMMY_OLD"
-        --data-urlencode "IRISPassword=$HOST_DUMMY_NEW" --data-urlencode "IRISRepeatPassword=$HOST_DUMMY_NEW" --data-urlencode 'IRISLogin=Login')
+    query)
+      want=GET
+      form_query="IRISPassword=$HOST_DUMMY_NEW"
       ;;
+    api) probe_args=(--data-raw "text=$HOST_DUMMY_USER&IRISPassword=$HOST_DUMMY_NEW") ;;
     *)
-      case $target in
-        /ocutalon/trace/*) if [ "$body" = F1 ] || [ "$body" = F3 ]; then token=$HOST_DUMMY_TOKEN; fi ;;
+      case $body in
+        F1 | F3) case $target in /ocutalon/trace/*) token=$HOST_DUMMY_TOKEN ;; esac ;;
+        F12) token=$HOST_DUMMY_TOKEN ;;
       esac
       password_form "$body" "$HOST_DUMMY_USER" "$HOST_DUMMY_OLD" "$HOST_DUMMY_NEW" "$token" || return 1
-      [ "$form_method" = "$probe_method" ] || return 1
+      want=$form_method
       probe_args=(${form_args[@]+"${form_args[@]}"})
       ;;
   esac
+  [ "$want" = "$probe_method" ] || return 1
   probe_target=$target
   if [ -n "$form_query" ]; then
     case $target in
@@ -329,13 +346,16 @@ host_probe_args() {
   fi
 }
 
-# host_signin <3|4>: the dummy-value sign-in POSTs of the guard checks (DW-226): 3 is the splash's three-field form (IRISUsername, IRISPassword,
-# IRISLogin) to /ocutalon/ and 4 is IRIS's trace sign-in page's four-field form (with IRISSessionToken) to a trace application. Sets
-# signin_target and the array signin_args (curl arguments). Neither is a real sign-in: the user, password and token are the dummy values.
+# host_signin <3|4>: the dummy-value sign-in POSTs of the guard checks (DW-226): 3 is the splash's three-field form (IRISUsername,
+# IRISPassword, and IRISLogin with the splash's own button value) to /ocutalon/ and 4 is IRIS's trace sign-in page's four-field form (with
+# IRISSessionToken) to a trace application. Sets signin_target and the array signin_args (curl arguments). Neither is a real sign-in: the
+# user, password and token are the dummy values.
 host_signin() {
-  signin_args=(--data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISPassword=$HOST_DUMMY_OLD" --data-urlencode 'IRISLogin=Sign in')
   case $1 in
-    3) signin_target=/ocutalon/ ;;
+    3)
+      signin_target=/ocutalon/
+      signin_args=(--data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISPassword=$HOST_DUMMY_OLD" --data-urlencode 'IRISLogin=Sign in and start')
+      ;;
     4)
       signin_target=/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen
       signin_args=(--data-urlencode "IRISSessionToken=$HOST_DUMMY_TOKEN" --data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISPassword=$HOST_DUMMY_OLD"

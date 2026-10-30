@@ -1271,6 +1271,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 16.1 implement stage, live online-demo on lane C: signed in, %25CSP.PasswordChange.cls answers 200 at both trace apps; a change through it (F12) succeeds for a non-public user and is refused for both public accounts by the guard
 - 2026-10-25T19:05:03Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=harvest note=29.3 blocks every password-change page: include /ocutalon/trace/*/%CSP.PasswordChange.cls (any letter case, percent-encoded) in the proxy's blocked list and its test
+- 2026-10-30T08:06:49Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): the host filter answers 404 to every %CSP.PasswordChange.cls path form (encoded, double-encoded, any letter case, with a query, signed in or out, both trace apps, /ocutalon/, /csp/broker/), IRIS alone 200; release/demo-host-check.sh block-pw-* carries every measured form (build 1aab3da + review patches), pinned by docker/tests/test-online-host.sh row 4 and the live online-demo Story 29.3 section; check list H4
 
 ### DW-217: Web/Api.cls's class comment and StateBody's comment do not name the new traceAccount key (only TraceAccount()'s own comment does)
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
@@ -1309,6 +1310,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (b) measured the splash form's inputs as IRISPassword and IRISUsername (plus the IRISLogin button); row 7, S7, TestPage and the unit read AD-25 as only-these; a proxy built on the literal word would refuse every sign-in
 - 2026-10-26T00:29:46Z status=wontfix-accepted owner=16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details by=cr note=reopen_if=Story 29.3's proxy or its stand-in refuses a sign-in POST that carries no IRISSessionToken
 - 2026-10-26T00:55:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=integration risk for the demo host, not a LOW to close: the splash's first sign-in POST carries IRISUsername, IRISPassword and IRISLogin with no IRISSessionToken (measured, Story 16.2); 29.3's proxy allow-list must admit any subset of the four names (only-these), never require all four, else every online-demo sign-in is refused; test it with the splash's real POST
+- 2026-10-30T08:06:49Z status=decision-pending owner=burndown by=adjudication note=the repository follows AD-25 as veto ruling U-158 reads it (a sign-in body's names all come from the four; the splash's three-field sign-in admitted, measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4)); the open question is AD-25's guard wording amendment (U-158's recommended text), for Epic 29's decision sheet
 
 ### DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: med | footprint: in-story
@@ -1321,6 +1323,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SessionEvents.ClientAddress counts a sign-in only when proxyAddress = REMOTE_ADDR exactly and exempts the rest (AC 5, epics 16.3, AD-13); nothing reports a proxy address that never matches
 - 2026-10-26T04:26:20Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=launch check on the host: one proxied sign-in writes a counter row (the unit's phase 2 precondition); pin the proxy IP
+- 2026-10-30T08:06:50Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): proxied sign-ins write an address-counter row; no repository fix (reasons in the spec's Design Notes); release/demo-host-checks.md H2 and its proxy-address section keep the check in the Planner's pass
 
 ### DW-235: AddressCounter.Shift and SessionEvents.CookieExpiry repeat Public.Settings' private ToSeconds/FromSeconds UTC parsing instead of sharing one helper
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1355,6 +1358,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T05:22:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 deploys docker/busy.html and docker/maintenance.html with the logo/web/ files the maintenance page names, beside it
 - 2026-10-26T20:05:20Z occurrence=16-8-the-page-counts-down-to-the-reset-and-waits-it-out
 - 2026-10-26T20:05:20Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=also at /ocutalon/assets/brand/<name>: the 16.8 resetting view asks for them there at the switch, as IRIS stops
+- 2026-10-30T08:06:50Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): the four logos answer 200 through the proxy at /ocutalon/, /ocutalon/assets/brand/ and deeper while IRIS is down; release/demo-host-check.sh maint-logo-* compares them byte for byte at both locations (test-online-host.sh row 14 and QA's altered-byte runs); H7
 
 ### DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host
 - source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: high | fix-risk: med | footprint: out-of-footprint
@@ -1372,6 +1376,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 16.6 spec gate: the probe's host interface is recorded in the spine's Consistency Conventions row 'Online-demo probe'; a probe reaching IRIS from proxyAddress is counted and refused like a visitor
 - 2026-10-26T09:37:00Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 installs and schedules the probe per the spine's 'Online-demo probe' row and checks its alert and reset wiring on the host
+- 2026-10-30T08:06:50Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=the probe's host interface (variables, 15-minute run with bash and curl, a direct connection from an address other than proxyAddress, outcomes, exit codes) is in release/demo-host-checks.md; measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): the probe is healthy and its scheduled run alerted busy; the schedule, environment and source address remain release check H20, the Planner's hands-on pass
 
 ### DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: in-story
@@ -1721,6 +1726,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-103 owner's delegate: route to 29.3
+- 2026-10-30T08:06:50Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): one licence unit in use (the deploy terminal), no host command opens an IRIS terminal, the health check uses iris qlist; the script signs out every session its requests open (IRISLogout=end), so a run holds no unit; release check H22 keeps it in the Planner's pass
 
 ### DW-296: Reminder.Wake and Start open the row with RefIndexOpen(ref, 4), which waits the process lock timeout ($$$LockTimeout, 10 s) on a busy row inside the single ReminderTimer job
 - source: spec-8-3-a-reminder-fires-on-time-on-every-channel.md | severity: low | fix-risk: med | footprint: in-story
@@ -2138,3 +2144,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Install/Step/Public.cls:109 already refuses the pair with a status naming OCUTALON_CONNECTION_RESERVE; the Planner saw only that IRIS never became ready (Install/** is Epic 15's contended path)
 - 2026-10-30T04:25:44Z status=wontfix-accepted owner=29-3-the-demo-host-is-adapted-for-the-launch by=runner note=reopen_if=a start with reserve >= cap leaves no line naming OCUTALON_CONNECTION_RESERVE in the IRIS container's log; the host's own config, refused by design (AD-19)
+
+### DW-423: AD-29's October 21 launch fix says Story 29.3 changes no file in this repository, but owner decision epic29_brief (2026-10-30) put the host check and its check list in release/ (Lane A's folder); the spine does not record it
+- source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine AD-29 launch-fix bullet: 'Story 29.3 changes no file in this repository'; the story adds release/demo-host-check.sh and release/demo-host-checks.md, which epic29_brief directs; no AD-29 as-built line (Rule 20)
+- 2026-10-30T08:03:08Z status=escalated owner=burndown by=cr note=for the decision sheet: an AD-29 as-built line naming 29.3's two release/ files (spine update is the lead's, Rule 20)
+
+### DW-424: IRIS_INPUT's docker/tests/lib-[^/]+.sh pattern also claims lib-stub.sh, which only the hosted tests test-probe.sh and test-online-host.sh use, so a change to it runs every IRIS group in CI
+- source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:68 IRIS_INPUT holds docker/tests/lib-[^/]+\.sh$; lib-stub.sh (Story 29.3) is sourced by no live unit
+- 2026-10-30T08:03:08Z status=wontfix-accepted owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=reopen_if=a push that changes only docker/tests/lib-stub.sh runs an IRIS group, and the epic's CI time is over REL-4's 35 min
+
+### DW-425: The live Story 29.3 section measures each host_probes target with a unique probe= parameter added, while the script sends the targets exactly as listed (row 4's bare forms bare)
+- source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-online-demo.sh host_send appends ${sep}probe=$probes (the unit's guard against the web gateway's per-URL answer cache); release/demo-host-check.sh sends probe_target as is
+- 2026-10-30T08:03:08Z status=wontfix-theoretical owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=real if a build's routing or the gateway answers a CSP or REST path differently with a query string than without
+
+### DW-426: The host check's sign-out (host_app) ends a session only on /ocutalon/* applications, so a session cookie set by an answer under /csp/* or /api/* (scoped to its own path) would not be ended
+- source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: lib-online.sh host_app maps every target outside /ocutalon/trace/* and /ocutalon/api/* to /ocutalon/; on build 154 those answers are 404, 401 or 200 with no form and open no session
+- 2026-10-30T08:03:08Z status=wontfix-theoretical owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=real when an answer under /csp/* or /api/* sets an IRIS session cookie (a build or host config that opens sessions there)
+
+### DW-427: block-mark sees only the allowed reads (all 200), so a block mark that IRIS's own not-found answers also carry passes a let-through probe that IRIS answers 404 with no form
+- source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/demo-host-check.sh note_allowed runs on allow-status, allow-splash, allow-broker and the two sign-ins; the 20 ambiguous probes are IRIS's 404:noform; the check list now forbids such a mark
+- 2026-10-30T08:03:08Z status=wontfix-accepted owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=reopen_if=the Planner's mark is a body text, or a host run passes a block-* probe that the host is found to let through

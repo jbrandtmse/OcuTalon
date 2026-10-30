@@ -5,7 +5,6 @@
 #   tmp         a new folder, removed on exit
 #   stub_pid    the pid of the server stub_start started (killed on exit), stub_port its port on 127.0.0.1
 #   fails       the number of failed checks
-# A script that needs more cleanup defines the function stub_cleanup_extra before the exit.
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-stub-test.XXXXXX") || exit 1
 stub_pid=""
@@ -13,7 +12,6 @@ stub_port=""
 fails=0
 cleanup() {
   if [ -n "$stub_pid" ]; then kill "$stub_pid" 2> /dev/null; fi
-  if command -v stub_cleanup_extra > /dev/null 2>&1; then stub_cleanup_extra; fi
   rm -rf "$tmp"
 }
 trap cleanup EXIT

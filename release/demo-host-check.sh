@@ -10,16 +10,19 @@
 #                status-*     the status JSON: its five keys and types, no-store, the reset kind, a next reset in the future;
 #                block-*      the paths the proxy blocks, and block-pw-*, the password-change page in every spelling the Planner
 #                             measured (DW-214);
-#                guard-*      the password guard: the eleven S17 forms, the oversize and extra-name sign-in bodies, a password name in a
-#                             query string or in a body for the JSON API, and guard-signin-3 and guard-signin-4, the splash's and the
-#                             trace sign-in page's own sign-in POSTs, which must reach IRIS and come back refused by IRIS (DW-226);
+#                guard-*      the password guard: the eleven S17 forms, the password-change page's own form (F12), the sign-in names in
+#                             mixed case (guard-case), the oversize and extra-name sign-in bodies, a password name in a query string or in
+#                             a body for the JSON API, and guard-signin-3 and guard-signin-4, the splash's and the
+#                             trace sign-in page's own sign-in POSTs, which must reach IRIS (DW-226). guard-signin-3 sees IRIS's refusal
+#                             (the splash with aria-invalid). guard-signin-4 sees IRIS's sign-in page, which a plain GET gives too: it
+#                             shows that the proxy let the POST through, not that IRIS refused it;
 #                block-mark   the block mark is carried by no allowed answer;
 #                demo-status-* the output of the host's `ocutalon-demo status` command, piped in with --demo-status, against AD-25
 #                             and the status JSON;
 #                zone         the IRIS container's TZ, piped in with --zone, is US Eastern;
 #   busy         the status read and busy-*: the busy page in place of IRIS's busy answer, except under /ocutalon/api/;
 #   maintenance  maint-*: the maintenance page and the four logos, beside the page and under /ocutalon/assets/brand/.
-# A block check (block-*, block-pw-*, guard-F*, guard-extra, guard-big, guard-query, guard-api) passes only when the status is one of the
+# A block check (block-*, block-pw-*, guard-F*, guard-case, guard-extra, guard-big, guard-query, guard-api) passes only when the status is one of the
 # block statuses, the body holds no IRIS form field, and the block mark is present when one is set. When IRIS alone would give the same
 # answer to that request (docker/tests/lib-online.sh, host_probes), and no mark is set, the check cannot tell the host from IRIS: it is
 # SKIP ... ambiguous. A 401 or 407 never counts as a block. With a mark set, an allowed answer that carries it fails block-mark.
@@ -116,7 +119,7 @@ if [ -n "$gate_user" ] || [ -n "$gate_password" ]; then
   case $base in http://*) printf 'demo-host-check: warning: the gate credentials go over plain http\n' >&2 ;; esac
 fi
 block_status=${OCUTALON_CHECK_BLOCK_STATUS:-403}
-block_status=$(printf '%s' "$block_status" | tr -s ' \t' '  ' | sed 's/^ //; s/ $//')
+block_status=$(printf '%s' "$block_status" | tr -s ' \t\r\n' '    ' | sed 's/^ //; s/ $//')
 [ -n "$block_status" ] || usage "OCUTALON_CHECK_BLOCK_STATUS is empty"
 for s in $block_status; do
   case $s in
@@ -139,7 +142,7 @@ read_input() { # <source> <destination file>
   if [ "$1" = - ]; then
     cat > "$2"
   else
-    [ -f "$1" ] && [ -r "$1" ] || die2 "cannot read $1"
+    [ -r "$1" ] && [ ! -d "$1" ] || die2 "cannot read $1"
     cat "$1" > "$2"
   fi
 }
@@ -198,14 +201,11 @@ bfile=""
 
 jar_has_cookie() { grep -Eq '^(#HttpOnly_|[^#[:space:]])' "$1" 2> /dev/null; }
 
-# sign_out <jar> <target>: ends the session that an answer opened, on the application of the target and on /ocutalon/ with the same jar.
+# sign_out <jar> <target>: ends the session that an answer opened, on the application of the target (host_app) and on /ocutalon/ with
+# the same jar.
 sign_out() {
-  local app=/ocutalon/ i
-  case $2 in
-    /ocutalon/trace/ocutalon/*) app=/ocutalon/trace/ocutalon/ ;;
-    /ocutalon/trace/ocuorders/*) app=/ocutalon/trace/ocuorders/ ;;
-    /ocutalon/api/*) app=/ocutalon/api/ ;;
-  esac
+  local app i
+  app=$(host_app "$2")
   for i in "$app" /ocutalon/; do
     t_n=$((t_n + 1))
     curl -s --max-time 30 -o /dev/null ${gate_args[@]+"${gate_args[@]}"} -b "$1" -c "$1" "$base$i?IRISLogout=end&t=$t_n" < /dev/null > /dev/null 2>&1
@@ -340,7 +340,7 @@ run_normal() {
     if [ "$code" = 401 ] || [ "$code" = 407 ]; then
       pass gate-closed "a request without the gate credentials answered $code"
     else
-      fail gate-closed "a request without the gate credentials answered $code, not 401 or 407: the gate is open"
+      fail gate-closed "a request without the gate credentials answered $code (000 is no answer), not the gate's 401 or 407"
     fi
   else
     skip gate-closed "no gate credentials given, so the closed gate is not checked"
@@ -375,7 +375,8 @@ run_normal() {
 $(host_probes)
 PROBES
 
-  # The sign-in POSTs that must reach IRIS and come back refused by IRIS (DW-226).
+  # The sign-in POSTs that must reach IRIS (DW-226): the splash's comes back refused (aria-invalid), the trace page's as IRIS's own sign-in
+  # page, which a plain GET gives too.
   host_signin 3
   send "$signin_target" "${signin_args[@]}"
   if [ "$code" = 200 ] && body_has 'aria-invalid="true"'; then
@@ -386,8 +387,8 @@ PROBES
   fi
   host_signin 4
   send "$signin_target" "${signin_args[@]}"
-  if [ "$code" = 200 ] && has_form_field && grep -qF -- "$(host_trace_refused_marker)" "$bfile"; then
-    pass guard-signin-4 "the trace sign-in page's four-field sign-in reached IRIS and was refused by it"
+  if [ "$code" = 200 ] && has_form_field && grep -qF -- "$(host_trace_signin_marker)" "$bfile"; then
+    pass guard-signin-4 "the trace sign-in page's four-field sign-in came back as IRIS's own sign-in page, so the proxy let it through (a plain GET gives the same page: this does not show that IRIS refused the dummy token)"
     note_allowed guard-signin-4
   else
     fail guard-signin-4 "the trace sign-in page's four-field sign-in answered $code, not IRIS's sign-in page (200 with its Login form)"

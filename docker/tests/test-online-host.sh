@@ -58,8 +58,8 @@ else
   fail "setup: host_probes lists two answers of IRIS for the request(s) $conflicts"
 fi
 
-STUB_GATE="$gate_user:$gate_password" STUB_MARK="$mark" STUB_BROKER="$(host_broker_file)" STUB_MARKER="$(host_trace_refused_marker)" STUB_NEXT="$next_reset" \
-  stub_start "$flags" "$record" "$probes" "$root/docker/busy.html" "$root/docker/maintenance.html" "$root/logo/web" << 'STUB'
+STUB_GATE="$gate_user:$gate_password" STUB_MARK="$mark" STUB_BROKER="$(host_broker_file)" STUB_MARKER="$(host_trace_signin_marker)" STUB_NEXT="$next_reset" \
+  stub_start "$flags" "$record" "$probes" "$root/docker/busy.html" "$root/docker/maintenance.html" "$root/logo/web" << 'STUB' || exit 1
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -67,7 +67,7 @@ const [flagsFile, recordFile, probesFile, busyFile, maintFile, logoDir] = proces
 const GATE = process.env.STUB_GATE || "";
 const MARK = process.env.STUB_MARK || "";
 const BROKER = process.env.STUB_BROKER || "";
-const REFUSED_MARKER = process.env.STUB_MARKER || "";
+const SIGNIN_MARKER = process.env.STUB_MARKER || "";
 const NEXT = process.env.STUB_NEXT || "";
 const LAST = "2026-10-25T08:00:00Z";
 const LIMIT = 4096;
@@ -112,10 +112,14 @@ const normalize = (p) => {
 };
 const STATIC = /\.(js|css|png|gif|jpg|jpeg|svg|ico|woff2?|ttf|map)$/i;
 
+// The IRIS application of a path, whose session a sign-out must end there (IRIS's own knowledge, not the script's host_app).
+const appOf = (p) =>
+  p.startsWith("/ocutalon/trace/ocutalon/") ? "/ocutalon/trace/ocutalon/" : p.startsWith("/ocutalon/trace/ocuorders/") ? "/ocutalon/trace/ocuorders/" : p.startsWith("/ocutalon/api/") ? "/ocutalon/api/" : "/ocutalon/";
+
 let nextSession = 0;
-const issue = (res, headers) => {
+const issue = (res, headers, p) => {
   const id = "s" + ++nextSession;
-  record({ issued: id });
+  record({ issued: id, app: appOf(p) });
   headers["Set-Cookie"] = "CSPSESSIONID-SP-TEST=" + id + "; path=/; HttpOnly";
   return id;
 };
@@ -151,6 +155,11 @@ const server = http.createServer((req, res) => {
       res.writeHead(status, h);
       res.end(text);
     };
+    // mark_allowed[=<status|splash|broker|signin3|signin4>]: that allowed answer (the status read by default) carries the block mark.
+    const markOn = (where, hdrs) => {
+      if (MARK && f.has("mark_allowed") && (f.get("mark_allowed") || "status") === where) hdrs["X-Edge-Block"] = MARK;
+      return hdrs;
+    };
     const refuse = (kind) => {
       const status = Number(f.get(kind + "_status") || f.get("block_status") || 403);
       const h = { "Content-Type": "text/plain" };
@@ -181,7 +190,11 @@ const server = http.createServer((req, res) => {
       const bare = /^\/ocutalon\/(OcuTalon-Logo-[a-z]+-[0-9]+\.png)$/.exec(norm);
       const brand = /^\/ocutalon\/assets\/brand\/(OcuTalon-Logo-[a-z]+-[0-9]+\.png)$/.exec(norm);
       const logo = (bare && !(f.get("maint_missing_logo") === bare[1])) ? bare[1] : (brand && !(f.get("maint_no_brand") === brand[1]) ? brand[1] : "");
-      if (logo) return send(200, { "Content-Type": "image/png" }, fs.readFileSync(path.join(logoDir, logo)));
+      if (logo) {
+        let png = fs.readFileSync(path.join(logoDir, logo));
+        if ((bare && f.get("maint_alter_bare") === logo) || (brand && f.get("maint_alter_brand") === logo)) png = Buffer.concat([png, Buffer.from("x")]);
+        return send(200, { "Content-Type": "image/png" }, png);
+      }
       if (bare || brand) return send(404, {}, "missing");
       let page = fs.readFileSync(maintFile, "latin1");
       if (f.has("maint_altered")) page = page.replace("Resetting", "Resettinq");
@@ -247,23 +260,25 @@ const server = http.createServer((req, res) => {
     const bodyNames = names(body, true).sort().join(",");
     if (req.method === "POST" && rawPath === "/ocutalon/" && bodyNames === "IRISLogin,IRISPassword,IRISUsername") {
       if (f.has("signin_plain")) return send(200, h, plainHtml);
-      issue(res, h);
-      return send(200, h, splashHtml(true));
+      issue(res, h, rawPath);
+      return send(200, markOn("signin3", h), splashHtml(true));
     }
     if (req.method === "POST" && rawPath === "/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen" && bodyNames === "IRISLogin,IRISPassword,IRISSessionToken,IRISUsername") {
       if (f.has("signin_plain")) return send(200, h, plainHtml);
-      issue(res, h);
-      return send(200, h, '<html><body><form name="Login" method="post"><input type="text" name="IRISUsername"/><input type="password" name="IRISPassword"/></form></body></html>');
+      issue(res, h, rawPath);
+      return send(200, markOn("signin4", h), "<html><body>" + SIGNIN_MARKER + '><input type="text" name="IRISUsername"/><input type="password" name="IRISPassword"/></form></body></html>');
     }
-    const answer = iris.get(req.method + " " + url);
+    // A probe's request may carry a query that its table target does not (curl -G adds F3's and F4's), so the table is read by the
+    // path alone too; the allowed reads carry the unique t parameter and keep their own answers below.
+    const answer = iris.get(req.method + " " + url) || (/(^|&)t=[0-9]+(&|$)/.test(query) ? undefined : iris.get(req.method + " " + rawPath));
     if (answer) {
       const [status, form] = answer.split(":");
-      if (form === "form") issue(res, h);
+      if (form === "form") issue(res, h, rawPath);
       return send(Number(status), h, form === "form" ? formHtml : plainHtml);
     }
     if (req.method === "GET" && rawPath === "/ocutalon/public/status") {
       const hh = { "Content-Type": "application/json", "Cache-Control": f.has("status_nocache") ? "max-age=0" : "no-store" };
-      if (f.has("mark_allowed") && MARK) hh["X-Edge-Block"] = MARK;
+      markOn("status", hh);
       const s = { ready: true, nextReset: NEXT, busy: false, lastReset: LAST, lastResetKind: "scheduled" };
       if (f.has("status_extra")) s.extra = 1;
       if (f.has("status_missing")) delete s.busy;
@@ -273,16 +288,15 @@ const server = http.createServer((req, res) => {
       return send(200, hh, JSON.stringify(s));
     }
     if (req.method === "GET" && rawPath === "/ocutalon/") {
-      issue(res, h);
-      return send(200, h, splashHtml(false));
+      issue(res, h, rawPath);
+      return send(200, markOn("splash", h), splashHtml(false));
     }
-    if (req.method === "GET" && rawPath === BROKER) return send(200, { "Content-Type": f.has("broker_html") ? "text/html" : "image/png" }, "PNG");
+    if (req.method === "GET" && rawPath === BROKER) return send(200, markOn("broker", { "Content-Type": f.has("broker_html") ? "text/html" : "image/png" }), "PNG");
     return send(404, h, plainHtml);
   });
 });
 server.listen(0, "127.0.0.1", () => console.log(server.address().port));
 STUB
-[ -n "$stub_port" ] || exit 1
 url="http://127.0.0.1:$stub_port"
 
 # The probes with their ids, for the rows that pick probes: "<id> <iris> <method> <target> [<body>]".
@@ -392,16 +406,36 @@ else
 fi
 methods=$(jq -r '.m // empty' "$record" | LC_ALL=C sort -u | tr '\n' ' ')
 if [ "$methods" = "GET POST " ]; then pass "row 1: the stand-in saw GET and POST and no other method"; else fail "row 1: the stand-in saw the methods '$methods'"; fi
-unended=""
-issued=$(jq -r '.issued // empty' "$record")
-for id in $issued; do
-  n=$(jq -r --arg id "$id" 'select(.u? and .s == 200 and (.u | contains("IRISLogout=end")) and (.c | test("=" + $id + "(;|$)"))) | .u' "$record" | grep -c '^/ocutalon/')
-  [ "$n" -ge 2 ] || unended="$unended $id"
-done
-if [ -n "$issued" ] && [ -z "$unended" ]; then
-  pass "row 1: the stand-in saw the sign-out of each of the $(printf '%s\n' $issued | wc -l | tr -d ' ') sessions it opened, on its application and on /ocutalon/"
+# signouts_ok <label>: every session the stand-in opened since the record was cleared was signed out with its own cookie on the
+# application the stand-in opened it on (?IRISLogout=end there) and on /ocutalon/; prints the applications it saw.
+signouts_ok() {
+  local label=$1 id app outs n_app n_root unended="" n=0 apps
+  while read -r id app; do
+    [ -n "$id" ] || continue
+    n=$((n + 1))
+    outs=$(jq -r --arg id "$id" 'select(.u? and .s == 200 and (.u | contains("IRISLogout=end")) and (.c | test("=" + $id + "(;|$)"))) | .u' "$record")
+    n_app=$(printf '%s\n' "$outs" | grep -c "^${app}?IRISLogout=end")
+    n_root=$(printf '%s\n' "$outs" | grep -c '^/ocutalon/?IRISLogout=end')
+    if [ "$app" = /ocutalon/ ]; then
+      [ "$n_root" -ge 2 ] || unended="$unended $id@$app"
+    else
+      [ "$n_app" -ge 1 ] && [ "$n_root" -ge 1 ] || unended="$unended $id@$app"
+    fi
+  done << EOF
+$(jq -r 'select(.issued?) | .issued + " " + .app' "$record")
+EOF
+  apps=$(jq -r 'select(.issued?) | .app' "$record" | LC_ALL=C sort -u | tr '\n' ' ')
+  if [ "$n" -gt 0 ] && [ -z "$unended" ]; then
+    pass "$label: the stand-in saw the sign-out of each of the $n sessions it opened, on its own application and on /ocutalon/ (applications: ${apps% })"
+  else
+    fail "$label: $n sessions opened, not signed out on their application and on /ocutalon/:$unended"
+  fi
+}
+signouts_ok "row 1"
+if jq -r 'select(.issued?) | .app' "$record" | grep -qx /ocutalon/trace/ocutalon/; then
+  pass "row 1: a trace application's session is among them (guard-signin-4)"
 else
-  fail "row 1: sessions opened '$issued', not signed out:$unended"
+  fail "row 1: no trace application's session was opened, so the sign-out on a trace application is not checked"
 fi
 leaks=$(grep -cF -e "$gate_password" -e "$gate_user" "$tmp/out" "$tmp/err" | grep -v ':0$' | head -n 1)
 if [ -z "$leaks" ]; then pass "row 1: the gate credentials are in neither standard output nor standard error"; else fail "row 1: the gate credentials were printed ($leaks)"; fi
@@ -454,8 +488,15 @@ for pair in $pw_all; do
   want="$want ${pair%%:*}"
 done
 set_flags "let=${pw_lets#|}"
+: > "$record"
 run_script -- ${full[@]+"${full[@]}"}
 expect_run "row 4: all 56 DW-214 probes let through fail their block-pw-* checks, and nothing else fails" 1 "$want" ""
+signouts_ok "row 4: the let-through probes"
+if [ "$(jq -r 'select(.issued?) | .app' "$record" | grep -c '^/ocutalon/trace/')" -ge 2 ] && jq -r 'select(.issued?) | .app' "$record" | grep -qx /ocutalon/trace/ocuorders/; then
+  pass "row 4: sessions of both trace applications are among them"
+else
+  fail "row 4: the let-through probes opened no session of /ocutalon/trace/ocuorders/"
+fi
 named=1
 for pair in $pw_all; do
   line_has FAIL "${pair%%:*}" "${pair#*:}" || named=0
@@ -481,6 +522,17 @@ guard_fault "a guard that does not URL-decode names" g_nodecode "guard-F6 guard-
 guard_fault "a case-sensitive pattern" g_case "guard-case"
 guard_fault "a pattern without the legacy Cache names" g_legacy "guard-F2 guard-F4"
 guard_fault "a guard that ignores the query string" g_query "guard-F3 guard-F3-state guard-F3-trace-ocutalon guard-F3-trace-ocuorders guard-F4 guard-F5 guard-F7 guard-query"
+# (QA) The same fault with the Planner's block statuses (403 404) and no mark: a request that reaches IRIS is answered as IRIS answers it
+# (F3's and F4's query, which curl adds, does not hide the probe from the stand-in's table), so IRIS's own 401 and 200 are no block.
+set_flags g_query
+run_script "OCUTALON_CHECK_BLOCK_STATUS=403 404" -u:OCUTALON_CHECK_BLOCK_MARK -- ${full[@]+"${full[@]}"}
+expect_run "row 5 (QA): a guard that ignores the query string, with block statuses 403 404 and no mark, fails the same ids (IRIS's own answers are no block)" 1 \
+  "guard-F3 guard-F3-state guard-F3-trace-ocutalon guard-F3-trace-ocuorders guard-F4 guard-F5 guard-F7 guard-query" ""
+if grep -q '^FAIL guard-F3-state .* answered 401,' "$tmp/out"; then
+  pass "row 5 (QA): the let-through guard-F3-state is answered with IRIS's own 401, as host_probes lists it"
+else
+  fail "row 5 (QA): guard-F3-state is not answered with IRIS's own 401: $(grep '^FAIL guard-F3-state ' "$tmp/out" | cut -c1-160)"
+fi
 guard_fault "a guard that accepts a sign-in body with an extra name" g_extra "guard-extra guard-api"
 guard_fault "a guard with no size bound" g_size "guard-big"
 
@@ -488,6 +540,17 @@ guard_fault "a guard with no size bound" g_size "guard-big"
 
 guard_fault "a guard that requires all four names (the splash's three-field sign-in refused)" g_exact4 "guard-signin-3"
 guard_fault "sign-in POSTs answered with a plain page, not IRIS's sign-in page" signin_plain "guard-signin-3 guard-signin-4"
+
+# (QA) guard-signin-4 claims what it observes: IRIS's sign-in page, which a plain GET gives too (Decided in-stage 16), so the proxy let the
+# POST through. Its PASS line must not say that IRIS refused the request; guard-signin-3, which sees aria-invalid, may.
+set_flags
+run_script -- ${full[@]+"${full[@]}"}
+if line_has PASS guard-signin-4 "does not show that IRIS refused" && ! line_has PASS guard-signin-4 "was refused by"; then
+  pass "row 6 (QA): the PASS line of guard-signin-4 says it saw IRIS's sign-in page and does not claim a refusal by IRIS"
+else
+  fail "row 6 (QA): the PASS line of guard-signin-4 claims more than it observes: $(grep '^PASS guard-signin-4 ' "$tmp/out" | cut -c1-200)"
+fi
+if line_has PASS guard-signin-3 "refused by it"; then pass "row 6 (QA): guard-signin-3, which sees aria-invalid, reports IRIS's refusal"; else fail "row 6 (QA): guard-signin-3 does not report IRIS's refusal"; fi
 
 # --- row 7: no false all-clear, in every family ---
 
@@ -540,6 +603,15 @@ expect_run "row 7: a refusal with a block status and the mark whose body holds a
 set_flags mark_allowed
 run_script -- ${full[@]+"${full[@]}"}
 expect_run "row 7 (c): a mark that an allowed answer also carries fails block-mark and nothing else" 1 "block-mark" ""
+for pair in splash:allow-splash broker:allow-broker signin3:guard-signin-3 signin4:guard-signin-4; do
+  set_flags "mark_allowed=${pair%%:*}"
+  run_script -- ${full[@]+"${full[@]}"}
+  expect_run "row 7 (c): the mark on the allowed answer of ${pair#*:} fails block-mark and nothing else" 1 "block-mark" ""
+  if line_has FAIL block-mark "${pair#*:}"; then pass "row 7 (c): the block-mark FAIL line names ${pair#*:}"; else fail "row 7 (c): the block-mark FAIL line does not name ${pair#*:}"; fi
+done
+set_flags mark_in_body
+run_script -- ${full[@]+"${full[@]}"}
+expect_run "row 7: refusals that carry the block mark in the body (no header) pass every check" 0 "" ""
 
 # --- row 8: a closed gate and no credentials ---
 
@@ -564,6 +636,16 @@ else
   fail "row 8: no answer: exit $rc, stderr '$(head -c 150 "$tmp/err")'"
 fi
 run_base=
+# (QA) The first credentialed request of the busy state is the status read and of the maintenance state /ocutalon/: a 401 there ends the run.
+for st in busy maintenance; do
+  set_flags state=$st
+  run_script OCUTALON_GATE_PASSWORD=wrong-$(hexpw) -- --state $st
+  if [ "$rc" = 2 ] && grep -q 'gate refused' "$tmp/err" && [ ! -s "$tmp/out" ]; then
+    pass "row 8 (QA): the $st state with wrong credentials: 'gate refused', exit 2, no check line"
+  else
+    fail "row 8 (QA): the $st state with wrong credentials: exit $rc, stderr '$(head -c 150 "$tmp/err")', $(wc -l < "$tmp/out" | tr -d ' ') output line(s)"
+  fi
+done
 
 # --- row 9: the gate open while access is restricted ---
 
@@ -609,6 +691,7 @@ expect_run "row 11: no --demo-status input is SKIP demo-status (exit 3)" 3 "" "d
 
 # --- row 12: --zone ---
 
+set_flags
 for z in US/Eastern EST5EDT; do
   printf '%s\n' "$z" > "$tmp/zone.$$.txt"
   run_script -- --demo-status "$tmp/ds.json" --zone "$tmp/zone.$$.txt"
@@ -623,6 +706,8 @@ run_stdin=
 expect_run "row 12: --zone - reads standard input and passes" 0 "" ""
 run_script -- --demo-status "$tmp/ds.json"
 expect_run "row 12: no --zone input is SKIP zone (exit 3)" 3 "" "zone"
+run_script -- --demo-status "$tmp/ds.json" --zone <(printf 'America/New_York\n')
+expect_run "row 12: --zone from a pipe (process substitution, not a regular file) passes" 0 "" ""
 
 # --- usage errors: exit 2, nothing sent ---
 
@@ -641,6 +726,14 @@ usage_case "two inputs on standard input" X=1 --demo-status - --zone -
 usage_case "an option without a value" X=1 --zone
 usage_case "a gate user without a password" -u:OCUTALON_GATE_PASSWORD
 usage_case "an unreadable input" X=1 --zone "$tmp/no-such-file"
+usage_case "a folder as input" X=1 --zone "$tmp"
+usage_case "an unknown option" X=1 --bogus
+usage_case "two base URLs" X=1 "$url"
+run_base="http://zz-user@127.0.0.1:$stub_port"
+usage_case "a base URL with a user name" X=1
+run_base="$url/ocutalon/"
+usage_case "a base URL with a path" X=1
+run_base=
 if ! grep -q . "$record"; then pass "usage: no request reached the stand-in"; else fail "usage: a usage error sent a request"; fi
 
 # --- row 13: busy ---
@@ -683,6 +776,17 @@ expect_run "row 14: a logo missing beside the page fails maint-logo-<name>" 1 "m
 set_flags state=maintenance maint_no_brand=OcuTalon-Logo-light-1280.png
 run_script -- --state maintenance
 expect_run "row 14: a logo missing under /ocutalon/assets/brand/ fails maint-logo-<name>" 1 "maint-logo-OcuTalon-Logo-light-1280.png" ""
+set_flags state=maintenance maint_alter_bare=OcuTalon-Logo-light-640.png
+run_script -- --state maintenance
+expect_run "row 14 (QA): a logo with one byte added beside the page fails maint-logo-<name>" 1 "maint-logo-OcuTalon-Logo-light-640.png" ""
+set_flags state=maintenance maint_alter_brand=OcuTalon-Logo-dark-1280.png
+run_script -- --state maintenance
+expect_run "row 14 (QA): a logo with one byte added under /ocutalon/assets/brand/ fails maint-logo-<name>" 1 "maint-logo-OcuTalon-Logo-dark-1280.png" ""
+if line_has FAIL maint-logo-OcuTalon-Logo-dark-1280.png "under /ocutalon/assets/brand/" && ! line_has FAIL maint-logo-OcuTalon-Logo-dark-1280.png "beside the page"; then
+  pass "row 14 (QA): the FAIL line names the location of the altered logo only"
+else
+  fail "row 14 (QA): the FAIL line does not name the altered logo's location: $(grep '^FAIL maint-logo' "$tmp/out" | cut -c1-200)"
+fi
 set_flags state=maintenance maint_altered
 run_script -- --state maintenance
 expect_run "row 14: an altered maintenance page fails maint-root and maint-deep" 1 "maint-root maint-deep" ""
@@ -703,6 +807,8 @@ done < "$tmp/probes.full"
 run_script "OCUTALON_CHECK_BLOCK_STATUS=403 404" -u:OCUTALON_CHECK_BLOCK_MARK -- ${full[@]+"${full[@]}"}
 if [ -n "$want" ]; then rc16=3; else rc16=0; fi
 expect_run "row 16: without the mark no probe fails, and each one that IRIS answers alone with the same status is SKIP ambiguous" "$rc16" "" "$want"
+run_script "OCUTALON_CHECK_BLOCK_STATUS=$(printf '403\n404')" -- ${full[@]+"${full[@]}"}
+expect_run "row 16: block statuses separated by a line break are read as the same list" 0 "" ""
 run_script -- ${full[@]+"${full[@]}"}
 if [ "$rc" = 1 ] && [ "$(ids_of FAIL | wc -w | tr -d ' ')" -ge 56 ]; then
   pass "row 16: with the default block status 403 the 404 refusals are no block (the pw family fails)"
@@ -749,6 +855,9 @@ if [ "$cfg_ok" -gt 100 ] && [ "$cfg_bad" = 0 ]; then pass "credentials: the gate
 
 # host_probe_args refuses a line whose method is not the one its form is sent with.
 if host_probe_args "zz-method 200:form POST /ocutalon/ F3"; then fail "host_probe_args: a POST line for the GET form F3 was accepted"; else pass "host_probe_args: a POST line for the GET form F3 is refused"; fi
+for line in "zz-method 200:form POST /ocutalon/ query" "zz-method 200:form GET /ocutalon/ extra" "zz-method 200:form GET /ocutalon/trace/ocutalon/%25CSP.PasswordChange.cls F12" "zz-method 404:noform POST /csp/sys/"; do
+  if host_probe_args "$line"; then fail "host_probe_args: the line '$line' with the wrong method was accepted"; else pass "host_probe_args: the line '$line' with the wrong method is refused"; fi
+done
 
 # --- row 15: the files are safe to publish ---
 
