@@ -2097,3 +2097,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Rule 2, weak reason: the spec names reset-watch.ts as the sibling AllowanceState follows but not why the timer is not shared; the copies already differ (one clamps at 0, one clears at once).
 - 2026-10-29T22:47:08Z status=wontfix-accepted owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=reopen_if=a fifth copy of the LONGEST_TIMER_MS idiom lands in web/src/app, or a fix to one copy's clamp or re-arm misses another
+
+### DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: web/e2e-online/allowance/daily-cap.spec.ts seeds today's spend (seedUsage, :110 and :180) and later reads today's mark and day again (cappedMarked :127/:160, localToday :133/:165, support.ts:563-570); Bridge.Budget.State counts only the current local day. A midnight between them (a window of about 1-2 min per case) gives no daily_cap card, or a mark and DailyCapDay of the day before.
+- 2026-10-30T01:29:01Z status=routed owner=burndown by=cr note=re-review 1 of 16.9 (verification-gap): take the day once (e.g. from the fallback's RecordedAt) and keep each case clear of instance midnight; not patched: the wait path is unexercisable here
+
+### DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight
+- source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 40975637263 attempt 1 (75d731a), iris (shards), shard:lane-a: FAIL TestWindow ... 2026-10-29 23:59:24.000; green on the unchanged rerun (attempt 2); Test/Checks is Epic 5's (Lane A), untouched by Epic 16
+- 2026-10-30T01:32:49Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; DW-289 (real-Tick interference in Test.Checks.Runs) was resolved by 5.10, so a new entry; the same run's two other reds also sat at 23:59Z (16.9's same-day time assertion, reworked)

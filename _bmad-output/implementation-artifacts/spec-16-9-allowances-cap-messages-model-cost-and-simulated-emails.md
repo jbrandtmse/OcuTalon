@@ -410,27 +410,7 @@ All class paths are under `src/ocutalon/cls/OcuTalon/`.
 
 ### Lead addition at the spec gate (DW-220 residual, 2026-10-29)
 
-- [x] DW-220 (residual, routed to this story by 16.4's re-review; done, measured by the runner on CI run 40945229992 of `ba6856d`, the implement commit `20cc3f9` with this `ci/units.sh`: image 26.9 min, install-upgrade 31.7, install-fresh 27.8, shards 32.4, browser 25.0, production 18.1; wall-clock 32 min 28 s; no job over REL-4's 35 minutes, three over 30, which is owner-fixed value 9's case): with `live:online-demo` in `install-upgrade` (Story 16.4's CI rework, 0d98165), the `image` job still sums to about 2047 s on CI (run 40866408272: storage-roundtrip about 257, build-inputs 9, compose-start 200, demo-switch 467, shard:lane-b 866, install-script-live about 213), about 34.6 minutes against REL-4's 35-minute run budget, and DW-220's reopen_if (30 minutes) is still met. Rebalance in `ci/units.sh`, moving only Lane B's own units (this epic keeps Lane B's files: `shard:lane-b`, `live:demo-switch`, `live:online-demo`, `live:online-session`, and this story's `live:online-allowance`; never Lane A's or Epic 10's `install-script-live`), so that no IRIS job is expected to pass about 1800 s, using the CI times above and install-fresh 1339 s (with online-session), install-upgrade about 1355 s (with online-demo), production 942 s, browser 1464 s, shards 1896 s. `production` must stay web-bundle-free: a unit that needs the web bundle or a browser cannot go there (check what `shard:lane-b`'s classes need before considering it). Record the expected job times in `### 2026-10-30 - Review pass (CI rework 1)
-- verdicts: 11 findings - high 0, medium 0, low 11, false 2, maybe-false 0
-- findings:
-  - Blind Hunter
-    - `[low]` `[reject]` The same-day form is no longer asserted exactly (a renderer that always printed the day would pass) - the item asks to accept both forms as `WebChatOut` does; the exact other-day text is pinned by `TestNoticeOnAnotherDay`, and the clock-alone form by the helper's own cases.
-    - `[low]` `[reject]` `TimeReads` checks the shape of the day, not that it is the retryAt's day - the exact day is pinned in `TestNoticeOnAnotherDay` through `ForMessage`; the chain tests read the wall clock, so pinning their day needs a midnight guard for a LOW.
-    - `[low]` `[patch]` `TimeReads` has no test of the date forms, the `joined` 0 form or its refusals - `TestTimeReadsForms` added.
-    - `[low]` `[patch]` The node test's negatives are thin - date with `at`, a missing ET, a three-digit hour and the weekday form added.
-    - `[false]` `[reject]` The page's `banner.allowance` and the mailbox text would read "at Friday at 00:09" - `pageTime` formats the clock alone, so the page has no day form.
-  - Edge Case Hunter
-    - `[false]` `[reject]` The new other-day tests carry no `mutation:` line - the three CI rework 1 lines are in `## Verification`.
-    - `[low]` `[reject]` `TimeReads` takes any capitalised word as the day - same as the Blind Hunter's second row.
-    - `[low]` `[reject]` `[A-Z][a-z]+` also takes a bare month - a renderer fault the catalog's formatter cannot make; the exact text is pinned in `TestNoticeOnAnotherDay`.
-  - Verification Gap Reviewer
-    - `[low]` `[reject]` The chain tests do not pin the day with the right clock - same as the rows above (deferral not needed: closed `wontfix-accepted`, reopen_if the formatter and the chain diverge on `now`).
-    - `[low]` `[reject]` `TestNotices` builds its expectation as "at "_clock and fails in a zone whose midnight falls between 09:00Z and 10:00Z - the instance zone is ET or UTC (the catalog's label), and a fixed clock cannot depend on the time of day.
-    - `[low]` `[patch]` No mutation line for the helper's clock check - `TestTimeReadsForms` pinned it (the first mutation survived, a wrong-clock case was added, red, reverted); the line is written.
-  - Intent Alignment Auditor
-    - descriptive report, no finding; the diff implements the instance-time reading, and the page's time has no day form.
-
-## Design Notes`, update every expectation that pins the groups, and cite DW-220; if no arrangement keeps every job near 30 minutes, keep the best one and say so (owner-fixed value 9: after the rebalance, CI capacity is the owner's action). — `ci/units.sh`, `docker/tests/test-ci-config.sh`, `test-ci-changes.sh` — `bash ci/checks.sh` passes.
+- [x] DW-220 (residual, routed to this story by 16.4's re-review; done, measured by the runner on CI run 40945229992 of `ba6856d`, the implement commit `20cc3f9` with this `ci/units.sh`: image 26.9 min, install-upgrade 31.7, install-fresh 27.8, shards 32.4, browser 25.0, production 18.1; wall-clock 32 min 28 s; no job over REL-4's 35 minutes, three over 30, which is owner-fixed value 9's case): with `live:online-demo` in `install-upgrade` (Story 16.4's CI rework, 0d98165), the `image` job still sums to about 2047 s on CI (run 40866408272: storage-roundtrip about 257, build-inputs 9, compose-start 200, demo-switch 467, shard:lane-b 866, install-script-live about 213), about 34.6 minutes against REL-4's 35-minute run budget, and DW-220's reopen_if (30 minutes) is still met. Rebalance in `ci/units.sh`, moving only Lane B's own units (this epic keeps Lane B's files: `shard:lane-b`, `live:demo-switch`, `live:online-demo`, `live:online-session`, and this story's `live:online-allowance`; never Lane A's or Epic 10's `install-script-live`), so that no IRIS job is expected to pass about 1800 s, using the CI times above and install-fresh 1339 s (with online-session), install-upgrade about 1355 s (with online-demo), production 942 s, browser 1464 s, shards 1896 s. `production` must stay web-bundle-free: a unit that needs the web bundle or a browser cannot go there (check what `shard:lane-b`'s classes need before considering it). Record the expected job times in `## Design Notes`, update every expectation that pins the groups, and cite DW-220; if no arrangement keeps every job near 30 minutes, keep the best one and say so (owner-fixed value 9: after the rebalance, CI capacity is the owner's action). — `ci/units.sh`, `docker/tests/test-ci-config.sh`, `test-ci-changes.sh` — `bash ci/checks.sh` passes.
 
 ### Review Findings
 
@@ -474,6 +454,27 @@ Rejected (13 rows):
 - `low` (redundant, not the pins): A1's Break the feed check (AP pins AC 8), "another session gets nothing" in the `StatusMonitor` test, and `banner-view.test.mjs`'s `notEqual(href, README_URL)` after an exact `equal`.
 - `maybe-false`, at most `low`: `AllowanceInProduction`'s "the phone has no message" may be vacuous when the stack's demo mode is off. `Test.Core.Routing` pins AC 3's phone rule. Settled by reading `DemoOn()` on the CI shard stack.
 - fix edits the spec: Design Notes' D1 claim for Task 0 (a), and the open `- [ ] DW-220` checkbox (the lead's).
+
+#### Rework re-review 1 (code review, 2026-10-30)
+
+Code review of the rework `48a9996..HEAD` (`ce89190`; stage code-review; 4 layers, full-opus; 17 rows, 6 entries: high 0, med 1, low 5; 6 rows rejected). The checklist:
+- (1) The `[CI]` item is fixed. Both `AllowanceInProduction` cards, `TestNoticeCarriesTheConfiguredLimit` and `CARD_TEXT` take either form. `USED_UP` and `EMAIL_LIMIT` hold at any hour: `pageTime` (`web/src/app/chat/page-time.ts`) is hour and minute only, the banner (`banner-stack.ts`) and the mailbox reason (`simulated-mailbox.ts`) use it, and `EMAIL_LIMIT`'s capture is compared with the same `Intl` hour and minute.
+- (2) The other-day form is pinned with fixed clocks (`TestNoticeOnAnotherDay`) and 36 h ahead (`TestARefusalOnAnotherDayNamesTheDay`), now also with a mutation of the product's text.
+- Rule 2: `TimeReads` is no near-copy (`Test.Core.WebChatOut` checks head and tail inline and takes anything between); it now reads the day through the product's `Data.Time.ForMessage`.
+- Verification: the patched classes pass on the warm stack (`e16s9cr2w`: `Test.Core.Allowance`, `Test.Core.AllowanceInProduction`), `live online-allowance` passes on a fresh stack (`e16s9cr2`, 9 cases, unit 253 s), `npm --prefix web test` 1125 pass, lint and `bash ci/checks.sh` pass; the three changed classes are loaded and compiled on `ocutalon-slot-c`.
+
+- [x] [Review][Patch] LOW, fix-risk low: `Observe.TimeReads` took any capitalised word or "Mon D[, YYYY]" as the day, so a card naming the wrong day passed, and `TestTimeReadsForms` asserted "Oct 9" and "Saturday" for 2030-06-17. It now takes only the forms `Data.Time.ForMessage` writes for the time (readings 2, 8, -8 and 400 days away), and the test works out the weekday and the date apart from it, with a wrong date and a wrong weekday as negatives [src/ocutalon/cls/OcuTalon/Test/Core/Observe.cls:116]
+- [x] [Review][Patch] LOW, fix-risk low: `CARD_TEXT` took day shapes the product never writes ("on Today at", "on Oct at", "on Friday 9 at"). The day is now an English weekday, or a short month with its day and an optional year; the node negatives cover them [web/e2e-online/allowance/messages.spec.ts:36]
+- [x] [Review][Patch] LOW, fix-risk low: in `TestTimeReadsForms`, "another tail is no form" used a tail of another length, so the helper's tail check was unpinned, and its length guard was dead (an empty middle never reads as a time). The tail case now has the same length, and the guard is gone [src/ocutalon/cls/OcuTalon/Test/Core/Allowance.cls:432]
+- [x] [Review][Patch] LOW: the rework's `mutation:` lines mutated the oracles (`TimeReads`, `CARD_TEXT`) and `Notice`'s slot, never the product's other-day text. A mutation of `Catalog.Fill`'s "at" to "on" rewrite is now recorded under Verification, with the patched helper's two
+- [x] [Review][Patch] LOW, fix-risk low: `TestARefusalOnAnotherDayNamesTheDay` seeds its window 35 h ahead, which counts only because the window has a lower bound only, and `Seed`'s doc said nothing of a negative age. The doc now says it; a bounded window turns the case red at its retryAt assertion, never green [src/ocutalon/cls/OcuTalon/Test/Core/AllowanceInProduction.cls:193]
+- [x] [Review][Defer] MED, fix-risk med: `daily-cap.spec.ts` D1, D2 and AP read the instance's day more than once (seed, mark, `DailyCapDay`), so an instance midnight inside a case (about 1-2 min) turns it red [web/e2e-online/allowance/daily-cap.spec.ts:110] — deferred: DW-413 routed owner=burndown (a midnight guard's wait path cannot be exercised in this pass)
+
+Rejected (6 rows):
+- `medium`, fix edits the spec (for the lead): `ce89190` spliced its review-pass block ("2026-10-30 - Review pass (CI rework 1)") into the DW-220 task bullet under Tasks, so the bullet is split and its remainder starts a second `## Design Notes` heading.
+- `low` (the form is the product's, pinned by `Test.Data.Time` and `TestNotices`; the fix adds a clock guard): `TestARefusedMessageGivesOneWebCard` takes the dated form on the same day.
+- `low` (theoretical): "adds no second card" counts only the cards that match `CARD_TEXT`; a second card renders from the same slots, and with both forms taken a midnight between the two is counted.
+- `low`: `TestNoticeCarriesTheConfiguredLimit` takes either form at fixed clocks, and `TestNotices` fails in a zone whose midnight falls between 09:00Z and 10:00Z. `TimeReads` now checks the day, `TestNotices` pins the form, and neither zone the stacks run (UTC in the test process, America/New_York in the item jobs, DW-12) puts midnight there.
 
 ### CI rework 1 (lead, 2026-10-30)
 
@@ -540,6 +541,26 @@ Rejected (13 rows):
     - `[false]` `[reject]` Seam-level versus composed tests - the composed chain (`TryConsume`, REST, `Notify`, `WebChatOut`, `NoticesIn`) runs in the live A1, D1 and D2.
     - `[false]` `[reject]` The two REST message literals are outside the contract's text list - veto item V2 (U-152) rules them kept, and the spine's REST row records them.
     - `[low]` `[reject]` `test-online-allowance.sh` never calls `keys_restore` - the unit's own stack is removed by the EXIT trap, so no key entry outlives it.
+
+### 2026-10-30 - Review pass (CI rework 1)
+- verdicts: 11 findings - high 0, medium 0, low 11, false 2, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` The same-day form is no longer asserted exactly (a renderer that always printed the day would pass) - the item asks to accept both forms as `WebChatOut` does; the exact other-day text is pinned by `TestNoticeOnAnotherDay`, and the clock-alone form by the helper's own cases.
+    - `[low]` `[reject]` `TimeReads` checks the shape of the day, not that it is the retryAt's day - the exact day is pinned in `TestNoticeOnAnotherDay` through `ForMessage`; the chain tests read the wall clock, so pinning their day needs a midnight guard for a LOW.
+    - `[low]` `[patch]` `TimeReads` has no test of the date forms, the `joined` 0 form or its refusals - `TestTimeReadsForms` added.
+    - `[low]` `[patch]` The node test's negatives are thin - date with `at`, a missing ET, a three-digit hour and the weekday form added.
+    - `[false]` `[reject]` The page's `banner.allowance` and the mailbox text would read "at Friday at 00:09" - `pageTime` formats the clock alone, so the page has no day form.
+  - Edge Case Hunter
+    - `[false]` `[reject]` The new other-day tests carry no `mutation:` line - the three CI rework 1 lines are in `## Verification`.
+    - `[low]` `[reject]` `TimeReads` takes any capitalised word as the day - same as the Blind Hunter's second row.
+    - `[low]` `[reject]` `[A-Z][a-z]+` also takes a bare month - a renderer fault the catalog's formatter cannot make; the exact text is pinned in `TestNoticeOnAnotherDay`.
+  - Verification Gap Reviewer
+    - `[low]` `[reject]` The chain tests do not pin the day with the right clock - same as the rows above (deferral not needed: closed `wontfix-accepted`, reopen_if the formatter and the chain diverge on `now`).
+    - `[low]` `[reject]` `TestNotices` builds its expectation as "at "_clock and fails in a zone whose midnight falls between 09:00Z and 10:00Z - the instance zone is ET or UTC (the catalog's label), and a fixed clock cannot depend on the time of day.
+    - `[low]` `[patch]` No mutation line for the helper's clock check - `TestTimeReadsForms` pinned it (the first mutation survived, a wrong-clock case was added, red, reverted); the line is written.
+  - Intent Alignment Auditor
+    - descriptive report, no finding; the diff implements the instance-time reading, and the page's time has no day form.
 
 ## Design Notes
 
@@ -834,6 +855,10 @@ Tests added or changed by the QA pass (all discovered by the default runs: the `
 - mutation: CI rework 1 (the card's time is the retryAt), `Allowance.Notice` with `slots.time` = `NowUtc()` -> `Test.Core.AllowanceInProduction` red (`TestARefusedMessageGivesOneWebCard`, `TestARefusalOnAnotherDayNamesTheDay`) and `Test.Core.Allowance` red (`TestNotices`, `TestNoticeCarriesTheConfiguredLimit`, `TestNoticeOnAnotherDay`); `Allowance.DailyCapNotice` with `slots.time` = `NowUtc()` -> `TestTheDailyCapMessageReachesTheWebChatOnce` red; each reverted, tree byte-identical.
 - mutation: CI rework 1 (the browser case's card text), `CARD_TEXT` in `messages.spec.ts` without the day form -> `allowance-sources.test.mjs` red (`takes a clock with its day`); reverted, tree byte-identical.
 - mutation: CI rework 1 (the helper rejects the clock of another time), `Test.Core.Observe.TimeReads` matching any `HH:MM` as the same-day clock -> `Test.Core.Allowance` red (`TestTimeReadsForms`, "the clock of another time is no form of it"); reverted, tree byte-identical.
+- mutation: re-review 1 (the product's other-day text), `Catalog.Fill` without its "at" to "on" rewrite of a dated time -> `Test.Core.Allowance` red (`TestNoticeOnAnotherDay`, "the time carries its day" and "as 'on <day> at HH:MM'"); reverted, tree byte-identical, green again on the same warm stack.
+- mutation: re-review 1 (the time's own day), `Observe.TimeReads` taking any day before " at HH:MM" -> `Test.Core.Allowance` red (`TestTimeReadsForms`, "a date that is not its own is no form of it" and "nor is a weekday that is not its own"; `TestNoticeOnAnotherDay`, "the helper does not take 'at <day> at HH:MM'"); reverted, tree byte-identical.
+- mutation: re-review 1 (the tail), `Observe.TimeReads` without its tail test -> `Test.Core.Allowance` red (`TestTimeReadsForms`, "another tail of the same length is no form"); reverted, tree byte-identical, green again on the same warm stack.
+- mutation: re-review 1 (the card's day shapes), `CARD_TEXT` with the earlier day `[A-Z][a-z]+(?: \d{1,2}(?:, \d{4})?)?` -> `allowance-sources.test.mjs` red (`takes no other shape`); reverted, tree byte-identical.
 
 Measured by the QA pass `(MEASURED)`: `live online-allowance` with A3 and A4 took 263 s (browser step 149 s, 9 cases; A3 0.4 s, A4 0.4 s), against 235 to 237 s without them on the implement stage's runs. The new production cases run in 8.5 s on the warm stack, `Test.Core.Allowance` in 5.3 s, `allowance-sources.test.mjs` in 0.1 s.
 
