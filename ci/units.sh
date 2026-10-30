@@ -31,16 +31,18 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
 # Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
 # run times (DW-220; the expected times are in the spec of Story 16.9). live:online-demo-path (Story 29.4: REL-2's online run and the
-# second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. shard:lane-b cannot go to production,
+# second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. live:online-session (shards) and
+# live:online-allowance (shards-2) left install-fresh after its job took 39.9 min of the 40-min timeout (run 41088697760, 2026-10-30;
+# each unit starts its own throwaway and needs no install state). shard:lane-b cannot go to production,
 # whose units read no web bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:cards" ;;
     install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
-    shards-2) echo "shard:lane-a@rest live:online-demo-path" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch live:floor live:online-session" ;;
+    shards-2) echo "shard:lane-a@rest live:online-demo-path live:online-allowance" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
