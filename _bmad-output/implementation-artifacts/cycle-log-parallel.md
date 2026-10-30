@@ -950,3 +950,6 @@
 2026-10-30T21:43:07Z	Epic 1-37	inbox_resolved	id=U-166 by=orchestrator note=Epic_9_applied(Story_9.10,b1e97721);tests_verified_at_the_merge
 2026-10-30T21:43:07Z	Epic 1-37	inbox_resolved	id=U-168 by=orchestrator note=Epic_9_applied(Story_9.10,b1e97721);tests_verified_at_the_merge
 2026-10-30T21:45:00Z	Epic 31	dispatch_planned	runner=B slot=ocutalon-slot-b reason=slot_B_freed(Epic_9_ended_waiting_on_hosted_CI;lane_B_list_exhausted)->pool_order[12_waits_9,30_running,13_waits_30+11,31_eligible(depends_on_6_merged;31.1_waits_16_merged)] base=origin/feature=5e33525c(ci_green_verified_41108350023,41108350431) note=local_feature_bookkeeping_unpushed(ci_outage),so_the_worktree_starts_from_the_green_origin_head;31.2_waits_30,31.3_waits_12+15,31.4_waits_12+29;merge_gate_v0.1.1;Epic_9's_finish_takes_the_first_free_slot_when_hosted_CI_runs
+2026-10-30T21:45:51Z	Epic 31	worktree_provisioned	worktree=.worktrees/epic-31 branch=OCT-epic31 base=5e33525c(origin/feature,green) submodules=(none) pushed=origin/OCT-epic31
+2026-10-30T21:45:51Z	Epic 31	worktree_bootstrapped	epic=31 result=ok bootstrap_check=ok
+2026-10-30T21:48:25Z	Epic 31	runner_dispatched	agent=a307e94917773d06b model=opus runner=B slot=ocutalon-slot-b base=5e33525c retro_review=skip(no_X.0_input) prompt=scratchpad/dispatch-epic-31.md scope=31.1_then_end_waiting(30_or_hosted_CI)
