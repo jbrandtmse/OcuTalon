@@ -230,6 +230,8 @@ deferred: []
   - `ocutalon_ci_bot` in `StateBody`.
 
 **Acceptance Criteria:**
+- **The owner's U-164 condition (1):** given the installer's client SSL configuration `OcuTalonClient`, when a test runs against the shipped image (a fresh throwaway or CI stack built from the image, never slot A), then the CA file the configuration names exists in that image, and a request through `OcuTalonClient` to a disposable TLS server with a bad certificate (self-signed or for another host, started by the test inside its own throwaway, never a real external host) is refused (NFR-11, AD-19, AD-23).
+- **The owner's U-164 condition (2):** given an `http://` `ApiBase` (the CI mock through `OCUTALON_TELEGRAM_API_BASE`; AD-19), when `TelegramIn` and `TelegramOut` call the Bot API, then they stay plain HTTP and work with no SSL configuration in the way: the request is not HTTPS, and a missing or broken `SSLConfig` changes nothing on an `http://` base (AD-19, AD-22).
 - Given a token set and `TelegramIn` started, when it starts, then:
   - it reads the token only from the environment;
   - it learns the bot's user name from `getMe` and records `on` with it before its first poll, and `off` when it stops;
@@ -264,6 +266,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-30, before implementation (runner): the owner's U-164 answer added two acceptance criteria (the CA file in the shipped image and a refused bad certificate; plain HTTP on an `http://` override) and a Design Notes block saying how they are tested. Story 12.7 carries condition (3).
+
 - 2026-10-30, spec gate (runner, from the orchestrator's rulings): both `Install/**` edits are allowed as file-level extensions; the SSL configuration stays one general client configuration with no secret, as planned, and is veto item U-164. No other change to the plan.
 
 - 2026-10-30, spec gate (runner): the proposed split is decided (unattended ruling, split, decide). The page side (the third criterion's banner and card clause, "the banner leaves within one live update", and the search of the page) moved verbatim to the new Story 12.8, planned next (`12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try`). This spec keeps the server side as planned. The two contended `Install/**` edits wait on the orchestrator's ruling.
@@ -271,6 +275,11 @@ deferred: []
 ## Review Triage Log
 
 ## Design Notes
+
+**The owner's U-164 answer (2026-10-30T09:39:29Z, applied by the runner before implementation).** Keep the one general client configuration `OcuTalonClient`, with three conditions; conditions (1) and (2) are this story's acceptance criteria above, and (3) is Story 12.7's (its hands-on pass records a verified handshake with `api.telegram.org`).
+- Condition (1) is checked against the built image, never on slot A: either a `Test.Channel` %UnitTest class that runs on a fresh throwaway built from the image (lane A locally; `shards-2` in CI), or a new `docker/tests` script run as a unit in `shards` or `shards-2` (with `ci/units.sh` and `docker/tests/test-ci-config.sh` updated). "The CA file the configuration names": if the configuration keeps `%OSCertificateStore`, the test proves the OS store resolves to a CA bundle present in the image (and records which file); if an explicit `CAFile` is the cleaner way to make that provable, the implement stage may name the image's bundle instead and record why. The bad-certificate server is disposable and local to the test's own stack (for example `openssl s_server` with a certificate the test generates, or a Node `https` server in the stack), torn down by the test; record what was measured.
+- Condition (2): `Api` sets the request's SSL configuration only for an `https://` base; a test pins that an `http://` base makes a plain request (no `Https`, no `SSLConfiguration`) and keeps working when `SSLConfig` names a configuration that does not exist. The existing CI mock tests over `http://mock:8080` are the "it works" evidence.
+- Both get rows in the mutation table (for example: `Api` sets `Https` for an `http://` base; `OcuTalonClient` with `VerifyPeer` 0; the CA file check pointed at a missing file).
 
 **Spec-gate rulings (orchestrator, 2026-10-30; binding).**
 1. `Install/Step/Telegram.cls`: the `Base` method and the `ApiBase` rows written by `Run()` are allowed under the file-level extension already granted for 12.1.

@@ -3906,6 +3906,13 @@ So that no message is lost or repeated and two installs never fight over one bot
 **When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry and live event for the dummy token
 **Then** it finds none (NFR-11, AD-14)
 
+**Given** the installer's client SSL configuration `OcuTalonClient`, which `TelegramIn` and `TelegramOut` name in their SSL configuration host setting
+**When** a test runs against the shipped image
+**Then** the CA file the configuration names exists in that image, and a request through the configuration to a disposable TLS server with a bad certificate (self-signed or for another host, never a real external host) is refused (NFR-11, AD-19, AD-23)
+**And** with an `http://` endpoint override (AD-19: the CI mock, the demo host's gateway), `TelegramIn` and `TelegramOut` stay plain HTTP and work, with no SSL configuration in the way, which the CI mock tests show (AD-19, AD-22)
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the criterion above is the owner's U-164 conditions (1) and (2), answered 2026-10-30T09:39:29Z on the veto item for the client SSL configuration.]
+
 [AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): the page side moved verbatim to Story 12.8, planned next: the third criterion's And clause (the banner and the card's paused state), "the banner leaves within one live update" from the fourth, and "the page" from the fifth's search; the server side stays here.]
 
 - DW-422: TelegramIn's kept update offset (`$$$EnsStaticAppData("TelegramIn", "offset")`, Story 12.1's `Test.Channel.BotApi`) is pinned only against that helper; this story's tests prove its poller keeps its offset in that node (ledger; routed by harvest 2026-10-30)
@@ -4096,6 +4103,7 @@ So that I can approve the fix from my own phone and see the result there.
 **Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>`
 **When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass
 **Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
+**And** the hands-on pass records a verified TLS handshake with `api.telegram.org` through the installer's client SSL configuration `OcuTalonClient` (peer verification on), in the candidate's record (REL-7, AD-19) [AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the owner's U-164 condition (3)]
 
 **Given** Story 11.2's upgrade and restart harness
 **When** this story merges
