@@ -811,7 +811,7 @@ else
   fail "QA row 4: busy-per-day ends as '$(tr '\n' '|' < "$state/busy-per-day")'"
 fi
 
-# --- the probe's temporary folder: every run above (healthy, busy, no_splash, auth_failed, no_decision, killed, a configuration error) removed its own ---
+# --- the probe's temporary folder: every run above (healthy, capped, busy, no_splash, degraded, auth_failed, no_decision, killed, a configuration error) removed its own ---
 
 if [ -z "$(ls -A "$work_root")" ]; then
   pass "the probe's temporary folder (the cookie jar) is removed at the end of every run"

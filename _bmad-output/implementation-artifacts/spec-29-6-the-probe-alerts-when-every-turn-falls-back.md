@@ -141,6 +141,30 @@ Rows 1 to 5 run in the hermetic `docker/tests/test-probe.sh` (a Node stub stands
 - AC3: given `Test.Agent.Decide` on a fresh throwaway with the CI mock, when the class runs, then `TestDailyCapPlainText` holds matrix row 7 and `TestDailyCapBothPaths` passes unchanged.
 - AC4: given `docker/tests/test-mock.sh`, when it runs, then matrix row 8 holds, and the committed tree, with `B/daily-cap-text.json`, loads with no problem.
 
+### Review Findings
+
+Code review, 2026-10-30 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Each finding: severity / fix-risk / footprint / spec-status (Rule 15). Patched in the review. After the patches, these passed: `test-probe.sh`; `test-mock.sh`, 118 of 118 (the new Telegram row went red when the Telegram rule also accepted a string, and the tree was byte-identical after the revert); `test-online-host.sh`; `live online-demo` on a fresh lane-C throwaway (0 FAIL, P9 `degraded count=1 fallback=no_key`, row 9's nine lines and seven alerts); and `Test.Agent.Decide` on a fresh throwaway (107 s). The tag `e29s6cr` is torn down.
+
+- [x] [Review][Patch] The Telegram reply's JSON-object body rule has no row for a string body, beside the widened model-reply rule (low / low / in-story / clear) [ci/mock/test/scenarios.test.mjs:62]
+- [x] [Review][Patch] The header says the runners' keys point at the mock key "for the phase", but P9 runs after they are put back (low / low / in-story / clear) [docker/tests/test-online-demo.sh:57]
+- [x] [Review][Patch] The temporary-folder check's comment lists the runs above without `capped` and `degraded` (low / low / in-story / clear) [docker/tests/test-probe.sh:814]
+- [x] [Review][Patch] H20 says the host's alert command "delivers" every outcome, which reads as measured; the Task says it "must deliver" (low / low / in-story / clear) [release/demo-host-checks.md:59]
+- [x] [Review][Defer] An `error` fallback, and every other reason but the three, still reports healthy. On the host the IRIS key is a dummy (H12), so `no_key` needs a broken deploy, while a revoked real key (401), a provider 500 or a down gateway give `error`. The story's "So that" (a demo whose replies are all fallbacks never reports healthy) is met only for the three reasons (med / low / in-story / spec-bound: Always and Never name three) [docker/probe.sh:246] - deferred: DW-446 `decision-pending owner=burndown`, a product call, since U-157 named three reasons. Recommended: `error` is alert-only too.
+- [x] [Review][Defer] AD-25's probe bullet lists `busy`, `capped`, `auth_failed` and `no_decision`, and not `no_splash` or `degraded`; the counting rule holds, so this is no Rule 6 mismatch (med / low / out-of-footprint / clear) [ARCHITECTURE-SPINE.md, AD-25] - deferred: DW-447 `escalated owner=burndown`, an as-built line for the lead (Rule 20).
+- [x] [Review][Defer] The spine's AD-29 does not record Epic 29's edits to `release/demo-host-checks.md`, Lane A's folder; `Test.Agent.Decide` is a test the spec names, which the Epic 29 exception covers (low / low / out-of-footprint / clear) [release/demo-host-checks.md] - deferred: an occurrence on DW-423 (escalated).
+
+Rejected:
+- `low` Blind: no test pins H13's "an empty body gives `error`". An empty body holds no cap text, so `Classify` cannot give `daily_cap` for it; a new scenario and test (over 15 lines) would pin a limitation.
+- `false` Blind: the `Decide.cls` header lists `TestDailyCapPlainText` in Story 1.6's group. The header already places later tests beside their siblings with a story tag (`TestSnapshotDiagnosis (Story 5.4)`, `TestTimer (Story 1.7)`).
+- `low` Blind: the implement triage log's reason for rejecting a Content-Type guard. The fix edits the spec under review.
+- `false` Blind: the implement triage log's premise that P7 always removes the day's mark. P9 is `degraded` either way, because `Classify` checks `noKey` before `capped` (rule 1); the log is the spec's.
+- `false` Blind: QA's `timeout` mutation line gives no FAIL count. Rule 19 asks for the mutation and the tests that went red, and the line names them.
+- `low` Edge: a `timeout` or `rate_limited` decision after 120 s counts as `no_decision`. Spec-bound (Always: the 120 s wait still ends as `no_decision`), and the bridge timer is at most 110 s (AD-5).
+- `low` Edge: `GatewayCap` reads today's date before the 403, so a run across local midnight could miss the mark. The code moved unchanged from `TestDailyCapBothPaths`; it becomes real only for a decide that straddles local midnight.
+- `low` Edge: with P9 skipped, row 9's loop reads a missing `probe.p9.out` (stderr noise). P9's own FAIL line names the cause, the script has no `set -e`, and the fix adds a branch on a failure path.
+- `false` Verification-gap: P9 relies on P8's count. P9 is a step of one live unit whose phase creates its own state folder; no other test's leftovers are read.
+- `false` Acceptance: `Test.Agent.Decide` is Lane A's file under AD-29. The Epic 29 exception lets it change "the specs and tests it names", and this spec names it.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -271,6 +295,11 @@ The implement stage searches `docker/tests`, `ci/mock/test`, `release/` and `src
 - AC2: mutation: the same `no_key` drop. Expected red: `live online-demo`'s P9 (`healthy count=0 fallback=no_key`) and row 9's outcome list. Runs once, about 6 min. Run in the implement stage on a fresh throwaway: P9 read `healthy count=0 fallback=no_key` (exit 0, stored count 0, 6 alert lines) and row 9's outcome list and alert record went red (5 FAIL lines); reverted from a backup, the tree byte-identical, and the unmutated unit passed.
 - AC3: mutation: `ci/mock/scenarios/B/daily-cap-text.json`'s body becomes "daily cost cap exceeded". Expected red: `TestDailyCapPlainText` (reason `error`, the day unmarked) on a fresh class run, and `server.test.mjs` row 13's committed check in `test-mock.sh`. Run in the implement stage on a warm throwaway restarted for the mock change: `test-mock.sh` failed only row 13 (1 of 117), and the class failed only `TestDailyCapPlainText` (three asserts: the fallback guarantees, the day marked, the sink events); reverted from a backup, the throwaway torn down and the tree byte-identical.
 - AC4: mutation: `checkReply` refuses a string body again. Expected red: `test-mock.sh`'s committed-tree load test (it names `B/daily-cap-text.json` and the body rule) and the limits test. Run in the implement stage: the committed-tree load, the limits test and every server test that loads the committed tree went red (41 of 117); reverted from a backup and the tree was byte-identical.
+
+**QA stage (2026-10-30, hermetic only; no test file created, no live run because `docker/probe.sh` and `docker/tests/test-online-demo.sh` were not changed).** `test-probe.sh` all checks passed and `test-mock.sh` 117 of 117 on the unmodified tree. All four ACs already have a pinning test and a demonstrated mutation (above). Two extra per-reason mutations on AC1, since the implement stage demonstrated only the `no_key` drop:
+- mutation: drop `rate_limited` from the `degraded` match in `docker/probe.sh` -> `test-probe.sh` row 13's `rate_limited` cases and the `rate_limited` QA path went red (8 FAIL lines).
+- mutation: drop `timeout` from the `degraded` match in `docker/probe.sh` -> `test-probe.sh` row 13's `timeout` cases and the `timeout` QA path went red.
+Each reverted from a backup; `git status --short` and `git diff --stat` byte-identical to before.
 
 **Manual checks:**
 - H13 and H20 of `release/demo-host-checks.md` and its probe section read as the release-check task says. Both statuses are unchanged, and no row reads as a pass.

@@ -413,6 +413,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (b) measured ci/mock/scenarios/A/daily-cap.json (permission_error JSON) only and did not try a plain-text body; Story 29.3's AC names HTTP 403 and the fixed text only; Classify finds daily_cap by the text
 - 2026-10-23T02:11:46Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=unverified; settled by the gateway sending the measured JSON body, or a plain-text 403 measured to give daily_cap
 - 2026-10-30T04:25:32Z status=routed owner=29-6-the-probe-alerts-when-every-turn-falls-back by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.6
+- 2026-10-30T19:28:05Z status=resolved-by:29-6-the-probe-alerts-when-every-turn-falls-back by=adjudication note=measured at the plan (warm throwaway): a plain-text 403 'daily cost cap reached' gives daily_cap, so no bridge change; pinned by ci/mock/scenarios/B/daily-cap-text.json and Test.Agent.Decide.TestDailyCapPlainText; release check H13 says the 403 body must carry the phrase (an empty body gives error)
 
 ### DW-95: RecordFallback marks the day of the call (MarkCapped with no day), so a cap reached within one call's latency before local midnight marks the next day as capped
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
@@ -1391,6 +1392,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T11:11:47Z status=decision-pending owner=burndown by=harvest note=product call for the decision sheet: should a non-daily_cap fallback (no_key, timeout, rate_limit) alert the author without counting toward a reset? Recommended: yes, as an alert-only outcome like busy, if the owner agrees (it changes the AC's outcome list)
 - 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-157 (Epic 16 decision sheet): an alert-only probe outcome for no_key, timeout and rate_limit fallbacks, which alerts the author and never counts toward a reset, like busy
 - 2026-10-30T04:25:32Z status=routed owner=29-6-the-probe-alerts-when-every-turn-falls-back by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.6
+- 2026-10-30T19:28:05Z status=resolved-by:29-6-the-probe-alerts-when-every-turn-falls-back by=adjudication note=build 8c4db572 + review: docker/probe.sh reports degraded for no_key, timeout and rate_limited fallbacks (alerts, exit 1, neither the failure count nor the busy count changes), pinned by test-probe.sh row 13, the QA paths and the degraded sequence, and live online-demo P9 (degraded count=1 fallback=no_key); release check H20 names it; the error fallback question is DW-446 (decision-pending)
 
 ### DW-268: The probe never signs out a sign-in IRIS accepted (3xx) when the redirect GET is not the shell (busy, timeout, other page), so the CSP session holds its connection until its 120 s timeout
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: med | footprint: in-story
@@ -2333,6 +2335,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Spine AD-29 launch-fix bullet: 'Story 29.3 changes no file in this repository'; the story adds release/demo-host-check.sh and release/demo-host-checks.md, which epic29_brief directs; no AD-29 as-built line (Rule 20)
 - 2026-10-30T08:03:08Z status=escalated owner=burndown by=cr note=for the decision sheet: an AD-29 as-built line naming 29.3's two release/ files (spine update is the lead's, Rule 20)
+- 2026-10-30T19:11:36Z occurrence=29-6-the-probe-alerts-when-every-turn-falls-back
 
 ### DW-424: IRIS_INPUT's docker/tests/lib-[^/]+.sh pattern also claims lib-stub.sh, which only the hosted tests test-probe.sh and test-online-host.sh use, so a change to it runs every IRIS group in CI
 - source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2382,3 +2385,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: release/demo-host-checks.md H17 prints $Data(^OcuTalonP.AddrCountK); if KEYGLOBAL ever moved, the host check would read an empty node and print 0. The spec's Tasks give H17's text verbatim, and TestKeyIsPrivate pins KEYGLOBAL to that literal, so a move fails a test first.
 - 2026-10-30T16:03:44Z status=by-design owner=29-5-the-address-counter-s-hash-is-keyed-per-reset by=cr note=spec-bound: the spec gives H17's text; TestKeyIsPrivate pins the literal name
+
+### DW-446: The probe reports healthy when every turn is an error fallback (a revoked real key, a provider 500 or a down gateway behind the demo's gateway), because degraded covers only no_key, timeout and rate_limited
+- source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: docker/probe.sh run_checks matches only daily_cap, no_key, timeout and rate_limited; Decide.Classify gives error to a failure without the cap, key, timeout or rate-limit text (a 401, a 500); H12: the host's IRIS holds a dummy key, so no_key needs a broken deploy; Story 29.6's So that: a demo whose replies are all fallbacks never reports healthy
+- 2026-10-30T19:11:36Z status=decision-pending owner=burndown by=cr note=product call: should error also be degraded (alert-only)? U-157 named three; recommended: yes, like the three
+
+### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
+- source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Spine AD-25, The probe: 'Its outcomes are busy ..., capped ..., auth_failed ... and no_decision'; docker/probe.sh's outcome table also has no_splash and degraded (alert-only, never counted); the spec's Design Notes hand the amendment to the lead (Rule 20)
+- 2026-10-30T19:11:36Z status=escalated owner=burndown by=cr note=for the decision sheet: an AD-25 as-built line adding no_splash and degraded, keeping the id (Rule 20, the lead's)

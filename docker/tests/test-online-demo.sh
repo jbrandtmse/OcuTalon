@@ -55,8 +55,8 @@
 #     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
-#     before the password-log checks, with the three runners' model keys pointed at the mock key variable for the phase
-#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back after it: nine runs on one state folder
+#     before the password-log checks, with the three runners' model keys pointed at the mock key variable for P1 to P8
+#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back before P9 and after the phase: nine runs on one state folder
 #     with stub alert and reset commands that append "alert <outcome> <line>" or "reset" to one record file: P1 healthy (row 1: exit 0,
 #     no alert or reset, exactly one new Session row whose CSP session
 #     no longer exists), P2 a wrong password (row 2, auth_failed count=1), P3 the online-demo flag "0" (row 3, no_splash), P4 the cap at the

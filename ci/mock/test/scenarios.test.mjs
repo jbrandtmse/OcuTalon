@@ -60,6 +60,7 @@ const DEFECTS = [
   ['a telegram match that is not a string', { 'A/good.json': { ...GOOD, match: { telegram: 5 }, replies: [TG_REPLY] } }, ['A/good.json', 'match telegram is not a non-empty string']],
   ['a telegram reply with no body', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200 }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
   ['a telegram reply with a body that is a list', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: [1] }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
+  ['a telegram reply with a body that is a string', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: 'x' }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
   ['a telegram reply with text', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, text: 'x' }] } }, ['A/good.json', 'a reply has the unknown field "text"']],
   ['a telegram reply with toolUse', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, toolUse: { name: 'a' } }] } }, ['A/good.json', 'a reply has the unknown field "toolUse"']],
   ['a telegram reply with a stopReason', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, stopReason: 'end_turn' }] } }, ['A/good.json', 'a reply has the unknown field "stopReason"']],
