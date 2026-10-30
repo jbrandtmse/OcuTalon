@@ -2436,6 +2436,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci/units.sh group_units after Story 9.6: shards = shard:lane-a@Checks,Install,Watch live:floor live:cards; shards-2 = shard:lane-a@rest live:audit; ARCHITECTURE-SPINE.md AD-22 CI-as-built bullet (DW-407's text) still names the old homes
 - 2026-10-30T10:59:46Z status=decision-pending owner=burndown by=lead note=for the decision sheet: the orchestrator writes AD-22's as-built CI line at Epic 9's merge gate, as for DW-407 (no worktree spine edit)
 - 2026-10-30T11:47:02Z occurrence=9-5-release-candidates-pass-the-evaluation-and-the-demo-incident by=spec_gate note=also for the orchestrator at the merge gate: Story 9.5's proposed AD-22 as-built bullet 'The release-candidate run (Story 9.5)' (text in spec-9-5's Design Notes, Proposed spine text); write it only once 9.5 is done and only as built
+- 2026-10-30T16:16:12Z occurrence=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=spec_gate note=also: Story 9.10's proposed AD-22 as-built text (spec-9-10 Design Notes); write it only once 9.10 is done and only as built
 
 ### DW-434: eval/run.sh --release-candidate keeps ANTHROPIC_API_KEY in the environment of lib-live's ensure_web_bundle, so in a checkout without the web bundle npm ci's install scripts and the web build run with the real key
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: in-story
