@@ -11,6 +11,7 @@ import {
   cleanPopulated,
   epochOf,
   expectOpenedDirectly,
+  leaveVisitor,
   openVisitor,
   opensTabStrict,
   ordersOf,
@@ -156,9 +157,8 @@ test('step 1: the splash holds the published credentials, and Sign in and start 
     await expect(page).toHaveTitle('Try OcuTalon');
     await expect(page.getByLabel('User name', { exact: true }), 'the user name is the published demo user').toHaveValue(user);
     await expect(page.getByLabel('Password', { exact: true }), 'the password is the published demo password').toHaveValue(password);
-    await page.getByRole('button', { name: 'Sign in and start', exact: true }).click();
+    await loadedAfter(page, () => page.getByRole('button', { name: 'Sign in and start', exact: true }).click());
     await expect(page).toHaveTitle('OcuTalon');
-    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   } finally {
     await signOutGroup(page);
   }
@@ -181,6 +181,7 @@ test('step 6: the trace link opens Visual Trace at the conversation, signed in, 
     const decision = turn.decision as (Turn['decision'] & { agentStepCount?: number; costUSD?: number }) | undefined;
     expect(decision, "the turn shows a decision with a trace target of its own").toBeDefined();
     const agentSteps = decision?.agentStepCount ?? 0;
+    expect(agentSteps, "the decision counts its agent steps (each model call is one), so the checks below are the turn's own").toBeGreaterThan(0);
 
     const reply = page.locator(`app-chat-panel [data-part="reply"][data-key="${turn.clientId}"]`);
     const link = reply.locator('app-decision-strip app-trace-link a');
@@ -285,7 +286,7 @@ test('second visitor: A breaks the feed and its incident, notice and approval re
     await expect(approvalRows(b.page), "B's rail has no approval row").toHaveCount(0);
     await expect(breakFeedButton(b.page), "B's Break the feed is still enabled").not.toHaveAttribute('aria-disabled', 'true');
     const bAfterRead = await readState(b.page);
-    expect(bBefore.guide, "B's state serves its guide").toBeDefined();
+    expect(bBefore.guide ?? null, "B's state serves its guide").not.toBeNull();
     expect(bAfterRead.snapshot.guide, "B's guide state is the one read before the press").toEqual(bBefore.guide);
     expect(ownRows(bAfterRead.snapshot), "B's rows are the ones read before the press").toEqual(bOwn);
     const bEvents = await eventsSince(b.page, bCursors);
@@ -339,10 +340,8 @@ test('second visitor: A breaks the feed and its incident, notice and approval re
       .not.toMatch(/^(pending|approved|executing)$/);
     await expect(incidentCard(b.page), 'and B still has no incident card').toHaveCount(0);
   } finally {
-    for (const visitor of visitors) await signOutGroup(visitor.context);
-    for (const visitor of visitors) await removeSession(visitor.epoch);
+    for (const visitor of visitors) await leaveVisitor(visitor);
     for (const rows of populated) await cleanPopulated(rows);
-    for (const visitor of visitors) await visitor.context.close().catch(() => undefined);
   }
 });
 

@@ -1300,6 +1300,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 16.2 spec gate: the demo-path project lists every spec under web/e2e/demo-path/ and demo-path-summary/test-demo-path-gate.sh pin file-to-step mapping, so the online run sits in the online-demo project; Story 16.2's AC says Story 11.1 turns its later steps on
 - 2026-10-25T21:32:41Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=11.1 turns on the online run's steps 2-6 in web/e2e-online/demo-path.spec.ts together with the web run's (the online-demo unit runs them on its flag-on throwaway)
+- 2026-10-30T13:10:06Z occurrence=29-4-sessions-stay-isolated-under-load by=cr note=moved to e2e-online/demo-path/ (unit online-demo-path, shards-2); step 6 is real; report_check pins the 4 skips of 11.1
 
 ### DW-225: The path lists that name SignInAssets.cls (ci/units.sh WEB_INPUT_PATTERN, test-ci-changes, test-compose-file's not-ignored check, test-boundaries' scope) do not name SplashAssets.cls or splash.css/js
 - source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1337,6 +1338,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ref_script repeats iris_script's retry loop and CHK filter (docker/tests/lib-live.sh:307-317) adding -e; lib-live.sh is a contended path, so 16.3 could not extend it
 - 2026-10-26T04:26:20Z status=escalated owner=burndown by=cr note=Rule 2: give iris_script an env pass-through and let ref_script/check_ref_session delegate (contended file)
 - 2026-10-30T03:14:28Z status=routed owner=29-4-sessions-stay-isolated-under-load by=merge_gate note=Epic 16 decision sheet (decide): Rule 2, give iris_script an environment pass-through and let ref_script and check_ref_session delegate, when 29.4 edits the online test scripts
+- 2026-10-30T13:14:02Z status=resolved-by:29-4-sessions-stay-isolated-under-load by=adjudication note=build 17a1f68: iris_script passes the names in LIVE_SESSION_ENV as -e to dc exec (check_session documents it); test-online-demo.sh lost ref_script and check_ref_session and row 6 searches through check_session with LIVE_SESSION_ENV=OCUTALON_T16_REF; live:online-demo passed after implement and after review
 
 ### DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1373,6 +1375,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ChatOutbox.send(text, fromGuide) has no caller with fromGuide true in web/src/app; the first caller is Epic 4's guide; the rule is in ChatOutbox.refuse; B2 sends typed text only
 - 2026-10-26T07:48:33Z status=routed owner=burndown by=harvest note=testable once Epic 4's guide sends prompts and has been integrated forward; the burn-down gate checks
 - 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down,no_charter:5_entries_under_the_cap_of_8,none_with_2+_occurrences):the_guide_now_sends_prompts(demo-guide.ts_via_ChatOutbox.send(text,true));chat-outbox.ts:130_drops_a_refused_guide_entry_silently_but_no_test_pins_the_online_demos_503_rule_for_it;29.4_drives_the_online_demo_full_with_one_more_visitor_seeing_busy:add_an_e2e-online_case_(a_guide_prompt_answered_503_leaves,nothing_announced)
+- 2026-10-30T13:14:02Z status=resolved-by:29-4-sessions-stay-isolated-under-load by=adjudication note=web/e2e-online/busy.spec.ts B2b presses guideSend at the cap and pins the 503 rule (the entry leaves, nothing is announced); live:online-demo passed after review
 
 ### DW-254: The demo host must run docker/probe.sh every 15 minutes with bash and curl, reach IRIS directly from an address other than the public proxyAddress, and provide its environment (OCUTALON_PROBE_URL, the demo credentials, alert and reset commands, a state directory)
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1945,6 +1948,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T02:54:15Z status=routed owner=burndown by=ci note=residual:the_same_sign-in_readiness_wait_remains_in_web/e2e/support/floor.ts_openFloor(data-snapshot_loaded_within_the_default_10_s);16.4_fixed_only_rail.spec.ts_open()(wait_for_the_GET_/state_200)
 - 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down):web/e2e/support/floor.ts_openFloor_waits_the_default_10_s_for_data-snapshot_loaded_after_signIn;wait_for_the_GET_/state_answer_as_rail.spec.ts_open()_does_(16.4);29.4_is_the_next_Lane_B_story_that_signs_visitors_in_under_load
 - 2026-10-30T11:57:16Z occurrence=29-4-sessions-stay-isolated-under-load note=harvest: two more online visitors still sign in then wait 10 s for data-snapshot (web/e2e-online/allowance/daily-cap.spec.ts visit() :69, web/e2e-online/allowance/messages.spec.ts open() :50); same root cause, to be fixed with loadedAfter in this story (QA)
+- 2026-10-30T13:10:06Z occurrence=29-4-sessions-stay-isolated-under-load by=cr note=cr: loadedAfter now in openSession, busy/demo-account open(), step 1; old wait left in reset, resume, splash, session/*
+- 2026-10-30T13:14:02Z status=resolved-by:29-4-sessions-stay-isolated-under-load by=adjudication note=loadedAfter (web/e2e/support/floor.ts) waits for GET /state 200 before data-snapshot; openFloor, banners open() (the rail R1 path), openVisitor, openSession, busy and demo-account open(), step 1 and the allowance visits use it; live:floor, live:sign-in part 1, online-demo, online-allowance, online-session passed. The same old wait remains in the reset, resume, splash and session/* specs (never seen red): accepted, reopen_if=one of those specs goes red with data-snapshot still loading right after a sign-in
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -2296,6 +2301,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/e2e-online/allowance/daily-cap.spec.ts seeds today's spend (seedUsage, :110 and :180) and later reads today's mark and day again (cappedMarked :127/:160, localToday :133/:165, support.ts:563-570); Bridge.Budget.State counts only the current local day. A midnight between them (a window of about 1-2 min per case) gives no daily_cap card, or a mark and DailyCapDay of the day before.
 - 2026-10-30T01:29:01Z status=routed owner=burndown by=cr note=re-review 1 of 16.9 (verification-gap): take the day once (e.g. from the fallback's RecordedAt) and keep each case clear of instance midnight; not patched: the wait path is unexercisable here
 - 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down):web/e2e-online/allowance/daily-cap.spec.ts_D1,D2,AP_read_the_instance_day_more_than_once;take_the_day_once_(e.g._the_fallbacks_RecordedAt)_and_keep_each_case_clear_of_instance_midnight;29.4_runs_the_online-demo_e2e_with_the_online-demo_start_values
+- 2026-10-30T13:14:02Z status=resolved-by:29-4-sessions-stay-isolated-under-load by=adjudication note=web/e2e-online/support.ts instanceDay and clearOfMidnight read the instance day once per case; D1, D2 and AP pass that day to cappedMarked, unmarkCapped and the DailyCapDay comparison; the browserless D0 pins the midnight wait; review made test-online-allowance.sh's capped-mark checks day-independent
 
 ### DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight
 - source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2351,3 +2357,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41027546659 (OCT-epic29 468654f, iris install-fresh) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: attempt 1 red (expectPlaceFreed: since parsed NaN after landedOn matched ?since=), attempt 2 green on the same sha; Story 29.3 changed no web or product code
 - 2026-10-30T10:02:36Z status=routed owner=burndown by=runner note=flake class: one rerun; priority for the burn-down (Epic 29 owns web/e2e-online/**); likely a clock-install race in the URL read (inference)
+
+### DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor
+- source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 29.4 QA run: D1 red at S1's banner after cappedMarked(day) passed, unchanged rerun 10/10; Budget.State counts Usage rows only in a privileged process; StatusMonitor publishes on change only
+- 2026-10-30T13:09:59Z status=routed owner=burndown by=cr note=pre-existing, not 29.4's D1 edits (cappedMarked(day) passed first); fix: align the counts or sign S1 in before the seed
+
+### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
+- source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 29.4 implement: the guide press got a text reply, no check row, and Break the feed answered 409; the second visitor sends [[mock:watch-start-orders]] instead (Decided in-stage 0)
+- 2026-10-30T13:10:06Z status=routed owner=burndown by=cr note=for UJ-1 step 2 under the mock (11.1's 02-watch and the online run's step 2); re-own to 11.1 at the burn-down

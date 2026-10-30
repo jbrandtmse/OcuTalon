@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { post, MESSAGES } from '../../e2e/support/api';
 import {
@@ -8,19 +8,18 @@ import {
   cleanPopulated,
   clearOfMidnight,
   dailyCapSettled,
-  epochOf,
   fallbackReasons,
+  leaveVisitor,
   mockRequests,
+  openVisitor,
   populate,
-  removeSession,
   removeUsage,
   seedAllowance,
   seedUsage,
-  signInFromSplash,
-  signOutGroup,
   turnRowsOf,
   unmarkCapped,
   type Populated,
+  type Visitor,
 } from '../support';
 
 /**
@@ -49,7 +48,10 @@ const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const CAPPED_CARD = "The online demo has used today's model allowance. Decisions use fixed rules until ";
 const MARKER = '[[mock:daily-cap]]';
 
-/** The seconds of the instance's day that each case needs (its waits, with a margin): clearOfMidnight waits past midnight when fewer are left. */
+/**
+ * The seconds of the instance's day that each case needs: well above what a passing case takes, though less than the sum of its waits'
+ * timeouts. clearOfMidnight waits past midnight when fewer are left.
+ */
 const D1_BUDGET_S = 240;
 const D2_BUDGET_S = 150;
 const AP_BUDGET_S = 200;
@@ -58,30 +60,6 @@ const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
 const cappedCards = (page: Page): Locator => page.locator('app-notice-card').filter({ hasText: CAPPED_CARD });
 const dailyCapBanner = (page: Page): Locator => page.locator('[data-banner="dailyCap"]');
-
-/** A visitor: its own browser context, signed in at the splash, with the epoch of its session. */
-interface Visitor {
-  context: BrowserContext;
-  page: Page;
-  epoch: string;
-}
-
-/** Signs a new visitor in, in a context of its own (a new OcuTalon session with its own resume cookie), once its snapshot has loaded. */
-async function visit(browser: Browser): Promise<Visitor> {
-  const context = await browser.newContext({ baseURL: process.env['OCUTALON_URL'] });
-  const page = await context.newPage();
-  await signInFromSplash(page);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-  return { context, page, epoch: await epochOf(page) };
-}
-
-/** Signs a visitor out and removes its rows. */
-async function leave(visitor: Visitor | undefined): Promise<void> {
-  if (visitor === undefined) return;
-  await signOutGroup(visitor.context);
-  await removeSession(visitor.epoch);
-  await visitor.context.close();
-}
 
 /** Sends a message through the API of the visitor's page. */
 async function send(visitor: Visitor, text: string, id: string): Promise<void> {
@@ -134,12 +112,12 @@ test('D1: the daily cap reached by IRIS\'s own count sends the daily-cap message
   try {
     day = await clearOfMidnight(D1_BUDGET_S);
     expect(await cappedMarked(day), 'the day is not marked to begin with').toBe(false);
-    s3 = await visit(browser);
+    s3 = await openVisitor(browser);
     await send(s3, 'zz S3 before the cap', 'd1s3');
     await expect.poll(async () => (await turnRowsOf(s3!.epoch)).map((turn) => turn.state), { message: "S3's turn is done before the cap is reached", timeout: 90_000 }).toEqual(['done']);
-    s2 = await visit(browser);
+    s2 = await openVisitor(browser);
     usage = await seedUsage(20);
-    s1 = await visit(browser);
+    s1 = await openVisitor(browser);
     await send(s1, 'zz S1 under the cap', 'd1s1');
 
     await expect(cappedCards(s1.page), 'S1 has one daily-cap card').toHaveCount(1, { timeout: 90_000 });
@@ -165,9 +143,9 @@ test('D1: the daily cap reached by IRIS\'s own count sends the daily-cap message
       expect((await allowanceRow(visitor.epoch)).dailyCapDay, `${name}: DailyCapDay is today`).toBe(day);
     }
   } finally {
-    await leave(s1);
-    await leave(s2);
-    await leave(s3);
+    await leaveVisitor(s1);
+    await leaveVisitor(s2);
+    await leaveVisitor(s3);
     await restore(day, usage);
   }
 });
@@ -186,7 +164,7 @@ test('D2: the gateway\'s 403 falls back with daily_cap, marks the day and sends 
     expect(await cappedMarked(day), 'the clean state: the day is not marked').toBe(false);
     await settleMonitor();
     const before = await mockRequests('daily-cap');
-    s4 = await visit(browser);
+    s4 = await openVisitor(browser);
     await send(s4, `${MARKER} zz capped by the gateway`, 'd2');
     await expect(cappedCards(s4.page), 'one daily-cap card').toHaveCount(1, { timeout: 90_000 });
     expect(await fallbackReasons(s4.epoch), 'its decision fell back with daily_cap').toContain('daily_cap');
@@ -197,7 +175,7 @@ test('D2: the gateway\'s 403 falls back with daily_cap, marks the day and sends 
     await expect(cappedCards(s4.page), 'and still one card').toHaveCount(1);
     expect((await allowanceRow(s4.epoch)).dailyCapDay).toBe(day);
   } finally {
-    await leave(s4);
+    await leaveVisitor(s4);
     await restore(day, undefined);
   }
 });
@@ -212,7 +190,7 @@ test('AP: an approval is answered and Break the feed is pressed while both caps 
     day = await clearOfMidnight(AP_BUDGET_S);
     expect(await cappedMarked(day), 'the clean state: the day is not marked').toBe(false);
     await settleMonitor();
-    s1 = await visit(browser);
+    s1 = await openVisitor(browser);
     usage = await seedUsage(20);
     await send(s1, 'zz S1 under the cap', 'apcap');
     await expect(cappedCards(s1.page), 'the daily cap holds for S1').toHaveCount(1, { timeout: 90_000 });
@@ -236,7 +214,7 @@ test('AP: an approval is answered and Break the feed is pressed while both caps 
     expect((await pressed).status(), 'Break the feed answers 200').toBe(200);
   } finally {
     if (rows !== undefined) await cleanPopulated(rows);
-    await leave(s1);
+    await leaveVisitor(s1);
     await restore(day, usage);
   }
 });

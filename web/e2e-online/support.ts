@@ -10,9 +10,10 @@ import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
 /**
- * What the specs of the online-demo project share (Story 16.1). The project runs on the throwaway that docker/tests/test-online-demo.sh
- * starts with the online-demo flag on and the test start values; the unit gives the two public accounts' names and passwords as
- * OCUTALON_DEMOACCOUNT_* and OCUTALON_READONLYACCOUNT_* (fixtureUser reads them).
+ * What the specs of web/e2e-online/ share: the online-demo, online-session, online-allowance and online-demo-path projects (Stories 16.1,
+ * 16.4, 16.9 and 29.4). Each project runs on the throwaway that its unit (docker/tests/test-online-demo.sh, test-online-session.sh,
+ * test-online-allowance.sh or test-online-demo-path.sh) starts with the online-demo flag on and the test start values; the unit gives the
+ * two public accounts' names and passwords as OCUTALON_DEMOACCOUNT_* and OCUTALON_READONLYACCOUNT_* (fixtureUser reads them).
  */
 
 /** The group-wide sign-out of the sign-in group: it ends the CSP session of /ocutalon, /ocutalon/api and the trace applications. */
@@ -88,10 +89,9 @@ export async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
   return ((await response.json()) as { epoch: string }).epoch;
 }
 
-/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot. */
+/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot (loadedAfter: the answer of /state first, DW-333). */
 export async function openSession(page: Page): Promise<string> {
-  await signInFromSplash(page);
-  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page));
   return epochOf(page);
 }
 
@@ -224,7 +224,7 @@ export interface Visitor {
 /**
  * Opens a new browser context on the stack, signs the demo account in from the splash and waits for the page's snapshot (loadedAfter), and
  * returns the visitor with its session row's Ref and TraceRef. A visitor that cannot be opened is signed out and closed before the error
- * goes on. The caller signs it out of the group (signOutGroup), removes its session (removeSession) and closes the context.
+ * goes on. The caller ends it with leaveVisitor.
  */
 export async function openVisitor(browser: Browser): Promise<Visitor> {
   const context = await browser.newContext({ baseURL: process.env['OCUTALON_URL'] });
@@ -240,6 +240,14 @@ export async function openVisitor(browser: Browser): Promise<Visitor> {
     await context.close().catch(() => undefined);
     throw error;
   }
+}
+
+/** Signs a visitor out of the sign-in group, removes its session and closes its context; a visitor that was never opened is skipped. */
+export async function leaveVisitor(visitor: Visitor | undefined): Promise<void> {
+  if (visitor === undefined) return;
+  await signOutGroup(visitor.context);
+  await removeSession(visitor.epoch);
+  await visitor.context.close();
 }
 
 /**
@@ -636,13 +644,17 @@ export async function dailyCapSettled(): Promise<boolean> {
   return chk(lines, 'settled') === '1';
 }
 
-/** The instance's local date (as the bridge keys the day's cap and a session records its daily-cap day) and the whole seconds left of it, read from one NowUtc. */
+/**
+ * The instance's local date (as the bridge keys the day's cap and a session records its daily-cap day) and the whole seconds left of it.
+ * The day comes from one NowUtc and the seconds from the clock read just after it, so a midnight between the two reads gives a negative
+ * count, which clearOfMidnight treats as too few seconds left.
+ */
 export interface InstanceDay {
   day: string;
   secondsLeft: number;
 }
 
-/** Reads the instance's day and the seconds left before it ends (Bridge.Time: LocalDate and DayEndUtc of one NowUtc). */
+/** Reads the instance's day and the seconds left before it ends (Bridge.Time: LocalDate of NowUtc, then SecondsUntil its DayEndUtc). */
 export async function instanceDay(): Promise<InstanceDay> {
   const lines = await irisScript(
     [

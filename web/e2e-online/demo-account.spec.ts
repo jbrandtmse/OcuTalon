@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { STATE } from '../e2e/support/api';
-import { settled } from '../e2e/support/floor';
+import { loadedAfter, settled } from '../e2e/support/floor';
 import { fixtureUser } from '../e2e/support/iris';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
@@ -34,7 +34,6 @@ const COPY_USER = 'Copy Visual Trace user name';
 const COPY_PASSWORD = 'Copy Visual Trace password';
 const COPY_FAILED = "Couldn't copy. Select the text and copy it yourself.";
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
 const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 
 /**
@@ -44,8 +43,7 @@ const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Vis
 async function open(page: Page): Promise<Cursor> {
   await recordAnnouncements(page);
   const { user, password } = fixtureUser(KIND);
-  await signInFromSplash(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page, user, password));
   const state = (await (await page.request.get(STATE)).json()) as { streams: { session: number } };
   return { seq: state.streams.session };
 }

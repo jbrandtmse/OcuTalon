@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import { EVENTS, MESSAGES, STATE } from '../e2e/support/api';
+import { loadedAfter } from '../e2e/support/floor';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { postTurn, type Cursor, type Turn } from '../e2e/support/trace';
 import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, removeSession, setPublic, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
@@ -41,16 +42,14 @@ const CONVERSATION_NAME = 'Open my conversation in Visual Trace (opens in a new 
 const TRACE_NAME = 'Trace (opens in a new tab)';
 const BANNER = '[data-banner="demoBusy"]';
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
 const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
 const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 const refusal = { error: { code: 'busy', message: 'Something went wrong inside OcuTalon. Try again.' } };
 
-/** Signs the demo account in at the page and waits for the loaded snapshot; its epoch and a cursor at the end of its session stream. */
+/** Signs the demo account in at the page and waits for the loaded snapshot (loadedAfter); its epoch and a cursor at the end of its session stream. */
 async function open(page: Page): Promise<{ epoch: string; cursor: Cursor }> {
-  await signInFromSplash(page);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page));
   const state = (await (await page.request.get(STATE)).json()) as { epoch: string; streams: { session: number } };
   return { epoch: state.epoch, cursor: { seq: state.streams.session } };
 }
