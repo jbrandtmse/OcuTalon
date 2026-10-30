@@ -2294,3 +2294,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-457: A WebSocket keeps serving its session for up to its 60 s lifetime after sign-out, because the socket's CSP session never sees the sign-out; add a server-side sign-out check (a mark set at sign-out and read on each socket loop)
+- source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Plan Task 0 M5 on build 154U: after POST /v1/session/end or ?IRISLogout=end the next HTTP request is 401 but the open socket's %CSP.Session stays unchanged for at least 10 s; orchestrator ruling U-174 keeps the 60 s lifetime as the known cost
+- 2026-10-30T22:42:13Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=spec_gate note=orchestrator_ruling_U-174: needs Data/Session.cls (contended with Epic 29); do it after Epic 29 merges, at 31.1's re-plan or a follow-up story

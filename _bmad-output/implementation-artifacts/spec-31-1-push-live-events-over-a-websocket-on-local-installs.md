@@ -2,7 +2,7 @@
 title: 'Push live events over a WebSocket on local installs'
 type: 'feature'
 created: '2026-10-30'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md']
@@ -214,9 +214,26 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-30, lead (runner B): the plan HALTed `blocked` on Q1 and Q2 (with A1/A2). Rulings written under ## Design Notes: Q1 → U-174 (orchestrator, veto: checks before `Server()`, page close in `stop()`, 60 s lifetime; conditions (a)–(d) as tests; DW-457 for the server-side sign-out check), A2 → U-175 (orchestrator, veto: no AD-13 amendment; the shell forwards the socket at the AC's URL; A1 withdrawn; the story waits on Epic 29), Q2 → U-173 (runner, veto: polling unchanged beside the socket; specs block it with a helper that never edits `web/e2e/support/floor.ts` or `web/e2e/banners/banners.spec.ts`). Status reset to `draft`, so the spec is re-planned for the shell route once Epic 29 merges (re-measure M2 in the shell application). Ledger inbox at the re-plan: DW-457.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Rulings on this plan's questions (2026-10-30, policy 6df0676; these govern the re-plan and override the "Decided in-stage" items and recommendations below wherever they differ):**
+- **Q1 → U-174 (orchestrator ruling, veto): recommendation 1–3 kept.**
+  - `OnPreServer` checks the role, the online-demo flag (the server refuses too), `Origin` and the session before `Server()`; a refusal sends no frame.
+  - The page closes its socket in `LiveState.stop()`.
+  - The server ends each socket after a fixed 60-second lifetime and the page reconnects silently, so every reconnect re-runs the checks.
+  - Conditions, each one a test: (a) every refusal case (no session, missing role, wrong or missing `Origin`, the online-demo flag) sends no frame; (b) after sign-out, the page's socket closes within one poll; (c) the server closes the socket at the lifetime, and the page reconnects with the checks re-run (the lifetime may be shortened in tests); (d) no session id, cookie or token appears in any frame or log.
+  - **Known cost:** a client that ignores the page's close keeps reading its own session's events for up to 60 s after sign-out (M5). The server-side sign-out check (a mark set at sign-out and read on each socket loop) needs `Data/Session.cls`, contended with Epic 29: ledger DW-457, routed to this story, for after Epic 29 merges.
+- **A2 → U-175 (orchestrator ruling, veto): no AD-13 amendment; comply first (U7 step 1).**
+  - AD-13 already allows "forwarded by the shell", at the AC's own URL `/ocutalon/OcuTalon.Web.Live.cls`, so U7 step 2 does not apply; U14 also bars an amendment while other in-flight epics' specs cite AD-13 (Epic 29's do).
+  - So the socket is forwarded by the shell: a `Web/Public/Shell.cls` route for `/OcuTalon.Web.Live.cls`, placed before `/(.*)`, that hands the request to `OcuTalon.Web.Live.Page()` in synchronous mode (M2's handoff mechanism). `Web/Public/Shell.cls` is Epic 29's contended path, so this story waits on Epic 29's merge (`story_waiting … on=29`).
+  - **A1 is withdrawn:** AC 1's URL stays as written. Route (c), `/ocutalon/api/v1/live`, is NOT planned; "Decided in-stage" item 1 is superseded.
+  - **The re-plan after Epic 29 merges must re-measure M2's handoff inside the shell application** (`/ocutalon`, `OcuTalon.Web.Public.Shell`): the role, `%session` and SessionRef, the headers, the cursors, a concurrent `/state`, `Api.EventsBody`/`TraceLink` and the `$SYSTEM.Event` wake. It also re-reads Epic 29's merged Shell, Session and banner changes.
+  - If the owner's delegate reverses U-175 to route (c), this spec as first planned applies.
+- **Q2 → U-173 (runner ruling, veto): polling keeps running unchanged beside the socket.** Contact and the banners stay polling's; the socket only delivers sooner, through the same idempotent apply path. The routed-poll specs block the socket for their tests with one shared helper (`page.routeWebSocket`), their assertions unchanged. Orchestrator guards: the helper must not edit `web/e2e/support/floor.ts` or `web/e2e/banners/banners.spec.ts` (both changed on Epic 29's unmerged branch), and every spec file it touches is reported under `footprint_extensions:`. (The lead's earlier wording "polling's tests stay as they are" was a gloss, not owner-fixed; the owner-fixed rule is "polling is the release-1 contract".)
 
 **Governing ADs (Rule 6):**
 - **AD-12:** polling first and the contract; the socket second; never on the online demo; one envelope and one idempotent apply; skip → reload; trace URLs on the socket; the session and instance resources signalled by `Publish`.
