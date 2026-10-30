@@ -2097,6 +2097,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=an_honest_stopped-production_result_needs_an_AD-16_amendment(a_production_not_running_at_the_run's_start_ends_it_as_couldn't_start,Skipped_0)_or_a_new_result_key_with_a_Result_texts_row_and_the_page's_key_selection(web/src/app/approvals/approval-view.ts);AD-16_is_cited_by_done_specs(U7(c):a_re-architecture,the_owner's);recommended:amend_AD-16,then_a_small_fix_story(Epic_11_X.0_or_30.x)
 - 2026-10-29T13:12:01Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=also a resend that errs partway: its unreached targets count as Skipped and render as changed since the dry run
 - 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-160
+- 2026-10-30T05:24:59Z status=routed owner=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=merge_gate note=owner U-160 (a) via the Contest Planner: AD-16 amended after Epic 7's merge; a target production not running at the run's start ends the run as couldn't start (Resent 0, Skipped 0, plain reason, row failed); the errs-partway case split to its own entry for 30.5; the result text never claims a change that did not happen
 
 ### DW-379: The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which Story 7.3 is the first to write
 - source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
@@ -2122,6 +2123,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: split from DW-380 at 7.4's spec gate: 7.4 ends the StartExecution-failure half (NOSTART, AC 11); the past-expiry half needs AD-16's refused-Execute list amended
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=recommended: amend AD-16 so that an approved row past its ExpiresAt ends as couldn't start with NOSTART ('OcuTalon couldn't start the resend'), one line in Executor.Refusal; AD-16 is cited by done specs (U7(c): the owner's)
 - 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-161
+- 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-161 (a) via the Contest Planner: AD-16 amended after Epic 7's merge; an approved Execute past its ExpiresAt ends as couldn't start with NOSTART (OcuTalon couldn't start the resend), one line in Executor.Refusal, and its incident leaves fixing with that result
 
 ### DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed, or a stop that timed out) leaves every run still in its 60-second wait executing and its incident fixing, with no result, because no job calls Wait again until another run resends copies
 - source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: med | footprint: in-epic
@@ -2444,3 +2446,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Eval/Gate.cls:118-124 and src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls:92-98; the spec names the sibling but gives no reason not to share it; Watch/** is outside Epic 9's footprint.
 - 2026-10-30T14:35:19Z status=wontfix-accepted owner=9-5-release-candidates-pass-the-evaluation-and-the-demo-incident by=cr note=reopen_if=CheckFix or EvidencePack.FromInput changes which fields Decide's reply check reads (diff the two loops)
+### DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160)
+- source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
+- 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen

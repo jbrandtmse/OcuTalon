@@ -9,14 +9,14 @@ question: Epic 7 decision sheet: when the target production is stopped, AD-16 co
 options: (a) amend AD-16: a production not running at the run's start ends the run as couldn't start (Skipped 0, the NOSTART text); route the fix to Story 30.4 (a stopped production), and the errs-partway case to Story 30.5 (unfinished resends) | (b) keep AD-16; add a result key and Result texts row of its own for a stopped production (new public text), routed to Story 30.4 | (c) accept as built (wontfix-accepted: an edge case)
 recommendation: (a)
 blocks: nothing now: Epic 7 merges; DW-368 waits as decision-pending until answered
-answer: (none yet -- answer with the script or --review)
+answer: (a) amend AD-16: a target production not running at start means the fix couldn't start, Skipped 0; fix in 30.4, and the case that errs partway in 30.5. The result text must never claim a change that didn't happen. (by Contest Planner via inbox, 2026-10-30T05:22:29Z#487; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
 ### U-161 | parked | DW-384 | 2026-10-30T05:16:10Z
 question: Epic 7 decision sheet: an approved request whose ExpiresAt has passed when FixExecutor takes its Execute gets only an info line, so the request stays approved and its incident stays 'fixing' with no result. The fix needs AD-16's list of refused Execute cases changed, and finished stories rely on AD-16, so the doctrine (U7) makes this the owner's call.
 options: (a) amend AD-16: an approved request past its ExpiresAt ends as couldn't start with NOSTART ('OcuTalon couldn't start the resend'), one line in Executor.Refusal; route the fix to Story 30.5 | (b) accept as built (wontfix-accepted)
 recommendation: (a)
 blocks: nothing now: Epic 7 merges; DW-384 waits as decision-pending until answered
-answer: (none yet -- answer with the script or --review)
+answer: (a) amend AD-16: an approved request past ExpiresAt at Execute ends as couldn't start with NOSTART, and the incident leaves 'fixing' with that result; fix in 30.5. (by Contest Planner via inbox, 2026-10-30T05:22:29Z#488; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
 ## Veto window
 
@@ -25,14 +25,14 @@ question: AD-25's password-guard bullets contradict themselves as worded: a sign
 options: keep (and amend AD-25's wording to match after the run: 'decoded field names all come from IRISSessionToken, IRISUsername, IRISPassword and IRISLogin; refuses any other field anywhere whose decoded name matches (IRIS|Cache)(Old|Repeat)?Password case-insensitively, the one IRISPassword of a sign-in body excepted') | reverse (the script and stand-in require all four names; the gated host's guard and the splash would then disagree with the repository's check)
 recommendation: keep; amend AD-25's wording through bmad-architecture's Update once no run is live (DW-226 goes to Epic 29's decision sheet as the wording question)
 blocks: nothing; reversal = flip the guard-signin-3 expectation in release/demo-host-check.sh and the stand-in in docker/tests/test-online-host.sh (no product code: the guard is the host's)
-answer: (none yet -- answer with the script or --review)
+answer: keep (by Contest Planner via inbox, 2026-10-30T05:22:29Z#485; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
 ### U-159 | veto | DW-328 | 2026-10-30T05:16:10Z
 question: Epic 7 decision sheet: the spine's dependency rule (the sentence under the package diagram) lets the domain layer cross areas only for Watch -> Fix.Kind and Checks -> Fix.Run.Sweep, but the Fix area as built also calls Watch's Reader (the one reader, AD-3), FailurePoller.Scope (AD-16's scope check), ItemNoun, Transitions' state names, Settle's time and pattern helpers, ErrorText and Notice's NOERRORTEXT. Ruled (veto: amending the spine's rules): after the merge the orchestrator adds these references to that sentence as a record of the code as built (measured at 61a2410); no code changes.
 options: keep: the sentence names the Fix -> Watch references | reverse: remove them and route a fix story that moves the shared helpers out of Watch
 recommendation: keep
 blocks: nothing: decided; Epic 7 merges
-answer: (none yet -- answer with the script or --review)
+answer: keep (by Contest Planner via inbox, 2026-10-30T05:22:29Z#486; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
 ## Run reports
 
@@ -225,4 +225,4 @@ answer: (none yet -- answer with the script or --review)
 - U-156 | veto | DW-233: Epic 16 decision sheet: the online demo's address counter stores a plain, unsalted SHA-256 of the visitor's IP address, so a row can be reversed by brute force within its one-hour life. Ruled (veto window: security posture, stored data): fix it before the launch in Story 29.3, with an HMAC keyed by a per-instance secret kept in the private database and renewed at each reset. -> keep (by Contest Planner via inbox, 2026-10-30T03:18:32Z#477; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-30T03:19:55Z -- Epic 16 (merged c70a0f4): kept; DW-233 routed to 29.3
 - U-157 | veto | DW-260: Epic 16 decision sheet: the demo's 15-minute probe counts every fallback except daily_cap as healthy, so a demo whose turns all fall back (no model key, timeouts, rate limits) never alerts the author; only a log line names the reason. Ruled (veto: it adds an outcome to the probe, built in another epic's story): Story 29.3 adds an alert-only probe outcome for those fallbacks, which alerts the author and never counts toward a reset, like busy. -> keep (by Contest Planner via inbox, 2026-10-30T03:18:32Z#478; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-30T03:19:55Z -- Epic 16 (merged c70a0f4): kept; DW-260 routed to 29.3
 
-<!-- journal: 484 lines -->
+<!-- journal: 488 lines -->
