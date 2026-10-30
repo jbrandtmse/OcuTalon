@@ -1,6 +1,7 @@
 /// A subclass of OcuTalon.Core.BridgeSink for the tests: both of its handlers throw, so that a test can see OnEvent return OK
 /// and log a warning when a handler fails, and its recipients read always fails, so that a test can see an approval event
-/// publish nothing and log a warning. It adds nothing to the product's surface; the product never refers to it.
+/// publish nothing and log a warning. It adds nothing to the product's surface; the product never refers to it. The daily-cap tests
+/// (Story 16.9) use Test.Core.BridgeSinkNoticeProbe, which keeps the real handlers and records the notices.
 Class OcuTalon.Test.Core.BridgeSinkProbe Extends OcuTalon.Core.BridgeSink
 {
 

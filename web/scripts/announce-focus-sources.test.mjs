@@ -87,13 +87,15 @@ describe('the page speaks only through the Announcer', () => {
     // A story that makes one of these announce moves the event's announcement from the chat or the control that owns it, so that the
     // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason. The guide announces an advance and the
     // box announces "Sent" (Story 4.4): nothing else announces either.
-    const silent = files.filter((one) => /^app\/(rail|header)\//.test(one.name) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
+    // Story 16.1: the header's credential rows speak (credential-rows.ts: "Copied" or the copy failure, once, after the user's own press on a
+    // copy button), so that file is the one header file that is not silent; the header itself still is.
+    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
     assert.ok(silent.length >= 8, 'the silent files are found');
     assert.ok(silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is among them');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once) and Dismiss (the message of an error reply, once, Story 6.4)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4) and, from Story 16.1, the credential rows', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -102,6 +104,7 @@ describe('the page speaks only through the Announcer', () => {
       'app/chat/chat-panel.ts',
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',
+      'app/header/credential-rows.ts',
       'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
@@ -125,6 +128,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
     'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
     'app/main-page/main-page.ts': [1, 'a focused element of the rail keeps its focus when the layout moves the rail (Story 2.15)'],
+    'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 
   it('has a .focus( call only in the files that the user\'s own action or the focus rule moves focus from, and no more of them', () => {
@@ -140,8 +144,9 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page and the header the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {
     const hosts = {
+      'app/app.ts': /const RESETTING_RULE: FocusRule = \{\};/,
       'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
@@ -154,7 +159,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     };
     for (const [name, rule] of Object.entries(hosts)) {
       const { code: text } = file(name);
-      assert.match(text, /import \{ type FocusRule, keepFocus(?:, type LostFocus)? \} from '\.\.\/shared\/focus-rule';/, `${name} imports the shared rule`);
+      assert.match(text, /import \{ type FocusRule, keepFocus(?:, type LostFocus)? \} from '\.\.?\/shared\/focus-rule';/, `${name} imports the shared rule`);
       assert.match(text, /untracked\(\(\) => keepFocus\(this\.host\.nativeElement, this\.injector, this\.popovers, [A-Z_]+\)\)/, `${name} calls it from an effect`);
       assert.match(text, rule, `${name} has its own rule`);
     }

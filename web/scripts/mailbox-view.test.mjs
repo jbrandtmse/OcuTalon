@@ -10,11 +10,12 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { MAILBOX_TEXTS, OPENED_KEY, OPENED_MAX, SAMPLES, arrivedText, chipName, decidedText, decisionOf, fieldErrors, isBlank, mailOf, openedRefs, senderName, withOpened } = await import(
+const { MAILBOX_TEXTS, OPENED_KEY, OPENED_MAX, SAMPLES, arrivedText, chipName, decidedText, decisionOf, emailLimitText, fieldErrors, isBlank, mailOf, openedRefs, senderName, withOpened } = await import(
   pathToFileURL(join(here, '..', 'src', 'app', 'mailbox', 'mailbox-view.ts')).href
 );
 
 const { readText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'shared', 'stored-flag.ts')).href);
+const { pageTime } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const mail = (ref, over = {}) => ({ ref, direction: 'in', itemId: `item-${ref}`, sender: `from ${ref}`, subject: `subject ${ref}`, text: `text ${ref}`, unread: true, createdAt: '2030-01-01T10:00:00Z', ...over });
 const snapshot = (over = {}) => ({ demoMode: true, mailbox: [], ...over });
@@ -30,6 +31,16 @@ describe('the fixed strings', () => {
     assert.equal(MAILBOX_TEXTS.fromPrefill, 'Results Partner IT <it@results-partner.example>');
     assert.deepEqual([MAILBOX_TEXTS.labelFrom, MAILBOX_TEXTS.labelSubject, MAILBOX_TEXTS.labelBody, MAILBOX_TEXTS.send, MAILBOX_TEXTS.back], ['From', 'Subject', 'Body', 'Send', 'Back']);
     assert.deepEqual([MAILBOX_TEXTS.errSubject, MAILBOX_TEXTS.errBody], ['Enter a subject.', 'Enter a body.']);
+    assert.equal(MAILBOX_TEXTS.emailLimit, "You've simulated 20 emails this hour. You can send more at {time}.");
+  });
+
+  it('give the email limit\'s reason with the time sending reopens as a page time (Story 16.9, EXPERIENCE.md)', () => {
+    const retryAt = '2030-01-01T10:20:00Z';
+    assert.equal(emailLimitText(pageTime(retryAt, 'en-GB', 'UTC')), "You've simulated 20 emails this hour. You can send more at 10:20.");
+    assert.equal(emailLimitText(pageTime(retryAt, 'en-GB', 'Europe/Berlin')), "You've simulated 20 emails this hour. You can send more at 11:20.", 'in the browser\'s zone, with no zone name');
+    assert.equal(emailLimitText(pageTime(retryAt, 'en-US', 'UTC')), "You've simulated 20 emails this hour. You can send more at 10:20 AM.", 'and in its hour format');
+    assert.equal(emailLimitText('$&'), "You've simulated 20 emails this hour. You can send more at $&.", 'a time is inserted as text');
+    assert.doesNotMatch(emailLimitText(''), /\{/, 'the slot is always filled');
   });
 
   it('name the three samples in order, with the server\'s names', () => {

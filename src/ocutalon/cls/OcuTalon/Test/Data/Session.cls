@@ -64,6 +64,60 @@ Method TestFindsOrCreates()
 	Do $$$AssertTrue((other.Ref '= first.Ref) && (other.TraceRef '= first.TraceRef) && (other.Epoch '= first.Epoch), "with other references")
 }
 
+/// NewVisitor and ForResume (Story 16.3, matrix rows 1 and 5): a visitor row is always created, with its own Ref, TraceRef and Epoch,
+/// the user, the CSP session id and the SHA-256 (base64url, 43 characters, no padding) of a new 22-character reference, and no
+/// property equals the reference; two calls for one user make two rows; ForResume opens the row of the reference and answers "" for
+/// a malformed value, an unknown reference and the empty string; an empty user is refused with no row.
+Method TestNewVisitorAndForResume()
+{
+	Set user = "zzsess"_..Number_"visitor"
+	Set first = ##class(OcuTalon.Data.Session).NewVisitor(user, "ZzSessVisitorA", .reference, .sc)
+	Do $$$AssertStatusOK(sc, "the first call")
+	Do $$$AssertTrue($IsObject(first), "it returns a row")
+	If '$IsObject(first) Quit
+	Do ##class(OcuTalon.Test.Data.Fixture).Adopt(first)
+	Do $$$AssertTrue(reference ? 22(1AN,1"-",1"_"), "the reference is 22 base64url characters")
+	Do $$$AssertEquals(first.ResumeHash, ##class(OcuTalon.Data.Session).Hash(reference), "the row keeps the hash")
+	Do $$$AssertTrue(first.ResumeHash ? 43(1AN,1"-",1"_"), "the hash is 43 base64url characters: "_first.ResumeHash)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Hash(""), "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU", "the hash of the empty text is SHA-256's")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Hash("abc"), "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0", "the hash of abc is SHA-256's")
+	Do $$$AssertEquals(first.CspSessionId, "ZzSessVisitorA", "the row records the CSP session")
+	Do $$$AssertEquals(first.IrisUser, user, "and the user")
+	For field = "Ref", "TraceRef", "Epoch" {
+		Do $$$AssertTrue($Property(first, field) ? 22(1AN,1"-",1"_"), field_" is 22 base64url characters")
+	}
+	Set found = 0
+	For field = "Ref", "TraceRef", "IrisUser", "CreatedAt", "Epoch", "ThreadSessionId", "ThreadDay", "ResumeHash", "CspSessionId" {
+		If $Property(first, field) = reference Set found = 1
+	}
+	Do $$$AssertEquals(found, 0, "no property equals the reference")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "one row")
+
+	Set second = ##class(OcuTalon.Data.Session).NewVisitor(user, "ZzSessVisitorB", .other, .sc)
+	Do $$$AssertStatusOK(sc, "the second call")
+	If $IsObject(second) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(second)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 2, "it makes a second row for the same user")
+	Do $$$AssertTrue($IsObject(second) && (second.Ref '= first.Ref) && (second.Epoch '= first.Epoch) && (other '= reference), "with its own Ref, Epoch and reference")
+
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(reference).%Id(), first.%Id(), "ForResume opens the first row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(other).%Id(), second.%Id(), "and the second")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(##class(OcuTalon.Bridge.Ids).NewRef()), "", "an unknown reference opens no row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(""), "", "the empty reference opens no row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(reference_"x"), "", "a reference of 23 characters opens no row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume($Extract(reference, 1, 21)), "", "a reference of 21 characters opens no row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume($Extract(reference, 1, 21)_"!"), "", "a character outside the alphabet opens no row")
+	Set lower = $ZConvert(reference, "L")
+	If lower '= reference Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(lower), "", "the case of a reference matters: its lower-case form opens no row")
+	Set upper = $ZConvert(reference, "U")
+	If upper '= reference Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(upper), "", "nor does its upper-case form")
+
+	Set before = ..CountAll()
+	Set none = ##class(OcuTalon.Data.Session).NewVisitor("", "ZzSessVisitorC", .nothing, .sc)
+	Do $$$AssertStatusNotOK(sc, "an empty user is an error")
+	Do $$$AssertEquals(none_"|"_nothing, "|", "with no row and no reference")
+	Do $$$AssertEquals(..CountAll(), before, "and no row is created")
+}
+
 /// Recipients: a session-owned record goes to its session; an instance incident to every session that watches its
 /// production, on a local install; an unwatched one, an eval record, an unknown Ref and any instance record with
 /// onlineDemo on go to nobody. The status is OK in every one of these cases: only a failed watcher read (DW-68) makes it

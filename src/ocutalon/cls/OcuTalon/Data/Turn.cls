@@ -11,7 +11,7 @@ Property Ref As %String(MAXLEN = 22);
 /// The owning session's Ref.
 Property SessionRef As %String(MAXLEN = 22);
 
-/// queued, running or done.
+/// queued, running, done or refused (the record of a message the online demo's allowance turned away, AD-20: never queued, never shown).
 Property State As %String(MAXLEN = 32);
 
 /// The channel: one of Msg.Enum CHANNEL.

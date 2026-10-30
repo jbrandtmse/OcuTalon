@@ -31,8 +31,12 @@
 ///     owner, 404 not_found and 500 server_error.
 ///     The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
-///     and the active status conditions, and, last and only while demo mode is on, the simulated phone, the simulated mailbox
-///     and the guide that Demo.Guide.Compute derives.
+///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
+///     and the guide that Demo.Guide.Compute derives, and, on the online demo only, idleSeconds: the page's idle cap,
+///     traceAccount: the read-only Visual Trace account, and the reset fields (resetSoon in status, nextReset last).
+///     POST /v1/session/end signs out: on a local install only the CSP session ends; on the online demo it submits an EndSession
+///     command for the session (SessionOps.End, through CommandsIn), expires the resume cookie and then signs out, 204; a failed
+///     End is 500 server_error, which neither expires the cookie nor signs out, so the session stays resumable (EndSession).
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -53,6 +57,8 @@ Parameter HandleCorsRequest = 0;
 
 Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
 
+Parameter HTTP429TOOMANYREQUESTS = "429 Too Many Requests";
+
 /// The most entries the snapshot's chat holds: the newest, oldest first (DW-65).
 Parameter CHATMAX = 100;
 
@@ -71,6 +77,12 @@ Parameter MESSAGENOHEADER = "OcuTalon refused this request because it didn't com
 Parameter MESSAGEWRONGORIGIN = "OcuTalon refused this request because it came from another site.";
 
 Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
+
+/// The message of the 429 allowance of POST /messages; {limit} is the session's message allowance.
+Parameter MESSAGEALLOWANCE = "You've used this session's {limit} messages for the hour.";
+
+/// The message of the 429 email_limit of the mailbox routes.
+Parameter MESSAGEEMAILLIMIT = "You've simulated 20 emails this hour.";
 
 Parameter MESSAGEEMPTYSUBJECT = "Enter a subject.";
 
@@ -191,8 +203,30 @@ ClassMethod Events() As %Status
 
 /// POST /v1/session/end: signs the user out. The CSP session ends together with every application of the sign-in group
 /// (Logout(1) with EndSession), and the answer is 204 with no body. The browser envelope was checked before the route.
+/// On a local or IPM install that is all it does (the durable session stays). On the online demo (onlineDemo on) Sign out ends the
+/// OcuTalon session too (AD-4, AD-1): the route resolves the CSP session's session (Ownership.SessionRef) and submits an EndSession
+/// command for it through Commands.Submit (origin web_user), which reaches SessionOps.End through CommandsIn, synchronously.
+///   - Ok: the resume cookie is expired (SessionEvents.ResumeCookie, the same name and path as the sign-in's), the CSP session signs
+///     out, and the answer is 204.
+///   - not_built: 501 not_built. Any other outcome or status: 500 server_error, with no cookie change and no sign-out, so the
+///     session stays resumable.
+///   - A CSP session that no OcuTalon session resolves for (the attach failed at sign-in): the sign-out alone, and 204, with no
+///     command.
 ClassMethod EndSession() As %Status
 {
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 {
+		Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+		If $SYSTEM.Status.IsOK(sc) {
+			Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
+			Set command.SessionRef = sessionRef
+			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+			If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+			If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+			If result.Outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+			If 'result.Ok Quit ..ServerError($SYSTEM.Status.Error(5001, "The session end was answered "_result.Outcome))
+			Do ##class(OcuTalon.Web.SessionEvents).ResumeCookie("", ##class(OcuTalon.Web.SessionEvents).#EXPIREDDATE)
+		}
+	}
 	Do %session.Logout(1)
 	Set %session.EndSession = 1
 	Set %response.Status = ..#HTTP204NOCONTENT
@@ -202,9 +236,12 @@ ClassMethod EndSession() As %Status
 /// POST /v1/messages: the page's message. The body is a JSON object with a clientId (a string of 1 to 128 characters), a text
 /// (a string with a non-space character) and fromGuide (true only when it is the JSON true); anything else, a body that is not
 /// a JSON object included, is 400 bad_message and nothing is sent. The session is the one that Ownership.SessionRef resolves
-/// (AD-4): a sessionRef in the body is ignored. A valid body is handed to WebChatIn (Post) and answers 202 {"clientId"}, a
-/// clientId that the session already used included. A session that can't be read, a production that can't take the message
-/// and an error of WebChatIn are 500 server_error.
+/// (AD-4): a sessionRef in the body is ignored. A valid body is handed to WebChatIn (Post), whose JSON output says what became
+/// of it (as BreakFeed reads its service's output): an accepted message answers 202 {"clientId"}, a clientId that the session
+/// already used included, and a message that the session's allowance refused (the online demo's, AD-20) answers 429
+/// {"error": {"code": "allowance", "message"}, "retryAt", "limit"} with the UTC time when the session may send again and the
+/// limit. A session that can't be read, a production that can't take the message, an error of WebChatIn (a busy allowance
+/// included) and an output that is not a JSON object are 500 server_error.
 ClassMethod Messages() As %Status
 {
 	If '..MessageBody(.clientId, .text, .fromGuide) Quit ..Fail(400, "bad_message", ..#MESSAGEBADMESSAGE)
@@ -217,6 +254,23 @@ ClassMethod Messages() As %Status
 	Set post.FromGuide = fromGuide
 	Set sc = ..Post(post, .output)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = $SYSTEM.Status.OK(), refused = 0
+	Try {
+		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
+		If 'answer.%IsA("%Library.DynamicObject") {
+			Set sc = $SYSTEM.Status.Error(5001, "WebChatIn answered an output that is not a JSON object")
+		} Else {
+			Set refused = (answer.refused = 1)
+			If refused {
+				Set retryAt = answer.retryAt
+				Set limit = answer.limit
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If refused Quit ..Fail(429, "allowance", $Replace(..#MESSAGEALLOWANCE, "{limit}", limit), , {"retryAt": (retryAt), "limit": (+limit)})
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = ..#HTTP202ACCEPTED
 	Write {"clientId": (clientId)}.%ToJSON()
@@ -352,8 +406,9 @@ ClassMethod MailboxSample(name As %String = "") As %Status
 	Quit ..MailAccepted(mail)
 }
 
-/// Hands the mail to SimMailboxIn and answers 202 {"ref"} from the service's output; an error, or an output that is not a JSON
-/// object with a ref, is 500 server_error.
+/// Hands the mail to SimMailboxIn and answers from the service's output: 202 {"ref"}, or, for an email that the online demo's
+/// limit refused (AD-20), 429 {"error": {"code": "email_limit", "message"}, "retryAt"} with the UTC time when the session may send
+/// again. An error, or an output that is not a JSON object with a ref or a refusal with a retryAt, is 500 server_error.
 ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ Private ]
 {
 	Set sc = ..Mail(mail, .output)
@@ -361,12 +416,18 @@ ClassMethod MailAccepted(mail As OcuTalon.Channel.SimMailbox.Mail) As %Status [ 
 	Set sc = $SYSTEM.Status.OK()
 	Try {
 		Set answer = ##class(%DynamicAbstractObject).%FromJSON(output)
-		Set ref = answer.ref
-		If (answer.%GetTypeOf("ref") '= "string") || (ref = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn answered no ref")
+		If answer.refused = 1 {
+			Set retryAt = answer.retryAt
+			If (answer.%GetTypeOf("retryAt") '= "string") || (retryAt = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn refused the email with no retryAt")
+		} Else {
+			Set ref = answer.ref
+			If (answer.%GetTypeOf("ref") '= "string") || (ref = "") Set sc = $SYSTEM.Status.Error(5001, "SimMailboxIn answered no ref")
+		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If answer.refused = 1 Quit ..Fail(429, "email_limit", ..#MESSAGEEMAILLIMIT, , {"retryAt": (retryAt)})
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = ..#HTTP202ACCEPTED
 	Write {"ref": (ref)}.%ToJSON()
@@ -577,6 +638,38 @@ ClassMethod NotBuilt(arg As %String = "") As %Status
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 }
 
+/// The snapshot's last key, traceAccount: {"user", "password"}, the read-only Visual Trace account that the online demo
+/// publishes (AD-19 calls the published accounts not secrets), for the header's Visual Trace menu. Present only when the
+/// public setting onlineDemo is 1 and both readonlyUser and readonlyPassword are set; any other state returns "" and the
+/// snapshot has no such key, so a local install's snapshot keeps its keys. Both values are read through Data.Setting.Get,
+/// as StateBody reads onlineDemo. It is a page-only field: no live event carries it.
+ClassMethod TraceAccount() As %DynamicObject [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit ""
+	Set user = ##class(OcuTalon.Data.Setting).Get("readonlyUser")
+	Set password = ##class(OcuTalon.Data.Setting).Get("readonlyPassword")
+	If (user = "") || (password = "") Quit ""
+	Quit {"user": (user), "password": (password)}
+}
+
+/// The online demo's reset fields of the snapshot (Story 16.8, AD-12, AD-19): the active resetSoon condition appended to status (the
+/// StatusMonitor.ResetSoon computation, exported through Status.ActiveOf), then, as the snapshot's last key, nextReset: the one
+/// next reset, Public.Settings.NextReset, set only when there is one. With the flag off it adds nothing, so a local install's
+/// snapshot keeps its keys. A page-only field: the reset event carries the same value.
+ClassMethod AddReset(body As %DynamicObject) [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit
+	Set conditions = ##class(%Library.ListOfObjects).%New()
+	Do conditions.Insert(##class(OcuTalon.Core.StatusMonitor).ResetSoon())
+	Set active = ##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions)
+	Set iterator = active.%GetIterator()
+	While iterator.%GetNext(.position, .condition) {
+		Do body.status.%Push(condition)
+	}
+	Set next = ##class(OcuTalon.Data.Public.Settings).NextReset()
+	If next '= "" Set body.nextReset = next
+}
+
 /// The pairing routes (AD-1, AD-4, AD-13): 404 not_found while the release doesn't include Telegram, before anything else is read.
 /// Otherwise DELETE is Unpair and POST is PairingCode.
 ClassMethod Pairing() As %Status
@@ -636,7 +729,10 @@ ClassMethod Unpair() As %Status [ Private ]
 /// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
 /// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
 /// oldest first, each the mailbox payload plus, when the session has a decide decision of the email's Item, the member
-/// decision (its payload), and last guide: the guide that Demo.Guide.Compute derives.
+/// decision (its payload), and guide: the guide that Demo.Guide.Compute derives; after those, traceAccount (TraceAccount: the
+/// read-only account's user name and password) only when onlineDemo is 1 and both read-only values are set; on the online
+/// demo, idleSeconds (IdleSeconds: the page's idle cap) comes before traceAccount, resetSoon is appended to status when active and
+/// the last key is nextReset when there is a next reset (AddReset).
 /// instanceStream is the stream reported as instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
@@ -686,9 +782,20 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 		Set body.mailbox = ..MailboxItems(sessionRef)
 		Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
 	}
+	If body.onlineDemo Set body.idleSeconds = ..IdleSeconds()
+	Set account = ..TraceAccount()  Set:$IsObject(account) body.traceAccount = account
+	Do ..AddReset(body)
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body
+}
+
+/// The idle cap in seconds that the online demo's snapshot carries (Setting IDLEKEY): the stored value when it is a whole number
+/// above 0, else Setting IDLESEED (600).
+ClassMethod IdleSeconds() As %Integer [ Private ]
+{
+	Set seconds = ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Data.Setting).#IDLEKEY, ##class(OcuTalon.Data.Setting).#IDLESEED)
+	Quit $Select((seconds ? 1.N) && (seconds > 0): +seconds, 1: ##class(OcuTalon.Data.Setting).#IDLESEED)
 }
 
 /// The simulated mailbox: the session's newest MAILMAX emails, oldest first, each the Mailbox payload object plus decision when
@@ -854,9 +961,9 @@ ClassMethod EnvelopeError(method As %String, contentType As %String, header As %
 	Quit ""
 }
 
-/// Writes the status line and the error body {"error": {"code", "message"}}, followed by "approval" when a payload object is given.
-/// status is the number, 400 to 501.
-ClassMethod Fail(status As %Integer, code As %String, message As %String, approval As %DynamicObject = "") As %Status
+/// Writes the status line and the error body {"error": {"code", "message"}}, followed by "approval" when a payload object is given
+/// and then by every member of extra when an object is given (a 429's retryAt and limit). status is the number, 400 to 501.
+ClassMethod Fail(status As %Integer, code As %String, message As %String, approval As %DynamicObject = "", extra As %DynamicObject = "") As %Status
 {
 	Set %response.ContentType = ..#CONTENTTYPE
 	Set %response.Status = $Case(status,
@@ -866,11 +973,18 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String, approv
 		404: ..#HTTP404NOTFOUND,
 		405: ..#HTTP405METHODNOTALLOWED,
 		409: ..#HTTP409CONFLICT,
+		429: ..#HTTP429TOOMANYREQUESTS,
 		500: ..#HTTP500INTERNALSERVERERROR,
 		501: ..#HTTP501NOTIMPLEMENTED,
 		: status)
 	Set body = ..ErrorBody(code, message)
 	If $IsObject(approval) Set body.approval = approval
+	If $IsObject(extra) {
+		Set iterator = extra.%GetIterator()
+		While iterator.%GetNext(.name, .value, .type) {
+			Do body.%Set(name, value, type)
+		}
+	}
 	Write body.%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }

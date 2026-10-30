@@ -7,7 +7,7 @@
 ///   - otherwise the send is a session of its own, whose SuperSession is the TraceRef of the Session row of the
 ///     notification's SessionRef;
 ///   - an input that is not a Notification is an error status and nothing is sent. So is a production that is not running.
-/// The senders to come are BridgeSink's tool-call notices (Story 31.2) and the daily-cap message (Story 16.9); the
+/// BridgeSink sends the daily-cap message through it (Story 16.9), and its tool-call notices are to come (Story 31.2); the
 /// incident notices reach Notify from IncidentManager, which sends to it itself.
 Class OcuTalon.Core.NoticesIn Extends Ens.BusinessService
 {

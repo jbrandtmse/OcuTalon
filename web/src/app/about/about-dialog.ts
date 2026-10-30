@@ -23,7 +23,7 @@ export const ABOUT_CLOSE_NAME = 'Close About OcuTalon';
   template: `
     <div class="body">
       <h2 [id]="titleId" tabindex="-1">{{ title() }}</h2>
-      <p>An OpenClaw-style assistant for InterSystems IRIS.</p>
+      <p>An AI assistant for InterSystems IRIS.</p>
       <p>
         An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether
         it deserves your attention.

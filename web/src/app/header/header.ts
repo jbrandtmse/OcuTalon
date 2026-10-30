@@ -18,6 +18,7 @@ import {
 
 import { ABOUT_TITLE_ID, AboutDialog } from '../about/about-dialog';
 import { Icon } from '../icon/icon';
+import { DemoBusyState } from '../live/demo-busy-state';
 import { LiveState } from '../live/live-state';
 import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
@@ -31,6 +32,10 @@ import { TraceHelp } from '../shared/trace-help';
 import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
+import { CredentialRows } from './credential-rows';
+import { SignOutDialog, SIGN_OUT_FOCUS } from './sign-out-dialog';
+import { SIGN_OUT_TEXT_ID } from './sign-out-texts';
+import { ResetCountdown } from './reset-countdown';
 
 /** The theme menu's options, in order. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
@@ -48,7 +53,8 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
 /**
  * The app header. Left: the mark and the wordmark (underlined, as every link is), both linking to the main page, and the context badge (Online demo,
  * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
- * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group.
+ * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group; on the online demo it asks
+ * first, in a small dialog (SignOutDialog, Story 16.4), and ends the OcuTalon session too.
  *
  * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
  * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
@@ -57,7 +63,12 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * described by (aria-describedby) and which goes with the description when a turn gives the link its address. It is one element
  * either way, so a turn that arrives while it has focus leaves the focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
  * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
- * was seen. Otherwise it is headed "Visual Trace" and records nothing.
+ * was seen. Otherwise it is headed "Visual Trace" and records nothing. On the online demo, where the snapshot carries the read-only
+ * account (traceAccount), the popover also shows its user name and password below the link, each with a copy button
+ * (CredentialRows); a local install's snapshot has no traceAccount and its popover has no such rows.
+ *
+ * On the online demo the right group also holds the reset countdown pill (ResetCountdown, Story 16.8), after the Status button and before
+ * the Visual Trace menu. It is silent: the header announces nothing.
  *
  * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
@@ -71,7 +82,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, Icon, TraceHelpBlock, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -102,6 +113,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
             }
           </button>
         }
+        <app-reset-countdown />
         <button
           #traceTrigger
           type="button"
@@ -159,6 +171,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         >
         @if (conversation() === undefined) {
           <p class="reason" [id]="conversationReasonId">{{ traceTexts.conversationNotYet }}</p>
+        }
+        @if (traceAccount(); as account) {
+          <app-credential-rows [account]="account" />
         }
       </app-trace-help>
     </ng-template>
@@ -331,6 +346,7 @@ export class Header {
   protected readonly theme = inject(Theme);
   private readonly dialogs = inject(Dialogs);
   private readonly gate = inject(SessionGate);
+  private readonly demoBusy = inject(DemoBusyState);
   private readonly accountTrigger = viewChild.required<ElementRef<HTMLElement>>('accountTrigger');
   private readonly traceTrigger = viewChild.required<ElementRef<HTMLElement>>('traceTrigger');
   private readonly tracePanel = viewChild.required<TemplateRef<unknown>>('tracePanel');
@@ -350,6 +366,8 @@ export class Header {
   protected readonly traceOpen = signal(false);
   /** True when the open popover is the sign-in help; fixed when it opens, because opening records that the help was seen. */
   protected readonly traceHelpShown = signal(false);
+  /** The read-only Visual Trace account of the snapshot: present on the online demo only. */
+  protected readonly traceAccount = computed(() => this.live.snapshot()?.traceAccount);
   /** The target of "Open my conversation in Visual Trace": the newest turn's traceUrl, undefined with no such turn. */
   protected readonly conversation = computed(() => conversationUrl(this.live.store()?.chat));
 
@@ -419,16 +437,39 @@ export class Header {
     this.tracePopover?.close();
   }
 
-  /** "Open my conversation in Visual Trace": with a turn the press opens the tab and closes the popover; with none it does nothing. */
+  /**
+   * "Open my conversation in Visual Trace": with a turn the press opens the tab and closes the popover; with none it does nothing.
+   * On the online demo the press is taken over (Story 16.5): the page checks the public status first, and opens the tab only when
+   * the demo is not busy (DemoBusyState.openTrace).
+   */
   protected pressConversation(event: MouseEvent): void {
-    if (this.conversation() === undefined) {
+    const url = this.conversation();
+    if (url === undefined) {
       event.preventDefault();
+      return;
+    }
+    if (this.live.snapshot()?.onlineDemo === true) {
+      event.preventDefault();
+      this.closeTrace();
+      void this.demoBusy.openTrace(url);
       return;
     }
     this.closeTrace();
   }
 
+  /**
+   * The account menu's Sign out. On the online demo it opens the confirm dialog (Story 16.4; UX-DR30), whose focus starts on Cancel and
+   * returns to the account trigger when it closes; its Sign out signs out. Anywhere else it signs out at once.
+   */
   protected signOut(): void {
+    if (this.live.snapshot()?.onlineDemo === true) {
+      this.dialogs.open(SignOutDialog, {
+        labelledBy: SIGN_OUT_TEXT_ID,
+        restoreFocus: this.accountTrigger().nativeElement,
+        autoFocus: SIGN_OUT_FOCUS,
+      });
+      return;
+    }
     this.gate.signOut();
   }
 

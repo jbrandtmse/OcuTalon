@@ -37,7 +37,13 @@ export const LOAD_FAILED = "Couldn't load your session.";
  * With no answer by LOAD_TIMEOUT_MS, or with an error answer, the status is failed and the polite announcer says so once;
  * a late answer still loads. retry() asks again, and says so again when that fails. A 401 is the session gate's: this
  * service neither fails nor announces for it. stop() ends the polling, drops what is in flight and ends the contact watch;
- * the session gate's 401, Sign out and the idle stop all end the page through it, so none of them shows a lost-contact banner.
+ * the session gate's 401, Sign out, the idle stop and an epoch change all end the page through it, so none of them shows a
+ * lost-contact banner. `halted` turns true at the first stop().
+ *
+ * On the online demo (the loaded snapshot's onlineDemo, Story 16.4; AD-13) another epoch is another OcuTalon session that began in
+ * this browser: the page never applies a poll or a snapshot of an epoch other than its first snapshot's, applies none of that
+ * answer's events and does not reload. It stops, and `epochChanged` turns true, which the session gate answers by leaving the page
+ * (this service does not know the gate). A local install's page reloads the snapshot instead, as before.
  *
  * `contact` is the page's contact with OcuTalon (Story 2.11), counted by a ContactWatch from the last answer of the live
  * path, which in release 1 is the polling: `ok`, then `reconnecting` after 10 s with no answer and `unreachable` after 30 s.
@@ -64,6 +70,8 @@ export class LiveState {
   /** When the latest poll started, in milliseconds on the page's monotonic clock. */
   private pollStart = 0;
   private readonly inFlight = new Set<Subscription>();
+  private readonly haltedState = signal(false);
+  private readonly epochState = signal(false);
   /** The contact state, which only the watch sets; `contact` is its read-only view. */
   private readonly contactState = signal<ContactState>('ok');
   private readonly watch = new ContactWatch({
@@ -84,8 +92,17 @@ export class LiveState {
   /** The live store: the snapshot's state with the events applied. */
   readonly store = signal<LiveStore | undefined>(undefined);
 
+  /** Counts the answers of the live path (a snapshot taken in, a poll applied, a busy 503): the reset watch checks its clock at each one. */
+  readonly answers = signal(0);
+
   /** The page's contact with OcuTalon: `ok` until the live path has gone 10 s with no answer, then `reconnecting`, then `unreachable` at 30 s. */
   readonly contact = this.contactState.asReadonly();
+
+  /** True from the first stop(): the page is leaving, or the reset's view has taken over; nothing is polled or loaded any more. */
+  readonly halted = this.haltedState.asReadonly();
+
+  /** True once the online demo's page found another epoch in a poll or a snapshot (see the class description). */
+  readonly epochChanged = this.epochState.asReadonly();
 
   /** The last Seq applied on the session's stream, once loaded. */
   readonly sessionSeq = computed(() => this.store()?.cursors.session);
@@ -131,6 +148,7 @@ export class LiveState {
   /** Ends the polling and the contact watch, and drops every request in flight. Nothing is loaded or polled after it. */
   stop(): void {
     this.stopped = true;
+    this.haltedState.set(true);
     this.watch.stop();
     this.clearTimers();
     for (const subscription of this.inFlight) {
@@ -154,6 +172,10 @@ export class LiveState {
         if (this.stopped) {
           return;
         }
+        if (this.otherEpoch(snapshot.epoch)) {
+          this.changeEpoch();
+          return;
+        }
         if (request > this.applied) {
           this.applied = request;
           this.accept(snapshot);
@@ -166,6 +188,7 @@ export class LiveState {
         }
         if (this.status() === 'loaded' && isBusy(error)) {
           this.watch.answered();
+          this.answers.update((count) => count + 1);
         }
         onError();
       },
@@ -183,6 +206,7 @@ export class LiveState {
     this.store.set(fromSnapshot(snapshot));
     this.status.set('loaded');
     this.watch.answered();
+    this.answers.update((count) => count + 1);
     if (!this.polling) {
       this.polling = true;
       this.schedulePoll();
@@ -228,6 +252,7 @@ export class LiveState {
       error: (error: unknown) => {
         if (!this.stopped && isBusy(error)) {
           this.watch.answered();
+          this.answers.update((count) => count + 1);
         }
         this.schedulePoll();
       },
@@ -245,6 +270,10 @@ export class LiveState {
       return;
     }
     const result = applyEvents(current, response);
+    if (result.epochChanged && this.otherEpoch(response.epoch)) {
+      this.changeEpoch();
+      return;
+    }
     if (result.reload) {
       this.fetchSnapshot(
         () => this.schedulePoll(),
@@ -257,7 +286,20 @@ export class LiveState {
       this.store.set(result.store);
     }
     this.watch.answered();
+    this.answers.update((count) => count + 1);
     this.schedulePoll();
+  }
+
+  /** True on the online demo when the epoch is not the one of the snapshot the page loaded first. */
+  private otherEpoch(epoch: string): boolean {
+    const known = this.store()?.epoch;
+    return known !== undefined && epoch !== known && this.snapshot()?.onlineDemo === true;
+  }
+
+  /** The online demo's page found another epoch: it stops, applying nothing of that answer, and says so. */
+  private changeEpoch(): void {
+    this.stop();
+    this.epochState.set(true);
   }
 
   /** Keeps a request's subscription until it ends, so that stop() can drop it. */

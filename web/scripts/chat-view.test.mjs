@@ -23,6 +23,8 @@ const turn = (ref, over = {}) => ({
 const incident = (ref) => ({ type: 'incident', payload: { ref, state: 'open' } });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Dana: Invoice', whyNow: 'Why now: zz first.', dueAt: '', ...over });
+const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself";
+const allowance = (ref, over = {}) => notice(ref, { kind: 'allowance', text: ALLOWANCE_TEXT, ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
@@ -320,10 +322,11 @@ describe('the notice cards', () => {
   const decision = (over = {}) => ({ ref: 'D1', kind: 'decide', outcome: 'tellnow', reasons: 'zz first.\nzz second.', confidence: 0.9, costUSD: 0.0003, ...over });
   const view = (item) => chatView([item], [], NO_RUNNING, NOW)[0];
 
-  it('shows a tell now and a reminder, keyed notification:<ref>, and nothing for any other kind', () => {
+  it('shows a tell now, a reminder and an allowance card, keyed notification:<ref>, and nothing for any other kind', () => {
     assert.equal(view(tellNow('A')).kind, 'tellnow');
     assert.equal(view(notice('B')).kind, 'reminder');
-    for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'allowance', 'pairing', 'status', 'digest', '', undefined]) {
+    assert.equal(view(allowance('Z')).kind, 'allowance');
+    for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'pairing', 'status', 'digest', '', undefined]) {
       assert.deepEqual(chatView([notice('X', { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
       assert.equal(noticeOf(notice('X', { kind })), undefined, `noticeOf: a ${kind} notification`);
     }
@@ -331,6 +334,15 @@ describe('the notice cards', () => {
     assert.equal(noticeOf(incident('I')), undefined, 'an incident is no notice');
     assert.equal(view(tellNow('A')).key, 'notification:A');
     assert.equal(view(tellNow(undefined)).key, 'notification:', 'a card with no ref still has a key');
+  });
+
+  it('shows an allowance notice (Story 16.9) with its text as the server rendered it, and no strip, no Why now line and no due time', () => {
+    const card = view(allowance('A', { createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip], ['notice', 'allowance', 'notification:A', ALLOWANCE_TEXT, '', '2026-10-22T14:11:09Z', '', false]);
+    const dailyCap = view(allowance('B', { text: "The online demo has used today's model allowance. Decisions use fixed rules until 05:00 ET." }));
+    assert.equal(dailyCap.kind, 'allowance', 'the daily-cap message is the same kind');
+    assert.equal(view(allowance('C', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, an allowance card has no strip');
+    assert.deepEqual(keys(chatView([turn('T1'), allowance('A'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:A', 'notification:N'], 'it stands among the other entries as a card');
   });
 
   it('carries the text, the Why now line, the times and the decision of its payload', () => {

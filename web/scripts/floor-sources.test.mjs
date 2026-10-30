@@ -106,6 +106,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
     'app/devices/device-panel.ts': 'ArrowLeft and ArrowRight move between the two device tabs, as the ARIA tabs pattern asks (EXPERIENCE L296)',
     'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
+    'app/session/session-gate.ts': 'a capture-phase keydown listener on the document that only touches the idle cap (Story 16.4): it compares no key and acts on none',
     'app/shared/popover.ts': 'Escape closes the popover (the CDK overlay\'s keydown stream)',
     'app/shared/tooltip.ts': 'Escape hides the tooltip (a capture-phase listener on the document)',
   };
@@ -205,7 +206,7 @@ describe('Esc acts on one layer, the topmost', () => {
 
   it('has no other listener for a document keydown that runs after an element\'s own handler', () => {
     const listeners = files.flatMap((one) => [...one.code.matchAll(/addEventListener\(\s*['"`]keydown['"`]\s*,\s*[\w.]+\s*(?:,\s*([^)]*))?\)/g)].map((match) => [one.name, match[1]]));
-    assert.deepEqual(listeners, [['app/shared/tooltip.ts', 'true']]);
+    assert.deepEqual(listeners, [['app/session/session-gate.ts', 'true'], ['app/shared/tooltip.ts', 'true']]);
     const every = files.flatMap((one) => [...one.code.matchAll(/addEventListener\(\s*['"`]keydown['"`]/g)].map(() => one.name));
     assert.deepEqual(every, listeners.map(([name]) => name), 'every keydown listener is one this reads, an inline handler included');
   });
@@ -374,7 +375,7 @@ describe('the banned patterns (UX-DR129)', () => {
       pattern: /\bdialogs\.open\(|inject\(Dialogs\)|\bdialog\.open\b/,
       sample: 'this.dialogs.open(AboutDialog, options)',
       allowed: {
-        'app/header/header.ts': 'the user\'s About: the only dialog, opened by the user from the account menu',
+        'app/header/header.ts': 'the user\'s About and, on the online demo, Sign out: the only dialogs, opened by the user from the account menu',
         'app/shared/dialogs.ts': 'the one place that opens a dialog, over the CDK dialog',
       },
     },
@@ -388,7 +389,7 @@ describe('the banned patterns (UX-DR129)', () => {
     });
   }
 
-  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About', () => {
+  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out', () => {
     assert.deepEqual(filesWith(/\bdialogs\.open\(/), ['app/header/header.ts']);
     assert.deepEqual(filesWith(/inject\(Dialogs\)/), ['app/header/header.ts']);
   });

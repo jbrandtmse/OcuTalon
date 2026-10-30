@@ -4500,6 +4500,7 @@ So that other visitors can get in while my session waits for me.
 - DW-291: The sign-out test exercises the real `ReminderOps` cancel path that Story 8.4 delivers (U-65). If Story 8.4 has merged when this story is planned, the test uses the real path from the start, with no double. Otherwise it uses the recording double, and whichever of 8.4 and this story merges second turns the real path on, with a test that asserts a real cancel. Either way, the merged sign-out test runs the real cancel (ledger; routed by orchestrator 2026-10-27, inbox U-107, kept by the Contest Planner under the owner's delegation)
 - DW-290: `Test.Web.Api`'s class doc no longer says that a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue (doc-only) (ledger; routed by merge_gate 2026-10-27)
 - DW-333: flake: `live:sign-in` rail.spec.ts R1 (`open()`: main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun; the shared `open()` helper's sign-in readiness wait is made deterministic (ledger; routed by merge_gate 2026-10-28)
+- DW-220: The image CI job took 2369 s and then timed out at 40 minutes with this story's classes (run 40866408272): move `live:online-demo` from the `image` group to `install-upgrade`, with the expectations that pin the groups (ledger; routed by spec_gate 2026-10-29, CI rework of this story)
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 
@@ -4597,6 +4598,8 @@ So that a reset never surprises me or leaves me on a broken page.
 **When** it takes a signed-in page through the last 10 minutes before a reset
 **Then** the countdown turns urgent at 10 minutes, the banner appears at 5, the resetting view shows at the reset, and the page lands once on the splash with the reset notice when status reports ready (FR-15, FR-59)
 
+- DW-235: `AddressCounter.Shift` and `SessionEvents.CookieExpiry` (Story 16.3) repeat `OcuTalon.Data.Public.Settings`' private UTC parsing (`ToSeconds`/`FromSeconds`); while this story computes the next reset from the same settings, share one helper and make both callers use it (ledger; routed by cr 2026-10-26)
+
 ### Story 16.9: Allowances cap messages, model cost and simulated emails
 
 As a judge,
@@ -4635,6 +4638,7 @@ So that the demo stays affordable and available, and I always know what still wo
 **And** the Telegram cases use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off, like the approval's real Lane A path, until Story 31.3 (was Story 16.10) turns them on (FR-20, AD-29)
 - DW-300: Test.Core.BridgeSink (four methods) and Test.Web.Api.TestStateSections make check rows due at once or count untyped stream events, so a real HeartbeatIn Tick can run their rows or add check events mid-test (DW-289's root cause): seed those check rows a day ahead or count typed events when this story edits BridgeSink's budget.capped path and /state's status (ledger; routed by merge_gate 2026-10-29)
 - DW-361: The page's How to set a key and Install it yourself actions open the README's top (#readme); point them at the README's #set-a-model-key and #install-it-yourself sections when this story edits web/src/app/banners/** (Epic 10's decision sheet) (ledger; routed by merge_gate 2026-10-29)
+- DW-220 (residual): after Story 16.4 moved `live:online-demo` into `install-upgrade`, the `image` group still sums to about 2047 s on CI (34.6 minutes, `shard:lane-b` 866 s): rebalance Lane B's own units so that no IRIS job passes about 30 minutes, with this story's new unit placed too (ledger; routed by cr 2026-10-29)
 
 
 **Story 16.10 moved to Story 31.3**, whole and verbatim, in Lane B's Epic 31 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].

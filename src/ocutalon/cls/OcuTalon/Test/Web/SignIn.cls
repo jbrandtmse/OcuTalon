@@ -183,10 +183,10 @@ Method TestDispatchClasses()
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Web.Public.Login", "%Extends", "%CSP.Login"), "Login is a %CSP.Login class")
 }
 
-/// None of the three classes has a style attribute in its source.
+/// None of the five classes has a style attribute in its source.
 Method TestNoStyleAttributeInSources()
 {
-	For class = "OcuTalon.Web.Public.Login", "OcuTalon.Web.Public.Shell", "OcuTalon.Web.Public.SignInAssets" {
+	For class = "OcuTalon.Web.Public.Login", "OcuTalon.Web.Public.Shell", "OcuTalon.Web.Public.SignInAssets", "OcuTalon.Web.Public.Splash", "OcuTalon.Web.Public.SplashAssets" {
 		Set sc = ##class(%Compiler.UDL.TextServices).GetTextAsString($Namespace, class, .text)
 		Do $$$AssertStatusOK(sc, "the source of "_class)
 		Do $$$AssertTrue($Length(text) > 200, class_" has a source")

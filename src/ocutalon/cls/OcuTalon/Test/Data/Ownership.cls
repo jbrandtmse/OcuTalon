@@ -7,7 +7,9 @@
 /// DeliveryFor; TestRecentNotices). Every row comes from Test.Data.Fixture, which Clean removes; the users are zzown<n>, with n
 /// from ^OcuTalonTest("Ownership","n") (never reset). onlineDemo is saved and put back. Story 2.8 adds ApprovalIncident
 /// (TestApprovalIncident) and the status of Watchers (TestInstanceScope). Story 2.13 adds the turn of an Item (TestTurnOfItem), which
-/// the isolation and refusal tests cover as the row kind turnOfItem.
+/// the isolation and refusal tests cover as the row kind turnOfItem. Story 16.9 adds TestRecentTurnsLeaveOutRefusedTurns (a refused
+/// Turn is in Turns and in no other read), TestRecentNoticesIncludeAllowanceCards, TestActiveVisitors and TestAllowanceHeld (the two
+/// cross-owner reads of the allowances) and TestIncomingMail (the session's count of incoming simulated emails).
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
 
@@ -22,6 +24,14 @@ Method OnBeforeAllTests() As %Status
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Set ..Number = $Increment(^OcuTalonTest("Ownership", "n"))
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Each test starts with the flag off, also after a test that turned it on and stopped on an error.
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Kill ^||OcuTalonTest.OwnershipOpen
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
 }
@@ -92,6 +102,99 @@ Method TestSessionRefFromTheCspSession()
 	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	Do $$$AssertEquals(ref, "", "with no CSP session the result is empty")
 	Do $$$AssertStatusNotOK(sc, "and the status an error")
+}
+
+/// On the online demo (Story 16.3, matrix row 8) SessionRef never resolves by user name: with no Ref in the CSP session the result is
+/// "" with an error and no row is created for the user; the Ref of a row of the signed-in user is returned; the Ref of another user's
+/// row gives "" and an error. With the flag off the lazy attach of Story 2.2 is unchanged for the same three calls.
+Method TestSessionRefOnTheOnlineDemo()
+{
+	New %session
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"onlineother")
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set %session = ##class(%CSP.Session).%New("ZzOwnOnline", 0)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertEquals(ref, "", "online: with no Ref attached the result is empty")
+	Do $$$AssertStatusNotOK(sc, "and the status an error")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "and no row is created for the user")
+	Do $$$AssertEquals($Get(%session.Data("OcuTalon.SessionRef")), "", "nothing is attached")
+	Set %session.Data("OcuTalon.SessionRef") = mine
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertStatusOK(sc, "online: the Ref of the user's row is resolved")
+	Do $$$AssertEquals(ref, mine, "it is returned")
+	Set %session.Data("OcuTalon.SessionRef") = foreign
+	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	Do $$$AssertEquals(ref, "", "online: another user's Ref gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Set %session.Data("OcuTalon.SessionRef") = "zzmissing"_..Number
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(.sc), "", "online: a Ref with no row gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "no row is created by any of this")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Kill %session.Data("OcuTalon.SessionRef")
+	Set expected = ##class(OcuTalon.Data.Session).ForUser($Username).Ref
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(.sc), expected, "flag off: no Ref is attached from the user name")
+	Set %session.Data("OcuTalon.SessionRef") = mine
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), mine, "flag off: the user's Ref is returned")
+	Set %session.Data("OcuTalon.SessionRef") = foreign
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), expected, "flag off: another user's Ref is replaced by the user's own")
+}
+
+/// StartVisitor and Resume (Story 16.3, matrix rows 3 and 8): StartVisitor creates a row of the signed-in user with the CSP session
+/// id and a hash of the new reference, and records its Ref; Resume of that reference in another CSP session records the same Ref and
+/// the new id; Resume answers "" with OK for a reference of no row or of another user's row, and an error with no CSP session.
+Method TestResumeAndStartVisitor()
+{
+	New %session
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorA", 0)
+	Set ref = ##class(OcuTalon.Data.Ownership).StartVisitor(.reference, .sc)
+	Do $$$AssertStatusOK(sc, "StartVisitor answers OK")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "it returns the Ref of a new row")
+	If $IsObject(row) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before + 1, "one row is created")
+	Do $$$AssertEquals(%session.Data("OcuTalon.SessionRef"), ref, "its Ref is in the CSP session")
+	Do $$$AssertTrue(reference ? 22(1AN,1"-",1"_"), "the reference is 22 base64url characters")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.IrisUser, $Username, "the row is the signed-in user's")
+		Do $$$AssertEquals(row.CspSessionId, "ZzOwnVisitorA", "it records the CSP session")
+		Do $$$AssertEquals(row.ResumeHash, ##class(OcuTalon.Data.Session).Hash(reference), "and the hash of the reference")
+	}
+
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorB", 0)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(reference, .sc), ref, "Resume returns the row's Ref")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(%session.Data("OcuTalon.SessionRef"), ref, "records it in the new CSP session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzOwnVisitorB", "and the new CSP session on the row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before + 1, "no row is created")
+
+	Set %session = ##class(%CSP.Session).%New("ZzOwnVisitorC", 0)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(##class(OcuTalon.Bridge.Ids).NewRef(), .sc), "", "an unknown reference gives an empty result")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume("short", .sc), "", "so does a malformed one")
+	Do $$$AssertEquals($Get(%session.Data("OcuTalon.SessionRef")), "", "and nothing is attached")
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"resumeother")
+	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set foreignRow = ##class(OcuTalon.Data.Session).RefIndexOpen(foreign)
+	Set foreignRow.ResumeHash = ##class(OcuTalon.Data.Session).Hash(other)
+	Do $$$AssertStatusOK(foreignRow.%Save(), "the other user's row takes a resume hash")
+	Set opened = ##class(OcuTalon.Data.Session).ForResume(other)
+	Do $$$AssertEquals($Select($IsObject(opened): opened.Ref, 1: ""), foreign, "and its reference opens it")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(other, .sc), "", "another user's row is not resumed")
+	Do $$$AssertStatusOK(sc, "with OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(foreign).CspSessionId, "", "and is not touched")
+
+	Set %session = ""
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(reference, .sc), "", "with no CSP session Resume gives an empty result")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).StartVisitor(.again, .sc), "", "so does StartVisitor")
+	Do $$$AssertStatusNotOK(sc, "with an error")
+	Do $$$AssertEquals(again, "", "and no reference")
 }
 
 /// A session reads its own records of every kind and none of another session's.
@@ -406,7 +509,7 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "decisionOfItem", "deliveryByApproval" {
+	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "incomingMail", "decisionOfItem", "deliveryByApproval" {
 		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
@@ -834,6 +937,168 @@ Method TestDecisionOfItem()
 	If $ZConvert(ownItem, "L") '= ownItem Do $$$AssertEquals($ClassMethod(ownership, "DecisionOfItem", $ZConvert(ownItem, "L"), a), "", "an ItemId in another case finds nothing")
 	Do $ClassMethod(ownership, "DecisionOfItem", ownItem, "", .sc)
 	Do $$$AssertStatusNotOK(sc, "an empty SessionRef is an error")
+}
+
+/// A refused Turn (the record of a message the allowance turned away, Story 16.9) is in Turns, which is every turn, and in none of the
+/// chat's or the queue's reads: RecentTurns leaves it out, and so do the queue and the last replied turn.
+Method TestRecentTurnsLeaveOutRefusedTurns()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"rta")
+	Set done = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:01Z", "done", "zz done")
+	Set refused = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:02Z", "refused", "zz refused")
+	Set queued = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:03Z", "queued", "zz queued")
+	Set refusedLater = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:04Z", "refused", "zz refused again")
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).Turns(a)), done_","_refused_","_queued_","_refusedLater, "Turns holds every turn, the refused ones too")
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).RecentTurns(a)), queued_","_done, "RecentTurns leaves the refused ones out")
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).RecentTurns(a, 1)), queued, "also when max would have reached them")
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).TurnQueue(a)), queued, "the queue holds the queued turn only")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).LastRepliedTurn(a), "", "and no refused turn is a replied one")
+}
+
+/// RecentNotices includes the allowance cards (Story 16.9) with the tellnow and reminder ones, on the web channel only.
+Method TestRecentNoticesIncludeAllowanceCards()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"alca")
+	Set card = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:02Z", "Kind": "allowance"})
+	Set other = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:03Z", "Kind": "allowance", "Channel": "telegram"})
+	Set tell = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:01Z"})
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).RecentNotices(a)), card_","_tell, "the allowance card is a notice card, newest first, and a telegram copy is not")
+}
+
+/// ActiveVisitors lists the open sessions (they have a ResumeHash) that have a Turn (a refused one too), a Break the feed run or an
+/// approval request of their own that they answered with approve or reject, in Ref order; an ended session, a session with no activity,
+/// an unanswered or expired request and another session's request count for nothing. The fixture sessions are picked out of the list,
+/// since the stack may hold others.
+Method TestActiveVisitors()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set turn = ..Open("avturn")
+	Set refusedOnly = ..Open("avrefused")
+	Set run = ..Open("avrun")
+	Set answered = ..Open("avanswered")
+	Set rejected = ..Open("avrejected")
+	Set pending = ..Open("avpending")
+	Set expired = ..Open("avexpired")
+	Set idle = ..Open("avidle")
+	Set ended = $ClassMethod(fixture, "Session", "zzown"_..Number_"avended")
+	Set bystander = ..Open("avbystander")
+	Do $ClassMethod(fixture, "Turn", turn)
+	Do $ClassMethod(fixture, "Turn", refusedOnly, , "refused", "zz refused")
+	Do $ClassMethod(fixture, "BreakFeedRun", run)
+	Do $ClassMethod(fixture, "Approval", answered, "", "approved", now, {"AnsweredAt": (now), "AnsweredAction": "approve"})
+	Do $ClassMethod(fixture, "Approval", rejected, "", "rejected", now, {"AnsweredAt": (now), "AnsweredAction": "reject"})
+	Do $ClassMethod(fixture, "Approval", pending, "", "pending", now)
+	Do $ClassMethod(fixture, "Approval", expired, "", "expired", now, {"AnsweredAt": (now), "AnsweredAction": ""})
+	Do $ClassMethod(fixture, "Turn", ended)
+	Do $ClassMethod(fixture, "Approval", "instance", "", "approved", now, {"AnsweredAt": (now), "AnsweredAction": "approve"})
+	Set list = ##class(OcuTalon.Data.Ownership).ActiveVisitors(.sc)
+	Do $$$AssertStatusOK(sc, "the read works")
+	Set found = ""
+	Set previous = ""
+	Set ordered = 1
+	Set endedListed = 0
+	Set position = 0
+	While $ListNext(list, position, ref) {
+		If previous ] ref Set ordered = 0
+		Set previous = ref
+		If ref = ended Set endedListed = 1
+		If $Find(","_..Mine()_",", ","_ref_",") Set found = found_$ListBuild(ref)
+	}
+	Do $$$AssertEquals(ordered, 1, "the list is in Ref order")
+	Do $$$AssertEquals(endedListed, 0, "an ended session (no resume hash) with a turn is not in the list")
+	Set expected = $ListBuild(turn, refusedOnly, run, answered, rejected)
+	Set sorted = ""
+	Kill order
+	Set position = 0
+	While $ListNext(expected, position, ref) {
+		Set order(ref) = ""
+	}
+	Set ref = ""
+	For {
+		Set ref = $Order(order(ref))
+		Quit:ref=""
+		Set sorted = sorted_$ListBuild(ref)
+	}
+	Do $$$AssertEquals(found, sorted, "the sessions with a turn, a refused turn, a run and an answered request (approved or rejected), and no other")
+}
+
+/// AllowanceHeld lists the sessions whose AllowanceUntil is later than now, in Ref order: one whose window has ended, one that ends at
+/// now and one with no window are left out.
+Method TestAllowanceHeld()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set now = "2030-06-15T10:00:00Z"
+	Set open = $ClassMethod(fixture, "Session", "zzown"_..Number_"ahopen")
+	Set later = $ClassMethod(fixture, "Session", "zzown"_..Number_"ahlater")
+	Set over = $ClassMethod(fixture, "Session", "zzown"_..Number_"ahover")
+	Set atNow = $ClassMethod(fixture, "Session", "zzown"_..Number_"ahnow")
+	Set none = $ClassMethod(fixture, "Session", "zzown"_..Number_"ahnone")
+	For pair = $ListBuild(open, "2030-06-15T10:00:01Z"), $ListBuild(later, "2030-06-15T11:00:00Z"), $ListBuild(over, "2030-06-15T09:59:59Z"), $ListBuild(atNow, now) {
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen($List(pair, 1))
+		Set row.AllowanceUntil = $List(pair, 2)
+		Do $$$AssertStatusOK(row.%Save(), "a window ending at "_$List(pair, 2))
+	}
+	Set list = ##class(OcuTalon.Data.Ownership).AllowanceHeld(now, .sc)
+	Do $$$AssertStatusOK(sc, "the read works")
+	Set found = ""
+	Set position = 0
+	While $ListNext(list, position, ref) {
+		If $Find(","_open_","_later_","_over_","_atNow_","_none_",", ","_ref_",") Set found = found_$ListBuild(ref)
+	}
+	Set expected = $Select(open ] later: $ListBuild(later, open), 1: $ListBuild(open, later))
+	Do $$$AssertEquals(found, expected, "only the two open windows, in Ref order")
+	Set list = ##class(OcuTalon.Data.Ownership).AllowanceHeld("2030-06-15T10:00:01Z", .sc)
+	Set found = ""
+	Set position = 0
+	While $ListNext(list, position, ref) {
+		If $Find(","_open_","_later_",", ","_ref_",") Set found = found_$ListBuild(ref)
+	}
+	Do $$$AssertEquals(found, $ListBuild(later), "a second later the first window is no longer held")
+}
+
+/// IncomingMail counts the session's incoming simulated emails (Kind mailbox, Direction in) created after since, and gives the oldest
+/// one's time: outgoing emails, phone messages, older emails and another session's emails are not counted; with none the count is 0
+/// and the oldest is empty; an empty Ref is an error.
+Method TestIncomingMail()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"ima")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"imb")
+	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", a, "2030-01-01T10:00:00Z", .oldest, .sc)_"|"_oldest, "0|", "no emails: 0, with no oldest")
+	Do $$$AssertStatusOK(sc, "and no error")
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:03Z", "Kind": "mailbox", "Direction": "in"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "in"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "out"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "phone", "Direction": "in"})
+	Do $ClassMethod(fixture, "SimMessage", a, {"CreatedAt": "2029-12-31T10:00:00Z", "Kind": "mailbox", "Direction": "in"})
+	Do $ClassMethod(fixture, "SimMessage", b, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in"})
+	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", a, "2030-01-01T09:00:00Z", .oldest)_"|"_oldest, "3|2030-01-01T10:00:01Z", "three incoming emails after the time, the oldest first: no outgoing one, no phone message, no older one")
+	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", a, "2030-01-01T10:00:01Z", .oldest)_"|"_oldest, "2|2030-01-01T10:00:02Z", "the time itself is not after it")
+	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", a, "2030-01-01T10:00:03Z", .oldest)_"|"_oldest, "0|", "none after the newest")
+	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", b, "2030-01-01T09:00:00Z", .oldest)_"|"_oldest, "1|2030-01-01T10:00:01Z", "another session counts its own only")
+	Do $ClassMethod(ownership, "IncomingMail", "", "2030-01-01T09:00:00Z", .oldest, .sc)
+	Do $$$AssertStatusNotOK(sc, "an empty SessionRef is an error")
+}
+
+/// An open fixture session: it has a resume hash. Its Ref is kept in Mine.
+Method Open(name As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_name)
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash("zzown"_..Number_name)
+	Do $$$AssertStatusOK(row.%Save(), "the session "_name_" is open")
+	Set ^||OcuTalonTest.OwnershipOpen = $Get(^||OcuTalonTest.OwnershipOpen)_$Select($Get(^||OcuTalonTest.OwnershipOpen) = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// The Refs of the open sessions that Open made, comma-separated.
+Method Mine() As %String [ Private ]
+{
+	Quit $Get(^||OcuTalonTest.OwnershipOpen)
 }
 
 /// --- helpers ---

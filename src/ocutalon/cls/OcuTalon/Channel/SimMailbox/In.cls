@@ -6,14 +6,20 @@
 ///   - fills the three fields from the sample's parameters, when a sample is named;
 ///   - sets the service's SuperSession to the session's TraceRef, so the email has a trace session of its own under the
 ///     session's, and does not join the daily thread (AD-26);
+///   - on the online demo (the flag onlineDemo set), takes the session row's lock (Allowance.LOCKWAIT seconds; a lock that stays busy
+///     is an error status) and, across the count and the save below, asks Allowance.MailAllowed whether the session may simulate one
+///     more incoming email. It may not when it has Allowance.EMAILLIMIT (20) incoming emails, samples included, in the past hour;
+///     then the output is the JSON text {"refused":1,"retryAt"}, with the UTC time when it may send again, and nothing is saved, sent
+///     or published. With the flag off it takes no lock and there is no limit (Story 16.9, AD-20). A count that cannot be read is an
+///     error status. The lock is released before the send and the event;
 ///   - saves the email as a SimMessage (Kind mailbox, direction in, new Ref and ItemId, Sender, Subject and Text);
 ///   - sends Intake an OcuTalon.Msg.Item, asynchronously, with the same ItemId, the session's SessionRef, channel mailbox,
 ///     provenance untrusted and Sender, Subject and Text; every other field is empty or 0. When the send fails the row is
 ///     deleted and the error returned, so no row waits for a decision that never comes;
 ///   - publishes one mailbox event on the session's stream with Live.Payload.Mailbox.FromRow of the row (AD-33; the other
 ///     publisher is SimMailboxOut). A refused publish is logged and leaves the row and the Item.
-/// The output is the JSON text {"ref":<the SimMessage's Ref>}. A sample is only its three fields: nothing in the Item, the row
-/// or the event names it. The service sends only to Intake and decides nothing.
+/// The output of an accepted email is the JSON text {"ref":<the SimMessage's Ref>}. A sample is only its three fields: nothing in
+/// the Item, the row or the event names it. The service sends only to Intake and decides nothing.
 Class OcuTalon.Channel.SimMailbox.In Extends Ens.BusinessService
 {
 
@@ -54,6 +60,8 @@ Parameter ERRORMAIL = "An email needs a session, a subject and a body of at most
 Parameter ERRORSAMPLE = "SimMailboxIn has no such sample email.";
 
 Parameter ERRORSESSION = "The email's session has no session row.";
+
+Parameter ERRORBUSY = "The email's session row is busy: its lock wasn't free in the time allowed.";
 
 Parameter LOGPUBLISH = "SimMailboxIn could not publish a mailbox event: ";
 
@@ -99,31 +107,47 @@ Method Accept(mail As OcuTalon.Channel.SimMailbox.Mail, Output output As %String
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mail.SessionRef)
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERRORSESSION)
 	Set ..%SuperSession = session.TraceRef
-	Set sc = $SYSTEM.Status.OK(), saved = 0
+	Set id = session.%Id()
+	Set locked = (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
+	If locked && $SYSTEM.Status.IsError(##class(OcuTalon.Data.Session).%LockId(id, 0, ##class(OcuTalon.Core.Allowance).#LOCKWAIT)) Quit $SYSTEM.Status.Error(5001, ..#ERRORBUSY)
+	Set sc = $SYSTEM.Status.OK(), saved = 0, refused = 0
 	Try {
-		Set row = ##class(OcuTalon.Data.SimMessage).%New()
-		Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-		Set row.SessionRef = mail.SessionRef
-		Set row.Kind = "mailbox"
-		Set row.Direction = "in"
-		Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
-		Set row.Sender = sender
-		Set row.Subject = subject
-		Set row.Text = text
-		Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
-		Set sc = row.%Save()
-		If $SYSTEM.Status.IsOK(sc) {
-			Set saved = 1
-			Set item = ##class(OcuTalon.Msg.Item).%New()
-			Set item.ItemId = row.ItemId
-			Set item.SessionRef = mail.SessionRef
-			Set item.Channel = ..#CHANNEL
-			Set item.Provenance = "untrusted"
-			Set item.Sender = sender
-			Set item.Subject = subject
-			Set item.Text = text
-			Set sc = ..Send(..#TARGET, item)
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		If ##class(OcuTalon.Core.Allowance).MailAllowed(mail.SessionRef, now, .retryAt, .sc) {
+			Set row = ##class(OcuTalon.Data.SimMessage).%New()
+			Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set row.SessionRef = mail.SessionRef
+			Set row.Kind = "mailbox"
+			Set row.Direction = "in"
+			Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set row.Sender = sender
+			Set row.Subject = subject
+			Set row.Text = text
+			Set row.CreatedAt = now
+			Set sc = row.%Save()
+			If $SYSTEM.Status.IsOK(sc) Set saved = 1
+		} ElseIf $SYSTEM.Status.IsOK(sc) {
+			Set refused = 1
 		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If locked Do ##class(OcuTalon.Data.Session).%UnlockId(id)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If refused {
+		Set output = {"refused": 1, "retryAt": (retryAt)}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Try {
+		Set item = ##class(OcuTalon.Msg.Item).%New()
+		Set item.ItemId = row.ItemId
+		Set item.SessionRef = mail.SessionRef
+		Set item.Channel = ..#CHANNEL
+		Set item.Provenance = "untrusted"
+		Set item.Sender = sender
+		Set item.Subject = subject
+		Set item.Text = text
+		Set sc = ..Send(..#TARGET, item)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

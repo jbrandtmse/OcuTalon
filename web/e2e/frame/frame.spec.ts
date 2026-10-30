@@ -104,11 +104,13 @@ test('F2: demo mode off', async ({ page }) => {
   await changeSnapshot(page, (snapshot) => {
     snapshot['demoMode'] = false;
     snapshot['onlineDemo'] = false;
+    snapshot['nextReset'] = '2099-01-01T00:00:00Z';
   });
   await signInReadme(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   await expect(page.locator('.context-badge')).toHaveCount(0);
+  await expect(page.locator('.reset-countdown, app-resetting-view'), 'no reset countdown off the online demo, even with a nextReset in the snapshot, and no resetting view').toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Demo guide' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Simulated devices' })).toHaveCount(0);
 
@@ -247,7 +249,7 @@ test('F6: the About dialog', async ({ page }) => {
   const lines = (await dialog.locator('h2, p').allTextContents()).map((line) => line.replace(/\s+/g, ' ').trim());
   expect(lines, 'the seven lines, in order').toEqual([
     title,
-    'An OpenClaw-style assistant for InterSystems IRIS.',
+    'An AI assistant for InterSystems IRIS.',
     'An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention.',
     'Default model: Claude Haiku 5.5.',
     'README (opens in a new tab)',
@@ -257,7 +259,7 @@ test('F6: the About dialog', async ({ page }) => {
   const sameBody = await dialog.evaluate((root) => {
     const parentOf = (text: string): Element | null | undefined =>
       [...root.querySelectorAll('p')].find((p) => p.textContent?.trim() === text)?.parentElement;
-    const tagline = parentOf('An OpenClaw-style assistant for InterSystems IRIS.');
+    const tagline = parentOf('An AI assistant for InterSystems IRIS.');
     const note = parentOf('OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.');
     return !!tagline && tagline === note;
   });

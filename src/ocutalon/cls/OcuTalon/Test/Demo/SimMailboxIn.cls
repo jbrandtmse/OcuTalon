@@ -10,6 +10,9 @@
 ///     row, the Item or the event names the sample;
 ///   - TestRefused: an input that is no Mail, an empty or unknown session, a blank subject or body, a body over BODYMAX characters
 ///     and an unknown sample are errors with no row, no event and no send; a body of exactly BODYMAX characters is accepted;
+///   - TestEmailLimit (Story 16.9): on the online demo the 21st incoming email of the hour, a sample included, is refused with
+///     {"refused":1,"retryAt"}: no row, no send and no event; outgoing and older emails are not counted; with the flag off there is
+///     no limit; a lock that stays busy is an error, and every call leaves the row's lock free;
 ///   - TestSendFailure: a send that fails deletes the row, publishes nothing and answers the error;
 ///   - TestSendThrows: a send that throws is returned as an error and deletes the row;
 ///   - TestRevealsFlags: Reveals names a body property that holds the simulation's words and passes an ordinary body;
@@ -29,6 +32,9 @@ Property Number As %Integer;
 /// The Refs of the fixture rows of the run, comma-separated.
 Property Refs As %String(MAXLEN = "");
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
 /// The SuperSessions of the messages that TestThroughIntake sent.
 Property Supers As %DynamicArray;
 
@@ -38,17 +44,20 @@ Method OnBeforeAllTests() As %Status
 	Set ..Number = $Increment(^OcuTalonTest("SimMailboxIn", "n"))
 	Set ..Refs = ""
 	Set ..Supers = []
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnBeforeOneTest() As %Status
 {
 	Kill ^OcuTalonTest("SimMailboxInProbe", ..Number)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If ..Supers.%Size() > 0 Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
@@ -152,6 +161,90 @@ Method TestRefused()
 	Set edge = ..Session("refusededge")
 	Do $$$AssertStatusOK(in.OnProcessInput(..Mail(edge, "", "zz a", "zz b", $Translate($Justify("", bound), " ", "y")), .output), "a body of exactly BODYMAX characters is accepted")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(edge, 10).Count(), 1, "and recorded")
+}
+
+/// The online demo's email limit (Story 16.9, matrix row 17): with 20 incoming emails in the past hour, samples included, the next
+/// email, typed or a sample, is refused with the output {"refused":1,"retryAt"}, retryAt the oldest email plus 3600 seconds; no row is
+/// saved, nothing is sent and no event is published. Outgoing emails and emails older than the hour are not counted. With the flag
+/// off there is no limit and no lock. A lock that stays busy is an error status.
+Method TestEmailLimit()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set session = ..Session("limit")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	For i = 1:1:17 Do ..SeedMail(session, "in", ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + i))
+	For i = 1:1:4 Do ..SeedMail(session, "out", ##class(OcuTalon.Data.Time).AddSeconds(now, -60 - i))
+	Do ..SeedMail(session, "in", ##class(OcuTalon.Data.Time).AddSeconds(now, -3700))
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(session, "newsletter", "", "", ""), .output), "the 18th email, a sample, is accepted")
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(session, "", "zz a", "zz b", "zz c"), .output), "the 19th is accepted")
+	Do $$$AssertEquals({}.%FromJSON(output).%IsDefined("ref"), 1, "with its ref")
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(session, "partner-notice", "", "", ""), .output), "the 20th, a sample, is accepted")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), 3, "three emails were sent")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentMail(session, 100).Count()
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "mailbox").%Size()
+	Set expected = ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + 1 + 3600)
+	For mail = ..Mail(session, "", "zz a", "zz b", "zz c"), ..Mail(session, "suspicious-request", "", "", "") {
+		Set sc = ..In().OnProcessInput(mail, .output)
+		Do $$$AssertStatusOK(sc, "the 21st email is answered, not failed")
+		Do $$$AssertEquals(output, {"refused": 1, "retryAt": (expected)}.%ToJSON(), "with the refused output and the time sending reopens")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(session, 100).Count(), rows, "no row is saved")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), 3, "nothing is sent")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "mailbox").%Size(), events, "and no event is published")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()), 1, "the accepted and the refused emails leave the session row's lock free for another job")
+	Set other = ..Session("limitother")
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(other, "", "zz a", "zz b", "zz c"), .output), "another session is not limited by it")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(session, "", "zz a", "zz b", "zz c"), .output), "with the flag off the 21st is accepted")
+	Do $$$AssertEquals({}.%FromJSON(output).%IsDefined("ref"), 1, "with its ref")
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(session, "newsletter", "", "", ""), .output), "and so is the 22nd")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), 6, "both were sent")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set busy = ..Session("limitbusy")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(busy).%Id()
+	Kill ^OcuTalonTest("SimMailboxIn", "job")
+	Job ##class(OcuTalon.Test.Demo.SimMailboxIn).Hold(id)
+	Set deadline = $ZHorolog + 60
+	While '$Data(^OcuTalonTest("SimMailboxIn", "job", "ready")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("SimMailboxIn", "job", "ready")), 1, "another job holds the session row's lock")
+	Set before = $Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0)
+	Do $$$AssertStatusNotOK(..In().OnProcessInput(..Mail(busy, "", "zz a", "zz b", "zz c"), .output), "a lock that stays busy is an error status")
+	Do $$$AssertEquals(output, "", "with no output")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentMail(busy, 10).Count()_"|"_$Get(^OcuTalonTest("SimMailboxInProbe", ..Number), 0), "0|"_before, "and no row and no send")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set start = $ZHorolog
+	Do $$$AssertStatusOK(..In().OnProcessInput(..Mail(busy, "", "zz a", "zz b", "zz c"), .output), "with the flag off the busy row is no obstacle: the email is accepted")
+	Do $$$AssertTrue($ZHorolog - start < 2, "at once, with no wait for the lock")
+	Do $$$AssertEquals({}.%FromJSON(output).%IsDefined("ref"), 1, "with its ref")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set ^OcuTalonTest("SimMailboxIn", "job", "release") = 1
+	While '$Data(^OcuTalonTest("SimMailboxIn", "job", "done")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Kill ^OcuTalonTest("SimMailboxIn", "job")
+}
+
+/// The job body of TestEmailLimit's lock holder: takes the session row's lock, says so, keeps it until released, lets go and says so.
+ClassMethod Hold(id As %String)
+{
+	Set sc = ##class(OcuTalon.Data.Session).%LockId(id, 0, 5)
+	If $SYSTEM.Status.IsError(sc) Quit
+	Set ^OcuTalonTest("SimMailboxIn", "job", "ready") = 1
+	Set deadline = $ZHorolog + 60
+	While '$Get(^OcuTalonTest("SimMailboxIn", "job", "release")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do ##class(OcuTalon.Data.Session).%UnlockId(id)
+	Set ^OcuTalonTest("SimMailboxIn", "job", "done") = 1
+}
+
+/// A mailbox row of the session in the direction given, created at the time.
+Method SeedMail(session As %String, direction As %String, createdAt As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(session, {"Kind": "mailbox", "Direction": (direction), "CreatedAt": (createdAt), "Subject": "zz mail"})
 }
 
 /// A send that fails: the error comes back, the row is deleted and no event is published, so no row waits for a decision that

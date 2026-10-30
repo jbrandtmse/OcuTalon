@@ -26,6 +26,12 @@ export const TRACE_TEXTS = {
   menu: 'Visual Trace',
   openConversation: 'Open my conversation in Visual Trace',
   conversationNotYet: 'Available after your first message.',
+  userNameLabel: 'User name',
+  passwordLabel: 'Password',
+  copyUserName: 'Copy Visual Trace user name',
+  copyPassword: 'Copy Visual Trace password',
+  copied: 'Copied',
+  copyFailed: "Couldn't copy. Select the text and copy it yourself.",
 } as const;
 
 /** The text with each {name} replaced by its value. */

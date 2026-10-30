@@ -278,12 +278,18 @@ XData Contracts [ MimeType = application/json ]
    "CreatedAt": "%String(MAXLEN=20)",
    "Epoch": "%String(MAXLEN=22)",
    "ThreadSessionId": "%Integer",
-   "ThreadDay": "%String(MAXLEN=10)"
+   "ThreadDay": "%String(MAXLEN=10)",
+   "ResumeHash": "%String(COLLATION=EXACT,MAXLEN=43)",
+   "CspSessionId": "%String(MAXLEN=64)",
+   "AllowanceTimes": "%List",
+   "AllowanceUntil": "%String(MAXLEN=20)",
+   "DailyCapDay": "%String(MAXLEN=10)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
    "TraceRefIndex": "TraceRef unique",
-   "IrisUserIndex": "IrisUser"
+   "IrisUserIndex": "IrisUser",
+   "ResumeHashIndex": "ResumeHash unique"
   }
  },
  "OcuTalon.Live.Event": {

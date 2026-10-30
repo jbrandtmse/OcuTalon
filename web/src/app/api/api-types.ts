@@ -52,6 +52,12 @@ export interface StateSnapshot {
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
+  /** The idle cap in seconds: how long the page may go with no key press, click or sent message; present only on the online demo (Story 16.4). */
+  idleSeconds?: number;
+  /** The read-only Visual Trace account that the online demo publishes; present only on the online demo, never on a local install. */
+  traceAccount?: { user: string; password: string };
+  /** The next scheduled reset, UTC to the second; present only on the online demo with a schedule, and the last key (Story 16.8). */
+  nextReset?: string;
 }
 
 /** GET /ocutalon/api/v1/events?after=<sessionSeq>&afterInstance=<instanceSeq>: the session's events, then the instance's. */
@@ -127,6 +133,17 @@ export interface AnswerError {
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };
+}
+
+/**
+ * The body of a 429 answer (Story 16.9; AD-20), which an `HttpErrorResponse.error` carries: `allowance` for a message the session's
+ * allowance refused (with the `limit` beside `retryAt`), `email_limit` for a simulated email the mailbox refused. `retryAt` is the UTC
+ * time when the session may send again.
+ */
+export interface ApiRefusal {
+  error: { code: string; message: string };
+  retryAt: string;
+  limit?: number;
 }
 
 /** GET /ocutalon/public/status: no session; every key is present, null where it is not set. */
