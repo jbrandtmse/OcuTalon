@@ -3500,6 +3500,7 @@ So that the cause scores measure the product's diagnosis and an incident case ca
 **When** Lane A's evaluation job runs the set against the CI mock
 **Then** the incident cases in `eval/` run with the item and turn cases, and each completes with a recorded diagnosis, cost and request size in the report (REL-5, AD-22)
 - DW-353: EvalSink completes a case row only by the ItemDecision's ItemId, but an evaluation incident's ItemDecision carries the incident's Ref as ItemId (AD-30), which EvalIn cannot know when it opens the row; 9.6 opens incident rows and matches them by RunRef and SourceItemId, with an index (ledger; routed by cr 2026-10-28)
+- DW-385: Test.Eval.Record's FixtureSettings and DefinedSettings (QA, Story 9.4) are near-copies of Epic 7's private Test.Watch.Evidence helpers of the same names (the same five fixture names, the same open/remove/insert loop), forced while Test/Watch/** was Epic 7's; with Epic 7 merged, 9.6 unifies them into one shared helper both classes call, so the two Orders-definition fixtures cannot drift (ledger; routed by cr 2026-10-29)
 
 ### Story 9.5: Release candidates pass the evaluation and the demo incident gate
 
