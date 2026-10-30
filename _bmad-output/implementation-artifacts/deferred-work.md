@@ -1272,6 +1272,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 16.1 implement stage, live online-demo on lane C: signed in, %25CSP.PasswordChange.cls answers 200 at both trace apps; a change through it (F12) succeeds for a non-public user and is refused for both public accounts by the guard
 - 2026-10-25T19:05:03Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=harvest note=29.3 blocks every password-change page: include /ocutalon/trace/*/%CSP.PasswordChange.cls (any letter case, percent-encoded) in the proxy's blocked list and its test
 - 2026-10-30T08:06:49Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4): the host filter answers 404 to every %CSP.PasswordChange.cls path form (encoded, double-encoded, any letter case, with a query, signed in or out, both trace apps, /ocutalon/, /csp/broker/), IRIS alone 200; release/demo-host-check.sh block-pw-* carries every measured form (build 1aab3da + review patches), pinned by docker/tests/test-online-host.sh row 4 and the live online-demo Story 29.3 section; check list H4
+- 2026-10-30T04:03:21Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=orchestrator note=U-81 measured on the gated host by the Contest Planner 2026-10-30 after the Epic 16 deploy: the host filter answers 404 to every %CSP.PasswordChange.cls path form (encoded, double-encoded, any letter case, with a query, signed in or out, trace apps and /csp/broker/); IRIS alone serves it 200; controls 200. 29.3's host check script carries these cases; close at 29.3's adjudication
 
 ### DW-217: Web/Api.cls's class comment and StateBody's comment do not name the new traceAccount key (only TraceAccount()'s own comment does)
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
@@ -1572,16 +1573,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R2 a): AD-15 needs a valid dry run and Raise for the with-fix variant, AD-32 the ApprovalRef on every incident notice, and incident.withFix's dry-run slots refuse to render before 7.2; Epic 5 stores the data-format diagnosis and leaves the incident unnoticed; 5.8 builds the delivery and a unit-tested with-fix slot builder
 - 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+- 2026-10-28T14:17:04Z status=resolved-by:7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=adjudication note=IncidentManager.Proposed/Deliver+Notice.WithFixSlots(7f3a310);pinned_by_Test.Watch.Diagnose.TestDemoDiagnosis(50_orders,slots_count/time/itemNoun/cause/fixSummary+dry-run_slots,ApprovalRef,NoticedAt,stream_noticed,settling,diagnosing,incident_in_order;fresh_pass)+Tell.TestRaisedGetsTheWithFixNotice;mutations_AC1/AC3_red
 
 ### DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's Incident.RequestRefs, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13)
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R3): no fix request exists before Epic 7; Story 5.8 adds Incident.RequestRefs and reads it; the writer is the Raise of 7.2
 - 2026-10-26T13:11:27Z status=routed owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.2_at_Epic_5's_merge
+- 2026-10-28T14:17:04Z status=resolved-by:7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=adjudication note=IncidentManager.Proposed_appends_the_Ref_to_RequestRefs(L625);event_and_/state_list_{ref,state}_via_FromRow;pinned_by_Diagnose.TestDemoDiagnosis(Listed)+Raise.TestRejectChangesNothing(pending->rejected);AC7_mutation_red
 
 ### DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74)
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R3): FixRun holds only ApprovalRef, IncidentRef and StartedAt; no table stores a fix run's counts before Epic 7
 - 2026-10-26T13:11:27Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.4_at_Epic_5's_merge
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FixRun_stores_Total,Resent,Completed,FailedAgain,Skipped,Interrupted,Reason,EndedAt(c1f5162);Live.Payload.Incident.FromRow_lists_each_request's_result;pinned_by_Test.Fix.{Results,Partial,Runs}+Test.Live.Payloads_entries;mutations_red
 
 ### DW-273: Owner answer U-91: the evidence pack's credential-name rule (Watch.Reader CREDENTIALPARTS, case-insensitive substring) also leaves out settings whose name holds bearer or cookie; the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie
 - source: inbox U-91 (owner decision 2026-10-26T13:11:36Z#273) | severity: med | fix-risk: low | footprint: in-epic
@@ -1652,6 +1656,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: BridgeSink L292-294,L330,L377,L403 rows due at once and untyped event counts; Web.Api L193/L253 asserts check2 has no run
 - 2026-10-27T12:47:05Z status=routed owner=burndown by=harvest note=residual of DW-289 (orchestrator ruling): Epic 5 cannot edit Test/Core (Epic 6) or Test/Web (Epic 16); route to an open Epic 8, 6 or 16 story at merge (rows due a day ahead, or typed event counts)
+- 2026-10-27T21:20:07Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=x0 note=Epic_7_X.0_triage:not_in_Lane_A's_files(Test/Core_is_Epic_6's,Test/Web_Epic_16's);16.4_already_owns_Test.Web.Api(DW-290)_and_Epic_16_owns_Core/BridgeSink;residual:the_four_Test.Core.BridgeSink_methods(L286-L403)_and_Test.Web.Api.TestStateSections_make_their_check_rows_due_a_day_ahead_or_count_typed_events_so_a_real_HeartbeatIn_Tick_cannot_interfere;bullet_is_the_orchestrator's_post-merge
 - 2026-10-29T01:11:55Z owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=burndown note=Epic 10 burn-down overflow: Test.Core.BridgeSink and Test.Web.Api.TestStateSections are Epic 16's (Core/BridgeSink, Test/Web); Story 16.9 edits BridgeSink's budget.capped path and /state's status, so it seeds those check rows a day ahead or counts typed events
 - 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=delivered:Test.Core.BridgeSinks_four_methods_seed_check_rows_through_Check_Ahead()(asserted_over_23h_out)_and_count_approval_events_only;Test.Web.Api.TestStateSections_the_same_for_check1,check2(20cc3f9+review)
 ### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
@@ -1845,6 +1850,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T01:06:08Z occurrence=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and note=after a reload an answered request has no request card, so its result band never shows on an open card while the chat announces it
 - 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the snapshot's incident parts (orchestrator ruling 5); the parts need Lane A's builder (Epic 5); recommended: route to Story 11.1 (Epic 11 turns the real path on), /state building the parts with IncidentManager's builder
 - 2026-10-28T03:51:21Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): Lane A's Live.Payload.Incident.FromRow fills groups, requests, evidence and traceTargets for /state, beside DW-271/DW-272; Epic 7 integrates forward before 7.4's plan
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FromRow(Story_5.8)_already_filled_/state's_groups,evidence,traceTargets,requests;7.4_adds_each_request's_result;Test.Fix.Results/Partial_pin_the_whole_/state_entry(Partial.TestCopiesFailAgain:result_and_reason_on_event_and_/state)
 
 ### DW-293: Incident.CauseCategory and Incident.Element values are fixed by no contract: the card humanizes a snake_case category (data_format_change -> 'Data format change') and shows Element as published, while the UX evidence line reads 'order date' and eval/orders-date-format records elementAtFault 'OrderDate'
 - source: spec-6-1-show-each-incident-as-one-card-in-the-chat.md (plan deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1931,6 +1937,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: R1 is the first case of rail.spec; R2-R19 use the same open() helper and passed in the same run; actions-runner-8; attempt 2 of the same run green
 - 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
 - 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
+- 2026-10-29T14:54:02Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through note=CI_run_40888894726(cece969)_iris(browser):banners.spec.ts_B17_open():main_data-snapshot_loaded_not_found_after_signIn(same_shape);one_rerun_per_the_flake_rule
 - 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=rail.spec.ts open() waits for the GET /state answer (200) instead of main.main within 10 s; DW-333 mutation (12 s /state delay) recorded in the spec
 - 2026-10-30T02:54:15Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=CI_run_40987940151_attempt_1_(0990fbe),iris_(shards),live:floor,web/e2e/floor/layout.spec.ts_G1_[floor]_chromium:main.main_not_found_within_10_s_after_signIn_(support/floor.ts:138_openFloor);green_on_the_unchanged_rerun
 - 2026-10-30T02:54:15Z status=routed owner=burndown by=ci note=residual:the_same_sign-in_readiness_wait_remains_in_web/e2e/support/floor.ts_openFloor(data-snapshot_loaded_within_the_default_10_s);16.4_fixed_only_rail.spec.ts_open()(wait_for_the_GET_/state_200)
@@ -1952,6 +1959,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CI 40525019781 iris(production) live:production row 21 wanted 'CHK|start-fails|1|1', got ''; green on one unchanged rerun and locally on the merged tree
 - 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) the session line timed out or errored while the production stopped and started with the stub WatchOps; route to the story that next edits docker/tests/test-production.sh (Epic 15 owns docker/tests): give row 21 a longer wait or a retry
+- 2026-10-27T21:20:07Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=x0 note=Epic_7_X.0_triage:docker/tests/**_is_Epic_15's(test-production.sh_is_being_edited_by_Epic_8,contended_for_Epic_7);15.3's_restart_tests_are_the_next_planned_docker/tests_owner;residual:give_test-production.sh_row_21('Start(15)_with_a_WatchOps_whose_OnInit_fails')_a_longer_wait_or_one_retry;if_Epic_8_edits_the_file_again_first,the_orchestrator_may_re-route;bullet_is_the_orchestrator's_post-merge
 - 2026-10-28T04:48:55Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=flake occurrence=2: CI run 40629178094 (iris production, row 21 wanted CHK|start-fails|1|1, got '') on feature dc44a8c, a bookkeeping-only commit whose code head 6151327 passed; rerun --failed; owner as Epic 7's X.0 re-own (15-3)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
@@ -1959,12 +1967,130 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 5.11 Task 0: a fast local batch fell between two polls and was never read; CI's slower batch was read
 - 2026-10-27T18:08:35Z status=wontfix-accepted owner=5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real by=harvest note=reopen_if=a test that seeds a watch with Test.Data.Fixture.Check and expects its own failures noticed flakes; Test/Data/Fixture.cls is contended (Epic 16): give Check a CreatedAt there
 
+### DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Settle.SEENMAX caps FailureGroup.Seen at 1000; RepairResend.DryRun takes targets only from Seen; 7.1 exercises 50 orders, 7.4 measures 500
+- 2026-10-28T00:12:03Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=harvest note=7.4 owns scale: make the dry run's count honest past the Seen cap (say how many it could not list, or read the targets another way) and pin it
+- 2026-10-28T01:03:01Z occurrence=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing
+- 2026-10-28T21:18:33Z occurrence=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=the_dry_run_counts_failures_Seen_no_longer_lists_as_affected_and_left_out;a_window_Seen_has_cut_is_refused;Test.Fix.DryRun.TestUnlistedFailuresAreCounted(two_groups:9_affected,4_resent,5_left_out)
+
+### DW-328: The spine's dependency rule lists only Watch -> Fix.Kind and Checks -> Fix.Run.Sweep inside the domain layer, while the Fix area (RepairResend, Executor) references Watch.Reader, FailurePoller.Scope, ItemNoun and Transitions
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-3 makes Watch.Reader the only reader and AD-16 asks for the scope check, so the code is right; ARCHITECTURE-SPINE.md L98 does not name these arrows (Checks already uses the same classes); the spec's spine notes list them for the lead
+- 2026-10-28T01:02:38Z status=escalated owner=burndown by=cr note=Rule 20 spine write: add Fix -> Watch.Reader, FailurePoller.Scope, ItemNoun, Transitions to the domain sentence (veto item)
+- 2026-10-30T05:18:18Z status=resolved-by:7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing owner=burndown by=merge_gate note=closed at Epic 7's decision sheet: the orchestrator extended the spine's dependency sentence after merge eb313fa (Fix may call Watch.Reader, FailurePoller.Scope, ItemNoun, Transitions, Settle helpers, ErrorText, Notice.NOERRORTEXT, as built); veto U-159
+
+### DW-329: A data_format_change whose sample has no body, or whose values are in a format outside the registered nine, has no valid reply and ends as the fallback invalid
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: DiagnosisPayload requires a registered fixKind for data_format_change and the kind check fails closed without a sample body (AC 2, Always); the fallback notice is Epic 5's safe route
+- 2026-10-28T01:03:01Z status=by-design owner=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing by=cr note=spec-bound: AC 2 and the fail-closed rule; reopens only by a spec amendment (for example more formats, or a fix-less data_format_change)
+
+### DW-330: Test.Fix.DryRun.DropSession repeats the per-session loop of Test.Data.Fixture.RemoveMessages (bodies, headers, Ens_Util.Log) for one OCUTALON session
+- source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: RemoveMessages works by super session and Test/Data/** is Epic 16's (contended), so a per-session entry point cannot be added here
+- 2026-10-28T01:03:01Z status=wontfix-accepted owner=7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing by=cr note=reopen_if=a third copy of a per-session message clean-up appears under src/ocutalon/cls/OcuTalon/Test, or Fixture gains a per-session entry point
+
+### DW-341: IncidentManager.Proposed leaves a data-format incident unnoticed when its with-fix slots cannot be built or its dry run is not one JSON object
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Proposed quits with one warning and no NoFix after a refused raised move, a DryRun that is not an object, or a WithFixSlots refusal (3 review layers)
+- 2026-10-28T14:14:26Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=matrix row Slots cannot be built keeps 5.8's unnoticed row; raised is never refused when Open; FixExecutor emits JSON
+
+### DW-342: An error thrown between Approval.Raise and the incident's save leaves a pending request that no incident lists
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Proposed's Catch only logs: a returned save error cancels the request (CancelRequest), a thrown one does not; spec residual risk (2)
+- 2026-10-28T14:14:26Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if Deliver or Move throws before the save commits; Owns then drops its outcome, nothing executes, it expires
+
+### DW-343: Approval.Validate checks only that a fix request's FixTargets is non-empty, not that it holds ascending comma-separated header ids
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Validate refuses only an empty FixTargets; its one writer, IncidentManager.Proposed, copies FixExecutor's ascending header ids
+- 2026-10-28T14:14:26Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real once a second producer writes fix rows, or Story 7.3's executor uses FixTargets without parsing each id
+
+### DW-344: The with-fix notice's count (NoticeCount) and its resendCount (the dry run's resend) differ when failures join during the diagnosis
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Notice.WithFixSlots takes count from NoticeCount and resendCount from DryRun.resend, which reads all of Seen, so a burst can read N affected, resend M
+- 2026-10-28T14:14:35Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=Design Notes: count stays NoticeCount; resendCount is the row's, so what is approved is what runs (U-126 holds)
+
+### DW-345: A dry run that FixExecutor never answers leaves its incident unnoticed: no timeout and no sweep
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Propose sends the DryRun with no timer and only OnResponse or OnError move on; residual risk (1) names 7.5's sweep, which covers FixRuns only
+- 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if FixExecutor is disabled or its queue purged mid-ask; errors take OnError, restarts replay; Decide's ask is alike
+- 2026-10-28T21:18:33Z occurrence=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an
+
+### DW-346: After Reconcile re-arms a hold, the answered notification goes out in the re-armed hold's session, not the incident's trace session
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Outcome sends AnswerNotice through Move and Tell in the session the outcome arrives in; Execute switches to TraceHeaderId, the answered notice does not
+- 2026-10-28T14:14:35Z status=by-design owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=Design Notes decided-in-stage: answered goes out in the outcome's session; AD-26's Raise-session rule holds
+
+### DW-347: Test.Fix.Raise's OCUORDERS snapshot checks cannot go red until Story 7.3 gives FixExecutor a real Execute
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: FixExecutor refuses Execute today, so a wrongly sent Execute leaves OCUORDERS unchanged; the Execute-header count is the live pin, its mutation recorded
+- 2026-10-28T14:14:35Z status=wontfix-accepted owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=reopen_if=Story 7.3's Verification has no mutation line turning Test.Fix.Raise OCUORDERS did not change red
+
+### DW-348: Test.Watch.Diagnose.TestDemoDiagnosis counts every POST /v1/messages in the stack's mock log since its mark, not only this incident's
+- source: spec-7-2-the-incident-notice-carries-the-dry-run-and-one-approval-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ModelRequests counts all POSTs after LogMark; the spec's pin is exactly 2 (the dry run calls no model); Decide's callers are Conversation, Intake, IncidentManager
+- 2026-10-28T14:14:35Z status=wontfix-theoretical owner=7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req by=cr note=real if a class leaves a turn or diagnosis in flight past its teardown, or a model caller runs on a schedule
 ### DW-337: CI's shards group took 31 min 52 s on Epic 6's head bed6d27, close to REL-4's 35 minutes: Epic 5's lane-a shard grew to 70 classes and Story 6.4 added live:cards (about 230 s locally) to the group
 - source: orchestrator: Epic 6 merge gate (bed6d27, runs 40625489943, 40625489987) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci.yml group times on bed6d27: shards 31m52s, browser 23m05s, image 21m32s, install-fresh 14m02s, install-upgrade 12m58s, production 9m20s; production and browser are pinned by test-ci-changes.sh and the demo-path gate
 - 2026-10-28T03:51:21Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=merge_gate note=first change in 9.1: move live:cards to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated; test infrastructure only
 - 2026-10-28T03:54:34Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=orchestrator note=owner via Contest Planner: TRIGGER - if any head's iris (shards) job runs longer than 36 min before Epic 9 merges, pull this forward as a fix-forward in the epic whose head did it (move live:cards to the shorter of install-fresh and install-upgrade, measured); the iris job's hard limit is timeout-minutes 40 (ci.yml:89)
+- 2026-10-29T16:17:08Z occurrence=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got note=Epic_7's_integrate-forward_head_0c01aee:shards_group_2385s(lane-a_87_classes_1466s,floor_576s,cards_342s);all_units_passed_but_the_40-minute_job_timeout_cancelled_the_job_at_wrap-up(run_40903071771);rerun_requested
+- 2026-10-29T21:57:23Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=runner note=occurrence=7-5 fix-forward on OCT-epic7 (3308237): live:cards to install-upgrade (identical to 98f69be) plus the owner decision dw337_shards_split: shard:lane-a in two pieces, shards (Checks,Install,Watch + live:floor) and the new group shards-2 (the rest); 98b95f2's shards job was cut off at the 40-minute limit inside live:cards (lane-a 1594s, floor 559s)
 
+### DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend
+- source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Proposed (later) builds its slots with Notice.WithFixSlots(incident, ...), whose fixSummary is Incident.FixSummary; Agent/Diagnosis.cls does not forbid a count; the UX fixtures in Test.Msg.Catalog put counts in it
+- 2026-10-28T21:18:33Z status=decision-pending owner=burndown by=cr note=human=run a live diagnosis to see if fixSummary names a count; then choose a count-free prompt rule or other later text
+- 2026-10-30T05:17:59Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=the Contest Planner's hands-on pass with a real key checks whether a live diagnosis writes a count into fixSummary; if it can, a count-free rule in the diagnosis prompt or count-free later-request text (decide)
+
+### DW-366: The spine's Conventions row 'Later requests' does not say that stragglers of the first ask start a round after its raise, or that a failed later round's failures rejoin the next round's window
+- source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: IncidentManager.Record sets LaterSince on an unnoticed incident whose group has an AskedTo, and Unask with unmark puts the marks back on the error routes (7.6 review); the row names only incidents awaiting approval, fixing or resolved
+- 2026-10-28T21:18:33Z status=wontfix-accepted owner=7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an by=cr note=reopen_if=a later plan or review reads the Later requests row as covering only awaiting, fixing and resolved incidents
+- 2026-10-28T21:20:52Z status=resolved-by:7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an by=adjudication note=spine_Conventions_row_Later_requests_now_names_the_first_ask's_stragglers_and_the_error-path_mark_restore([AMENDED_2026-10-28,Story_7.6_code_review,DW-366])
+
+### DW-368: A stopped target production renders as 'had changed since the dry run': AD-16 counts each copy a stopped production refuses as Skipped, and the Result texts convention then picks result.skipped, whose text claims the orders changed since the dry run (a false claim in an edge case)
+- source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 7.3 spec Design Notes V4; Runs.TestStoppedProductionSkipsEveryCopy pins the Skipped counts; the result key choice is the Result texts convention's (Stories 7.3, 7.4, 7.5, 30.5)
+- 2026-10-28T22:37:53Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4 owns the result texts (E > Incidents and Approvals > Results): give a stopped production an honest result (its plain reason, or a key of its own); new wording is a veto-window public-text item at 7.4's spec gate
+- 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=an_honest_stopped-production_result_needs_an_AD-16_amendment(a_production_not_running_at_the_run's_start_ends_it_as_couldn't_start,Skipped_0)_or_a_new_result_key_with_a_Result_texts_row_and_the_page's_key_selection(web/src/app/approvals/approval-view.ts);AD-16_is_cited_by_done_specs(U7(c):a_re-architecture,the_owner's);recommended:amend_AD-16,then_a_small_fix_story(Epic_11_X.0_or_30.x)
+- 2026-10-29T13:12:01Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=also a resend that errs partway: its unreached targets count as Skipped and render as changed since the dry run
+- 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-160
+- 2026-10-30T05:24:59Z status=routed owner=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=merge_gate note=owner U-160 (a) via the Contest Planner: AD-16 amended after Epic 7's merge; a target production not running at the run's start ends the run as couldn't start (Resent 0, Skipped 0, plain reason, row failed); the errs-partway case split to its own entry for 30.5; the result text never claims a change that did not happen
+
+### DW-379: The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which Story 7.3 is the first to write
+- source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: PurgeOne deletes the FailureGroup rows and the incident in one transaction and nothing else; Fix.Executor saves one FixRun per approved request; after a purge those rows name a deleted incident (IncidentManager.cls:1254)
+- 2026-10-29T02:28:32Z status=open owner=7-3-approved-repairs-are-re-checked-and-resent by=harvest note=AD-27 retains incidents for DaysToKeep (Lane A's Purge): a FixRun row is the incident's own record, so following its incident is compliance (decide), not a retention change; one more delete in PurgeOne and an assertion in Test.Watch.Lifecycle.TestPurge (code review patches it)
+- 2026-10-29T04:19:48Z status=resolved-by:7-3-approved-repairs-are-re-checked-and-resent by=adjudication note=IncidentManager.PurgeOne_deletes_the_incident's_FixRun_rows_in_the_same_transaction(7.3_code_review);Test.Watch.Lifecycle.TestPurge:two_runs_go_with_the_old_incident,one_stays_with_the_young;mutation(drop_the_delete)->TestPurge_red
+
+### DW-380: An approved request whose ExpiresAt passes before FixExecutor takes its Execute, or whose StartExecution fails, is refused with an info line only, so it stays approved and its incident stays fixing with no result
+- source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Executor.Refusal refuses an approved row past ExpiresAt and Execute only logs a StartExecution error: no FinishExecution, no FixResult; Approval.Expire moves only pending rows
+- 2026-10-29T04:15:16Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=reachable once 7.4's wait holds a later request's Execute; end it as couldn't start; new reason text is veto-window
+- 2026-10-29T05:56:54Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4_addresses_the_StartExecution-failure_half(AC_11,NOSTART);the_past-expiry_half_split_to_DW-384(escalated)
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=StartExecution_half:an_approved_unexpired_request_whose_StartExecution_fails_ends_as_couldn't_start_with_NOSTART('OcuTalon_couldn't_start_the_resend');Test.Fix.Executor.TestStartExecutionFailsForAnApprovedRequest(+moved-row_cases);the_past-expiry_half_is_DW-384(escalated)
+
+### DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait run in its job would hold other incidents' notices past AD-15's 35-second notice
+- source: spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Production.cls gives FixExecutor PoolSize 1; IncidentManager's notice waits on its DryRun ask to FixExecutor; 7.3's Run ends after registration in that job, where 7.4's wait would go
+- 2026-10-29T04:15:22Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=7.4 plans where its 60 s wait runs so the dry-run ask never waits behind it, or shows the notice still holds 35 s
+- 2026-10-29T13:14:32Z status=resolved-by:7-4-ocutalon-reports-how-many-orders-went-through by=adjudication note=FixExecutor_PoolSize_2_with_one_waiter_under_WAITLOCK(veto_U-147);Test.Fix.Waits.TestDryRunAnsweredDuringAWait(dry_run_answered_in_0.01s_while_a_run_waits;PoolSize_1_mutation_red)
+
+### DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result
+- source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: split from DW-380 at 7.4's spec gate: 7.4 ends the StartExecution-failure half (NOSTART, AC 11); the past-expiry half needs AD-16's refused-Execute list amended
+- 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=recommended: amend AD-16 so that an approved row past its ExpiresAt ends as couldn't start with NOSTART ('OcuTalon couldn't start the resend'), one line in Executor.Refusal; AD-16 is cited by done specs (U7(c): the owner's)
+- 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-161
+- 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-161 (a) via the Contest Planner: AD-16 amended after Epic 7's merge; an approved Execute past its ExpiresAt ends as couldn't start with NOSTART (OcuTalon couldn't start the resend), one line in Executor.Refusal, and its incident leaves fixing with that result
+
+### DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed, or a stop that timed out) leaves every run still in its 60-second wait executing and its incident fixing, with no result, because no job calls Wait again until another run resends copies
+- source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Fix.Executor.Wait quits on Ens.Job ShouldBeQuiescent/ShouldTerminate and only Run calls it; AD-16's Sweep (7.5) ends runs reported in progress (30.5) or marked interrupted by Reconcile at a start, neither of which covers these; 7.4 spec Residual risks names it for 7.5's Sweep
+- 2026-10-29T13:11:51Z status=routed owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=7.5's Sweep or Reconcile must also end runs whose waiter stopped while IRIS kept running (no restart); fix-risk med
+- 2026-10-29T23:21:03Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=adjudication note=delivered: Fix.Run.Sweep (called on every Checks Tick through FixRunSweep in Checks.Process) ends a run the stopped waiter left once its wait is over and every copy was done inside it (EndLeft, veto U-153), and reports a Reconcile-marked run once; pinned by Test.Fix.Executor TestSweepEndsARunNoWaiterEnded, TestSweepDecidesByTheLatestCopyTime, TestSweepLeavesRunsOfTheWaiterAndOfStory305, TestSweepSkipsALockedRun (bf8716e + QA + review patches); CI 40961979510 Test.Fix.Executor passed
 ### DW-339: A local ci/iris.sh live unit serves a stale web bundle after a merge that brings web/ changes: lib-live.sh ensure_web_bundle rebuilds src/ocutalon/csp only when it is missing and never compares it with web/src
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.6 rework 2: lane-C bundle main-ZNXMCDT7.js predated Epic 6's cards (0 app-incident-card); live demo-path STEP 4/5 red until ci/iris.sh build, then green with no code change; CI builds fresh per job
@@ -2042,6 +2168,50 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+
+### DW-399: Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss
+- source: _bmad-output/implementation-artifacts/spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: the class stops and starts FixExecutor (two 10 s lock waits) between R1's ResentAt and the copies' item restart, then asserts elapsed <= MARGIN; passed twice locally (85 s), no elapsed value printed (Stopped.cls:24)
+- 2026-10-29T20:57:12Z status=open owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=harvest note=QA at the resume: measure the elapsed margin on a fresh run and on CI; if it can fail on a slow host, reorder the steps or widen the window
+- 2026-10-29T23:21:03Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=adjudication note=measured: CI run 40961979510 (iris shards-2, a fresh CI stack) passed Test.Fix.Stopped in 83.41s, so OrdersFromPartner started again inside the 50s margin on a CI runner; locally the class measured 0s of 50 and the Tick 1s of 60 (QA); QA made Stopped print its measured seconds on a pass (a status-2 assert line), so every later CI run shows the value
+
+### DW-407: The spine's AD-22 'CI as built' record still says six IRIS groups with lane-a run whole; 3308237 (DW-337) made seven groups (shards-2), runs lane-a in two pieces and moved live:cards to install-upgrade
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md:608 reads 'inside six IRIS groups (install-fresh, install-upgrade, production, browser, shards and image)' and lists lane-a as Agent, Bridge, Install, Tools and Digest; ci/units.sh now has seven IRIS_GROUPS and shard_unit_areas pieces
+- 2026-10-29T23:01:40Z status=routed owner=burndown by=cr note=lead: Rule 20 light path, AD-22 as-built line (7 groups, lane-a pieces, live:cards, lane-a areas)
+- 2026-10-30T03:44:43Z status=decision-pending owner=burndown by=burndown note=set aside for the decision sheet (orchestrator ruling, option b): the orchestrator writes the factual AD-22 as-built correction in the main checkout after the merge; no worktree AD edit (U14: AD-22 cited by Epics 9, 16, 15 and 13)
+- 2026-10-30T05:18:18Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got owner=burndown by=merge_gate note=closed at Epic 7's decision sheet: the orchestrator corrected AD-22's as-built CI line after merge eb313fa (seven groups, lane-a in two pieces, live:cards in install-fresh, lane-a areas); owner_decision dw407_ad22_as_built via contest_planner
+
+### DW-408: A final FixResult that Checks fails to send is lost: Fix.Run.Sweep has already ended the run, so no later Tick returns it and the incident stays fixing
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Checks/Process.cls Fixes logs LOGFIX and goes on after Sweep saved EndedAt; the spec's Always and Never bullets: a failed send logs LOGFIX, never a second FixResult, no stored property
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=spec-bound at-most-once, as FixExecutor's Report; an unsent marker needs a stored property (spec amendment)
+
+### DW-409: When Fix.Run.EndLeft's close fails or throws after End saved the run, the request stays executing and the final result renders result.stillResending, which nothing follows up
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Fix/Run.cls:212-221 ends, then closes; TestSweepEndsARunNoWaiterEnded case C pins it; the spec's Always bullet orders End then FinishExecution done (residual risk 4)
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=spec-bound order (residual risk 4, as 7.4's Finish); needs a FinishExecution fault; reopen by amending: close first
+
+### DW-410: A run that Reconcile marked counts as V2 rules: its row ends failed/interrupted with an interrupted Action entry even when nothing was cut off, recheck skips count as cut off, and an unreadable read counts every copy as cut off
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:164-184 EndMarked (Skipped 0, Interrupted = Total - Completed - FailedAgain); spec V2 and the spine's Conventions row Fix runs; AD-11 and AD-16 still word it as the interrupted result
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=V2 ruled at the spec gate (veto U-154); conservative, never a false all-clear; AD-16's text kept as ruled
+
+### DW-411: Reconcile's Fix.Run.Interrupt leaves a cut-short run unmarked when it cannot take the run's lock in 2 s or Mark's save fails, and nothing marks it before the next start
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:88-89 and :99-100 push a problem and go on; Sweep never marks a run, and EndLeft holds the run's lock while it reads the copies
+- 2026-10-29T23:01:48Z status=wontfix-theoretical owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=real if a Tick's Sweep holds that run's lock over 2 s inside the Reconcile step (thousands of copies) or a storage fault
+
+### DW-412: Fix.Run repeats small parts of FixExecutor's end instead of calling them: Entry is Executor.Audit's try/catch around its own WriteAudit seam, and EndLeft rebuilds Executor.Look's done counts
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:208-211 and :241-252 against Fix/Executor.cls:688-691 and :487-498; the spec's Rule 2 note names the lifted methods but not these two
+- 2026-10-29T23:01:48Z status=wontfix-accepted owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=reopen_if=a change to Executor.Look's counts or Audit's handling lands without the same change in Fix.Run.EndLeft or Entry
+
+### DW-415: flake: live:sign-in web/e2e/sign-in/shell.spec.ts:93 row 9 failed with page.goto: net::ERR_NETWORK_CHANGED (Chromium saw the CI host's network interfaces change mid-run, likely another job's compose networks), then passed on an unchanged rerun
+- source: orchestrator ruling: Epic 7 CI on 89685f6 (run 40993669822) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: run 40993669822 iris (browser) attempt 1: 1 failed (shell.spec.ts row 9, page.goto net::ERR_NETWORK_CHANGED at http://127.0.0.1:52808/ocutalon/); attempt 2 green
+- 2026-10-30T03:44:09Z status=routed owner=burndown by=runner note=flake class per CI Is a Gate; no assertion failed; burn-down gate re-owns it
+- 2026-10-30T03:44:43Z status=wontfix-accepted by=burndown note=a single CI-host network blip (no assertion failed; green on the unchanged rerun); reopen_if=net::ERR_NETWORK_CHANGED appears again in any iris job log
 - 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
@@ -2169,3 +2339,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: release/demo-host-check.sh note_allowed runs on allow-status, allow-splash, allow-broker and the two sign-ins; the 20 ambiguous probes are IRIS's 404:noform; the check list now forbids such a mark
 - 2026-10-30T08:03:08Z status=wontfix-accepted owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=reopen_if=the Planner's mark is a body text, or a host run passes a block-* probe that the host is found to let through
+### DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160)
+- source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
+- 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen

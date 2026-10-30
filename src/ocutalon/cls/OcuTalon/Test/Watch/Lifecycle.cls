@@ -15,15 +15,26 @@
 ///     incident 14 minutes before the clock's now, with the time not fixed, is not_quiet, which shows that the item reads the clock when nothing is fixed;
 ///   - TestApprovalOutcomes: approved starts the fix (fixing, one Execute for the request in the incident's trace session, the probe's own session kept);
 ///     rejected and expired reopen the incident with that variant when nothing else is pending, and keep it awaiting approval while another request is pending
-///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event;
+///     or approved with its outcome on its way; while fixing an outcome changes nothing but the event. Since Story 7.2 an accepted rejected or expired outcome
+///     also Sends one answered Notification per recipient (answered.rejected {channel, time}, answered.expired {time}, with the request's Ref and the incident's),
+///     whether the state moves or stays awaiting_approval or fixing; since Story 7.3 an accepted approved outcome sends one too (answered.approved {channel, time}),
+///     also while the incident is fixing and no Execute goes out;
 ///   - TestFixResults: a final (or interrupted) run resolves the incident, or returns it to awaiting approval while a request is pending, or starts the earliest
 ///     waiting request; the run's own request never waits for itself, even while its row still reads approved; a progress report changes nothing but the event;
+///   - TestResultNotices (Story 7.3; AC 5): each accepted final or interrupted FixResult sends each recipient of the incident one Notification of kind result, with the
+///     key that Notice.ResultKey picks for the row's state and the counts (couldNotStart, skipped, allThrough, interrupted, and stillResending for a row that still
+///     reads executing), the slots that the key declares, the request's Ref and the incident's and no
+///     decision; a progress report, a result that the table refuses and a result whose slots cannot be built send none (one Type 3 warning for the last);
+///   - TestLaterRequestWhileFixing (Story 7.6; AC 4): a later request R2 raised while the incident is fixing with R1 (the probe's LaterDried) leaves it fixing and
+///     sends the owner one approval Notification; R2 approved sends no Execute; R1's final result sends exactly one Execute, for R2, in the incident's trace
+///     session; R2's final result resolves the incident;
 ///   - TestRefusedEvents: cancelled, a stale or repeated outcome, a request that is not the incident's, an unknown incident, a FixResult outside fixing and any
-///     event on a closed incident change, send and publish nothing and log one info line;
+///     event on a closed incident (a rejected or an expired outcome that the request's row shows included, whose answered Notification is built and then dropped
+///     with the refused move) change, send (no answered Notification either) and publish nothing and log one info line;
 ///   - TestEveryChangePublishes: an accepted move publishes exactly one incident event with the row's state on each recipient's stream, a refused one none;
 ///   - TestRepeatDismiss: the same Dismiss twice closes once and then is not_allowed with state closed;
 ///   - TestExecuteSendFails: a failed send of the Execute leaves the row as saved, the event published, and logs one warning;
-///   - TestPurge: skipped when the namespace already holds a closed incident older than 59 days (Purge would delete a row that the test did not make); else Purge(90) deletes the incident closed 91 days ago with its groups and keeps the one closed 89 days ago, an open one, and a closed one with no
+///   - TestPurge: skipped when the namespace already holds a closed incident older than 59 days (Purge would delete a row that the test did not make); else Purge(90) deletes the incident closed 91 days ago with its groups and its fix runs (FixRun rows) and keeps the one closed 89 days ago with its group and its run, an open one, and a closed one with no
 ///     ClosedAt; at the cutoff, one closed an hour after it stays and one closed an hour before it goes; 0, "x" and other non-numbers are errors that delete nothing;
 ///   - TestOnlyTheIncidentsOwnRequestsCount (QA): a pending or approved request of another incident, a Ref with no row and empty entries in RequestRefs are no
 ///     facts: R1 rejected still reopens the incident, a final run still resolves it, and nothing is executed; a control with its own approved request executes it;
@@ -43,6 +54,15 @@ Parameter PROBE = "OcuTalon.Test.Watch.IncidentProbe";
 
 /// The time that the probe's quiet check reads in TestCloseQuiet.
 Parameter QUIETNOW = "2030-06-01T12:00:00Z";
+
+/// The parameters of the fix of the requests that TestLaterRequestWhileFixing makes.
+Parameter PARAMETERS = "{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""}";
+
+/// The noun of the incident that TestLaterRequestWhileFixing makes.
+Parameter NOUN = "{""one"":""order"",""other"":""orders""}";
+
+/// A noun that the incidents of TestResultNotices have, and that a result takes only where the request's dry run has none.
+Parameter WIDGETNOUN = "{""one"":""widget"",""other"":""widgets""}";
 
 /// The run's number.
 Property Number As %Integer;
@@ -78,7 +98,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	For i = 1:1:$Length(..Incidents, ",") {
-		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i))
+		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i)), ..DropRuns($Piece(..Incidents, ",", i))
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
@@ -261,8 +281,12 @@ Method TestApprovalOutcomes()
 	Do $$$AssertEquals(host.%SessionId, 7, "and the handler's own session is put back")
 	Do $$$AssertEquals(..Count(a), 1, "one incident event")
 	Do $$$AssertEquals(..Newest(a), "fixing", "with the state fixing")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), 1, "and one answered notification for the one recipient")
+	If answers.%Size() = 1 Do ..AssertAnswered(answers.%Get(0), a, "approved", r1, incident)
 
 	// rejected and expired with nothing else pending
+	Set asked = 1
 	For outcome = "rejected", "expired" {
 		Set incident = ..Incident(a, "awaiting_approval")
 		Set r1 = ..Request(a, incident, outcome)
@@ -274,6 +298,10 @@ Method TestApprovalOutcomes()
 		Do $$$AssertEquals(row.state_"|"_row.variant, "open|"_outcome, outcome_": the incident is open with that variant")
 		Do $$$AssertEquals(..Orders(host), orders, outcome_": no Execute")
 		Do $$$AssertEquals(..Count(a) - before, 1, outcome_": one event")
+		Set answers = ..Answers(host)
+		Do $$$AssertEquals(answers.%Size(), asked + 1, outcome_": one answered notification for the one recipient")
+		If answers.%Size() = (asked + 1) Do ..AssertAnswered(answers.%Get(asked), a, outcome, r1, incident)
+		Set asked = asked + 1
 	}
 
 	// overlap, pending: R2 pending
@@ -286,11 +314,19 @@ Method TestApprovalOutcomes()
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "awaiting_approval|", "R1 rejected while R2 is pending: the incident stays awaiting_approval")
 	Do $$$AssertEquals(..Orders(host), orders, "with no Execute")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and the answered notification still goes out")
+	If answers.%Size() = (asked + 1) Do ..AssertAnswered(answers.%Get(asked), a, "rejected", r1, incident)
+	Set asked = asked + 1
 	Do ..SetRequest(r2, "approved")
 	Do ..Outcome(host, r2, incident, "approved")
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", "then R2's approval: the incident is fixing")
 	Do $$$AssertEquals(..Orders(host), orders_$Select(orders = "": "", 1: ",")_r2_"@4343", "and R2 is executed")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and R2's approval is answered too")
+	If answers.%Size() = (asked + 1) Do ..AssertAnswered(answers.%Get(asked), a, "approved", r2, incident)
+	Set asked = asked + 1
 
 	// overlap, pending: R2 approved, its outcome not yet here
 	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 4444})
@@ -302,10 +338,16 @@ Method TestApprovalOutcomes()
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "awaiting_approval|", "R1 rejected while R2 is approved with its outcome on its way: the incident stays awaiting_approval")
 	Do $$$AssertEquals(..Orders(host), orders, "with no Execute")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and the answered notification still goes out")
+	Set asked = asked + 1
 	Do ..Outcome(host, r2, incident, "approved")
 	Set row = ..Row(incident)
 	Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", "then R2's approval arrives: the incident is fixing")
 	Do $$$AssertEquals(..Orders(host), orders_$Select(orders = "": "", 1: ",")_r2_"@4444", "and R2 is executed")
+	Set answers = ..Answers(host)
+	Do $$$AssertEquals(answers.%Size(), asked + 1, "and R2's approval is answered too")
+	Set asked = asked + 1
 
 	// overlap, fixing: R1 runs; R2 approved, rejected or expired
 	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 4545})
@@ -322,6 +364,10 @@ Method TestApprovalOutcomes()
 		Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", $Piece(pair, "|", 2)_" while fixing: the incident stays fixing")
 		Do $$$AssertEquals(..Orders(host), orders, $Piece(pair, "|", 2)_" while fixing: no Execute")
 		Do $$$AssertEquals(..Count(a) - before, 1, $Piece(pair, "|", 2)_" while fixing: one event")
+		Set answers = ..Answers(host)
+		Do $$$AssertEquals(answers.%Size() - asked, 1, $Piece(pair, "|", 2)_" while fixing: the answered notification still goes out")
+		If answers.%Size() - asked = 1 Do ..AssertAnswered(answers.%Get(asked), a, $Piece(pair, "|", 2), $Piece(pair, "|", 1), incident)
+		Set asked = answers.%Size()
 	}
 }
 
@@ -400,6 +446,159 @@ Method TestFixResults()
 	Do $$$AssertEquals(..Count(a) - before, 1, "and one event")
 }
 
+Method TestResultNotices()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("resultsa")
+	Set b = ..Owner("resultsb")
+	Set production = "Zz.Lifecycle"_..Number_".results"
+	Do ..Watch(a, production)
+	Do ..Watch(b, production)
+	Set host.%SessionId = 7
+	Set both = $ListBuild(a, b)
+
+	// couldn't start: the plain reason alone
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6161}, 1, production)
+	Set r1 = ..Request("instance", incident, "failed")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do $$$AssertStatusOK(..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Reason": "OcuTalon isn't allowed to resend messages in that production"}), "a final result that could not start is handled")
+	Do $$$AssertEquals(..Row(incident).state, "resolved", "the incident is resolved")
+	Do ..AssertSent(host, before, "result.couldNotStart", "reason=OcuTalon isn't allowed to resend messages in that production", r1, incident, both, "couldn't start")
+
+	// skipped: the dry run's noun, although the incident has another
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6262, "ItemNoun": (..#WIDGETNOUN)}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 is no longer in the error status"})
+	Do ..AssertSent(host, before, "result.skipped", "completed=0,count=3,itemNoun="_..#NOUN_",skipped=3", r1, incident, both, "all skipped")
+
+	// all through, with the incident's noun when the dry run has none
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6363, "ItemNoun": (..#WIDGETNOUN)}, 1, production)
+	Set r1 = ..Request("instance", incident, "done", {"DryRun": ""})
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 50, "Resent": 50, "Completed": 50})
+	Do ..AssertSent(host, before, "result.allThrough", "count=50,itemNoun="_..#WIDGETNOUN, r1, incident, both, "all through, the incident's noun")
+
+	// and the code noun when neither has one
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6464}, 1, production)
+	Set r1 = ..Request("instance", incident, "done", {"DryRun": "{}"})
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 1, "Resent": 1, "Completed": 1})
+	Do ..AssertSent(host, before, "result.allThrough", "count=1,itemNoun="_{}.%FromJSON(##class(OcuTalon.Watch.ItemNoun).For("")).%ToJSON(), r1, incident, both, "all through, the code noun")
+
+	// interrupted: the other orders need a new approval
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6565}, 1, production)
+	Set r1 = ..Request("instance", incident, "failed")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Interrupted": 1, "Total": 50, "Resent": 50, "Completed": 30})
+	Do ..AssertSent(host, before, "result.interrupted", "completed=30,count=50,itemNoun="_..#NOUN_",remaining=20", r1, incident, both, "interrupted")
+	Do $$$AssertEquals(..Row(incident).state, "resolved", "an interrupted run resolves the incident too")
+
+	// a final result whose request still reads executing (its FinishExecution failed): the key follows the row's state, still resending
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6969}, 1, production)
+	Set r1 = ..Request("instance", incident, "executing")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 is no longer in the error status"})
+	Do ..AssertSent(host, before, "result.stillResending", "completed=0,count=3,itemNoun="_..#NOUN, r1, incident, both, "the row still executing")
+
+	// a progress report sends none
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6666}, 1, production)
+	Set r1 = ..Request("instance", incident, "executing")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do $$$AssertStatusOK(..Finish(host, r1, incident, {"Total": 50, "Resent": 50, "Completed": 10}), "a progress report is handled")
+	Do $$$AssertEquals(..Results(host).%Size(), before, "it sends no result notification")
+	Do $$$AssertEquals(..Row(incident).state, "fixing", "and the incident stays fixing")
+
+	// a result that the table refuses sends none, and logs one info line
+	Set incident = ..Incident("instance", "awaiting_approval", {"TraceHeaderId": 6767}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Set infos = ..Infos()
+	Do $$$AssertStatusOK(..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "x"}), "a final result outside fixing is handled")
+	Do $$$AssertEquals(..Results(host).%Size(), before, "it sends no result notification")
+	Do $$$AssertEquals(..Infos() - infos, 1, "and one info line is logged")
+	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "the incident is as it was")
+
+	// slots that cannot be built (a failure with no reason): no notification, one warning, and the move is made
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6868}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do $$$AssertStatusOK(..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Completed": 2, "FailedAgain": 1}), "a result whose slots cannot be built is handled")
+	Do $$$AssertEquals(..Results(host).%Size(), before, "it sends no result notification")
+	Do $$$AssertEquals(..Row(incident).state, "resolved", "but the move is made")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "ResultNotice", $Parameter(..#PROBE, "LOGRESULT"))
+	Do $$$AssertEquals(warned, 1, "and one Type 3 warning names the incident: "_text)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "ResultNotice", $Parameter(..#PROBE, "LOGRESULT"))
+}
+
+Method TestLaterRequestWhileFixing()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("laterfixing")
+	Set host.%SessionId = 7
+	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 5757, "AskingSince": "2030-01-01T09:40:00Z", "FixSummary": "rewrite the order date", "ItemNoun": (..#NOUN)})
+	Do ..Group(incident, 1, "h101,h102,h103,h104,h105", "h103", "h105")
+	Set r1 = ..Request(a, incident, "executing")
+	Do ..SetFix(r1, "101,102,103")
+	Set r2 = ..Request(a, incident, "pending")
+	Do ..Link(incident, r1)
+	Set host.RaiseRef = r2
+	Set ask = ##class(OcuTalon.Fix.Msg.DryRun).%New()
+	Set ask.IncidentRef = incident
+	Set ask.FixKind = "repair_resend"
+	Set ask.Parameters = ..#PARAMETERS
+	Set result = ##class(OcuTalon.Fix.Msg.DryRunResult).%New()
+	Set result.IncidentRef = incident
+	Set result.Targets = "104,105"
+	Set result.DryRun = "{""affected"":2,""resend"":2,""leftOut"":0,""field"":""OrderDate"",""before"":""10/25/2026"",""after"":""2026-10-25"",""itemNoun"":{""one"":""order"",""other"":""orders""}}"
+	Set events = ..Count(a)
+	Do $$$AssertStatusOK(host.LaterDried(incident, ask, result), "the later answer is handled")
+	Set row = ..Row(incident)
+	Do $$$AssertEquals(row.state_"|"_row.requestRefs, "fixing|"_r1_","_r2, "the incident stays fixing and lists both requests")
+	Do $$$AssertEquals(..Count(a) - events, 1, "with one event")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 1, "and the owner gets one Notification")
+	If $IsObject(host.Sent) && (host.Sent.%Size() = 1) {
+		Set note = host.Sent.%Get(0)
+		Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef, a_"|approval|incident.laterRequest|"_r2_"|"_incident, "the approval notice of the later request")
+	}
+	Do $$$AssertEquals(..Orders(host), "", "and nothing is executed")
+
+	// R2 is approved while R1 runs: it waits
+	Do ..SetRequest(r2, "approved")
+	Set events = ..Count(a)
+	Do $$$AssertStatusOK(..Outcome(host, r2, incident, "approved"), "R2's approval is handled")
+	Set row = ..Row(incident)
+	Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", "the incident stays fixing")
+	Do $$$AssertEquals(..Orders(host), "", "and no Execute is sent for R2 while R1 runs")
+	Do $$$AssertEquals(..Count(a) - events, 1, "with one event")
+
+	// R1 ends: R2 is executed, once, in the incident's trace session
+	Do ..SetRequest(r1, "done")
+	Do $$$AssertStatusOK(..Result(host, r1, incident, 1, 0), "R1's final result is handled")
+	Set row = ..Row(incident)
+	Do $$$AssertEquals(row.state_"|"_row.variant, "fixing|", "the incident stays fixing")
+	Do $$$AssertEquals(..Orders(host), r2_"@5757", "exactly one Execute goes out, for R2, in the incident's trace session")
+
+	// R2 ends: the incident is resolved
+	Do $$$AssertStatusOK(..Result(host, r2, incident, 1, 0), "R2's final result is handled")
+	Set row = ..Row(incident)
+	Do $$$AssertEquals(row.state_"|"_row.variant, "resolved|", "R2's own final result resolves the incident")
+	Do $$$AssertEquals(..Orders(host), r2_"@5757", "with no further Execute")
+	Do $$$AssertEquals(..Newest(a), "resolved", "and the event says so")
+}
+
 Method TestRefusedEvents()
 {
 	Set host = ..Host()
@@ -467,11 +666,16 @@ Method TestRefusedEvents()
 	Set closed = ..Incident(a, "closed", {"ClosedAt": "2030-01-01T10:00:00Z"})
 	Set r1 = ..Request(a, closed, "approved")
 	Set r2 = ..Request(a, closed, "executing")
-	Do ..Link(closed, r1_","_r2)
+	Set r3 = ..Request(a, closed, "rejected")
+	Set r4 = ..Request(a, closed, "expired")
+	Do ..Link(closed, r1_","_r2_","_r3_","_r4)
 	Do ..Refuse(host, a, closed, "an approved outcome on a closed incident", "outcome", r1, "approved")
+	Do ..Refuse(host, a, closed, "a rejected outcome that the row shows, on a closed incident", "outcome", r3, "rejected")
+	Do ..Refuse(host, a, closed, "an expired outcome that the row shows, on a closed incident", "outcome", r4, "expired")
 	Do ..Refuse(host, a, closed, "a progress FixResult on a closed incident", "result", r2, 0, 0)
 	Do ..Refuse(host, a, closed, "a final FixResult on a closed incident", "result", r2, 1, 0)
 	Do $$$AssertEquals(..Count(a), 0, "none of these published anything")
+	Do $$$AssertEquals($Select($IsObject(host.Sent): host.Sent.%Size(), 1: 0), 0, "and none sent a notification")
 }
 
 Method TestEveryChangePublishes()
@@ -573,6 +777,8 @@ Method TestPurge()
 	Set closing = ..Incident(a, "resolved")
 	Do ..Group(closing, 1)
 	Do ..Group(closing, 2)
+	Do ..Run(closing)
+	Do ..Run(closing)
 	Do ..Command(host, "closeForReplay", closing, "")
 	Set closedAt = ..Row(closing).closedAt
 	Do $$$AssertTrue(closedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "a close sets ClosedAt: "_closedAt)
@@ -581,6 +787,7 @@ Method TestPurge()
 
 	Set young89 = ..Incident(a, "closed", {"ClosedAt": (young)})
 	Do ..Group(young89, 1)
+	Do ..Run(young89)
 	Set openOld = ..Incident(a, "open", {"FirstAt": (old), "LastAt": (old)})
 	Do ..Group(openOld, 1)
 	Set noClosedAt = ..Incident(a, "closed", {"FirstAt": (old), "LastAt": (old)})
@@ -589,8 +796,8 @@ Method TestPurge()
 	Do ..Group(fixing, 1)
 
 	Do $$$AssertStatusOK(##class(OcuTalon.Watch.IncidentManager).Purge(90), "Purge(90) is OK")
-	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing), "0|0", "the incident closed 91 days ago and its two groups are gone")
-	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89), "1|1", "the one closed 89 days ago stays, with its group")
+	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing)_"|"_..Runs(closing), "0|0|0", "the incident closed 91 days ago, its two groups and its two fix runs are gone")
+	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89)_"|"_..Runs(young89), "1|1|1", "the one closed 89 days ago stays, with its group and its fix run")
 	Do $$$AssertEquals(..Exists(openOld)_"|"_..Groups(openOld), "1|1", "an old open incident stays")
 	Do $$$AssertEquals(..Exists(noClosedAt)_"|"_..Groups(noClosedAt), "1|1", "so does a closed one with no ClosedAt")
 	Do $$$AssertEquals(..Exists(fixing)_"|"_..Groups(fixing), "1|1", "and a fixing one")
@@ -838,12 +1045,44 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 	Quit ref
 }
 
-/// A fixture approval request of the owner for the incident in the state; its Ref.
-Method Request(owner As %String, incident As %String, state As %String) As %String
+/// A fixture approval request of the owner for the incident in the state, with the fields of extra (an object) set after the defaults; its Ref.
+Method Request(owner As %String, incident As %String, state As %String, extra As %DynamicObject = "") As %String
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state)
+	Set fields = $Select(state = "pending": {}, 1: {"AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"})
+	If $IsObject(extra) {
+		Set iterator = extra.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do fields.%Set(name, value)
+		}
+	}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state, , fields)
 	Set ..Refs = ..Refs_","_ref
 	Quit ref
+}
+
+/// The answered Notifications that the probe recorded, in order, as a dynamic array of the recorded objects.
+ClassMethod Answers(host As OcuTalon.Test.Watch.IncidentProbe) As %DynamicArray
+{
+	Set answers = []
+	If '$IsObject(host.Sent) Quit answers
+	For i = 0:1:host.Sent.%Size() - 1 {
+		If host.Sent.%Get(i).kind = "answered" Do answers.%Push(host.Sent.%Get(i))
+	}
+	Quit answers
+}
+
+/// Asserts that the recorded Notification is the answered notice of the outcome (approved, rejected or expired) of the request, for the session: key, slots, Refs and no decision.
+Method AssertAnswered(note As %DynamicObject, session As %String, outcome As %String, approval As %String, incident As %String)
+{
+	Set slots = {}.%FromJSON(note.slots)
+	Set expected = $Case(outcome, "approved": "answered.approved|channel=web,time=2030-01-01T10:00:00Z", "rejected": "answered.rejected|channel=web,time=2030-01-01T10:00:00Z", : "answered.expired|time=2030-01-02T09:00:00Z")
+	Set actual = note.catalogKey_"|"
+	Set iterator = slots.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set actual = actual_$Select($Extract(actual, *) = "|": "", 1: ",")_key_"="_value
+	}
+	Do $$$AssertEquals(actual, expected, outcome_": the key and the slots, not '"_actual_"'")
+	Do $$$AssertEquals(note.sessionRef_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.decisionRef, session_"|"_approval_"|"_incident_"|", outcome_": the session, the request's Ref, the incident's Ref and no decision")
 }
 
 /// Sets the incident's RequestRefs (comma-separated); a save that fails is thrown, so the test fails there.
@@ -854,11 +1093,16 @@ ClassMethod Link(incident As %String, refs As %String)
 	$$$ThrowOnError(row.%Save())
 }
 
-/// Sets the State of the approval request row; a save that fails is thrown.
+/// Sets the State of the approval request row, and, for a state other than pending, the answer that it was given (web, 2030-01-01T10:00:00Z) when the row has none,
+/// as Approval.Answer leaves a row; a save that fails is thrown.
 ClassMethod SetRequest(ref As %String, state As %String)
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	Set row.State = state
+	If (state '= "pending") && (row.AnsweredChannel = "") {
+		Set row.AnsweredChannel = "web"
+		Set row.AnsweredAt = "2030-01-01T10:00:00Z"
+	}
 	$$$ThrowOnError(row.%Save())
 }
 
@@ -870,12 +1114,25 @@ ClassMethod SetClosedAt(incident As %String, closedAt As %String)
 	$$$ThrowOnError(row.%Save())
 }
 
-/// A group of the incident, saved; the test deletes it afterwards.
-Method Group(incident As %String, seq As %Integer)
+/// Sets the fix of the approval request row (repair_resend, the parameters of PARAMETERS and the targets given); a save that fails is thrown.
+ClassMethod SetFix(ref As %String, targets As %String)
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row.FixKind = "repair_resend"
+	Set row.FixParameters = ..#PARAMETERS
+	Set row.FixTargets = targets
+	$$$ThrowOnError(row.%Save())
+}
+
+/// A group of the incident, saved, holding the keys given as its Seen set (none by default) and the keys given as its marks; the test deletes it afterwards.
+Method Group(incident As %String, seq As %Integer, seen As %String = "", askedFrom As %String = "", askedTo As %String = "")
 {
 	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
 	Set group.IncidentRef = incident
 	Set group.Seq = seq
+	Set group.Seen = seen
+	Set group.AskedFrom = askedFrom
+	Set group.AskedTo = askedTo
 	Set group.ItemName = "ZzItem"
 	Set group.ErrorPattern = "Field 'Qty' was empty"
 	Set group.Count = 3
@@ -900,6 +1157,30 @@ ClassMethod Groups(incident As %String) As %Integer
 	Quit ##class(OcuTalon.Data.FailureGroup).OfIncident(incident).Count()
 }
 
+/// Saves a fixture FixRun row of the incident (a run of a request with a new Ref, with no copies); the incident's runs are deleted after the test.
+Method Run(incident As %String)
+{
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set run.IncidentRef = incident
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(run.%Save(), "a fix run of the incident is saved")
+}
+
+/// The number of FixRun rows of the incident.
+ClassMethod Runs(incident As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// Deletes the FixRun rows of the incident.
+ClassMethod DropRuns(incident As %String)
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident)
+}
+
 /// 1 when the incident row exists.
 ClassMethod Exists(incident As %String) As %Boolean
 {
@@ -919,6 +1200,69 @@ Method Command(host As OcuTalon.Test.Watch.IncidentProbe, verb As %String, incid
 	Do $$$AssertStatusOK(host.OnRequest(command, .response), "the "_verb_" command is handled")
 	Do $$$AssertTrue($IsObject(response) && response.%IsA("OcuTalon.Msg.CommandResult"), "and answered with a CommandResult")
 	Quit response
+}
+
+/// A FixResult handled by the probe, with the properties of the object given (Final, Interrupted, Total, Resent, Completed, FailedAgain, Skipped, Reason); the status.
+Method Finish(host As OcuTalon.Test.Watch.IncidentProbe, approval As %String, incident As %String, fields As %DynamicObject) As %Status
+{
+	Set message = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+	Set message.ApprovalRef = approval
+	Set message.IncidentRef = incident
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set $Property(message, name) = value
+	}
+	Set response = ""
+	Quit host.OnRequest(message, .response)
+}
+
+/// The result Notifications that the probe recorded, in order, as a dynamic array of the recorded objects.
+ClassMethod Results(host As OcuTalon.Test.Watch.IncidentProbe) As %DynamicArray
+{
+	Set results = []
+	If '$IsObject(host.Sent) Quit results
+	For i = 0:1:host.Sent.%Size() - 1 {
+		If host.Sent.%Get(i).kind = "result" Do results.%Push(host.Sent.%Get(i))
+	}
+	Quit results
+}
+
+/// The slots (JSON text) as "name=value,..." in name order, an object or array value as its JSON text.
+ClassMethod Flat(slots As %String) As %String
+{
+	Set object = {}.%FromJSON(slots)
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set sorted(name) = $Select($IsObject(value): value.%ToJSON(), 1: value)
+	}
+	Set text = ""
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name), 1, value)
+		Quit:name=""
+		Set text = text _ $Select(text = "": "", 1: ",") _ name _ "=" _ value
+	}
+	Quit text
+}
+
+/// Asserts that the probe recorded, since the count before, exactly one result Notification for each of the owners (a list of the sessions that watch the incident),
+/// each with the key, the slots (flat: see Flat), the request's Ref, the incident's and no decision.
+Method AssertSent(host As OcuTalon.Test.Watch.IncidentProbe, before As %Integer, key As %String, flat As %String, approval As %String, incident As %String, owners As %List, label As %String)
+{
+	Set sent = ..Results(host)
+	Do $$$AssertEquals(sent.%Size() - before, $ListLength(owners), label_": one result Notification per recipient")
+	If sent.%Size() - before '= $ListLength(owners) Quit
+	Set found = ""
+	For i = before:1:sent.%Size() - 1 {
+		Set note = sent.%Get(i)
+		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef_"|"_note.decisionRef, key_"|"_approval_"|"_incident_"|", label_": the key, the request's Ref, the incident's and no decision")
+		Do $$$AssertEquals(..Flat(note.slots), flat, label_": the slots")
+		Set found = found _ $ListBuild(note.sessionRef)
+	}
+	Set position = 0
+	While $ListNext(owners, position, owner) {
+		Do $$$AssertTrue($ListFind(found, owner) > 0, label_": "_owner_" is told")
+	}
 }
 
 /// An ApprovalOutcome handled by the probe; the status.
@@ -1041,6 +1385,7 @@ Method RemoveLogs()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Execute", $Parameter(..#PROBE, "LOGEXECUTE"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Command", $Parameter(..#PROBE, "LOGMOVE"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "ResultNotice", $Parameter(..#PROBE, "LOGRESULT"))
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGREFUSED"))
 }
 

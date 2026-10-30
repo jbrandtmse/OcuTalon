@@ -11,7 +11,8 @@ Include Ensemble
 ///     event-log row). Each of the four
 ///     incidents is noticed with its catalog key and open variant (No fix: incident.noFix and no_fix; Unknown: incident.noFixUnknown, no_fix and no cause slot; Fallback:
 ///     incident.fallback, fallback and the reason), A has one kind-incident Notification for each, with the slots of Watch.Notice, the row's DecisionRef and no ApprovalRef,
-///     in the incident's own trace session (AD-26), and WebChatOut records one incident Delivery row for each. A's stream shows, for each incident and in Seq order, noticed, settling, diagnosing and then one incident event
+///     in the incident's own trace session (AD-26), none of them has a request (an empty RequestRefs, no ApprovalRequest naming it) or a DryRun header in its trace
+///     session, and WebChatOut records one incident Delivery row for each. A's stream shows, for each incident and in Seq order, noticed, settling, diagnosing and then one incident event
 ///     (open, the variant, groups, evidence items and the diagnosis trace target). For the real order, evidence.sampleHeaderId is that header's id and sampleError is
 ///     ErrorText.Text of its real error, traceTargets.sample and firstFailure are that id in OCUORDERS and diagnosis is the incident's TraceHeaderId in OCUTALON; the
 ///     incidents of ZZNS, where nothing can be read, have no sample and no sample trace target but keep their evidence items, and a first failure that is a header is
@@ -91,6 +92,7 @@ Method TestNoticeVariants()
 		Set key = $Select(marker = "diagnosis-nofix": "incident.noFix", marker = "diagnosis-unknown": "incident.noFixUnknown", 1: "incident.fallback")
 		Set variant = $Select(key = "incident.fallback": "fallback", 1: "no_fix")
 		Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= ""), "open|"_variant_"|1", label_"noticed, open, "_variant)
+		Do $$$AssertEquals(row.RequestRefs_"|"_..Requests(ref).%Size()_"|"_..HeadersBetween(row.TraceHeaderId, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.DryRun"), "|0|0", label_"no request is listed or raised, and no dry run was asked (Story 7.2: only a data-format fix is proposed)")
 		Set group = ..Group(ref).groups.%Get(0)
 		Set bodies = ..NoticeBodies(ref)
 		Do $$$AssertEquals(bodies.%Size(), 1, label_"A has one Notification of the incident")

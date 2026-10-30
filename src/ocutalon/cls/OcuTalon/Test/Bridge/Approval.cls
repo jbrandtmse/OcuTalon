@@ -58,12 +58,13 @@
 ///     with the row existing; the task of the hold has the actions Approve,Reject, the subject TASKSUBJECT plus the Ref, no UserName or Title, is
 ///     in OcuTalonApprovals unassigned with one worklist item for OcuTalonWorkflow; the timer asks 86,395 to 86,400 seconds and ^Ens.Alarm holds it;
 ///     one ApprovalHold waits for exactly the keys task and expiry;
-///   - TestRaiseFix (row 4): the same for a fix request, with DryRun, IncidentRef and ResultTarget kept and the tool fields empty;
+///   - TestRaiseFix (row 4): the same for a fix request, with DryRun, IncidentRef, ResultTarget, FixKind, FixParameters and FixTargets kept and the tool fields empty;
 ///   - TestOwnerRefKinds: a request owned by the literal instance or eval (AD-2) is held and keeps its OwnerRef;
 ///   - TestCallerSession (row 6): the hold's messages are in the caller's session and SuperSession, from a bridge context and from Raise's arguments;
 ///     an argument wins over the context's value, and each of the two is resolved on its own (only a session, only a SuperSession);
 ///   - TestApprovalRole (row 7): RequiredRole is the ApprovalRole setting; an empty setting refuses Raise, which creates nothing;
-///   - TestRefused (row 8): every refusal names its field, leaves ref empty, and makes no row, no hold and no sink call;
+///   - TestRefused (row 8): every refusal names its field, leaves ref empty, and makes no row, no hold and no sink call (a fix without a FixKind, with
+///     FixParameters that are empty or not an object, or without FixTargets, and a tool_call with any of the three, included);
 ///   - TestLockHeld (row 9): a lock that another job holds gives an error that names it after about two seconds, and nothing is created;
 ///   - TestStartFails (row 10): with ApprovalStartIn disabled, Raise returns the director's error and nothing is left;
 ///   - TestStartTimesOut (row 10, a timeout): with ApprovalHold disabled, Raise returns ApprovalStartIn's timeout after about STARTSECONDS and
@@ -87,7 +88,7 @@ Class OcuTalon.Test.Bridge.Approval Extends %UnitTest.TestCase
 Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
 
 /// The fields that a request is given and that Raise must keep, in the order of Snapshot (the OwnerRef is the second, the TraceRef the third).
-Parameter GIVENFIELDS = "Kind,OwnerRef,TraceRef,IncidentRef,ToolName,ToolArguments,ResultTarget,DryRun";
+Parameter GIVENFIELDS = "Kind,OwnerRef,TraceRef,IncidentRef,ToolName,ToolArguments,ResultTarget,DryRun,FixKind,FixParameters,FixTargets";
 
 /// The README account that answers (Install.Step.Users USER), the local install's real approver.
 Parameter ANSWERER = "ocutalon";
@@ -1548,7 +1549,8 @@ Method Ready() As %Boolean [ Private ]
 }
 
 /// An unsaved request of the kind, as the matrix describes it: a tool_call row has ToolName zz_gate_held and ToolArguments {"value":1}; a fix
-/// row has IncidentRef, ResultTarget IncidentManager and a DryRun. Both have new OwnerRef and TraceRef.
+/// row has IncidentRef, ResultTarget IncidentManager, a DryRun and the fix's FixKind zz_fix, FixParameters {"field":"OrderDate"} and FixTargets 101,102,103.
+/// Both have new OwnerRef and TraceRef.
 Method NewRow(kind As %String) As OcuTalon.Bridge.Data.ApprovalRequest [ Private ]
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
@@ -1562,6 +1564,9 @@ Method NewRow(kind As %String) As OcuTalon.Bridge.Data.ApprovalRequest [ Private
 		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Set row.ResultTarget = "IncidentManager"
 		Set row.DryRun = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""OrderDate"",""before"":""10/24/2026"",""after"":""2026-10-24"",""itemNoun"":""orders""}"
+		Set row.FixKind = "zz_fix"
+		Set row.FixParameters = "{""field"":""OrderDate""}"
+		Set row.FixTargets = "101,102,103"
 	}
 	Quit row
 }
@@ -1592,6 +1597,13 @@ ClassMethod Refusals() As %List [ Private ]
 		$ListBuild("fix", "ToolName", "zz_gate_held", "ToolName"),
 		$ListBuild("fix", "ToolArguments", "{}", "ToolArguments"),
 		$ListBuild("fix", "ResultTarget", "", "ResultTarget"),
+		$ListBuild("fix", "FixKind", "", "FixKind"),
+		$ListBuild("fix", "FixParameters", "", "FixParameters"),
+		$ListBuild("fix", "FixParameters", "[1]", "FixParameters"),
+		$ListBuild("fix", "FixTargets", "", "FixTargets"),
+		$ListBuild("tool_call", "FixKind", "zz_fix", "FixKind"),
+		$ListBuild("tool_call", "FixParameters", "{}", "FixParameters"),
+		$ListBuild("tool_call", "FixTargets", "101", "FixTargets"),
 		$ListBuild("tool_call", "IncidentRef", "x", "IncidentRef"),
 		$ListBuild("tool_call", "TraceRef", "x", "TraceRef"))
 	For name = "Ref", "State", "RequiredRole", "RaisedAt", "ExpiresAt", "AnsweredAction", "AnsweredChannel", "AnsweredBy", "AnsweredAt", "Result", "FinishedAt" {

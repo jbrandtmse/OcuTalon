@@ -65,6 +65,15 @@ Property Result As %String(MAXLEN = 32);
 /// When the run finished.
 Property FinishedAt As %String(MAXLEN = 20);
 
+/// The name of the fix kind of a fix request, as a plain string (AD-11, AD-16); empty for a tool_call request.
+Property FixKind As %String(MAXLEN = 32);
+
+/// The kind's validated parameters of a fix request as one JSON object, the exact change that an approval covers (AD-11, AD-16); empty for a tool_call request.
+Property FixParameters As %String(MAXLEN = "");
+
+/// The targets that the fix's dry run found, as the dry run gave them (header ids, ascending, comma-separated); empty for a tool_call request.
+Property FixTargets As %String(MAXLEN = "");
+
 Index RefIndex On Ref [ Unique ];
 
 Index IncidentRefIndex On IncidentRef;
@@ -133,6 +142,15 @@ Storage Default
 </Value>
 <Value name="20">
 <Value>FinishedAt</Value>
+</Value>
+<Value name="21">
+<Value>FixKind</Value>
+</Value>
+<Value name="22">
+<Value>FixParameters</Value>
+</Value>
+<Value name="23">
+<Value>FixTargets</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonBP.ApprovalD</DataLocation>

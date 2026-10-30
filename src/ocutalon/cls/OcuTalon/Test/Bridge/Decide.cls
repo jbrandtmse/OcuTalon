@@ -610,38 +610,55 @@ Method TestFilterBlanks()
 /// The reply class of a diagnosis (Story 5.4, AD-31): Decide filters each property that the class names in its FILTERED parameter (every text of the model:
 /// cause, fixSummary, elementAtFault, each evidence reference, the two noun forms and the three fix parameters, through dotted names and a list) once, after
 /// the reasons and before the payload is checked again. The row's Payload holds the filtered texts, and a cause or a noun form that the filter blanks makes
-/// the reply invalid (a fallback with no payload). A reply class without FILTERED (DecisionPayload) is filtered as before: reasons only.
+/// the reply invalid (a fallback with no payload). The probe filter's prefix also changes a repair reply's field and formats, which the fix kind refuses when the
+/// payload is checked again (Story 7.1), so the stored, filtered payload is that of a partner_outage reply. A reply class without FILTERED (DecisionPayload) is filtered as before: reasons only.
 Method TestFilterDiagnosis()
 {
 	Set diagnosis = "OcuTalon.Watch.Msg.DiagnosisPayload"
-	Set json = "{""outcome"":""act"",""causeCategory"":""data_format_change"",""elementAtFault"":""OrderDate"",""evidence"":[""h1""],""fixKind"":""repair_resend"",""fixParameters"":{""field"":""Field F"",""sourceFormat"":""a"",""targetFormat"":""b""},""cause"":""Cause A."",""fixSummary"":""fix B"",""itemNoun"":{""one"":""order"",""other"":""orders""},""reasons"":[""Reason R.""],""confidence"":0.9}"
+	Set input = ##class(OcuTalon.Watch.EvidencePack).Input({"format": "ocutalon.evidencePack/1", "sample": {"headerId": 1, "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder", "body": {"OrderNumber": "A-1", "OrderDate": "10/16/2026", "Sku": "S", "Quantity": "1"}}})
+	Set json = "{""outcome"":""act"",""causeCategory"":""data_format_change"",""elementAtFault"":""OrderDate"",""evidence"":[""h1""],""fixKind"":""repair_resend"",""fixParameters"":{""field"":""OrderDate"",""sourceFormat"":""MM/DD/YYYY"",""targetFormat"":""YYYY-MM-DD""},""cause"":""Cause A."",""fixSummary"":""fix B"",""itemNoun"":{""one"":""order"",""other"":""orders""},""reasons"":[""Reason R.""],""confidence"":0.9}"
 	Kill ^||ZzProbeFilter
 	Set request = ..NewRequest("diagnose")
+	Set request.Input = input
 	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply(json), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
 	Do $$$AssertStatusOK(sc, "a diagnosis reply is recorded")
 	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 10, "the filter ran once on the reason and once on each of the nine texts of the payload")
 	Set seen = ""
 	For i = 1:1:10 Set seen = seen _ $Select(i = 1: "", 1: "|") _ $Get(^||ZzProbeFilter(i))
-	Do $$$AssertEquals(seen, "Reason R.|Cause A.|fix B|OrderDate|h1|order|orders|Field F|a|b", "in the order of FILTERED, each as the model wrote it")
+	Do $$$AssertEquals(seen, "Reason R.|Cause A.|fix B|OrderDate|h1|order|orders|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "in the order of FILTERED, each as the model wrote it")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason_"|"_response.Payload, "1|invalid|", "the probe's prefix changes the field and the formats, so the check after filtering refuses them: a fallback with the reason invalid and no payload")
+	Do $$$AssertEquals(..RowOf(request.ItemId, "diagnose").Fallback, 1, "and the row is the fallback")
+
+	Kill ^||ZzProbeFilter
+	Set outage = "{""outcome"":""act"",""causeCategory"":""partner_outage"",""elementAtFault"":""OrderDate"",""evidence"":[""h1""],""cause"":""Cause A."",""itemNoun"":{""one"":""order"",""other"":""orders""},""reasons"":[""Reason R.""],""confidence"":0.9}"
+	Set request = ..NewRequest("diagnose")
+	Set request.Input = input
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply(outage), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Do $$$AssertStatusOK(sc, "a partner_outage diagnosis reply is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 6, "the filter ran once on the reason and once on each of the five texts that the payload holds")
+	Set seen = ""
+	For i = 1:1:6 Set seen = seen _ $Select(i = 1: "", 1: "|") _ $Get(^||ZzProbeFilter(i))
+	Do $$$AssertEquals(seen, "Reason R.|Cause A.|OrderDate|h1|order|orders", "in the order of FILTERED, each as the model wrote it")
 	Set row = ..RowOf(request.ItemId, "diagnose")
 	Do $$$AssertEquals(row.Fallback, 0, "it is no fallback")
 	Set stored = {}.%FromJSON(row.Payload)
-	Do $$$AssertEquals(stored.cause_"|"_stored.fixSummary, "[f] Cause A.|[f] fix B", "the stored Payload holds the filtered cause and fix summary")
+	Do $$$AssertEquals(stored.cause, "[f] Cause A.", "the stored Payload holds the filtered cause")
 	Do $$$AssertEquals(stored.elementAtFault_"|"_stored.evidence.%Get(0)_"|"_stored.itemNoun.one_"|"_stored.itemNoun.other, "[f] OrderDate|[f] h1|[f] order|[f] orders", "the filtered element, evidence and noun forms")
-	Do $$$AssertEquals(stored.fixParameters.field_"|"_stored.fixParameters.sourceFormat_"|"_stored.fixParameters.targetFormat, "[f] Field F|[f] a|[f] b", "and the filtered fix parameters")
 	Do $$$AssertEquals(stored.reasons.%Get(0), "[f] Reason R.", "and the filtered reason")
 	Do $$$AssertEquals(response.Payload, row.Payload, "which the response repeats")
 
 	Kill ^||ZzProbeFilter
 	Set request = ..NewRequest("diagnose")
-	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply($Replace(json, "Cause A.", "Gone {blank}")), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Set request.Input = input
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply($Replace(outage, "Cause A.", "Gone {blank}")), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
 	Do $$$AssertStatusOK(sc, "a diagnosis whose cause the filter blanks is recorded")
 	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason_"|"_response.Payload, "1|invalid|", "as a fallback with the reason invalid and no payload")
 	Do $$$AssertEquals(..RowOf(request.ItemId, "diagnose").Fallback, 1, "the row is the fallback")
 
 	Kill ^||ZzProbeFilter
 	Set request = ..NewRequest("diagnose")
-	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply($Replace(json, """one"":""order""", """one"":""Gone {blank}""")), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Set request.Input = input
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply($Replace(outage, """one"":""order""", """one"":""Gone {blank}""")), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
 	Do $$$AssertStatusOK(sc, "a diagnosis whose noun form the filter blanks is recorded")
 	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|invalid", "as a fallback with the reason invalid")
 

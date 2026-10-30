@@ -197,7 +197,10 @@ XData Contracts [ MimeType = application/json ]
    "AnsweredBy": "%String(MAXLEN=128)",
    "AnsweredAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
-   "FinishedAt": "%String(MAXLEN=20)"
+   "FinishedAt": "%String(MAXLEN=20)",
+   "FixKind": "%String(MAXLEN=32)",
+   "FixParameters": "%String(MAXLEN=)",
+   "FixTargets": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -536,7 +539,9 @@ XData Contracts [ MimeType = application/json ]
    "FirstHeaderId": "%Integer",
    "SampleHeaderId": "%Integer",
    "SampleError": "%String(MAXLEN=1000)",
-   "RequestRefs": "%String(MAXLEN=)"
+   "RequestRefs": "%String(MAXLEN=)",
+   "LaterSince": "%String(MAXLEN=20)",
+   "AskingSince": "%String(MAXLEN=20)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -558,7 +563,9 @@ XData Contracts [ MimeType = application/json ]
    "FirstAt": "%String(MAXLEN=20)",
    "LastAt": "%String(MAXLEN=20)",
    "NoticeCount": "%Integer",
-   "ErrorSummary": "%String(MAXLEN=1000)"
+   "ErrorSummary": "%String(MAXLEN=1000)",
+   "AskedFrom": "%String(MAXLEN=32)",
+   "AskedTo": "%String(MAXLEN=32)"
   },
   "indexes": {
    "IncidentRefIndex": "IncidentRef",
@@ -573,10 +580,21 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "ApprovalRef": "%String(MAXLEN=22)",
    "IncidentRef": "%String(MAXLEN=22)",
-   "StartedAt": "%String(MAXLEN=20)"
+   "StartedAt": "%String(MAXLEN=20)",
+   "Copies": "list Of %String(MAXLEN=20)",
+   "ResentAt": "%String(MAXLEN=20)",
+   "EndedAt": "%String(MAXLEN=20)",
+   "Total": "%Integer",
+   "Resent": "%Integer",
+   "Completed": "%Integer",
+   "FailedAgain": "%Integer",
+   "Skipped": "%Integer",
+   "Interrupted": "%Integer",
+   "Reason": "%String(MAXLEN=1000)"
   },
   "indexes": {
    "ApprovalRefIndex": "ApprovalRef",
+   "CopiesIndex": "Copies(ELEMENTS)",
    "IncidentRefIndex": "IncidentRef"
   }
  }
