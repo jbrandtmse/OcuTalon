@@ -191,3 +191,12 @@
 2026-10-29T18:37:53Z	Story 9.9	ci_resolved	story=9.9 sha=a22b019 runs=40927856338,40927856259 result=success failed=none via=none resolved_at=runner_end first_ci=success jobs=shards_28m52s(was_26m23s_after_DW-337;Eval_classes_grew),image_28m02s,browser_25m05s,install-upgrade_20m15s,production_18m06s,install-fresh_15m18s;lane-a_evaluation+standalone-bridge_success
 2026-10-29T18:37:53Z	Epic 9	gap_rule_check	epic7_merged=no(7.5_backlog_at_18:37Z) eligible_left=none action=end_waiting_on_7
 2026-10-29T18:37:53Z	Epic 9	runner_ended	reason=waiting waiting_on=7 stories_done=9.1,9.2,9.3,9.7,9.4,9.8,9.9 remaining=9.6(after_epic7_merge;integrate_forward_first),9.5(last) inbox=U-130,U-131,U-135,U-143(orchestrator),U-144,U-149,U-150 applied=U-130,U-131 open_veto=U-144,U-149,U-150 escalated=DW-386 note=shards_job_28m52s_trending_up(REL-4_35m)
+2026-10-30T05:25:09Z	Epic 9	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=re-dispatch_after_epic_7_merged hold_at=none lane=B slot=ocutalon-slot-b dispatch=re-dispatch(previous_runner_a4cbb59af8c9a5f36_ended_waiting_on_7) hashes=verified(main_checkout)
+2026-10-30T05:25:09Z	Epic 9	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-30T05:25:09Z	Epic 9	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh config_paths=aligned v7_markers=none
+2026-10-30T05:25:09Z	Epic 9	launch_env	depth=4 watchdog=0(unset) bash_max_ms=default
+2026-10-30T05:25:09Z	Epic 9	telemetry_gate	pending=0 action=none
+2026-10-30T05:25:09Z	Epic 9	bootstrap_check	result=ok
+2026-10-30T05:25:09Z	Epic 9	epic_branch_checked_out	repos=. head=e86bc21 mode=resume(origin/OCT-epic9=e86bc21;unpushed=0;tree_clean) ci_expected=.github/workflows/ci.yml,.github/workflows/lane-a.yml
+2026-10-30T05:25:09Z	Epic 9	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-30T05:25:09Z	Epic 9	ci_resolved	story=none sha=63f1d8d(feature) runs=41007788341,41007788352 result=success failed=none via=none resolved_at=re-dispatch note=epic7_merged(eb313fa)
