@@ -77,9 +77,11 @@
 #      gate (demo-k.json) and Gate.Attempt (attempt-k.json) with its targets SM-1, SM-2, the demo gate, NFR-3, NFR-4, the model and no problem;
 #   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1),
 #      with the commit, branch and tree state that the script read before the stack was built;
-#   4. the files are copied out into the report folder. Without --on-mock a finished run (verdict pass or blocked, no structural failure)
-#      also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is release-candidate-on-mock.* in the report
-#      folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke test is not run (Story 30.1);
+#   4. the files are copied out into the report folder, and the result's Markdown is printed and appended to $GITHUB_STEP_SUMMARY only when it holds
+#      neither key-like text nor the value of the key in the environment (otherwise a NOTE line says it is not printed). Without --on-mock a finished
+#      run (verdict pass or blocked, no structural failure) also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is
+#      release-candidate-on-mock.* in the report folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke
+#      test is not run (Story 30.1);
 #   5. the pair that was written is scanned with the key-like patterns of docker/tests/lib-keys.sh, the definition that
 #      docker/tests/test-boundaries.sh also reads: "PASS <name>: the result pair holds no key-like text", or, on a match, a FAIL line that names
 #      file:line (never the text) and tells the author not to commit the pair, and exit 4 with both files kept.
@@ -88,8 +90,8 @@
 # every mounted database that is not read-only), stores (Test.Agent.KeyScan.Find), trace (the headers and bodies of every Interoperability
 # namespace), mock log (at least one /v1/ request, each with a key of the key's length), container logs (streamed, never written), container files
 # (below /durable, /tmp and /opt/ocutalon/mock-log), run files (this run's work folder and the report folder), eval files (below eval/) and web bundle
-# (src/ocutalon/csp/ of the checkout and the copy inside the throwaway). Each scan runs a positive control that must find something, and fails when it
-# cannot read what it scans. A hit names a place and never the value; the value is read only from the environment (awk ENVIRON,
+# (src/ocutalon/csp/ of the checkout and its two copies inside the throwaway: the image's and the one the web application serves). Each scan runs a
+# positive control that must find something, and fails when it cannot read what it scans (a file, or a folder that cannot be listed). A hit names a place and never the value; the value is read only from the environment (awk ENVIRON,
 # $SYSTEM.Util.GetEnviron, printenv inside the container). The last line is counts only: "PASS key proof counts: iris environment 1, container logs 0,
 # result files 0, trace 0, web bundle 0" (the key is in the iris container's environment exactly once and in nothing else; the key proof of
 # eval/key-proof.sh adds the run's output). Any FAIL ends the run with exit 1.
@@ -452,7 +454,7 @@ kp_verdict() {
 # key_proof: the key proof of the key-path rehearsal (see the header): nine scans for the value of ANTHROPIC_API_KEY, each printing one PASS or FAIL
 # line, then the counts line. The value is read from the environment only (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container) and no line holds it.
 key_proof() {
-  local begun=$SECONDS demo len=${#ANTHROPIC_API_KEY} out files n hits control scope before=$fails logs_n=0 files_n=0 trace_n=0 bundle_n=0 env_n=0 bundle_files bundle_hits bundle_control
+  local begun=$SECONDS demo len=${#ANTHROPIC_API_KEY} out files n hits control scope listed before=$fails logs_n=0 files_n=0 trace_n=0 bundle_n=0 env_n=0 bundle_files bundle_hits bundle_control bundle_listed
   demo=$(chk_value set-1 democase)
   if [ -z "$demo" ]; then
     fail "key proof: the demo case's name is not known, so no scan has its control"
@@ -497,15 +499,17 @@ AWK
     fail "key proof container files: hit file(s) $(printf '%s' "$out" | cut -d'|' -f2), unreadable $(printf '%s' "$out" | cut -d'|' -f3), key bytes seen $(printf '%s' "$out" | cut -d'|' -f4) (expected $((len + 1))), control $(printf '%s' "$out" | cut -d'|' -f5)"
   fi
 
-  # the run's own files, and the files below eval/
+  # the run's own files, and the files below eval/ (a folder that cannot be listed fails the scan, as a file that cannot be read does)
   for scope in "run files" "eval files"; do
+    listed=1
     if [ "$scope" = "run files" ]; then
-      files=$(find "$tmp" "$report_dir" -type f 2> /dev/null)
+      files=$(find "$tmp" "$report_dir" -type f 2> /dev/null) || listed=0
     else
-      files=$(find "$root/eval" -type f 2> /dev/null)
+      files=$(find "$root/eval" -type f 2> /dev/null) || listed=0
     fi
     n=$(printf '%s\n' "$files" | grep -c . || true)
     hits=$(printf '%s\n' "$files" | while IFS= read -r f; do key_value_hits "$f" || echo "unreadable:$f"; done | paste -s -d, -)
+    [ "$listed" -eq 1 ] || hits="${hits:+$hits,}unreadable:a folder that cannot be listed"
     control=$(printf '%s\n' "$files" | while IFS= read -r f; do grep -lF -- "$demo" "$f" 2> /dev/null; done | head -n 1)
     files_n=$((files_n + $(printf '%s\n' "$hits" | tr ',' '\n' | grep -c ':[0-9][0-9]*$' || true)))
     if [ "$n" -gt 0 ] && [ -z "$hits" ] && [ -n "$control" ]; then
@@ -515,17 +519,20 @@ AWK
     fi
   done
 
-  # the web bundle: src/ocutalon/csp/ of the checkout, and the copy inside the throwaway (the image copies it to /opt/ocutalon/src/ocutalon/csp). The
-  # same call counts the key in the environment of the iris container (every occurrence in /proc/self/environ, which the shell there inherits).
-  bundle_files=$(find "$root/src/ocutalon/csp" -type f 2> /dev/null)
+  # the web bundle: src/ocutalon/csp/ of the checkout, and its two copies inside the throwaway: the image's (/opt/ocutalon/src/ocutalon/csp) and the
+  # one the web application serves (/durable/iris/csp/ocutalon-web, where the install copies it). Each has its control. The same call counts the key in
+  # the environment of the iris container (every occurrence in /proc/self/environ, which the shell there inherits).
+  bundle_listed=1
+  bundle_files=$(find "$root/src/ocutalon/csp" -type f 2> /dev/null) || bundle_listed=0
   n=$(printf '%s\n' "$bundle_files" | grep -c . || true)
   bundle_hits=$(printf '%s\n' "$bundle_files" | while IFS= read -r f; do [ -n "$f" ] || continue; key_value_hits "$f" || echo "unreadable:$f"; done | paste -s -d, -)
+  [ "$bundle_listed" -eq 1 ] || bundle_hits="${bundle_hits:+$bundle_hits,}unreadable:a folder that cannot be listed"
   bundle_control=$(printf '%s\n' "$bundle_files" | while IFS= read -r f; do [ -n "$f" ] && grep -lF -- OcuTalon "$f" 2> /dev/null; done | head -n 1)
-  out=$(dc exec -T iris sh -c 'b=/opt/ocutalon/src/ocutalon/csp; r=$(printenv ANTHROPIC_API_KEY | grep -rlF -f /dev/stdin -- "$b" 2>&1); h=$(printf "%s\n" "$r" | grep -vc "^\(grep:\|$\)"); e=$(printf "%s\n" "$r" | grep -c "^grep:"); c=$(grep -rlF -- "$1" "$b" 2> /dev/null | head -n 1 | wc -l | tr -d " "); f=$(find "$b" -type f 2> /dev/null | wc -l | tr -d " "); v=$(printenv ANTHROPIC_API_KEY | grep -aoF -f /dev/stdin -- /proc/self/environ | wc -l | tr -d " "); echo "BUNDLE|$h|$e|$c|$f|$v"' sh OcuTalon 2> /dev/null | tr -d '\r' | grep '^BUNDLE|' | head -n 1)
+  out=$(dc exec -T iris sh -c 'r=$(printenv ANTHROPIC_API_KEY | grep -rlF -f /dev/stdin -- "$2" "$3" 2>&1); h=$(printf "%s\n" "$r" | grep -vc "^\(grep:\|$\)"); e=$(printf "%s\n" "$r" | grep -c "^grep:"); c=1; f=0; for b in "$2" "$3"; do n=$(find "$b" -type f 2> /dev/null | wc -l | tr -d " "); f=$((f + n)); grep -rqF -- "$1" "$b" 2> /dev/null || c=0; done; v=$(printenv ANTHROPIC_API_KEY | grep -aoF -f /dev/stdin -- /proc/self/environ | wc -l | tr -d " "); echo "BUNDLE|$h|$e|$c|$f|$v"' sh OcuTalon /opt/ocutalon/src/ocutalon/csp /durable/iris/csp/ocutalon-web 2> /dev/null | tr -d '\r' | grep '^BUNDLE|' | head -n 1)
   env_n=$(printf '%s' "$out" | cut -d'|' -f6)
   bundle_n=$(( $(printf '%s' "$out" | cut -d'|' -f2 | grep -E '^[0-9]+$' || echo 0) + $(printf '%s\n' "$bundle_hits" | tr ',' '\n' | grep -c ':[0-9][0-9]*$' || true) ))
   if [ "$n" -gt 0 ] && [ -z "$bundle_hits" ] && [ -n "$bundle_control" ] && [ "$(printf '%s' "$out" | awk -F'|' '{ print ($2 == "0" && $3 == "0" && $4 + 0 > 0 && $5 + 0 > 0) }')" = 1 ]; then
-    pass "key proof web bundle: no key in $n file(s) of src/ocutalon/csp/ and $(printf '%s' "$out" | cut -d'|' -f5) file(s) of the copy in the throwaway (control: the product's name is found in a file of both)"
+    pass "key proof web bundle: no key in $n file(s) of src/ocutalon/csp/ and $(printf '%s' "$out" | cut -d'|' -f5) file(s) of its copies in the throwaway, the image's and the served one (control: the product's name is found in a file of each)"
   else
     fail "key proof web bundle: $n file(s) of the checkout read, hits or unreadable: ${bundle_hits:-none}, control ${bundle_control:+found}${bundle_control:-not found}; in the throwaway: ${out:-no result line} (hit file(s)|read errors|control|files|key in environment)"
   fi
@@ -693,6 +700,8 @@ if [ "$mode" = rc ]; then
     echo "==== result $result_name"
     if [ -n "$(key_like "$report_dir/$result_name.md")" ]; then
       echo "NOTE the text of $result_name is not printed: it holds key-like text (the scan below names the place)"
+    elif [ -n "$(key_value_hits "$report_dir/$result_name.md" 2> /dev/null)" ]; then
+      echo "NOTE the text of $result_name is not printed: it holds the value of the model key"
     else
       cat "$report_dir/$result_name.md"
       if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then

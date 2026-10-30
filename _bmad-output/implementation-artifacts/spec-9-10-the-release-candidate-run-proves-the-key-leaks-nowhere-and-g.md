@@ -346,6 +346,51 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
   - Given a push, when Lane A's `evaluation` job (the consumer) runs `bash eval/key-proof.sh` after `bash eval/run.sh`, then the step ends with `eval/key-proof: all checks passed` and the job's teardown removes nothing of the proof. This applies unless Task 0's rule made the proof local.
   - Given `docker/tests/test-boundaries.sh` (a consumer of `lib-keys.sh`), when it runs, then its keys rules pass with the shared definition.
 
+### Review Findings
+
+Code review 2026-10-30 (lane B, tags `e9s10r` fresh and `e9s10rw` warm), the whole story (`ef9e6fe6..` plus QA's uncommitted work). Four layers, 37 rows; 22 of them grouped into 16 entries, plus the reviewer's own Rule 2 entry: 17 entries, high 0, medium 6, low 11. 14 patched, 3 ledgered; 15 rows rejected outright and parts of five others (appendix).
+
+- [x] [Review][Defer] The globals scan (and the raw container-file grep) match the key only as contiguous 8-bit bytes of one node, so a key in a zstd-compressed `%Stream.Global*` chunk, a 16-bit `$List` element or split across stream chunks reads as clean (medium) [src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls Walk] — deferred: DW-448 `escalated owner=burndown`, fix-risk high (decoding compressed chunks needs a storage measurement on a throwaway); for the decision sheet.
+- [x] [Review][Patch] A folder that cannot be listed read as clean in the host-side file scans (`run files`, `eval files`, the checkout's bundle, and the harness's `eval/`, written-files and report-folder checks) (medium) [eval/run.sh:508, eval/key-proof.sh:158]
+- [x] [Review][Patch] U-168 (3): the `web bundle` scan read the image's copy only, not the bundle the run serves (`/durable/iris/csp/ocutalon-web`); both copies now scanned, each with its control (medium) [eval/run.sh:531]
+- [x] [Review][Patch] The key-path readiness answers (not the mock's environment, no placeholder, another key length, another model) had no pinning case (medium) [docker/tests/test-eval-set.sh:2038]
+- [x] [Review][Patch] The written-in-checkout check could not catch a misplaced stamp: its leak file was dated 2035 (medium) [docker/tests/test-eval-set.sh:2429]
+- [x] [Review][Patch] `TestTraceHits` depended on every other Interoperability namespace's messages above this namespace's mark; `TraceHits` takes an optional namespace and the tests name theirs (medium) [src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls:172]
+- [x] [Review][Patch] U-166 (c) print order: the result's Markdown was printed and published after a shape check only; it is now also withheld when it holds the key's value, and `run-plant` lost its exemption (low) [eval/run.sh:703]
+- [x] [Review][Patch] The step-summary channel of the result was unpinned (a key-like plant must not reach it; a clean text must) (low) [docker/tests/test-eval-set.sh:2233]
+- [x] [Review][Patch] `git status` that cannot be read compared two empty outputs as unchanged (low) [eval/key-proof.sh:173]
+- [x] [Review][Patch] The push run's early `unset` of a caller's key was unpinned (low) [docker/tests/test-eval-set.sh:2001]
+- [x] [Review][Patch] A refused model endpoint that is not a URL was printed raw (up to 80 characters) (low) [eval/key-proof.sh:61]
+- [x] [Review][Patch] The harness's early failures (work folder, fake key) exited 1 without its last line (low) [eval/key-proof.sh:83]
+- [x] [Review][Patch] The `key-like` rule had no sample for `eval/key-proof.sh` not sourcing the library (low) [docker/tests/test-eval-set.sh:1375]
+- [x] [Review][Patch] `eval/compose.release-candidate.yml`'s comment still said "layered last ... never by CI"; corrected, the six code lines untouched (low) [eval/compose.release-candidate.yml:1]
+- [x] [Review][Patch] Pinning tests without a `mutation:` line (`TestScanRefusesNoKey`, `TestGlobalHits` and `TestTraceHits` -1 checks, `TestNFR4Kinds` mean) (low): demonstrated and written under `## Verification` [## Verification]
+- [x] [Review][Defer] `project_leftovers` puts the harness's container listing in `lib-keys.sh`, beside ci/iris.sh and lib-live.sh (low) [docker/tests/lib-keys.sh:31] — deferred: DW-449 `wontfix-accepted` (the home it belongs in, ci/iris.sh, is read-only here; both calls use `--format`).
+- [x] [Review][Defer] Rule 2: `KeyProof.Walk` copies the walk of `Test.Web.SessionEvents.ReferenceHits` (about 8 lines; the spec records why) (low) [src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls Walk] — deferred: DW-450 `wontfix-accepted` (Test/Web is Epic 29's; no Epic 9 story touches it).
+
+Rejected:
+- (false) The rehearsal's job-summary "Verdict: blocked" reads like a blocked release: its Markdown says "On the CI mock: a rehearsal of the sequence, not a release result" (`Gate.Text`).
+- (false) The in-container bundle scan never confirms the key was there: the same proof's container-files verdict needs the key as the container sees it (`len + 1`) and the counts line needs `iris environment 1`.
+- (false) The container's key could be another value of the same length: the iris environment's key comes only from the override's `${ANTHROPIC_API_KEY:?}` of the run's own environment; no other file sets it.
+- (false) Requests could leave before the mock check: the CI file layered last gives the container the mock's base URL from creation, and `ReadyReason` runs before any case.
+- (false, its demonstration) Deleting the readiness `die` lets three attempts run: the attempt loop's `fails` guard stops them; the real gap (the readiness answers) is patched above.
+- (by-design) `eval/run.sh --key-path` accepts any key and has no endpoint guard of its own: the owner's U-168 chose the explicit switch as the guard; the harness adds the fake key and the endpoint refusal.
+- (by-design) The INFO line still reads "--on-mock with ANTHROPIC_API_KEY set": the intent contract's Always (1) fixes that text and `rc-stack` pins it.
+- (by-design) The `key-like` rule's needle is the first alternative only: the spec's rule.
+- (by-design) The Markdown never prints the token `maxUSD`: the spec fixes its three lines ("judged on the maximum item-decision cost"); the JSON names `maxUSD`.
+- (by-design) The checkout scan skips `.git/`: the intent contract says "outside `.git/`".
+- (low, theoretical) A file copied with a preserved mtime escapes the written-files scan: the run copies with plain `cp`, and `eval/` is scanned whole.
+- (low, theoretical) `key_like`'s `-I` skips a binary result file: `Report.Write` writes UTF-8 text in the same run; `-I` is the shared definition.
+- (low, theoretical) A missing `lib-keys.sh` would make the sourced scans no-ops: it is a committed file, and the exempt source line is fixed exactly by the spec.
+- (low, theoretical) A pre-build that exits 0 without `index.html` would let `live_start` build with the key: needs a broken build that reports success.
+- (low, theoretical) `TestGlobalHits` needs every global of its database readable: the tests run with full privileges.
+- (low, theoretical) Leftovers are matched by name prefix, not the compose label: no compose file sets `container_name` and compose prefixes every container and named volume; real only with a `container_name` or an image `VOLUME`.
+- (low) A placeholder entry counts as "unpriced: 1" in a set with no item decision: a release set always has item decisions; the fix adds a branch.
+- (low) No run-time control proves the awk matcher finds the key: it is POSIX `index` over `ENVIRON`, run by `rc-flow` and `key-proof` on the hosted Ubuntu `checks` job and by every fresh proof.
+- (low) The `stores` control counts any three entries holding the placeholder: it proves `Find` finds; exact names add nothing to the proof.
+- (low, prior adjudication) Four terms of the counts line cannot fail on their own: each term's scan has its own negative path (rework triage).
+- (spec edit) The intent contract still says "eight" scans, and the rework triage's "an empty pattern file matches every file" is wrong for an unset key: both are spec text under review (the Change Log records the first; the second's outcome holds by the second false row above).
+
 ## Spec Change Log
 
 - 2026-10-30, lead after rework 1: the proof now has nine scans (U-168 (3) added the web bundle) where the intent contract says eight; the intent is unchanged. `baseline_commit` is the story's first baseline (ef9e6fe6) so QA and the first code review cover the whole story; `baseline_revision` stays the rework's.
@@ -659,6 +704,57 @@ Review-pass additions (mutations applied together in one `test-eval-set.sh` run,
 - mutation: the checkout bundle scan drops its file-count and control guards -> red: `rc-flow` (cases `bundle-local-empty`, `bundle-local-nocontrol`; U-168 (3)).
 - mutation: `project_leftovers` matches the project name as a bare prefix (no `-` or `_` delimiter) -> red: `key-proof` (the `...-42420` decoy counts; the leftover samples report 2|1 and 1|2; [Lead]).
 - Final fresh `eval/key-proof.sh` (tag `e9s10j`, after the review patches): exit 0, `eval/key-proof: all checks passed`, the run 124 s; `test-eval-set.sh` (17 rules) and `test-boundaries.sh` pass.
+
+### QA record (lane B, tags `e9s10q` fresh and `e9s10qw` warm)
+
+Gaps found and closed (QA), all in `docker/tests/test-eval-set.sh` (rule `rc-flow`, `rcf_stub`, `rcf_session`, `rcf_cases_keys`); no product file changed:
+- (QA) The `globals` scan had only the hit case: added `globals-nocontrol` and `globals-unreadable` (the unreadable place with 0 hits, so that the place clause is the only detector).
+- (QA) The `run files` and `eval files` scans (labels 7 and 8) had no negative path on real files: added `run-plant` (the key in a file of the report folder), `eval-plant` (the key below `eval/`), `eval-unreadable` (a mode-000 file below `eval/`) and `eval-nocontrol` (no file below `eval/` holds the demo case's name). Each must end the key-path rehearsal with `FAIL key proof <label>` and exit 1; the key is in the file, never in the output (`run-plant` is exempt from the output check: the run prints the fetched result).
+- Test files created (QA): none. Test file changed (QA): `docker/tests/test-eval-set.sh`.
+
+Mutations (Rule 19), each applied to the real file, red observed, restored from a backup in the scratchpad; `shasum -c` and `git status --short` / `git diff --stat` identical to the pre-mutation state:
+- mutation (QA, AC2): the globals verdict ignores the control and the unreadable clause, and the run/eval files verdict ignores hits and control -> red: `rc-flow` (cases `globals-nocontrol`, `run-plant`, `eval-plant`); separately the `$11` clause alone -> red: `globals-unreadable`; separately the eval/run-files control and unreadable lines -> red: `eval-unreadable`, `eval-nocontrol`.
+- mutation (QA, AC1): `CostTarget` judges `met` on the mean (`sum / priced` under `FLAGUSD`) -> red: `Test.Eval.Gate` `TestNFR4Maximum`, and `Test.Eval.Report` `TestAttemptReadsTheReport`.
+- mutation (QA, AC1): `Text` calls the mean line "the judged figure" and `Summary` drops `informationOnly` -> red: `TestText`, `TestResult`, `TestNFR4Maximum`, `TestTextNFR4NotMeasured`.
+- mutation (QA, AC2): `KeyProof.Lines` swaps the two mock fields -> red: `TestLines`.
+- mutation (QA, AC3): `eval/run.sh` pre-builds the bundle with the key -> red: `rc-stack`.
+- mutation (QA, AC4): `scan_pair` finds nothing -> red: `rc-flow` (exit 4 cases) and `rc-override`; `lib-keys.sh` drops `dop_v1_` -> red: `test-boundaries.sh` (keys: "does not flag sample 4").
+- mutation (QA, U-168 (1)): `eval/run.sh` accepts `--release-candidate --key-path` -> red: `rc-guard`.
+- mutation (QA, U-168 (2), [Lead]): the harness's `unset` is a no-op (a function `unset() { :; }`) -> red: `key-proof` (an inherited key reaches ci/iris.sh; the leftover samples are then flagged for the wrong reason); `project_leftovers` prints `0|0` -> red: `key-proof` (`bad-leftover-container-listed`, `bad-leftover-volume-listed`).
+- mutation (QA, U-168 (3)): the counts verdict drops the `iris environment 1` clause -> red: `rc-flow` (cases `env0` and `env2`).
+- mutation (QA, Integration): the `evaluation` job loses the proof step -> red: `job`.
+- Not mutated by anything: the harness's own anchor texts (`unset ANTHROPIC_API_KEY\nif [ -z`, the counts `if`) are edited by the `key-proof` and `rc-flow` sample writer, so a mutation of those exact lines fails the sample writer ("the synthetic trees could not be written") rather than a pinning case; a function override (`unset() { :; }`) was used instead.
+
+Final runs: `test-eval-set.sh` 17 rules passed, `test-boundaries.sh` passed, warm `Test.Eval.Gate`, `KeyProof` and `Report` passed (3.6 s, 0.7 s, 0.9 s). Warm `e9s10qw` brought down; tag `e9s10q` teardown found 0; lane-b lock folder empty.
+
+### Code-review record (lane B, tags `e9s10r` fresh and `e9s10rw` warm)
+
+What the review patches added (see `### Review Findings`): the result's Markdown is withheld when it holds the key's value as well as key-like text; the `web bundle` scan covers the served copy (`/durable/iris/csp/ocutalon-web`) beside the image's; a folder that cannot be listed fails every host-side file scan; the harness fails when `git status` cannot be read, never shows an endpoint that is not a URL, and ends its early failures with the count line; `TraceHits` takes an optional namespace that the tests name. New cases: `rc-flow` (readiness `kp-ready`, `kp-placeholder`, `kp-keylength`, `kp-model`; the step summary of the plant and clean cases; `run-unreadable-folder`, `eval-unreadable-folder`, `bundle-local-unreadable-folder`; `run-plant` no longer exempt from the output check), `rc-stack` (the push run with a key), `key-proof` (`bad-unreadable-folder-below-eval`, `bad-no-git`, sessions `not-a-url` and a work folder that cannot be made; `write-checkout` keeps its real time behind a real `sleep`), `key-like` (`bad-proof-no-source`).
+
+Runs (the key unset except the harness's own fake key):
+- Slot B (`ocutalon-slot-b`, build 154): `Test/Eval/KeyProof.cls` loads and compiles.
+- `test-eval-set.sh`: 17 rules passed (149 s); `test-boundaries.sh`, `test-class-rules.sh`, `test-compose-file.sh` and `test-ci-changes.sh` passed.
+- Warm `e9s10rw`: `Test.Eval.KeyProof` and `Test.Eval.Gate` passed, and again after each revert below.
+- Fresh `OCUTALON_RUN_TAG=e9s10r bash eval/key-proof.sh`: exit 0, `eval/key-proof: all checks passed` in 127 s (the run 125 s); web bundle 19 files of the checkout and 38 of its two copies in the throwaway; the counts line `iris environment 1, ... web bundle 0`; leftovers `0|0`; the teardown of the tag found 0. Warm and fresh tags torn down; lane-b lock folder empty.
+
+Mutations (Rule 19), each applied to the real file, red observed, restored from a backup in the stage's scratch folder; `git diff | shasum` and `git status --short` identical to the pre-mutation state after each:
+- mutation: `eval/run.sh` drops the value check before printing the result -> red: `rc-flow` (case `run-plant`: the key appears in the output; U-166 (c)).
+- mutation: the key-path readiness no longer expects `CHK|ready|` -> red: `rc-flow` (goes on when its readiness answers `kp-ready`; AC2, the Always tier).
+- mutation: the summary append runs before the key-like check -> red: `rc-flow` (the key-like text reaches the step summary; AC4).
+- mutation: the bundle scan of the throwaway names the image's copy twice, not the served one -> red: `rc-flow` (the key-path rehearsal on clean scans: 8 PASS lines; U-168 (3)).
+- mutation: the three host-side `find` calls ignore their exit status -> red: `rc-flow` (cases `bundle-local-unreadable-folder`, `run-unreadable-folder`, `eval-unreadable-folder`; AC2, fail closed).
+- mutation: the early `unset` covers only `--release-candidate --on-mock` -> red: `rc-stack` (the push run keeps the key of the caller's environment in a call; the [Gate] item).
+- mutation: the harness touches its stamp after the run -> red: `key-proof` (`bad-writes-key-in-checkout` not flagged; AC2).
+- mutation: the harness ignores a `git status` that cannot be read -> red: `key-proof` (`bad-no-git` not flagged; AC2).
+- mutation: `file_hits` ignores find's exit status -> red: `key-proof` (`bad-unreadable-folder-below-eval` not flagged; AC2).
+- mutation: the refusal shows an endpoint that is not a URL -> red: `key-proof` (session `not-a-url`; U-168 (2)).
+- mutation: a work folder that cannot be made exits 1 without the count line -> red: `key-proof` (the count of failed checks).
+- mutation: `check_key_like` skips `eval/key-proof.sh` -> red: `key-like` (`bad-proof-no-source`, `bad-proof-own-pattern`; AC4).
+- mutation: `Scan` no longer refuses an empty key -> red: `TestScanRefusesNoKey` ("Scan gives a reason"; AC2).
+- mutation: `Walk` returns 0 for an empty value, and `Databases` no longer marks a selected database that does not exist -> red: `TestGlobalHits` ("an empty value gives -1", "a database that does not exist gives -1"; AC2, fail closed).
+- mutation: `Trace` returns 0 for an empty value -> red: `TestTraceHits` ("an empty value gives -1"; AC2).
+- mutation: `Trace` ignores the namespace it is given -> red: `TestTraceHits` ("the test's namespace and its messages are counted"; hermeticity).
+- mutation: `CostTarget` adds diagnose and turn costs to the sum of the mean -> red: `TestNFR4Kinds` ("a diagnose or turn decision does not enter it"; AC1).
 
 ## Auto Run Result
 

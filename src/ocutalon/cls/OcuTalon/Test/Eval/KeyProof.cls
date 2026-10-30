@@ -7,9 +7,10 @@
 ///     their data. An empty databases means every local database that is mounted and not read-only; a database that is read-only cannot receive the
 ///     value, and is named in stats.skipped. It is -1 for an empty value and for any database or global that cannot be read, so that a scan that saw
 ///     nothing never reads as clean.
-///   - TraceHits(value, after, .places, .stats): the number of messages of every Interoperability namespace (Ens.MessageHeader with an ID above after)
-///     whose header or body holds the value, each exported as XML (a header and a body are %XML.Adaptor); -1 for an empty value and for any message or
-///     body that cannot be opened or exported.
+///   - TraceHits(value, after, .places, .stats, namespace): the number of messages of every Interoperability namespace (Ens.MessageHeader with an ID
+///     above after), or of the one namespace named, whose header or body holds the value, each exported as XML (a header and a body are
+///     %XML.Adaptor); -1 for an empty value and for any message or body that cannot be opened or exported. A header ID is a mark in its own
+///     namespace only, so the tests name theirs.
 ///   - Scan(): the figures of the proof for the value of ANTHROPIC_API_KEY: the global scan, the stores (Test.Agent.KeyScan.Find), the trace and the CI
 ///     mock's log, each with a positive control (the demo case's name must be found in the globals, a stored placeholder in the stores, the demo case's
 ///     name in the trace), and Print writes the CHK lines that eval/run.sh reads. A scan that finds nothing and whose control finds nothing fails there.
@@ -17,8 +18,8 @@
 ///   - TestGlobalHits: a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
 ///     gives 0, an empty value gives -1 and a database that does not exist gives -1, and the database can be named by its name or its directory;
 ///   - TestTraceHits: a message body and its header that hold a value are found after a mark and not before it, a value nobody holds gives 0, and an
-///     empty value gives -1;
-///   - TestTraceHitsUnreadableBody: a header whose body cannot be opened gives -1 and is named;
+///     empty value gives -1, in the test's own namespace (the messages of the others are not the test's);
+///   - TestTraceHitsUnreadableBody: a header whose body cannot be opened gives -1 and is named, in the test's own namespace;
 ///   - TestLines: the CHK lines that eval/run.sh reads, in their field order, for a scan built by hand;
 ///   - TestScanRefusesNoKey: with the key variable unset, Scan gives a reason and no figures.
 Class OcuTalon.Test.Eval.KeyProof Extends %UnitTest.TestCase
@@ -85,15 +86,15 @@ Method TestTraceHits()
 		Set header.Type = 1
 		Do $$$AssertStatusOK(header.%Save(), "the header is saved")
 		Set headerId = header.%Id()
-		Set hits = ..TraceHits(value, mark, .places, .stats)
+		Set hits = ..TraceHits(value, mark, .places, .stats, $Namespace)
 		Do $$$AssertEquals(hits, 1, "the value is found in the body of one message")
 		Do $$$AssertEquals(places.%Get(0), $Namespace_":"_headerId, "which is named by its namespace and header id")
 		Do $$$AssertTrue(places.%Get(0) '[ value, "and the place never holds the value")
-		Do $$$AssertTrue(stats.namespaces > 0 && (stats.messages > 0) && (stats.unreadable.%Size() = 0), "the namespaces and messages are counted and none was unreadable")
+		Do $$$AssertTrue((stats.namespaces = 1) && (stats.messages > 0) && (stats.unreadable.%Size() = 0), "the test's namespace and its messages are counted and none was unreadable")
 		Do $$$AssertTrue(..ListHas(stats.bodyClasses, "OcuTalon.Eval.Msg.IncidentCase"), "the body class is named")
-		Do $$$AssertEquals(..TraceHits(value, headerId, .after), 0, "a message at or before the mark is not scanned")
-		Do $$$AssertEquals(..TraceHits(value_"-nobody", mark), 0, "a value nobody holds gives 0")
-		Do $$$AssertEquals(..TraceHits("", mark), -1, "an empty value gives -1")
+		Do $$$AssertEquals(..TraceHits(value, headerId, .after, , $Namespace), 0, "a message at or before the mark is not scanned")
+		Do $$$AssertEquals(..TraceHits(value_"-nobody", mark, , , $Namespace), 0, "a value nobody holds gives 0")
+		Do $$$AssertEquals(..TraceHits("", mark, , , $Namespace), -1, "an empty value gives -1")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the trace scan runs without an exception")
 	}
@@ -115,7 +116,7 @@ Method TestTraceHitsUnreadableBody()
 		Set header.Type = 1
 		Do $$$AssertStatusOK(header.%Save(), "the header is saved")
 		Set headerId = header.%Id()
-		Set hits = ..TraceHits("keyproof-control-nobody", mark, .places, .stats)
+		Set hits = ..TraceHits("keyproof-control-nobody", mark, .places, .stats, $Namespace)
 		Do $$$AssertEquals(hits, -1, "a body that cannot be opened gives -1")
 		Do $$$AssertTrue(..ListHas(stats.unreadable, $Namespace_":"_headerId), "and its header is named")
 	} Catch exception {
@@ -167,10 +168,10 @@ ClassMethod GlobalHits(value As %String, databases As %String = "", Output place
 }
 
 /// The number of messages whose header or body holds the value (see the class description). places lists up to MAXPLACES entries <namespace>:<header
-/// id>; stats is {namespaces, messages, bodyClasses[], unreadable[]}.
-ClassMethod TraceHits(value As %String, after As %Integer = 0, Output places As %DynamicArray, Output stats As %DynamicObject) As %Integer
+/// id>; stats is {namespaces, messages, bodyClasses[], unreadable[]}. namespace, when not empty, limits the scan to that Interoperability namespace.
+ClassMethod TraceHits(value As %String, after As %Integer = 0, Output places As %DynamicArray, Output stats As %DynamicObject, namespace As %String = "") As %Integer
 {
-	Quit ..Trace(value, "", after, .places, .stats, .control)
+	Quit ..Trace(value, "", after, .places, .stats, .control, namespace)
 }
 
 /// The figures of the proof for the value of ANTHROPIC_API_KEY, or {"reason": ...} when the variable is empty and nothing was scanned:
@@ -347,9 +348,9 @@ ClassMethod Databases(selection As %String, Output list As %DynamicArray, ByRef 
 	}
 }
 
-/// The walk of the messages: value and control as in Walk. It exports each header and each body of the Interoperability namespaces, with the one
-/// implementation in this method so that it needs nothing of this class in the namespace that it visits.
-ClassMethod Trace(value As %String, control As %String, after As %Integer, Output places As %DynamicArray, Output stats As %DynamicObject, Output controlHits As %Integer) As %Integer [ Private ]
+/// The walk of the messages: value and control as in Walk. It exports each header and each body of the Interoperability namespaces (only the one named
+/// by only, when it is not empty), with the one implementation in this method so that it needs nothing of this class in the namespace that it visits.
+ClassMethod Trace(value As %String, control As %String, after As %Integer, Output places As %DynamicArray, Output stats As %DynamicObject, Output controlHits As %Integer, only As %String = "") As %Integer [ Private ]
 {
 	Set places = [], controlHits = 0
 	Set stats = {"namespaces": 0, "messages": 0, "bodyClasses": [], "unreadable": []}
@@ -361,7 +362,7 @@ ClassMethod Trace(value As %String, control As %String, after As %Integer, Outpu
 	For {
 		Set namespace = $Order(all(namespace))
 		Quit:namespace=""
-		If ($Extract(namespace) = "^") || '##class(%Library.EnsembleMgr).IsEnsembleNamespace(namespace) Continue
+		If ($Extract(namespace) = "^") || ((only '= "") && ($ZConvert(namespace, "U") '= $ZConvert(only, "U"))) || '##class(%Library.EnsembleMgr).IsEnsembleNamespace(namespace) Continue
 		Set stats.namespaces = stats.namespaces + 1
 		Try {
 			Set $Namespace = namespace

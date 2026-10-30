@@ -11,11 +11,13 @@
 # checks what the run cannot check about itself:
 #   0. before anything starts, the model endpoint resolves to the CI mock (the last OCUTALON_MODEL_BASE_URL of eval/compose.release-candidate.yml and
 #      ci/compose.ci.yml, the order in which the run layers them, and the caller's own OCUTALON_MODEL_BASE_URL when it is set: both); any other endpoint is
-#      refused with exit 2 and the endpoint named (never a key), and nothing is started;
+#      refused with exit 2 and the endpoint named by its scheme, host and port only (an endpoint that is not a URL is not shown; never a key), and
+#      nothing is started;
 #   1. the run exited 0, and its captured output holds the nine PASS key proof lines, the counts line, "VERDICT blocked" and "eval/run: all checks
 #      passed", and no line that holds the key;
-#   2. no file below eval/, no file of the checkout written during the run (outside .git/) and no file of the report folder holds the key;
-#   3. git status --porcelain -- eval/ is what it was before the run;
+#   2. no file below eval/, no file of the checkout written during the run (outside .git/) and no file of the report folder holds the key, and none of
+#      them, and no folder below them, is unreadable;
+#   3. git status --porcelain -- eval/ can be read before and after the run, and is what it was before the run;
 #   4. the run's own compose project (named in its output) has no container and no volume left, listed by the tool itself, and the teardown of the
 #      run's tag, run again after that, removes 0 projects and finds 0 leftover containers and 0 leftover volumes;
 #   5. the proof's pass line, which is counts only: "PASS key counts: iris environment 1, run output 0, container logs 0, result files 0, trace 0, web
@@ -30,8 +32,8 @@
 #   ANTHROPIC_API_KEY  any value that the caller holds is unset first, and is never used
 #   OCUTALON_MODEL_BASE_URL  when the caller sets it, it must be the CI mock's (http://mock:8080); anything else is refused with exit 2
 #   RUNNER_TEMP, TMPDIR  where the private work folder is made (mktemp -d)
-# Exit codes: 0 every check passed, 1 a check failed, 2 no run tag or a model endpoint that is not the CI mock. The last line is "eval/key-proof: all checks passed" or
-# "eval/key-proof: <n> check(s) failed".
+# Exit codes: 0 every check passed, 1 a check failed (the work folder or the fake key that could not be made included), 2 no run tag or a model endpoint
+# that is not the CI mock. With exit 0 or 1 the last line is "eval/key-proof: all checks passed" or "eval/key-proof: <n> check(s) failed".
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -53,7 +55,11 @@ for endpoint in "${OCUTALON_MODEL_BASE_URL:-$file_endpoint}" "$file_endpoint"; d
   case $endpoint in
     http://mock:8080 | http://mock:8080/*) ;;
     *)
-      shown=$(printf '%s' "$endpoint" | sed -e 's#^\([A-Za-z][A-Za-z0-9+.-]*://\)[^/]*@#\1#' -e 's#^\([A-Za-z][A-Za-z0-9+.-]*://[^/?\#]*\).*$#\1#' | cut -c1-80)
+      case $endpoint in
+        *://*) shown=$(printf '%s' "$endpoint" | sed -e 's#^\([A-Za-z][A-Za-z0-9+.-]*://\)[^/]*@#\1#' -e 's#^\([A-Za-z][A-Za-z0-9+.-]*://[^/?\#]*\).*$#\1#' | cut -c1-80) ;;
+        '') shown= ;;
+        *) shown='(not a URL)' ;;
+      esac
       echo "FAIL the model endpoint '${shown:-none}' is not the CI mock (http://mock:8080): the key proof refuses to run, and nothing was started"
       exit 2
       ;;
@@ -67,9 +73,16 @@ fail() {
   fails=$((fails + 1))
 }
 
-work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ocutalon-key-proof.XXXXXX") || exit 1
+# abort <reason>: a failure before the run can start (the work folder, the fake key): its FAIL line, then the last line of a failed proof, and exit 1.
+abort() {
+  echo "FAIL $1"
+  echo "eval/key-proof: 1 check(s) failed"
+  exit 1
+}
+
+work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ocutalon-key-proof.XXXXXX") || abort "the private work folder could not be made"
 trap 'rm -rf "$work"' EXIT
-mkdir -p "$work/report" || exit 1
+mkdir -p "$work/report" || abort "the report folder could not be made"
 capture="$work/capture.txt"
 
 # The fake key: fragments, put together here and nowhere else.
@@ -78,22 +91,17 @@ part_b=ant-
 part_c=api03-
 part_d=ocutalonfake-
 random=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2> /dev/null | head -c 40)
-if [ "${#random}" -ne 40 ]; then
-  echo "FAIL the random part of the fake key could not be made"
-  exit 1
-fi
+if [ "${#random}" -ne 40 ]; then abort "the random part of the fake key could not be made"; fi
 fake="${part_a}${part_b}${part_c}${part_d}${random}"
-if [ "${#fake}" -ne 66 ]; then
-  echo "FAIL the fake key is not 66 characters long"
-  exit 1
-fi
+if [ "${#fake}" -ne 66 ]; then abort "the fake key is not 66 characters long"; fi
 
 # --- 1. the run ---
 
 echo "INFO pre-clear: removing what the tag $OCUTALON_RUN_TAG may have left"
 bash ci/iris.sh teardown 2>&1 | sed 's/^/INFO /'
 
-status_before=$(git status --porcelain -- eval/ 2> /dev/null)
+git_before=1
+status_before=$(git status --porcelain -- eval/ 2> /dev/null) || git_before=0
 touch "$work/stamp"
 sleep 1
 begun=$SECONDS
@@ -143,9 +151,13 @@ grep -qx 'eval/run: all checks passed' "$capture" && pass "the capture holds eva
 
 # --- 3. the files ---
 
-# file_hits <find operands>: file:line for each file that holds the key and unreadable:<file> for each file that cannot be read, joined by commas
+# file_hits <find operands>: file:line for each file that holds the key, unreadable:<file> for each file that cannot be read, and unreadable:<first
+# operand> when find cannot list a folder below the operands, joined by commas
 file_hits() {
-  find "$@" -print0 | ANTHROPIC_API_KEY=$fake xargs -0 bash -c 'for f in "$@"; do key_value_hits "$f" || echo "unreadable:$f"; done' _ | paste -s -d, -
+  {
+    find "$@" -print0 2> /dev/null > "$work/files" || echo "unreadable:a folder below $1"
+    ANTHROPIC_API_KEY=$fake xargs -0 bash -c 'for f in "$@"; do key_value_hits "$f" || echo "unreadable:$f"; done' _ < "$work/files"
+  } | paste -s -d, -
 }
 eval_files=$(find eval -type f | wc -l | tr -d ' ')
 eval_hits=$(file_hits eval -type f)
@@ -156,8 +168,10 @@ if [ -z "$written_hits" ]; then pass "none of the $written file(s) of the checko
 report_files=$(find "$work/report" -type f | wc -l | tr -d ' ')
 report_hits=$(file_hits "$work/report" -type f)
 if [ "$report_files" -gt 0 ] && [ -z "$report_hits" ]; then pass "none of the $report_files file(s) of the report folder holds the key"; else fail "the report folder has $report_files file(s), hits or unreadable: ${report_hits:-none}"; fi
-status_after=$(git status --porcelain -- eval/ 2> /dev/null)
-if [ "$status_after" = "$status_before" ]; then pass "git status --porcelain -- eval/ is as it was before the run"; else fail "git status --porcelain -- eval/ changed during the run"; fi
+git_after=1
+status_after=$(git status --porcelain -- eval/ 2> /dev/null) || git_after=0
+if [ "$git_before$git_after" != 11 ]; then fail "git status --porcelain -- eval/ could not be read before or after the run"
+elif [ "$status_after" = "$status_before" ]; then pass "git status --porcelain -- eval/ is as it was before the run"; else fail "git status --porcelain -- eval/ changed during the run"; fi
 
 # --- 4. the teardown ---
 

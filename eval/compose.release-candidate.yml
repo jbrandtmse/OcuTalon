@@ -1,5 +1,7 @@
-# The override of a release-candidate run (Story 9.5; AD-19, AD-22). It is layered last, by `bash eval/run.sh --release-candidate` only,
-# on top of the throwaway's files and ci/compose.ci.yml, and never by CI: no workflow names it.
+# The override of a release-candidate run (Story 9.5; AD-19, AD-22). Only `bash eval/run.sh` layers it, and no workflow names it:
+# `--release-candidate` lays it last, on top of the throwaway's files and ci/compose.ci.yml; the key-path rehearsal
+# (`--release-candidate --on-mock --key-path`, Story 9.10, which eval/key-proof.sh runs with a fake key, in CI too) lays ci/compose.ci.yml
+# again after it, so that the two mock settings below are the CI file's there and every model request goes to the CI mock.
 #   - ANTHROPIC_API_KEY is the shell's own, interpolated by compose when the project starts; the run refuses to start without it. The key
 #     reaches only the iris service of the throwaway, where the Provider step's placeholder @{env:ANTHROPIC_API_KEY} resolves inside AI Hub.
 #     It is never written to a file, printed or stored in IRIS.

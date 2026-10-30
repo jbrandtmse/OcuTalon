@@ -2443,6 +2443,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: eval/run.sh checks the key (:164) and then stack_start -> live_start -> ensure_web_bundle (docker/tests/lib-live.sh:88, :160-189) runs npm --prefix web ci and run build when web/node_modules or src/ocutalon/csp/index.html is missing, with the script's whole environment.
 - 2026-10-30T14:35:15Z status=decision-pending owner=burndown by=cr note=veto window (secret handling): recommend building the bundle in a subshell with the key unset before stack_start
 - 2026-10-30T15:43:03Z status=routed owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=owner note=decided by the owner's delegate in U-166 (at=2026-10-30T12:43:19Z#503), applied through the orchestrator's ruling: fold into Story 9.10 (build the web bundle with the key unset before stack_start); no longer for the decision sheet
+- 2026-10-30T20:45:09Z status=resolved-by:9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=adjudication note=eval/run.sh runs preflight, then builds the web bundle in a subshell with ANTHROPIC_API_KEY unset, then sets LIVE_REBUILD_WEB=0 before stack_start, so npm ci and the web build never see the key while the stack's compose calls still do; pinned by test-eval-set.sh rc-stack (every npm call records the key unset, with the bundle forced to rebuild); commits 22204007, c77f8fe5
 
 ### DW-435: Eval.Gate.SampleFields repeats DiagnosisPayload.CheckFix's sample-field loop (the keys of EvidencePack.FromInput(...).sample.body, 6 lines) instead of one shared EvidencePack helper
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2457,3 +2458,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/iris.sh:555-566 cmd_teardown increments c/v/n/i only inside if docker rm ...; then; found by Story 9.10's implement review
 - 2026-10-30T18:25:27Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=harvest note=Story 9.10's proof checks docker ps -a and docker volume ls by its project itself, so it does not rely on the count; reopen_if=a teardown line reports 0 leftovers while docker ps -a or docker volume ls still show the tag's project
+
+### DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node, so a key inside a zstd-compressed %Stream.Global* chunk, a 16-bit $List element or split across stream chunks reads as clean
+- source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Walk tests reference [ value and data [ value per node (KeyProof.cls Walk); %Stream.GlobalCharacter has COMPRESS=1 and TmpCharacter compresses a block of 1 KB or more (irislib/%Stream/TmpCharacter.cls:889); the demo-case control cannot detect it; found by code review (blind, edge, acceptance layers)
+- 2026-10-30T20:42:31Z status=escalated owner=burndown by=cr note=for the user: decode $List elements (cheap) and compressed stream chunks (needs a measurement of the storage on a throwaway); the same walk is copied in Test.Web.SessionEvents.ReferenceHits
+
+### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
+- source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: lib-keys.sh project_leftovers; ci/iris.sh is read-only for Story 9.10, so the [Lead] item's listing could not live in cmd_teardown; both calls use --format (AD-22 holds); found by code review (blind, acceptance layers)
+- 2026-10-30T20:42:31Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=cr note=reopen_if=a second caller of project_leftovers outside eval/key-proof.sh, or a container-tool call in lib-keys.sh without --format, or ci/iris.sh gains a leftovers subcommand
+
+### DW-450: Test.Eval.KeyProof Walk copies the global walk of Test.Web.SessionEvents.ReferenceHits (about 8 lines: the extended reference, $Data of the root, then $Query with data) instead of sharing one helper
+- source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: KeyProof.cls Walk vs SessionEvents.cls ReferenceHits :590-598; the spec records the reason (Test/Web is contended by Epic 29, and the sibling walks one namespace by location); no story in Epic 9 touches Test/Web; found by code review (Rule 2)
+- 2026-10-30T20:42:31Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=cr note=reopen_if=either walk changes how it matches a node (for example the decoding of the escalated globals-scan entry) and the other does not
