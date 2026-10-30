@@ -38,7 +38,7 @@
 ///   - (QA) TestCaptureDropsCredentialSettings: with credential-named settings (and one plain setting) in the definition of the failing Orders item,
 ///     the snapshot that Capture writes and the pack it returns hold the plain setting and none of the others, by name or by value. The test adds
 ///     the settings to the saved definition in OCUORDERS and takes them out again.
-Class OcuTalon.Test.Eval.Record Extends %UnitTest.TestCase
+Class OcuTalon.Test.Eval.Record Extends %UnitTest.TestCase [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
 /// The incident cases of the Orders demo that this class re-induces, comma-separated: one recipe in Induce for each. Recipes() adds the cases of the
@@ -53,13 +53,13 @@ Parameter VOLATILE = "firstAt,lastAt,sample.headerId,sample.at,trace.headerId,tr
 Parameter TMP = "/tmp/zz-eval-record/";
 
 /// The item of the Orders production that the demo failures are at.
-Parameter ORDERSITEM = "OrdersFromPartner";
+Parameter ORDERSITEM = {##class(OcuTalon.Test.Watch.OrdersDefinition).#ITEM};
 
 /// The settings that TestCaptureDropsCredentialSettings adds to the definition of the Orders item: four with a credential name (CREDENTIALS) and one plain
 /// (NOTE), each with a value of its own.
-Parameter CREDENTIALS = "Credentials,SMTPPassword,BotToken,ApiKey";
+Parameter CREDENTIALS = {##class(OcuTalon.Test.Watch.OrdersDefinition).#CREDENTIALS};
 
-Parameter NOTE = "ZzFixtureNote";
+Parameter NOTE = {##class(OcuTalon.Test.Watch.OrdersDefinition).#NOTE};
 
 Parameter SECRET = "zz-fixture-secret-1";
 
@@ -150,7 +150,7 @@ Method OnAfterAllTests() As %Status
 {
 	Set sc = $$$OK
 	If ..SettingsAdded {
-		Set sc = ..FixtureSettings(0)
+		Set sc = ##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0)
 		If $$$ISOK(sc) Set ..SettingsAdded = 0
 	}
 	If ..FeedInstalled {
@@ -537,9 +537,9 @@ Method TestCleanRemovesBatch()
 	Set folder = ..Folder_"clean/"
 	Do $$$AssertTrue(##class(%File).CreateDirectoryChain(folder), "a folder of the run exists")
 	Do $$$AssertTrue($ClassMethod(demo, "Headers", ref).%Size() > 0, "and the batch has headers")
-	Set settings = ..DefinedSettings()
+	Set settings = ##class(OcuTalon.Test.Watch.OrdersDefinition).Defined()
 	Set ..SettingsAdded = 1
-	Do $$$AssertStatusOK(..FixtureSettings(1), "the fixture settings are put into the definition of "_..#ORDERSITEM)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.OrdersDefinition).Put(1, ..#SECRET, ..#NOTEVALUE), "the fixture settings are put into the definition of "_..#ORDERSITEM)
 	Set closing = ##class(OcuTalon.Test.Eval.Record).%New("")
 	Set closing.Refs = [(ref)]
 	Set closing.Folder = folder
@@ -550,8 +550,8 @@ Method TestCleanRemovesBatch()
 	Do $$$AssertNotTrue(##class(%File).DirectoryExists(folder), "and the folder")
 	Do $$$AssertTrue('$ClassMethod(demo, "MarkIsAhead", 60), "and released the Orders WatchMark")
 	Do $$$AssertTrue($ClassMethod(demo, "MarkIsAhead", -30), "to the release time, not left behind")
-	Do $$$AssertEquals(..DefinedSettings(), settings, "and took the fixture settings out of the definition")
-	Set sc = $Select(..DefinedSettings() = settings: $$$OK, 1: ..FixtureSettings(0))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.OrdersDefinition).Defined(), settings, "and took the fixture settings out of the definition")
+	Set sc = $Select(##class(OcuTalon.Test.Watch.OrdersDefinition).Defined() = settings: $$$OK, 1: ##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0))
 	If $$$ISOK(sc) Set ..SettingsAdded = 0
 	Do $$$AssertStatusOK($ClassMethod(demo, "HoldFailures"), "the failures are held again for the other tests")
 }
@@ -740,11 +740,11 @@ Method TestCaptureDropsCredentialSettings()
 	Set namespace = $Parameter(demo, "NAMESPACE"), production = $Parameter(demo, "PRODUCTION")
 	Set key = "h"_entry.answer.failures.%Get(0).headerId
 	Set base = ..Folder_"credentials/"
-	Set before = ..DefinedSettings()
+	Set before = ##class(OcuTalon.Test.Watch.OrdersDefinition).Defined()
 	Set ..SettingsAdded = 1
 	Try {
-		Do $$$AssertStatusOK(..FixtureSettings(1), "the credential settings and a plain one are added to the definition of "_..#ORDERSITEM)
-		Set held = ..DefinedSettings()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.OrdersDefinition).Put(1, ..#SECRET, ..#NOTEVALUE), "the credential settings and a plain one are added to the definition of "_..#ORDERSITEM)
+		Set held = ##class(OcuTalon.Test.Watch.OrdersDefinition).Defined()
 		Set missing = ""
 		Set names = $ListFromString(..#CREDENTIALS_","_..#NOTE), position = 0
 		While $ListNext(names, position, name) {
@@ -786,10 +786,10 @@ Method TestCaptureDropsCredentialSettings()
 	} Catch exception {
 		Do $$$AssertTrue(0, "the credential test threw: "_exception.DisplayString())
 	}
-	Set sc = ..FixtureSettings(0)
+	Set sc = ##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0)
 	If $$$ISOK(sc) Set ..SettingsAdded = 0
 	Do $$$AssertStatusOK(sc, "the settings are taken out of the definition again")
-	Do $$$AssertEquals(..DefinedSettings(), before, "the definition holds the settings it held before")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.OrdersDefinition).Defined(), before, "the definition holds the settings it held before")
 }
 
 /// (QA) Capture refuses a case that is not valid for that reason before it reads the production: the reason names the case's field also where the
@@ -965,68 +965,6 @@ ClassMethod Drop(node As %DynamicAbstractObject, path As %String) [ Private ]
 	} ElseIf $IsObject(node.%Get(head)) {
 		Do ..Drop(node.%Get(head), rest)
 	}
-}
-
-/// Puts the fixture settings into (on) or takes them out of (off) the Orders item in the saved Orders definition of OCUORDERS, and saves it. It first
-/// takes out any of them that are there, so that it can be called twice. It calls only Ens classes while it is in OCUORDERS and does not update the
-/// running production.
-ClassMethod FixtureSettings(on As %Boolean) As %Status [ Private ]
-{
-	Set demo = "OcuTalon.Test.Demo.Production"
-	Set namespace = $Parameter(demo, "NAMESPACE"), productionName = $Parameter(demo, "PRODUCTION"), itemName = ..#ORDERSITEM
-	Set names = $ListFromString(..#CREDENTIALS_","_..#NOTE)
-	Set secret = ..#SECRET, noteName = ..#NOTE, noteValue = ..#NOTEVALUE
-	New $NAMESPACE
-	Set $NAMESPACE = namespace
-	Set production = ##class(Ens.Config.Production).%OpenId(productionName)
-	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no definition of "_productionName)
-	Set found = 0
-	For i = 1:1:production.Items.Count() {
-		Set item = production.Items.GetAt(i)
-		If item.Name '= itemName Continue
-		Set found = 1
-		For j = item.Settings.Count():-1:1 {
-			If $ListFind(names, item.Settings.GetAt(j).Name) Do item.Settings.RemoveAt(j)
-		}
-		If on {
-			Set position = 0
-			While $ListNext(names, position, name) {
-				Set setting = ##class(Ens.Config.Setting).%New()
-				Set setting.Target = "Host"
-				Set setting.Name = name
-				Set setting.Value = $Select(name = noteName: noteValue, 1: secret)
-				Do item.Settings.Insert(setting)
-			}
-		}
-		Quit
-	}
-	If 'found Quit $SYSTEM.Status.Error(5001, "The definition has no item "_itemName)
-	Quit production.%Save()
-}
-
-/// The names of the settings of the Orders item in the saved Orders definition of OCUORDERS, comma-separated and sorted, read from the definition itself.
-ClassMethod DefinedSettings() As %String [ Private ]
-{
-	Set demo = "OcuTalon.Test.Demo.Production"
-	Set namespace = $Parameter(demo, "NAMESPACE"), productionName = $Parameter(demo, "PRODUCTION"), itemName = ..#ORDERSITEM
-	New $NAMESPACE
-	Set $NAMESPACE = namespace
-	Set production = ##class(Ens.Config.Production).%OpenId(productionName)
-	If '$IsObject(production) Quit "<no definition>"
-	Kill names
-	For i = 1:1:production.Items.Count() {
-		Set item = production.Items.GetAt(i)
-		If item.Name '= itemName Continue
-		For j = 1:1:item.Settings.Count() Set names(item.Settings.GetAt(j).Name) = ""
-		Quit
-	}
-	Set list = "", name = ""
-	For {
-		Set name = $Order(names(name))
-		If name = "" Quit
-		Set list = list_$Select(list = "": "", 1: ",")_name
-	}
-	Quit list
 }
 
 /// The text of the file.

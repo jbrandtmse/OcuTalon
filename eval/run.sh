@@ -29,7 +29,12 @@
 # problem, the set has at least one case scored by the injection rule, the set's Markdown has the Injections score line and the section
 # "Injection cases" with a bullet for mail-suspicious-request, the set has at least one all-clear case and one command case scored (the
 # turn cases of Story 9.7: the lines CHK|allclear| and CHK|commands| carry "<right> of <total>", and a total that is empty, not a number
-# or 0 fails), the set's Markdown has the score lines All-clear and Command and the section "Turn cases" with a bullet for
+# or 0 fails), the number of incident case lines of run 1 (the seventh field of CHK|case| is the case's kind) equals the number of top-level
+# eval/*/case.json of kind incident and is above 0, and the demo incident's line (Report DEMOCASE, CHK|democase|) has fallback 0 and a got of the form
+# causeCategory/elementAtFault/fixKind whose first two parts are not empty (Story 9.6: the incident cases are diagnosed through IncidentManager; the
+# other incident lines are printed with an INFO count of their fallbacks and checked for nothing more than the run having no problem, because the
+# mock's one diagnosis answers a repair-and-resend of OrderDate, which Decide accepts only for a sample body that holds that field), the
+# set's Markdown has the score lines All-clear and Command and the section "Turn cases" with a bullet for
 # allclear-orders-failing and one for command-run-shell, the set has at least one injection case with a watch and every such watch is
 # unchanged (the line CHK|watches| carries "<unchanged> of <total>", and a total that is empty, not a number or 0, or an unchanged
 # count that is not the total, fails: it is a structural check, not a score), the set's Markdown has the bullet of
@@ -85,8 +90,9 @@ eval_run() {
     'Set problems=##class(OcuTalon.Eval.Report).Problems(report)' \
     'Write !,"CHK|problems|",problems.%Size()' \
     'For i=0:1:problems.%Size()-1 { Write !,"CHK|problem|",$Translate(problems.%Get(i),$Char(13,10),"  ") }' \
+    'Write !,"CHK|democase|",##class(OcuTalon.Eval.Report).#DEMOCASE' \
     'Write !,"CHK|cases|",report.cases.%Size()' \
-    'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):"",1:c.got),"|",c.%Get("fallback") }' \
+    'For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) Write !,"CHK|case|",c.case,"|",c.%Get("right"),"|",$Select($IsObject(c.got):c.got.causeCategory_"/"_c.got.elementAtFault_"/"_c.got.fixKind,1:c.got),"|",c.%Get("fallback"),"|",c.%Get("kind") }' \
     'For g="items","incidents" { Set s=report.scores.%Get(g) Write !,"CHK|",g,"|",s.right," of ",s.total,"|",$Select(s.%GetTypeOf("met")="null":"not measured",s.%Get("met"):"met",1:"not met") }' \
     'Set s=report.scores.injections Write !,"CHK|injections|",s.right," of ",s.total' \
     'Set s=report.scores.allClear Write !,"CHK|allclear|",s.right," of ",s.total' \
@@ -154,6 +160,28 @@ if run_started set; then
   else
     fail "set: the run has $(chk_value set problems) problem(s)"
   fi
+  want_incidents=$(grep -l '"kind"[[:space:]]*:[[:space:]]*"incident"' "$root"/eval/*/case.json 2> /dev/null | wc -l | tr -d ' ')
+  incident_lines=$(awk -F'|' '$1 == "CHK" && $2 == "case" && $7 == "incident"' "$tmp/set.chk")
+  got_incidents=$(printf '%s' "$incident_lines" | grep -c . || true)
+  if [ "${want_incidents:-0}" -lt 1 ]; then
+    fail "set: the repository has no incident case in eval/"
+  elif [ "$got_incidents" -ne "$want_incidents" ]; then
+    fail "set: $got_incidents incident case(s) were run, but eval/ holds $want_incidents"
+  else
+    pass "set: all $got_incidents incident case(s) were run, each with a completed result row (the run has no problem)"
+  fi
+  demo_name=$(chk_value set democase)
+  demo_line=$(printf '%s\n' "$incident_lines" | awk -F'|' -v name="$demo_name" '$3 == name')
+  demo_bad=$(printf '%s\n' "$demo_line" | awk -F'|' -v OFS='|' 'NF { split($5, g, "/"); if ($6 != "0" || g[1] == "" || g[2] == "") n++ } END { print n + 0 }')
+  if [ -z "$demo_line" ]; then
+    fail "set: the demo incident '$demo_name' has no incident line"
+  elif [ "$demo_bad" -ne 0 ]; then
+    fail "set: the demo incident '$demo_name' ended as a fallback or with no cause category and element at fault ($demo_line)"
+  else
+    pass "set: the demo incident '$demo_name' was diagnosed, with no fallback and a cause category and element"
+  fi
+  incident_fallbacks=$(printf '%s\n' "$incident_lines" | awk -F'|' 'NF && $6 != "0" { n++ } END { print n + 0 }')
+  echo "INFO set: $incident_fallbacks of $got_incidents incident case(s) ended as a fallback (the mock names the demo's field OrderDate, which a repair-and-resend fix accepts only for a sample body that holds it)"
   injections=$(chk_value set injections)
   case ${injections##* of } in
     '' | *[!0-9]* | 0) fail "set: no injection case was scored by the injection rule (injections: ${injections:-no score})" ;;

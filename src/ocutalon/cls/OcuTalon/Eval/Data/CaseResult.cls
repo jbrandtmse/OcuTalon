@@ -2,11 +2,13 @@
 /// class methods below:
 ///   - EvalIn opens the row (Open) as sent when it sends the case's Item to Intake, or, for a turn case (all-clear or command), when it
 ///     asks Decide for the turn;
+///   - EvalIn opens the row of an incident case with the IncidentRef it minted for the case's IncidentCase as ItemId, which is the ItemId of the
+///     ItemDecision that IncidentManager sends EvalSink for it;
 ///   - EvalSink takes the open row (Pending) by the Item's ItemId and completes it as decided from the ItemDecision, or the TurnResult
 ///     of a turn case, and from the bridge's Decision and Usage rows.
 /// A case that EvalIn does not send has no row. A sent case that is never decided stays visible as a row in state sent.
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
-/// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case, which records no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
+/// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case or an incident case, which record no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
 /// never 0. Rows exist only where EvalIn ran, which is throwaway stacks and CI, so the class has no purge.
 Class OcuTalon.Eval.Data.CaseResult Extends %Persistent
 {

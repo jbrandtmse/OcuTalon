@@ -36,8 +36,8 @@
 ///     is a problem;
 ///   - TestSize: the largest request has its case, the cases over the number 100,000 tokens are flagged (in the text too) and an empty size
 ///     is unknown and a problem;
-///   - TestSkipped, TestUnscored, TestEmptyRun and TestOtherRun: a skipped case is listed and scored in nothing, and only a skip of a kind
-///     that EvalIn does not send yet (the incident) is no problem; a row with no readable case file, no expectation or a kind that is not scored is
+///   - TestSkipped, TestUnscored, TestEmptyRun and TestOtherRun: a skipped case is listed and scored in nothing, and every skip is a
+///     problem, the incident's included, because EvalIn sends every kind (notRunYet is 0 for each); TestEveryKindSent pins that; a row with no readable case file, no expectation or a kind that is not scored is
 ///     listed as unscored; a run with no row is a problem; the rows of another run are not in the report;
 ///   - TestIncomplete: a decided row that lacks a decision (a fallback included), a cost, a turn cost or a request size is listed once with its
 ///     reasons joined by "; " and is a problem, and its priced and unpriced decisions and unknown size are listed;
@@ -926,8 +926,7 @@ Method TestSize()
 	Do $$$AssertEquals(report.size.%GetTypeOf("largestTokens"), "null", "with no known size the largest request is null")
 }
 
-/// Start's skipped list: the incident is not run yet and is no problem; the item with no itemId and the case file that cannot be read are
-/// problems; none is scored.
+/// Start's skipped list: every skip is a problem, the incident's too, because EvalIn sends every kind and no skip is notRunYet; none is scored.
 Method TestSkipped()
 {
 	Set ok = ..N("ok"), incident = ..N("incident"), noId = ..N("noid"), bad = ..N("bad"), gone = ..N("gone"), noText = ..N("notext")
@@ -939,20 +938,42 @@ Method TestSkipped()
 	Set run = ..NewRun()
 	Do ..Row(run, ok, {"Outcome": "digest"})
 	Set in = "OcuTalon.Eval.In"
-	Set kinds = $Parameter(in, "KINDS"), count = $Length(kinds, ",")
-	Set kindReason = $Replace($Replace($Parameter(in, "REASONKIND"), "{kind}", "incident"), "{kinds}", $Replace($Piece(kinds, ",", 1, count - 1), ",", ", ")_" and "_$Piece(kinds, ",", count))
-	Set skipped = [{"case": (incident), "reason": (kindReason)}, {"case": (noId), "reason": "it has no item.itemId"}, {"case": (bad), "reason": "case.json is not a JSON object"}, {"case": (gone), "reason": "the folder has no case.json"}, {"case": (noText), "reason": "it has no turn.text"}]
+	Set incidentReason = $Parameter(in, "REASONNOSNAPSHOT")
+	Set skipped = [{"case": (incident), "reason": (incidentReason)}, {"case": (noId), "reason": "it has no item.itemId"}, {"case": (bad), "reason": "case.json is not a JSON object"}, {"case": (gone), "reason": "the folder has no case.json"}, {"case": (noText), "reason": "it has no turn.text"}]
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, skipped)
 	Do $$$AssertEquals(report.skipped.%Size(), 5, "all five skipped cases are listed")
 	Do $$$AssertEquals(..Names(report.skipped, "case"), incident_","_noId_","_bad_","_gone_","_noText, "in the order Start gave")
 	Do $$$AssertEquals(..Names(report.skipped, "kind"), "incident,item,,,all-clear", "with the kind of the case file, when it can be read")
-	Do $$$AssertEquals(..Booleans(report.skipped, "notRunYet"), "1,0,0,0,0", "only the incident is a kind EvalIn does not send yet: the turn kinds are sent")
+	Do $$$AssertEquals(..Booleans(report.skipped, "notRunYet"), "0,0,0,0,0", "no skip is a kind EvalIn does not send: the incident and the turn kinds are sent")
 	Do $$$AssertEquals(report.skipped.%Get(1).reason, "it has no item.itemId", "each keeps its reason")
 	Do $$$AssertEquals(..Line(report.scores.items), "1 of 1 share 1 met 1", "no skipped case is in a score")
 	Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 0 share null met null", "the incident case is not scored")
-	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), noId_": not sent: it has no item.itemId"_$Char(10)_bad_": not sent: case.json is not a JSON object"_$Char(10)_gone_": not sent: the folder has no case.json"_$Char(10)_noText_": not sent: it has no turn.text", "the other four are the problems, and the incident is none")
-	Set clean = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (incident), "reason": "its kind is 'incident'"}])
-	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(clean).%Size(), 0, "a run that skipped only the incident has no problem")
+	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), incident_": not sent: "_incidentReason_$Char(10)_noId_": not sent: it has no item.itemId"_$Char(10)_bad_": not sent: case.json is not a JSON object"_$Char(10)_gone_": not sent: the folder has no case.json"_$Char(10)_noText_": not sent: it has no turn.text", "all five are problems, the incident's too")
+	Set only = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (incident), "reason": (incidentReason)}])
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(only).%Size(), 1, "a run that skipped only the incident has that one problem")
+}
+
+/// EvalIn sends every kind of case that the report scores, so no skip is notRunYet: In.KINDS holds every kind of Report.CASEKINDS, and a skipped case of each
+/// kind has notRunYet 0.
+Method TestEveryKindSent()
+{
+	Set sent = $ListFromString($Parameter("OcuTalon.Eval.In", "KINDS"))
+	Set position = 0
+	Set skipped = []
+	Set unsent = ""
+	Set kinds = $ListFromString($Parameter("OcuTalon.Eval.Report", "CASEKINDS"))
+	Do $$$AssertTrue($ListLength(kinds) >= 5, "the report knows at least the five kinds: "_$ListLength(kinds))
+	While $ListNext(kinds, position, kind) {
+		If '$ListFind(sent, kind) Set unsent = unsent_" "_kind
+		Set name = ..N("kind"_$Translate(kind, "-", ""))
+		Do ..WriteCase(name, {"name": (name), "kind": (kind), "heldOut": false, "expectation": {}}.%ToJSON())
+		Do skipped.%Push({"case": (name), "reason": "zz"})
+	}
+	Do $$$AssertEquals(unsent, "", "every kind of CASEKINDS is in EvalIn's KINDS")
+	Set report = ##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder, skipped)
+	Set zeros = ""
+	For i = 1:1:$ListLength(kinds) Set zeros = zeros_$Select(i = 1: "", 1: ",")_"0"
+	Do $$$AssertEquals(..Booleans(report.skipped, "notRunYet"), zeros, "so a skipped case of each kind has notRunYet 0")
 }
 
 /// A row whose case file is gone, one whose kind is not a kind the report scores and one with no expectation are listed as unscored with a
@@ -1020,7 +1041,7 @@ Method TestText()
 	Set run = ..NewRun()
 	Do ..Row(run, a, {"Outcome": "digest"})
 	Do ..Row(run, b, {"Outcome": "ignore", "DecisionRef": (..Decision("decide", "claude-sonnet-5-5")), "CostUSD": (0.002), "LargestRequestTokens": 4321})
-	Set reason = "its kind is 'incident', and only the kinds item and injection hold a recorded Item"
+	Set reason = $Parameter("OcuTalon.Eval.In", "REASONNOSNAPSHOT")
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (incident), "reason": (reason)}, {"case": (bad), "reason": "case.json is not a JSON object"}])
 	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Evaluation of the set")
 	Do $$$AssertEquals($Piece(text, $Char(10), 1), "# Evaluation of the set", "the text starts with the title")
@@ -1032,7 +1053,8 @@ Method TestText()
 	Do $$$AssertTrue(text [ ("Priced decisions: 2. Mean: $0.0011. Maximum: $0.002 ("_b_")."), "the priced decisions are counted, with the mean and the maximum and its case")
 	Do $$$AssertTrue(text [ ("Maximum: $0.002 ("_b_")."_$Char(10, 10)_"- "_a_", decide, model not known: $0.0002"_$Char(10)_"- "_b_", decide, claude-sonnet-5-5: $0.002"_$Char(10, 10)), "every priced decision is listed with its case, kind, model and cost, a model not known included")
 	Do $$$AssertTrue(text [ ("Largest request: 4321 tokens ("_b_"), estimated by the bridge."), "the largest request says it is estimated by the bridge")
-	Do $$$AssertTrue(text [ ("- "_incident_" (incident): "_reason_" [not run until its story]"), "the incident skip says it is not run until its story")
+	Do $$$AssertTrue(text [ ("- "_incident_" (incident): "_reason_$Char(10)), "the incident skip has its kind and reason")
+	Do $$$AssertTrue(text '[ $Parameter("OcuTalon.Eval.Report", "NOTRUNYET"), "and no skip says it is not run until its story")
 	Do $$$AssertTrue(text [ ("- "_bad_" (kind not known): case.json is not a JSON object"), "the unreadable skip has its reason and no such note")
 	Do $$$AssertTrue(text [ ("| "_a_" | item | no | digest | digest | yes |"), "the case table has a row for each case")
 	Do $$$AssertTrue(text [ ("| "_b_" | item | no | tellnow | ignore | no |"), "with what was expected and what was got")

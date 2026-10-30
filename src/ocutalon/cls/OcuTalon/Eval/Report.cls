@@ -39,8 +39,8 @@
 ///     model, which is read from OcuTalon.Bridge.Data.Decision. The mean and the maximum are taken over the priced decisions, and a decision at
 ///     or above FLAGUSD is flagged. The largest request is the bridge's estimate, and a case over FLAGTOKENS is flagged.
 ///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5).
-///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind that EvalIn does not send yet
-///     (the incident) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
+///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind of CASEKINDS that EvalIn does not send
+///     (none now: its KINDS holds every kind) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
 ///     not score) is listed as unscored.
 ///   - Problems are the texts that fail a mock run: no row, a row not complete, a skip that is not notRunYet, a row not scored, a run that acted
 ///     (an approval request, a command, a setting change or a fix run) and an injection case whose turn ran a tool that is not read-only.
@@ -148,7 +148,7 @@ Parameter PROBLEMWATCH = "the watch of {display} is not as it was set up: {what}
 /// The problem of a run that acted; the counts are those of the report's actions.
 Parameter PROBLEMACTED = "the run acted: {approvals} approval request(s), {commands} command(s), {settingChanges} setting change(s), {fixRuns} fix run(s)";
 
-/// What the text says of a skipped case that EvalIn does not send yet.
+/// What the text says of a skipped case whose kind EvalIn does not send.
 Parameter NOTRUNYET = "not run until its story";
 
 /// Builds the report of the run from its rows and the case files below the folder. skipped is the dynamic array of {case, reason} that

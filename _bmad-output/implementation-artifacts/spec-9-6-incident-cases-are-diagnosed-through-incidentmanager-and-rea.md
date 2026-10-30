@@ -2,7 +2,7 @@
 title: 'Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody'
 type: 'feature'
 created: '2026-10-29'
-status: 'in-review'
+status: 'done'
 baseline_revision: '7aacb9ff5e3c1932105cd7db8bd2e952a8fd0b9e'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -273,9 +273,9 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
   - Cleanup and `Leftovers` include the runs' `IncidentCase` bodies. Update the header. -- AC1, AC2, Integration.
 
 **U-162 (the owner's condition on the veto ruling, 2026-10-30)** -- mirror 9.7's `check_status` guard tests (`Test/Eval/Checks.cls` `TestNotEvalBranch`, `TestSessionOwner`), each with a demonstrated mutation and its `mutation:` line:
-- [ ] [U-162] (1) The three read tools (`read_failed_messages`, `read_event_log`, `read_item_settings`) never take the eval branch for any owner but `eval`: a test where an `IncidentCase` of the call's `ItemId` exists and the context's owner is a session's Ref as a chat turn sets it, and one where the context comes from a tool call (the bridge context a tool-originated request begins), plus the owner `instance` and an owner only like `eval` (for example `eval ` or `EVAL`); each gets the live answer, never the recorded snapshot. Mutation: the branch's owner check dropped or widened.
-- [ ] [U-162] (2) With a live incident in scope, the tools answer live even for owner `eval`: a test that makes `EvidencePack.Scope()` find a live incident (its own throwaway rows, removed after) while an `IncidentCase` of the call's `ItemId` exists, and asserts the three answers are the live ones. Mutation: `WatchReads` tries `EvalSnapshot()` before `Scope()`.
-- [ ] [U-162] (3) The branch writes nothing: around eval-branch calls of all three tools, no new row in the message tables (`Ens.MessageHeader`, `Ens.MessageBody`, the `IncidentCase` table), the session tables (`Session`, `Turn`, `Live.Event`) or the watch tables (`Incident`, `FailureGroup`, `BackgroundCheck`), and no change to the `^OcuTalon*` globals the branch could touch (counts or a checksum taken before and after). Mutation: the branch saves a row or sets a global.
+- [x] [U-162] (1) The three read tools (`read_failed_messages`, `read_event_log`, `read_item_settings`) never take the eval branch for any owner but `eval`: a test where an `IncidentCase` of the call's `ItemId` exists and the context's owner is a session's Ref as a chat turn sets it, and one where the context comes from a tool call (the bridge context a tool-originated request begins), plus the owner `instance` and an owner only like `eval` (for example `eval ` or `EVAL`); each gets the live answer, never the recorded snapshot. Mutation: the branch's owner check dropped or widened.
+- [x] [U-162] (2) With a live incident in scope, the tools answer live even for owner `eval`: a test that makes `EvidencePack.Scope()` find a live incident (its own throwaway rows, removed after) while an `IncidentCase` of the call's `ItemId` exists, and asserts the three answers are the live ones. Mutation: `WatchReads` tries `EvalSnapshot()` before `Scope()`.
+- [x] [U-162] (3) The branch writes nothing: around eval-branch calls of all three tools, no new row in the message tables (`Ens.MessageHeader`, `Ens.MessageBody`, the `IncidentCase` table), the session tables (`Session`, `Turn`, `Live.Event`) or the watch tables (`Incident`, `FailureGroup`, `BackgroundCheck`), and no change to the `^OcuTalon*` globals the branch could touch (counts or a checksum taken before and after). Mutation: the branch saves a row or sets a global.
 
 **Acceptance Criteria:**
 - **AC1.** Given the recorded incident `orders-date-format`, when a run sends it, then:
@@ -306,6 +306,50 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
 - 2026-10-30, lead spec gate: Design Notes gained "Lead gate rulings" (DW-353 by construction accepted; U-162 veto for IncidentCase and the read-tool eval branch; spine row and diagram edge written by the lead). No intent change.
 
 ## Review Triage Log
+
+### 2026-10-30 - Review pass
+- verdicts: 36 findings - high 0, medium 0, low 32, false 4, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` `EvalSnapshot` queries `IncidentCase` by `IncidentRef` with no index - evals are tens of rows between purges; an index changes the message class's storage (a veto-window item) for a path used by one test-only owner.
+    - `[low]` `[reject]` `EvalDecision` rebuilds the pack for the Summary - once per case, a few ms; the fix means a new field on the message or a second code path.
+    - `[false]` `[reject]` `ItemSettings` item from `failures[0]` differs from the pack's item - `Recorded` takes the pack's item from the same `failures[0].targetConfigName`; a snapshot with no failure builds no pack, so no tool is called for it.
+    - `[low]` `[reject]` `run.sh` counts incident cases by a text grep - the 10 `case.json` files are repository content that `test-eval-set.sh` pins; a stray match needs a hand-made file and the check would still fail loudly.
+    - `[low]` `[patch]` the `run.sh` pass message says "each decided" while the nine may be fallbacks - the message now says "each with a completed result row (the run has no problem)".
+    - `[low]` `[reject]` nine of ten cases are fallbacks on the mock - by design (AC3 as restated; the spec change log of 2026-10-30).
+    - `[low]` `[patch]` `TestEveryKindSent` hard-codes five kinds - the expected string is built from the kinds' count.
+    - `[low]` `[reject]` `notRunYet` is dead code - kept on purpose (Decided in-stage 8); `TestEveryKindSent` pins it at 0.
+    - `[false]` `[reject]` `OnError` swallows other keys - IncidentManager sends an `IncidentCase`'s Decide request with `DIAGNOSEKEY` only, so no other key reaches it.
+    - `[low]` `[reject]` the demo snapshot path is repeated across test classes - the repeats existed (`Test.Agent.Decide`, `Test.Watch.Evidence`); a shared constant is a refactor of seven test classes.
+    - `[low]` `[reject]` `SendIncident`'s `..` check over-rejects - the name rule is the one the other kinds use for files in a case folder; no recorded case names such a file.
+    - `[low]` `[patch]` the footprint of `TestToolsWriteNothing` could fail on a background write - narrowed: `^OcuTalonBP*` (Decide's caches) is left out, and eight consecutive warm runs plus all shard parts were green.
+  - Edge Case Hunter
+    - `[low]` `[reject]` a failed send to EvalSink leaves the row `sent` - the spec's rule is one warning, nothing else ("A failed send to EvalSink logs one Type 3 warning").
+    - `[low]` `[reject]` a snapshot with no `failures` is sent and ends as a fallback - the matrix row "Bad snapshot at IncidentManager" says exactly that.
+    - `[low]` `[reject]` an incident case with a `watch` member ignores it - no recorded incident case has one, and the item path's watch belongs to injection cases.
+    - `[false]` `[reject]` a symlinked or escaping snapshot name - the case folders are repository content, not input; the name check is the existing one.
+    - `[low]` `[patch]` `TestEveryKindSent` hard-coded count - same root cause as the Blind Hunter row.
+    - `[false]` `[reject]` removing `IncidentManager` from the deny list lets live messages through - `TestHops` requires every source and target in `ITEMPATH`, IncidentManager's requests to be exactly ` IncidentManager>Decide IncidentManager>EvalSink`, and `TestIsolation` forbids `Settle`, `DryRun` and `Execute` bodies and any `Incident` row.
+    - `[low]` `[reject]` `TestIncidentPath` indexes `failures[0]` of a snapshot with none - the snapshot is the repository's demo file.
+  - Verification Gap Reviewer
+    - `[low]` `[patch]` AC2's `TestIsolation` had no demonstrated red for the `instance`-owned Incident row - `TestIsolation` can fail on it (`CountAbove` of `Incident` above the mark); demonstrated on a fresh stack: `TestIsolation` and `TestIncidentPath` red, reverted. Line written.
+    - `[low]` `[reject]` `TestHops` control and exact-request strings have no mutation of their own - Rule 19 asks one demonstrated mutation per AC; AC1 has three.
+    - `[low]` `[reject]` `Test.Eval.Cases` `TestRecordedCases` has none - AC3 has the `KINDS` mutation, red in `eval/run.sh` and `TestEveryKindSent`.
+    - `[low]` `[reject]` the `eval/run.sh` demo-incident check has none - same AC3 row.
+    - `[low]` `[patch]` the EvalIn tests (row opened with the `IncidentRef`; a failed send removes the row) had no mutation - both demonstrated on `Test.Eval.In` (warm) and written.
+    - `[low]` `[reject]` the matrix rows of `Test.Eval.Incident` have no mutation of their own - covered by the AC1 rows.
+    - `[low]` `[reject]` mutations were applied to one of the three tools - `TestToolsLiveWins`, `TestToolsOwnerGuard` and `TestToolsWriteNothing` loop over all three; the mutated code is identical in each.
+    - `[low]` `[reject]` `DeleteIncidentCases` and the `Leftovers` term have no mutation - Rule 19's hermeticity row is the `Test.Eval.Incident` sweep; `Test.Eval.Run` runs on a fresh stack.
+    - `[low]` `[reject]` the `empty = 0` assertion is not shown red - `holds >= 1` is the pin (shown red); `empty` only adds.
+    - `[low]` `[patch]` hermeticity of the footprint (background writes) - the same root cause as the Blind Hunter row.
+    - `[low]` `[reject]` `OnError` for other keys has no test - unreachable (see above).
+  - Intent Alignment Auditor (descriptive; each divergence logged)
+    - `[low]` `[reject]` an empty `IncidentRef` gives an error status and no `ItemDecision` - the matrix row says so.
+    - `[low]` `[reject]` a failed delivery to EvalSink gives no decision - the matrix says one warning.
+    - `[low]` `[reject]` `run.sh` checks the demo line and the count, and relies on `Report.Problems` for the others' completeness - the epic's AC3 as restated; `Problems` requires a `DecisionRef`, a cost and a size per row.
+    - `[low]` `[reject]` an incident skip is now a problem - intended (AC3, `TestSkipped`).
+    - `[low]` `[reject]` `Diagnose` and the three live reads were refactored onto shared helpers - Rule 2 asks for it; the live tests (`Test.Watch.Evidence`, `Diagnose`, `Lifecycle`) are green and unchanged in what they assert.
+    - `[low]` `[reject]` `OrdersDefinition` reads the namespace and production from `Install.Step.Demo` - as `Test.Watch.Evidence` already did; `Test.Eval.Record` passes on it.
 
 ## Design Notes
 
@@ -426,9 +470,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (once, first) `iris_server_info` on `ocutalon-slot-b`, then load and compile every new or changed class on slot B, namespace `OCUTALON`. Copy `IncidentCase`'s generated `Storage Default` into its file. -- expected: build 154, port 1991, every class compiles.
 - (once) `<B> OCUTALON_RUN_TAG=e9s6iw ci/warm.sh up` -- expected: ready, `LOCK acquired warm-iris`.
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s6iw ci/iris.sh class OcuTalon.Test.Eval.Incident`, and then, each in its own call, `OcuTalon.Test.Eval.In`, `.Test.Eval.Cases`, `.Test.Eval.Report`, `.Test.Eval.Record`, `.Test.Watch.Evidence`, `.Test.Watch.Diagnose`, `.Test.Watch.Lifecycle` and `.Test.Bridge.CodeRules` -- expected: each passed.
-- (loop) `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh class OcuTalon.Test.Eval.Run` -- expected: passed on a fresh stack, about 2 to 4 min. Record the demo diagnosis's `DurationMs`.
+- (loop) `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh class OcuTalon.Test.Eval.Run` -- expected: passed on a fresh stack, about 2 to 4 min. Measured: 98 to 103 s per call; the demo diagnosis's `DurationMs` is 342 on the CI mock (cost 0.000424 USD, largest request 1830 tokens).
 - (loop) `bash docker/tests/test-eval-set.sh` -- expected: every rule passes.
-- (once) `<B> OCUTALON_RUN_TAG=e9s6i bash eval/run.sh` -- expected: `eval/run: all checks passed`, ten incident lines with fallback 0 and `data_format_change/OrderDate/repair_resend`, about 3 to 5 min. Record the wall time.
+- (once) `<B> OCUTALON_RUN_TAG=e9s6i bash eval/run.sh` -- expected: `eval/run: all checks passed`; ten incident lines, the demo's with fallback 0 and `data_format_change/OrderDate/repair_resend`, the other nine's fallbacks reported (INFO). Wall time 99 s (measured, ARM, fresh throwaway).
 - (once) Fresh shard parts, each in its own call. Use `ci/iris.sh classes lane-a@rest` and `ci/iris.sh classes lane-a@Watch` to find the parts of `--part k/8` that hold the changed classes. Run `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh shard lane-a@rest --part k/8` for each such part, then `--reverse`, and the same for `lane-a@Watch`. -- expected: every class passes, each call under about 8 min. Record the times.
 - (once) `bash ci/checks.sh` -- expected: every block passes, including `storage`, `boundaries`, `eval-set`, `class-rules` and `ci-config`.
 - (once, last; also after a failure) `<B> OCUTALON_RUN_TAG=e9s6iw ci/warm.sh down`, then `<B> OCUTALON_RUN_TAG=e9s6i ci/iris.sh teardown` -- expected: no lock of this stage is left in the lane-b folder.
@@ -460,11 +504,39 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: `OrdersDefinition.Put` writes `credentialValue` to the note -> `Test.Eval.Record` `TestCaptureDropsCredentialSettings`.
 - mutation: `Test.Eval.Incident.Sweep` does nothing -> its leftover asserts in `TestToolsEval` and `TestToolsNotEval`.
 
+- mutation: `EvalCase` saves an `Incident` row with owner `instance` (re-run on a fresh stack in the review pass) -> `Test.Eval.Run` `TestIsolation` ("no Incident row of any owner was written") and `TestIncidentPath` (the zero-rows assertion). AC2.
+- mutation: `In.SendIncident` does not remove the row after a failed dispatch (`If opened` becomes `If 0`) -> `Test.Eval.In` `TestIncidentSendFails` and `TestSendFails` ("and the row is deleted").
+- mutation: `In.SendIncident` opens the row with the case's name as `ItemId` instead of the `IncidentRef` -> `Test.Eval.In` `TestSendsIncident` ("found by the IncidentRef") and `TestIncidentSendFails`.
+
+**U-162 mutations (re-dispatch implement; each applied, red observed, reverted with the tree byte-identical).**
+- mutation: `EvalSnapshot` drops its owner check (the `OwnerRef = eval` term) -> `Test.Eval.Incident` `TestToolsOwnerGuard` (every case but owner eval: session Ref in a chat turn and in a tool call, `instance`, `Eval`, `EVAL`, `eval `, ` eval`, `evaluation`, empty owner) and `TestToolsNotEval`. U-162 (1).
+- mutation: the owner check is widened to `$ZConvert(context.OwnerRef, "U") = "EVAL"` -> `TestToolsOwnerGuard` (the `Eval` and `EVAL` cases) and `TestToolsNotEval`. U-162 (1).
+- mutation: `WatchReads.ReadFailedMessages` tries `EvalSnapshot()` before `Scope()` -> `TestToolsLiveWins` (the answer is the snapshot's, count 50 against the live incident's 3). U-162 (2).
+- mutation: `EvalSnapshot` saves an `IncidentCase` row -> `TestToolsWriteNothing` (the row counts). U-162 (3).
+- mutation: `EvalSnapshot` sets `^OcuTalonZzMutation = $Increment(^OcuTalonZzMutation)` -> `TestToolsWriteNothing` (the `^OcuTalon*` footprint). U-162 (3).
+
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: AC3 (and its I/O row "Demo incident"/design note 7) cannot hold as worded on the CI mock. AC3 requires all ten incident cases to end `decided` with no fallback. On the CI mock 9 of the 10 end as a fallback with reason `invalid`: the mock's one `diagnosis` scenario (matched by mockkey `diagnosis`, so no new scenario under `ci/mock/scenarios/A/` can tell the incidents apart, and changing the mock is Lane B) answers `repair_resend` on field `OrderDate`, and `RepairResend.CheckParameters` (`Fix/Kind/RepairResend.cls`:50) accepts a field only when the pack's sample body holds it, which only `orders-date-format` does. Design note 7 assumed these nine would "score wrong", not fall back. Recommended amendment (restates an observable so it is reachable, product promise unchanged): AC3 reads "all ten incident cases run through IncidentManager and each ends with a result row; the demo incident `Report.DEMOCASE` ends `decided`, no fallback, with a cause category and element; the other nine may end `decided` or as a fallback, and the run has no problem", and design note 7 says the nine are scored wrong or fall back on the mock. The implementation already enforces exactly this in `eval/run.sh` (incident line count equals the number of top-level `eval/*/case.json` of kind incident; demo line fallback 0 with cause category and element; INFO count of the other fallbacks). If the owner wants strict "all ten, no fallback", it needs a Lane B mock change (a scenario that selects by incident) or a different mock key per eval incident, both outside this story.
+Status: done
+Blocking condition: none
 
-Implementation state: complete and verified by the handoff subagent on throwaways (tags e9s6h/e9s6hw, torn down): all new/changed classes compile on slot B; warm Test.Eval.Incident, In, Cases, Report, Record, Test.Watch.Evidence, Diagnose, Lifecycle, Test.Bridge.CodeRules passed; fresh Test.Eval.Run passed; docker/tests/test-eval-set.sh passed; eval/run.sh "all checks passed" (about 99 s); fresh shard parts (rest 5/8, 4/8 and 3/8 reversed; Watch 1/8, 2/8, 7/8 reversed) passed; ci/checks.sh passed. All ten planned mutations demonstrated (lines in `## Verification`), with one limit (the Incident-row mutation went red in Test.Eval.Incident counts, not in TestIsolation). The work is UNCOMMITTED in the epic-9 worktree (HEAD still 7aacb9f); the review layers, the lead's `(once)` verification pass (fresh `e9s6i` runs, shard parts, ci/checks) and the finalize commit have not run. Suggested resume: amend AC3 and note 7, set `status: in-review`, re-dispatch the build skill (step-04 review onward). Not recorded: the demo diagnosis `DurationMs`.
+**Summary.** Incident cases are diagnosed through `IncidentManager`'s evaluation branch and reach nobody: EvalIn sends an `OcuTalon.Eval.Msg.IncidentCase` (a fresh Ref, the case name and the recorded snapshot), the branch builds the pack, asks Decide for a `diagnose` with owner `eval` and sends EvalSink one `ItemDecision`; the Diagnosis agent's read tools answer from the recorded snapshot for owner `eval` only. DW-353 (row opened with the minted Ref) and DW-385 (one shared Orders-definition helper) are folded in. This re-dispatch closed the review: AC3 as restated, the three `[U-162]` guard tests (in `Test.Eval.Incident`: `TestToolsOwnerGuard`, `TestToolsLiveWins`, `TestToolsWriteNothing`, each with demonstrated mutations), and the demo diagnosis's measurement (`DurationMs` 342 on the CI mock, cost 0.000424 USD, largest request 1830 tokens).
 
-Decided in-stage (handoff): ZzIncident helpers CaseRequest/CaseAnswer/CaseRefuse (names avoid the probe's Answer/Refuse); WatchReads inlines Scope()/EvalSnapshot() in the three tools (no helper that %Discover could offer as a tool); Evidence and Record carry DependsOn OrdersDefinition; OrdersDefinition has an extra ITEM parameter used by Record; Run.cls takes IncidentLogMark before run 1 and TestReport asserts the largest request is the incident's.
+**Files changed** (all under `src/ocutalon/cls/OcuTalon/` unless stated)
+- `Eval/Msg/IncidentCase.cls` (new): the message. `Eval/In.cls`: `incident` kind, `SendIncident`, `DispatchIncident` seam. `Eval/Data/CaseResult.cls`, `Eval/Sink.cls`, `Eval/Report.cls`: doc comments and the `notRunYet` text.
+- `Watch/IncidentManager.cls`: `EvalCase`, `EvalAnswered`, `EvalRefused`, `EvalDecision`, `EvalDeliver`, the `DiagnoseRequest`/`SendDiagnose`/`SendEval` seams. `Watch/EvidencePack.cls`: `EvalSnapshot` and source-agnostic tool reads. `Tools/WatchReads.cls`: the eval fallback after `Scope()`.
+- `eval/run.sh`: the incident checks (count, demo line, INFO count of the other fallbacks).
+- Tests: `Test/Eval/Incident.cls` (new; the matrix, the read tools and the U-162 guards), `Test/Eval/ZzIncident.cls` (new), `Test/Eval/In.cls`, `ZzIn.cls`, `Cases.cls`, `Report.cls`, `Run.cls`, `Record.cls`; `Test/Watch/OrdersDefinition.cls` (new), `Test/Watch/Evidence.cls`.
+
+**Review.** 36 findings (high 0, medium 0, low 32, false 4): 7 rows patched (5 root causes), 29 rejected with their reasons in the triage log. Patches: `TestEveryKindSent` derives its expected string; the `TestToolsWriteNothing` footprint leaves out `^OcuTalonBP*`; the `run.sh` pass message no longer says "decided"; three mutation lines (the `instance`-owned Incident row red in `TestIsolation` on a fresh stack; both EvalIn row mutations). Follow-up review recommendation: false (no high, no medium patched).
+
+**Verification performed** (slot B compile check; throwaways on lane B, tags `e9s6i` and `e9s6iw`, both torn down; the lane-b lock folder is empty)
+- Slot B: build 154; every changed class compiled.
+- Warm, each green: `Test.Eval.Incident` (also eight consecutive runs), `In`, `Cases`, `Report`, `Record`, `Test.Watch.Evidence`, `Diagnose`, `Lifecycle`, `Test.Bridge.CodeRules`.
+- Fresh: `Test.Eval.Run` passed (98 to 103 s per call); `docker/tests/test-eval-set.sh` passed; `eval/run.sh` exit 0 with `eval/run: all checks passed` (99 s; ten incident lines, the demo `data_format_change/OrderDate/repair_resend` with fallback 0, the other nine reported as fallbacks, INFO); shard parts `lane-a@rest` 5/8 (161 s), 6/8 (178 s), 2/8 (146 s) and reversed 3/8 (154 s), 4/8 (163 s), 7/8 (171 s), and `lane-a@Watch` 1/8 (162 s) and reversed 7/8 (86 s), all passed; `bash ci/checks.sh` passed (201 s).
+- Mutations: all in `## Verification` (the `[U-162]` items by the lines under "U-162 mutations").
+
+**Residual risks.**
+- On the CI mock, nine of ten incident cases end as fallback `invalid` (the AC3 restatement); only the real-model gate of Story 9.5 measures their cause scores.
+- `TestToolsWriteNothing` reads the `^OcuTalon*` globals (except `^OcuTalonTest` and `^OcuTalonBP*`) before and after; a background writer to another product global during the two reads would fail it (not seen in eight warm runs and the shard parts).
+- The 342 ms `DurationMs` is the mock's, not a model's.

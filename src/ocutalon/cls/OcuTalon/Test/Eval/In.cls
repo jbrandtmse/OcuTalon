@@ -6,7 +6,7 @@
 ///     untrusted and the record's channel, sender, subject, text, catalog key and slots (an object as JSON text); the service's
 ///     SuperSession is the run's Ref; the case's row is open (state sent) when the Item is dispatched; a recorded provenance of
 ///     untrusted, or none, is accepted, and the kinds item and injection are sent;
-///   - TestRefuses: a folder with no case.json, a case.json that is not a JSON object, a kind that is not sent (none, an incident, a turn), no
+///   - TestRefuses: a folder with no case.json, a case.json that is not a JSON object, a kind that is not sent (none, an unknown one, a turn), no
 ///     item.itemId and a recorded provenance other than untrusted are each refused with their reason, logged as a warning, with no row
 ///     and nothing dispatched;
 ///   - TestSendFails: a send that fails or throws deletes the case's row and returns the error text as the reason, and the case can be sent again;
@@ -26,6 +26,12 @@
 ///     asked; a Decide that gives no Reply (an error, a timeout, an answer that is not a Reply), or whose call throws, skips the case with a reason (the
 ///     exception's text for a throw) and leaves no row and no TurnResult, and nothing is delivered; a case whose row cannot be opened (the run has
 ///     a row of that case already) is skipped with the error text, keeps that row and leaves no TurnResult;
+///   - TestSendsIncident (Story 9.6, AC1, DW-353): an incident case is sent once as an IncidentCase with a fresh 22-character IncidentRef (not the case's
+///     name, and a different one for a second case), SourceItemId the case's folder name and the snapshot's JSON text; the service's SuperSession is the run's
+///     Ref; the case's row is open with that IncidentRef as its ItemId and the folder name as SourceItemId when the case is dispatched, and stays in state sent;
+///   - TestIncidentRefuses: an incident case with no snapshot, a snapshot name with a slash, a backslash or two dots, a missing snapshot file, and a file
+///     that is not a reader snapshot (not JSON, another format) are each skipped with their reason, logged as a warning, with no row and nothing dispatched;
+///   - TestIncidentSendFails: a dispatch that fails or throws deletes the row, returns the error text as the reason, and the case can be sent again;
 ///   - TestSendOrder: the turn kinds come first, then the others, each group in the order of the list;
 ///   - TestSendsWatch (Story 9.8, AC4): a case with a watch of the Orders production has its eval watch row when its Item is dispatched (the double
 ///     counts the rows of owner eval, list position 13), the service's Watches holds {case, watch} with the stored fields of that row, and Finish
@@ -158,7 +164,7 @@ Method TestRefuses()
 	Do ..WriteCase("zz-notjson", "this is not json")
 	Do ..WriteCase("zz-array", "[1, 2]")
 	Do ..WriteCase("zz-nokind", {"item": {"itemId": "x"}}.%ToJSON())
-	Do ..WriteCase("zz-incident", {"kind": "incident", "item": {"itemId": "x"}}.%ToJSON())
+	Do ..WriteCase("zz-kind", {"kind": "zz-kind", "item": {"itemId": "x"}}.%ToJSON())
 	Do ..WriteCase("zz-turn", {"kind": "turn", "item": {"itemId": "x"}}.%ToJSON())
 	Do ..WriteCase("zz-noitem", {"kind": "item"}.%ToJSON())
 	Do ..WriteCase("zz-itemtext", {"kind": "item", "item": "x"}.%ToJSON())
@@ -166,7 +172,7 @@ Method TestRefuses()
 	Do ..WriteCase("zz-user", {"kind": "item", "item": {"itemId": "x", "provenance": "user"}}.%ToJSON())
 	Do ..WriteCase("zz-tainted", {"kind": "injection", "item": {"itemId": "x", "provenance": "tainted"}}.%ToJSON())
 	Set cases = ""
-	For entry = $ListBuild("zz-nofile", $Parameter(in, "REASONNOCASEFILE")), $ListBuild("zz-notjson", $Parameter(in, "REASONNOTJSON")), $ListBuild("zz-array", $Parameter(in, "REASONNOTJSON")), $ListBuild("zz-nokind", ..KindReason("")), $ListBuild("zz-incident", ..KindReason("incident")), $ListBuild("zz-turn", ..KindReason("turn")) {
+	For entry = $ListBuild("zz-nofile", $Parameter(in, "REASONNOCASEFILE")), $ListBuild("zz-notjson", $Parameter(in, "REASONNOTJSON")), $ListBuild("zz-array", $Parameter(in, "REASONNOTJSON")), $ListBuild("zz-nokind", ..KindReason("")), $ListBuild("zz-kind", ..KindReason("zz-kind")), $ListBuild("zz-turn", ..KindReason("turn")) {
 		Set cases = cases_$ListBuild(entry)
 	}
 	For entry = $ListBuild("zz-noitem", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-itemtext", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-emptyid", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-user", ..ProvenanceReason("user")), $ListBuild("zz-tainted", ..ProvenanceReason("tainted")) {
@@ -328,13 +334,13 @@ Method TestEarlyRefusalsSetUpNoWatch()
 	Set before = ..Evals()
 	Set orders = ..Orders()
 	Set item = {"itemId": "zz-id", "channel": "mailbox", "provenance": "untrusted", "text": "Stop watching Orders."}
-	Do ..WriteCase("zz-w-kind", {"kind": "incident", "item": (item), "watch": (orders)}.%ToJSON())
+	Do ..WriteCase("zz-w-kind", {"kind": "zz-kind", "item": (item), "watch": (orders)}.%ToJSON())
 	Do ..WriteCase("zz-w-turnkind", {"kind": "turn", "item": (item), "watch": (orders)}.%ToJSON())
 	Do ..WriteCase("zz-w-noitem", {"kind": "item", "watch": (orders)}.%ToJSON())
 	Do ..WriteCase("zz-w-emptyid", {"kind": "item", "item": {"itemId": ""}, "watch": (orders)}.%ToJSON())
 	Do ..WriteCase("zz-w-user", {"kind": "injection", "item": {"itemId": "zz-id", "provenance": "user"}, "watch": (orders)}.%ToJSON())
 	Do ..WriteCase("zz-w-tainted", {"kind": "item", "item": {"itemId": "zz-id", "provenance": "tainted"}, "watch": (orders)}.%ToJSON())
-	Set cases = $ListBuild($ListBuild("zz-w-kind", ..KindReason("incident")), $ListBuild("zz-w-turnkind", ..KindReason("turn")), $ListBuild("zz-w-noitem", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-emptyid", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-user", ..ProvenanceReason("user")), $ListBuild("zz-w-tainted", ..ProvenanceReason("tainted")))
+	Set cases = $ListBuild($ListBuild("zz-w-kind", ..KindReason("zz-kind")), $ListBuild("zz-w-turnkind", ..KindReason("turn")), $ListBuild("zz-w-noitem", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-emptyid", $Parameter(in, "REASONNOITEMID")), $ListBuild("zz-w-user", ..ProvenanceReason("user")), $ListBuild("zz-w-tainted", ..ProvenanceReason("tainted")))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Do $$$AssertEquals(..Process(service, $List(case, 1)), $List(case, 2), $List(case, 1)_": the reason is the case's own, not the watch's")
@@ -616,7 +622,131 @@ Method TestSendOrder()
 	Do $$$AssertEquals($ListToString($ClassMethod(in, "SendOrder", folder, $ListBuild("zz-missing", "zz-b")), "|"), "zz-b|zz-missing", "and a case that is not there goes with the rest")
 }
 
+/// An incident case is sent once with a fresh IncidentRef, and its row is open with that Ref as ItemId.
+Method TestSendsIncident()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Do ..WriteIncident("zz-inc-a", text)
+	Do ..WriteIncident("zz-inc-b", text)
+	Do $$$AssertEquals(..Process(service, "zz-inc-a"), "", "an incident case with a recorded snapshot is sent")
+	Do $$$AssertEquals(..Incidents(), 1, "one IncidentCase was dispatched")
+	Set seen = ..IncidentAt(1)
+	Do $$$AssertEquals($Length($List(seen, 1)), 22, "its IncidentRef is 22 characters")
+	Do $$$AssertTrue($List(seen, 1) '= "zz-inc-a", "and is new, not the case's name")
+	Do $$$AssertEquals($List(seen, 2), "zz-inc-a", "SourceItemId is the case's folder name")
+	Do $$$AssertEquals($List(seen, 3)_"|"_$List(seen, 4), "ocutalon.readerSnapshot/1|50", "the snapshot is the recorded one: its format and 50 failures")
+	Do $$$AssertEquals($List(seen, 5), 1, "the case's row was open, found by the IncidentRef, when the IncidentCase was dispatched")
+	Do $$$AssertEquals($List(seen, 6), ..Run, "the SuperSession of the service is the run's Ref")
+	Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run, "zz-inc-a")
+	Do $$$AssertTrue($IsObject(row), "the row stays")
+	If $IsObject(row) Do $$$AssertEquals(row.State_"|"_row.SourceItemId_"|"_row.ItemId, "sent|zz-inc-a|"_$List(seen, 1), "in state sent, with the IncidentRef as ItemId")
+	Do $$$AssertEquals(..Process(service, "zz-inc-b"), "", "a second incident case is sent")
+	Do $$$AssertTrue($List(..IncidentAt(2), 1) '= $List(seen, 1), "with an IncidentRef of its own")
+	Do $$$AssertEquals(..Seen()_"|"_..Asked()_"|"_..Rows(), "0|0|2", "no Item and no turn was sent, and each case has its row")
+}
+
+/// Each way an incident case cannot be sent gives its reason, a warning, no row and no send.
+Method TestIncidentRefuses()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Set in = "OcuTalon.Eval.In"
+	Do ..WriteCase("zz-i-nosnap", {"kind": "incident"}.%ToJSON())
+	Do ..WriteCase("zz-i-slash", {"kind": "incident", "snapshot": "sub/snapshot.json"}.%ToJSON())
+	Do ..WriteCase("zz-i-back", {"kind": "incident", "snapshot": ("sub"_$Char(92)_"snapshot.json")}.%ToJSON())
+	Do ..WriteCase("zz-i-dots", {"kind": "incident", "snapshot": "..snapshot.json"}.%ToJSON())
+	Do ..WriteCase("zz-i-missing", {"kind": "incident", "snapshot": "snapshot.json"}.%ToJSON())
+	Do ..WriteCase("zz-i-notjson", {"kind": "incident", "snapshot": "snapshot.json"}.%ToJSON())
+	Do ..WriteSnapshot("zz-i-notjson", "this is not json")
+	Do ..WriteCase("zz-i-format", {"kind": "incident", "snapshot": "snapshot.json"}.%ToJSON())
+	Set wrong = {}.%FromJSON(text)
+	Set wrong.format = "zz.other/1"
+	Do ..WriteSnapshot("zz-i-format", wrong.%ToJSON())
+	Set cases = $ListBuild($ListBuild("zz-i-nosnap", $Parameter(in, "REASONNOSNAPSHOT")))
+	For name = "zz-i-slash", "zz-i-back", "zz-i-dots" {
+		Set cases = cases_$ListBuild($ListBuild(name, $Replace($Parameter(in, "REASONSNAPSHOT"), "{why}", "the name is not a plain file name")))
+	}
+	Set cases = cases_$ListBuild($ListBuild("zz-i-missing", ""), $ListBuild("zz-i-notjson", ""), $ListBuild("zz-i-format", ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set reason = ..Process(service, $List(case, 1))
+		If $List(case, 2) '= "" {
+			Do $$$AssertEquals(reason, $List(case, 2), $List(case, 1)_": the reason")
+		} Else {
+			Do $$$AssertTrue(reason [ $Piece($Parameter(in, "REASONSNAPSHOT"), "{why}", 1), $List(case, 1)_": the reason is REASONSNAPSHOT with the status text: "_reason)
+		}
+	}
+	Do $$$AssertEquals(..Incidents()_"|"_..Rows(), "0|0", "nothing was dispatched and no row was made")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .warning, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), $ListLength(cases), "each case was logged as a warning")
+}
+
+/// A dispatch that fails or throws removes the row and returns the error text; the case can then be sent.
+Method TestIncidentSendFails()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Do ..WriteIncident("zz-inc-fail", text)
+	Set ^OcuTalonTest("EvalIn", "fail") = "the target is not there"
+	Set reason = ..Process(service, "zz-inc-fail")
+	Do $$$AssertTrue(reason [ "the target is not there", "the reason is the error text: "_reason)
+	Do $$$AssertEquals(..Incidents(), 1, "the send was tried once")
+	Do $$$AssertEquals($List(..IncidentAt(1), 5), 1, "with the row open")
+	Do $$$AssertEquals(..Rows(), 0, "and the row is deleted")
+	Kill ^OcuTalonTest("EvalIn", "fail")
+	Set ^OcuTalonTest("EvalIn", "throw") = "the send threw"
+	Set reason = ..Process(service, "zz-inc-fail")
+	Do $$$AssertTrue(reason [ "the send threw", "a send that throws gives the exception's text as the reason: "_reason)
+	Do $$$AssertEquals(..Rows(), 0, "and the row is deleted")
+	Kill ^OcuTalonTest("EvalIn", "throw")
+	Do $$$AssertEquals(..Process(service, "zz-inc-fail"), "", "the case is sent when the target answers")
+	Do $$$AssertEquals(..Rows(), 1, "and has its row")
+}
+
 /// --- helpers ---
+/// The text of the demo incident's recorded snapshot, or "" with the failure reported.
+Method Snapshot() As %String [ Private ]
+{
+	Set sc = ##class(OcuTalon.Watch.EvidencePack).Load("/opt/ocutalon/eval/orders-date-format/snapshot.json", .snapshot)
+	Do $$$AssertStatusOK(sc, "the recorded snapshot of the demo incident is read")
+	Quit $Select($$$ISOK(sc): snapshot.%ToJSON(), 1: "")
+}
+
+/// Writes an incident case folder with its case.json and a snapshot.json of the text.
+Method WriteIncident(name As %String, text As %String) [ Private ]
+{
+	Do ..WriteCase(name, {"kind": "incident", "snapshot": "snapshot.json"}.%ToJSON())
+	Do ..WriteSnapshot(name, text)
+}
+
+/// Writes the snapshot.json of a case folder.
+Method WriteSnapshot(name As %String, text As %String) [ Private ]
+{
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set stream.Filename = ##class(%File).NormalizeFilename("snapshot.json", ##class(%File).SubDirectoryName(..Folder, name))
+	Do stream.Write(text)
+	Do $$$AssertStatusOK(stream.%Save(), "the snapshot file is written")
+}
+
+/// How many IncidentCases the double was given.
+ClassMethod Incidents() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EvalIn", "incident"))
+}
+
+/// The nth IncidentCase the double was given, as a list: IncidentRef, SourceItemId, the snapshot's format, its number of failures, 1 when the case's row was
+/// open and the service's SuperSession.
+ClassMethod IncidentAt(n As %Integer) As %List [ Private ]
+{
+	Quit $Get(^OcuTalonTest("EvalIn", "incident", n))
+}
+
 /// The watch that a case of the Orders production declares: the namespace and production of the demo.
 ClassMethod Orders() As %DynamicObject [ Private ]
 {

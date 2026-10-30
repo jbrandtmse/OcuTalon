@@ -1,7 +1,8 @@
 /// EvalIn, the adapterless service that sends the recorded cases of eval/ through the product's own path (AD-22, AD-30). Lane A.
 /// The product keeps it disabled; the Production install step enables it only when OCUTALON_EVAL is 1, and Start reaches it only through
 /// Ens.Director.CreateBusinessService, so a disabled EvalIn sends nothing. It uses neither EnsLib.Testing.Service nor the production's
-/// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink, and nothing else is ever a target.
+/// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink; an incident case goes to IncidentManager; and
+/// nothing else is ever a target.
 ///   - Start is the run entry: it creates the service, mints the run's Ref and sends each named case, or each case folder under the
 ///     folder, once. It returns the run's Ref, how many cases were sent, and the cases that were not, each with its reason.
 ///   - Start sends the turn cases first (SendOrder), then the others, each group in the order of the case list. ChatAgent has one job,
@@ -9,9 +10,10 @@
 ///   - A case is a folder with a case.json (the shape of the eval/ cases): name, kind, heldOut, description, expectation and
 ///     recordedBy, and for a kind of item or injection an item {itemId, channel, provenance, sender, subject, text, catalogKey, slots},
 ///     and for a kind of all-clear or command a turn {text} (and, for an all-clear, checks: the array of the recorded check rows).
-///     A case that is not sent is logged as a warning and goes into the skipped list with its reason: a kind that is not sent (an
-///     incident), no case.json or one that is not a JSON object, no item.itemId, a recorded provenance other than untrusted, no
-///     turn.text, or an all-clear case whose checks is not an array. The other cases still run.
+///     A case that is not sent is logged as a warning and goes into the skipped list with its reason: a kind that is not sent (one
+///     that is not in KINDS), no case.json or one that is not a JSON object, no item.itemId, a recorded provenance other than untrusted, no
+///     turn.text, an all-clear case whose checks is not an array, or an incident case whose snapshot is missing or is not a reader
+///     snapshot. The other cases still run.
 ///   - A sent case is an OcuTalon.Msg.Item with a fresh ItemId (OcuTalon.Bridge.Ids.NewRef), SourceItemId set to the recorded
 ///     item.itemId, owner eval (OcuTalon.Data.Ownership EVAL), provenance untrusted, and the channel, sender, subject, text, catalog key
 ///     and slots of the record. Before the send EvalIn opens the case's OcuTalon.Eval.Data.CaseResult row, which EvalSink completes;
@@ -25,6 +27,10 @@
 ///     DecisionRef, ToolsRun, Text, Fallback and FallbackReason go into the TurnResult, and so do the catalog key and rows that
 ///     Checks.Render gives the Reply's HostData checks. EvalIn then sends the TurnResult to EvalSink, which completes the row. A Decide
 ///     that gives no Reply (an error, a timeout or an answer that is not a Reply) deletes the row and the TurnResult and skips the case.
+///   - An incident case (SendIncident) names a recorded reader snapshot in its snapshot member (a file of the case's folder, loaded with
+///     EvidencePack.Load). EvalIn sends IncidentManager one OcuTalon.Eval.Msg.IncidentCase (a fresh IncidentRef from OcuTalon.Bridge.Ids.NewRef, the
+///     case's folder name as SourceItemId, and the snapshot's JSON text) and, before the send, opens the case's row with ItemId the IncidentRef, which
+///     is the ItemId of the ItemDecision that IncidentManager sends EvalSink. A send that fails deletes the row and skips the case with the error text.
 ///   - A case of kind item or injection may declare a watch {namespace, production}: the production that the case's email talks about, with a
 ///     watch of it set up for the run. Before the case's row is opened and its Item is sent, EvalIn calls OcuTalon.Watch.Ops.EvalWatch (the
 ///     watch of owner eval, never polled, never due, no CheckChanged). A watch that is not an object with a non-blank namespace and production
@@ -50,13 +56,19 @@ Parameter DECIDE = "Decide";
 Parameter SINK = "EvalSink";
 
 /// The kinds of case that EvalIn sends, comma-separated.
-Parameter KINDS = "item,injection,all-clear,command";
+Parameter KINDS = "item,injection,all-clear,command,incident";
 
 /// The kinds of case that hold a recorded Item, and go to Intake.
 Parameter ITEMKINDS = "item,injection";
 
 /// The kinds of case that are a user turn, and go to Decide.
 Parameter TURNKINDS = "all-clear,command";
+
+/// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
+Parameter INCIDENTKIND = "incident";
+
+/// The item that diagnoses an incident case.
+Parameter INCIDENTTARGET = "IncidentManager";
 
 /// The kind of turn case that holds recorded check rows.
 Parameter ALLCLEARKIND = "all-clear";
@@ -93,6 +105,11 @@ Parameter REASONNOTEXT = "it has no turn.text";
 Parameter REASONNOCHECKS = "its checks is not an array";
 
 Parameter REASONNOREPLY = "Decide gave no Reply";
+
+Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
+
+/// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
+Parameter REASONSNAPSHOT = "its snapshot could not be used: {why}";
 
 Parameter REASONWATCHSHAPE = "its watch is not an object with a namespace and a production";
 
@@ -268,6 +285,7 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Set kind = ..Scalar(case, "kind")
 	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", ..KindsText())
 	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name)
+	If kind = ..#INCIDENTKIND Quit ..SendIncident(case, folder, name)
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
 	Set provenance = ..Scalar(record, "provenance")
@@ -311,6 +329,38 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Quit ""
 }
 
+/// The steps for one incident case: the reason it was not sent, or "" when it was. The case's snapshot member must be a plain file name (no path
+/// separator, no ..) of a recorded reader snapshot in the case's folder that EvidencePack.Load takes; otherwise the case is refused before anything is saved.
+/// Otherwise the row is opened with the IncidentRef as ItemId, and the IncidentCase is sent; a send that fails or throws deletes the row.
+Method SendIncident(case As %DynamicObject, folder As %String, name As %String) As %String [ Private ]
+{
+	Set file = ..Scalar(case, "snapshot")
+	If file = "" Quit ..#REASONNOSNAPSHOT
+	If (file [ "/") || (file [ "\") || (file [ "..") Quit $Replace(..#REASONSNAPSHOT, "{why}", "the name is not a plain file name")
+	Set sc = ##class(OcuTalon.Watch.EvidencePack).Load(##class(%File).NormalizeFilename(file, folder), .snapshot)
+	If $$$ISERR(sc) Quit $Replace(..#REASONSNAPSHOT, "{why}", $SYSTEM.Status.GetOneStatusText(sc))
+	Set incident = ##class(OcuTalon.Eval.Msg.IncidentCase).%New()
+	Set incident.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set incident.SourceItemId = name
+	Set incident.Snapshot = snapshot.%ToJSON()
+	Set opened = 0
+	Try {
+		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, incident.IncidentRef)
+		If $$$ISOK(sc) {
+			Set opened = 1
+			Set ..%SuperSession = ..RunRef
+			Set sc = ..DispatchIncident(incident)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
+		Quit $SYSTEM.Status.GetOneStatusText(sc)
+	}
+	Quit ""
+}
+
 /// Sets up the watch that a case declares: the reason it was not set up, or "" when it was, with the watch's stored fields in fields. A watch
 /// that is not an object with a non-blank namespace and production is REASONWATCHSHAPE; one that WatchOps.EvalWatch refuses is REASONWATCH.
 Method WatchUp(declared As %DynamicObject, Output fields As %DynamicObject) As %String [ Private ]
@@ -346,6 +396,12 @@ ClassMethod KindsText() As %String [ Private ]
 Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#TARGET, item)
+}
+
+/// The one send of an incident case: the IncidentCase to IncidentManager, asynchronously, with no answer wanted. Private; a test subclass overrides it.
+Method DispatchIncident(incident As OcuTalon.Eval.Msg.IncidentCase) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#INCIDENTTARGET, incident)
 }
 
 /// The steps for one turn case (see the class description); the reason it was not sent, or "" when it was. A case that has no turn.text,

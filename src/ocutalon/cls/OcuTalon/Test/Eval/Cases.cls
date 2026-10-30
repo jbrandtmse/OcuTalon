@@ -6,8 +6,9 @@
 ///     recorded Item (item or injection) is sent by EvalIn as the Item that the record says, so a run over the whole folder skips no
 ///     such case; a case of a turn kind (all-clear or command) is sent as a fresh user turn of owner eval whose Input holds its turn.text and whose
 ///     recorded checks are its checks as JSON (or none, for a command case), and every all-clear case's checks are what Checks.Render turns into
-///     the key it expects, so an all-clear case added later cannot expect a key that no model could get; a case of any other kind (the incident case) is skipped with its
-///     kind in the reason; the catalog key and the slots that the double records (list positions 9 and 10) are the record's (Story 9.3);
+///     the key it expects, so an all-clear case added later cannot expect a key that no model could get; a case of kind incident (Story 9.6) is sent as an
+///     IncidentCase whose snapshot is of the format ocutalon.readerSnapshot/1 and holds at least one failure, with a fresh IncidentRef, its folder name as
+///     SourceItemId and its row open; a case of any other kind is skipped with its kind in the reason; the catalog key and the slots that the double records (list positions 9 and 10) are the record's (Story 9.3);
 ///   - TestTurnCases (Story 9.7): the turn cases of the release-1 set: each all-clear case's checks are rendered by Checks.Render into the key it
 ///     expects, the three situations are all there (failing with a fix waiting, every check passing, nothing watched), each asks "Is everything
 ///     fine?", the command case records the key phrases of the UX sentence, and every turn case is plain ASCII, not held out, has no item, and
@@ -114,7 +115,7 @@ Method TestRecordedCases()
 	If '$IsObject(service) Quit
 	Set service.RunRef = ..Run
 	Set before = ..Evals()
-	Set position = 0, sendable = 0, turns = 0, watched = 0
+	Set position = 0, sendable = 0, turns = 0, watched = 0, incidents = 0
 	While $ListNext(names, position, name) {
 		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
 		Do $$$AssertEquals(case.name, name, name_": the case's name is its folder's")
@@ -144,10 +145,20 @@ Method TestRecordedCases()
 			Do $$$AssertEquals($List(asked, 14), $Select($IsObject(case.%Get("checks")): case.checks.%ToJSON(), 1: ""), name_": the checks recorded for the turn are the case's checks as JSON, or none")
 			Do $$$AssertEquals($List(asked, 13)_"|"_$List(asked, 15), "1|1", name_": its TurnResult and its row exist when Decide is asked")
 			If case.kind = "all-clear" Do $$$AssertEquals(##class(OcuTalon.Checks.Render).Render(case.checks, .rows), case.expectation.%Get("catalogKey"), name_": Checks.Render turns its checks into the key it expects")
+		} ElseIf case.kind = "incident" {
+			Set incidents = incidents + 1
+			Do $$$AssertEquals(output.StringValue, "", name_": a case of kind incident is sent, not skipped")
+			Set sent = $Get(^OcuTalonTest("EvalIn", "incident", incidents))
+			If sent = "" Do $$$AssertTrue(0, name_": the double was given its IncidentCase") Continue
+			Do $$$AssertEquals($Length($List(sent, 1))_"|"_$List(sent, 2)_"|"_$List(sent, 3), "22|"_name_"|ocutalon.readerSnapshot/1", name_": a fresh IncidentRef, SourceItemId the folder name, and a snapshot of the reader format")
+			Do $$$AssertTrue($List(sent, 4) >= 1, name_": the snapshot holds at least one failure: "_$List(sent, 4))
+			Do $$$AssertEquals($List(sent, 5), 1, name_": its row was open when the IncidentCase was dispatched")
 		} Else {
 			Do $$$AssertTrue(output.StringValue [ case.kind, name_": a case of kind "_case.kind_" is skipped with its kind in the reason: "_output.StringValue)
 		}
 	}
+	Do $$$AssertTrue(incidents >= 10, "eval/ holds at least ten incident cases, all sent: "_incidents)
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "incident")), incidents, "and the double was given exactly those IncidentCases")
 	Do $$$AssertTrue(sendable >= 1, "eval/ holds at least one case that EvalIn sends: "_sendable)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "seen")), sendable, "and the double was given exactly those Items")
 	Do $$$AssertTrue(turns >= 4, "eval/ holds at least four turn cases (three all-clear and one command): "_turns)

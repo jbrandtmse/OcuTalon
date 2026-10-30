@@ -1,5 +1,6 @@
 /// EvalSink, the business operation that receives the decisions of evaluation runs (AD-22, AD-30). Lane A. Intake sends it the
-/// OcuTalon.Msg.ItemDecision of an Item that EvalIn sent (owner eval), EvalIn sends it the OcuTalon.Eval.Msg.TurnResult of a turn case,
+/// OcuTalon.Msg.ItemDecision of an Item that EvalIn sent (owner eval), IncidentManager sends it the ItemDecision of an incident case (ItemId the IncidentRef
+/// that EvalIn opened the row with, SourceItemId the case's name), EvalIn sends it the OcuTalon.Eval.Msg.TurnResult of a turn case,
 /// and it completes that case's OcuTalon.Eval.Data.CaseResult row.
 /// It sends nothing, calls no model, and only reads the bridge's Decision and Usage rows. It never throws: a failure is logged and the
 /// call answers OK, with no response.

@@ -1,7 +1,10 @@
-/// A test double of OcuTalon.Eval.In (Test.Eval.In, Test.Eval.Cases): its three sends are replaced, and none of them sends a message.
+/// A test double of OcuTalon.Eval.In (Test.Eval.In, Test.Eval.Cases): its sends are replaced, and none of them sends a message.
 ///   - Dispatch (an item case) records each Item it is given, with the SuperSession of the service, whether the case's row was open at that
 ///     moment and the number of watch rows of owner eval at that moment, under ^OcuTalonTest("EvalIn", "seen", n), and answers the error status that ^OcuTalonTest("EvalIn", "fail") holds, or OK when
 ///     that is empty; it throws an exception with the text that ^OcuTalonTest("EvalIn", "throw") holds when that is not empty.
+///   - DispatchIncident (an incident case) records each IncidentCase it is given under ^OcuTalonTest("EvalIn", "incident", n) as a list: IncidentRef,
+///     SourceItemId, the format of the snapshot text, the number of failures in it, 1 when the case's row was open at that moment (found by the IncidentRef)
+///     and the SuperSession of the service. It answers and throws as Dispatch does, by the same "fail" and "throw" records.
 ///   - Ask (a turn case's call to Decide) records each request under ^OcuTalonTest("EvalIn", "asked", n) as a list: Kind, Provenance, OwnerRef,
 ///     ItemId, Input, Summary, TraceRef, Channel, ThreadSessionId, SessionMode, SeedText, SystemNote, 1 when the case's TurnResult exists,
 ///     its RecordedChecks, 1 when the case's row was open, and the SuperSession of the service. It answers what
@@ -24,6 +27,17 @@ Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", ##class(OcuTalon.Data.Ownership).#EVAL)
 	If result.%Next() Set watches = +result.%GetData(1)
 	Set ^OcuTalonTest("EvalIn", "seen", $Increment(^OcuTalonTest("EvalIn", "seen"))) = $ListBuild(item.ItemId, item.SourceItemId, item.SessionRef, item.Channel, item.Provenance, item.Sender, item.Subject, item.Text, item.CatalogKey, item.Slots, ..%SuperSession, open, watches)
+	Set throw = $Get(^OcuTalonTest("EvalIn", "throw"))
+	If throw '= "" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, throw))
+	Set fail = $Get(^OcuTalonTest("EvalIn", "fail"))
+	Quit $Select(fail '= "": $SYSTEM.Status.Error(5001, fail), 1: $$$OK)
+}
+
+Method DispatchIncident(incident As OcuTalon.Eval.Msg.IncidentCase) As %Status [ Private ]
+{
+	Set open = ''$IsObject(##class(OcuTalon.Eval.Data.CaseResult).Pending(incident.IncidentRef))
+	Set snapshot = ##class(%DynamicAbstractObject).%FromJSON(incident.Snapshot)
+	Set ^OcuTalonTest("EvalIn", "incident", $Increment(^OcuTalonTest("EvalIn", "incident"))) = $ListBuild(incident.IncidentRef, incident.SourceItemId, snapshot.format, snapshot.failures.%Size(), open, ..%SuperSession)
 	Set throw = $Get(^OcuTalonTest("EvalIn", "throw"))
 	If throw '= "" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, throw))
 	Set fail = $Get(^OcuTalonTest("EvalIn", "fail"))
