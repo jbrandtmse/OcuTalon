@@ -58,7 +58,8 @@
 ///   - (QA, Story 9.5) TestSave and TestSaveRefusals build their report directory with SubDirectoryName and assert that it is a path of its own
 ///     below the test folder (an empty one would make Save write into the process's own directory), and TestSave asserts that Save makes it;
 ///   - (Story 9.5) TestAttemptReadsTheReport pins the field names between Report.Build's set and Gate.Attempt: NFR-4 and the model read the cost
-///     entries' kind, cost and model, NFR-3 the size, and SM-1 the share of items;
+///     entries' kind, cost and model, NFR-3 the size, and SM-1 the share of items; (Story 9.10) a set whose mean decide cost is under the flag
+///     but holds one decide decision at the flag does not meet NFR-4, which names maxUSD as its gated figure;
 ///   - (QA) TestMatchRules, TestNotDecidedNotRight, TestZeroCost, TestTextEmpty, TestSaveRefusals, TestCaseNameStaysInFolder and
 ///     TestFolderWithoutSeparator: the match rules at their edges (an incident's category ignoring case, a near element, an item's outcome
 ///     exactly), a row not decided or an incident fallback that matches is not right and is no tell-now case missed, a cost of 0 is priced,
@@ -1621,8 +1622,8 @@ Method TestGateReadsTheReport()
 Method TestAttemptReadsTheReport()
 {
 	Set model = ##class(OcuTalon.Eval.Gate).#MODEL
-	Set a = ..N("a"), b = ..N("b"), c = ..N("c")
-	For name = a, b, c {
+	Set a = ..N("a"), b = ..N("b"), c = ..N("c"), d = ..N("d")
+	For name = a, b, c, d {
 		Do ..ItemCase(name, "digest")
 	}
 	Set run = ..NewRun()
@@ -1633,6 +1634,15 @@ Method TestAttemptReadsTheReport()
 	Do $$$AssertEquals(targets.model.met_"|"_targets.model.off.%Size(), "1|0", "the model target reads their model")
 	Do $$$AssertEquals(targets.nfr3.met_"|"_targets.nfr3.largestTokens_"|"_targets.nfr3.largestCase, "1|3400|"_b, "NFR-3 reads the built set's largest request")
 	Do $$$AssertEquals(targets.sm1.met_"|"_targets.sm1.right_"|"_targets.sm1.total, "1|2|2", "SM-1 reads the built set's share of items")
+	// NFR-4 is judged on the maximum (Story 9.10): a third decide decision at the flag fails it while the built set's mean stays under the flag
+	Set over = ..NewRun()
+	Do ..Row(over, a, {"Outcome": "digest", "DecisionRef": (..Decision("decide", model)), "CostUSD": (0.0002), "LargestRequestTokens": 1200})
+	Do ..Row(over, b, {"Outcome": "digest", "DecisionRef": (..Decision("decide", model)), "CostUSD": (0.0003), "LargestRequestTokens": 3400})
+	Do ..Row(over, d, {"Outcome": "digest", "DecisionRef": (..Decision("decide", model)), "CostUSD": (##class(OcuTalon.Eval.Report).#FLAGUSD), "LargestRequestTokens": 2000})
+	Set built = ##class(OcuTalon.Eval.Report).Build(over, ..Folder)
+	Set nfr4 = ##class(OcuTalon.Eval.Gate).Attempt(built, {}, 1).targets.nfr4
+	Do $$$AssertTrue(built.cost.meanUSD < ##class(OcuTalon.Eval.Report).#FLAGUSD, "the built set's mean cost is under the flag")
+	Do $$$AssertEquals(nfr4.met_"|"_nfr4.gated_"|"_nfr4.maxUSD_"|"_nfr4.maxCase_"|"_nfr4.flagged.%Size(), "0|maxUSD|.001|"_d_"|1", "NFR-4 is not met on the maximum, whatever the mean")
 	Set other = ..NewRun()
 	Do ..Row(other, c, {"Outcome": "digest", "DecisionRef": (..Decision("decide", "claude-sonnet-5-5")), "CostUSD": (0.0002), "LargestRequestTokens": ""})
 	Set targets = ##class(OcuTalon.Eval.Gate).Attempt(##class(OcuTalon.Eval.Report).Build(other, ..Folder), {}, 1).targets

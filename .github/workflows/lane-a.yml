@@ -58,6 +58,8 @@ jobs:
         run: bash ci/iris.sh build
       - name: Run the evaluation set against the CI mock
         run: bash eval/run.sh
+      - name: Prove the model key leaks nowhere (a fake key, on the CI mock)
+        run: bash eval/key-proof.sh
       - name: Tear down
         if: always()
         run: bash ci/iris.sh teardown

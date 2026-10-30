@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.5, 9.7, 9.8 and 9.9; AD-22, AD-19, AD-29; CON-3, CON-5). It is a unit of the hosted `checks` job
+# The repository check of the evaluation set (Stories 9.2, 9.3, 9.4, 9.5, 9.7, 9.8, 9.9 and 9.10; AD-22, AD-19, AD-29; CON-3, CON-5). It is a unit of the hosted `checks` job
 # (CHECK_SCRIPTS of ci/units.sh), starts nothing, and needs bash and Node. It reads the files below eval/, the mock's scenarios below
 # ci/mock/scenarios/A/, the workflow files below .github/workflows/ (lane-a.yml's evaluation job, and every one for the switch), eval/run.sh, the
 # enumerations of the classes and, for the rule feed, every file that git tracks or has not ignored. A failure prints `file: rule` and never the
@@ -66,42 +66,69 @@
 #                 ci/ and .github/ never name the feed: only a throwaway test stack installs it;
 #   job           .github/workflows/lane-a.yml has a job evaluation with a timeout, a run tag of its own (run id, attempt and -eval, so
 #                 its teardown never removes another job's stack), a step that runs `bash ci/iris.sh build` before the step that runs
-#                 `bash eval/run.sh`, and no workflow file names the switch OCUTALON_EVAL, which eval/run.sh exports for its own
+#                 `bash eval/run.sh`, a step that runs `bash eval/key-proof.sh` after it and before the teardown step (Story 9.10), and no
+#                 workflow file names the switch OCUTALON_EVAL, which eval/run.sh exports for its own
 #                 throwaway (owner condition U-131). The other workflow rules (fork guard, pins, persist-credentials, secrets,
 #                 teardown) are test-ci-config.sh's, for every job;
 #   eval-scripts  eval/run.sh exists, and no code line of a .sh file below eval/ names the container tool or calls dc with config,
-#                 convert or push: those scripts reach the container through the functions of ci/iris.sh and lib-live.sh;
+#                 convert or push: those scripts reach the container through the functions of ci/iris.sh and lib-live.sh. The one exempt line
+#                 is exactly `. "$root/docker/tests/lib-keys.sh"` (Story 9.10); the same line followed by more text, or indented, is flagged;
 #   run-guard     eval/run.sh refuses an OCUTALON_EVAL_WAIT that is not a whole number from 1 to 3600 with exit 2 before it calls the
 #                 container tool, accepts one that is (it goes on to the preflight), and makes OCUTALON_EVAL_REPORT_DIR. The script
-#                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started.
+#                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started. With
+#                 LIVE_REBUILD_WEB=1 and a recording npm on the path, the preflight ends the run before the first npm process (DW-434).
 #   record-guard  docker/tests/record-eval.sh (Story 9.9) refuses every argument but the single word feed with exit 2, before it sources
 #                 lib-live.sh, and goes on to lib-live.sh with no argument and with feed. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
-#   rc-guard      (Story 9.5) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock and --override <reason>
-#                 with exit 2 before it calls the container tool; --release-candidate (not --on-mock) with ANTHROPIC_API_KEY unset or empty is refused
-#                 the same way and the refusal names the variable; --release-candidate with a key (a value that is not a key) and --release-candidate
-#                 --on-mock with none go on to the container tool and end with exit 1, and that value is never in the output or in a call. eval/compose.release-candidate.yml
+#   rc-guard      (Story 9.5, 9.10) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock,
+#                 --release-candidate --on-mock --key-path and --override <reason> with exit 2 before it calls the container tool (--key-path
+#                 in any other form too); --release-candidate (not --on-mock) and --release-candidate --on-mock --key-path with ANTHROPIC_API_KEY
+#                 unset or empty are refused the same way and the refusal names the variable; --release-candidate with a key (a value that is
+#                 not a key), --release-candidate --on-mock --key-path with one and --release-candidate --on-mock with none or with one go on to
+#                 the container tool and end with exit 1, and that value is never in the output or in a call. eval/compose.release-candidate.yml
 #                 has exactly six code lines: the key by interpolation, an empty OCUTALON_MODEL_BASE_URL and OCUTALON_MOCK_KEY_HEADER 0. The script
 #                 runs with the same stub as run-guard;
-#   rc-stack      (Story 9.5, QA) eval/run.sh --release-candidate (key set) lays eval/compose.release-candidate.yml over its stack, starts it with
+#   rc-stack      (Story 9.5, QA, 9.10) eval/run.sh --release-candidate (key set) lays eval/compose.release-candidate.yml over its stack, starts it with
 #                 OCUTALON_EVAL=1 and the key in its environment, asks RunningReason in its first IRIS session and never calls PointKeys,
-#                 RestoreKeys or ReadyReason, and the key is in no call, output or file; --release-candidate --on-mock (no key) lays nothing over
-#                 the stack, enables EvalIn and points the keys at the mock. The script runs with a stub of the container tool that succeeds and
-#                 prints nothing (and an npm that does nothing, for a checkout with no web bundle), so it stops at its first IRIS session; rc-guard also
-#                 checks that a refused argument and a file never show the key;
+#                 RestoreKeys or ReadyReason, and the key is in no call, output or file; --release-candidate --on-mock lays nothing over
+#                 the stack, enables EvalIn and points the keys at the mock, with the key unset in every call whether the caller exported one or
+#                 not (veto U-168); --release-candidate --on-mock --key-path (key set) lays the override over the stack and ci/compose.ci.yml
+#                 again after it, with the key in the environment of the call that starts it, asks ReadyReason and KeysAre in its first session
+#                 and never calls PointKeys or RestoreKeys. In every form, with LIVE_REBUILD_WEB=1, the npm processes (the pre-build of DW-434)
+#                 are at least one, none has the key in its environment, and the web bundle is built once. The script runs with a stub of the
+#                 container tool that succeeds and prints nothing (and an npm that records its calls and does nothing, for a checkout with no
+#                 web bundle), so it stops at its first IRIS session; rc-guard also checks that a refused argument and a file never show the key;
 #   rc-flow       (Story 9.5, code review) the whole release-candidate sequence of eval/run.sh, run from a copy tree (the real tree's ci/iris.sh,
 #                 ci/units.sh, ci/compose.ci.yml, lib-live.sh and the override file, a stand-in web bundle, no .git) with a stub of the container tool
 #                 that stands for a healthy stack and answers each IRIS session by what it calls: attempt 1 below a target runs three attempts, waits
 #                 900 s by default, and a blocked verdict ends with VERDICT blocked, exit 3 and the result pair in eval/; attempt 1 meeting every target
 #                 runs one attempt and ends with VERDICT pass, exit 0 and the pair; --on-mock ends with exit 0, its pair in the report folder and nothing
-#                 in eval/; an incomplete verdict, a runner on another model and a runner with no key end with exit 1 and nothing in eval/. The bad
-#                 samples are the repository's eval/run.sh with one edit each;
+#                 in eval/; an incomplete verdict, a runner on another model and a runner with no key end with exit 1 and nothing in eval/. Since
+#                 Story 9.10: a key-like line (built from fragments) in the stub's result Markdown ends the real form (the pair kept in eval/) and the
+#                 --on-mock form (the pair kept in the report folder) with exit 4 and the do-not-commit FAIL line that names file and line and never
+#                 shows the text; a clean pair gets the key-like PASS line; --on-mock --key-path on a stub whose scans are clean ends with exit 0, the
+#                 eight PASS key proof lines and no PointKeys, and a stub whose scan reports a hit, a failed control or an unreadable place (each of
+#                 the globals, stores, trace, mock log, container logs and container files scans) ends with FAIL key proof <label> and exit 1. The bad samples are the repository's eval/run.sh with one edit each;
 #   rc-override   (Story 9.5) eval/run.sh --override runs from a copy of the script in a folder with no ci/, beside result files that the check writes (and never calls the container tool):
 #                 a blocked result becomes overridden with the reason and the time, its Markdown gets the changed verdict line and the section Override,
 #                 and a result that is missing, has no Markdown, has no Verdict: blocked line, is a pass or already overridden, or a reason that is
-#                 blank, has a line break, is not ASCII or is over 500 characters is refused with exit 2 and both files unchanged. When the tree holds
+#                 blank, has a line break, is not ASCII, is over 500 characters or holds key-like text (Story 9.10) is refused with exit 2 and both files
+#                 unchanged; a result whose Markdown holds a key-like line is written and then ends with exit 4, the do-not-commit line and no text (the
+#                 copy tree also holds docker/tests/lib-keys.sh). When the tree holds
 #                 eval/release-candidate.json, it is a result of the format ocutalon.evalResult/1, not an on-mock one, with a verdict of pass, blocked
 #                 or overridden and a non-blank override.reason exactly when it is overridden, and eval/release-candidate.md is there.
+#   key-proof     (Story 9.10) eval/key-proof.sh runs from a copy tree beside stubs of eval/run.sh and ci/iris.sh, in a git repository of its own, with
+#                 the stub's behaviour set by the sample (kp-mode.txt). Without OCUTALON_RUN_TAG it exits 2 and the stub never runs; with it the
+#                 stub receives a key of 66 characters in the shape of a real one that never shows in the harness's output; a good stub passes with
+#                 exit 0 and the last line eval/key-proof: all checks passed; and the harness flags, with exit 1, a stub that prints the key, writes
+#                 it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line, prints a FAIL key
+#                 proof line or no verdict, leaves no report file, leaves a file below eval/ that cannot be read, or has its teardown print a
+#                 leftover volume or ten projects; the harness runs eval/run.sh with exactly --release-candidate --on-mock --key-path. A bad
+#                 sample may also edit the harness so that it does not flag one of these;
+#   key-like      (Story 9.10) eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh (the exact
+#                 line), the one definition of the key-like patterns, and none holds a pattern of its own (the text of the first alternative, built
+#                 here from fragments, so that this file does not hold it either); the library defines KEY_LIKE_ERE. Other epics' scripts that keep
+#                 a two-shape subset (test-compose-file.sh, test-install-script.sh) are out of scope.
 # Each bad sample of a rule carries the reason it must be flagged for (expect.txt in its folder): a sample that another rule flags does
 # not count.
 set -u
@@ -630,8 +657,10 @@ const scenario = (outcome) => ({
 const GH = (what) => '$' + '{{ ' + what + ' }}';
 const RUN_TAG = `      OCUTALON_RUN_TAG: ${GH('github.run_id')}-${GH('github.run_attempt')}-eval\n`;
 const BUILD = '      - name: Build the web bundle\n        run: bash ci/iris.sh build\n';
-const job = ({ timeout = '    timeout-minutes: 30\n', tag = RUN_TAG, env = '', build = BUILD, step = '        run: bash eval/run.sh' } = {}) =>
-  `name: lane-a\non:\n  push:\n    branches:\n      - main\njobs:\n  other:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n  evaluation:\n    runs-on: [self-hosted, ocutalon]\n${timeout}${tag || env ? '    env:\n' : ''}${tag}${env}    steps:\n${build}      - name: Run the set\n${step}\n`;
+const PROOF = '      - name: Prove the key\n        run: bash eval/key-proof.sh\n';
+const TEARDOWN = '      - name: Tear down\n        if: always()\n        run: bash ci/iris.sh teardown\n';
+const job = ({ timeout = '    timeout-minutes: 30\n', tag = RUN_TAG, env = '', build = BUILD, step = '        run: bash eval/run.sh', proof = PROOF, teardown = TEARDOWN } = {}) =>
+  `name: lane-a\non:\n  push:\n    branches:\n      - main\njobs:\n  other:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n  evaluation:\n    runs-on: [self-hosted, ocutalon]\n${timeout}${tag || env ? '    env:\n' : ''}${tag}${env}    steps:\n${build}      - name: Run the set\n${step}\n${proof}${teardown}`;
 const script = `#!/usr/bin/env bash\n# This comment names ${D} and ${DC} config, and is not code.\nset -u\n. ci/iris.sh\n${DC} exec -T iris cat /tmp/x\n`;
 // A stand-in for eval/run.sh: the guard of OCUTALON_EVAL_WAIT (the condition is the range test), the report folder, and then the
 // preflight, which calls the container tool (the check puts a stub in its place) and ends the script when it fails.
@@ -1067,12 +1096,21 @@ variant('job', 'bad-no-tag', "the job evaluation's OCUTALON_RUN_TAG is not run i
 variant('job', 'bad-tag-of-another-job', "the job evaluation's OCUTALON_RUN_TAG is not run id, attempt and -eval", (f) => { f[LANE] = job({ tag: RUN_TAG.replace('-eval', '-bridge') }); });
 variant('job', 'bad-tag-no-attempt', "the job evaluation's OCUTALON_RUN_TAG is not run id, attempt and -eval", (f) => { f[LANE] = job({ tag: `      OCUTALON_RUN_TAG: ${GH('github.run_id')}-eval\n` }); });
 variant('job', 'bad-no-build', 'the job evaluation does not run bash ci/iris.sh build before bash eval/run.sh', (f) => { f[LANE] = job({ build: '' }); });
+variant('job', 'bad-no-proof', 'the job evaluation does not run bash eval/key-proof.sh after bash eval/run.sh and before the teardown', (f) => { f[LANE] = job({ proof: '' }); });
+variant('job', 'bad-proof-before-set', 'the job evaluation does not run bash eval/key-proof.sh after bash eval/run.sh and before the teardown', (f) => { f[LANE] = job({ proof: '' }).replace('      - name: Run the set\n', `${PROOF}      - name: Run the set\n`); });
+variant('job', 'bad-proof-after-teardown', 'the job evaluation does not run bash eval/key-proof.sh after bash eval/run.sh and before the teardown', (f) => { f[LANE] = job({ proof: '', teardown: TEARDOWN + PROOF }); });
+variant('job', 'bad-proof-in-other-job', 'the job evaluation does not run bash eval/key-proof.sh after bash eval/run.sh and before the teardown', (f) => { f[LANE] = job({ proof: '' }).replace('      - run: echo hi', '      - run: bash eval/key-proof.sh'); });
 variant('job', 'bad-build-after', 'the job evaluation does not run bash ci/iris.sh build before bash eval/run.sh', (f) => { f[LANE] = job({ build: '' }).replace('        run: bash eval/run.sh\n', '        run: bash eval/run.sh\n      - name: Build\n        run: bash ci/iris.sh build\n'); });
 
 variant('eval-scripts', 'bad-inspect', 'a code line names the container tool', (f) => { f['eval/run.sh'] = `${script}${D} inspect abc\n`; });
 variant('eval-scripts', 'bad-config', 'a call through the wrapper uses config, convert or push', (f) => { f['eval/run.sh'] = `${script}${DC} config\n`; });
 variant('eval-scripts', 'bad-convert', 'a call through the wrapper uses config, convert or push', (f) => { f['eval/run.sh'] = `${script}${DC} convert\n`; });
 variant('eval-scripts', 'bad-push', 'a call through the wrapper uses config, convert or push', (f) => { f['eval/run.sh'] = `${script}${DC} -p x push\n`; });
+const KEYSLIB = '. "$root/docker/tests/lib-keys.sh"\n';
+variant('eval-scripts', 'good-keys-lib', '', (f) => { f['eval/run.sh'] = `${script}${KEYSLIB}`; f['eval/key-proof.sh'] = `#!/usr/bin/env bash\nset -u\n${KEYSLIB}`; });
+variant('eval-scripts', 'bad-keys-lib-extra', 'a code line names the container tool', (f) => { f['eval/run.sh'] = `${script}. "$root/docker/tests/lib-keys.sh" && ${D} ps\n`; });
+variant('eval-scripts', 'bad-keys-lib-indented', 'a code line names the container tool', (f) => { f['eval/run.sh'] = `${script}  . "$root/docker/tests/lib-keys.sh"\n`; });
+variant('eval-scripts', 'bad-other-lib', 'a code line names the container tool', (f) => { f['eval/run.sh'] = `${script}. "$root/docker/tests/lib-live.sh"\n`; });
 variant('eval-scripts', 'bad-other-script', 'a code line names the container tool', (f) => { f['eval/other.sh'] = `#!/usr/bin/env bash\n${D} ps\n`; });
 variant('eval-scripts', 'bad-no-run', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; f['eval/other.sh'] = script; });
 
@@ -1106,11 +1144,13 @@ const RC_COMPOSE = (extra = {}) => [
   '      OCUTALON_MOCK_KEY_HEADER: "0"',
   '',
 ].join('\n');
-const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '[ "$onmock" -eq 0 ] && ', leak = '', before = '', usageLeak = false } = {}) =>
-  '#!/usr/bin/env bash\nset -u\n' + before + 'mode=push\nonmock=0\n' +
+const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '{ [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && ', keyPathForm = true, keyPathAnywhere = false, leak = '', before = '', usageLeak = false } = {}) =>
+  '#!/usr/bin/env bash\nset -u\n' + before + 'mode=push\nonmock=0\nkeypath=0\n' +
   'if [ $# -eq 0 ]; then\n  :\n' +
   'elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then\n  mode=rc\n' +
   (onMockForm ? 'elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ]; then\n  mode=rc\n  onmock=1\n' : '') +
+  (keyPathForm ? 'elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ] && [ "$3" = --key-path ]; then\n  mode=rc\n  onmock=1\n  keypath=1\n' : '') +
+  (keyPathAnywhere ? 'elif [ "$#" -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --key-path ]; then\n  mode=rc\n  keypath=1\n' : '') +
   'elif [ $# -eq 2 ] && [ "$1" = --override ]; then\n  mode=override\n' +
   'else\n  echo "usage' + (usageLeak ? ' $ANTHROPIC_API_KEY' : '') + '"\n  exit 2\nfi\n' +
   'if [ "$mode" = rc ] && ' + mockCond + keyTest + '; then\n  echo "FAIL ANTHROPIC_API_KEY is not set"\n  exit 2\nfi\n' + leak +
@@ -1118,17 +1158,23 @@ const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)
 // eval/run.sh's use of the stack (rule rc-stack): the form --release-candidate (not --on-mock) layers eval/compose.release-candidate.yml over the stack and
 // checks the runners with RunningReason (never PointKeys or ReadyReason); every other form points the keys at the mock and layers nothing; EvalIn is
 // enabled by the script's own export. The stand-in sends its sessions to the container tool as the script does, and ends with exit 1.
-const rcStacked = ({ layer = true, layerOnMock = false, pointKeysInRc = false, noEval = false, mockNoPoint = false, keyInArgs = false } = {}) =>
+const rcStacked = ({ layer = true, layerOnMock = false, pointKeysInRc = false, noEval = false, mockNoPoint = false, keyInArgs = false, keyKeptOnMock = false,
+  npmKeepsKey = false, rebuildAgain = false, noPrebuild = false, keyPathLayers = true, keyPathCiTwice = true, keyPathPoints = false } = {}) =>
   '#!/usr/bin/env bash\nset -u\nroot=$(cd "$(dirname "$0")/.." && pwd)\n' +
-  'mode=push\nonmock=0\n[ "${1:-}" = --release-candidate ] && mode=rc\n[ "${2:-}" = --on-mock ] && onmock=1\n' +
+  'mode=push\nonmock=0\nkeypath=0\n[ "${1:-}" = --release-candidate ] && mode=rc\n[ "${2:-}" = --on-mock ] && onmock=1\n[ "${3:-}" = --key-path ] && keypath=1\n' +
+  (keyKeptOnMock ? '' : 'if [ "$keypath" -eq 0 ] && { [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then unset ANTHROPIC_API_KEY; fi\n') +
   (noEval ? '' : 'export OCUTALON_EVAL=1\n') +
-  'files="-f base.yml"\n' +
+  (noPrebuild ? '' : 'if [ "${LIVE_REBUILD_WEB:-0}" = 1 ]; then ( ' + (npmKeepsKey ? '' : 'unset ANTHROPIC_API_KEY; ') + 'npm --prefix web run build ) || exit 1; ' + (rebuildAgain ? '' : 'LIVE_REBUILD_WEB=0; ') + 'fi\n') +
+  'files="-f base.yml -f $root/ci/compose.ci.yml"\n' +
   (layer ? 'if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
-  (layerOnMock ? 'if [ "$onmock" -eq 1 ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
+  (layerOnMock ? 'if [ "$onmock" -eq 1 ] && [ "$keypath" -eq 0 ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
+  (keyPathLayers ? 'if [ "$keypath" -eq 1 ]; then\n  echo "INFO --on-mock with ANTHROPIC_API_KEY set: the key goes through the override to the CI mock only"\n  files="$files -f $root/eval/compose.release-candidate.yml' + (keyPathCiTwice ? ' -f $root/ci/compose.ci.yml' : '') + '"\nfi\n' : '') +
   (keyInArgs ? 'files="$files --env ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"\n' : '') +
+  (rebuildAgain ? 'if [ "${LIVE_REBUILD_WEB:-0}" = 1 ]; then npm --prefix web run build || exit 1; fi\n' : '') +
   D + ' compose $files up -d --wait || exit 1\n' +
   'if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()\'\n' +
   (pointKeysInRc ? '  script="$script Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()"\n' : '') +
+  'elif [ "$keypath" -eq 1 ]; then\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason() Write !,##class(OcuTalon.Test.Agent.RunnerFixture).KeysAre(1)' + (keyPathPoints ? ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()' : '') + '\'\n' +
   'else\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' + (mockNoPoint ? '' : ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()') + '\'\nfi\n' +
   'printf \'%s\\n\' "$script" | ' + D + ' compose $files exec -T iris iris session IRIS -U OCUTALON > /dev/null 2>&1\nexit 1\n';
 // The override of a blocked result file, in Node, with the checks as options (pass: a pass file is accepted; md: the Markdown line is not required;
@@ -1151,8 +1197,10 @@ const overrideProgram = ({ pass = false, md = true, ascii = true, length = true,
   'fs.writeFileSync(mf, markdown.split("\\n").map((l) => (l === "Verdict: blocked" ? "Verdict: overridden (blocked; the author overrode it)" : l)).join("\\n") + "\\n## Override\\n\\n" + reason + "\\n\\nRecorded at " + at + ".\\n");',
 ].filter(Boolean).join('\n');
 const overrider = (options = {}) =>
-  '#!/usr/bin/env bash\nset -u\nroot=$(cd "$(dirname "$0")/.." && pwd)\n[ $# -eq 2 ] && [ "$1" = --override ] || exit 2\n' + (options.calls ? D + ' version > /dev/null 2>&1\n' : '') +
-  "node -e '" + overrideProgram(options) + "' \"$root/eval/release-candidate.json\" \"$root/eval/release-candidate.md\" \"$2\" \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\nexit $?\n";
+  '#!/usr/bin/env bash\nset -u\nroot=$(cd "$(dirname "$0")/.." && pwd)\n. "$root/docker/tests/lib-keys.sh"\n[ $# -eq 2 ] && [ "$1" = --override ] || exit 2\n' + (options.calls ? D + ' version > /dev/null 2>&1\n' : '') +
+  (options.keyReason === false ? '' : 'if [ -n "$(printf \'%s\\n\' "$2" | key_like -)" ]; then echo "FAIL the override reason holds key-like text"; exit 2; fi\n') +
+  "node -e '" + overrideProgram(options) + "' \"$root/eval/release-candidate.json\" \"$root/eval/release-candidate.md\" \"$2\" \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" || exit $?\n" +
+  (options.scan === false ? '' : 'hits=$(key_like "$root/eval/release-candidate.json" "$root/eval/release-candidate.md" | paste -s -d, -)\nif [ -n "$hits" ]; then echo "FAIL the result pair holds key-like text at $hits: do not commit them"; exit 4; fi\n') + 'exit 0\n';
 const RC_FILE = 'eval/release-candidate.json';
 const RC_MD = 'eval/release-candidate.md';
 const rcJson = (extra = {}) => ({ format: 'ocutalon.evalResult/1', onMock: false, verdict: 'pass', override: null, ...extra });
@@ -1165,6 +1213,9 @@ variant('rc-guard', 'bad-no-compose', 'eval/compose.release-candidate.yml: the f
 variant('rc-guard', 'bad-empty-key', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyTest: '[ -z "${ANTHROPIC_API_KEY+x}" ]' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-no-key-check', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyTest: 'false' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-no-on-mock', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ onMockForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-key-path', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ keyPathForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-key-path-needs-no-key', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ mockCond: '[ "$onmock" -eq 0 ] && ' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-key-path-without-on-mock', 'are not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyPathAnywhere: true }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-mock-needs-key', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ mockCond: '' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-prints-key', 'appears in the output', (f) => { f['eval/run.sh'] = rcGuarded({ leak: 'echo "key $ANTHROPIC_API_KEY"\n' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-calls-before-guard', 'reached the container tool before they were refused', (f) => { f['eval/run.sh'] = rcGuarded({ before: `${D} version > /dev/null 2>&1\n` }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
@@ -1181,12 +1232,21 @@ variant('rc-stack', 'bad-layer-on-mock', 'the stack of --release-candidate --on-
 variant('rc-stack', 'bad-pointkeys-in-rc', '--release-candidate (the real model) calls PointKeys, RestoreKeys or ReadyReason', (f) => { f['eval/run.sh'] = rcStacked({ pointKeysInRc: true }); });
 variant('rc-stack', 'bad-no-eval', 'does not enable EvalIn with OCUTALON_EVAL=1', (f) => { f['eval/run.sh'] = rcStacked({ noEval: true }); });
 variant('rc-stack', 'bad-mock-no-pointkeys', '--release-candidate --on-mock does not point the keys at the mock', (f) => { f['eval/run.sh'] = rcStacked({ mockNoPoint: true }); });
+variant('rc-stack', 'bad-key-path-no-layer', 'the stack of the key-path rehearsal is not layered with eval/compose.release-candidate.yml', (f) => { f['eval/run.sh'] = rcStacked({ keyPathLayers: false }); });
+variant('rc-stack', 'bad-key-path-no-ci-again', 'is not followed by ci/compose.ci.yml again', (f) => { f['eval/run.sh'] = rcStacked({ keyPathCiTwice: false }); });
+variant('rc-stack', 'bad-key-path-points-keys', 'the key-path rehearsal calls PointKeys or RestoreKeys', (f) => { f['eval/run.sh'] = rcStacked({ keyPathPoints: true }); });
+variant('rc-stack', 'bad-on-mock-keeps-key', 'has the key in the environment of a call', (f) => { f['eval/run.sh'] = rcStacked({ keyKeptOnMock: true }); });
+variant('rc-stack', 'bad-npm-keeps-key', 'has the key in the environment of an npm process', (f) => { f['eval/run.sh'] = rcStacked({ npmKeepsKey: true }); });
+variant('rc-stack', 'bad-rebuilds-web', 'builds the web bundle 2 times, not once', (f) => { f['eval/run.sh'] = rcStacked({ rebuildAgain: true }); });
+variant('rc-stack', 'bad-no-prebuild', 'runs no npm process though LIVE_REBUILD_WEB is 1', (f) => { f['eval/run.sh'] = rcStacked({ noPrebuild: true }); });
 variant('rc-stack', 'bad-key-in-args', 'the value of the key appears in a call', (f) => { f['eval/run.sh'] = rcStacked({ keyInArgs: true }); });
 variant('rc-override', 'bad-calls-container', 'called the container tool', (f) => { f['eval/run.sh'] = overrider({ calls: true }); });
 variant('rc-override', 'good', '', (f) => { f['eval/run.sh'] = overrider(); });
 variant('rc-override', 'good-json-pass', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson(); f[RC_MD] = rcText; });
 variant('rc-override', 'good-json-blocked', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'blocked' }); f[RC_MD] = rcText; });
 variant('rc-override', 'good-json-overridden', '', (f) => { f['eval/run.sh'] = overrider(); f[RC_FILE] = rcJson({ verdict: 'overridden', override: GOODOVERRIDE }); f[RC_MD] = rcText; });
+variant('rc-override', 'bad-accepts-key-like-reason', 'a key-like reason is not refused', (f) => { f['eval/run.sh'] = overrider({ keyReason: false }); });
+variant('rc-override', 'bad-no-key-like-scan', 'a result whose Markdown holds key-like text is not told apart with exit 4', (f) => { f['eval/run.sh'] = overrider({ scan: false }); });
 variant('rc-override', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; });
 variant('rc-override', 'bad-accepts-pass', 'a result whose verdict is pass is not refused', (f) => { f['eval/run.sh'] = overrider({ pass: true }); });
 variant('rc-override', 'bad-no-md-check', 'a Markdown file without its Verdict: blocked line is not refused', (f) => { f['eval/run.sh'] = overrider({ md: false }); });
@@ -1212,7 +1272,7 @@ const rcFlowed = (edits = []) => edits.reduce((text, [from, to]) => {
 }, RUNSH);
 const RCF_MODELS = 'CHK|mockheader|0\nCHK|model-TriageAgent|claude-haiku-5-5\nCHK|model-DiagnosisAgent|claude-haiku-5-5\nCHK|model-ChatAgent|claude-haiku-5-5"';
 const RCF_KEYS = 'CHK|keys-TriageAgent|1\nCHK|keys-DiagnosisAgent|1\nCHK|keys-ChatAgent|1\n';
-const RCF_MOCKEXIT = '  if [ "$onmock" -eq 1 ]; then\n    echo "VERDICT $verdict"\n    echo "eval/run: all checks passed"\n    exit 0\n  fi\n';
+const RCF_MOCKEXIT = '  if [ "$onmock" -eq 1 ]; then\n    scan_pair "$result_name" "$report_dir/$result_name.json" "$report_dir/$result_name.md" || exit 4\n    echo "VERDICT $verdict"\n    echo "eval/run: all checks passed"\n    exit 0\n  fi\n';
 variant('rc-flow', 'good', '', (f) => { f['eval/run.sh'] = rcFlowed(); });
 variant('rc-flow', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; });
 variant('rc-flow', 'bad-blocked-exit-0', 'does not end with VERDICT blocked and exit 3', (f) => { f['eval/run.sh'] = rcFlowed([['  exit 3\nfi\n', '  exit 0\nfi\n']]); });
@@ -1222,7 +1282,66 @@ variant('rc-flow', 'bad-no-stop-at-1', 'not 1, when attempt 1 meets every target
 variant('rc-flow', 'bad-on-mock-goes-on', '--on-mock with a blocked verdict does not end with VERDICT blocked and exit 0', (f) => { f['eval/run.sh'] = rcFlowed([[RCF_MOCKEXIT, '']]); });
 variant('rc-flow', 'bad-incomplete-kept', 'an incomplete verdict is not a structural failure', (f) => { f['eval/run.sh'] = rcFlowed([['pass | blocked) pass "$result_name', 'pass | blocked | incomplete) pass "$result_name']]); });
 variant('rc-flow', 'bad-any-model', 'goes on with a runner on another model', (f) => { f['eval/run.sh'] = rcFlowed([[RCF_MODELS, 'CHK|mockheader|0"']]); });
+variant('rc-flow', 'bad-no-key-like-scan', 'does not end with exit 4', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ -z "$hits" ]; then\n    echo "PASS $name', '  if true; then\n    echo "PASS $name']]); });
+variant('rc-flow', 'bad-key-like-text-printed', 'the key-like text appears in the output', (f) => { f['eval/run.sh'] = rcFlowed([['hold key-like text at $hits:', 'hold key-like text at $hits $(cat "$md"):']]); });
+variant('rc-flow', 'bad-key-like-exit-1', 'does not end with exit 4', (f) => { f['eval/run.sh'] = rcFlowed([['  scan_pair "$result_name" eval/release-candidate.json eval/release-candidate.md || exit 4\n', '  scan_pair "$result_name" eval/release-candidate.json eval/release-candidate.md || exit 1\n']]); });
+variant('rc-flow', 'bad-key-like-md-printed', 'the key-like text appears in the output', (f) => { f['eval/run.sh'] = rcFlowed([['if [ -n "$(key_like "$report_dir/$result_name.md")" ]; then', 'if false; then']]); });
+variant('rc-flow', 'bad-key-proof-hit-passes', 'with FAIL key proof globals and exit 1', (f) => { f['eval/run.sh'] = rcFlowed([['    *) fail "key proof $label: ${out#bad }" ;;', '    *) pass "key proof $label: ${out#bad }" ;;']]); });
+variant('rc-flow', 'bad-key-proof-skipped', 'holds 0 PASS key proof lines', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$keypath" -eq 1 ]; then\n    key_proof\n', '  if false; then\n    key_proof\n']]); });
+variant('rc-flow', 'bad-key-path-pointkeys', 'calls PointKeys', (f) => { f['eval/run.sh'] = rcFlowed([['\'Write !,"CHK|keylength|",$Length($SYSTEM.Util.GetEnviron("ANTHROPIC_API_KEY"))\'', '\'Write !,"CHK|keylength|",$Length($SYSTEM.Util.GetEnviron("ANTHROPIC_API_KEY")) Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()\'']]); });
 variant('rc-flow', 'bad-no-key-check', 'goes on with a runner that has no key', (f) => { f['eval/run.sh'] = rcFlowed([[RCF_KEYS, '']]); });
+// The rule key-proof (Story 9.10) runs the real eval/key-proof.sh (a sample's own copy of it) against stubs of eval/run.sh and ci/iris.sh whose behaviour
+// the sample's kp-mode.txt names; the harness must flag every bad behaviour and pass the good one. A bad sample may also edit the harness, so that it
+// does not flag a behaviour.
+const KP = fs.readFileSync(path.join(process.cwd(), 'eval/key-proof.sh'), 'utf8');
+const KPLIB = fs.readFileSync(path.join(process.cwd(), 'docker/tests/lib-keys.sh'), 'utf8');
+const kpEdited = (edits = []) => edits.reduce((text, [from, to]) => {
+  if (!text.includes(from)) throw new Error(`key-proof: eval/key-proof.sh has no text ${JSON.stringify(from)} to edit`);
+  return text.replace(from, to);
+}, KP);
+const kpSample = (mode, edits = []) => (f) => {
+  f['eval/key-proof.sh'] = kpEdited(edits);
+  f['docker/tests/lib-keys.sh'] = KPLIB;
+  f['kp-mode.txt'] = `${mode}\n`;
+};
+variant('key-proof', 'good', '', kpSample('good'));
+variant('key-proof', 'bad-no-script', 'eval/key-proof.sh: the script is missing', (f) => { f['kp-mode.txt'] = 'good\n'; f['docker/tests/lib-keys.sh'] = KPLIB; });
+variant('key-proof', 'bad-prints-key', 'the captured output holds the key', kpSample('print-key'));
+variant('key-proof', 'bad-writes-key-below-eval', 'files below eval/ hold the key', kpSample('write-eval'));
+variant('key-proof', 'bad-writes-key-in-report', 'the report folder has', kpSample('write-report'));
+variant('key-proof', 'bad-writes-key-in-checkout', 'files of the checkout written during the run hold the key', kpSample('write-checkout'));
+variant('key-proof', 'bad-changes-eval', 'git status --porcelain -- eval/ changed during the run', kpSample('change-eval'));
+variant('key-proof', 'bad-run-fails', 'exited 1', kpSample('exit1'));
+variant('key-proof', 'bad-seven-pass-lines', 'not the eight', kpSample('seven-pass'));
+variant('key-proof', 'bad-fail-line', 'the capture holds a FAIL key proof line', kpSample('fail-line'));
+variant('key-proof', 'bad-no-verdict', 'the capture has no line VERDICT blocked', kpSample('no-verdict'));
+variant('key-proof', 'bad-no-report-file', 'the report folder has 0 file(s)', kpSample('no-report'));
+variant('key-proof', 'bad-leftover-volume', 'the teardown of the tag found something left after the run', kpSample('leftover'));
+variant('key-proof', 'bad-unreadable-file-below-eval', 'cannot be read', kpSample('unreadable'));
+variant('key-proof', 'bad-ten-projects-left', 'the teardown of the tag found something left after the run', kpSample('ten-projects'));
+variant('key-proof', 'bad-harness-without-key-path', 'runs eval/run.sh with other arguments', kpSample('good', [[' --on-mock --key-path > "$capture"', ' --on-mock > "$capture"']]));
+variant('key-proof', 'bad-harness-without-on-mock', 'runs eval/run.sh with other arguments', kpSample('good', [[' --release-candidate --on-mock --key-path > "$capture"', ' --release-candidate --key-path > "$capture"']]));
+variant('key-proof', 'bad-harness-any-teardown', 'does not flag the behaviour', kpSample('leftover', [['if printf \'%s\\n\' "$teardown" | grep -qE \' 0 project\\(s\\) removed, 0 leftover container\\(s\\), 0 leftover volume\\(s\\)\'; then', 'if printf \'%s\\n\' "$teardown" | grep -q TEARDOWN; then']]));
+variant('key-proof', 'bad-harness-prints-dirty-capture', 'the key appears in the output of the harness', kpSample('print-key', [['  fail "the captured output holds the key at line(s) $capture_hits; the output is not printed"\nelse', '  cat "$capture"\n  fail "the captured output holds the key at line(s) $capture_hits; the output is not printed"\nelse']]));
+variant('key-proof', 'bad-harness-without-tag', 'runs without OCUTALON_RUN_TAG', kpSample('good', [['if [ -z "${OCUTALON_RUN_TAG:-}" ]; then', 'if false; then']]));
+variant('key-proof', 'bad-harness-ignores-eval-change', 'does not flag the behaviour', kpSample('change-eval', [['if [ "$status_after" = "$status_before" ]; then pass', 'if true; then pass']]));
+// The rule key-like (Story 9.10): the three scripts read the one definition of the key-like patterns from docker/tests/lib-keys.sh and hold none of their own.
+const KLSRC = '. "$root/docker/tests/lib-keys.sh"\n';
+const KLOWN = `grep -E '${'sk-' + 'ant-'}[A-Za-z0-9_-]{8,}' file\n`;
+const klTree = (extra = {}) => (f) => {
+  f['eval/run.sh'] = `#!/usr/bin/env bash\nset -u\n${extra.runNoSource ? '' : KLSRC}${extra.runOwn ? KLOWN : ''}`;
+  f['eval/key-proof.sh'] = `#!/usr/bin/env bash\nset -u\n${KLSRC}${extra.proofOwn ? KLOWN : ''}`;
+  f['docker/tests/test-boundaries.sh'] = `#!/usr/bin/env bash\nset -u\n${extra.boundariesNoSource ? '' : KLSRC}${extra.boundariesOwn ? KLOWN : ''}`;
+  if (!extra.noLib) f['docker/tests/lib-keys.sh'] = extra.libNoPattern ? 'key_like() { :; }\n' : "KEY_LIKE_ERE='a|b'\nkey_like() { :; }\n";
+};
+variant('key-like', 'good', '', klTree());
+variant('key-like', 'bad-run-own-pattern', 'eval/run.sh: holds a key-like pattern of its own', klTree({ runOwn: true }));
+variant('key-like', 'bad-proof-own-pattern', 'eval/key-proof.sh: holds a key-like pattern of its own', klTree({ proofOwn: true }));
+variant('key-like', 'bad-boundaries-own-pattern', 'docker/tests/test-boundaries.sh: holds a key-like pattern of its own', klTree({ boundariesOwn: true }));
+variant('key-like', 'bad-run-no-source', 'eval/run.sh: does not source docker/tests/lib-keys.sh', klTree({ runNoSource: true }));
+variant('key-like', 'bad-boundaries-no-source', 'docker/tests/test-boundaries.sh: does not source docker/tests/lib-keys.sh', klTree({ boundariesNoSource: true }));
+variant('key-like', 'bad-no-lib', 'docker/tests/lib-keys.sh: the library is missing', klTree({ noLib: true }));
+variant('key-like', 'bad-lib-no-pattern', 'docker/tests/lib-keys.sh: defines no KEY_LIKE_ERE', klTree({ libNoPattern: true }));
 EOF
 
 # --- the rules ---
@@ -1288,6 +1407,8 @@ check_job() {
     /^[A-Za-z]/ { injobs = ($0 ~ /^jobs:/); job = "" }
     injobs && /^  [A-Za-z0-9_-]+:[ ]*$/ { job = $1; sub(/:$/, "", job); if (job == "evaluation") found = 1; next }
     injobs && job == "evaluation" && /^[ ]+(- )?run:[ ]+bash eval\/run\.sh[ ]*$/ { step = 1 }
+    injobs && job == "evaluation" && /^[ ]+(- )?run:[ ]+bash eval\/key-proof\.sh[ ]*$/ && step && !tdown { proof = 1 }
+    injobs && job == "evaluation" && /^[ ]+(- )?run:[ ]+bash ci\/iris\.sh teardown[ ]*$/ { tdown = 1 }
     injobs && job == "evaluation" && /^[ ]+(- )?run:[ ]+bash ci\/iris\.sh build[ ]*$/ && !step { build = 1 }
     injobs && job == "evaluation" && /^    timeout-minutes:[ ]+[0-9]+[ ]*$/ { timeout = 1 }
     injobs && job == "evaluation" && /^      OCUTALON_RUN_TAG:[ ]+.*github\.run_id.*github\.run_attempt.*-eval[ ]*$/ { tag = 1 }
@@ -1299,6 +1420,7 @@ check_job() {
         if (!build) print ".github/workflows/lane-a.yml: the job evaluation does not run bash ci/iris.sh build before bash eval/run.sh"
         if (!timeout) print ".github/workflows/lane-a.yml: the job evaluation has no timeout-minutes"
         if (!tag) print ".github/workflows/lane-a.yml: the job evaluation'"'"'s OCUTALON_RUN_TAG is not run id, attempt and -eval"
+        if (!proof) print ".github/workflows/lane-a.yml: the job evaluation does not run bash eval/key-proof.sh after bash eval/run.sh and before the teardown"
       }
       if (named) print ".github/workflows/lane-a.yml: the file names the switch OCUTALON_EVAL"
     }
@@ -1320,6 +1442,7 @@ check_eval_scripts() {
   tree_files "$base" | grep '^eval/.*\.sh$' | while IFS= read -r f; do
     awk -v f="$f" '
       /^[[:space:]]*#/ { next }
+      $0 == ". \"$root/docker/tests/lib-keys.sh\"" { next }
       tolower($0) ~ /docker/ { print f ":" FNR ": a code line names the container tool" }
       $0 ~ /(^|[ ;|&(])dc[ ]+([^ ]+[ ]+)*(config|convert|push)([ ]|$)/ { print f ":" FNR ": a call through the wrapper uses config, convert or push" }
     ' "$base/$f"
@@ -1366,6 +1489,20 @@ check_run_guard() {
     fi
     [ -d "$dir/reports-$n" ] || echo "eval/run.sh: OCUTALON_EVAL_REPORT_DIR is not made"
   done
+  # DW-434: with a rebuild asked for and the container tool failing, the preflight ends the run before the first npm process
+  rm -rf "$tmp/stub-npm"
+  mkdir -p "$tmp/stub-npm"
+  : > "$tmp/stub-npm.calls"
+  printf '#!/bin/sh\necho "$*" >> "%s"\nexit 0\n' "$tmp/stub-npm.calls" > "$tmp/stub-npm/npm"
+  printf '#!/bin/sh\nexit 0\n' > "$tmp/stub-npm/node"
+  chmod +x "$tmp/stub-npm/npm" "$tmp/stub-npm/node"
+  : > "$calls"
+  rc=0
+  (cd "$dir" && env -u RUNNER_TEMP LIVE_REBUILD_WEB=1 OCUTALON_LOCK_DIR="$dir/no-locks" PATH="$tmp/stub-npm:$tmp/stub:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-guard-check \
+    OCUTALON_EVAL_REPORT_DIR="$dir/reports-npm" bash "$script" > "$dir/out.log" 2>&1) || rc=$?
+  if [ "$rc" -ne 1 ] || [ ! -s "$calls" ] || [ -s "$tmp/stub-npm.calls" ]; then
+    echo "eval/run.sh: with the container tool failing and LIVE_REBUILD_WEB=1, the run does not end at the preflight before the first npm process (exit $rc)"
+  fi
 }
 
 # check_record_guard <root>: the violations of docker/tests/record-eval.sh of the tree in its use of its argument. The script runs from a copy in a
@@ -1444,7 +1581,7 @@ check_rc_guard() {
     tool=${tool}ker
     printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$calls" > "$tmp/stub/$tool"
     chmod +x "$tmp/stub/$tool"
-    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate'; do
+    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate' '--key-path' '--release-candidate --key-path' '--on-mock --key-path' '--release-candidate --on-mock --key-path extra' '--release-candidate --key-path --on-mock' '--key-path --release-candidate --on-mock' '--override x --key-path'; do
       # shellcheck disable=SC2086
       rc=$(rc_run "$dir" "$script" "$fake" $args)
       if [ "$rc" -ne 2 ]; then
@@ -1465,9 +1602,19 @@ check_rc_guard() {
         echo "eval/run.sh: the refusal of --release-candidate with the key $key does not name ANTHROPIC_API_KEY"
       fi
     done
-    for args in '--release-candidate' '--release-candidate --on-mock'; do
+    for key in unset empty; do
+      rc=$(rc_run "$dir" "$script" "$key" --release-candidate --on-mock --key-path)
+      if [ "$rc" -ne 2 ]; then
+        echo "eval/run.sh: --release-candidate --on-mock --key-path with the key $key is not refused with exit 2 (exit $rc)"
+      elif [ -s "$calls" ]; then
+        echo "eval/run.sh: --release-candidate --on-mock --key-path with the key $key reached the container tool before it was refused"
+      elif ! grep -q 'ANTHROPIC_API_KEY' "$dir/out.log"; then
+        echo "eval/run.sh: the refusal of --release-candidate --on-mock --key-path with the key $key does not name ANTHROPIC_API_KEY"
+      fi
+    done
+    for args in '--release-candidate' '--release-candidate --on-mock' '--release-candidate --on-mock --key-path'; do
       for key in "$fake" unset; do
-        if [ "$args" = '--release-candidate' ] && [ "$key" = unset ]; then continue; fi
+        if [ "$key" = unset ] && { [ "$args" = '--release-candidate' ] || [ "$args" = '--release-candidate --on-mock --key-path' ]; }; then continue; fi
         # shellcheck disable=SC2086
         rc=$(rc_run "$dir" "$script" "$key" $args)
         if [ "$rc" -ne 1 ] || [ ! -s "$calls" ]; then
@@ -1596,12 +1743,14 @@ ro_refused() {
 # tree holds eval/release-candidate.json, it is a JSON object of the format ocutalon.evalResult/1 that is not an on-mock result, whose verdict is
 # pass, blocked or overridden and has a non-blank override.reason exactly when it is overridden, and eval/release-candidate.md is there.
 check_rc_override() {
-  local script="$1/eval/run.sh" dir="$tmp/guard-override" rc reason long label verify
+  local script="$1/eval/run.sh" dir="$tmp/guard-override" rc reason long label verify keylike
   if [ ! -f "$script" ]; then
     echo "eval/run.sh: the script is missing"
   else
     rm -rf "$dir" "$tmp/stub-ro"
-    mkdir -p "$dir/eval" "$tmp/stub-ro"
+    mkdir -p "$dir/eval" "$dir/docker/tests" "$tmp/stub-ro"
+    cp "$root/docker/tests/lib-keys.sh" "$dir/docker/tests/lib-keys.sh"
+    keylike="k=sk-""ant-""aaaaaaaaaaaaaaaa"
     local tool=doc
     tool=${tool}ker
     printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$tmp/stub-ro.calls" > "$tmp/stub-ro/$tool"
@@ -1641,6 +1790,21 @@ check_rc_override() {
     ro_refused "$dir" 'a reason that is not printable ASCII' "$(printf 'caf\303\251')"
     ro_put "$dir" blocked null 'Verdict: blocked'
     ro_refused "$dir" 'a reason of 501 characters' "${long}a"
+    # Story 9.10 (owner condition U-166 (c)): a key-like reason is refused with exit 2 and both files unchanged, and a result pair that holds key-like text
+    # is written and then reported with exit 4, the files kept and the text never printed.
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    ro_refused "$dir" 'a key-like reason' "$keylike"
+    if ! grep -q 'holds key-like text' "$dir/out.log" || grep -qF -- "$keylike" "$dir/out.log"; then
+      echo "eval/run.sh --override: the refusal of a key-like reason does not say so, or shows the text"
+    fi
+    ro_put "$dir" blocked null 'Verdict: blocked'
+    printf 'a note: %s\n' "$keylike" >> "$dir/eval/release-candidate.md"
+    rc=$(ro_run "$dir" "$reason")
+    if [ "$rc" -ne 4 ] || ! grep -q 'do not commit them' "$dir/out.log" || grep -qF -- "$keylike" "$dir/out.log"; then
+      echo "eval/run.sh --override: a result whose Markdown holds key-like text is not told apart with exit 4, the do-not-commit line and no text (exit $rc)"
+    elif ! grep -q '^Verdict: overridden' "$dir/eval/release-candidate.md" || ! grep -q 'release-candidate.md:' "$dir/out.log"; then
+      echo "eval/run.sh --override: a result whose Markdown holds key-like text is not written, or the line does not name the file and line"
+    fi
     if [ -s "$tmp/stub-ro.calls" ]; then
       echo "eval/run.sh --override: the override called the container tool"
     fi
@@ -1650,12 +1814,14 @@ check_rc_override() {
 
 # rcs_session <calls> <dir> <script> <key> <args...>: runs the script from the folder with a stub in place of the container tool that succeeds, prints
 # nothing and records, in <calls>, each call's arguments ("ARGS ..."), the lines an IRIS session reads on its input, and the state of its environment
-# ("ENV eval=<OCUTALON_EVAL> key=<set|unset>": whether the key is there, never its value). A second stub makes sleep instant. The script gets as far
-# as its first IRIS session, finds that it printed nothing and stops, so nothing is started or written beyond the folder. It prints the exit code.
+# ("ENV eval=<OCUTALON_EVAL> key=<set|unset>": whether the key is there, never its value). A second stub makes sleep instant, and a third, npm, records each
+# call and whether it had the key ("NPM <arguments> key=<set|unset>") in $tmp/stub-rcs.npm. The script gets as far as its first IRIS session, finds that it
+# printed nothing and stops, so nothing is started or written beyond the folder. It prints the exit code.
 rcs_session() {
   local calls=$1 dir=$2 script=$3 key=$4 rc=0
   shift 4
   : > "$calls"
+  : > "$tmp/stub-rcs.npm"
   if [ "$key" = unset ]; then
     (cd "$dir" && env -u RUNNER_TEMP -u ANTHROPIC_API_KEY OCUTALON_LOCK_DIR="$dir/no-locks" PATH="$tmp/stub-rcs:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-stack-check bash "$script" "$@" > "$dir/out.log" 2>&1) || rc=$?
   else
@@ -1664,11 +1830,43 @@ rcs_session() {
   echo "$rc"
 }
 
+# rcs_run <calls> <dir> <script> <key> <args...>: rcs_session on a fresh copy tree in <dir>/t (the real tree's ci/iris.sh, ci/units.sh, ci/compose.ci.yml, the
+# libraries of docker/tests/ and the override file, and the script as eval/run.sh), with LIVE_REBUILD_WEB=1. A checkout of this tree is never touched: the
+# stub npm makes web/node_modules and the bundle's index.html where a real npm would, and they are made in the copy.
+rcs_run() {
+  local calls=$1 dir=$2 script=$3 f
+  rm -rf "$dir/t"
+  mkdir -p "$dir/t/ci" "$dir/t/docker/tests" "$dir/t/eval"
+  for f in ci/iris.sh ci/units.sh ci/compose.ci.yml docker/tests/lib-live.sh docker/tests/lib-keys.sh eval/compose.release-candidate.yml; do
+    cp "$root/$f" "$dir/t/$f"
+  done
+  cp "$script" "$dir/t/eval/run.sh"
+  shift 3
+  LIVE_REBUILD_WEB=1 rcs_session "$calls" "$dir" "$dir/t/eval/run.sh" "$@"
+}
+
+# rcs_npm <label>: the violations in the npm calls of the last rcs_session, which ran with LIVE_REBUILD_WEB=1 (DW-434): at least one npm process, none of
+# them with the key in its environment, and the web bundle built once (the pre-build, and nothing more in live_start).
+rcs_npm() {
+  local builds
+  builds=$(grep -c '^NPM .*run build' "$tmp/stub-rcs.npm" || true)
+  if [ ! -s "$tmp/stub-rcs.npm" ]; then
+    echo "eval/run.sh: $1 runs no npm process though LIVE_REBUILD_WEB is 1"
+  else
+    if grep -q 'key=set' "$tmp/stub-rcs.npm"; then echo "eval/run.sh: $1 has the key in the environment of an npm process"; fi
+    if [ "$builds" -ne 1 ]; then echo "eval/run.sh: $1 builds the web bundle $builds times, not once"; fi
+  fi
+}
+
 # check_rc_stack <root>: the violations of eval/run.sh of the tree in how --release-candidate builds its stack and checks its readiness, from the
-# calls the script makes to a stub of the container tool (see rcs_session). With the key (a value that is not a key), --release-candidate lays
-# eval/compose.release-candidate.yml over the stack, with the key and OCUTALON_EVAL=1 in the environment of the call that starts it; its first IRIS
-# session asks RunningReason and never PointKeys, RestoreKeys or ReadyReason (the mock's); and the value of the key is in no call, no output and no
-# file. --release-candidate --on-mock, with no key, lays nothing over the stack, enables EvalIn, and points the keys at the mock.
+# calls the script makes to a stub of the container tool (see rcs_session). Every session runs with LIVE_REBUILD_WEB=1, so that the web bundle is built
+# by the stub npm in any checkout. With the key (a value that is not a key), --release-candidate lays eval/compose.release-candidate.yml over the stack,
+# with the key and OCUTALON_EVAL=1 in the environment of the call that starts it; its first IRIS session asks RunningReason and never PointKeys,
+# RestoreKeys or ReadyReason (the mock's); and the value of the key is in no call, no output and no file. --release-candidate --on-mock lays nothing
+# over the stack, enables EvalIn, and points the keys at the mock, with the key unset in every call whether the caller holds a key or not (Story 9.10,
+# veto U-168). --release-candidate --on-mock --key-path, with a key, lays the override over the stack and the CI file again after it, with the key in
+# the environment of the call that starts it, asks ReadyReason and KeysAre in its first session and never calls PointKeys or RestoreKeys. In every
+# form the npm processes have no key and the web bundle is built once.
 check_rc_stack() {
   local script="$1/eval/run.sh" dir="$tmp/stack-rc" calls="$tmp/stub-rcs.calls" rc fake up
   fake="zz-not-a-key-$RANDOM$RANDOM"
@@ -1684,11 +1882,13 @@ check_rc_stack() {
   # shellcheck disable=SC2016
   printf '#!/bin/sh\necho "ARGS $*" >> "%s"\necho "ENV eval=${OCUTALON_EVAL-} key=$([ -n "${ANTHROPIC_API_KEY-}" ] && echo set || echo unset)" >> "%s"\ncase "$*" in *"iris session"*) cat >> "%s" ;; esac\nexit 0\n' "$calls" "$calls" "$calls" > "$tmp/stub-rcs/$tool"
   printf '#!/bin/sh\nexit 0\n' > "$tmp/stub-rcs/sleep"
-  # A checkout without the web bundle (the hosted checks job) would have lib-live's ensure_web_bundle run npm: the stub does nothing instead.
-  printf '#!/bin/sh\nexit 0\n' > "$tmp/stub-rcs/npm"
+  # A checkout without the web bundle (the hosted checks job) would have the web build run npm: the stub records its calls and makes the two paths that
+  # a real npm leaves behind, in the copy tree.
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\necho "NPM $* key=$([ -n "${ANTHROPIC_API_KEY-}" ] && echo set || echo unset)" >> "%s"\ncase "$*" in\n  *" ci"*) mkdir -p web/node_modules ;;\n  *"run build"*) mkdir -p src/ocutalon/csp && : > src/ocutalon/csp/index.html ;;\nesac\nexit 0\n' "$tmp/stub-rcs.npm" > "$tmp/stub-rcs/npm"
   chmod +x "$tmp/stub-rcs/$tool" "$tmp/stub-rcs/sleep" "$tmp/stub-rcs/npm"
   # --release-candidate with a key
-  rc=$(rcs_session "$calls" "$dir" "$script" "$fake" --release-candidate)
+  rc=$(rcs_run "$calls" "$dir" "$script" "$fake" --release-candidate)
   up=$(awk '/^ARGS compose .* up / { print; getline; print }' "$calls")
   if [ "$rc" -eq 2 ] || [ -z "$up" ]; then
     echo "eval/run.sh: --release-candidate with a key does not start a stack (exit $rc)"
@@ -1708,22 +1908,60 @@ check_rc_stack() {
     if grep -qF -- "$fake" "$calls" "$dir/out.log" || grep -rqF --exclude=out.log -- "$fake" "$dir" || [ -n "$(new_files_with "$1" "$tmp/rc-stack.stamp" "$fake")" ]; then
       echo "eval/run.sh: the value of the key appears in a call, the output or a file of --release-candidate"
     fi
+    rcs_npm "--release-candidate"
   fi
-  # --release-candidate --on-mock without a key
-  rc=$(rcs_session "$calls" "$dir" "$script" unset --release-candidate --on-mock)
+  # --release-candidate --on-mock without a key, and with a key in the caller's environment but no --key-path
+  for key in unset "$fake"; do
+    rc=$(rcs_run "$calls" "$dir" "$script" "$key" --release-candidate --on-mock)
+    up=$(awk '/^ARGS compose .* up / { print; getline; print }' "$calls")
+    if [ "$rc" -eq 2 ] || [ -z "$up" ]; then
+      echo "eval/run.sh: --release-candidate --on-mock does not start a stack (exit $rc)"
+    else
+      if grep -q 'compose\.release-candidate\.yml' "$calls"; then
+        echo "eval/run.sh: the stack of --release-candidate --on-mock is layered with eval/compose.release-candidate.yml"
+      fi
+      if ! printf '%s\n' "$up" | grep -q '^ENV eval=1 key=unset$'; then
+        echo "eval/run.sh: --release-candidate --on-mock does not enable EvalIn with OCUTALON_EVAL=1"
+      fi
+      if grep -q 'key=set' "$calls"; then
+        echo "eval/run.sh: --release-candidate --on-mock without --key-path has the key in the environment of a call"
+      fi
+      if ! grep -q 'PointKeys' "$calls"; then
+        echo "eval/run.sh: --release-candidate --on-mock does not point the keys at the mock"
+      fi
+      if [ "$key" != unset ] && { grep -qF -- "$fake" "$calls" "$dir/out.log" || grep -rqF --exclude=out.log -- "$fake" "$dir" || [ -n "$(new_files_with "$1" "$tmp/rc-stack.stamp" "$fake")" ]; }; then
+        echo "eval/run.sh: the value of the key appears in a call, the output or a file of --release-candidate --on-mock"
+      fi
+      rcs_npm "--release-candidate --on-mock"
+    fi
+  done
+  # --release-candidate --on-mock --key-path with a key: the key-path rehearsal
+  rc=$(rcs_run "$calls" "$dir" "$script" "$fake" --release-candidate --on-mock --key-path)
   up=$(awk '/^ARGS compose .* up / { print; getline; print }' "$calls")
   if [ "$rc" -eq 2 ] || [ -z "$up" ]; then
-    echo "eval/run.sh: --release-candidate --on-mock does not start a stack (exit $rc)"
+    echo "eval/run.sh: --release-candidate --on-mock --key-path with a key does not start a stack (exit $rc)"
   else
-    if grep -q 'compose\.release-candidate\.yml' "$calls"; then
-      echo "eval/run.sh: the stack of --release-candidate --on-mock is layered with eval/compose.release-candidate.yml"
+    if ! printf '%s\n' "$up" | grep -q '^ARGS .*eval/compose\.release-candidate\.yml'; then
+      echo "eval/run.sh: the stack of the key-path rehearsal is not layered with eval/compose.release-candidate.yml"
+    elif [ "$(printf '%s\n' "$up" | awk '/^ARGS / { for (i = 1; i <= NF; i++) { if ($i ~ /eval\/compose\.release-candidate\.yml$/) rc = i; if ($i ~ /ci\/compose\.ci\.yml$/) { ci = i; n++ } } } END { print (rc > 0 && ci > rc && n == 2) }')" != 1 ]; then
+      echo "eval/run.sh: the override of the key-path rehearsal is not followed by ci/compose.ci.yml again (the CI file twice, last)"
     fi
-    if ! printf '%s\n' "$up" | grep -q '^ENV eval=1 key=unset$'; then
-      echo "eval/run.sh: --release-candidate --on-mock does not enable EvalIn with OCUTALON_EVAL=1"
+    if ! printf '%s\n' "$up" | grep -q '^ENV eval=1 key=set$'; then
+      echo "eval/run.sh: the key-path rehearsal does not start the stack with OCUTALON_EVAL=1 and the key in its environment"
     fi
-    if ! grep -q 'PointKeys' "$calls"; then
-      echo "eval/run.sh: --release-candidate --on-mock does not point the keys at the mock"
+    if ! grep -q 'ReadyReason' "$calls" || ! grep -q 'KeysAre' "$calls"; then
+      echo "eval/run.sh: the key-path rehearsal asks no ReadyReason and KeysAre of its first IRIS session"
     fi
+    if grep -Eq 'PointKeys|RestoreKeys' "$calls"; then
+      echo "eval/run.sh: the key-path rehearsal calls PointKeys or RestoreKeys"
+    fi
+    if ! grep -q '^INFO --on-mock with ANTHROPIC_API_KEY set' "$dir/out.log"; then
+      echo "eval/run.sh: the key-path rehearsal prints no INFO line that says the key goes to the CI mock only"
+    fi
+    if grep -qF -- "$fake" "$calls" "$dir/out.log" || grep -rqF --exclude=out.log -- "$fake" "$dir" || [ -n "$(new_files_with "$1" "$tmp/rc-stack.stamp" "$fake")" ]; then
+      echo "eval/run.sh: the value of the key appears in a call, the output or a file of the key-path rehearsal"
+    fi
+    rcs_npm "the key-path rehearsal"
   fi
 }
 
@@ -1751,8 +1989,28 @@ case "$*" in
         printf 'CHK|running|\nCHK|items|1\nCHK|records|1\nCHK|keys-TriageAgent|1\nCHK|keys-DiagnosisAgent|1\nCHK|keys-ChatAgent|%s\n' "$key"
         printf 'CHK|baseurl|\nCHK|mockheader|0\nCHK|model-TriageAgent|claude-haiku-5-5\nCHK|model-DiagnosisAgent|%s\nCHK|model-ChatAgent|claude-haiku-5-5\n' "$model"
         ;;
+      *KEYPLACEHOLDER*)
+        printf 'CHK|ready|\nCHK|records|1\nCHK|keys-TriageAgent|1\nCHK|keys-DiagnosisAgent|1\nCHK|keys-ChatAgent|1\nCHK|placeholder|1\nCHK|keylength|%s\n' "${#ANTHROPIC_API_KEY}"
+        printf 'CHK|model-TriageAgent|claude-haiku-5-5\nCHK|model-DiagnosisAgent|claude-haiku-5-5\nCHK|model-ChatAgent|claude-haiku-5-5\n'
+        ;;
+      *KeyProof*)
+        hits=0 places= stores='0|3|' trace='0|66|6|1287|Ens.AlarmRequest||' mock='219|0'
+        case ${RCF_KP:-} in
+          globals) hits=1 places=OCUTALON_DATA:^ZzLeak ;;
+          stores) stores='1|3|entry ZzStore' ;;
+          stores-nocontrol) stores='0|0|' ;;
+          trace) trace='1|66|6|1287|Ens.AlarmRequest|OCUTALON:42|' ;;
+          trace-nocontrol) trace='0|0|6|1287|Ens.AlarmRequest||' ;;
+          trace-unreadable) trace='-1|66|6|1287|Ens.AlarmRequest||OCUTALON:7' ;;
+          mock) mock='219|3' ;;
+          mock-none) mock='0|0' ;;
+        esac
+        printf 'CHK|started|1\nCHK|keylength|%s\n' "${#ANTHROPIC_API_KEY}"
+        printf 'CHK|globals|%s|5|16|IRISLIB (read-only)|800|4000000|3|%s|\n' "$hits" "$places"
+        printf 'CHK|stores|%s\nCHK|trace|%s\nCHK|mock|%s\n' "$stores" "$trace" "$mock"
+        ;;
       *ReadyReason*) printf 'CHK|ready|\nCHK|keys|1\n' ;;
-      *'Eval.Report).Run('*) printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|0\nCHK|saved|1\n' ;;
+      *'Eval.Report).Run('*) printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|0\nCHK|democase|orders-date-format\nCHK|saved|1\n' ;;
       *'Eval.Gate).Demo('*) printf 'CHK|started|1\nCHK|demorun|1\nCHK|demogate|10|10|1\nCHK|saved|1\n' ;;
       *'Eval.Gate).Attempt('*)
         printf 'CHK|started|1\nCHK|met|%s\nCHK|below|\n' "$RCF_MET"
@@ -1765,6 +2023,26 @@ case "$*" in
   *"exec -T iris cat "*)
     for f in "$@"; do last=$f; done
     printf 'stub %s\n' "$last"
+    case $last in
+      */release-candidate.md | */release-candidate-on-mock.md) if [ -n "${RCF_PLANT:-}" ]; then printf '%s\n' "$RCF_PLANT"; fi ;;
+    esac
+    ;;
+  *" logs --no-color"*)
+    if [ "${RCF_KP:-}" = logs-nocontrol ]; then
+      printf 'iris  | started\n'
+    else
+      printf 'mock  | {"path":"/v1/messages","keyLength":%s}\niris  | started\n' "${#ANTHROPIC_API_KEY}"
+    fi
+    if [ "${RCF_KP:-}" = logs ]; then printf 'iris  | leaked %s\n' "$ANTHROPIC_API_KEY"; fi
+    ;;
+  *"exec -T iris sh -c"*)
+    found=0 unreadable=0 control=1
+    case ${RCF_KP:-} in
+      files) found=1 ;;
+      files-unreadable) unreadable=2 ;;
+      files-nocontrol) control=0 ;;
+    esac
+    printf 'FILES|%s|%s|%s|%s|20|1\n' "$found" "$unreadable" "$(( ${#ANTHROPIC_API_KEY} + 1 ))" "$control"
     ;;
 esac
 exit 0
@@ -1783,9 +2061,11 @@ rcf_session() {
   shift 6
   rm -rf "$dir"
   mkdir -p "$dir/t/ci" "$dir/t/docker/tests" "$dir/t/eval" "$dir/t/web/node_modules" "$dir/t/src/ocutalon/csp" "$dir/reports"
-  for f in ci/iris.sh ci/units.sh ci/compose.ci.yml docker/tests/lib-live.sh eval/compose.release-candidate.yml; do
+  for f in ci/iris.sh ci/units.sh ci/compose.ci.yml docker/tests/lib-live.sh docker/tests/lib-keys.sh eval/compose.release-candidate.yml; do
     cp "$root/$f" "$dir/t/$f"
   done
+  mkdir -p "$dir/t/eval/orders-date-format"
+  printf '{"name":"orders-date-format"}\n' > "$dir/t/eval/orders-date-format/case.json"
   : > "$dir/t/src/ocutalon/csp/index.html"
   cp "$script" "$dir/t/eval/run.sh"
   : > "$dir/calls"
@@ -1844,7 +2124,62 @@ rcf_cases() {
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked model --release-candidate)
   if [ "$rc" -ne 1 ] || ! rcf_none "$dir" || grep -qF 'Eval.Report).Run(' "$dir/calls"; then echo "eval/run.sh: --release-candidate goes on with a runner on another model than claude-haiku-5-5 (exit $rc)" && return 0; fi
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked key --release-candidate)
-  if [ "$rc" -ne 1 ] || ! rcf_none "$dir" || grep -qF 'Eval.Report).Run(' "$dir/calls"; then echo "eval/run.sh: --release-candidate goes on with a runner that has no key (exit $rc)"; fi
+  if [ "$rc" -ne 1 ] || ! rcf_none "$dir" || grep -qF 'Eval.Report).Run(' "$dir/calls"; then echo "eval/run.sh: --release-candidate goes on with a runner that has no key (exit $rc)" && return 0; fi
+  rcf_cases_keys "$script" "$dir" "$fake"
+}
+
+# rcf_cases_keys <script> <dir> <key>: the cases of Story 9.10 (the key-like scan of the result pair and the key proof of the key-path rehearsal), one at a
+# time, stopping after the first that has a violation. The key-like text is built here from fragments.
+rcf_cases_keys() {
+  local script=$1 dir=$2 fake=$3 rc out pair kp label plant="k=sk-""ant-""aaaaaaaaaaaaaaaa"
+  # a key-like line in the result pair of --release-candidate: exit 4, the pair kept in eval/, the file and line named, the text never printed
+  rc=$(RCF_PLANT="$plant" rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
+  out=$(
+    if [ "$rc" -ne 4 ]; then echo "eval/run.sh: a key-like line in the result of --release-candidate does not end with exit 4 (exit $rc)"; fi
+    if ! grep -q '^FAIL eval/release-candidate\.json and eval/release-candidate\.md hold key-like text at eval/release-candidate\.md:2: do not commit them' "$dir/out.log"; then
+      echo "eval/run.sh: a key-like line in the result of --release-candidate does not print the do-not-commit line with the file and line"
+    fi
+    if grep -qF -- "$plant" "$dir/out.log" "$dir/calls"; then echo "eval/run.sh: the key-like text appears in the output or a call of --release-candidate"; fi
+    if ! grep -qF -- "$plant" "$dir/t/eval/release-candidate.md" || [ ! -s "$dir/t/eval/release-candidate.json" ]; then echo "eval/run.sh: a result pair with key-like text is not kept in eval/"; fi
+  )
+  if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
+  # the same on the CI mock: the pair of the report folder
+  rc=$(RCF_PLANT="$plant" rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  out=$(
+    if [ "$rc" -ne 4 ]; then echo "eval/run.sh: a key-like line in the result of --release-candidate --on-mock does not end with exit 4 (exit $rc)"; fi
+    if ! grep -q "^FAIL .*release-candidate-on-mock\.md:2: do not commit them" "$dir/out.log"; then
+      echo "eval/run.sh: a key-like line in the result of --release-candidate --on-mock does not print the do-not-commit line with the file and line"
+    fi
+    if grep -qF -- "$plant" "$dir/out.log" "$dir/calls"; then echo "eval/run.sh: the key-like text appears in the output or a call of --release-candidate --on-mock"; fi
+    if ! grep -qF -- "$plant" "$dir/reports/release-candidate-on-mock.md" || ! rcf_none "$dir"; then echo "eval/run.sh: the pair of --release-candidate --on-mock is not kept in the report folder alone"; fi
+  )
+  if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
+  # a clean pair gets the PASS line
+  rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
+  if [ "$rc" -ne 3 ] || ! grep -q '^PASS release-candidate: the result pair holds no key-like text$' "$dir/out.log"; then echo "eval/run.sh: a clean result pair of --release-candidate gets no PASS line for the key-like scan (exit $rc)" && return 0; fi
+  # the key-path rehearsal on a stub whose scans are clean: the eight PASS lines
+  rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate --on-mock --key-path)
+  out=$(
+    if [ "$rc" -ne 0 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || ! grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
+      echo "eval/run.sh: the key-path rehearsal on clean scans does not end with VERDICT blocked, all checks passed and exit 0 (exit $rc)"
+    fi
+    if [ "$(grep -c '^PASS key proof ' "$dir/out.log")" -ne 8 ]; then echo "eval/run.sh: the key-path rehearsal holds $(grep -c '^PASS key proof ' "$dir/out.log") PASS key proof lines, not 8"; fi
+    if ! grep -q '^PASS release-candidate-on-mock: the result pair holds no key-like text$' "$dir/out.log"; then echo "eval/run.sh: the key-path rehearsal prints no PASS line for the key-like scan"; fi
+    if grep -q 'PointKeys\|RestoreKeys' "$dir/calls"; then echo "eval/run.sh: the key-path rehearsal calls PointKeys or RestoreKeys"; fi
+    if ! rcf_none "$dir"; then echo "eval/run.sh: the key-path rehearsal writes a result file into eval/"; fi
+    if grep -rqF -- "$fake" "$dir/calls" "$dir/out.log" "$dir/reports" "$dir/t"; then echo "eval/run.sh: the value of the key appears in a call, the output or a file of the key-path rehearsal"; fi
+  )
+  if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
+  # a hit, a failed control or an unreadable place of each scan: FAIL key proof <label> and exit 1
+  for pair in globals:globals stores:stores stores-nocontrol:stores trace:trace trace-nocontrol:trace trace-unreadable:trace mock:mock\ log mock-none:mock\ log \
+    logs:container\ logs logs-nocontrol:container\ logs files:container\ files files-unreadable:container\ files files-nocontrol:container\ files; do
+    kp=${pair%%:*} label=${pair#*:}
+    rc=$(RCF_KP=$kp rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate --on-mock --key-path)
+    if [ "$rc" -ne 1 ] || ! grep -q "^FAIL key proof $label: " "$dir/out.log" || grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
+      echo "eval/run.sh: the case '$kp' of the key proof does not end the key-path rehearsal with FAIL key proof $label and exit 1 (exit $rc)"
+    fi
+    if grep -qF -- "$fake" "$dir/out.log" "$dir/reports"/* 2> /dev/null; then echo "eval/run.sh: the value of the key appears in the output of the case '$kp' of the key-path rehearsal"; fi
+  done
 }
 
 # check_rc_flow <root>: the violations of eval/run.sh of the tree in the whole release-candidate sequence, run from a copy tree with the real tree's
@@ -1859,6 +2194,131 @@ check_rc_flow() {
   fi
   rcf_stub
   rcf_cases "$1/eval/run.sh"
+}
+
+# check_key_like <root>: the violations of the three scripts that read the key-like patterns (Story 9.10; owner condition U-166 (c)): eval/run.sh,
+# eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition (the exact line), and none of them holds
+# a key-like pattern of its own (the text of the first alternative); the library exists and defines KEY_LIKE_ERE. The needle is built from fragments, so
+# that this file does not hold it either.
+check_key_like() {
+  local base=$1 f needle="sk-""ant-""["
+  for f in eval/run.sh eval/key-proof.sh docker/tests/test-boundaries.sh; do
+    if [ ! -f "$base/$f" ]; then
+      echo "$f: the file is missing"
+      continue
+    fi
+    grep -q '^\. "\$root/docker/tests/lib-keys\.sh"$' "$base/$f" || echo "$f: does not source docker/tests/lib-keys.sh"
+    if grep -qF -- "$needle" "$base/$f"; then echo "$f: holds a key-like pattern of its own"; fi
+  done
+  if [ ! -f "$base/docker/tests/lib-keys.sh" ]; then
+    echo "docker/tests/lib-keys.sh: the library is missing"
+  elif ! grep -q '^KEY_LIKE_ERE=' "$base/docker/tests/lib-keys.sh"; then
+    echo "docker/tests/lib-keys.sh: defines no KEY_LIKE_ERE"
+  fi
+}
+
+# kp_stubs <dir>: the stubs of eval/run.sh and ci/iris.sh for the rule key-proof, in the copy tree <dir>. The stub run records the key it was given in
+# $KP_RECORD, notes in $KP_RAN that it ran, and behaves as $KP_MODE says (see check_key_proof). The stub teardown prints the counts of ci/iris.sh.
+kp_stubs() {
+  cat > "$1/eval/run.sh" << 'STUB'
+#!/usr/bin/env bash
+root=$(cd "$(dirname "$0")/.." && pwd)
+echo ran >> "$KP_RAN"
+printf '%s' "${ANTHROPIC_API_KEY-}" > "$KP_RECORD"
+printf '%s' "$*" > "$KP_RECORD.args"
+mode=${KP_MODE:-good}
+labels="globals stores trace mock-log container-logs container-files run-files eval-files"
+[ "$mode" = seven-pass ] && labels="globals stores trace mock-log container-logs container-files run-files"
+for label in $labels; do
+  if [ "$mode" = fail-line ] && [ "$label" = globals ]; then
+    echo "FAIL key proof globals: a stub hit"
+  else
+    echo "PASS key proof ${label/-/ }: a stub scan"
+  fi
+done
+case $mode in
+  print-key) echo "key: $ANTHROPIC_API_KEY" ;;
+  write-eval) printf '%s' "$ANTHROPIC_API_KEY" > "$root/eval/leak.txt" ;;
+  write-report) printf '%s' "$ANTHROPIC_API_KEY" > "$OCUTALON_EVAL_REPORT_DIR/leak.txt" ;;
+  write-checkout)
+    printf '%s' "$ANTHROPIC_API_KEY" > "$root/leak.txt"
+    touch -t 203512312359 "$root/leak.txt"
+    ;;
+  change-eval) echo changed > "$root/eval/new.txt" ;;
+  unreadable)
+    echo locked > "$root/eval/locked.txt"
+    chmod 000 "$root/eval/locked.txt"
+    ;;
+esac
+[ "$mode" = no-report ] || echo "stub report" > "$OCUTALON_EVAL_REPORT_DIR/release-candidate-on-mock.md"
+[ "$mode" = no-verdict ] || echo "VERDICT blocked"
+echo "eval/run: all checks passed"
+[ "$mode" = exit1 ] && exit 1
+exit 0
+STUB
+  cat > "$1/ci/iris.sh" << 'STUB'
+#!/usr/bin/env bash
+volumes=0 projects=0
+[ "${KP_MODE:-good}" = leftover ] && volumes=1
+[ "${KP_MODE:-good}" = ten-projects ] && projects=10
+echo "TEARDOWN tag ${OCUTALON_RUN_TAG:-none}: $projects project(s) removed, 0 leftover container(s), $volumes leftover volume(s), 0 leftover network(s), 0 leftover image(s)"
+STUB
+}
+
+# check_key_proof <root>: the violations of eval/key-proof.sh of the tree (Story 9.10). The script runs from a copy tree beside kp_stubs's eval/run.sh and
+# ci/iris.sh, in a git repository of its own, with the stub's behaviour set by the tree's kp-mode.txt (none: good). The violations are the harness's own
+# FAIL lines, so a bad behaviour is flagged exactly when the harness flags it, and the good one is not; and the invariants of every behaviour: the key the
+# stub received has the shape of a real key and 66 characters, it is never in the output of the harness, the harness exits 1 when it flags something and
+# 0 when it does not, and without OCUTALON_RUN_TAG it exits 2 before the stub runs.
+check_key_proof() {
+  local base=$1 dir="$tmp/kp-work" state="$tmp/kp-state" mode rc out key shape
+  shape="^sk-""ant-""api03-""ocutalonfake-""[A-Za-z0-9]{40}\$"
+  if [ ! -f "$base/eval/key-proof.sh" ]; then
+    echo "eval/key-proof.sh: the script is missing"
+    return 0
+  fi
+  mode=$(head -n 1 "$base/kp-mode.txt" 2> /dev/null)
+  mode=${mode:-good}
+  rm -rf "$dir" "$state" "$tmp/stub-kp"
+  mkdir -p "$dir/eval" "$dir/ci" "$dir/docker/tests" "$state" "$tmp/stub-kp"
+  cp "$base/eval/key-proof.sh" "$dir/eval/key-proof.sh"
+  cp "${base}/docker/tests/lib-keys.sh" "$dir/docker/tests/lib-keys.sh" 2> /dev/null || cp "$root/docker/tests/lib-keys.sh" "$dir/docker/tests/lib-keys.sh"
+  kp_stubs "$dir"
+  printf 'a case\n' > "$dir/eval/case.txt"
+  printf '#!/bin/sh\nexit 0\n' > "$tmp/stub-kp/sleep"
+  chmod +x "$tmp/stub-kp/sleep"
+  (cd "$dir" && git init -q . && git add -A) > /dev/null 2>&1
+  # without a tag: exit 2, and the stub never ran
+  : > "$state/ran"
+  rc=0
+  (cd "$dir" && env -u OCUTALON_RUN_TAG KP_RAN="$state/ran" KP_RECORD="$state/record" KP_MODE="$mode" PATH="$tmp/stub-kp:$PATH" TMPDIR="$state" RUNNER_TEMP="$state" \
+    bash eval/key-proof.sh > "$state/no-tag.out" 2>&1) || rc=$?
+  if [ "$rc" -ne 2 ] || [ -s "$state/ran" ]; then echo "eval/key-proof.sh: runs without OCUTALON_RUN_TAG (exit $rc)"; fi
+  rm -f "$state/ran" "$state/record"
+  (cd "$dir" && git add -A) > /dev/null 2>&1
+  rc=0
+  (cd "$dir" && env OCUTALON_RUN_TAG=kp-check ANTHROPIC_API_KEY="zz-decoy-$RANDOM" KP_RAN="$state/ran" KP_RECORD="$state/record" KP_MODE="$mode" PATH="$tmp/stub-kp:$PATH" TMPDIR="$state" RUNNER_TEMP="$state" \
+    bash eval/key-proof.sh > "$state/out.log" 2>&1) || rc=$?
+  key=$(cat "$state/record" 2> /dev/null)
+  if [ -s "$state/ran" ] && [ "$(cat "$state/record.args" 2> /dev/null)" != "--release-candidate --on-mock --key-path" ]; then
+    echo "eval/key-proof.sh: runs eval/run.sh with other arguments than --release-candidate --on-mock --key-path ($(cat "$state/record.args" 2> /dev/null))"
+  fi
+  if [ ! -s "$state/ran" ]; then
+    echo "eval/key-proof.sh: never ran eval/run.sh"
+  elif ! printf '%s\n' "$key" | grep -Eq "$shape"; then
+    echo "eval/key-proof.sh: gives the run a key that is not 66 characters of the shape of a real key (${#key} characters)"
+  else
+    if grep -qF -- "$key" "$state/out.log"; then echo "eval/key-proof.sh: the key appears in the output of the harness"; fi
+    if grep -q '^FAIL ' "$state/out.log"; then
+      grep '^FAIL ' "$state/out.log" | sed 's/^FAIL /eval\/key-proof.sh: /'
+      [ "$rc" -eq 1 ] || echo "eval/key-proof.sh: flags a failure and exits $rc, not 1"
+      tail -n 1 "$state/out.log" | grep -Eq '^eval/key-proof: [0-9]+ check\(s\) failed$' || echo "eval/key-proof.sh: ends with another last line than the count of failed checks"
+    elif [ "$rc" -ne 0 ] || [ "$(tail -n 1 "$state/out.log")" != "eval/key-proof: all checks passed" ]; then
+      echo "eval/key-proof.sh: a clean run does not end with eval/key-proof: all checks passed and exit 0 (exit $rc)"
+    elif [ "$mode" != good ]; then
+      echo "eval/key-proof.sh: does not flag the behaviour '$mode' of the run"
+    fi
+  fi
 }
 
 # rule <label> <description> <checker>: every sample bad-* of the label must be flagged, and flagged for the reason in its expect.txt, the
@@ -1983,14 +2443,16 @@ rule set "the set holds at least 20 item cases, at least 3 for each outcome, ite
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
 rule incidents "the incident cases of eval/ are at least 10, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's does, and at least 2 of them are held out" check_incidents
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
-rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle and then runs bash eval/run.sh, and no workflow file names OCUTALON_EVAL" check_job
+rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
 rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
-rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key and --on-mock without one, never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
-rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn and points the keys at the mock" check_rc_stack
-rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; --on-mock ends with exit 0 and its pair in the report folder only" check_rc_flow
-rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override
+rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
+rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
+rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the eight key proof lines and fails on a hit" check_rc_flow
+rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume, and passes one that does none of these" check_key_proof
+rule key-like "eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition of the key-like patterns, and hold none of their own" check_key_like
+rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, refuses a key-like reason, reports key-like text in the result with exit 4, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override
 
 if [ "$fails" -ne 0 ]; then
   echo "test-eval-set: $fails rule(s) failed"

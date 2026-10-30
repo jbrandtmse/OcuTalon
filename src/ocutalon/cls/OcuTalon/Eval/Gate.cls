@@ -12,8 +12,9 @@
 ///       - sm2: the set's scores.incidents.met is true;
 ///       - demoGate: the demo gate passes, RUNS of RUNS;
 ///       - nfr3: no request over FLAGTOKENS tokens and none of unknown size, in the set and in every demo run;
-///       - nfr4: every decision of a Kind of NFR4KINDS (the attention decisions) in the set is priced and costs less than FLAGUSD; the decisions of the
-///         other kinds (diagnose, turn) at or above FLAGUSD are listed and flag nothing;
+///       - nfr4: every decision of a Kind of NFR4KINDS (the attention decisions) in the set is priced and costs less than FLAGUSD. The gated figure is
+///         the maximum (gated "maxUSD"), never the mean: one decision at or above FLAGUSD fails it. meanUSD is shown for information only. The decisions
+///         of the other kinds (diagnose, turn) at or above FLAGUSD are listed and flag nothing;
 ///       - model: every decision of the set and of the demo runs has Model MODEL;
 ///       - clean: Report.Problems of the set and of every demo run is empty (a run that acted is a problem).
 ///     A target whose figure is null or missing is not met. The injection, all-clear, command and stop-watching scores, the diagnose and turn costs and
@@ -23,7 +24,9 @@
 ///     with fewer than OF attempts. Gate never writes overridden: eval/run.sh --override does, on a blocked result file.
 ///   - The result (Result) is {format, createdAt, commit, branch, treeClean, onMock, model, verdict, decidedBy, rule{required, of}, attemptsRun,
 ///     attemptsMet, summary, attempts[], override, thinkingHistorySmoke}. The summary comes from the first attempt that met every target, else from
-///     attempt 1: {attempt, scores (the eight scores of the report), cost{meanUSD, maxUSD, maxCase, priced}, attentionCost{maxUSD, maxCase, flagged},
+///     attempt 1: {attempt, scores (the eight scores of the report), cost{meanUSD, maxUSD, maxCase, priced} (all kinds, for information),
+///     attentionCost{gated "maxUSD", maxUSD, maxCase, flagUSD, flagged[], unpriced[], met, meanUSD, priced, informationOnly ["meanUSD"]} (NFR-4, taken from
+///     targets.nfr4),
 ///     size{largestTokens, largestCase}, demoGate{runs, passed, pass}, diagnosisTime{meanMs, maxMs, overShare, shareMs, typicalNoticeS,
 ///     diagnosisBudgetS}}. override is null.
 ///   - Text writes the result as Markdown with exactly one line "Verdict: <verdict>", and Save writes both through Report.WriteFiles.
@@ -355,15 +358,19 @@ ClassMethod Text(result As %DynamicObject) As %String
 		Set text = text_..ScoreRow("All-clear", scores.%Get("allClear"))_..ScoreRow("Command", scores.%Get("commands"))
 	}
 	Set text = text_nl_"## Cost and size"_nl_nl
-	Set cost = summary.%Get("cost")
-	If $IsObject(cost) && cost.%Get("priced") {
-		Set text = text_"Priced decisions: "_cost.priced_". Mean: $"_..Money(cost.meanUSD)_". Maximum: $"_..Money(cost.maxUSD)_" ("_..Cell(cost.maxCase)_")."_nl_nl
-	} Else {
-		Set text = text_"Priced decisions: none."_nl_nl
-	}
 	Set attention = summary.%Get("attentionCost")
 	If $IsObject(attention) {
-		Set text = text_"Attention decisions (NFR-4, under $"_..Money(##class(OcuTalon.Eval.Report).#FLAGUSD)_"): maximum "_$Select(attention.%GetTypeOf("maxUSD") = "number": "$"_..Money(attention.maxUSD)_" ("_..Cell(attention.maxCase)_")", 1: "not known")_"; at or above the flag: "_attention.flagged.%Size()_"."_nl_nl
+		Set flagUSD = $Select(attention.%GetTypeOf("flagUSD") = "number": attention.flagUSD, 1: ##class(OcuTalon.Eval.Report).#FLAGUSD)
+		Set flagged = $Select($IsObject(attention.%Get("flagged")): attention.flagged.%Size(), 1: 0)
+		Set unpriced = $Select($IsObject(attention.%Get("unpriced")): attention.unpriced.%Size(), 1: 0)
+		Set text = text_"NFR-4 is judged on the maximum item-decision cost: "_$Select(attention.%GetTypeOf("maxUSD") = "number": "$"_..Money(attention.maxUSD)_" ("_..Cell(attention.maxCase)_")", 1: "not known")_", which must be under $"_..Money(flagUSD)_". Item decisions at or above it: "_flagged_"; unpriced: "_unpriced_". Met: "_$Select(..Bool(attention, "met"): "yes", 1: "no")_"."_nl_nl
+		Set text = text_"Mean item-decision cost: "_$Select(attention.%GetTypeOf("meanUSD") = "number": "$"_..Money(attention.meanUSD), 1: "not known")_", for information only."_nl_nl
+	}
+	Set cost = summary.%Get("cost")
+	If $IsObject(cost) && cost.%Get("priced") {
+		Set text = text_"All decisions of the set (item decisions, diagnoses and turns), for information only: "_cost.priced_" priced, mean $"_..Money(cost.meanUSD)_", maximum $"_..Money(cost.maxUSD)_" ("_..Cell(cost.maxCase)_")."_nl_nl
+	} Else {
+		Set text = text_"All decisions of the set (item decisions, diagnoses and turns), for information only: none priced."_nl_nl
 	}
 	Set size = summary.%Get("size")
 	If $IsObject(size) {
@@ -566,14 +573,17 @@ ClassMethod SizeTarget(set As %DynamicObject, demo As %DynamicObject) As %Dynami
 	Quit target
 }
 
-/// NFR-4: every decision of a Kind of NFR4KINDS in the set is priced and costs less than FLAGUSD. The decisions of the other kinds at or above the
-/// flag are listed in listedOther and decide nothing. A set with no such decision has nothing measured and does not meet it.
+/// NFR-4: every decision of a Kind of NFR4KINDS in the set is priced and costs less than FLAGUSD. The gated figure is the maximum of those decisions
+/// (gated "maxUSD"): one decision at or above the flag fails the target whatever the mean. meanUSD, the mean of the priced decisions of those kinds
+/// ($Number(sum / priced, 6), or null), is reported for information only. The decisions of the other kinds at or above the flag are listed in
+/// listedOther and decide nothing. A set with no such decision has nothing measured and does not meet it.
 ClassMethod CostTarget(set As %DynamicObject) As %DynamicObject [ Private ]
 {
-	Set target = {"label": "NFR-4", "priced": 0, "maxUSD": null, "maxCase": "", "flagged": [], "unpriced": [], "listedOther": []}
+	Set target = {"label": "NFR-4", "gated": "maxUSD", "priced": 0, "maxUSD": null, "maxCase": "", "flagUSD": null, "meanUSD": null, "flagged": [], "unpriced": [], "listedOther": []}
+	Do target.%Set("flagUSD", ##class(OcuTalon.Eval.Report).#FLAGUSD, "number")
 	Set cost = set.%Get("cost")
 	Set kinds = $ListFromString(..#NFR4KINDS)
-	Set max = ""
+	Set max = "", sum = 0
 	If $IsObject(cost) {
 		Set decisions = cost.%Get("decisions")
 		If $IsObject(decisions) {
@@ -589,7 +599,7 @@ ClassMethod CostTarget(set As %DynamicObject) As %DynamicObject [ Private ]
 					Do target.unpriced.%Push(decision)
 					Continue
 				}
-				Set target.priced = target.priced + 1
+				Set target.priced = target.priced + 1, sum = sum + value
 				If (max = "") || (value > max) Set max = value, target.maxCase = ..Text0(decision.%Get("case"))
 				If over Do target.flagged.%Push(decision)
 			}
@@ -606,6 +616,7 @@ ClassMethod CostTarget(set As %DynamicObject) As %DynamicObject [ Private ]
 		Do target.unpriced.%Push({"case": "(the set has no cost)", "kind": "", "model": ""})
 	}
 	If max '= "" Do target.%Set("maxUSD", max, "number")
+	If target.priced Do target.%Set("meanUSD", $Number(sum / target.priced, 6), "number")
 	Do target.%Set("met", 'target.flagged.%Size() && 'target.unpriced.%Size(), "boolean")
 	Quit target
 }
@@ -706,11 +717,17 @@ ClassMethod Summary(attempt As %DynamicObject) As %DynamicObject [ Private ]
 	Set summary.cost = attempt.%Get("cost")
 	Set targets = attempt.%Get("targets")
 	Set attention = $Select($IsObject(targets): targets.%Get("nfr4"), 1: "")
-	Set summary.attentionCost = {"maxUSD": null, "maxCase": "", "flagged": []}
+	Set summary.attentionCost = {"gated": "maxUSD", "maxUSD": null, "maxCase": "", "flagUSD": null, "flagged": [], "unpriced": [], "met": false, "meanUSD": null, "priced": 0, "informationOnly": ["meanUSD"]}
+	Do summary.attentionCost.%Set("flagUSD", ##class(OcuTalon.Eval.Report).#FLAGUSD, "number")
 	If $IsObject(attention) {
 		If attention.%GetTypeOf("maxUSD") = "number" Do summary.attentionCost.%Set("maxUSD", attention.maxUSD, "number")
+		If attention.%GetTypeOf("meanUSD") = "number" Do summary.attentionCost.%Set("meanUSD", attention.meanUSD, "number")
+		If attention.%GetTypeOf("flagUSD") = "number" Do summary.attentionCost.%Set("flagUSD", attention.flagUSD, "number")
 		Set summary.attentionCost.maxCase = ..Text0(attention.%Get("maxCase"))
 		If $IsObject(attention.%Get("flagged")) Set summary.attentionCost.flagged = attention.flagged
+		If $IsObject(attention.%Get("unpriced")) Set summary.attentionCost.unpriced = attention.unpriced
+		Do summary.attentionCost.%Set("met", ..Bool(attention, "met"), "boolean")
+		Set summary.attentionCost.priced = +attention.%Get("priced")
 	}
 	Set summary.size = attempt.%Get("size")
 	Set demo = attempt.%Get("demo")

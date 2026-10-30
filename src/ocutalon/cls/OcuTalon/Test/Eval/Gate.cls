@@ -13,9 +13,13 @@
 ///     kind or case, an unpriced diagnose decision gives a time and no cost, and another model in a turn decision is listed and misses the model target;
 ///   - TestDemoTiming: the mean and the maximum are over the known durations, 20,001 ms is over the share and 20,000 is not, and a run with none is unknown;
 ///   - TestTargets: each of the seven targets flipped alone and on its edge (100,000 tokens, 0.000999 and 0.001 USD, a null met);
-///   - TestNFR4Kinds: a diagnose or turn decision at 0.002 USD keeps NFR-4 met and is listed; an unpriced decide does not meet it;
+///   - TestNFR4Kinds: a diagnose or turn decision at 0.002 USD keeps NFR-4 met and is listed and stays out of meanUSD; an unpriced decide does not meet it;
+///   - TestNFR4Maximum (Story 9.10, owner condition U-166 (a)): NFR-4 is judged on the maximum item-decision cost and never on the mean: nine decisions at
+///     0.0001 and one at 0.001 do not meet it although the mean is 0.00019, and the one at 0.000999 does; the target names maxUSD as the gated figure;
+///   - TestTextNFR4NotMeasured (Story 9.10): a set with no priced item decision reads "not known" for the maximum and the mean, "none priced", and not met;
 ///   - TestVerdict: the nine cases of REL-5's rule, from no attempt to three;
-///   - TestResult, TestText and TestSave: the result document, its Markdown (a blocked result's Verdict line is the one --override requires) and its files.
+///   - TestResult, TestText and TestSave: the result document (the attention cost with its gated figure, the flag, the flagged and unpriced decisions, the
+///     mean for information only and met), its Markdown (the three cost lines, and a blocked result's Verdict line is the one --override requires) and its files.
 Class OcuTalon.Test.Eval.Gate Extends %UnitTest.TestCase
 {
 
@@ -364,6 +368,7 @@ Method TestNFR4Kinds()
 	Do $$$AssertTrue(nfr4.met && attempt.met, "diagnose and turn decisions at 0.002 keep NFR-4 met")
 	Do $$$AssertEquals(nfr4.listedOther.%Size()_"|"_nfr4.flagged.%Size(), "2|0", "they are listed apart and flag nothing")
 	Do $$$AssertEquals(nfr4.priced_"|"_nfr4.maxUSD_"|"_nfr4.maxCase, "1|.0002|c1", "and the figures are those of the attention decisions")
+	Do $$$AssertEquals(nfr4.meanUSD, .0002, "and so is the mean: a diagnose or turn decision does not enter it")
 	Set set = ..GoodSet()
 	Do set.cost.unpriced.%Push({"case": "c3", "kind": "diagnose", "ref": "u", "model": (##class(OcuTalon.Eval.Gate).#MODEL)})
 	Set attempt = ##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1)
@@ -373,6 +378,54 @@ Method TestNFR4Kinds()
 	Set attempt = ##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1)
 	Do $$$AssertTrue('attempt.targets.nfr4.met, "an unpriced decide does")
 	Do $$$AssertEquals(attempt.targets.nfr4.unpriced.%Size(), 1, "and is listed")
+}
+
+/// NFR-4 is judged on the maximum item-decision cost, never on the mean (U-166 (a)): nine decisions at 0.0001 and one at 0.001 have a mean under the flag
+/// and do not meet it; with the one at 0.000999 they do.
+Method TestNFR4Maximum()
+{
+	Set nl = $Char(10)
+	Set set = ..GoodSet()
+	Set set.cost.decisions = []
+	For i = 1:1:9 Do set.cost.decisions.%Push({"case": ("a"_i), "kind": "decide", "ref": ("r"_i), "model": (##class(OcuTalon.Eval.Gate).#MODEL), "costUSD": 0.0001})
+	Do set.cost.decisions.%Push({"case": "z10", "kind": "decide", "ref": "r10", "model": (##class(OcuTalon.Eval.Gate).#MODEL), "costUSD": 0.001})
+	Do set.cost.%Set("priced", 10, "number")
+	Do set.cost.%Set("meanUSD", .00019, "number")
+	Do set.cost.%Set("maxUSD", .001, "number")
+	Set set.cost.maxCase = "z10"
+	Do $$$AssertTrue(##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1).targets.nfr4.meanUSD < ##class(OcuTalon.Eval.Report).#FLAGUSD, "the mean of the item decisions is under the flag")
+	Do ..Only(set, ..NewGate(), "NFR-4", "one decision at 0.001 does not meet NFR-4 although the mean is under the flag")
+	Set nfr4 = ##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1).targets.nfr4
+	Do $$$AssertTrue('nfr4.met, "NFR-4 is not met")
+	Do $$$AssertEquals(nfr4.flagged.%Size()_"|"_nfr4.flagged.%Get(0).case, "1|z10", "the decision at the flag is the one listed")
+	Do $$$AssertEquals(nfr4.gated_"|"_nfr4.maxUSD_"|"_nfr4.maxCase_"|"_nfr4.meanUSD_"|"_nfr4.priced_"|"_nfr4.flagUSD, "maxUSD|.001|z10|.00019|10|.001", "it names the maximum as the gated figure and carries the mean")
+	Set attempts = []
+	Do attempts.%Push(##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1))
+	Set summary = ##class(OcuTalon.Eval.Gate).Result(attempts, {}).summary
+	Do $$$AssertEquals(summary.attentionCost.gated_"|"_summary.attentionCost.met_"|"_summary.attentionCost.informationOnly.%Get(0), "maxUSD|0|meanUSD", "the summary says so too")
+	Set text = ##class(OcuTalon.Eval.Gate).Text(##class(OcuTalon.Eval.Gate).Result(attempts, {}))
+	Do $$$AssertTrue(text [ (nl_"NFR-4 is judged on the maximum item-decision cost: $0.001 (z10), which must be under $0.001. Item decisions at or above it: 1; unpriced: 0. Met: no."_nl_nl), "the Markdown says NFR-4 is judged on the maximum and is not met")
+	Do $$$AssertTrue(text [ (nl_"Mean item-decision cost: $0.00019, for information only."_nl_nl), "and that the mean, which is under the flag, is for information only")
+	// the same set with the largest decision just under the flag
+	Do set.cost.decisions.%Get(9).%Set("costUSD", .000999, "number")
+	Set attempt = ##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1)
+	Do $$$AssertTrue(attempt.targets.nfr4.met && (attempt.targets.nfr4.flagged.%Size() = 0), "with the largest at 0.000999 NFR-4 is met")
+	Do $$$AssertEquals(attempt.targets.nfr4.maxUSD, .000999, "and the maximum is that decision")
+}
+
+/// A set with no priced item decision has no maximum: the Markdown says "not known" for NFR-4 and its mean, "none priced" for the all-decision line, and not met.
+Method TestTextNFR4NotMeasured()
+{
+	Set set = ..GoodSet()
+	Set set.cost.decisions = []
+	Do set.cost.%Set("priced", 0, "number")
+	Set attempts = []
+	Do attempts.%Push(##class(OcuTalon.Eval.Gate).Attempt(set, ..NewGate(), 1))
+	Set text = ##class(OcuTalon.Eval.Gate).Text(##class(OcuTalon.Eval.Gate).Result(attempts, {}))
+	Set nl = $Char(10)
+	Do $$$AssertTrue(text [ (nl_"NFR-4 is judged on the maximum item-decision cost: not known, which must be under $0.001. Item decisions at or above it: 0; unpriced: 1. Met: no."_nl_nl), "the maximum is not known and NFR-4 is not met")
+	Do $$$AssertTrue(text [ (nl_"Mean item-decision cost: not known, for information only."_nl_nl), "the mean is not known")
+	Do $$$AssertTrue(text [ (nl_"All decisions of the set (item decisions, diagnoses and turns), for information only: none priced."_nl_nl), "and no decision is priced")
 }
 
 /// REL-5's rule over every pattern of up to three attempts.
@@ -418,7 +471,9 @@ Method TestResult()
 	Do $$$AssertEquals(names, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands", "it holds all eight scores, the held-out ones among them")
 	Do $$$AssertEquals(summary.scores.heldOutItems.total, 2, "a held-out score keeps its figures")
 	Do $$$AssertEquals(summary.cost.priced_"|"_summary.cost.meanUSD_"|"_summary.cost.maxUSD, "1|.0002|.0002", "the mean and the maximum decision cost")
-	Do $$$AssertEquals(summary.attentionCost.maxUSD_"|"_summary.attentionCost.maxCase_"|"_summary.attentionCost.flagged.%Size(), ".0002|c1|0", "the attention cost")
+	Set attention = summary.attentionCost
+	Do $$$AssertEquals(attention.gated_"|"_attention.maxUSD_"|"_attention.maxCase_"|"_attention.flagUSD_"|"_attention.flagged.%Size()_"|"_attention.unpriced.%Size(), "maxUSD|.0002|c1|.001|0|0", "the attention cost: the gated figure is the maximum")
+	Do $$$AssertEquals(attention.%GetTypeOf("met")_attention.met_"|"_attention.meanUSD_"|"_attention.priced_"|"_attention.informationOnly.%Size()_attention.informationOnly.%Get(0), "boolean1|.0002|1|1meanUSD", "met, the mean (for information only) and the number priced")
 	Do $$$AssertEquals(summary.size.largestTokens_"|"_summary.size.largestCase, "50000|c1", "the largest request")
 	Do $$$AssertEquals(summary.demoGate.runs_"|"_summary.demoGate.passed_"|"_summary.demoGate.pass, "10|10|1", "the demo gate")
 	Do $$$AssertEquals(summary.diagnosisTime.meanMs_"|"_summary.diagnosisTime.maxMs_"|"_summary.diagnosisTime.overShare.%Size()_"|"_summary.diagnosisTime.shareMs_"|"_summary.diagnosisTime.typicalNoticeS_"|"_summary.diagnosisTime.diagnosisBudgetS, "4000|4000|0|20000|35|12", "and the diagnosis time")
@@ -456,7 +511,9 @@ Method TestText()
 	Do $$$AssertTrue(text [ "Rule (REL-5)", "the rule line")
 	Do $$$AssertTrue(text [ "| Items (SM-1) | 20 | 22 | 90.9% | 90% | met |", "the scores table, built with Report.ScoreLine")
 	Do $$$AssertTrue(text [ "| Held-out items | 1 | 2 | 50.0% |  |  |", "with the held-out scores")
-	Do $$$AssertTrue(text [ "Priced decisions: 1. Mean: $0.0002. Maximum: $0.0002 (c1).", "the cost line")
+	Do $$$AssertTrue(text [ (nl_"NFR-4 is judged on the maximum item-decision cost: $0.0002 (c1), which must be under $0.001. Item decisions at or above it: 0; unpriced: 0. Met: yes."_nl_nl), "the NFR-4 line names the maximum as the judged figure")
+	Do $$$AssertTrue(text [ (nl_"Mean item-decision cost: $0.0002, for information only."_nl_nl), "the mean line says it is for information only")
+	Do $$$AssertTrue(text [ (nl_"All decisions of the set (item decisions, diagnoses and turns), for information only: 1 priced, mean $0.0002, maximum $0.0002 (c1)."_nl_nl), "the all-decisions line")
 	Do $$$AssertTrue(text [ "Largest request: 50000 tokens (c1)", "the size line")
 	Do $$$AssertTrue(text [ "| 1 | data_format_change | OrderDate | repair_resend | yes | 4.0 s | yes |", "a row of the demo-gate table")
 	Do $$$AssertTrue(text [ "Attempt 1: 10 of 10 runs passed (gate passed).", "the demo-gate heading of each attempt")

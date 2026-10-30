@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# The evaluation run (Stories 9.2, 9.3, 9.5, 9.7 and 9.8; AD-22, AD-19, AD-29, AD-30; CON-3; REL-5). It is the script of the evaluation job of
+# The evaluation run (Stories 9.2, 9.3, 9.5, 9.7, 9.8 and 9.10; AD-22, AD-19, AD-29, AD-30; CON-3; REL-5). It is the script of the evaluation job of
 # .github/workflows/lane-a.yml and runs the same way on a developer machine:
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh                                      the push run, on the CI mock
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate                  a release candidate, on the real model
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --on-mock        the same sequence on the CI mock: no key, no spend
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --on-mock --key-path   the key-path rehearsal, with a key in the environment
+#                                                                                      (eval/key-proof.sh runs it with a fake key)
 #   bash eval/run.sh --override "<reason>"                                       the author's override of a blocked result
 # Any other argument prints a usage line and exits 2, before any call to the container tool. Every mode but --override sources ci/iris.sh
 # (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own that is built from this checkout, and reaches the
@@ -19,10 +21,13 @@
 #                             wait does not bound them
 #   OCUTALON_EVAL_REPORT_DIR  the folder that receives the report files (default: a new folder from mktemp -d below
 #                             ${RUNNER_TEMP:-${TMPDIR:-/tmp}})
-#   ANTHROPIC_API_KEY         --release-candidate only, without --on-mock: the model key, which must be set and not empty in the environment
-#                             of this script, or the script exits 2 before any call to the container tool. The key reaches only the iris
-#                             service of the throwaway, by the interpolation of eval/compose.release-candidate.yml (AD-19). The script never
-#                             prints it, never writes it to a file and never puts it in a session
+#   ANTHROPIC_API_KEY         --release-candidate without --on-mock, and --release-candidate --on-mock --key-path: the model key, which must
+#                             be set and not empty in the environment of this script, or the script exits 2 before any call to the container
+#                             tool. The key reaches only the iris service of the throwaway, by the interpolation of
+#                             eval/compose.release-candidate.yml (AD-19). The script never prints it, never writes it to a file and never
+#                             puts it in a session. In every other mode (the push run, --override and --on-mock without --key-path) the
+#                             script unsets it before anything else, whatever the caller's environment holds, so that neither compose, npm
+#                             nor IRIS ever sees it
 # The push run (no argument):
 #   1. the throwaway starts and the production runs with every item (RunnerFixture.ReadyReason() is empty); the runners' keys are
 #      pointed at the mock with RunnerFixture.PointKeys(), as the live units do;
@@ -62,21 +67,39 @@
 #   1. without --on-mock the key is checked first, then the throwaway starts with eval/compose.release-candidate.yml layered last (the shell's key
 #      by interpolation, no base-URL override, no mock header), and the readiness check requires every item running, every runner's key present, an
 #      empty OCUTALON_MODEL_BASE_URL, no mock header and the model claude-haiku-5-5 for the three runners. With --on-mock the throwaway is the push
-#      run's, with PointKeys, and no key is needed;
+#      run's, with PointKeys, and no key is needed (a key in the environment is unset);
+#      With --on-mock --key-path (the key-path rehearsal, Story 9.10, owner decision U-168) the key is checked first as well, and it goes through the
+#      override into the throwaway, with ci/compose.ci.yml layered again after it, so that every model request still goes to the CI mock and carries
+#      the key's length in the mock's log. The readiness check requires the Always tier of the rehearsal (ReadyReason empty, the records, the
+#      runners' keys, the Provider placeholder in the entries, the key's length in the IRIS process, the model); PointKeys and RestoreKeys are never
+#      called. Before the exit lines the run proves the key is stored and shown nowhere (the key proof, below);
 #   2. attempt k (k = 1; then 2 and 3 when attempt 1 did not meet every target) is the set over /opt/ocutalon/eval/ (set-k.json and .md), the demo
 #      gate (demo-k.json) and Gate.Attempt (attempt-k.json) with its targets SM-1, SM-2, the demo gate, NFR-3, NFR-4, the model and no problem;
 #   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1),
 #      with the commit, branch and tree state that the script read before the stack was built;
 #   4. the files are copied out into the report folder. Without --on-mock a finished run (verdict pass or blocked, no structural failure)
 #      also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is release-candidate-on-mock.* in the report
-#      folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke test is not run (Story 30.1).
+#      folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke test is not run (Story 30.1);
+#   5. the pair that was written is scanned with the key-like patterns of docker/tests/lib-keys.sh, the definition that
+#      docker/tests/test-boundaries.sh also reads: "PASS <name>: the result pair holds no key-like text", or, on a match, a FAIL line that names
+#      file:line (never the text) and tells the author not to commit the pair, and exit 4 with both files kept.
+# The key proof (--on-mock --key-path only; Story 9.10, owner condition U-166 (b)). After the result is printed and before the exit lines, one line
+# "PASS key proof <label>: ..." or "FAIL key proof <label>: ..." for each of eight scans for the key's value: globals (every node of every global of
+# every mounted database that is not read-only), stores (Test.Agent.KeyScan.Find), trace (the headers and bodies of every Interoperability
+# namespace), mock log (at least one /v1/ request, each with a key of the key's length), container logs (streamed, never written), container files
+# (below /durable, /tmp and /opt/ocutalon/mock-log), run files (this run's work folder and the report folder) and eval files (below eval/). Each
+# scan runs a positive control that must find something, and fails when it cannot read what it scans. A hit names a place and never the value; the
+# value is read only from the environment (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container). Any FAIL ends the run with exit 1.
 # Exit codes: 0 pass (and a finished --on-mock run), 1 a structural failure (a session that printed nothing, a run that did not start or
-# finish, a file that was not saved, a verdict of incomplete: nothing is written in eval/), 2 a refused argument or key, 3 blocked.
+# finish, a file that was not saved, a verdict of incomplete, a failed key proof: nothing is written in eval/), 2 a refused argument or key,
+# 3 blocked, 4 the result pair holds key-like text (the files are kept; do not commit them).
 # --override "<reason>" records the author's override of a blocked result: it rewrites eval/release-candidate.json (verdict overridden,
 # override {reason, at}) and eval/release-candidate.md (the line "Verdict: blocked" becomes "Verdict: overridden (blocked; the author overrode
 # it)" and a section Override is appended). It refuses, with exit 2 and both files unchanged, a result that is missing or is not blocked, a
-# result already overridden, and a reason that is blank, has a line break, is not printable ASCII or is over 500 characters. It needs Node,
-# and it starts no container.
+# result already overridden, and a reason that is blank, has a line break, is not printable ASCII, is over 500 characters or holds key-like text.
+# After it has written, it scans both files like step 5 (exit 4 on a match). It needs Node, and it starts no container.
+# Before a stack starts (every mode), the script runs the preflight and builds the web bundle in a subshell with the key unset (DW-434): no npm
+# process ever has the key. The stack's own compose calls keep it, because compose interpolates every file on every call.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -86,6 +109,7 @@ cd "$root" || exit 1
 
 mode=push
 onmock=0
+keypath=0
 override_reason=
 if [ $# -eq 0 ]; then
   :
@@ -94,13 +118,38 @@ elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then
 elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ]; then
   mode=rc
   onmock=1
+elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ] && [ "$3" = --key-path ]; then
+  mode=rc
+  onmock=1
+  keypath=1
 elif [ $# -eq 2 ] && [ "$1" = --override ]; then
   mode=override
   override_reason=$2
 else
-  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock] | --override "<reason>"]'
+  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>"]'
   exit 2
 fi
+
+# The model key stays in the environment only for the real release candidate and the key-path rehearsal (AD-19). Every other mode drops it first,
+# whatever the caller holds, so that no child (compose, npm, an IRIS session) ever sees it.
+if [ "$keypath" -eq 0 ] && { [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then
+  unset ANTHROPIC_API_KEY
+fi
+
+. "$root/docker/tests/lib-keys.sh"
+
+# scan_pair <name> <json> <md>: step 5 of the header. The key-like scan of the two files of a result pair (paths from the root, or absolute): prints
+# the PASS line and returns 0, or prints the FAIL line (file:line only, never the text) and returns 1.
+scan_pair() {
+  local name=$1 json=$2 md=$3 hits
+  hits=$(key_like "$json" "$md" | paste -s -d, -)
+  if [ -z "$hits" ]; then
+    echo "PASS $name: the result pair holds no key-like text"
+    return 0
+  fi
+  echo "FAIL $json and $md hold key-like text at $hits: do not commit them; remove both, find where the text came from, and run again"
+  return 1
+}
 
 # --- --override: the author's override of a blocked result file ---
 
@@ -117,6 +166,10 @@ override_result() {
   fi
   if [ "$(printf '%s' "$reason" | LC_ALL=C wc -c | tr -d ' ')" -gt 500 ]; then
     echo "FAIL the override reason is over 500 characters"
+    exit 2
+  fi
+  if [ -n "$(printf '%s\n' "$reason" | key_like -)" ]; then
+    echo "FAIL the override reason holds key-like text"
     exit 2
   fi
   if ! command -v node > /dev/null 2>&1; then
@@ -154,8 +207,9 @@ fs.writeFileSync(mdFile, text);
 console.log('OVERRIDE recorded in eval/release-candidate.json and eval/release-candidate.md');
 EOF
   )
-  node -e "$program" "$json" "$md" "$reason" "$at"
-  exit $?
+  node -e "$program" "$json" "$md" "$reason" "$at" || exit $?
+  scan_pair override eval/release-candidate.json eval/release-candidate.md || exit 4
+  exit 0
 }
 
 if [ "$mode" = override ]; then override_result "$override_reason"; fi
@@ -163,8 +217,12 @@ if [ "$mode" = override ]; then override_result "$override_reason"; fi
 # --- the key of a release candidate (AD-19) ---
 
 # The key must be in this script's own environment, exported and not empty. Its value is never printed or stored.
-if [ "$mode" = rc ] && [ "$onmock" -eq 0 ] && [ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]; then
-  echo "FAIL ANTHROPIC_API_KEY is not set in the environment of this run: a release-candidate run needs the model key there (or use --on-mock)"
+if [ "$mode" = rc ] && { [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && [ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]; then
+  if [ "$keypath" -eq 1 ]; then
+    echo "FAIL ANTHROPIC_API_KEY is not set in the environment of this run: --key-path needs a key there (eval/key-proof.sh builds a fake one)"
+  else
+    echo "FAIL ANTHROPIC_API_KEY is not set in the environment of this run: a release-candidate run needs the model key there (or use --on-mock)"
+  fi
   exit 2
 fi
 
@@ -367,6 +425,93 @@ attempt_checks() {
   pass "$name: the attempt met $(chk_value "$name" met) (below: $(chk_value "$name" below))"
 }
 
+# kp_line <name>: the first CHK|<name>| line of the key proof's IRIS session.
+kp_line() {
+  grep "^CHK|$1|" "$tmp/key-proof.chk" 2> /dev/null | head -n 1
+}
+
+# kp_verdict <label> <line>: judges one line of the key proof's IRIS session with the awk program on its standard input, which prints "ok <text>" or
+# "bad <text>" (the fields are those of KeyProof.Print); a missing line is a failure.
+kp_verdict() {
+  local label=$1 line=$2 out program
+  program=$(cat)
+  if [ -z "$line" ]; then
+    fail "key proof $label: the IRIS session printed no result line ($(kp_line noscan))"
+    return
+  fi
+  out=$(printf '%s\n' "$line" | awk -F'|' -v len="${#ANTHROPIC_API_KEY}" "$program")
+  case $out in
+    "ok "*) pass "key proof $label: ${out#ok }" ;;
+    *) fail "key proof $label: ${out#bad }" ;;
+  esac
+}
+
+# key_proof: the key proof of the key-path rehearsal (see the header): eight scans for the value of ANTHROPIC_API_KEY, each printing one PASS or FAIL
+# line. The value is read from the environment only (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container) and no line holds it.
+key_proof() {
+  local begun=$SECONDS demo len=${#ANTHROPIC_API_KEY} out files n hits control scope
+  demo=$(chk_value set-1 democase)
+  if [ -z "$demo" ]; then
+    fail "key proof: the demo case's name is not known, so no scan has its control"
+    return
+  fi
+  echo "KEY PROOF: scanning the throwaway for the key's value (length $len)"
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    'Do ##class(OcuTalon.Test.Eval.KeyProof).Print(##class(OcuTalon.Test.Eval.KeyProof).Scan())' \
+    'Halt' | iris_script OCUTALON > "$tmp/key-proof.chk"
+  kp_verdict globals "$(kp_line globals)" << 'AWK'
+$3 == "0" && $4 + 0 > 0 && $11 == "" { print "ok no key in " $8 " node(s) of " $7 " global(s) in " $5 " database(s) (skipped: " ($6 == "" ? "none" : $6) "; control found " $4 " time(s); " $9 " s)"; next }
+{ print "bad hits " $3 " (places: " ($10 == "" ? "none" : $10) "), control found " $4 " time(s), unreadable: " ($11 == "" ? "none" : $11) ", " $5 " database(s), " $7 " global(s)" }
+AWK
+  kp_verdict stores "$(kp_line stores)" << 'AWK'
+$3 == "0" && $4 + 0 >= 3 { print "ok no key in any store (control: " $4 " entries hold the Provider placeholder)"; next }
+{ print "bad " $3 " store(s) hold the key (" ($5 == "" ? "none" : $5) "), control found " $4 " entries" }
+AWK
+  kp_verdict trace "$(kp_line trace)" << 'AWK'
+$3 == "0" && $4 + 0 > 0 && $6 + 0 > 0 && $9 == "" { print "ok no key in " $6 " message(s) of " $5 " namespace(s) (body classes: " $7 "; control found in " $4 " message(s))"; next }
+{ print "bad hits " $3 " (places: " ($8 == "" ? "none" : $8) "), control found in " $4 " message(s), " $6 " message(s), unreadable: " ($9 == "" ? "none" : $9) }
+AWK
+  kp_verdict "mock log" "$(kp_line mock)" << 'AWK'
+$3 + 0 > 0 && $4 == "0" { print "ok " $3 " /v1/ request(s) reached the mock, each with a key of length " len; next }
+{ print "bad " $3 " /v1/ request(s) in the mock log, " $4 " with a key of another length than " len }
+AWK
+
+  # the container logs, streamed
+  out=$(dc logs --no-color 2> /dev/null | LC_ALL=C awk -v len="$len" 'BEGIN { k = ENVIRON["ANTHROPIC_API_KEY"] } { n++ } k != "" && index($0, k) { h++; if (h <= 5) at = at (at == "" ? "" : ",") n } index($0, "\"keyLength\":" len) { c++ } END { print h + 0 "|" c + 0 "|" n + 0 "|" at }')
+  if [ "$(printf '%s' "$out" | awk -F'|' '{ print ($1 == "0" && $2 + 0 > 0 && $3 + 0 > 0) }')" = 1 ]; then
+    pass "key proof container logs: no key in $(printf '%s' "$out" | cut -d'|' -f3) log line(s) (control: $(printf '%s' "$out" | cut -d'|' -f2) mock line(s) carry the key's length)"
+  else
+    fail "key proof container logs: $(printf '%s' "$out" | cut -d'|' -f1) line(s) hold the key (at log line(s) $(printf '%s' "$out" | cut -d'|' -f4)), control $(printf '%s' "$out" | cut -d'|' -f2), $(printf '%s' "$out" | cut -d'|' -f3) line(s) read"
+  fi
+
+  # the container's files: hit files|read errors|the key as the container sees it (its length)|control files
+  out=$(dc exec -T iris sh -c 's=$(date +%s); k=$(printenv ANTHROPIC_API_KEY | wc -c | tr -d " "); r=$(printenv ANTHROPIC_API_KEY | grep -rlF -f /dev/stdin -- /durable /tmp /opt/ocutalon/mock-log 2>&1); h=$(printf "%s\n" "$r" | grep -vc "^\(grep:\|$\)"); e=$(printf "%s\n" "$r" | grep -c "^grep:"); c=$(grep -rlF -- "$1" /durable /tmp /opt/ocutalon/mock-log 2> /dev/null | head -n 1 | wc -l | tr -d " "); n=$(find /durable /tmp /opt/ocutalon/mock-log -type f 2> /dev/null | wc -l | tr -d " "); echo "FILES|$h|$e|$k|$c|$n|$(( $(date +%s) - s ))"' sh "$demo" 2> /dev/null | tr -d '\r' | grep '^FILES|' | head -n 1)
+  if [ "$(printf '%s' "$out" | awk -F'|' -v len="$len" '{ print ($2 == "0" && $3 == "0" && $4 + 0 == len + 1 && $5 + 0 > 0) }')" = 1 ]; then
+    pass "key proof container files: no key in $(printf '%s' "$out" | cut -d'|' -f6) file(s) below /durable, /tmp and /opt/ocutalon/mock-log, none unreadable (control: the demo case's name is found in a file; $(printf '%s' "$out" | cut -d'|' -f7) s)"
+  else
+    fail "key proof container files: hit file(s) $(printf '%s' "$out" | cut -d'|' -f2), unreadable $(printf '%s' "$out" | cut -d'|' -f3), key bytes seen $(printf '%s' "$out" | cut -d'|' -f4) (expected $((len + 1))), control $(printf '%s' "$out" | cut -d'|' -f5)"
+  fi
+
+  # the run's own files, and the files below eval/
+  for scope in "run files" "eval files"; do
+    if [ "$scope" = "run files" ]; then
+      files=$(find "$tmp" "$report_dir" -type f 2> /dev/null)
+    else
+      files=$(find "$root/eval" -type f 2> /dev/null)
+    fi
+    n=$(printf '%s\n' "$files" | grep -c . || true)
+    hits=$(printf '%s\n' "$files" | while IFS= read -r f; do key_value_hits "$f" || echo "unreadable:$f"; done | paste -s -d, -)
+    control=$(printf '%s\n' "$files" | while IFS= read -r f; do grep -lF -- "$demo" "$f" 2> /dev/null; done | head -n 1)
+    if [ "$n" -gt 0 ] && [ -z "$hits" ] && [ -n "$control" ]; then
+      pass "key proof $scope: no key in $n file(s) (control: the demo case's name is found in a file)"
+    else
+      fail "key proof $scope: $n file(s) read, hits or unreadable: ${hits:-none}, control ${control:+found}${control:-not found}"
+    fi
+  done
+  echo "KEY PROOF done $((SECONDS - begun))s"
+}
+
 # The commit, branch and tree state of a release-candidate result are those of the checkout that the stack is built from, read before the build.
 if [ "$mode" = rc ]; then
   commit=$(git rev-parse HEAD 2> /dev/null || true)
@@ -384,9 +529,22 @@ if [ "$mode" = rc ]; then
   fi
 fi
 
+# DW-434: the preflight first (a missing base image or Docker stops the run before any npm work), then the web bundle in a subshell without the
+# key, then LIVE_REBUILD_WEB=0 so that live_start builds nothing more. No npm process ever has the key; the compose calls of the stack keep it.
 begun=$SECONDS
+preflight
+( unset ANTHROPIC_API_KEY; ensure_web_bundle ) || exit 1
+LIVE_REBUILD_WEB=0
 stack_start eval
-if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then live_add_file "$root/eval/compose.release-candidate.yml"; fi
+if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then
+  live_add_file "$root/eval/compose.release-candidate.yml"
+elif [ "$keypath" -eq 1 ]; then
+  # The key-path rehearsal: the override's interpolation brings the key in, and the CI file layered again sets the mock's base URL and the mock
+  # header back (it is the one file that sets them, AD-19), so that every model request goes to the CI mock.
+  echo "INFO --on-mock with ANTHROPIC_API_KEY set: the key goes through eval/compose.release-candidate.yml to the CI mock only, and the run proves it is stored and shown nowhere"
+  live_add_file "$root/eval/compose.release-candidate.yml"
+  live_add_file "$root/ci/compose.ci.yml"
+fi
 stack_ready "evaluation" "$begun"
 
 keys_begun=$SECONDS
@@ -417,6 +575,31 @@ CHK|model-ChatAgent|claude-haiku-5-5" \
     die "the stack is not ready for the release-candidate run"
   fi
   echo "READY runners, keys and model $((SECONDS - keys_begun))s"
+elif [ "$keypath" -eq 1 ]; then
+  # The key path: the mock's environment (ReadyReason), the runners' entries holding the Provider placeholder, and a key in the IRIS process of
+  # the length of this script's. Presence and length only: nothing here reads the key's value, and PointKeys and RestoreKeys are never called.
+  check_session "the production runs with every item in the CI mock's environment, every runner's entry holds the key placeholder, the key reaches the process and the model is claude-haiku-5-5" OCUTALON \
+    "CHK|ready|
+CHK|records|1
+CHK|keys-TriageAgent|1
+CHK|keys-DiagnosisAgent|1
+CHK|keys-ChatAgent|1
+CHK|placeholder|1
+CHK|keylength|${#ANTHROPIC_API_KEY}
+CHK|model-TriageAgent|claude-haiku-5-5
+CHK|model-DiagnosisAgent|claude-haiku-5-5
+CHK|model-ChatAgent|claude-haiku-5-5" \
+    'Write !,"CHK|ready|",##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' \
+    'Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()' \
+    'For i=1:1:3 { Set a=$Piece("TriageAgent,DiagnosisAgent,ChatAgent",",",i) Write !,"CHK|keys-",a,"|",##class(OcuTalon.Bridge.Keys).Status(a) }' \
+    'Write !,"CHK|placeholder|",##class(OcuTalon.Test.Agent.RunnerFixture).KeysAre(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' \
+    'Write !,"CHK|keylength|",$Length($SYSTEM.Util.GetEnviron("ANTHROPIC_API_KEY"))' \
+    'For i=1:1:3 { Set a=$Piece("TriageAgent,DiagnosisAgent,ChatAgent",",",i) Write !,"CHK|model-",a,"|",##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(a) }' \
+    'Halt'
+  if [ "$fails" -ne 0 ]; then
+    die "the stack is not ready for the key-path rehearsal"
+  fi
+  echo "READY key path: runners, key placeholder, key length and model $((SECONDS - keys_begun))s"
 else
   check_session "the production runs with every item, and the runners' keys point at the CI mock" OCUTALON \
     "CHK|ready|
@@ -478,9 +661,13 @@ if [ "$mode" = rc ]; then
 
   if [ "$fails" -eq 0 ] && [ -s "$report_dir/$result_name.md" ]; then
     echo "==== result $result_name"
-    cat "$report_dir/$result_name.md"
-    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-      { cat "$report_dir/$result_name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+    if [ -n "$(key_like "$report_dir/$result_name.md")" ]; then
+      echo "NOTE the text of $result_name is not printed: it holds key-like text (the scan below names the place)"
+    else
+      cat "$report_dir/$result_name.md"
+      if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        { cat "$report_dir/$result_name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+      fi
     fi
   fi
   echo "REPORT $report_dir"
@@ -489,7 +676,15 @@ if [ "$mode" = rc ]; then
     echo "eval/run: $fails check(s) failed (project $P)"
     exit 1
   fi
+  if [ "$keypath" -eq 1 ]; then
+    key_proof
+    if [ "$fails" -ne 0 ]; then
+      echo "eval/run: $fails check(s) failed (project $P)"
+      exit 1
+    fi
+  fi
   if [ "$onmock" -eq 1 ]; then
+    scan_pair "$result_name" "$report_dir/$result_name.json" "$report_dir/$result_name.md" || exit 4
     echo "VERDICT $verdict"
     echo "eval/run: all checks passed"
     exit 0
@@ -498,6 +693,7 @@ if [ "$mode" = rc ]; then
     echo "FAIL the result could not be copied into eval/"
     exit 1
   fi
+  scan_pair "$result_name" eval/release-candidate.json eval/release-candidate.md || exit 4
   echo "VERDICT $verdict"
   echo "RESULT eval/release-candidate.json"
   if [ "$verdict" = pass ]; then exit 0; fi
