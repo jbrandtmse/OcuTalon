@@ -17,7 +17,7 @@ Property FailedAgain As %Integer(%JSONFIELDNAME = "failedAgain");
 /// The messages that were left out.
 Property Skipped As %Integer(%JSONFIELDNAME = "skipped");
 
-/// The messages the run did not reach.
+/// The messages that a restart cut off: the request's messages that neither completed nor failed again (0 when nothing was cut off).
 Property Interrupted As %Integer(%JSONFIELDNAME = "interrupted");
 
 /// Why the run ended early, when it did.

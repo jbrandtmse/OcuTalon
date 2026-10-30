@@ -2,6 +2,10 @@
 /// read what a session owns. Lane B.
 ///   - SessionRef resolves the caller's session from the CSP session, never from the client and never from the user
 ///     name; Attach records the user's durable session in the CSP session.
+///   - On the online demo (onlineDemo on) the session is a visitor's, not the user's (DW-16, Story 16.3): the shared demo
+///     account signs in many times, so SessionRef resolves only a Ref that the sign-in recorded in the CSP session
+///     (Resume of the visitor's cookie, or StartVisitor), and a CSP session without one gets "" and an error. It never
+///     attaches by user name there.
 ///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision;
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
@@ -29,8 +33,11 @@
 ///     of a production (noticed since a time, or open), the visible approval requests of an incident, the newest Break the
 ///     feed run and the newest live event of a type on the session's stream. ResolvedIncidents, which Break the feed's press
 ///     reads, is the session's own noticed resolved incidents of a production, oldest first, and never an instance incident.
-///   - Watchers and ApprovalIncident read across owners, so they prepare with the privilege check, report a failed read
-///     in sc, and run only in production jobs and tests.
+///   - Watchers, ActiveVisitors, AllowanceHeld and ApprovalIncident read across owners, so they prepare with the privilege
+///     check, report a failed read in sc, and run only in production jobs and tests.
+///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
+///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
+///     turn, and RecentNotices includes the allowance cards.
 Class OcuTalon.Data.Ownership
 {
 
@@ -126,9 +133,9 @@ ClassMethod Sum(rows As %ListOfObjects, cost As %DynamicObject, Output models As
 }
 
 /// The Ref of the caller's durable session. It is the Ref recorded in the CSP session when that session row exists
-/// and belongs to the signed-in user (matched without regard to case); otherwise the user's durable session is
-/// attached first. With no CSP session the result is "" and sc an error. This is the one resolution method: the online
-/// demo's session choice (Story 16.3) extends it here.
+/// and belongs to the signed-in user (matched without regard to case); otherwise, on a local install, the user's durable
+/// session is attached first, and on the online demo (onlineDemo on) the result is "" and sc an error, with nothing attached
+/// or created. With no CSP session the result is "" and sc an error. This is the one resolution method.
 ClassMethod SessionRef(Output sc As %Status) As %String
 {
 	Set sc = $SYSTEM.Status.OK()
@@ -141,9 +148,50 @@ ClassMethod SessionRef(Output sc As %Status) As %String
 		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 		If $IsObject(row), $ZConvert(row.IrisUser, "U") = $ZConvert($Username, "U") Quit ref
 	}
+	If ..LocalFlag() = 0 {
+		Set sc = $SYSTEM.Status.Error(5001, "This CSP session has no OcuTalon session of the signed-in user")
+		Quit ""
+	}
 	Set sc = ..Attach()
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit $Get(%session.Data(..#SESSIONKEY))
+}
+
+/// The online demo's resume (AD-4): the row that the resume reference opens (Session.ForResume), when it belongs to the
+/// signed-in user (matched without regard to case, as SessionRef matches it). The row's CspSessionId becomes the CSP
+/// session's id, whatever it was, and its Ref is recorded in the CSP session. Returns the Ref, or "" with sc OK when the
+/// reference opens no row of the user (the caller then starts a visitor), or "" with an error status when the row can't be
+/// saved or there is no CSP session. The reference is never written anywhere.
+ClassMethod Resume(reference As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If '$IsObject($Get(%session)) {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
+		Quit ""
+	}
+	Set row = ##class(OcuTalon.Data.Session).ForResume(reference)
+	If '$IsObject(row) || ($ZConvert(row.IrisUser, "U") '= $ZConvert($Username, "U")) Quit ""
+	Set row.CspSessionId = %session.SessionId
+	Set sc = row.%Save()
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set %session.Data(..#SESSIONKEY) = row.Ref
+	Quit row.Ref
+}
+
+/// The online demo's first sign-in of a browser: a new row for the signed-in user (Session.NewVisitor) that records the
+/// CSP session's id, and its Ref in the CSP session. reference is the new resume reference, for the caller's cookie alone.
+/// Returns the Ref, or "" with an error status.
+ClassMethod StartVisitor(Output reference As %String, Output sc As %Status) As %String
+{
+	Set reference = ""
+	If '$IsObject($Get(%session)) {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
+		Quit ""
+	}
+	Set row = ##class(OcuTalon.Data.Session).NewVisitor($Username, %session.SessionId, .reference, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set %session.Data(..#SESSIONKEY) = row.Ref
+	Quit row.Ref
 }
 
 /// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session.
@@ -162,8 +210,9 @@ ClassMethod Turns(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 	Quit ..Rows("turns", sessionRef, .sc)
 }
 
-/// The session's newest turns, newest CreatedAt first and then newest ID first, at most max. sc is an error status when
-/// the read failed.
+/// The session's newest turns, newest CreatedAt first and then newest ID first, at most max. A refused turn (State refused,
+/// the record of a message the allowance turned away, AD-20) is not one of them: the chat never shows it. sc is an error
+/// status when the read failed.
 ClassMethod RecentTurns(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("recentTurns", sessionRef, .sc, +max)
@@ -262,8 +311,8 @@ ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Dat
 	Quit rows.GetAt(1)
 }
 
-/// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow or reminder, newest RecordedAt
-/// first and then newest ID first, at most max. sc is an error status when the read failed.
+/// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow, reminder or allowance, newest
+/// RecordedAt first and then newest ID first, at most max. sc is an error status when the read failed.
 ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("recentNotices", sessionRef, .sc, +max)
@@ -394,6 +443,90 @@ ClassMethod Watchers(namespace As %String, production As %String, Output sc As %
 		Set watchers = watchers_$ListBuild(ref)
 	}
 	Quit watchers
+}
+
+/// The Refs of the open sessions that have activity, in Ref order, as a list (AD-20): every Session row that still has its
+/// ResumeHash (SessionOps.End clears it) and has a Turn (a refused one too), a Break the feed run, or an approval request of
+/// its own that its user answered (AnsweredAt set, and the action approve or reject). It reads across owners and has no owner
+/// check, so, like Watchers, it prepares with the privilege check and runs only in production jobs and tests (BridgeSink); no
+/// request path calls it. sc is OK unless the read failed; the result is then "" and means nothing, never that nobody is active.
+ClassMethod ActiveVisitors(Output sc As %Status) As %List
+{
+	Set sc = $SYSTEM.Status.OK()
+	Kill found
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT %EXACT(s.Ref) AS Ref FROM OcuTalon_Data.Session s WHERE s.ResumeHash <> '' AND (EXISTS (SELECT 1 FROM OcuTalon_Data.Turn t WHERE t.SessionRef = s.Ref) OR EXISTS (SELECT 1 FROM OcuTalon_Data.BreakFeedRun b WHERE b.SessionRef = s.Ref) OR EXISTS (SELECT 1 FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.OwnerRef = s.Ref AND a.AnsweredAt <> '' AND a.AnsweredAction IN ('approve', 'reject')))")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute()
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the active sessions failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					Set ref = result.%Get("Ref")
+					If ref '= "" Set found(ref) = ""
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit ..RefList(.found)
+}
+
+/// The Refs of the sessions whose allowance window is open at now (UTC): AllowanceUntil is later than now, in Ref order, as a
+/// list (StatusMonitor). Like ActiveVisitors it reads across owners, prepares with the privilege check and runs only in
+/// production jobs and tests. sc is OK unless the read failed; the result is then "" and means nothing.
+ClassMethod AllowanceHeld(now As %String, Output sc As %Status) As %List
+{
+	Set sc = $SYSTEM.Status.OK()
+	Kill found
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT %EXACT(Ref) AS Ref FROM OcuTalon_Data.Session WHERE AllowanceUntil > ?")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute($Get(now))
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the sessions with an allowance window failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					Set ref = result.%Get("Ref")
+					If ref '= "" Set found(ref) = ""
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit ..RefList(.found)
+}
+
+/// The subscripts of the array as a list, in order.
+ClassMethod RefList(ByRef found) As %List [ Private ]
+{
+	Set refs = ""
+	Set ref = ""
+	For {
+		Set ref = $Order(found(ref))
+		Quit:ref=""
+		Set refs = refs_$ListBuild(ref)
+	}
+	Quit refs
+}
+
+/// The number of incoming emails of the simulated mailbox that the session has after since (UTC; SimMessage rows of Kind
+/// mailbox, Direction in, samples included, outgoing rows never), and, as oldest, the CreatedAt of the oldest of them ("" when
+/// there is none): the count behind the online demo's email limit (Allowance.MailAllowed). sc is an error status when the read
+/// failed, and the count is then 0.
+ClassMethod IncomingMail(sessionRef As %String, since As %String, Output oldest As %String, Output sc As %Status) As %Integer
+{
+	Set oldest = ""
+	Set rows = ..Rows("incomingMail", sessionRef, .sc, $Get(since))
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	If rows.Count() > 0 Set oldest = rows.GetAt(1).CreatedAt
+	Quit rows.Count()
 }
 
 /// The IncidentRef of the approval request whose Ref is exactly ref (case-sensitive) when its owner is instance, "" for
@@ -558,7 +691,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentTurns" {
 		Set class = "OcuTalon.Data.Turn", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? ORDER BY CreatedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State <> 'refused' ORDER BY CreatedAt DESC, ID DESC"
 	}
 	If kind = "turnByClient" {
 		Set class = "OcuTalon.Data.Turn", binds = "oa"
@@ -630,7 +763,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder') ORDER BY RecordedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder', 'allowance') ORDER BY RecordedAt DESC, ID DESC"
 	}
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
@@ -639,6 +772,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "recentMail" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
 		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "incomingMail" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'in' AND CreatedAt > ? ORDER BY CreatedAt, ID"
 	}
 	If kind = "decisionOfItem" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"
@@ -677,6 +814,21 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Live.Event WHERE Stream = ? AND Type = ? ORDER BY Seq DESC"
 	}
 	Quit ""
+}
+
+/// 1 when an approval request with exactly this Ref exists in a state other than cancelled, whoever owns it. It answers only whether
+/// the request is known: it returns no row and no field, and it is no way to see a request (AD-31). The index ignores case, so the Ref
+/// is compared exactly after the open. sc is OK unless the read failed; the answer is then 0.
+ClassMethod ApprovalKnown(ref As %String, Output sc As %Status) As %Boolean
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(ref) = "" Quit 0
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref, , .sc)
+	If '$IsObject(row) {
+		If $SYSTEM.Status.Equals(sc, 5770) Set sc = $SYSTEM.Status.OK()
+		Quit 0
+	}
+	Quit (row.Ref = ref) && (row.State '= "cancelled")
 }
 
 }

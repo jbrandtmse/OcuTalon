@@ -1,6 +1,6 @@
 /// Tests of Demo.Guide (Story 4.2; matrix rows 1 to 14; Story 4.7 adds the trace target, the run total and the variant rule; AD-12, AD-15): Compute derives the guide from the session's fixture rows
 /// through Data.Ownership, with a fixed clock and the Telegram seam of Test.Demo.GuideProbe. The clock is 2030-01-01T12:00:00Z.
-/// TestTelegramCountsAsOff and TestBlankEqualsCompute use the real Guide. Every session is a fixture session (zzguide<n>), removed after
+/// TestTelegramFollowsTheRecordedState and TestBlankEqualsCompute use the real Guide. Every session is a fixture session (zzguide<n>), removed after
 /// its test (Fixture.Clean); demo.mode, onlineDemo and ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
 Class OcuTalon.Test.Demo.Guide Extends %UnitTest.TestCase
 {
@@ -211,19 +211,46 @@ Method TestVariant()
 	Do ..Assert(..View(rejected), "rejected wins over paired", {"variant": "rejected"})
 }
 
-/// Row 7 and 8 with the real Guide: Telegram counts as off until Story 10.3, so a pairing with Telegram included gives unpaired and
-/// no Telegram row.
-Method TestTelegramCountsAsOff()
+/// Rows 7 and 8 with the real Guide and its real source, StatusMark.TelegramState (Story 10.3): Telegram counts as on only while the release
+/// includes it and the recorded state is on. With no recorded state, the state off or rejected, or Telegram not included, a pairing gives
+/// unpaired and there is no Telegram row; with the state on a pairing gives paired and an unpaired session that is not watching gets the row.
+/// The telegramState mark is put back.
+Method TestTelegramFollowsTheRecordedState()
 {
 	Kill ^OcuTalonTest("GuideProbe")
-	Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1)
-	Set paired = ..IncidentSession("expired")
-	Do ##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
-	Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(paired))
-	Do $$$AssertEquals(view.step4Variant, "unpaired", "a paired session with Telegram included is unpaired")
-	Set bare = ..NewSession()
-	Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(bare))
-	Do $$$AssertEquals(view.telegramRow, 0, "and the Telegram row is off")
+	Set saved = ##class(OcuTalon.Data.StatusMark).Get("telegramState")
+	Try {
+		Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1)
+		Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", "")
+		Set paired = ..IncidentSession("expired")
+		Do ##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
+		Set bare = ..NewSession()
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(paired))
+		Do $$$AssertEquals(view.step4Variant, "unpaired", "no recorded state counts as off: a paired session is unpaired")
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(bare))
+		Do $$$AssertEquals(view.telegramRow, 0, "and the Telegram row is off")
+		Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(paired))
+		Do $$$AssertEquals(view.step4Variant_"|"_view.telegramRow, "paired|0", "the state on: a paired session is paired, with no Telegram row")
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(bare))
+		Do $$$AssertEquals(view.step4Variant_"|"_view.telegramRow, "unpaired|1", "the state on: an unpaired session that is not watching gets the Telegram row")
+		For state = "off", "rejected" {
+			Do ##class(OcuTalon.Data.StatusMark).RecordTelegram(state, "")
+			Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(paired))
+			Do $$$AssertEquals(view.step4Variant, "unpaired", "the state "_state_" counts as off: unpaired")
+			Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(bare))
+			Do $$$AssertEquals(view.telegramRow, 0, "the state "_state_": no Telegram row")
+		}
+		Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
+		Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(0)
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(paired))
+		Do $$$AssertEquals(view.step4Variant, "unpaired", "the state on but Telegram not included: unpaired")
+		Set view = ..Export(##class(OcuTalon.Demo.Guide).Compute(bare))
+		Do $$$AssertEquals(view.telegramRow, 0, "and no Telegram row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
+	}
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", saved)
 }
 
 /// Row 8: the Telegram row shows while Telegram is on, the session is unpaired and step 1 is not done.

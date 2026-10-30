@@ -1,12 +1,14 @@
 /// WebChatOut, the business operation that delivers a message to the web chat (AD-12, AD-14, AD-32, AD-33). Its message map
 /// takes the two messages that Notify routes here, and it acts only when the message's SessionRef is a session (Session.Recipients
 /// gives it back); for any other owner it logs a warning and records nothing.
-///   - Notification of a card kind (tellnow, reminder): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
+///   - Notification of a card kind (tellnow, reminder, allowance): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
 ///     web chat's copy of the card on a Delivery row: a new Ref as ChannelMessageId, the kind, the whole rendered text, the
 ///     DecisionRef, DueAt (the slot dueAt of a reminder) and FallbackReason (the value of the slot that the key's catalog entry
 ///     declares as type fallbackReason). After the save it publishes one notification event on the session's stream, with
 ///     Live.Payload.Notification.FromRow of the row: it is the only publisher of that event (AD-33). A render error is returned
-///     with no row and no event, and a failed publish is logged and leaves the row. A reload shows the card from the row (DW-62);
+///     with no row and no event, and a failed publish is logged and leaves the row. A reload shows the card from the row (DW-62).
+///     An allowance card (Story 16.9) is the session's message allowance or the online demo's daily-cap message; its text is the
+///     catalog's, rendered for the web with the time in instance time and "ET", and its row keeps no FallbackReason;
 ///   - Notification of an incident kind (INCIDENTKINDS: incident, approval, answered, result): only its Delivery row (the kind, the
 ///     decision and the approval Ref), with no text and no event, because the web form of these kinds is the incident card, which
 ///     the page draws from the incident event (Story 6.1);
@@ -21,7 +23,7 @@ Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "web";
 
 /// The notification kinds that the web chat shows as cards.
-Parameter CARDKINDS = "tellnow,reminder";
+Parameter CARDKINDS = "tellnow,reminder,allowance";
 
 /// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
 Parameter INCIDENTKINDS = "incident,approval,answered,result";

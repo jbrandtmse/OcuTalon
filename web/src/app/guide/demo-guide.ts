@@ -3,12 +3,14 @@ import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import type { GuideMarker } from '../api/api-types';
+import { allowanceReason } from '../banners/banner-stack';
 import { ChatOutbox } from '../chat/chat-outbox';
 import { formatCost, formatTokens } from '../chat/decision-view';
 import { DeviceTabs } from '../devices/device-tabs';
 import { BreakFeedBox } from '../feed/break-feed-box';
 import { Icon } from '../icon/icon';
 import { README_URL } from '../links';
+import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import type { GuideStatePayload } from '../live/payloads';
 import { pendingRef, phoneOf, type PhoneSnapshot } from '../phone/phone-view';
@@ -76,6 +78,11 @@ const FOCUS_RULE: FocusRule = {
  * replaces the prompt bar: the exact lines, the run total, the two links, More to try and Run again, which writes the run_again
  * marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
+ *
+ * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
+ * disabled, and described by the paragraph #guide-allowance-reason in the prompt bar, which holds the allowance banner's own text; a press
+ * on it sends nothing. The other actions, Break the feed's box and the finish are unchanged, and at the time the allowance returns the
+ * markings and the reason clear.
  *
  * Hide guide collapses the region to one bar, "Demo guide - step n of 5 - Show guide" with Show guide aria-expanded, and the box keeps its
  * place at the bar's right end; the choice is stored in this browser (ocutalon.guide.hidden). Under 680px tall the steps (numbers only) and
@@ -170,7 +177,14 @@ const FOCUS_RULE: FocusRule = {
                     <span class="prompt-text" tabindex="-1" data-guide-focus="text">{{ prompt.quoted }}</span>
                     @switch (prompt.action) {
                       @case ('send') {
-                        <button type="button" class="button button-primary" data-guide-focus="action" (click)="send(prompt.text)">{{ texts.send }}</button>
+                        <button
+                          type="button"
+                          class="button button-primary"
+                          data-guide-focus="action"
+                          [attr.aria-disabled]="allowanceText() ? 'true' : null"
+                          [attr.aria-describedby]="allowanceText() ? reasonId : null"
+                          (click)="send(prompt.text)"
+                        >{{ texts.send }}</button>
                       }
                       @case ('goToBreakFeed') {
                         <button type="button" class="button button-primary" data-guide-focus="action" (click)="goToBreakFeed()">{{ texts.goToBreakFeed }}</button>
@@ -183,6 +197,9 @@ const FOCUS_RULE: FocusRule = {
                       }
                     }
                   </div>
+                  @if (prompt.action === 'send' && allowanceText(); as reason) {
+                    <p class="reason" [id]="reasonId">{{ reason }}</p>
+                  }
                 }
               </div>
             }
@@ -352,6 +369,12 @@ const FOCUS_RULE: FocusRule = {
       font-weight: var(--type-body-strong-font-weight);
       line-height: var(--type-body-line-height);
     }
+    .reason {
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: var(--type-body-sm-font-size);
+      line-height: var(--type-body-sm-line-height);
+    }
     .prompt-text {
       flex: 1;
       min-width: 0;
@@ -465,6 +488,7 @@ const FOCUS_RULE: FocusRule = {
 export class DemoGuide {
   private readonly live = inject(LiveState);
   private readonly outbox = inject(ChatOutbox);
+  private readonly allowance = inject(AllowanceState);
   private readonly announcer = inject(Announcer);
   private readonly api = inject(ApiClient);
   private readonly tabs = inject(DeviceTabs);
@@ -475,6 +499,15 @@ export class DemoGuide {
   protected readonly texts = GUIDE_TEXTS;
   protected readonly trace = TRACE_TEXTS;
   protected readonly readme = README_URL;
+
+  /** The id of the reason that a Send prompt is described by while the message allowance is used up. */
+  protected readonly reasonId = 'guide-allowance-reason';
+
+  /** The allowance banner's text while the message allowance is used up, else empty. */
+  protected readonly allowanceText = computed(() => {
+    const window = this.allowance.active();
+    return window === undefined ? '' : allowanceReason(window);
+  });
 
   /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside demo mode. */
   private readonly liveView = computed(() => guideOf(this.live.snapshot() as GuideSnapshot | undefined, this.live.store()));
@@ -535,8 +568,11 @@ export class DemoGuide {
     writeFlag(() => localStorage, GUIDE_HIDDEN_KEY, hidden ? GUIDE_HIDDEN_FLAG : GUIDE_SHOWN_FLAG);
   }
 
-  /** Sends the prompt as the user's own message from the guide; a press while the same prompt is still being sent sends nothing. */
+  /** Sends the prompt as the user's own message from the guide; a press while the same prompt is still being sent, or while the message allowance is used up, sends nothing. */
   protected send(text: string): void {
+    if (this.allowance.active() !== undefined) {
+      return;
+    }
     if (this.outbox.entries().some((entry) => entry.fromGuide && entry.text === text && entry.status === 'sending')) {
       return;
     }

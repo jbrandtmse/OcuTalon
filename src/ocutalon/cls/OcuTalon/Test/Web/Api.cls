@@ -12,14 +12,20 @@
 /// goes through Test.Demo.Step's row helpers. Capture, Collect and Written are shared with the other web tests that call
 /// a class method and read what it wrote.
 /// Story 2.9: a turn's chat entry and a decision of the rail carry traceUrl (Web.TraceLink), the turn's with the PAGE of its
-/// position for the user's page size and choice of events, and a check in a namespace with no trace application carries none; the
-/// chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
+/// position for the user's page size and choice of events, and a check carries its latest run's traceUrl, into the trace application
+/// of the namespace that holds the run (Story 5.6), and none without a run; the chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
 /// tests (in a process-private global), unset before each test and put back after them.
 /// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
 /// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
 /// Story 4.2: with demo mode on the snapshot's last key is guide (Demo.Guide.Compute's view), and with it off there is no guide key
 /// (TestStateBody, TestStateFlags); the markers route is GuideMarkers (TestRoutes; Test.Web.GuideApi has the endpoint).
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
+/// Story 16.1: TestStateTraceAccount (the snapshot's traceAccount, online demo only).
+/// Story 16.4: TestStateIdleSeconds (the snapshot's idleSeconds, online demo only, the key just before traceAccount).
+/// Story 16.9: TestMessagesAllowanceRefusal (the 429 allowance body and the 500 of a refusal with no retryAt),
+/// TestMessagesUnreadableOutputIs500 (QA: an output that is not JSON is 500) and
+/// TestStateAllowanceStatus (the allowance condition first in /state's status). DW-300: TestStateSections seeds its check rows a day
+/// ahead, so that no heartbeat tick runs them.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -66,6 +72,7 @@ Method OnBeforeAllTests() As %Status
 Method OnBeforeOneTest() As %Status
 {
 	Kill ^EnsPortal.Settings($Username, "VisualTrace")
+	Kill ^OcuTalonTest("ApiProbe", "mode"), ^OcuTalonTest("ApiProbe", "refuse"), ^OcuTalonTest("ApiProbe", "output")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -321,15 +328,19 @@ Method TestStateMailboxTrace()
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
 /// filters: the chat merges the turns and the visible noticed incidents by time (a turn before an incident of the same
 /// time), the rail holds the pending requests, every check, the pending reminders and the 20 newest decide decisions,
-/// telegram holds the release switch and the pairing. Another session's rows are not in it.
+/// telegram holds the release switch, the pairing and the two Telegram marks, which the test clears first and puts back. Another
+/// session's rows are not in it.
 Method TestStateSections()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
 	Set mine = $ClassMethod(fixture, "Session", "zzapisections"_..Number)
 	Set theirs = $ClassMethod(fixture, "Session", "zzapisectionsother"_..Number)
 	Set production = "Zz.Api"_..Number_".Watched"
-	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production)
-	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second")
+	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production, {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
+	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second", {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
+	Set notDue = ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()) + (23 * 3600)
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(check1).NextDueAt) > notDue, "check1 is due more than 23 hours from now, so that no heartbeat tick runs it (DW-300)")
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(check2).NextDueAt) > notDue, "check2 is due more than 23 hours from now, so that no heartbeat tick runs it (DW-300)")
 	Set turn1 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
 	Set turnRow = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn1)
 	Set turnRow.TraceHeaderId = 9001, turnRow.TraceItemIndex = 46, turnRow.TraceItemIndexNoEvents = 30
@@ -360,6 +371,10 @@ Method TestStateSections()
 	Do $$$AssertStatusOK(checkRow.%Save(), "the first check has a run")
 	Set ^OcuTalonTest("TelegramIncluded") = 1
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set savedState = ##class(OcuTalon.Data.StatusMark).Get("telegramState")
+	Set savedPause = ##class(OcuTalon.Data.StatusMark).Get("telegramPaused")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", "")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", "")
 
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
@@ -406,6 +421,25 @@ Method TestStateSections()
 	Do $$$AssertEquals(ofTurn.traceUrl, chat.%Get(0).payload.traceUrl, "which is the turn's own trace URL")
 
 	Do $$$AssertEquals(body.telegram.included_"|"_body.telegram.paired_"|"_body.telegram.displayName_"|"_body.telegram.state, "1|1|Zz chat|off", "telegram: included, paired, the chat's name")
+	Do $$$AssertEquals(body.telegram.%ToJSON(), "{""included"":true,""state"":""off"",""botUserName"":"""",""paired"":true,""displayName"":""Zz chat"",""pausedUntil"":""""}", "telegram: the whole block with no recorded state and no pause")
+	Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.%ToJSON(), "{""included"":true,""state"":""on"",""botUserName"":""ocutalon_ci_bot"",""paired"":true,""displayName"":""Zz chat"",""pausedUntil"":""""}", "telegram: the state and bot from the telegramState mark, the pairing from the Pairing row")
+	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", until)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.pausedUntil, until, "telegram: pausedUntil is the telegramPaused mark while it is in the future")
+	Set listed = 0
+	Set iterator = body.status.%GetIterator()
+	While iterator.%GetNext(, .condition) {
+		If condition.condition = "telegramPaused" Set listed = (condition.slots.time = until)
+	}
+	Do $$$AssertEquals(listed, 1, "and status lists telegramPaused with that time")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -5))
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.telegram.pausedUntil, "", "pausedUntil is empty once the time has passed")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", savedPause)
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", savedState)
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.telegram.included, 0, "telegram.included follows the release switch")
@@ -998,6 +1032,92 @@ Method TestMessagesServerError()
 	Do $$$AssertEquals(response.Status, "202 Accepted", "the same message is accepted once the production takes it")
 }
 
+/// A message that the session's allowance refuses (Story 16.9, AD-20) answers 429 Too Many Requests with exactly the members
+/// error ({code allowance, message}), retryAt and limit, in that order; WebChatIn sends no Item (the probe records the allowance
+/// and the one allowance notice only). A refusal with no retryAt, which is a lock that stayed busy, is 500 server_error.
+Method TestMessagesAllowanceRefusal()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiAllowance", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set valid = "{""clientId"":""zzallow"",""text"":""zz hello"",""fromGuide"":false}"
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set ^OcuTalonTest("ApiProbe", "refuse") = 1
+	Set body = ..PostMessage(csp, valid, .response)
+	Kill ^OcuTalonTest("ApiProbe", "refuse")
+	Do $$$AssertEquals(response.Status, "429 Too Many Requests", "a refused message: 429")
+	Do $$$AssertEquals(response.ContentType, "application/json", "the content type")
+	Set limit = ##class(OcuTalon.Core.Allowance).Limit()
+	Do $$$AssertEquals(body, "{""error"":{""code"":""allowance"",""message"":""You've used this session's "_limit_" messages for the hour.""},""retryAt"":""2030-01-01T00:00:00Z"",""limit"":"_limit_"}", "exactly error, retryAt and limit, with the limit as a number")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 1, "target"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "target"))_"|"_+$Get(^OcuTalonTest("WebChatIn", ..Number)), "allowed|Notify|2", "the allowance was asked, one notice was sent and no Item")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "refuse") = "busy"
+	Set body = ..PostMessage(csp, valid, .response)
+	Kill ^OcuTalonTest("ApiProbe", "refuse")
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a refusal with no retryAt: 500")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}", "with server_error")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 1, "and only the allowance was asked")
+	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HTTP429TOOMANYREQUESTS"), "429 Too Many Requests", "the 429 status line")
+}
+
+/// An output of WebChatIn that is not a JSON object (empty, text, a number, a JSON array) is 500 server_error with no cause in the
+/// body, and so does not answer 202 for a message that may not have been taken (QA, Story 16.9: Messages reads the output on every
+/// post).
+Method TestMessagesUnreadableOutputIs500()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiOutput", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set valid = "{""clientId"":""zzout"",""text"":""zz hello"",""fromGuide"":false}"
+	Set wanted = "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}"
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	For output = "", "not json", "5", "{""accepted"":", "[]", "[{""accepted"":1}]" {
+		Set ^OcuTalonTest("ApiProbe", "output") = output
+		Set body = ..PostMessage(csp, valid, .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_wanted, "the output '"_output_"': 500 server_error")
+	}
+	Set ^OcuTalonTest("ApiProbe", "output") = {"accepted": 1, "duplicate": 1}.%ToJSON()
+	Set body = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""clientId"":""zzout""}", "a duplicate's output is 202 with the clientId, as before")
+	Kill ^OcuTalonTest("ApiProbe", "output")
+}
+
+/// With the online-demo flag set and the session's allowance window open, /state's status holds the allowance condition first,
+/// {"condition":"allowance","active":true,"slots":{"limit","time"}}, then the instance conditions as before. It is absent for a
+/// window that has ended, for a session with none and with the flag off.
+Method TestStateAllowanceStatus()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzapiallowance"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ##class(OcuTalon.Live.Payload.Status).Readings(.keys, .budget)
+	Set instance = ##class(OcuTalon.Live.Payload.Status).ActiveOf(##class(OcuTalon.Live.Payload.Status).Computed(keys, budget))
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "no window: the status holds the instance conditions only")
+	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Set session.AllowanceUntil = until
+	Do $$$AssertStatusOK(session.%Save(), "the session has an open window")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size() + 1, "an open window adds one condition")
+	Do $$$AssertEquals(body.status.%Get(0).%ToJSON(), "{""condition"":""allowance"",""active"":true,""slots"":{""limit"":"_##class(OcuTalon.Core.Allowance).Limit()_",""time"":"""_until_"""}}", "the allowance comes first, with its limit and the end of the window")
+	For i = 0:1:instance.%Size() - 1 {
+		Do $$$AssertEquals(body.status.%Get(i + 1).%ToJSON(), instance.%Get(i).%ToJSON(), "then the instance condition "_i_" as before")
+	}
+	Set session.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
+	Do $$$AssertStatusOK(session.%Save(), "the window has ended")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "an ended window is absent")
+	Set session.AllowanceUntil = until
+	Do $$$AssertStatusOK(session.%Save(), "the window is open again")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.status.%Size(), instance.%Size(), "with the flag off the allowance is absent")
+	For i = 0:1:body.status.%Size() - 1 {
+		Do $$$AssertTrue(body.status.%Get(i).condition '= "allowance", "and so is every allowance entry")
+	}
+}
+
 /// With no production running, the real Post cannot create WebChatIn and the message is not taken: 500 server_error with the
 /// plain-English text and no cause in the body. Skipped where a production runs, because the real Post would then take the
 /// message (the API spec and ConversationProduction cover that path).
@@ -1070,17 +1190,37 @@ Method TestBadCursors()
 	}
 }
 
-/// The pairing routes answer 404 while Telegram is not included, and 501 once it is.
+/// The pairing routes answer 404 while Telegram is not included (Story 10.3: the real routes are tested over the production by
+/// Test.Web.PairingApi). Once it is included, a POST to the code route with the recorded state off answers 409 not_available with the
+/// text of MESSAGETELEGRAMOFF, reads no session (the CSP session stays unattached) and writes nothing. The telegramState mark is put back.
 Method TestPairing()
 {
+	Set saved = ##class(OcuTalon.Data.StatusMark).Get("telegramState")
+	Set rows = ..PairingRows()
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Set body = ..Call("Pairing", .response)
 	Do $$$AssertEquals(response.Status, "404 Not Found", "404 while Telegram is not included")
 	Do $$$AssertTrue(body [ "not_found", "with not_found")
-	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
 	Set body = ..Call("Pairing", .response)
-	Do $$$AssertEquals(response.Status, "501 Not Implemented", "501 when Telegram is included")
-	Do $$$AssertTrue(body [ "not_built", "with not_built")
+	Do $$$AssertEquals(response.Status, "404 Not Found", "404 while Telegram is not included, whatever the state")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", "")
+	Set csp = ##class(%CSP.Session).%New("ZzApiTest", 0)
+	Set body = ..CallSession(csp, "Pairing", .response)
+	Do $$$AssertEquals(response.Status, "409 Conflict", "409 when Telegram is included and the state is off")
+	Do $$$AssertEquals($Get(csp.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "the 409 read no session: the CSP session was not attached")
+	Do $$$AssertEquals(body, {"error": {"code": "not_available", "message": (##class(OcuTalon.Web.Api).#MESSAGETELEGRAMOFF)}}.%ToJSON(), "with not_available and the text of MESSAGETELEGRAMOFF")
+	Do $$$AssertEquals(..PairingRows(), rows, "and no Pairing row was made")
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramState", saved)
+}
+
+/// The number of Pairing rows.
+Method PairingRows() As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Pairing")
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
 }
 
 /// --- helpers ---
@@ -1391,6 +1531,119 @@ ClassMethod Items(chat As %DynamicArray) As %String [ Private ]
 		Set items = items_$Select(items = "": "", 1: ",")_chat.%Get(i).type_":"_chat.%Get(i).payload.ref
 	}
 	Quit items
+}
+
+/// Story 16.1: the snapshot's traceAccount is the read-only account's user name and password, the last key, only when onlineDemo
+/// is 1 and both values are set. Flag 0 with both set: no key, and the snapshot's keys (whose list TestStateBody pins) are the
+/// baseline of the other cases. Flag 1 with both: the baseline and then the key, last, with both values. Flag 1 with an empty
+/// password, and with an empty user name: the baseline, no key. The reset anchor is cleared for the checks, so that the online demo's
+/// nextReset (Story 16.8, after traceAccount) is absent whatever the stack's schedule. The four public settings are put back, also
+/// after a failure; the fixture session is zzapitrace<n>.
+Method TestStateTraceAccount()
+{
+	Set names = $ListBuild("onlineDemo", "readonlyUser", "readonlyPassword", "resetAnchor")
+	For i = 1:1:$ListLength(names) {
+		Set saved($List(names, i)) = ##class(OcuTalon.Data.Public.Settings).Get($List(names, i))
+	}
+	Set error = ""
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapitrace"_..Number, .sc)
+		Do $$$AssertStatusOK(sc, "the fixture session")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "TraceReader"_..Number)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Set local = ..KeyList(body)
+		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "unassigned", "flag 0 with both read-only values set: traceAccount is absent")
+		Do $$$AssertNotTrue((","_local_",") [ ",traceAccount,", "flag 0: no traceAccount among the keys ("_local_")")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Set online = local_",idleSeconds"
+		Do $$$AssertEquals(..KeyList(body), online_",traceAccount", "flag 1 with both values: idleSeconds, then traceAccount as the last key")
+		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "object", "traceAccount is an object")
+		Do $$$AssertEquals(..KeyList(body.traceAccount), "user,password", "traceAccount holds user, then password")
+		Do $$$AssertEquals(body.traceAccount.user, "TraceReader"_..Number, "the user name is readonlyUser")
+		Do $$$AssertEquals(body.traceAccount.password, "pw"_..Number_"zz", "the password is readonlyPassword")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), online, "flag 1 with an empty password: no traceAccount")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), online, "flag 1 with an empty user name: no traceAccount")
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	For i = 1:1:$ListLength(names) {
+		Do ##class(OcuTalon.Data.Public.Settings).Set($List(names, i), saved($List(names, i)))
+	}
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// Story 16.4: the snapshot's idleSeconds is the page's idle cap, online demo only, just before traceAccount. With the flag on it is the
+/// whole number that the setting onlineDemo.idleSeconds holds, and 600 (the seed) when the row is absent, holds "x" (not a number) or
+/// holds 0 or a negative number or a fraction; with the flag off the snapshot has no such key. It is a JSON number. The setting's row
+/// and the flag are put back, also after a failure; the fixture session is zzapiidle<n>.
+Method TestStateIdleSeconds()
+{
+	Set key = ##class(OcuTalon.Data.Setting).#IDLEKEY
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id)
+	Set savedValue = $Select(existed: ##class(OcuTalon.Data.Setting).%OpenId(id).Value, 1: "")
+	Set anchor = ##class(OcuTalon.Data.Public.Settings).Get("resetAnchor")
+	Set error = ""
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapiidle"_..Number, .sc)
+		Do $$$AssertStatusOK(sc, "the fixture session")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do ..IdleRow(key, "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(body.idleSeconds, 600, "flag 1, no row: 600")
+		Do $$$AssertEquals(body.%GetTypeOf("idleSeconds"), "number", "idleSeconds is a number")
+		Do ..IdleRow(key, "300")
+		Do $$$AssertEquals(##class(OcuTalon.Web.Api).StateBody(session).idleSeconds, 300, "the row holds 300: 300")
+		For value = "x", "0", "-5", "1.5", "300 ", "1e3", "-0" {
+			Do ..IdleRow(key, value)
+			Do $$$AssertEquals(##class(OcuTalon.Web.Api).StateBody(session).idleSeconds, 600, "the row holds '"_value_"': 600")
+		}
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ..IdleRow(key, "300")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(body.%GetTypeOf("idleSeconds"), "unassigned", "flag 0: no idleSeconds")
+		Do $$$AssertNotTrue((","_..KeyList(body)_",") [ ",idleSeconds,", "flag 0: no idleSeconds among the keys")
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	Do ..IdleRow(key, $Select(existed: savedValue, 1: ""))
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", anchor)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// The setting row of key holds value (the row is created or changed), or is absent when value is "", and this process's cache entry
+/// is dropped.
+ClassMethod IdleRow(key As %String, value As %String) [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id) Do ##class(OcuTalon.Data.Setting).%DeleteId(id)
+	Kill ^||OcuTalon.Setting(key)
+	If value '= "" Do ##class(OcuTalon.Data.Setting).Set(key, value)
+}
+
+/// The keys of a dynamic object, comma-separated, in order.
+ClassMethod KeyList(object As %DynamicObject) As %String [ Private ]
+{
+	Set keys = ""
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Quit keys
 }
 
 /// Deletes the fixture sessions with their events and counters.

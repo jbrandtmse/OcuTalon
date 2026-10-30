@@ -69,6 +69,46 @@ Method TestDefinitions()
 	}
 }
 
+/// The CSP session timeout (Story 16.4, matrix row 1): with the online-demo flag on, /ocutalon, /ocutalon/api and the OCUTALON trace
+/// application get 120 seconds and /ocutalon/public keeps 28800; with the flag off, or absent, every application keeps 28800. The
+/// OCUORDERS trace application the Demo step builds takes the same timeout as the OCUTALON one. The public setting onlineDemo is put
+/// back, also after a failure; Expected (the flag off) is unchanged.
+Method TestOnlineDemoTimeout()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set error = ""
+	Try {
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#ONLINETIMEOUT, 120, "the online demo's timeout is 120 seconds")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#LOCALTIMEOUT, 28800, "a local install's is 8 hours")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.apps), "Definitions with the flag on")
+		Do $$$AssertEquals(apps("/ocutalon", "Timeout"), 120, "flag on: /ocutalon")
+		Do $$$AssertEquals(apps("/ocutalon/api", "Timeout"), 120, "flag on: /ocutalon/api")
+		Do $$$AssertEquals(apps("/ocutalon/trace/ocutalon", "Timeout"), 120, "flag on: the OCUTALON trace application")
+		Do $$$AssertEquals(apps("/ocutalon/public", "Timeout"), 28800, "flag on: /ocutalon/public keeps 8 hours")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).TraceApp("OCUORDERS", .orders), "/ocutalon/trace/ocuorders", "the OCUORDERS trace application")
+		Do $$$AssertEquals(orders("Timeout"), 120, "flag on: the OCUORDERS trace application")
+		Do $$$AssertEquals(apps("/ocutalon", "Path"), $SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/", "the other properties are unchanged")
+		For flag = 0, "" {
+			Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+			Kill apps, orders
+			Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Definitions(.apps), "Definitions with the flag '"_flag_"'")
+			Set name = ""
+			For {
+				Set name = $Order(apps(name))
+				Quit:name=""
+				Do $$$AssertEquals(apps(name, "Timeout"), 28800, "flag '"_flag_"': "_name_" keeps 8 hours")
+			}
+			Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUORDERS", .orders)
+			Do $$$AssertEquals(orders("Timeout"), 28800, "flag '"_flag_"': the OCUORDERS trace application keeps 8 hours")
+		}
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
 /// The Web area declares the live-event purge (AD-27, Story 30.2 calls it): Purge(90) deletes every live event older than
 /// 24 hours, whatever the number, keeps the newer ones and leaves the stream's counter alone. It deletes the events of
 /// every stream, rows this test did not create too, so this class runs only on a throwaway (Rule 21).
@@ -90,6 +130,44 @@ Method TestPurgeDeclaration()
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), 2, "the stream's counter is unchanged")
 	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "the next event is published")
 	Do $$$AssertEquals(seq, 3, "and continues the stream's Seq")
+}
+
+/// The Web area's purge also keeps the address counter to one hour (AD-27, Story 16.3, matrix row 13): Purge(90) and Purge(0) each delete
+/// a counter row that is 61 minutes old, keep one that is 59 minutes old and still purge the live events older than 24 hours. Like
+/// TestPurgeDeclaration it deletes the rows of every address and stream, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeAddressCounter()
+{
+	Set address = "zz-webinstall-"_..Number_"-counter"
+	Set hash = ##class(OcuTalon.Data.Session).Hash(address)
+	Set stream = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("WebInstall", "streams", stream) = ""
+	For days = 90, 0 {
+		Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
+		Set old = ..CounterRow(hash, 3660)
+		Set recent = ..CounterRow(hash, 3540)
+		Do $$$AssertTrue((old '= "") && (recent '= ""), "both counter rows are saved (days "_days_")")
+		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+		Set payload.Ref = "ZzWeb"_..Number_"c"_days
+		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "an event is published")
+		Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(stream, seq, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(25))
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).Recent(address, .oldest), 1, "Recent counts the 59-minute row only (days "_days_")")
+		Do $$$AssertEquals(oldest, ##class(OcuTalon.Data.AddressCounter).%OpenId(recent).CreatedAt, "and returns its time as the oldest")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(days), "the Web area's Purge("_days_")")
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).%ExistsId(old), 0, "the 61-minute row is deleted")
+		Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).%ExistsId(recent), 1, "the 59-minute row is kept")
+		Do $$$AssertEquals($ListFind($ListFromString(##class(OcuTalon.Test.Data.Fixture).EventSeqs(stream)), seq), 0, "the aged live event is purged too (days "_days_")")
+	}
+	Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
+}
+
+/// A counter row of the hash created the given number of seconds ago; returns its id, or "" when it could not be saved.
+ClassMethod CounterRow(hash As %String, secondsAgo As %Integer) As %Integer [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.AddressCounter).%New()
+	Set row.AddressHash = hash
+	Set row.CreatedAt = ##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
+	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
+	Quit row.%Id()
 }
 
 /// The trace application of a namespace: its name from the namespace, AD-24's seven permitted classes, no

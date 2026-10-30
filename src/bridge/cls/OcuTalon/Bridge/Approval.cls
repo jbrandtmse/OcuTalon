@@ -58,8 +58,10 @@ Parameter TASKSECONDS = 5;
 /// session is started, tagged with the row's TraceRef.
 ///   1. It refuses, before anything is written, a request that is not an unsaved ApprovalRequest, a Kind that is not one of Msg.Enum
 ///      APPROVALKIND, an OwnerRef that is neither a 22-character reference, instance nor eval, a tool_call without a ToolName or with
-///      ToolArguments that are not a JSON object or with a DryRun, a fix without a DryRun that is a JSON object or without a ResultTarget or
-///      with a ToolName or ToolArguments, an IncidentRef or TraceRef that is neither empty nor a reference, a field that Raise and the later
+///      ToolArguments that are not a JSON object or with a DryRun, a FixKind, FixParameters or FixTargets, a fix without a DryRun that is a
+///      JSON object or without a ResultTarget or with a ToolName or ToolArguments or without a FixKind (the fix kind's name, a plain string),
+///      with FixParameters (the exact change) that are not a JSON object or without FixTargets (the fixed targets), an IncidentRef or
+///      TraceRef that is neither empty nor a reference, a field that Raise and the later
 ///      state methods own (Ref, State, RequiredRole, RaisedAt, ExpiresAt, the four Answered fields, Result, FinishedAt), and an empty
 ///      ApprovalRole setting. Each refusal is an error status that names the field.
 ///   2. Under LOCK +^OcuTalon.Bridge.Approval(<new Ref>) for LOCKSECONDS it sets the Ref, the state pending, the RequiredRole from the
@@ -184,11 +186,17 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 		If request.ToolName = "" Quit ..Refuse("ToolName", "is empty for a tool_call request")
 		If '..IsJsonObject(request.ToolArguments) Quit ..Refuse("ToolArguments", "is not a JSON object")
 		If request.DryRun '= "" Quit ..Refuse("DryRun", "must be empty for a tool_call request")
+		If request.FixKind '= "" Quit ..Refuse("FixKind", "must be empty for a tool_call request")
+		If request.FixParameters '= "" Quit ..Refuse("FixParameters", "must be empty for a tool_call request")
+		If request.FixTargets '= "" Quit ..Refuse("FixTargets", "must be empty for a tool_call request")
 	} Else {
 		If '..IsJsonObject(request.DryRun) Quit ..Refuse("DryRun", "is not a JSON object")
 		If request.ResultTarget = "" Quit ..Refuse("ResultTarget", "is empty for a fix request")
 		If request.ToolName '= "" Quit ..Refuse("ToolName", "must be empty for a fix request")
 		If request.ToolArguments '= "" Quit ..Refuse("ToolArguments", "must be empty for a fix request")
+		If request.FixKind = "" Quit ..Refuse("FixKind", "is empty for a fix request")
+		If '..IsJsonObject(request.FixParameters) Quit ..Refuse("FixParameters", "is not a JSON object")
+		If request.FixTargets = "" Quit ..Refuse("FixTargets", "is empty for a fix request")
 	}
 	For name = "IncidentRef", "TraceRef" {
 		Set value = $Property(request, name)

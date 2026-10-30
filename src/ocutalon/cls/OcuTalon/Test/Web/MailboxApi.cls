@@ -9,7 +9,10 @@
 ///   - TestSamples: each sample name is 202 and passes Sample, with the body unread; an unknown name is 404 and nothing is asked;
 ///   - TestDemoOff: with demo mode off, or with no demo.mode row, both routes are 404 not_found before the body or the session is
 ///     read;
-///   - TestFailures: no session, a service error and an output that isn't JSON with a ref are 500 server_error;
+///   - TestFailures: no session, a service error and an output that isn't JSON with a ref are 500 server_error, and so is a refusal
+///     with no retryAt;
+///   - TestEmailLimit (Story 16.9): an email that SimMailboxIn refuses with a retryAt, by the form or by a sample chip, is 429
+///     email_limit with exactly the members error and retryAt;
 ///   - TestRoutes: the route table names MailboxIncoming and MailboxSample.
 /// The fixture session is a row of the IRIS user who runs the tests, which is the user that Ownership.SessionRef resolves the CSP
 /// session for; demo.mode is saved before the tests and put back after them.
@@ -175,7 +178,7 @@ Method TestFailures()
 	Set body = ..Post("MailboxSample", "", "", .response, "newsletter")
 	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "sample: 500 for a session that can't be read")
 	Do $$$AssertEquals($Get(^OcuTalonTest("ApiProbe", "mails"), 0), 0, "SimMailboxIn is not asked for it")
-	For answer = "fail", "not json", "{}", "[]", "{""ref"":5}", "{""ref"":""""}" {
+	For answer = "fail", "not json", "{}", "[]", "{""ref"":5}", "{""ref"":""""}", "{""refused"":1}", "{""refused"":1,""retryAt"":""""}", "{""refused"":1,""retryAt"":5}" {
 		Set ^OcuTalonTest("ApiProbe", "mail") = answer
 		For route = "MailboxIncoming", "MailboxSample" {
 			Set body = ..Post(route, ..Csp(ref), $Select(route = "MailboxIncoming": valid, 1: ""), .response, "newsletter")
@@ -184,6 +187,26 @@ Method TestFailures()
 			Do $$$AssertEquals(error.code_"|"_error.message, "server_error|"_##class(OcuTalon.Web.Api).#MESSAGESERVERERROR, route_": server_error and its text for '"_answer_"'")
 		}
 	}
+}
+
+/// An email that SimMailboxIn refuses (the online demo's 20 an hour, Story 16.9) answers 429 Too Many Requests, for the form and
+/// for each sample chip: exactly {"error":{"code":"email_limit","message"},"retryAt"} with the time that the service gave.
+Method TestEmailLimit()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set ^OcuTalonTest("ApiProbe", "mail") = {"refused": 1, "retryAt": "2030-01-01T00:00:00Z"}.%ToJSON()
+	Set wanted = "{""error"":{""code"":""email_limit"",""message"":""You've simulated 20 emails this hour.""},""retryAt"":""2030-01-01T00:00:00Z""}"
+	Set body = ..Post("MailboxIncoming", ..Csp(ref), {"subject": "zz s", "body": "zz b"}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "429 Too Many Requests", "the form: 429")
+	Do $$$AssertEquals(response.ContentType, "application/json", "JSON")
+	Do $$$AssertEquals(body, wanted, "exactly error and retryAt")
+	For name = "newsletter", "partner-notice", "suspicious-request" {
+		Set body = ..Post("MailboxSample", ..Csp(ref), "", .response, name)
+		Do $$$AssertEquals(response.Status, "429 Too Many Requests", name_": 429")
+		Do $$$AssertEquals(body, wanted, name_": exactly error and retryAt")
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("ApiProbe", "mails")), 4, "the service was asked each time")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Api).#MESSAGEEMAILLIMIT, "You've simulated 20 emails this hour.", "the message is the first sentence of the UX's text")
 }
 
 /// The route table sends the two mailbox paths to their methods, and no mailbox path answers not built any more.

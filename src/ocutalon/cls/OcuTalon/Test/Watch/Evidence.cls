@@ -145,34 +145,6 @@ Method TestSnapshotPack()
 	Do $$$AssertStatusNotOK($ClassMethod(..#PACK, "Build", bad, .none), "a snapshot of another format is refused")
 }
 
-/// An incident row of the owner over the failed headers (their ids, in order, are the keys of its group; kind l makes them log keys), and its group. The row is cleaned up by Case.
-Method Fixture(owner As %String, ids As %String, namespace As %String = {..#ORDERS}, production As %String = {..#ORDERSPRODUCTION}, kind As %String = "h") As OcuTalon.Data.Incident [ Private ]
-{
-	Set incident = ##class(OcuTalon.Data.Incident).%New()
-	Set incident.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set incident.OwnerRef = owner
-	Set incident.Namespace = namespace
-	Set incident.Production = production
-	Set incident.State = "open"
-	Set incident.Count = $Length(ids, ",")
-	Set incident.NoticeCount = incident.Count
-	Set incident.FirstAt = "2026-10-25T08:00:00Z"
-	Set incident.LastAt = "2026-10-25T08:00:05Z"
-	Do $$$AssertStatusOK(incident.%Save(), "a fixture incident is saved")
-	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
-	Set group.IncidentRef = incident.Ref
-	Set group.Seq = 1
-	Set group.ItemName = "OrdersFromPartner"
-	Set group.ErrorPattern = ##class(OcuTalon.Watch.Settle).Pattern(..#ORDERDATETEXT)
-	Set keys = ""
-	For i = 1:1:$Length(ids, ",") {
-		Set keys = keys _ $Select(keys = "": "", 1: ",") _ kind _ $Piece(ids, ",", i)
-	}
-	Set group.Seen = keys
-	Do $$$AssertStatusOK(group.%Save(), "and its group")
-	Quit incident
-}
-
 /// Five failing orders in OCUORDERS, tagged with no one, as the ids of their headers, oldest first. "" with the failure reported.
 Method Failing() As %String [ Private ]
 {

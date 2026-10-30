@@ -263,6 +263,17 @@ describe('a skip or a new epoch asks for a reload', () => {
     assert.equal(result.store, store);
     assert.equal(apply(store, [], 'epoch-2').reload, true, 'an empty poll too');
   });
+
+  it('says whether the reload is an epoch change (Story 16.4) or a skipped Seq', () => {
+    const store = fromSnapshot(snapshot());
+    assert.equal(apply(store, [event('session', 6, 'reminder', { ref: 'rem-3' })], 'epoch-2').epochChanged, true, 'another epoch');
+    assert.equal(apply(store, [], 'epoch-2').epochChanged, true, 'another epoch with no event');
+    assert.equal(apply(store, [event('session', 8, 'reminder', { ref: 'rem-3' })]).epochChanged, false, 'a skipped Seq');
+    assert.equal(apply(store, [event('instance', 5, 'status', { condition: 'dailyCap' })]).epochChanged, false, 'a skipped instance Seq');
+    const good = apply(store, [event('session', 6, 'reminder', { ref: 'rem-3', state: 'pending' })]);
+    assert.equal(good.reload || good.epochChanged, false, 'a good poll is neither');
+    assert.equal(apply(store, []).epochChanged, false, 'an empty poll of the same epoch is neither');
+  });
 });
 
 describe('COLLECTIONS', () => {

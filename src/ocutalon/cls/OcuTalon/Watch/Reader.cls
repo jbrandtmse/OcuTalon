@@ -33,7 +33,9 @@ Include (EnsConstants, EnsErrors)
 ///     the failures' sessions and of the log keys), items (the named item only, with its settings) and trace (the first failure's session, at
 ///     most TRACEMAX headers). The settings whose name holds credential, password, passwd, passphrase, secret, token, key, auth, bearer or cookie
 ///     (CredentialName) are left out after the switch, before Evidence returns, also when the read fails. The texts are raw, line breaks
-///     included: the caller redacts them.
+///     included: the caller redacts them. Given resent 1 (Story 7.3), each failure also gains resentBy, an array of the ids of the headers of its session
+///     whose Description names it as resent: the ids that follow "Resent " and precede any ":" (IRIS writes "Resent <id>[,<earlier ids>][: <description>]" on a
+///     copy, whoever resends it); without the flag the failures have no such member.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
 /// Current, which calls no OcuTalon class while it is in the other namespace. A reader runs inside AI Hub's callback, so this class makes no
 /// AI Hub call, no Python call and no session call (AD-6).
@@ -186,15 +188,16 @@ ClassMethod Failures(namespace As %String, production As %String, from As %Strin
 /// The evidence of the failures with the keys (comma-separated, h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the
 /// production's item in the namespace, as the reader snapshot in snapshot (see the class description; always a dynamic object, with empty lists when
 /// nothing was read). The outcome: read, unreadable (the service user cannot read the namespace: nothing was entered) or not_current (the production
-/// is not the namespace's own, or a name is empty: nothing was read). A namespace that cannot be read for another reason is an error.
-ClassMethod Evidence(namespace As %String, production As %String, item As %String, keys As %String, Output snapshot As %DynamicObject) As %String
+/// is not the namespace's own, or a name is empty: nothing was read). A namespace that cannot be read for another reason is an error. resent 1 adds
+/// resentBy to each failure (see the class description).
+ClassMethod Evidence(namespace As %String, production As %String, item As %String, keys As %String, Output snapshot As %DynamicObject, resent As %Boolean = 0) As %String
 {
 	Set snapshot = {"format": "ocutalon.readerSnapshot/1", "source": {"namespace": ($Get(namespace)), "production": ($Get(production)), "item": ($Get(item))}, "failures": [], "eventLog": [], "items": [], "trace": []}
 	If ($Get(namespace) = "") || ($Get(production) = "") || ($Get(item) = "") Quit "not_current"
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	If '..Readable(user, namespace) Quit "unreadable"
-	Do ..Current(namespace, .description, production, "", 0, .rows, .outcome, .fault, item, $Get(keys), .snapshot)
+	Do ..Current(namespace, .description, production, "", 0, .rows, .outcome, .fault, item, $Get(keys), .snapshot, , resent)
 	Set items = snapshot.items
 	For i = 0:1:items.%Size() - 1 {
 		Set settings = items.%Get(i).settings
@@ -238,8 +241,8 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
 /// state is the production's running state from the same GetProductionStatus call (see Failures): "" when the production is not the namespace's own or the
-/// read threw.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String) As %String [ Private ]
+/// read threw. resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0) As %String [ Private ]
 {
 	Set description = ""
 	Set name = ""
@@ -288,6 +291,10 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					}
 					Set texts = ##class(%SQL.Statement).%New()
 					$$$ThrowOnError(texts.%Prepare("SELECT ID, MessageId, ConfigName, Text FROM Ens_Util.Log WHERE SessionId = ? AND Type = 2 ORDER BY ID", 1))
+					If evidence && resent {
+						Set siblings = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(siblings.%Prepare("SELECT ID, Description FROM Ens.MessageHeader WHERE SessionId = ? AND Description %STARTSWITH 'Resent ' ORDER BY ID", 1))
+					}
 					If limit > 0 {
 						Set orphans = ##class(%SQL.Statement).%New()
 						$$$ThrowOnError(orphans.%Prepare("SELECT TOP ? ID, Type, ConfigName, Text, TimeLogged FROM Ens_Util.Log WHERE TimeLogged >= ? AND Type IN (2, 6) AND SessionId IS NULL ORDER BY TimeLogged, ID", 1))
@@ -354,6 +361,18 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 									}
 								}
 								Set failure.body = body
+								If resent {
+									Set resentBy = []
+									If sessionId '= "" {
+										Set copies = siblings.%Execute(sessionId)
+										If copies.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, copies.%Message))
+										While copies.%Next() {
+											Set list = ","_$Translate($Piece($Extract(copies.%GetData(2), 8, *), ":", 1), " ")_","
+											If list [ (","_id_",") Do resentBy.%Push(copies.%GetData(1))
+										}
+									}
+									Set failure.resentBy = resentBy
+								}
 								Do snapshot.failures.%Push(failure)
 								If sessionId '= "" Set sessions(sessionId) = ""
 								If pass = 1 Set traceSession = sessionId

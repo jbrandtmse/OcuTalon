@@ -8,7 +8,8 @@
  *   replaces the entity with the same key, or is added. Per stream, an event at or below the cursor is ignored (a repeat),
  *   the event right after the cursor is applied and advances it, and an event further on, or an epoch that is not the
  *   store's, means the page missed something: the store comes back unchanged with reload set, and the caller fetches the
- *   snapshot again.
+ *   snapshot again. A result with epochChanged set says which of the two it was (Story 16.4): on the online demo another epoch means
+ *   that another OcuTalon session began in this browser, and the page leaves instead of loading it.
  * - COLLECTIONS says where each event type lives and by which key.
  */
 import type { EventsResponse, LiveEnvelope, LiveItem, StateSnapshot, TelegramState } from '../api/api-types';
@@ -85,10 +86,14 @@ export interface LiveStore {
   breakfeedProgress: BreakFeedProgressPayload | undefined;
 }
 
-/** The result of applying a poll: the store, and whether the snapshot has to be loaded again. */
+/**
+ * The result of applying a poll: the store, whether the snapshot has to be loaded again, and whether that is because the poll carried
+ * another epoch (epochChanged, always with reload) and not a skipped Seq.
+ */
 export interface ApplyResult {
   store: LiveStore;
   reload: boolean;
+  epochChanged: boolean;
 }
 
 /** The key of an entry of the chat. */
@@ -190,11 +195,12 @@ function applyEvent(store: LiveStore, event: LiveEnvelope): LiveStore {
 
 /**
  * Applies the events of a poll, in the order served (the session's stream, then the instance's). A poll answered with another
- * epoch, or with an event that skips a Seq of its stream, applies nothing and asks for a reload.
+ * epoch, or with an event that skips a Seq of its stream, applies nothing and asks for a reload; epochChanged tells the first from
+ * the second.
  */
 export function applyEvents(store: LiveStore, response: EventsResponse): ApplyResult {
   if (response.epoch !== store.epoch) {
-    return { store, reload: true };
+    return { store, reload: true, epochChanged: true };
   }
   let next = store;
   const cursors: Cursors = { ...store.cursors };
@@ -204,11 +210,11 @@ export function applyEvents(store: LiveStore, response: EventsResponse): ApplyRe
       continue;
     }
     if (event.seq !== cursor + 1) {
-      return { store, reload: true };
+      return { store, reload: true, epochChanged: false };
     }
     next = applyEvent(next, event);
     cursors[event.stream] = event.seq;
   }
   const advanced = cursors.session !== store.cursors.session || cursors.instance !== store.cursors.instance;
-  return { store: advanced ? { ...next, cursors } : store, reload: false };
+  return { store: advanced ? { ...next, cursors } : store, reload: false, epochChanged: false };
 }

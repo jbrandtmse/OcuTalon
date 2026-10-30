@@ -8,7 +8,8 @@ Include Ensemble
 ///   - Events: the events of one type on a session's stream, with a wait for a number of them;
 ///   - WaitProcessed: the point after which an item has handled the requests that another sent it, and so after which an absence
 ///     can be asserted;
-///   - LastLog, Warnings and RemoveWarnings: the warnings that a method logged after a row of the event log.
+///   - LastLog, Warnings and RemoveWarnings: the warnings that a method logged after a row of the event log;
+///   - TimeReads: the form in which a rendered text shows a UTC time, so that a test holds at any time of day.
 Class OcuTalon.Test.Core.Observe Extends %RegisteredObject
 {
 
@@ -101,6 +102,33 @@ ClassMethod Warnings(mark As %Integer, Output text As %String, method As %String
 ClassMethod RemoveWarnings(mark As %Integer, method As %String, start As %String)
 {
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, method, start)
+}
+
+/// How a rendered text shows the UTC time utc between its head and its tail, so that a test holds at any time of day: the catalog
+/// shows a time as Data.Time.ForMessage writes it, the instance-zone clock "HH:MM" when its local date is the date of the reading,
+/// and with utc's own weekday or date ("Friday at HH:MM", "Oct 9 at HH:MM", "Dec 30, 2025 at HH:MM") when it is another day, and the
+/// "at" before a dated time becomes "on". Only the choice of form depends on the reading, so each form is ForMessage's for a reading
+/// 2, 8 or 400 days away (and 8 days before, for a date near the end of its year).
+/// With joined 1 the head ends before the word "at" (it ends with a space, and the time follows as "at HH:MM" or "on <day> at HH:MM");
+/// with joined 0 the time follows the head itself ("HH:MM" or "<day> at HH:MM"). The text starts with the head and ends with the
+/// tail. Returns "sameday" for the clock alone, "otherday" for a clock with utc's day, and "" when the text is not head, a time and
+/// tail, or when the clock or the day is not utc's. It reads no clock itself.
+ClassMethod TimeReads(text As %String, head As %String, tail As %String, utc As %String, joined As %Boolean = 1) As %String
+{
+	Set clock = ##class(OcuTalon.Data.Time).ForMessage(utc, utc)
+	Set size = $Length(text)
+	If clock = "" Quit ""
+	If ($Extract(text, 1, $Length(head)) '= head) || ($Extract(text, size - $Length(tail) + 1, size) '= tail) Quit ""
+	Set middle = $Extract(text, $Length(head) + 1, size - $Length(tail))
+	If middle = ($Select(joined: "at ", 1: "")_clock) Quit "sameday"
+	Set form = ""
+	For apart = 2, 8, -8, 400 {
+		If middle = ($Select(joined: "on ", 1: "")_##class(OcuTalon.Data.Time).ForMessage(utc, ##class(OcuTalon.Data.Time).AddSeconds(utc, apart * 86400))) {
+			Set form = "otherday"
+			Quit
+		}
+	}
+	Quit form
 }
 
 }

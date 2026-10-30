@@ -12,7 +12,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { WHEN_TEXTS, countdownText, elapsedText, messageTime, pageTime, pageTimeBeside, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { WHEN_TEXTS, countdownSpokenMinutes, countdownText, elapsedText, messageTime, pageTime, pageTimeBeside, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const INSTANT = '2026-10-22T14:11:00Z';
 
@@ -288,6 +288,34 @@ describe('countdownText', () => {
   it('answers empty texts for an empty or unreadable time', () => {
     assert.deepEqual(countdownText('', NOW), { text: '', spoken: '' });
     assert.deepEqual(countdownText('not a time', NOW), { text: '', spoken: '' });
+  });
+});
+
+describe('countdownSpokenMinutes', () => {
+  const NOW = 1_000_000_000_000;
+  const SECOND = 1000;
+  const MINUTE = 60 * SECOND;
+  const HOUR = 60 * MINUTE;
+  const due = '2026-10-22T16:00:00Z';
+  const spoken = (msLeft) => countdownSpokenMinutes(due, Date.parse(due) - msLeft);
+
+  it('is countdownText\'s spoken form while 60 s or more remain', () => {
+    assert.equal(spoken(HOUR + 42 * MINUTE + 30 * SECOND), 'in 1 hour 42 minutes');
+    assert.equal(spoken(10 * MINUTE), 'in 10 minutes');
+    assert.equal(spoken(10 * MINUTE + SECOND), 'in 10 minutes');
+    assert.equal(spoken(MINUTE), 'in 1 minute');
+  });
+
+  it('says "in 1 minute" for every second of the last minute, so that it changes only at whole minutes', () => {
+    for (const msLeft of [59 * SECOND, 23 * SECOND, SECOND, 1]) {
+      assert.equal(spoken(msLeft), 'in 1 minute', `${msLeft} ms left`);
+    }
+    assert.equal(spoken(0), 'in 1 minute');
+  });
+
+  it('answers "" for an empty or unreadable time', () => {
+    assert.equal(countdownSpokenMinutes('', NOW), '');
+    assert.equal(countdownSpokenMinutes('not a time', NOW), '');
   });
 });
 

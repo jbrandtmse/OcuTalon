@@ -12,7 +12,7 @@
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key, and CHANNELNAMES, each channel code
 // with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
-// checks.notEverythingRestPassed, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself,
+// checks.notEverythingRestPassed, the ten banner.* texts, the three bannerAction.* texts the page renders (installYourself,
 // howToSetKey and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
 // alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the seven result.* texts (allThrough, failedAgain, skipped,
 // failedAndSkipped, stillResending, interrupted and couldNotStart), audit.recorded and every fallbackReason.*. An entry's web text
@@ -65,6 +65,7 @@ export const LISTED_KEYS = [
   'banner.telegramPaused',
   'banner.resetSoon',
   'banner.reconnecting',
+  'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
   'bannerAction.setUpBot',

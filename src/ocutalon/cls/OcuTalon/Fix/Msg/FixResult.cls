@@ -1,6 +1,6 @@
-/// What a fix run reports to IncidentManager (AD-16): FixExecutor sends it to IncidentManager as the run goes (Final 0, progress) and when it ends (Final 1, or
-/// Interrupted 1 for a run that was cut short), and OcuTalon.Fix.Run.Sweep returns a final one for a run reported in progress whose copies have all completed
-/// or failed, and for a run that Reconcile marked interrupted, which Checks sends on (Stories 7.3 to 7.5). IncidentManager moves the incident
+/// What a fix run reports to IncidentManager (AD-16): FixExecutor sends it to IncidentManager as the run goes (Final 0, progress) and when it ends (Final 1), and
+/// OcuTalon.Fix.Run.Sweep returns a final one for a run that Reconcile marked as interrupted (Interrupted 1 when targets were cut off, else the run's own result) and for a run
+/// that a stopped waiter left, which Checks sends on (Stories 7.3 to 7.5); a run reported in progress whose copies have all completed or failed ends the same way (Story 30.5). IncidentManager moves the incident
 /// by it (OcuTalon.Watch.Transitions): a run that ended moves a fixing incident on, a progress report changes nothing but the incident's published view. The
 /// counts are those of the run: Total records in the affected set, Resent the records sent again, Completed those that completed, FailedAgain those that failed
 /// again and Skipped those that were left out. Lane A.
@@ -16,7 +16,7 @@ Property IncidentRef As %String(MAXLEN = 22);
 /// True when the run has ended.
 Property Final As %Boolean [ InitialExpression = 0 ];
 
-/// True when the run was cut short and did not end by itself.
+/// True when the run was cut short by a restart and some targets were cut off (Fix.Run Sweep sets it; FixRun Interrupted is above 0).
 Property Interrupted As %Boolean [ InitialExpression = 0 ];
 
 Property Total As %Integer;

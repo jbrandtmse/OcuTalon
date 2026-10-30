@@ -106,6 +106,87 @@ Method TestRouteAndAccess()
 	Do $$$AssertStatusOK(sc, "Show returns OK")
 	Do $$$AssertEquals(%response.GetHeader("Cache-Control"), "no-store", "Cache-Control: no-store")
 	Do $$$AssertEquals(written, ##class(OcuTalon.Web.Public.Status).Body().%ToJSON(), "Show writes the body")
+	Do $$$AssertEquals(%response.GetHeader(##class(OcuTalon.Web.Public.Status).#BUSYHEADER), "", "a status that is not busy carries no marker header")
+}
+
+/// Story 16.5, rows 1 and 6: Show sets X-OcuTalon-Busy: 1 exactly when the body's busy is true (a reserve larger than the cap
+/// forces busy), the status code stays 200, the body and Busy agree, and without a cap there is no header.
+Method TestBusyHeader()
+{
+	Set status = "OcuTalon.Web.Public.Status"
+	Do $$$AssertEquals($Parameter(status, "BUSYHEADER"), "X-OcuTalon-Busy", "the marker header's name")
+	Do ..SetAll("", "", "", "", 1, 9)
+	New %request, %response
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/public/")
+	Set %response = ##class(%CSP.Response).%New()
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, status, "Show")
+	Do $$$AssertStatusOK(sc, "Show returns OK while busy")
+	Do $$$AssertEquals(%response.GetHeader($Parameter(status, "BUSYHEADER")), "1", "a busy status carries X-OcuTalon-Busy: 1")
+	Do $$$AssertEquals(%response.Status, "200 OK", "and its status code stays 200")
+	Do $$$AssertEquals({}.%FromJSON(written).busy, 1, "the body says busy")
+	Do $$$AssertEquals($ClassMethod(status, "Busy"), 1, "Busy agrees")
+
+	Do ..SetAll("", "", "", "", "", 9)
+	Set %response = ##class(%CSP.Response).%New()
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, status, "Show")
+	Do $$$AssertEquals(%response.GetHeader($Parameter(status, "BUSYHEADER")), "", "with no cap there is no marker header")
+	Do $$$AssertEquals({}.%FromJSON(written).busy, 0, "and the body says not busy")
+	Do $$$AssertEquals($ClassMethod(status, "Busy"), 0, "Busy agrees: no cap is never busy")
+}
+
+/// Story 16.5, row 6: Busy(own) leaves out the connections that the new session itself holds. With the cap at the live count
+/// plus the reserve, the live count is exactly at the threshold: Busy(0) is 1 and Busy(1) is 0.
+Method TestBusyOwn()
+{
+	Set status = "OcuTalon.Web.Public.Status"
+	Set live = $SYSTEM.License.InstanceConnections()
+	Do ..SetAll("", "", "", "", live + 2, 2)
+	Do $$$AssertEquals($ClassMethod(status, "Busy", 0), 1, "at the threshold, with no own connection, it is busy")
+	Do $$$AssertEquals($ClassMethod(status, "Busy", 1), 0, "with one own connection left out it is not")
+	Do ..SetAll("", "", "", "", live + 1, 2)
+	Do $$$AssertEquals($ClassMethod(status, "Busy", 1), 1, "one connection above the threshold, leaving out one own, it is busy")
+	Do ..SetAll("", "", "", "", "", 2)
+	Do $$$AssertEquals($ClassMethod(status, "Busy", 0), 0, "without a cap it is never busy")
+}
+
+/// Story 16.5, row 4: the checks read the connections' current count only. No compiled method body of the product, outside the
+/// tests, reads the instance's high-water mark (the needle is built here, so that this test does not match itself).
+Method TestNoHighWaterMark()
+{
+	Set needle = $ZConvert("InstanceConnections"_"Max", "U")
+	Set classes = 0
+	Set hits = ""
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.' AND NOT Name %STARTSWITH 'OcuTalon.Test.' ORDER BY Name")
+	Do $$$AssertStatusOK(sc, "the class list is prepared")
+	Set result = statement.%Execute()
+	While result.%Next() {
+		Set definition = ##class(%Dictionary.ClassDefinition).%OpenId(result.%GetData(1))
+		If '$IsObject(definition) Continue
+		Set classes = classes + 1
+		Set key = ""
+		For {
+			Set method = definition.Methods.GetNext(.key)
+			Quit:key=""
+			Set text = ""
+			Do method.Implementation.Rewind()
+			While 'method.Implementation.AtEnd {
+				Set text = text_method.Implementation.Read(30000)
+			}
+			If $ZConvert(text, "U") [ needle Set hits = hits_" "_result.%GetData(1)_"."_method.Name
+		}
+	}
+	Do $$$AssertTrue(classes > 100, "the scan reads the product's classes ("_classes_")")
+	Do $$$AssertEquals(hits, "", "no method body reads the high-water mark")
+	Set sample = ##class(%Dictionary.ClassDefinition).%New("Zz.Mark")
+	Set method = ##class(%Dictionary.MethodDefinition).%New()
+	Set method.Name = "Read"
+	Do method.Implementation.Write("Quit $SYSTEM.License."_"InstanceConnections"_"Max()")
+	Set method.parent = sample
+	Set text = ""
+	Do method.Implementation.Rewind()
+	Set text = method.Implementation.Read(30000)
+	Do $$$AssertTrue($ZConvert(text, "U") [ needle, "the needle finds the high-water mark in a sample")
 }
 
 /// An error is answered with its status line only: its cause is never written to the anonymous caller.

@@ -10,7 +10,7 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
-///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), and Checks (built in Story 5.6). EvalIn and EvalSink are built in Story 9.1;
+///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), Checks (built in Story 5.6), and FixExecutor (built in Story 7.3). EvalIn and EvalSink are built in Story 9.1;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -625,7 +625,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "WatchOps", "class": "OcuTalon.Watch.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "EvalIn", "class": "OcuTalon.Eval.In", "pool": 0, "enabled": 0, "stub": 0, "settings": []},
  {"lane": "A", "name": "EvalSink", "class": "OcuTalon.Eval.Sink", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
- {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
+ {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 2, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "Checks", "class": "OcuTalon.Checks.Process", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
 ]

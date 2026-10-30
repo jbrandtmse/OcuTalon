@@ -1,5 +1,7 @@
-# CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of six
-# groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# CI of Lane B (AD-22, AD-29; Story 0.7). Four jobs: `checks`, `install-macos` and `web` run on hosted runners; `iris` is a matrix of
+# seven groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# The `checks` job lints install.sh and its hermetic test with ShellCheck (Story 10.1) before it runs the checks. The `install-macos` job runs
+# that hermetic test under macOS's own /bin/bash, which is bash 3.2 (Story 10.1).
 # Each `iris` job runs its group only when ci/changes.sh finds a change to that group's inputs (ci/units.sh); otherwise it skips
 # its own steps and concludes success.
 # The `web` job builds and tests the web app and runs the model mock's node tests (docker/tests/test-mock.sh, Story 0.11).
@@ -35,8 +37,21 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+      - name: ShellCheck
+        run: shellcheck --version && shellcheck install.sh docker/tests/test-install-script.sh
       - name: Checks
         run: bash ci/checks.sh
+
+  install-macos:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install script on bash 3.2
+        run: OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh
 
   web:
     runs-on: ubuntu-24.04
@@ -93,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [install-fresh, install-upgrade, production, browser, shards, image]
+        group: [install-fresh, install-upgrade, production, browser, shards, shards-2, image]
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}

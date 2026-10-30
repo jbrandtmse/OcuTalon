@@ -234,6 +234,55 @@ ClassMethod Input(pack As %DynamicObject) As %String
 	Quit ..#INPUTLINE _ $Char(10) _ pack.%ToJSON()
 }
 
+/// The pack that an input holds: the inverse of Input. The pack as a dynamic object when the first line of the text is INPUTLINE and the rest starts with one JSON
+/// object whose format is FORMAT; text after that object (a reference that a caller appends to the input) is ignored. "" for any other text (no pack, another
+/// line, text that is not JSON, another format).
+ClassMethod FromInput(text As %String) As %DynamicObject
+{
+	Set text = $Get(text)
+	Set prefix = ..#INPUTLINE _ $Char(10)
+	If $Extract(text, 1, $Length(prefix)) '= prefix Quit ""
+	Set rest = $Extract(text, $Length(prefix) + 1, *)
+	Set pack = ""
+	Try {
+		Set pack = {}.%FromJSON($Extract(rest, 1, ..ObjectEnd(rest)))
+	} Catch {
+		Set pack = ""
+	}
+	If '$IsObject(pack) || 'pack.%IsA("%Library.DynamicObject") || (pack.format '= ..#FORMAT) Quit ""
+	Quit pack
+}
+
+/// The position of the brace that closes the JSON object that the text starts with (strings and their escapes are skipped), 0 when the text does not start with
+/// an object or the object is not closed.
+ClassMethod ObjectEnd(text As %String) As %Integer [ Private ]
+{
+	If $Extract(text) '= "{" Quit 0
+	Set depth = 0
+	Set inString = 0
+	Set escaped = 0
+	For i = 1:1:$Length(text) {
+		Set char = $Extract(text, i)
+		If inString {
+			If escaped {
+				Set escaped = 0
+			} ElseIf char = "\" {
+				Set escaped = 1
+			} ElseIf char = """" {
+				Set inString = 0
+			}
+		} ElseIf char = """" {
+			Set inString = 1
+		} ElseIf char = "{" {
+			Set depth = depth + 1
+		} ElseIf char = "}" {
+			Set depth = depth - 1
+			If depth = 0 Quit
+		}
+	}
+	Quit $Select(depth = 0: i, 1: 0)
+}
+
 /// The recorded reader snapshot in the file, as a dynamic object in snapshot; an error when it cannot be read or is not of the format SNAPSHOTFORMAT.
 ClassMethod Load(file As %String, Output snapshot As %DynamicObject) As %Status
 {

@@ -43,6 +43,50 @@ ClassMethod Get(mark As %String) As %String
 	Quit $Select($IsObject(row): row.Value, 1: "")
 }
 
+/// The mark that holds the Telegram state (AD-14): the JSON {"state", "botUserName"}, so that the two change together. Written only
+/// by RecordTelegram.
+Parameter TELEGRAMMARK = "telegramState";
+
+/// The values of the Telegram state.
+Parameter TELEGRAMSTATES = "off,on,rejected";
+
+/// Records the Telegram state: state is off, on or rejected, and botUserName is the bot's user name (letters, digits and underscores, at
+/// most 64 characters) or empty. Both are written to the one mark telegramState. Any other value is an error status that names the
+/// rule, and the mark is unchanged.
+ClassMethod RecordTelegram(state As %String, botUserName As %String) As %Status
+{
+	Set state = $Get(state), botUserName = $Get(botUserName)
+	If '$ListFind($ListFromString(..#TELEGRAMSTATES), state) {
+		Quit $SYSTEM.Status.Error(5001, "The Telegram state is one of "_..#TELEGRAMSTATES)
+	}
+	If '$Match(botUserName, "^[A-Za-z0-9_]{0,64}$") {
+		Quit $SYSTEM.Status.Error(5001, "The bot's user name is at most 64 letters, digits and underscores")
+	}
+	Quit ..Record(..#TELEGRAMMARK, {"state": (state), "botUserName": (botUserName)}.%ToJSON())
+}
+
+/// The Telegram state, off, on or rejected, and in botUserName the bot's user name. With no mark, or a mark that is not RecordTelegram's,
+/// the state is off and the user name is empty.
+ClassMethod TelegramState(Output botUserName As %String) As %String
+{
+	Set botUserName = ""
+	Set state = "off"
+	Try {
+		Set value = ..Get(..#TELEGRAMMARK)
+		If value '= "" {
+			Set mark = {}.%FromJSON(value)
+			If $ListFind($ListFromString(..#TELEGRAMSTATES), mark.state) {
+				Set state = mark.state
+				Set botUserName = $Select(mark.%GetTypeOf("botUserName") = "string": mark.botUserName, 1: "")
+			}
+		}
+	} Catch {
+		Set state = "off"
+		Set botUserName = ""
+	}
+	Quit state
+}
+
 Storage Default
 {
 <Data name="StatusMarkDefaultData">

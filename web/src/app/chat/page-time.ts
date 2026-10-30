@@ -279,6 +279,20 @@ export function countdownText(dueIso: string, nowMs: number): Countdown {
 }
 
 /**
+ * The time left until a due time in full words of whole minutes: countdownText's spoken form while 60 seconds or more remain
+ * ("in 1 hour 42 minutes", "in 10 minutes"), and "in 1 minute" through the last minute, so that it changes only at whole-minute
+ * boundaries (the reset countdown's accessible text, UX-DR37). An empty or unreadable time gives "".
+ */
+export function countdownSpokenMinutes(dueIso: string, nowMs: number): string {
+  const left = countdownText(dueIso, nowMs);
+  if (left.spoken === '') {
+    return '';
+  }
+  const seconds = Math.max(0, Math.ceil((new Date(dueIso).getTime() - nowMs) / 1000));
+  return seconds < 60 ? fill(WHEN_TEXTS.minutesOne, { n: '1' }) : left.spoken;
+}
+
+/**
  * The time that has passed from an ISO time to nowMs, in whole seconds rounded down and never below 0: under a minute "23 s", from a
  * minute in whole minutes rounded down "2 min". The spoken form uses full words with singular and plural agreeing. An empty or
  * unreadable time gives empty texts.

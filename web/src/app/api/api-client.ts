@@ -3,9 +3,27 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
 import type { GuideStatePayload } from '../live/payloads';
-import type { AnswerBody, AnswerChannel, DismissBody, EventsResponse, GuideMarker, MailboxAccepted, MailboxEmail, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type {
+  AnswerBody,
+  AnswerChannel,
+  BreakFeedSent,
+  DismissBody,
+  EventsResponse,
+  GuideMarker,
+  MailboxAccepted,
+  MailboxEmail,
+  MessageAccepted,
+  MessagePost,
+  PairingCode,
+  PublicStatus,
+  StateSnapshot,
+  UnpairDone,
+} from './api-types';
 
 const BASE = '/ocutalon/api/v1';
+
+/** The address of the online demo's public status, which needs no session (Story 16.5). */
+const PUBLIC_STATUS = '/ocutalon/public/status';
 
 /** The typed client of the REST API: one method per call that the page makes. */
 @Injectable({ providedIn: 'root' })
@@ -68,6 +86,39 @@ export class ApiClient {
    */
   dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
     return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
+  }
+
+  /**
+   * Presses Break the feed (demo mode only): a POST of {} (the session is the caller's, never in the body). The answer is the run's `startedAt`.
+   * A 409 fails as an HttpErrorResponse whose `error` is the body `{"error":{"code","message"}}`, with the code `not_watching` or
+   * `incident_in_progress` (break-feed-view.ts's conflictOf reads it); any other failure is passed on as it is.
+   */
+  breakFeed(): Observable<BreakFeedSent> {
+    return this.http.post<BreakFeedSent>(`${BASE}/demo/break-feed`, {});
+  }
+
+  /**
+   * Asks for a Telegram pairing code (Telegram included only): a POST of {} (the session is the caller's). The answer is the code and its
+   * expiry; the code is shown once and stored only as a hash. A 409 `not_available` fails as an HttpErrorResponse whose `error` is the body.
+   */
+  pairingCode(): Observable<PairingCode> {
+    return this.http.post<PairingCode>(`${BASE}/pairing/code`, {});
+  }
+
+  /**
+   * Unpairs the session's Telegram chat (Telegram included only): a DELETE with the body {}, which the envelope interceptor completes with
+   * its headers. The answer is {result: 'done'}, also when nothing was paired.
+   */
+  unpair(): Observable<UnpairDone> {
+    return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
+  }
+
+  /**
+   * The online demo's public status (Story 16.5; AD-13, AD-25): a GET of /ocutalon/public/status, which needs no session, with a unique
+   * query so that no cache answers. DemoBusyState's trace check and its quiet re-check read it.
+   */
+  publicStatus(): Observable<PublicStatus> {
+    return this.http.get<PublicStatus>(`${PUBLIC_STATUS}?t=${Date.now()}`);
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */
