@@ -32,7 +32,8 @@ test.describe.configure({ timeout: 240_000 });
 
 const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const USED_UP = /^You've used this session's 50 messages for the hour \(messages you send in the chat or Telegram\)\. You can send more at .+\.$/;
-const CARD_TEXT = "You've used this session's 50 messages for the hour. You can send more at ";
+/** The notice card: the time reads as the clock alone on the day it falls on and with its day on another ("at 15:02 ET", "on Friday at 00:09 ET"). */
+const CARD_TEXT = /You've used this session's 50 messages for the hour\. You can send more (?:at|on [A-Z][a-z]+(?: \d{1,2}(?:, \d{4})?)? at) \d{2}:\d{2} ET, or install OcuTalon yourself to keep going: /;
 const EMAIL_LIMIT = /^You've simulated 20 emails this hour\. You can send more at (.+)\.$/;
 
 const mainOf = (page: Page): Locator => page.locator('main.main');

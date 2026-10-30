@@ -13,6 +13,8 @@
 ///     rows 6, 7 and 8;
 ///   - TestRefundGivesBackTheNewestEntry: row 9, with the row's lock free afterwards;
 ///   - TestLimitReadsThePublicSetting, TestUntil, TestNotices: the settings reading, the end of a window and the two notifications;
+///   - TestTimeReadsForms: the forms and the refusals of Observe.TimeReads, which the card tests rely on;
+///   - TestNoticeOnAnotherDay: a retryAt on another day reads "on <day> at HH:MM ET", the form that the card tests accept beside the clock alone;
 ///   - TestMailAllowed: the email limit at 19, 20 and 21, outgoing rows and old rows ignored, the flag off;
 ///   - TestConversationNamesNoAllowance: Conversation never refers to the allowance, by its full or its short name, or to TryConsume
 ///     (AD-20);
@@ -385,7 +387,47 @@ Method TestNoticeCarriesTheConfiguredLimit()
 	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit, "number|7", "the slot is the number 7")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders it")
-	Do $$$AssertTrue(text [ "You've used this session's 7 messages for the hour. You can send more at ", "as 7 messages: "_text)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's 7 messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "2030-06-15T10:00:00Z") '= "", "as 7 messages, at the notice's time: "_text)
+}
+
+/// A retryAt on another day than the reading reads with its day, as "on <day> at HH:MM ET" and not "at <day> at HH:MM ET", whatever the
+/// time of day and the instance zone: the clock that renders is fixed, two days before the retryAt. Observe.TimeReads, which the
+/// tests of the cards use to hold at any time of day, tells that form from the clock alone and takes no other.
+Method TestNoticeOnAnotherDay()
+{
+	Set retryAt = "2030-06-17T10:00:00Z"
+	Set notice = ##class(OcuTalon.Core.Allowance).Notice("zzref", retryAt)
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
+	Do $$$AssertStatusOK(sc, "the catalog renders the notice")
+	Set head = "You've used this session's 50 messages for the hour. You can send more "
+	Set tail = " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself"
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(text, head, tail, retryAt), "otherday", "the time carries its day: "_text)
+	Set day = ##class(OcuTalon.Data.Time).ForMessage(retryAt, "2030-06-15T09:00:00Z")
+	Do $$$AssertEquals(text, head_"on "_day_tail, "as 'on <day> at HH:MM', not 'at <day> at HH:MM': "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_day_tail, head, tail, retryAt), "", "and the helper does not take 'at <day> at HH:MM' for it")
+	Set clock = $Extract(##class(OcuTalon.Data.Time).ToLocal(retryAt), 12, 16)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_clock_tail, head, tail, retryAt), "sameday", "while the clock alone is the same-day form")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_clock_"1"_tail, head, tail, retryAt), "", "and a clock that is not the time's is no form of it")
+}
+
+/// Observe.TimeReads reads the clock alone and the clock with a weekday or a date, in the joined form ("at ..." and "on <day> at ...") and
+/// in the form that follows its head directly, and takes no text whose head, tail or clock is not the one asked for.
+Method TestTimeReadsForms()
+{
+	Set utc = "2030-06-17T10:00:00Z"
+	Set clock = $Extract(##class(OcuTalon.Data.Time).ToLocal(utc), 12, 16)
+	Set head = "until ", tail = " ET."
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Oct 9 at "_clock_tail, head, tail, utc), "otherday", "a date reads as another day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Dec 30, 2025 at "_clock_tail, head, tail, utc), "otherday", "a date with its year reads as another day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_clock_tail, head, tail, utc, 0), "sameday", "joined 0: the clock follows the head")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"Saturday at "_clock_tail, head, tail, utc, 0), "otherday", "joined 0: the day follows the head")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"at "_clock_tail, head, tail, utc, 0), "", "joined 0 takes no 'at' before the clock")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads("since "_clock_tail, head, tail, utc, 0), "", "another head is no form")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_clock_" UTC.", head, tail, utc, 0), "", "another tail is no form")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads("until", head, tail, utc, 0), "", "a text shorter than its head and tail is no form")
+	Set other = $Extract(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(utc, 3600)), 12, 16)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_other_tail, head, tail, utc, 0), "", "the clock of another time is no form of it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(head_"on Oct 9 at "_other_tail, head, tail, utc), "", "nor is it with a day")
 }
 
 /// The rolling hour keeps the newest entries when the limit has been lowered below the number held (QA): with 8 entries and a limit

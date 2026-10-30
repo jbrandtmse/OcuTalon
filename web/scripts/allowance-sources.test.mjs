@@ -9,7 +9,8 @@
 // - AllowanceState is read by the banner stack, the composer, the guide and the outbox and by nothing else, so Break the feed's box and
 //   the approval and incident cards cannot be disabled by an allowance (the Always list: Break the feed, Approve and Reject);
 // - the outbox learns the window from a 429 allowance before it takes the text back, and the mailbox learns its limit from a 429
-//   email_limit in both error handlers.
+//   email_limit in both error handlers;
+// - the browser case's notice card text takes the time as the clock alone and with its day, so that it holds at any time of day.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -164,5 +165,30 @@ describe('who reads the allowance (the Always list: Break the feed, Approve and 
     const naming = files.filter((one) => /\bAllowanceState\b|allowance-state|allowance-view/.test(one.code)).map((one) => one.name);
     assert.deepEqual(naming, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'guide/demo-guide.ts', 'live/allowance-state.ts', 'mailbox/simulated-mailbox.ts']);
     assert.ok(!naming.some((name) => /^(?:feed|approval|incident)\//.test(name)));
+  });
+});
+
+describe('the browser case\'s notice card text holds at any time of day (Story 16.9 CI rework)', () => {
+  const spec = readFileSync(join(here, '..', 'e2e-online', 'allowance', 'messages.spec.ts'), 'utf8');
+  const found = /\nconst CARD_TEXT = (\/.*\/);\n/.exec(spec);
+  assert.ok(found, 'messages.spec.ts names CARD_TEXT as a regular expression');
+  const card = new Function(`return ${found[1]};`)();
+  const head = "You've used this session's 50 messages for the hour. You can send more ";
+  const tail = ' ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+
+  it('takes the clock alone, as the catalog shows a time on the day of the reading', () => {
+    assert.match(`${head}at 15:02${tail}`, card);
+  });
+
+  it('takes a clock with its day, as the catalog shows a retryAt after midnight of the instance zone', () => {
+    for (const day of ['Friday', 'Monday', 'Oct 9', 'Dec 30, 2025']) {
+      assert.match(`${head}on ${day} at 00:09${tail}`, card, day);
+    }
+  });
+
+  it('takes no other shape', () => {
+    for (const text of [`${head}at Friday at 00:09${tail}`, `${head}at Oct 9 at 00:09${tail}`, `${head}at 15:02`, `${head}at 15:02 UTC, or install`, `${head}on Friday 00:09${tail}`, `${head}at 5:02${tail}`, `${head}at 105:02${tail}`]) {
+      assert.doesNotMatch(text, card, text);
+    }
   });
 });

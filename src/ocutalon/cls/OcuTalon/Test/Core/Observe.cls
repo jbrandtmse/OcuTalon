@@ -8,7 +8,8 @@ Include Ensemble
 ///   - Events: the events of one type on a session's stream, with a wait for a number of them;
 ///   - WaitProcessed: the point after which an item has handled the requests that another sent it, and so after which an absence
 ///     can be asserted;
-///   - LastLog, Warnings and RemoveWarnings: the warnings that a method logged after a row of the event log.
+///   - LastLog, Warnings and RemoveWarnings: the warnings that a method logged after a row of the event log;
+///   - TimeReads: the form in which a rendered text shows a UTC time, so that a test holds at any time of day.
 Class OcuTalon.Test.Core.Observe Extends %RegisteredObject
 {
 
@@ -101,6 +102,26 @@ ClassMethod Warnings(mark As %Integer, Output text As %String, method As %String
 ClassMethod RemoveWarnings(mark As %Integer, method As %String, start As %String)
 {
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, method, start)
+}
+
+/// How a rendered text shows the UTC time utc between its head and its tail, so that a test holds at any time of day: the catalog
+/// shows a time as the instance-zone clock "HH:MM" when its local date is the date of the reading, and with the weekday or the date
+/// ("Friday at HH:MM", "Oct 9 at HH:MM", "Dec 30, 2025 at HH:MM") when it is another day, and the "at" before a dated time becomes "on".
+/// With joined 1 the head ends before the word "at" (it ends with a space, and the time follows as "at HH:MM" or "on <day> at HH:MM");
+/// with joined 0 the time follows the head itself ("HH:MM" or "<day> at HH:MM"). The text starts with the head and ends with the
+/// tail. Returns "sameday" for the clock alone, "otherday" for a clock with a day, and "" when the text is not head, a time and
+/// tail, or when the clock is not the instance-zone clock of utc. It reads no clock itself.
+ClassMethod TimeReads(text As %String, head As %String, tail As %String, utc As %String, joined As %Boolean = 1) As %String
+{
+	Set clock = $Extract(##class(OcuTalon.Data.Time).ToLocal(utc), 12, 16)
+	Set size = $Length(text)
+	If (clock = "") || (size < ($Length(head) + $Length(tail))) Quit ""
+	If ($Extract(text, 1, $Length(head)) '= head) || ($Extract(text, size - $Length(tail) + 1, size) '= tail) Quit ""
+	Set middle = $Extract(text, $Length(head) + 1, size - $Length(tail))
+	Set day = "([A-Z][a-z]+|[A-Z][a-z]{2} [0-9]{1,2}(, [0-9]{4})?)"
+	If $Match(middle, "^"_$Select(joined: "at ", 1: "")_clock_"$") Quit "sameday"
+	If $Match(middle, "^"_$Select(joined: "on ", 1: "")_day_" at "_clock_"$") Quit "otherday"
+	Quit ""
 }
 
 }

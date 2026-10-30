@@ -8,13 +8,15 @@
 ///     Conversation; one allowance Delivery row on the web chat with the catalog's text (instance time, "ET", the install link) and no
 ///     message on the phone; one WebChatIn to Notify header under the session's TraceRef; a second refusal of the window sends nothing
 ///     more; the chat's cards (Ownership.RecentNotices) hold the one card;
+///   - TestARefusalOnAnotherDayNamesTheDay: the same chain with a retryAt a day and a half ahead (any hour): the card reads "on <day> at HH:MM ET";
 ///   - TestTheDailyCapMessageReachesTheWebChatOnce (AC 5, matrix row 13): budget.capped through the real sink (BridgeSink, with only its
 ///     read of the sessions cut down to the test's own session) sends the open session with activity the daily-cap message through
 ///     NoticesIn and Notify: one allowance Delivery row with the catalog's text, DailyCapDay set, and the same event again sends nothing;
 ///   - TestTheFlagOffSendsNothing (AC 6, matrix rows 6 and 16): with the flag off the same event gives no Delivery row and no daily-cap
 ///     day, and a call over what would be the limit is allowed with no window and no refused Turn.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("AllowanceInProduction","n")) and the clean-up are those of
-/// Test.Core.InProduction; the turns that TryConsume recorded are adopted for the clean-up.
+/// Test.Core.InProduction; the turns that TryConsume recorded are adopted for the clean-up. A time in a card's text shows as the clock alone
+/// or with its day, whichever the day of the reading makes it (Observe.TimeReads), so no case depends on the time of day.
 Class OcuTalon.Test.Core.AllowanceInProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -65,8 +67,8 @@ Method TestARefusedMessageGivesOneWebCard()
 	If deliveries.Count() = 1 {
 		Set delivery = deliveries.GetAt(1)
 		Do $$$AssertEquals(delivery.Channel_"|"_delivery.Kind_"|"_delivery.FallbackReason, "web|allowance|", "on the web chat, of kind allowance, with no fallback reason")
-		Do $$$AssertTrue(delivery.Text [ ("You've used this session's "_limit_" messages for the hour. You can send more at "), "with the catalog's text: "_delivery.Text)
-		Do $$$AssertTrue(delivery.Text [ " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "in instance time with ET, and the install link: "_delivery.Text)
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", expected)
+		Do $$$AssertTrue(form '= "", "with the catalog's text, the retryAt in instance time with ET (the clock alone on the day it falls on, with the day on another), and the install link: "_delivery.Text)
 	}
 	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
 	Do $$$AssertEquals(cards.Count(), 1, "the chat's cards hold the one allowance card")
@@ -88,6 +90,30 @@ Method TestARefusedMessageGivesOneWebCard()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 2, "though it records its own refused Turn")
 }
 
+/// A window whose retryAt falls on another day than the reading names the day in its card, whatever the time of day: the oldest entry
+/// is 35 hours ahead, so the retryAt is 36 hours ahead, on a later date of the instance zone at any hour (the entries have no upper
+/// bound in the window). The card reads "on <day> at HH:MM ET", not "at HH:MM ET".
+Method TestARefusalOnAnotherDayNamesTheDay()
+{
+	If '..Guard() Quit
+	Set session = ..Session("otherday")
+	Set limit = ##class(OcuTalon.Core.Allowance).Limit()
+	Do ..Seed(session, limit, -35 * 3600)
+	Set times = ##class(OcuTalon.Data.Session).RefIndexOpen(session).AllowanceTimes
+	Set expected = ##class(OcuTalon.Data.Time).AddSeconds($List(times, 1), 3600)
+
+	Do $$$AssertStatusOK(..Send(session, "zzc"_..Number_"day1", "zz over the limit tomorrow", .output), "the refused message is answered")
+	Do $$$AssertEquals({}.%FromJSON(output).retryAt, expected, "with the retryAt a day and a half ahead")
+	Do ##class(OcuTalon.Test.Core.Observe).WaitDeliveries(session, 1, ..#WAIT)
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row is recorded")
+	If deliveries.Count() = 1 {
+		Set text = deliveries.GetAt(1).Text
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's "_limit_" messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", expected)
+		Do $$$AssertEquals(form, "otherday", "the card names the day: "_text)
+	}
+}
+
 /// budget.capped through the real sink reaches the open session with activity as one daily-cap card on the web chat, with the
 /// catalog's text, and the same event again sends nothing; DailyCapDay is the day.
 Method TestTheDailyCapMessageReachesTheWebChatOnce()
@@ -104,8 +130,8 @@ Method TestTheDailyCapMessageReachesTheWebChatOnce()
 	If deliveries.Count() = 1 {
 		Set delivery = deliveries.GetAt(1)
 		Do $$$AssertEquals(delivery.Channel_"|"_delivery.Kind_"|"_delivery.FallbackReason, "web|allowance|", "on the web chat, of kind allowance, with no fallback reason")
-		Do $$$AssertTrue(delivery.Text [ "The online demo has used today's model allowance. Decisions use fixed rules until ", "with the catalog's text: "_delivery.Text)
-		Do $$$AssertTrue(delivery.Text [ " ET. You can install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "in instance time with ET, and the install link: "_delivery.Text)
+		Set form = ##class(OcuTalon.Test.Core.Observe).TimeReads(delivery.Text, "The online demo has used today's model allowance. Decisions use fixed rules until ", " ET. You can install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", ##class(OcuTalon.Bridge.Time).DayEndUtc(day), 0)
+		Do $$$AssertTrue(form '= "", "with the catalog's text, the end of the day in instance time with ET (the clock alone on its own day, with the day on another), and the install link: "_delivery.Text)
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the chat's cards hold the one daily-cap card")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).DailyCapDay, day, "DailyCapDay is the day")
