@@ -3906,6 +3906,7 @@ So that no message is lost or repeated and two installs never fight over one bot
 **Given** a Telegram test run against the mock
 **When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
 **Then** it finds none (NFR-11, AD-14)
+- DW-422: TelegramIn's kept update offset (`$$$EnsStaticAppData("TelegramIn", "offset")`, Story 12.1's `Test.Channel.BotApi`) is pinned only against that helper; this story's tests prove its poller keeps its offset in that node (ledger; routed by harvest 2026-10-30)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
