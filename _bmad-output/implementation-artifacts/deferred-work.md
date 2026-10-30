@@ -2294,3 +2294,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-436: The three AD-27 purge tasks all start at 03:00, so the two Ens.Util.Tasks.Purge runs (7-day messages, 90-day all) can overlap on the message tables (unverified)
+- source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls declares DailyStartTime 10800 for all three; Test.Install.Retention runs both together on a fresh stack and passes, but at tiny volume; settle by a concurrent run on a large message table watching for lock waits or a failed history row
+- 2026-10-30T14:46:16Z status=open owner=30-2-old-messages-and-records-are-purged-on-schedule by=harvest note=implement deferred (medium, unverified); AC fixes 03:00 for all three
