@@ -6351,6 +6351,7 @@ So that I either get a working demo or a clear reason to come back later.
 **When** a signed-in visitor opens Visual Trace
 **Then** `/status?for=trace` reports not busy and the trace window opens, while plain `/status` reports busy; with connections at the cap minus the reserve and fewer than 6 visitors, the trace form reports busy and the page shows the busy text, and plain `/status` keeps its own rule (busy from the connection check or the visitor count); any other or missing `for` value, or a repeated one, answers the plain form, and both forms keep the same five keys with no extra field, unauthenticated and sessionless (AD-13 as amended by U-169) [AMENDED 2026-10-30, owner decision U-169 (the Contest Planner under the owner's delegation; condition 2 read as "plain /status keeps its own rule", clarified by the Planner), its three test conditions]
 - DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
+- DW-333: flake: the sign-in-then-10-s data-snapshot wait went red again in live:demo-path (web/e2e/demo-path/01-page.spec.ts, after signInReadme); give the remaining sign-ins (the demo-path specs, the reset, resume, splash and session specs) the loadedAfter wait (ledger; routed by lead 2026-10-30)
 
 ### Story 29.8: The author's load run measures the demo's capacity
 

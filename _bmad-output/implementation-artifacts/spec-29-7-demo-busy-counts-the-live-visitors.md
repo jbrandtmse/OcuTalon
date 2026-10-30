@@ -198,6 +198,8 @@ Line numbers are at `85719c93`.
 - `web/playwright.config.ts`, `web/package.json` -- add the project `online-visitors` (`testDir: './e2e-online/visitors'`, Desktop Chrome) and add `'**/e2e-online/visitors/**'` to online-demo's `testIgnore`. Add the script `e2e:online-visitors`. Both are footprint_extensions.
 - `ci/units.sh` -- `install-fresh` becomes `live:install-start live:bundle-folder live:cards live:online-visitors`, `online-visitors` joins `BROWSER_UNITS`, and the group comment gains one sentence (the unit and its expected time) -- the lead's CI ruling; a minimal edit to one group line.
 
+- **DW-333 (routed to this story by the lead after CI run 41116344208, 2026-10-30; a lead edit of the validated spec):** `web/e2e/demo-path/01-page.spec.ts:92` failed in `live:demo-path` waiting 10 s for `main.main` `data-snapshot` right after `signInReadme`, the DW-333 pattern Story 29.4 fixed elsewhere. Give `signInReadme` (and every other sign-in the demo-path specs and the online reset, resume, splash and session specs still make without it) the `loadedAfter` wait from `web/e2e/support/floor.ts`; no assertion changes. Verify with `live demo-path` and `live online-session` once (fresh), and record a `mutation:` (the old wait with a held GET `/state` goes red; `loadedAfter` stays green).
+
 **Acceptance Criteria:**
 - **AC1 (U-163 4; Integration ACs: the status, the login page and the post-sign-in check consume the count).** Given `live:online-visitors` with five proxied visitors signed in, when a sixth and then a seventh visitor sign in from their own addresses, then the sixth gets the shell, plain `/status` and a fresh splash report busy with the marker header, and the seventh sees the busy text before and after pressing Sign in, with no shell, cookie, session, Session row or counter row (rows 1 and 2).
 - **AC2 (U-163 2).** Given the full house, when a sign-in that is not proxied (the probe's path) signs in, and later a counted visitor signs out, then the direct sign-in gets the shell and plain `/status` reports not busy while it is still signed in. A visitor's open trace session never counts (rows 3, 4 and 6).
@@ -225,6 +227,8 @@ Line numbers are at `85719c93`.
   - The I/O matrix sits after the intent block, because the preserved block had none.
   - Task 0 measured ruling 2's four points and the timeout. All held, so the design is the ruled one.
   - KEEP: the count derived on read from the CSP session store, no new storage, the marker only on a proxied attach.
+
+- 2026-10-30, lead: DW-333 routed here (a Tasks & Acceptance item added) after a CI red in `live:demo-path` on Story 29.6's head.
 
 ## Review Triage Log
 
