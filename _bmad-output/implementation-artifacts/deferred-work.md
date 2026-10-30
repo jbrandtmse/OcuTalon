@@ -2322,3 +2322,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Install.Step.Retention declares daily 03:00 runs; the Tasks step creates them on CI, fresh and warm stacks; tests such as Test.Bridge.Purge hold 400-day rows for seconds; no ci/ step suspends the tasks
 - 2026-10-30T15:56:40Z status=wontfix-accepted owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=rare CI flake. reopen_if=a CI or fresh-check red at about 03:00 UTC names a purge test or a back-dated fixture that went
+
+### DW-443: Nothing on Lane B's side turns a replayed tool call's approval.result into the next turn's code-written SystemNote (the tool, done or failed, and the time; AD-30); Story 30.3 delivers approval.result to HostSinkClass, but Conversation/Core.BridgeSink never set the note
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.3 spec Design Notes, Lane B needs (1): Conversation or Core.BridgeSink (Lane B, AD-33) would read the row through Ownership.Approval (ToolName, Result, FinishedAt) and set it on the session's next turn; Story 31.2's criteria name notifications, not the note
+- 2026-10-30T17:04:59Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended route to Story 31.2 (31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv, Lane B) as a DW bullet, or another Lane B story; out of Lane A's files (AD-33)
+
+### DW-444: A tool_call ApprovalRequest left executing by a crash or restart mid-replay stays executing: the call is never re-run (NFR-13 holds) but no result or approval.result is ever sent
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 30.3 spec Design Notes residual: closing it as interrupted at start (as AD-16's Reconcile does for a FixRun) would also hit a live replay when tests call Reconcile; needs a start-only path
+- 2026-10-30T17:04:59Z status=routed owner=burndown by=spec_gate note=not in 30.3's ACs; candidate fix: Reconcile at instance start (not test calls) closes executing tool_call rows through FinishExecution with result interrupted
