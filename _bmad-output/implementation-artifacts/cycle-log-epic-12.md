@@ -1,0 +1,12 @@
+2026-10-30T05:40:52Z	Epic 12	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec state=<state> hold_at=none lane=A slot=ocutalon-slot-a dispatch=first note=first_dispatch
+2026-10-30T05:40:52Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-30T05:40:52Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh workflows=ci,lane-a visibility=PRIVATE
+2026-10-30T05:40:52Z	Epic 12	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-30T05:40:52Z	Epic 12	telemetry_gate	pending=0 action=none
+2026-10-30T05:40:52Z	Epic 12	bootstrap_check	result=ok
+2026-10-30T05:40:52Z	Epic 12	slot_checked	slot=ocutalon-slot-a server=ocutalon-slot-a port=52790 build=154 namespace=OCUTALON merge_cpf=match refresh=none loaded=532_classes(src/bridge_46,src/ocutalon_486) compiled=CompilePackage(OcuTalon,ck-d)_ok errors=0 stale_deleted=none nongenerated_after=532 previous_content=Epic_7
+2026-10-30T05:40:52Z	Epic 12	epic_branch_checked_out	repos=. head=ea69029 mode=fresh_adopted provisioned_by=orchestrator commits_beyond_feature=0 feature_ahead=1(433627f_orchestrator_bookkeeping) ci_expected=ci,lane-a
+2026-10-30T05:40:52Z	Epic 12	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 highest=AD-33 status=final lint=8_low_placeholders(baseline) spine_next_id=34
+2026-10-30T05:40:52Z	Epic 12	ledger_load	total=390 open=0 routed=65 escalated=0 decision_pending=0 terminal=325 owner_unknown=0 burndown=0 reowned_none=0 epic12_owned=4(DW-367,DW-370:12-1;DW-30,DW-295:12-6)
+2026-10-30T05:41:37Z	Epic 12	sprint_planning_complete	gate=PASS mode=headless readiness_recheck=U8 in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,epic_list_heading) prerequisites_present=Data.Pairing.{HashCode,RecordChat,TakeReplySlot,Purge},Data.StatusMark.{Record,RecordTelegram},Channel.Telegram.{In.Included,Out}(stubs),Install.Step.Telegram(stub),ci/compose.ci.yml(OCUTALON_TELEGRAM_API_BASE+dummy_token),web/e2e/demo-path/telegram-{page,approval}.spec.ts(skipped),web/src/app/rail/telegram-card,qrcode-generator@2.0.4 waits=12.7:epic-11(unmerged,story_wait;by_design) model=claude-opus-5-5
+2026-10-30T05:41:37Z	Epic 12	retro_review_skipped	reason=no_x0_input assignment=skip burndown_entries=0 to_x0_entries=0 retro=skipped(policy) open_action_items=human-owned(listed_not_acted)
