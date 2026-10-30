@@ -8,6 +8,10 @@
 #                            environment by awk (ENVIRON), never from an argument, a here-document or a file, and is never printed. A file
 #                            of - is the standard input. It prints nothing and returns 2 when the variable is unset or empty, so an
 #                            empty value never reads as clean; it returns 1 when a file cannot be read, and 0 otherwise
+# project_leftovers <project>  prints "<containers>|<volumes>": how many containers (in any state) and volumes of the compose project <project>
+#                            exist, found by the tool itself (a name that is the project followed by - or _), and returns 1 with no output when the
+#                            tool cannot be asked. eval/key-proof.sh uses it to check, besides the teardown of ci/iris.sh (which counts a leftover
+#                            only when its removal succeeds), that the run left no container and no volume
 KEY_LIKE_ERE='sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|dop_v1_[a-f0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY'
 
 key_like() { grep -nHIE -e "$KEY_LIKE_ERE" "$@" | cut -d: -f1,2; }
@@ -23,4 +27,12 @@ key_value_hits() {
     LC_ALL=C awk -v name="$f" 'BEGIN { k = ENVIRON["ANTHROPIC_API_KEY"] } k != "" && index($0, k) { print name ":" FNR }' "$f" || rc=1
   done
   return $rc
+}
+
+project_leftovers() {
+  local c v
+  [ -n "$1" ] || return 1
+  c=$(docker ps -a --format '{{.Names}}') || return 1
+  v=$(docker volume ls --format '{{.Name}}') || return 1
+  printf '%s|%s\n' "$(printf '%s\n' "$c" | grep -Ec -- "^$1[-_]" || true)" "$(printf '%s\n' "$v" | grep -Ec -- "^$1[-_]" || true)"
 }

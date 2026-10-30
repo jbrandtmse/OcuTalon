@@ -2,10 +2,10 @@
 title: 'Story 9.10: The release-candidate run proves the key leaks nowhere and gates the maximum decision cost'
 type: 'feature'
 created: '2026-10-30'
-status: 'in-progress'
-baseline_revision: 'ef9e6fe67e963bef016451633ae691cf7da8c060'
+status: 'done'
+baseline_revision: 'c548f0b69136416a964fb73ebb4963cdb470eb24'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
 warnings: ['oversized', 'multiple-goals']
@@ -313,10 +313,10 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
 - [x] [Gate] `eval/run.sh`: the `--key-path` switch as the lead gate ruling describes (opt-in key path under `--on-mock`; the key unset for the whole run otherwise), `eval/key-proof.sh` passes it, and `rc-stack` pins both forms (veto U-168).
 
 **U-168 (the owner's conditions on the opt-in switch, 2026-10-30; rework iteration 1)** -- each with a pinning test and its `mutation:` line:
-- [ ] [U-168] (1) `--key-path` is refused with exit 2 and a usage line, and no throwaway is started (no container call at all), unless `--release-candidate --on-mock` are both given; a real release-candidate run (no `--on-mock`) takes the key path without the switch, as built. Test: the stub of the container tool records no call for `--key-path` alone, `--key-path --on-mock` without `--release-candidate`, and `--release-candidate --key-path` without `--on-mock`, each exit 2.
-- [ ] [U-168] (2) `eval/key-proof.sh` never uses an inherited key: it unsets `ANTHROPIC_API_KEY` before it builds and exports its own fake one (an inherited value, a fake marker built in the test, never reaches the run), and it refuses (non-zero, before any throwaway starts, naming the endpoint but never a key) unless the model endpoint resolves to the CI mock. Tests: an inherited marker value never appears in the stubbed run's environment, and a refusal test with a non-mock endpoint (for example `OCUTALON_MODEL_BASE_URL` pointing anywhere but the mock, or however the harness resolves it). Resolve the endpoint without `docker compose config` (only with `--quiet`) and without `docker inspect` of `.Config.Env` (the boundaries rules forbid both).
-- [ ] [U-168] (3) The proof's pass line is counts only: the fake key found in the throwaway's `iris` environment exactly 1 time, and found 0 times in the run's output, its logs, the result files, the trace and the web bundle (the built bundle the run served, `src/ocutalon/csp/` in the checkout and the copy inside the throwaway), with the value never printed. Add the web bundle to the places the proof scans, with a positive control like the others. Test: the pass line's shape (fields and their order, no value) is pinned, and a planted key in the bundle fails the proof.
-- [ ] [Lead] AC2's last clause: after the run, the harness itself lists `docker ps -a` and `docker volume ls` filtered by the run's own compose project name and requires both empty, besides the teardown's line (`ci/iris.sh teardown` counts only the removals that succeed: DW-445). Pin it with a stubbed leftover.
+- [x] [U-168] (1) `--key-path` is refused with exit 2 and a usage line, and no throwaway is started (no container call at all), unless `--release-candidate --on-mock` are both given; a real release-candidate run (no `--on-mock`) takes the key path without the switch, as built. Test: the stub of the container tool records no call for `--key-path` alone, `--key-path --on-mock` without `--release-candidate`, and `--release-candidate --key-path` without `--on-mock`, each exit 2.
+- [x] [U-168] (2) `eval/key-proof.sh` never uses an inherited key: it unsets `ANTHROPIC_API_KEY` before it builds and exports its own fake one (an inherited value, a fake marker built in the test, never reaches the run), and it refuses (non-zero, before any throwaway starts, naming the endpoint but never a key) unless the model endpoint resolves to the CI mock. Tests: an inherited marker value never appears in the stubbed run's environment, and a refusal test with a non-mock endpoint (for example `OCUTALON_MODEL_BASE_URL` pointing anywhere but the mock, or however the harness resolves it). Resolve the endpoint without `docker compose config` (only with `--quiet`) and without `docker inspect` of `.Config.Env` (the boundaries rules forbid both).
+- [x] [U-168] (3) The proof's pass line is counts only: the fake key found in the throwaway's `iris` environment exactly 1 time, and found 0 times in the run's output, its logs, the result files, the trace and the web bundle (the built bundle the run served, `src/ocutalon/csp/` in the checkout and the copy inside the throwaway), with the value never printed. Add the web bundle to the places the proof scans, with a positive control like the others. Test: the pass line's shape (fields and their order, no value) is pinned, and a planted key in the bundle fails the proof.
+- [x] [Lead] AC2's last clause: after the run, the harness itself lists `docker ps -a` and `docker volume ls` filtered by the run's own compose project name and requires both empty, besides the teardown's line (`ci/iris.sh teardown` counts only the removals that succeed: DW-445). Pin it with a stubbed leftover.
 
 **Acceptance Criteria:**
 - **AC1 (U-166 (a)).** Given a release-candidate attempt whose item decisions have a mean under $0.001 and one decision at $0.001 or more, when `Gate.Attempt` evaluates NFR-4, then:
@@ -382,6 +382,27 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise. Li
   - `[medium]` `[patch]` Other: the `Print` field order is coupled to the shell parsers by hand only - `Lines` split from `Print` and `TestLines` pins the order (mutation: two fields swapped, red).
   - `[low]` `[reject]` Intent: the early `unset` also covers the push run and `--override` - consistent with the intent (the push run behaves as in 9.5 and never needed a key); rc-stack pins the on-mock form.
   - `[false]` `[reject]` Intent: the proof against a live stack is exercised only in CI - a fresh `eval/key-proof.sh` on a throwaway ran green here (126 s) and is the evidence.
+### 2026-10-30 - Review pass (rework iteration 1)
+- verdicts: 17 grouped rows for the 29 findings of the layers (blind 8, edge 14, verification-gap 7; the intent audit was descriptive, its divergences are the last two rows) - high 0, medium 3, low 9, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Edge/Blind: the endpoint check skipped the compose file when the caller set `OCUTALON_MODEL_BASE_URL` to the mock - both are now checked; session `mock-env-file`, mutation recorded.
+  - `[medium]` `[patch]` Gap: the refusal's "never a key" had no test with a user name, path or query - only the scheme, host and port are named now; session `userinfo`, mutation recorded.
+  - `[medium]` `[patch]` Gap: the checkout-side bundle scan's count and control guards were unpinned - cases `bundle-local-empty` and `bundle-local-nocontrol`, mutation recorded.
+  - `[low]` `[patch]` Gap: the `key-proof` samples did not unset the caller's `OCUTALON_MODEL_BASE_URL` (hermeticity) - the main session unsets it; the file-rewrite fixture asserts that the rewrite changed the file.
+  - `[low]` `[patch]` Gap: no mutation lines for the `[-_]` delimiter, the file form of the endpoint and the checkout bundle guards - written above.
+  - `[low]` `[patch]` Blind/Edge: `set -- $counts` replaced the harness's positional parameters, and a stale `seven-pass` mode name - `read` into named variables, mode renamed `eight-pass`.
+  - `[low]` `[reject]` Blind/Edge: the compose endpoint is read by a `sed` that fails closed on list form, single quotes or a comment (`none` is named and the run refuses) - both compose files use the map form and `test-compose-file.sh` pins them; no realistic false pass.
+  - `[low]` `[reject]` Blind/Edge/Gap: the iris environment is counted in `/proc/self/environ` of the `docker compose exec` process, not PID 1 - an exec process receives the container's configured environment, which is the one the IRIS process starts from; the readiness session already proves the key reaches the process by length; the fresh run counted 1.
+  - `[low]` `[reject]` Edge/Blind: the leftover check reads the first `STACK` line and lists by name prefix - `eval/run.sh` prints one `STACK evaluation: project` line for its one stack, and the compose names are `<project>-<service>-<n>` and `<project>_<volume>` (the decoy `...-42420` and another run's project are in the stub); `ci/iris.sh teardown` uses the same names.
+  - `[low]` `[reject]` Gap: the counts terms for logs, files, trace, bundle and run output are unreachable on a printed line because each scan fails first - defence in depth; the owner's contract is that the line is counts only, and every scan has its own negative path.
+  - `[low]` `[reject]` Blind/Gap: the counts line is not printed when a scan failed, so the harness adds a "no counts line" FAIL - the run fails either way (exit 1); no wrong all-clear.
+  - `[low]` `[reject]` Blind: `record.decoy` and the `record*` glob in the inherited-key test - a missing file or a second call reads as a leak (fails closed); the glob is meant to cover every stub record.
+  - `[false]` `[reject]` Blind: the `rc-guard` usage branch hides a key leak - the chain reports one reason per refused form and either reason fails the rule; the key check still runs on every form that prints a usage line.
+  - `[false]` `[reject]` Gap/Edge: the in-container bundle command and an empty key in the exec environment are untested or fail open - the fresh run executed the command on a real throwaway (19 files, environment 1); an empty pattern file matches every file, so the scan fails, not passes.
+  - `[false]` `[reject]` Edge: a served copy of the bundle outside `/opt/ocutalon/src/ocutalon/csp` goes unscanned - the image copies the bundle to that one place (Task 0 measured 19 files in both).
+  - `[false]` `[reject]` Intent: the tests are on the stub surface, not the real stack - the harness's fresh run on a throwaway is the real-surface evidence (recorded above); the rules pin the logic.
+  - `[false]` `[reject]` Intent: the counts are of lines or files, not occurrences - the contract is "found N times" per place; only the iris environment can hold more than one occurrence per place.
+
 
 ## Design Notes
 
@@ -611,6 +632,31 @@ Mutations added or re-demonstrated in the review pass (Rule 19), each reverted f
 - mutation: the harness's `file_hits` ignores a file it cannot read -> red: `key-proof` (`bad-unreadable-file-below-eval`; AC2).
 - mutation: the harness's teardown match is unanchored (and the anchor of the sample edited with it) -> red: `key-proof` (`bad-ten-projects-left`; AC2).
 
+### Rework iteration 1 record (lane B, tags `e9s10j2` fresh and `e9s10j2w` warm unused; no `.cls` touched)
+
+What changed, per open item:
+- **U-168 (1):** `eval/run.sh` already refused `--key-path` outside `--release-candidate --on-mock`; `rc-guard` now also requires the usage line (`^usage: `) for every refused form and adds `--key-path --on-mock`; the no-container-call and exit 2 checks were already there.
+- **U-168 (2):** `eval/key-proof.sh` resolves the model endpoint from the caller's `OCUTALON_MODEL_BASE_URL` or the last one in `eval/compose.release-candidate.yml` and `ci/compose.ci.yml` (read as text; no container tool), and exits 2 naming the endpoint (no user name or query) unless it is `http://mock:8080`, before any pre-clear. The `key-proof` rule runs a refusal for the environment form and the file form (stubs never run), and records that an inherited decoy reaches no stub of `ci/iris.sh`, of the container tool or of the run.
+- **U-168 (3):** `eval/run.sh` has a ninth scan, `web bundle` (`src/ocutalon/csp/` of the checkout and `/opt/ocutalon/src/ocutalon/csp` in the throwaway, control: the product name found in a file of each), and a last line `PASS key proof counts: iris environment 1, container logs 0, result files 0, trace 0, web bundle 0` (the key found once in the iris container's environment, by `grep -aoF` over `/proc/self/environ`). The harness checks that line's exact shape and prints the proof's pass line `PASS key counts: iris environment 1, run output 0, container logs 0, result files 0, trace 0, web bundle 0`. The proof is now nine scans plus the counts line (ten `PASS key proof` lines); the harness expects ten.
+- **[Lead]:** `project_leftovers <project>` in `docker/tests/lib-keys.sh` lists containers and volumes of the run's project (the `STACK evaluation: project ...` line of its output) through the tool; the harness requires `0|0` before its second teardown. The `key-proof` rule has a stub tool that lists other runs' projects (one with a longer pid) that must not count, plus a leftover container, a leftover volume, a failing tool and a run with no STACK line.
+
+Fresh run, `OCUTALON_RUN_TAG=e9s10j2 env -u ANTHROPIC_API_KEY bash eval/key-proof.sh`: exit 0, `eval/key-proof: all checks passed` (the run 123 s); nine scans and the counts line passed (web bundle: 19 files of the checkout and 19 of the throwaway; iris environment 1); leftovers `0|0`; the teardown of the tag found 0 and was run again with the same result. `test-eval-set.sh` (17 rules, 136 s) and `test-boundaries.sh` pass. Lock folder empty.
+
+Mutations (each applied to the real file, red observed, reverted from a backup, `git diff --stat` and `git status --short` identical to the pre-mutation state):
+- mutation: `eval/run.sh` usage line loses `usage:`, and `--release-candidate --key-path` is accepted -> red: `rc-guard` (U-168 (1)).
+- mutation: the harness's `unset ANTHROPIC_API_KEY` becomes a no-op -> red: `key-proof` (the good sample: an inherited key reaches ci/iris.sh; U-168 (2)).
+- mutation: the harness's endpoint refusal exits 0 -> red: `key-proof` (the good sample: a non-mock endpoint (env) is not refused with exit 2; U-168 (2)).
+- mutation: the harness's counts verdict passes where it failed -> red: `key-proof` (`bad-counts-iris-environment-twice`, `bad-counts-bundle-hit` not flagged; U-168 (3)).
+- mutation: `project_leftovers` prints `0|0` always -> red: `key-proof` (`bad-leftover-container-listed`, `bad-leftover-volume-listed` not flagged; [Lead]).
+- mutation: `eval/run.sh` scans nothing in the checkout's bundle and takes the iris environment count as 1 -> red: `rc-flow` (cases `bundle-local`, `env0` and `env2`; U-168 (3)).
+
+Review-pass additions (mutations applied together in one `test-eval-set.sh` run, reverted from backups, `git diff` byte-identical):
+- mutation: the harness checks only the caller's endpoint and not the compose file's when the caller sets the mock -> red: `key-proof` (session `mock-env-file`; U-168 (2)).
+- mutation: the refused endpoint is named whole (user name, path, query) -> red: `key-proof` (session `userinfo`; U-168 (2), never a key).
+- mutation: the checkout bundle scan drops its file-count and control guards -> red: `rc-flow` (cases `bundle-local-empty`, `bundle-local-nocontrol`; U-168 (3)).
+- mutation: `project_leftovers` matches the project name as a bare prefix (no `-` or `_` delimiter) -> red: `key-proof` (the `...-42420` decoy counts; the leftover samples report 2|1 and 1|2; [Lead]).
+- Final fresh `eval/key-proof.sh` (tag `e9s10j`, after the review patches): exit 0, `eval/key-proof: all checks passed`, the run 124 s; `test-eval-set.sh` (17 rules) and `test-boundaries.sh` pass.
+
 ## Auto Run Result
 
 Status: done
@@ -638,3 +684,24 @@ Blocking condition: none
 - `rc-flow` and `key-proof` samples edit `eval/run.sh` and `eval/key-proof.sh` by anchor text.
 - `KeyProof.Trace` fails closed on a message body class that is not XML-exportable.
 - `ci/iris.sh` teardown undercounts leftovers it cannot remove (deferred).
+
+### Rework iteration 1 (U-168 and the lead's teardown item)
+
+Status: done
+Blocking condition: none
+
+**Summary.** The owner's three conditions on `--key-path` and AC2's last clause are in and pinned.
+- `eval/run.sh` already refused `--key-path` without `--release-candidate --on-mock` with exit 2 and no container call; `rc-guard` now pins the usage line and the `--key-path --on-mock` form.
+- `eval/key-proof.sh` unsets any inherited key (pinned: it reaches no stub), and refuses with exit 2 before anything starts unless the model endpoint, from the caller's `OCUTALON_MODEL_BASE_URL` and from the compose files, is the CI mock's; it names only scheme, host and port.
+- The proof has a ninth scan (`web bundle`: `src/ocutalon/csp/` and the copy in the throwaway) and a counts-only pass line (`PASS key counts: iris environment 1, run output 0, container logs 0, result files 0, trace 0, web bundle 0`). The proof is now nine scans plus the counts line (the intent contract still says eight).
+- The harness lists the run's compose project's containers and volumes itself (`project_leftovers` in `docker/tests/lib-keys.sh`) and requires 0 and 0 before the teardown check.
+
+**Files changed.** `eval/run.sh`, `eval/key-proof.sh`, `docker/tests/lib-keys.sh`, `docker/tests/test-eval-set.sh` (`rc-guard`, `rc-flow`, `key-proof`).
+
+**Review.** 17 grouped rows: 6 patched (3 medium, 3 low), 0 deferred, 11 rejected with reasons in the triage log. Patches: both endpoint sources are checked, the refusal names scheme, host and port only, the checkout-side bundle guards are pinned, the harness test unsets the caller's endpoint, `read` instead of `set --`, mutation lines written.
+
+**Follow-up review recommended: false.** This was a follow-up of the rework (`followup_pass`): no high was patched.
+
+**Verification.** `test-eval-set.sh` (17 rules) and `test-boundaries.sh` pass; a fresh `eval/key-proof.sh` on tag `e9s10j` (after the review patches) exited 0 in 124 s with all nine scans, the counts line and 0|0 leftovers; four mutations red then reverted (see the rework record). Lane-b lock folder empty.
+
+**Residual risks.** The container-side `grep -aoF` over `/proc/self/environ` and the bundle scan have run on ARM only, not on the x64 Linux runner. The intent contract's text still says eight scans (not edited; the lead may restate).

@@ -81,8 +81,8 @@
 #                 lib-live.sh, and goes on to lib-live.sh with no argument and with feed. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
 #   rc-guard      (Story 9.5, 9.10) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock,
-#                 --release-candidate --on-mock --key-path and --override <reason> with exit 2 before it calls the container tool (--key-path
-#                 in any other form too); --release-candidate (not --on-mock) and --release-candidate --on-mock --key-path with ANTHROPIC_API_KEY
+#                 --release-candidate --on-mock --key-path and --override <reason> with exit 2 and a usage line before it calls the container tool
+#                 (--key-path in any other form too, alone or with only one of the other two: veto U-168); --release-candidate (not --on-mock) and --release-candidate --on-mock --key-path with ANTHROPIC_API_KEY
 #                 unset or empty are refused the same way and the refusal names the variable; --release-candidate with a key (a value that is
 #                 not a key), --release-candidate --on-mock --key-path with one and --release-candidate --on-mock with none or with one go on to
 #                 the container tool and end with exit 1, and that value is never in the output or in a call. eval/compose.release-candidate.yml
@@ -107,8 +107,10 @@
 #                 Story 9.10: a key-like line (built from fragments) in the stub's result Markdown ends the real form (the pair kept in eval/) and the
 #                 --on-mock form (the pair kept in the report folder) with exit 4 and the do-not-commit FAIL line that names file and line and never
 #                 shows the text; a clean pair gets the key-like PASS line; --on-mock --key-path on a stub whose scans are clean ends with exit 0, the
-#                 eight PASS key proof lines and no PointKeys, and a stub whose scan reports a hit, a failed control or an unreadable place (each of
-#                 the globals, stores, trace, mock log, container logs and container files scans) ends with FAIL key proof <label> and exit 1. The bad samples are the repository's eval/run.sh with one edit each;
+#                 nine PASS key proof lines, the counts line (iris environment 1, container logs 0, result files 0, trace 0, web bundle 0) and no
+#                 PointKeys, and a stub whose scan reports a hit, a failed control or an unreadable place (each of the globals, stores, trace,
+#                 mock log, container logs, container files and web bundle scans, the bundle also planted in the checkout's copy) or a count of the
+#                 key in the iris environment other than 1 ends with FAIL key proof <label> and exit 1. The bad samples are the repository's eval/run.sh with one edit each;
 #   rc-override   (Story 9.5) eval/run.sh --override runs from a copy of the script in a folder with no ci/, beside result files that the check writes (and never calls the container tool):
 #                 a blocked result becomes overridden with the reason and the time, its Markdown gets the changed verdict line and the section Override,
 #                 and a result that is missing, has no Markdown, has no Verdict: blocked line, is a pass or already overridden, or a reason that is
@@ -123,7 +125,12 @@
 #                 exit 0 and the last line eval/key-proof: all checks passed; and the harness flags, with exit 1, a stub that prints the key, writes
 #                 it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line, prints a FAIL key
 #                 proof line or no verdict, leaves no report file, leaves a file below eval/ that cannot be read, or has its teardown print a
-#                 leftover volume or ten projects; the harness runs eval/run.sh with exactly --release-candidate --on-mock --key-path. A bad
+#                 leftover volume or ten projects, or lists a container or volume of the run's own compose project (the run's STACK line names it;
+#                 the stub tool also lists other runs' projects, one whose pid starts with this one's, which must not count), or the tool cannot be
+#                 asked; the proof's pass line is counts only, in a fixed order (iris environment 1, run output 0, container logs 0, result files 0,
+#                 trace 0, web bundle 0) and a run whose counts line is another shape or number is flagged; a key that the caller inherited never
+#                 reaches the stubs of ci/iris.sh, the container tool or the run (U-168); a model endpoint that is not the CI mock (the caller's
+#                 OCUTALON_MODEL_BASE_URL, or the last one in the compose files) is refused with exit 2, named, before any stub runs; the harness runs eval/run.sh with exactly --release-candidate --on-mock --key-path. A bad
 #                 sample may also edit the harness so that it does not flag one of these;
 #   key-like      (Story 9.10) eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh (the exact
 #                 line), the one definition of the key-like patterns, and none holds a pattern of its own (the text of the first alternative, built
@@ -1144,7 +1151,7 @@ const RC_COMPOSE = (extra = {}) => [
   '      OCUTALON_MOCK_KEY_HEADER: "0"',
   '',
 ].join('\n');
-const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '{ [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && ', keyPathForm = true, keyPathAnywhere = false, leak = '', before = '', usageLeak = false } = {}) =>
+const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '{ [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && ', keyPathForm = true, keyPathAnywhere = false, leak = '', before = '', usageLeak = false, usageLine = true } = {}) =>
   '#!/usr/bin/env bash\nset -u\n' + before + 'mode=push\nonmock=0\nkeypath=0\n' +
   'if [ $# -eq 0 ]; then\n  :\n' +
   'elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then\n  mode=rc\n' +
@@ -1152,7 +1159,7 @@ const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)
   (keyPathForm ? 'elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ] && [ "$3" = --key-path ]; then\n  mode=rc\n  onmock=1\n  keypath=1\n' : '') +
   (keyPathAnywhere ? 'elif [ "$#" -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --key-path ]; then\n  mode=rc\n  keypath=1\n' : '') +
   'elif [ $# -eq 2 ] && [ "$1" = --override ]; then\n  mode=override\n' +
-  'else\n  echo "usage' + (usageLeak ? ' $ANTHROPIC_API_KEY' : '') + '"\n  exit 2\nfi\n' +
+  'else\n  echo "' + (usageLine ? 'usage: bash eval/run.sh' : 'refused') + (usageLeak ? ' $ANTHROPIC_API_KEY' : '') + '"\n  exit 2\nfi\n' +
   'if [ "$mode" = rc ] && ' + mockCond + keyTest + '; then\n  echo "FAIL ANTHROPIC_API_KEY is not set"\n  exit 2\nfi\n' + leak +
   `${D} image inspect --format x base > /dev/null 2>&1 || exit 1\n`;
 // eval/run.sh's use of the stack (rule rc-stack): the form --release-candidate (not --on-mock) layers eval/compose.release-candidate.yml over the stack and
@@ -1222,6 +1229,7 @@ variant('rc-guard', 'bad-calls-before-guard', 'reached the container tool before
 variant('rc-guard', 'bad-compose-no-base-url', 'the code lines are not exactly', (f) => { f['eval/run.sh'] = rcGuarded(); f['eval/compose.release-candidate.yml'] = RC_COMPOSE({ baseUrl: false }); });
 variant('rc-guard', 'bad-compose-literal-key', 'the code lines are not exactly', (f) => { f['eval/run.sh'] = rcGuarded(); f['eval/compose.release-candidate.yml'] = RC_COMPOSE({ key: '      ANTHROPIC_API_KEY: zz-literal-key-value' }); });
 
+variant('rc-guard', 'bad-refusal-without-usage', 'prints no usage line', (f) => { f['eval/run.sh'] = rcGuarded({ usageLine: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-usage-prints-key', 'the key appears in the output of the refused', (f) => { f['eval/run.sh'] = rcGuarded({ usageLeak: true }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-writes-key-in-tree', 'a file of the tree holds the value of the key', (f) => { f['eval/run.sh'] = rcGuarded({ leak: 'printf "%s" "$ANTHROPIC_API_KEY" > "$(dirname "$0")/../key.txt"\n' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-writes-key', 'a file of the run holds the value of the key', (f) => { f['eval/run.sh'] = rcGuarded({ leak: 'printf "%s" "$ANTHROPIC_API_KEY" > key.txt\n' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
@@ -1312,17 +1320,30 @@ variant('key-proof', 'bad-writes-key-in-report', 'the report folder has', kpSamp
 variant('key-proof', 'bad-writes-key-in-checkout', 'files of the checkout written during the run hold the key', kpSample('write-checkout'));
 variant('key-proof', 'bad-changes-eval', 'git status --porcelain -- eval/ changed during the run', kpSample('change-eval'));
 variant('key-proof', 'bad-run-fails', 'exited 1', kpSample('exit1'));
-variant('key-proof', 'bad-seven-pass-lines', 'not the eight', kpSample('seven-pass'));
+variant('key-proof', 'bad-eight-pass-lines', 'not the nine scans', kpSample('eight-pass'));
 variant('key-proof', 'bad-fail-line', 'the capture holds a FAIL key proof line', kpSample('fail-line'));
 variant('key-proof', 'bad-no-verdict', 'the capture has no line VERDICT blocked', kpSample('no-verdict'));
 variant('key-proof', 'bad-no-report-file', 'the report folder has 0 file(s)', kpSample('no-report'));
 variant('key-proof', 'bad-leftover-volume', 'the teardown of the tag found something left after the run', kpSample('leftover'));
 variant('key-proof', 'bad-unreadable-file-below-eval', 'cannot be read', kpSample('unreadable'));
 variant('key-proof', 'bad-ten-projects-left', 'the teardown of the tag found something left after the run', kpSample('ten-projects'));
+variant('key-proof', 'bad-leftover-container-listed', 'containers|volumes left: 1|0', kpSample('ps-leftover'));
+variant('key-proof', 'bad-leftover-volume-listed', 'containers|volumes left: 0|1', kpSample('volume-leftover'));
+variant('key-proof', 'bad-listing-fails', 'the tool could not be asked', kpSample('tool-fails'));
+variant('key-proof', 'bad-no-stack-line', 'names no compose project of the run', kpSample('no-stack'));
+variant('key-proof', 'bad-counts-iris-environment-twice', 'key counts: iris environment 2', kpSample('counts-env2'));
+variant('key-proof', 'bad-counts-bundle-hit', 'web bundle 1', kpSample('counts-bundle'));
+variant('key-proof', 'bad-counts-wrong-order', 'holds no counts line of the shape', kpSample('counts-order'));
+variant('key-proof', 'bad-counts-missing', 'holds no counts line of the shape', kpSample('counts-missing'));
+variant('key-proof', 'bad-counts-line-shows-key', 'the captured output holds the key', kpSample('counts-key'));
 variant('key-proof', 'bad-harness-without-key-path', 'runs eval/run.sh with other arguments', kpSample('good', [[' --on-mock --key-path > "$capture"', ' --on-mock > "$capture"']]));
 variant('key-proof', 'bad-harness-without-on-mock', 'runs eval/run.sh with other arguments', kpSample('good', [[' --release-candidate --on-mock --key-path > "$capture"', ' --release-candidate --key-path > "$capture"']]));
 variant('key-proof', 'bad-harness-any-teardown', 'does not flag the behaviour', kpSample('leftover', [['if printf \'%s\\n\' "$teardown" | grep -qE \' 0 project\\(s\\) removed, 0 leftover container\\(s\\), 0 leftover volume\\(s\\)\'; then', 'if printf \'%s\\n\' "$teardown" | grep -q TEARDOWN; then']]));
 variant('key-proof', 'bad-harness-prints-dirty-capture', 'the key appears in the output of the harness', kpSample('print-key', [['  fail "the captured output holds the key at line(s) $capture_hits; the output is not printed"\nelse', '  cat "$capture"\n  fail "the captured output holds the key at line(s) $capture_hits; the output is not printed"\nelse']]));
+variant('key-proof', 'bad-harness-any-listing', 'does not flag the behaviour', kpSample('ps-leftover', [['if [ "$leftovers" = "0|0" ]; then', 'if true; then']]));
+variant('key-proof', 'bad-harness-any-counts', 'does not flag the behaviour', kpSample('counts-env2', [['if [ "$c_env" = 1 ] && [ "$c_logs$c_files$c_trace$c_bundle" = 0000 ] && [ "$output_n" -eq 0 ]; then', 'if true; then']]));
+variant('key-proof', 'bad-harness-keeps-inherited-key', 'an inherited key reaches', kpSample('good', [['unset ANTHROPIC_API_KEY\nif [ -z "${OCUTALON_RUN_TAG:-}" ]; then', 'if [ -z "${OCUTALON_RUN_TAG:-}" ]; then']]));
+variant('key-proof', 'bad-harness-any-endpoint', 'is not refused with exit 2 before anything starts', kpSample('good', [['  http://mock:8080 | http://mock:8080/*) ;;\n', '  *) ;;\n']]));
 variant('key-proof', 'bad-harness-without-tag', 'runs without OCUTALON_RUN_TAG', kpSample('good', [['if [ -z "${OCUTALON_RUN_TAG:-}" ]; then', 'if false; then']]));
 variant('key-proof', 'bad-harness-ignores-eval-change', 'does not flag the behaviour', kpSample('change-eval', [['if [ "$status_after" = "$status_before" ]; then pass', 'if true; then pass']]));
 // The rule key-like (Story 9.10): the three scripts read the one definition of the key-like patterns from docker/tests/lib-keys.sh and hold none of their own.
@@ -1581,13 +1602,15 @@ check_rc_guard() {
     tool=${tool}ker
     printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$calls" > "$tmp/stub/$tool"
     chmod +x "$tmp/stub/$tool"
-    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate' '--key-path' '--release-candidate --key-path' '--on-mock --key-path' '--release-candidate --on-mock --key-path extra' '--release-candidate --key-path --on-mock' '--key-path --release-candidate --on-mock' '--override x --key-path'; do
+    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate' '--key-path' '--release-candidate --key-path' '--on-mock --key-path' '--release-candidate --on-mock --key-path extra' '--release-candidate --key-path --on-mock' '--key-path --release-candidate --on-mock' '--key-path --on-mock' '--override x --key-path'; do
       # shellcheck disable=SC2086
       rc=$(rc_run "$dir" "$script" "$fake" $args)
       if [ "$rc" -ne 2 ]; then
         echo "eval/run.sh: the arguments '$args' are not refused with exit 2 (exit $rc)"
       elif [ -s "$calls" ]; then
         echo "eval/run.sh: the arguments '$args' reached the container tool before they were refused"
+      elif ! grep -q '^usage: ' "$dir/out.log"; then
+        echo "eval/run.sh: the refusal of the arguments '$args' prints no usage line"
       elif grep -qF -- "$fake" "$dir/out.log"; then
         echo "eval/run.sh: the key appears in the output of the refused arguments '$args'"
       fi
@@ -2035,6 +2058,17 @@ case "$*" in
     fi
     if [ "${RCF_KP:-}" = logs ]; then printf 'iris  | leaked %s\n' "$ANTHROPIC_API_KEY"; fi
     ;;
+  *"exec -T iris sh -c"*BUNDLE*)
+    found=0 unreadable=0 control=1 environment=1
+    case ${RCF_KP:-} in
+      bundle) found=1 ;;
+      bundle-unreadable) unreadable=1 ;;
+      bundle-nocontrol) control=0 ;;
+      env0) environment=0 ;;
+      env2) environment=2 ;;
+    esac
+    printf 'BUNDLE|%s|%s|%s|19|%s\n' "$found" "$unreadable" "$control" "$environment"
+    ;;
   *"exec -T iris sh -c"*)
     found=0 unreadable=0 control=1
     case ${RCF_KP:-} in
@@ -2066,7 +2100,10 @@ rcf_session() {
   done
   mkdir -p "$dir/t/eval/orders-date-format"
   printf '{"name":"orders-date-format"}\n' > "$dir/t/eval/orders-date-format/case.json"
-  : > "$dir/t/src/ocutalon/csp/index.html"
+  printf '<title>OcuTalon</title>\n' > "$dir/t/src/ocutalon/csp/index.html"
+  if [ "${RCF_KP:-}" = bundle-local ]; then printf '%s\n' "$key" >> "$dir/t/src/ocutalon/csp/index.html"; fi
+  if [ "${RCF_KP:-}" = bundle-local-empty ]; then rm -f "$dir/t/src/ocutalon/csp/index.html"; fi
+  if [ "${RCF_KP:-}" = bundle-local-nocontrol ]; then printf '<title>x</title>\n' > "$dir/t/src/ocutalon/csp/index.html"; fi
   cp "$script" "$dir/t/eval/run.sh"
   : > "$dir/calls"
   if [ "$key" = unset ]; then
@@ -2157,13 +2194,14 @@ rcf_cases_keys() {
   # a clean pair gets the PASS line
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
   if [ "$rc" -ne 3 ] || ! grep -q '^PASS release-candidate: the result pair holds no key-like text$' "$dir/out.log"; then echo "eval/run.sh: a clean result pair of --release-candidate gets no PASS line for the key-like scan (exit $rc)" && return 0; fi
-  # the key-path rehearsal on a stub whose scans are clean: the eight PASS lines
+  # the key-path rehearsal on a stub whose scans are clean: the nine PASS lines and the counts line
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate --on-mock --key-path)
   out=$(
     if [ "$rc" -ne 0 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || ! grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
       echo "eval/run.sh: the key-path rehearsal on clean scans does not end with VERDICT blocked, all checks passed and exit 0 (exit $rc)"
     fi
-    if [ "$(grep -c '^PASS key proof ' "$dir/out.log")" -ne 8 ]; then echo "eval/run.sh: the key-path rehearsal holds $(grep -c '^PASS key proof ' "$dir/out.log") PASS key proof lines, not 8"; fi
+    if [ "$(grep -c '^PASS key proof ' "$dir/out.log")" -ne 10 ]; then echo "eval/run.sh: the key-path rehearsal holds $(grep -c '^PASS key proof ' "$dir/out.log") PASS key proof lines, not the nine scans and the counts line"; fi
+    if ! grep -qx 'PASS key proof counts: iris environment 1, container logs 0, result files 0, trace 0, web bundle 0' "$dir/out.log"; then echo "eval/run.sh: the key-path rehearsal prints no counts line of the contract (iris environment 1, container logs 0, result files 0, trace 0, web bundle 0)"; fi
     if ! grep -q '^PASS release-candidate-on-mock: the result pair holds no key-like text$' "$dir/out.log"; then echo "eval/run.sh: the key-path rehearsal prints no PASS line for the key-like scan"; fi
     if grep -q 'PointKeys\|RestoreKeys' "$dir/calls"; then echo "eval/run.sh: the key-path rehearsal calls PointKeys or RestoreKeys"; fi
     if ! rcf_none "$dir"; then echo "eval/run.sh: the key-path rehearsal writes a result file into eval/"; fi
@@ -2172,7 +2210,8 @@ rcf_cases_keys() {
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
   # a hit, a failed control or an unreadable place of each scan: FAIL key proof <label> and exit 1
   for pair in globals:globals stores:stores stores-nocontrol:stores trace:trace trace-nocontrol:trace trace-unreadable:trace mock:mock\ log mock-none:mock\ log \
-    logs:container\ logs logs-nocontrol:container\ logs files:container\ files files-unreadable:container\ files files-nocontrol:container\ files; do
+    logs:container\ logs logs-nocontrol:container\ logs files:container\ files files-unreadable:container\ files files-nocontrol:container\ files \
+    bundle:web\ bundle bundle-unreadable:web\ bundle bundle-nocontrol:web\ bundle bundle-local:web\ bundle bundle-local-empty:web\ bundle bundle-local-nocontrol:web\ bundle env0:counts env2:counts; do
     kp=${pair%%:*} label=${pair#*:}
     rc=$(RCF_KP=$kp rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate --on-mock --key-path)
     if [ "$rc" -ne 1 ] || ! grep -q "^FAIL key proof $label: " "$dir/out.log" || grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
@@ -2227,8 +2266,11 @@ echo ran >> "$KP_RAN"
 printf '%s' "${ANTHROPIC_API_KEY-}" > "$KP_RECORD"
 printf '%s' "$*" > "$KP_RECORD.args"
 mode=${KP_MODE:-good}
-labels="globals stores trace mock-log container-logs container-files run-files eval-files"
-[ "$mode" = seven-pass ] && labels="globals stores trace mock-log container-logs container-files run-files"
+project=ocutalon-eval-kp-check-1793000000-4242
+[ "$mode" = no-stack ] || echo "STACK evaluation: project $project"
+env | grep -c 'zz-decoy' >> "$KP_RECORD.decoy"
+labels="globals stores trace mock-log container-logs container-files run-files eval-files web-bundle"
+[ "$mode" = eight-pass ] && labels="globals stores trace mock-log container-logs container-files run-files eval-files"
 for label in $labels; do
   if [ "$mode" = fail-line ] && [ "$label" = globals ]; then
     echo "FAIL key proof globals: a stub hit"
@@ -2236,6 +2278,14 @@ for label in $labels; do
     echo "PASS key proof ${label/-/ }: a stub scan"
   fi
 done
+case $mode in
+  counts-missing) ;;
+  counts-env2) echo "PASS key proof counts: iris environment 2, container logs 0, result files 0, trace 0, web bundle 0" ;;
+  counts-bundle) echo "PASS key proof counts: iris environment 1, container logs 0, result files 0, trace 0, web bundle 1" ;;
+  counts-order) echo "PASS key proof counts: container logs 0, iris environment 1, result files 0, trace 0, web bundle 0" ;;
+  counts-key) echo "PASS key proof counts: iris environment 1, container logs 0, result files 0, trace 0, web bundle 0 $ANTHROPIC_API_KEY" ;;
+  *) echo "PASS key proof counts: iris environment 1, container logs 0, result files 0, trace 0, web bundle 0" ;;
+esac
 case $mode in
   print-key) echo "key: $ANTHROPIC_API_KEY" ;;
   write-eval) printf '%s' "$ANTHROPIC_API_KEY" > "$root/eval/leak.txt" ;;
@@ -2258,6 +2308,8 @@ exit 0
 STUB
   cat > "$1/ci/iris.sh" << 'STUB'
 #!/usr/bin/env bash
+printf '%s' "${ANTHROPIC_API_KEY-}" >> "$KP_RECORD.iris"
+echo "called $*" >> "$KP_RECORD.icalls"
 volumes=0 projects=0
 [ "${KP_MODE:-good}" = leftover ] && volumes=1
 [ "${KP_MODE:-good}" = ten-projects ] && projects=10
@@ -2271,7 +2323,7 @@ STUB
 # stub received has the shape of a real key and 66 characters, it is never in the output of the harness, the harness exits 1 when it flags something and
 # 0 when it does not, and without OCUTALON_RUN_TAG it exits 2 before the stub runs.
 check_key_proof() {
-  local base=$1 dir="$tmp/kp-work" state="$tmp/kp-state" mode rc out key shape
+  local base=$1 dir="$tmp/kp-work" state="$tmp/kp-state" mode rc out key shape decoy tool=doc session endpoint envarg
   shape="^sk-""ant-""api03-""ocutalonfake-""[A-Za-z0-9]{40}\$"
   if [ ! -f "$base/eval/key-proof.sh" ]; then
     echo "eval/key-proof.sh: the script is missing"
@@ -2279,14 +2331,38 @@ check_key_proof() {
   fi
   mode=$(head -n 1 "$base/kp-mode.txt" 2> /dev/null)
   mode=${mode:-good}
+  tool=${tool}ker
+  decoy="zz-decoy-$RANDOM$RANDOM"
   rm -rf "$dir" "$state" "$tmp/stub-kp"
   mkdir -p "$dir/eval" "$dir/ci" "$dir/docker/tests" "$state" "$tmp/stub-kp"
   cp "$base/eval/key-proof.sh" "$dir/eval/key-proof.sh"
+  cp "$root/ci/compose.ci.yml" "$dir/ci/compose.ci.yml"
+  cp "$root/eval/compose.release-candidate.yml" "$dir/eval/compose.release-candidate.yml"
   cp "${base}/docker/tests/lib-keys.sh" "$dir/docker/tests/lib-keys.sh" 2> /dev/null || cp "$root/docker/tests/lib-keys.sh" "$dir/docker/tests/lib-keys.sh"
   kp_stubs "$dir"
   printf 'a case\n' > "$dir/eval/case.txt"
   printf '#!/bin/sh\nexit 0\n' > "$tmp/stub-kp/sleep"
-  chmod +x "$tmp/stub-kp/sleep"
+  # The stub of the container tool answers the two listings of lib-keys.sh's project_leftovers: the names of the containers and of the volumes. It
+  # lists a project of another run (and one whose pid starts with this run's) in every mode, and a leftover of the run's own project by mode.
+  cat > "$tmp/stub-kp/$tool" << 'STUB'
+#!/bin/sh
+printf '%s' "${ANTHROPIC_API_KEY-}" >> "$KP_RECORD.tool"
+[ "${KP_MODE:-good}" = tool-fails ] && exit 1
+case "$*" in
+  "ps -a"*)
+    echo "ocutalon-eval-other-1793000000-4242-iris-1"
+    echo "ocutalon-eval-kp-check-1793000000-42420-iris-1"
+    [ "${KP_MODE:-good}" = ps-leftover ] && echo "ocutalon-eval-kp-check-1793000000-4242-iris-1"
+    ;;
+  "volume ls"*)
+    echo "ocutalon-eval-other-1793000000-4242_mock-log"
+    echo "ocutalon-eval-kp-check-1793000000-42420_mock-log"
+    [ "${KP_MODE:-good}" = volume-leftover ] && echo "ocutalon-eval-kp-check-1793000000-4242_mock-log"
+    ;;
+esac
+exit 0
+STUB
+  chmod +x "$tmp/stub-kp/sleep" "$tmp/stub-kp/$tool"
   (cd "$dir" && git init -q . && git add -A) > /dev/null 2>&1
   # without a tag: exit 2, and the stub never ran
   : > "$state/ran"
@@ -2297,7 +2373,7 @@ check_key_proof() {
   rm -f "$state/ran" "$state/record"
   (cd "$dir" && git add -A) > /dev/null 2>&1
   rc=0
-  (cd "$dir" && env OCUTALON_RUN_TAG=kp-check ANTHROPIC_API_KEY="zz-decoy-$RANDOM" KP_RAN="$state/ran" KP_RECORD="$state/record" KP_MODE="$mode" PATH="$tmp/stub-kp:$PATH" TMPDIR="$state" RUNNER_TEMP="$state" \
+  (cd "$dir" && env -u OCUTALON_MODEL_BASE_URL OCUTALON_RUN_TAG=kp-check ANTHROPIC_API_KEY="$decoy" KP_RAN="$state/ran" KP_RECORD="$state/record" KP_MODE="$mode" PATH="$tmp/stub-kp:$PATH" TMPDIR="$state" RUNNER_TEMP="$state" \
     bash eval/key-proof.sh > "$state/out.log" 2>&1) || rc=$?
   key=$(cat "$state/record" 2> /dev/null)
   if [ -s "$state/ran" ] && [ "$(cat "$state/record.args" 2> /dev/null)" != "--release-candidate --on-mock --key-path" ]; then
@@ -2309,6 +2385,9 @@ check_key_proof() {
     echo "eval/key-proof.sh: gives the run a key that is not 66 characters of the shape of a real key (${#key} characters)"
   else
     if grep -qF -- "$key" "$state/out.log"; then echo "eval/key-proof.sh: the key appears in the output of the harness"; fi
+    if grep -qF -- "$decoy" "$state"/record* "$state/out.log" || [ "$(cat "$state/record.decoy" 2> /dev/null | tr -d '\n')" != 0 ]; then
+      echo "eval/key-proof.sh: an inherited key reaches ci/iris.sh, the container tool or the run (the harness does not unset ANTHROPIC_API_KEY first)"
+    fi
     if grep -q '^FAIL ' "$state/out.log"; then
       grep '^FAIL ' "$state/out.log" | sed 's/^FAIL /eval\/key-proof.sh: /'
       [ "$rc" -eq 1 ] || echo "eval/key-proof.sh: flags a failure and exits $rc, not 1"
@@ -2317,8 +2396,39 @@ check_key_proof() {
       echo "eval/key-proof.sh: a clean run does not end with eval/key-proof: all checks passed and exit 0 (exit $rc)"
     elif [ "$mode" != good ]; then
       echo "eval/key-proof.sh: does not flag the behaviour '$mode' of the run"
+    elif ! grep -qx 'PASS key counts: iris environment 1, run output 0, container logs 0, result files 0, trace 0, web bundle 0' "$state/out.log"; then
+      echo "eval/key-proof.sh: the pass line of a clean proof is not counts only, in the order of the contract (iris environment 1, run output 0, container logs 0, result files 0, trace 0, web bundle 0)"
     fi
   fi
+  # a model endpoint that is not the CI mock (the caller's own, or the last one the compose files set) is refused with exit 2 before anything starts: the
+  # stub run and the stub teardown are never called, the endpoint is named and no key is printed
+  for session in env file mock-env-file userinfo; do
+    rm -f "$state/ran" "$state/record" "$state/record.icalls"
+    rc=0
+    sed 's#http://mock:8080/v1/#https://models.example.invalid/v1/#' "$root/ci/compose.ci.yml" > "$tmp/kp-ci-rewritten.yml"
+    case $session in
+      env) endpoint="https://models.example.invalid/v1/" ;;
+      userinfo) endpoint="https://user:$decoy@models.example.invalid:8443/v1/$decoy?token=$decoy#$decoy" ;;
+      mock-env-file) endpoint="http://mock:8080/v1/" ;;
+      file) endpoint="" ;;
+    esac
+    if [ "$session" = mock-env-file ] || [ "$session" = file ]; then
+      if cmp -s "$tmp/kp-ci-rewritten.yml" "$root/ci/compose.ci.yml"; then echo "eval/key-proof.sh: the endpoint test cannot rewrite the mock's endpoint in ci/compose.ci.yml"; fi
+      cp "$tmp/kp-ci-rewritten.yml" "$dir/ci/compose.ci.yml"
+    fi
+    envarg=(-u OCUTALON_MODEL_BASE_URL)
+    if [ -n "$endpoint" ]; then envarg=("OCUTALON_MODEL_BASE_URL=$endpoint"); fi
+    (cd "$dir" && env "${envarg[@]}" OCUTALON_RUN_TAG=kp-check ANTHROPIC_API_KEY="$decoy" KP_RAN="$state/ran" KP_RECORD="$state/record" KP_MODE="$mode" PATH="$tmp/stub-kp:$PATH" TMPDIR="$state" RUNNER_TEMP="$state" \
+      bash eval/key-proof.sh > "$state/endpoint.out" 2>&1) || rc=$?
+    cp "$root/ci/compose.ci.yml" "$dir/ci/compose.ci.yml"
+    if [ "$rc" -ne 2 ] || [ -s "$state/ran" ] || [ -s "$state/record.icalls" ]; then
+      echo "eval/key-proof.sh: a model endpoint that is not the CI mock ($session) is not refused with exit 2 before anything starts (exit $rc)"
+    elif ! grep -q 'models\.example\.invalid' "$state/endpoint.out" || grep -qF -- "$decoy" "$state/endpoint.out"; then
+      echo "eval/key-proof.sh: the refusal of a model endpoint that is not the CI mock ($session) does not name the endpoint, or shows a key"
+    elif [ "$session" = userinfo ] && grep -qE '8443/|[?#]|user' "$state/endpoint.out"; then
+      echo "eval/key-proof.sh: the refusal of a model endpoint that is not the CI mock ($session) names more than its scheme, host and port"
+    fi
+  done
 }
 
 # rule <label> <description> <checker>: every sample bad-* of the label must be flagged, and flagged for the reason in its expect.txt, the
@@ -2449,8 +2559,8 @@ rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with
 rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
 rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
-rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the eight key proof lines and fails on a hit" check_rc_flow
-rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume, and passes one that does none of these" check_key_proof
+rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, including one in the web bundle" check_rc_flow
+rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume or container, reports counts other than its contract, lets an inherited key through, or runs against a model endpoint that is not the CI mock, and passes one that does none of these" check_key_proof
 rule key-like "eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition of the key-like patterns, and hold none of their own" check_key_like
 rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, refuses a key-like reason, reports key-like text in the result with exit 4, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override
 

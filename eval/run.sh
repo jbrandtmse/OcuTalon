@@ -84,12 +84,15 @@
 #      docker/tests/test-boundaries.sh also reads: "PASS <name>: the result pair holds no key-like text", or, on a match, a FAIL line that names
 #      file:line (never the text) and tells the author not to commit the pair, and exit 4 with both files kept.
 # The key proof (--on-mock --key-path only; Story 9.10, owner condition U-166 (b)). After the result is printed and before the exit lines, one line
-# "PASS key proof <label>: ..." or "FAIL key proof <label>: ..." for each of eight scans for the key's value: globals (every node of every global of
+# "PASS key proof <label>: ..." or "FAIL key proof <label>: ..." for each of nine scans for the key's value: globals (every node of every global of
 # every mounted database that is not read-only), stores (Test.Agent.KeyScan.Find), trace (the headers and bodies of every Interoperability
 # namespace), mock log (at least one /v1/ request, each with a key of the key's length), container logs (streamed, never written), container files
-# (below /durable, /tmp and /opt/ocutalon/mock-log), run files (this run's work folder and the report folder) and eval files (below eval/). Each
-# scan runs a positive control that must find something, and fails when it cannot read what it scans. A hit names a place and never the value; the
-# value is read only from the environment (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container). Any FAIL ends the run with exit 1.
+# (below /durable, /tmp and /opt/ocutalon/mock-log), run files (this run's work folder and the report folder), eval files (below eval/) and web bundle
+# (src/ocutalon/csp/ of the checkout and the copy inside the throwaway). Each scan runs a positive control that must find something, and fails when it
+# cannot read what it scans. A hit names a place and never the value; the value is read only from the environment (awk ENVIRON,
+# $SYSTEM.Util.GetEnviron, printenv inside the container). The last line is counts only: "PASS key proof counts: iris environment 1, container logs 0,
+# result files 0, trace 0, web bundle 0" (the key is in the iris container's environment exactly once and in nothing else; the key proof of
+# eval/key-proof.sh adds the run's output). Any FAIL ends the run with exit 1.
 # Exit codes: 0 pass (and a finished --on-mock run), 1 a structural failure (a session that printed nothing, a run that did not start or
 # finish, a file that was not saved, a verdict of incomplete, a failed key proof: nothing is written in eval/), 2 a refused argument or key,
 # 3 blocked, 4 the result pair holds key-like text (the files are kept; do not commit them).
@@ -446,10 +449,10 @@ kp_verdict() {
   esac
 }
 
-# key_proof: the key proof of the key-path rehearsal (see the header): eight scans for the value of ANTHROPIC_API_KEY, each printing one PASS or FAIL
-# line. The value is read from the environment only (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container) and no line holds it.
+# key_proof: the key proof of the key-path rehearsal (see the header): nine scans for the value of ANTHROPIC_API_KEY, each printing one PASS or FAIL
+# line, then the counts line. The value is read from the environment only (awk ENVIRON, $SYSTEM.Util.GetEnviron, printenv inside the container) and no line holds it.
 key_proof() {
-  local begun=$SECONDS demo len=${#ANTHROPIC_API_KEY} out files n hits control scope
+  local begun=$SECONDS demo len=${#ANTHROPIC_API_KEY} out files n hits control scope before=$fails logs_n=0 files_n=0 trace_n=0 bundle_n=0 env_n=0 bundle_files bundle_hits bundle_control
   demo=$(chk_value set-1 democase)
   if [ -z "$demo" ]; then
     fail "key proof: the demo case's name is not known, so no scan has its control"
@@ -479,6 +482,7 @@ AWK
 
   # the container logs, streamed
   out=$(dc logs --no-color 2> /dev/null | LC_ALL=C awk -v len="$len" 'BEGIN { k = ENVIRON["ANTHROPIC_API_KEY"] } { n++ } k != "" && index($0, k) { h++; if (h <= 5) at = at (at == "" ? "" : ",") n } index($0, "\"keyLength\":" len) { c++ } END { print h + 0 "|" c + 0 "|" n + 0 "|" at }')
+  logs_n=$(printf '%s' "$out" | cut -d'|' -f1)
   if [ "$(printf '%s' "$out" | awk -F'|' '{ print ($1 == "0" && $2 + 0 > 0 && $3 + 0 > 0) }')" = 1 ]; then
     pass "key proof container logs: no key in $(printf '%s' "$out" | cut -d'|' -f3) log line(s) (control: $(printf '%s' "$out" | cut -d'|' -f2) mock line(s) carry the key's length)"
   else
@@ -503,12 +507,38 @@ AWK
     n=$(printf '%s\n' "$files" | grep -c . || true)
     hits=$(printf '%s\n' "$files" | while IFS= read -r f; do key_value_hits "$f" || echo "unreadable:$f"; done | paste -s -d, -)
     control=$(printf '%s\n' "$files" | while IFS= read -r f; do grep -lF -- "$demo" "$f" 2> /dev/null; done | head -n 1)
+    files_n=$((files_n + $(printf '%s\n' "$hits" | tr ',' '\n' | grep -c ':[0-9][0-9]*$' || true)))
     if [ "$n" -gt 0 ] && [ -z "$hits" ] && [ -n "$control" ]; then
       pass "key proof $scope: no key in $n file(s) (control: the demo case's name is found in a file)"
     else
       fail "key proof $scope: $n file(s) read, hits or unreadable: ${hits:-none}, control ${control:+found}${control:-not found}"
     fi
   done
+
+  # the web bundle: src/ocutalon/csp/ of the checkout, and the copy inside the throwaway (the image copies it to /opt/ocutalon/src/ocutalon/csp). The
+  # same call counts the key in the environment of the iris container (every occurrence in /proc/self/environ, which the shell there inherits).
+  bundle_files=$(find "$root/src/ocutalon/csp" -type f 2> /dev/null)
+  n=$(printf '%s\n' "$bundle_files" | grep -c . || true)
+  bundle_hits=$(printf '%s\n' "$bundle_files" | while IFS= read -r f; do [ -n "$f" ] || continue; key_value_hits "$f" || echo "unreadable:$f"; done | paste -s -d, -)
+  bundle_control=$(printf '%s\n' "$bundle_files" | while IFS= read -r f; do [ -n "$f" ] && grep -lF -- OcuTalon "$f" 2> /dev/null; done | head -n 1)
+  out=$(dc exec -T iris sh -c 'b=/opt/ocutalon/src/ocutalon/csp; r=$(printenv ANTHROPIC_API_KEY | grep -rlF -f /dev/stdin -- "$b" 2>&1); h=$(printf "%s\n" "$r" | grep -vc "^\(grep:\|$\)"); e=$(printf "%s\n" "$r" | grep -c "^grep:"); c=$(grep -rlF -- "$1" "$b" 2> /dev/null | head -n 1 | wc -l | tr -d " "); f=$(find "$b" -type f 2> /dev/null | wc -l | tr -d " "); v=$(printenv ANTHROPIC_API_KEY | grep -aoF -f /dev/stdin -- /proc/self/environ | wc -l | tr -d " "); echo "BUNDLE|$h|$e|$c|$f|$v"' sh OcuTalon 2> /dev/null | tr -d '\r' | grep '^BUNDLE|' | head -n 1)
+  env_n=$(printf '%s' "$out" | cut -d'|' -f6)
+  bundle_n=$(( $(printf '%s' "$out" | cut -d'|' -f2 | grep -E '^[0-9]+$' || echo 0) + $(printf '%s\n' "$bundle_hits" | tr ',' '\n' | grep -c ':[0-9][0-9]*$' || true) ))
+  if [ "$n" -gt 0 ] && [ -z "$bundle_hits" ] && [ -n "$bundle_control" ] && [ "$(printf '%s' "$out" | awk -F'|' '{ print ($2 == "0" && $3 == "0" && $4 + 0 > 0 && $5 + 0 > 0) }')" = 1 ]; then
+    pass "key proof web bundle: no key in $n file(s) of src/ocutalon/csp/ and $(printf '%s' "$out" | cut -d'|' -f5) file(s) of the copy in the throwaway (control: the product's name is found in a file of both)"
+  else
+    fail "key proof web bundle: $n file(s) of the checkout read, hits or unreadable: ${bundle_hits:-none}, control ${bundle_control:+found}${bundle_control:-not found}; in the throwaway: ${out:-no result line} (hit file(s)|read errors|control|files|key in environment)"
+  fi
+
+  # the counts: the key is in the iris container's environment exactly once, and nowhere else
+  trace_n=$(kp_line trace | cut -d'|' -f3)
+  if [ "$fails" -eq "$before" ]; then
+    if [ "$env_n" = 1 ] && [ "$logs_n" = 0 ] && [ "$files_n" = 0 ] && [ "$trace_n" = 0 ] && [ "$bundle_n" = 0 ]; then
+      pass "key proof counts: iris environment $env_n, container logs $logs_n, result files $files_n, trace $trace_n, web bundle $bundle_n"
+    else
+      fail "key proof counts: iris environment ${env_n:-none}, container logs ${logs_n:-none}, result files $files_n, trace ${trace_n:-none}, web bundle $bundle_n (the key must be in the iris environment exactly 1 time and in nothing else)"
+    fi
+  fi
   echo "KEY PROOF done $((SECONDS - begun))s"
 }
 
