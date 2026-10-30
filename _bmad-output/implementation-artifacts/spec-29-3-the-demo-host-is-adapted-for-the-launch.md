@@ -2,9 +2,10 @@
 title: 'Story 29.3: The demo host is adapted for the launch'
 type: 'feature'
 created: '2026-10-29'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '8d404de13a8ba6cea6c7ff1d0624cbf46354f5ab'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: [oversized]
@@ -149,6 +150,63 @@ The tasks follow the lead's rulings of 2026-10-30 (Design Notes): the guard expe
 
 ## Review Triage Log
 
+### 2026-10-29 -- Review pass
+- verdicts: 52 findings -- high 0, medium 13, low 39, false 0, maybe-false 0
+- findings:
+  - `low` `reject` Blind: the check list and test say 'measured 2026-10-30' while the session date is 2026-10-29 -- the date is the lead's wording (ruling 3) and the test pins the three statuses the spec fixes
+  - `medium` `patch` Blind: row 1's sign-out assertion matches a session id as a prefix of another's -- the jq test now ends the id at ';' or the end of the cookie
+  - `medium` `patch` Blind: busy-api passes on no answer (000), a false all-clear -- 000 now fails busy-api, pinned by the new busy_api_drop run
+  - `low` `reject` Blind (same group as the row above): busy-root, busy-deep and maint-* assert no status -- spec row 13 and 14 compare the page bytes only (by-design)
+  - `medium` `patch` Blind (same group): allow-broker accepts any 200 -- a text/html answer now fails it, pinned by the new broker_html run
+  - `low` `reject` Blind: a failed sign-out goes unnoticed -- real but low, and a counter and a new line kind is more than a direct correction
+  - `low` `patch` Blind: gate credentials can go over plain http -- the script prints a warning on standard error (no refusal: a loopback exemption would put a host literal in the script, row 15); pinned by row 1
+  - `low` `patch` Blind: the gate variables stay in the environment of every child -- the script unsets OCUTALON_GATE_USER and OCUTALON_GATE_PASSWORD after writing the curl configuration; pinned by the new credentials shim run
+  - `low` `patch` Blind: guard-signin-4's failure text promises the typed user name -- reworded to IRIS's sign-in page with its Login form
+  - `low` `patch` Blind: nothing checks form_method against the probe line's method -- host_probe_args returns 1 on a mismatch, pinned by a test
+  - `low` `patch` Blind: the lib-online.sh header is stale -- rewritten
+  - `low` `patch` Blind: hard-coded probe counts -- the live section's floor of 90 now fails when it is not met; the other counts (56, +20) pin the spec's own numbers
+  - `low` `reject` Blind: status-types allows null lastReset where demo-status-types requires a string -- demo-status is the AD-25 status command's shape (row 11), not the JSON's
+  - `low` `patch` Edge: test-online-demo's floor of 90 gives neither PASS nor FAIL below it -- else branch added (same as the row above)
+  - `medium` `patch` Edge: busy-api false all-clear on no answer -- same fix as above
+  - `low` `reject` Edge: busy-root and busy-deep do not assert the 503 -- spec rows 13 and 14 compare bytes (by-design)
+  - `low` `reject` Edge: the busy splash alternative accepts a header and a title -- row 13 names exactly that alternative; the header is now pinned by busy_plain
+  - `low` `patch` Edge: base URL over http with gate credentials -- warning added (same as above)
+  - `medium` `patch` Edge: guard-big's body (65058 bytes) is under 64 KiB, so a guard bounded at 64 KiB would fail a correct host -- the pad is 66000 bytes; the live unit re-measured guard-big as 200:form
+  - `low` `reject` Edge: Expect: 100-continue on the large POST -- speculative; curl sends it only above its size threshold and a proxy answering 417 is a host fault the check should show
+  - `low` `reject` Edge: allow-broker accepts any 200 -- patched under the row above (a text/html answer fails)
+  - `low` `reject` Edge: HOST_FORM_FIELD_RE misses single-quoted or Cache* field spellings -- the spec fixes the field names and the live unit pins IRIS's spelling
+  - `medium` `patch` Edge: allow-broker accepts an HTML page -- same as above
+  - `low` `reject` Edge: guard-signin-4's marker is also on a plain GET -- Task 0 (c) measured that IRIS gives the same page; Decided in-stage 16 records it, residual risk
+  - `low` `reject` Edge: demo-status-match races a reset between the two reads -- the Planner re-runs; a retry is more than a correction
+  - `low` `reject` Edge: --zone input as a TZ= line, quoted or with a BOM -- the check list says the value is the zone name only
+  - `low` `patch` Edge: the probe table's method is only a label -- same as the form_method row (host_probe_args assertion)
+  - `low` `patch` Edge claim: guard-signin-4 text mentions the typed user name -- reworded
+  - `medium` `patch` Edge claim: the 'big' probe is not 64 KiB -- same as the guard-big row
+  - `low` `reject` Edge claim: busy and maintenance are not all 'byte for byte' -- row 13 allows IRIS's busy splash; the header says so
+  - `medium` `patch` Gap: guard-signin-3's aria-invalid term and guard-signin-4's form-field and Login-form terms are unpinned -- the signin_plain run and mutation lines
+  - `medium` `patch` Gap: check_block's 'no IRIS form field' rule is unpinned -- the refuse_form run (every probe id fails) and a mutation line
+  - `medium` `patch` Gap: busy_answer_ok's X-OcuTalon-Busy term is unpinned -- the busy_plain run and a mutation line
+  - `medium` `patch` Gap: the sign-out assertion matches by prefix -- same fix as the first Blind row
+  - `low` `patch` Gap: the 'credentials never on argv' rule has source greps only -- a curl shim now logs each call's argv, environment and -K file mode and the run asserts them (done in place of deferring)
+  - `medium` `patch` Gap: row 7 (b)'s guard branch passes on both paths -- the else branch now fails, with a mutation line
+  - `low` `patch` Gap: demo-status-match's lastResetKind and nextReset clauses are unpinned -- two fault runs and a mutation line
+  - `low` `patch` Gap: AC4's closed-gate exit 2 has no mutation line -- demonstrated and written; the signin and aria lines written as well
+  - `low` `reject` Gap: row 15's scans are source-text assertions -- they are the check (each has a mutation line)
+  - `low` `patch` Gap: run_script does not unset OCUTALON_CHECK_BLOCK_STATUS -- it does now, with a mutation line
+  - `low` `reject` Gap: row 15's mode check passes while the script is untracked -- it is tracked once committed
+  - `low` `reject` Gap (other): the stand-in's lookup misses the query that curl -G adds for F3/F4 -- the FAIL id sets are unchanged and the fix is more than a correction
+  - `medium` `patch` Gap (other): the 'big' probe is under 64 KiB -- same as the guard-big row
+  - `low` `reject` Intent: the ambiguity oracle is the same table in the stand-in and the script -- the live unit pins the table against real IRIS
+  - `low` `patch` Intent: row 7 (b) is not exercised for the guard family -- the branch now fails if a guard probe becomes ambiguous
+  - `low` `reject` Intent: the stand-in is plain http on loopback -- the spec's matrix says so
+  - `low` `reject` Intent: whether the real host carries a distinguishing mark is unmeasured -- the check list tells the Planner to set one (H4, Settings)
+  - `low` `reject` Intent: 'refused by IRIS' is a weak proof for the trace page -- by-design (Decided in-stage 16, Task 0 (c))
+  - `low` `reject` Intent: the live unit in install-upgrade runs about 100 more requests -- the spec's own task; no group changed
+  - `low` `reject` Intent: the script needs the repository checkout -- the spec has it source lib-online.sh by its own path
+  - `low` `reject` Intent: sign-out requests are a third request kind -- Decided in-stage 9
+  - `low` `reject` Intent: H11 reads '18.12 UTC' where the lead wrote '18:12Z' -- cosmetic; the check list's own scan forbids host:port shapes
+- patched entries by verdict: medium 13, low 15 (rows routed `patch`); nothing deferred.
+
 ## Design Notes
 
 **Owner decision for Epic 29: the demo host and Story 29.3**. The Contest Planner decided it under the owner's delegation on 2026-10-30 (`owner_decision id=epic29_brief`). It binds, and is quoted verbatim:
@@ -225,6 +283,16 @@ The tasks follow the lead's rulings of 2026-10-30 (Design Notes): the guard expe
 10. The `api` probe carries a second name (`text`), so it is no sign-in body under any reading of ruling 1, and the 64 KiB and extra-name probes are refused under every reading too. The script never asserts behaviour that ruling 1 leaves open.
 11. Allowed reads carry a unique `t`, as the probe's do; refusal probes are sent exactly as listed, so row 4's bare forms stay bare.
 12. The signed-in form of row 4 (the Planner measured it) is the Planner's: the script never signs in. It is recorded in H4.
+13. **A thirteenth refusal probe of the guard, `guard-case`** (`host_probes` has 90 lines, not the 89 of rows 3 to 5): a POST to `/ocutalon/` whose names are all in mixed case (`irisusername`, `IrisOldPassword`, `irispassword`, `irislogin`). F11 carries the canonical `IRISRepeatPassword`, so a case-sensitive pattern would refuse it all the same, and no probe of the matrix could turn the case rule red; the live section pins IRIS's answer to it like the others.
+14. **Ambiguity is the same status.** `SKIP ambiguous` needs IRIS's own answer to the probe (`host_probes`) to have the status the host gave, as the Boundaries say. Row 16's wording ("each probe whose `host_probes` answer is `403:noform` or `404:noform`") holds when the host's refusal has that status; the test derives its SKIP set from the stand-in's refusal status per family. Build 154 gives no `403:noform` answer.
+15. **Row 7 (a) runs with no mark.** With the mark set, a let-through answer fails for its missing mark whatever its status, so the status rule would not be what the run tests. Row 7 (b) takes the first `noform` probe of each family with a status other than 401 or 407 from `host_probes`; the guard family has none on build 154 (IRIS answers each with a form or a 401), which the test records.
+16. **The trace page's refused marker is IRIS's Login form.** IRIS's sign-in page after a refused POST with a dummy token is the same page as a plain GET (the typed user name is not put back), so `guard-signin-4` passes on that page with a status of 200: it is the proof that the request reached IRIS and that the proxy did not answer it.
+17. **`block-mark` is a line only when a mark is set** (no mark: nothing to check, no SKIP), and counts only allowed answers whose own check passed: an allowed path that the host blocks fails its `allow-*` check, and its refusal carrying the mark is not a second finding. `status-kind` fails a null kind: a host started with AD-19's variables has one.
+18. **The stand-in is driven by method and exact target.** `let=` and `letpost=` list requests that reach IRIS whatever the rules say (a GET and a POST to one URL are different probes), and the fake IRIS finds a probe's answer by method and target; the test checks that `host_probes` lists one answer for each such pair. One run lets all 10 blocked paths through and one all 56 DW-214 probes (their ids come from the test's own path and form tables, not from `host_probes`), with each FAIL line asserted to name its path.
+19. **`lib-stub.sh` writes the program to a file** and runs `node <file>`, since a function cannot give a background `node -` the standard input of its caller. `test-probe.sh` is otherwise unchanged: its 154 checks pass.
+20. **Review patches (2026-10-29).** `busy-api` fails on no answer; `allow-broker` fails on a `text/html` answer; the script warns on standard error when gate credentials go over plain `http://` (no refusal: a loopback exemption would need a host literal in the script, which row 15 forbids) and unsets `OCUTALON_GATE_USER` and `OCUTALON_GATE_PASSWORD` after writing the curl configuration; `host_probe_args` returns 1 when a probe line's method is not the form's own; the `big` probe's pad is 66000 bytes, so the body is above 64 KiB; the live section fails when fewer than 90 probes were measured.
+21. **Review patches to the tests.** New stand-in flags and runs: `broker_html`, `signin_plain`, `refuse_form`, `busy_plain`, `busy_api_drop`, two `--demo-status` faults; a curl shim run that logs each call's arguments, the number of gate variables in its environment and the mode of its `-K` file; row 7 (b)'s guard branch fails instead of passing on both paths; `run_script` unsets `OCUTALON_CHECK_BLOCK_STATUS`; row 1's sign-out match ends the session id. The test now takes about 57 s (64 script runs).
+22. **Residual risks.** `guard-signin-4` cannot tell IRIS's refusal from its plain sign-in page (Decided in-stage 16); the hosted test shares `host_probes` with the script, so only the live unit proves the table against IRIS; the stand-in's fake IRIS looks a probe up by its exact target, so F3 and F4 (whose query curl adds) fall through to a generic 404 when a fault lets them through, which leaves the FAIL id sets unchanged.
 
 **Ledger inbox (Rule 17):**
 - **DW-214:** addressed by matrix row 4 (every form the Planner measured), the second AC and H4 (measured in part).
@@ -279,24 +347,178 @@ Every call runs in the foreground with `timeout: 600000`, one test call per mess
 - (once) `bash ci/checks.sh`: every block passes, `online-host`, `probe`, `ci-config` and `boundaries` among them.
 - (once, at the end, also after a failure) `LANE OCUTALON_RUN_TAG=e29s3i bash ci/iris.sh teardown`: nothing tagged `e29s3i` is left.
 
-**Task 0's MEASURED lines** are recorded here by the implement stage.
+**Task 0's MEASURED lines** (the online unit's fresh stack, tag `e29s3i`, build 154, 2026-10-29; the first run printed them, the fill-in of `host_probes`' `<iris>` fields, the broker file and the trace marker followed, and the unit passes with them):
+
+```
+MEASURED host probe block-csp-sys GET 404:noform
+MEASURED host probe block-csp-user GET 404:noform
+MEASURED host probe block-api-mgmnt GET 401:noform
+MEASURED host probe block-api-monitor GET 200:noform
+MEASURED host probe block-api-atelier GET 401:noform
+MEASURED host probe block-ui GET 404:noform
+MEASURED host probe block-mcp GET 404:noform
+MEASURED host probe block-mcp-ocutalon GET 404:noform
+MEASURED host probe block-hook GET 200:form
+MEASURED host probe block-dotdot GET 404:noform
+MEASURED host probe block-pw-trace-ocutalon-canon GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-lower GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-upper GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-mixed GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-c43 GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-c43h GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-double GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-canon GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-lower GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-upper GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-mixed GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-c43 GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-c43h GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-double GET 200:form
+MEASURED host probe block-pw-root-canon GET 200:form
+MEASURED host probe block-pw-root-lower GET 200:form
+MEASURED host probe block-pw-root-upper GET 200:form
+MEASURED host probe block-pw-root-mixed GET 200:form
+MEASURED host probe block-pw-root-c43 GET 200:form
+MEASURED host probe block-pw-root-c43h GET 200:form
+MEASURED host probe block-pw-root-double GET 200:form
+MEASURED host probe block-pw-api-canon GET 401:noform
+MEASURED host probe block-pw-api-lower GET 401:noform
+MEASURED host probe block-pw-api-upper GET 401:noform
+MEASURED host probe block-pw-api-mixed GET 401:noform
+MEASURED host probe block-pw-api-c43 GET 401:noform
+MEASURED host probe block-pw-api-c43h GET 401:noform
+MEASURED host probe block-pw-api-double GET 401:noform
+MEASURED host probe block-pw-public-canon GET 404:noform
+MEASURED host probe block-pw-public-lower GET 404:noform
+MEASURED host probe block-pw-public-upper GET 404:noform
+MEASURED host probe block-pw-public-mixed GET 404:noform
+MEASURED host probe block-pw-public-c43 GET 404:noform
+MEASURED host probe block-pw-public-c43h GET 404:noform
+MEASURED host probe block-pw-public-double GET 404:noform
+MEASURED host probe block-pw-broker-canon GET 404:noform
+MEASURED host probe block-pw-broker-lower GET 404:noform
+MEASURED host probe block-pw-broker-upper GET 404:noform
+MEASURED host probe block-pw-broker-mixed GET 404:noform
+MEASURED host probe block-pw-broker-c43 GET 404:noform
+MEASURED host probe block-pw-broker-c43h GET 404:noform
+MEASURED host probe block-pw-broker-double GET 404:noform
+MEASURED host probe block-pw-trace-ocutalon-canon-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-lower-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-upper-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-mixed-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-c43-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-c43h-q GET 200:form
+MEASURED host probe block-pw-trace-ocutalon-double-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-canon-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-lower-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-upper-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-mixed-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-c43-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-c43h-q GET 200:form
+MEASURED host probe block-pw-trace-ocuorders-double-q GET 200:form
+MEASURED host probe guard-F1 POST 200:form
+MEASURED host probe guard-F1-state POST 401:noform
+MEASURED host probe guard-F1-trace-ocutalon POST 200:form
+MEASURED host probe guard-F1-trace-ocuorders POST 200:form
+MEASURED host probe guard-F2 POST 200:form
+MEASURED host probe guard-F3 GET 200:form
+MEASURED host probe guard-F3-state GET 401:noform
+MEASURED host probe guard-F3-trace-ocutalon GET 200:form
+MEASURED host probe guard-F3-trace-ocuorders GET 200:form
+MEASURED host probe guard-F4 GET 200:form
+MEASURED host probe guard-F5 POST 200:form
+MEASURED host probe guard-F6 POST 200:form
+MEASURED host probe guard-F7 GET 200:form
+MEASURED host probe guard-F8 POST 200:form
+MEASURED host probe guard-F9 POST 200:form
+MEASURED host probe guard-F10 POST 200:form
+MEASURED host probe guard-F11 POST 200:form
+MEASURED host probe guard-case POST 200:form
+MEASURED host probe guard-F12-trace-ocutalon POST 200:form
+MEASURED host probe guard-F12-trace-ocuorders POST 200:form
+MEASURED host probe guard-extra POST 200:form
+MEASURED host probe guard-big POST 200:form
+MEASURED host probe guard-query GET 200:form
+MEASURED host probe guard-api POST 401:noform
+MEASURED the signed-in trace page's /csp/broker/ references: /csp/broker/images/cut.png
+MEASURED /csp/broker/images/cut.png answers 200 with no session
+MEASURED the splash's three-field POST: 200, aria-invalid 2, form
+MEASURED the trace application's sign-in page, a plain GET: 200, form, Login form markers: 1
+MEASURED the trace page's four-field POST: 200, form, text: Login IRIS Instance: IRIS User Name Password
+MEASURED Story 29.3 section took 3 s
+```
+
+What they give, as the script and the stand-in use them:
+- `<iris>` of every probe, as above. The first `noform` probe with a status other than 401 or 407, per family (Task 0 names them for row 7 (b)): `block-csp-sys` (404) for `block-*`, `block-pw-public-canon` (404) for `block-pw-*`. No `guard-*` probe has one: IRIS answers each with an IRIS form or a 401, so a guard probe is never `SKIP ambiguous` on build 154.
+- The broker file is `/csp/broker/images/cut.png`: the only absolute `/csp/broker/` reference of a signed-in trace page (its scripts and styles are relative files under the application), and IRIS serves it with 200 with no session.
+- The refused marker of the trace page's four-field POST is the Login form, `<form name="Login" method="post"`. With a dummy session token IRIS answers with the same sign-in page as a plain GET, the typed user name not put back, so the page is all that tells IRIS's refusal from a proxy's block.
+
+**Timings (recorded):**
+- `ci/iris.sh build`: 4 s. `bash docker/tests/test-probe.sh` after the `lib-stub.sh` move: all 154 checks pass, 48 s.
+- `bash docker/tests/test-online-host.sh`: 64 script runs after the review patches, 55 to 56 s of the test's 57 s (expected under 2 minutes).
+- `live online-demo`: PASS (177 checks); rows 5 and 6 give the same `CHANGE_FORMS` requests as before; the Story 29.3 section took 3 s on the first run and 4 s after the review patches (about 100 requests; the estimate in Decided in-stage 7 was one minute); the unit had run 344 s when its probe phase ended, before the section.
+- `bash ci/checks.sh`: every block passes (the last run after the review patches: `online-host` 57 s, `ci-config` 21 s), 228 s to 237 s in all on the earlier runs.
 
 **Shared surfaces:** `CHECK_SCRIPTS` (`test-ci-config.sh`'s units rule); the S17 form table (`test-online-demo.sh` rows 5 and 6); `host_probes` (new; read by the script, `test-online-host.sh` and the live section); `test-probe.sh`'s scaffolding; the online stack's sessions and licence units (the new section ends every session it opens). Every test added or changed passes on a fresh environment, in either order.
 
-**Pinning mutations to record (Rule 19), one or more per AC:**
+**Pinning mutations to record (Rule 19), one or more per AC.** Each `mutation:` line was applied, observed red, and reverted from a backup (the tree byte-identical, checked with `cmp`), on 2026-10-29:
 - AC1: ignore an extra status key: row 10's fault run passes, so `test-online-host` goes red.
+  - mutation: the `status-keys` filter in `release/demo-host-check.sh` tests only that the five keys exist -> `test-online-host` red: row 10 "a key added ... fail status-keys" has `status-keys` wanted and missing.
 - AC2: remove the `lower` form, or the `double` form, from `host_probes`: row 4's fault for it reports no `FAIL`, so `test-online-host` goes red.
+  - mutation: every `-lower` line removed from `host_probes` -> red: row 1 counts 48 `block-pw-*` (wanted 56), row 4's all-let-through run misses the seven `-lower` ids, and the single `block-pw-root-lower` run exits 0 (wanted 1).
+  - mutation: every `-double` line removed -> red, the same rows, for the `-double` ids.
 - AC3: make the script expect the three-field POST to be refused: row 1 goes red (`guard-signin-3`).
+  - mutation: `guard-signin-3` passes on any status but 200 -> red: row 1 reports `FAIL guard-signin-3` and no PASS line for it (rows 2 to 14 too).
 - AC4: count a 401 as blocked: rows 7 (a) and 8 go red. Drop the ambiguity rule: row 7 (b) gives `PASS`, red. Drop `block-mark`: row 7 (c) goes red.
+  - mutation: `in_block_status` also accepts 401 -> red: row 7 (a) (run with no mark, so that a let-through 401 is not caught by a missing mark) misses `block-api-mgmnt`, `block-pw-api-canon` and `guard-api`. Row 8 stays green: a 401 on the first credentialed request ends the run (exit 2) before any block check, whatever `in_block_status` says.
+  - mutation: the `SKIP ... ambiguous` branch of `check_block` removed -> red: row 7 (b) exits 0 (wanted 3), and row 16 without the mark misses its SKIPs.
+  - mutation: the `block-mark` check always passes -> red: row 7 (c) exits 0 (wanted 1), `block-mark` missing.
 - AC5: compare the `block-pw-*` family's status against 403 only: row 16 goes red.
+  - mutation: `in_block_status` accepts only 403 -> red: row 16 (both runs) and row 7 (b) fail.
 - AC6: check only the busy page's title: row 13's altered-byte fault goes red. Drop the `/ocutalon/assets/brand/` location: row 14's fault goes red.
+  - mutation: `busy_answer_ok` tests the title instead of a byte-for-byte compare -> red: row 13 "one altered byte" exits 0 (wanted 1).
+  - mutation: the `/ocutalon/assets/brand/` request and compare removed from `run_maintenance` -> red: row 14 "a logo missing under /ocutalon/assets/brand/" exits 0 (wanted 1).
 - AC7: make `password_form` F11 use `IRISOldPassword`: `live online-demo` row 5 goes red. Change one `host_probes` `<iris>` field: the live Story 29.3 section goes red.
+  - mutation (one live run for both): F11 built with the canonical names, and `block-csp-sys 404:noform` changed to `403:noform` in `host_probes` -> `live online-demo` red: "row 5: F11@root changes the control's password, and CHANGE_FORMS does not list it", and "Story 29.3: IRIS answers the probe block-csp-sys (GET /csp/sys/) with 404:noform, host_probes lists 403:noform".
 - AC8: remove `online-host` from `CHECK_SCRIPTS`: `test-ci-config` goes red.
+  - mutation: `online-host` removed from `CHECK_SCRIPTS` -> `test-ci-config` red ("units: the test scripts, the shards and the areas").
 - AC9: set H7's status to `pass` in the check list: `test-online-host` goes red. Add an IPv4 literal to the script: row 15 goes red.
+  - mutation: H7's status cell set to `pass` -> red ("check list: no single row with one of the three statuses for: H7", "a row is marked as a pass").
+  - mutation: a comment line with an IPv4 literal added to the script -> red (row 15 names line 45).
+- Also: the sign-out of a session the script opened removed (`sign_out` never called) -> red: row 1 reports the sessions the stand-in saw opened and not signed out.
+- Review patches, each applied, observed red and reverted from a backup (`cmp` identical), 2026-10-29:
+  - mutation: `check_block` without its `has_form_field` branch -> red: row 7 "a refusal ... whose body holds an IRIS form field" exits 0 (wanted 1).
+  - mutation: `busy_answer_ok` without the `X-OcuTalon-Busy` term -> red: row 13 "IRIS's ordinary splash without X-OcuTalon-Busy" exits 0 (wanted 1).
+  - mutation: `guard-signin-3` without its `aria-invalid` term, and (separately) `guard-signin-4` without its form-field and Login-form terms -> red: the `signin_plain` run misses `guard-signin-3`, then `guard-signin-4`.
+  - mutation: `demo-status-match` compares only `lastReset` -> red: row 11 "a lastResetKind that differs" and "a nextReset that differs" exit 0 (wanted 1).
+  - mutation: `busy-api` without its no-answer branch -> red: row 13 "no answer from the API path" exits 0 (wanted 1).
+  - mutation: `allow-broker` without its content-type term -> red: row 2 "a page answered in place of the broker file" exits 0 (wanted 1).
+  - mutation: the script does not unset the gate variables -> red: "credentials: 102 curl call(s) inherit a gate variable".
+  - mutation: `host_probe_args` without the method assertion -> red: "host_probe_args: a POST line for the GET form F3 was accepted".
+  - mutation: `first_answer` no longer ends the run on 401 or 407 (AC4's closed gate) -> red: row 8 (no credentials, wrong credentials) exits 1 with 106 output lines (wanted 2, none).
+  - mutation: the plain-http warning removed -> red: "row 1: no plain-http warning for gate credentials".
+  - mutation: `guard-api` listed as `404:noform` in `host_probes` -> red: "row 7 (b): a guard probe is now ambiguous".
+  - mutation: `run_script` without its `unset OCUTALON_CHECK_BLOCK_STATUS`, run with `OCUTALON_CHECK_BLOCK_STATUS='403 404'` exported -> red: rows 7 (a) and 16.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan re-dispatch 1 (2026-10-30): re-planned around the lead's rulings 1 to 3; the intent gap is removed, the spec meets the ready-for-development standard, and the stage HALTs after planning as directed.
+**Summary.** The host check is in place: `release/demo-host-check.sh` (read-only, dummy values, bash 3.2, exit codes 0 to 3, one `PASS|FAIL|SKIP <id>` line per check), its check list `release/demo-host-checks.md` (H1 to H24 with the three statuses, the three runs, the settings, and the DW-254, DW-287, DW-240 and DW-234 sections), and its hermetic test `docker/tests/test-online-host.sh` (a Node stand-in that breaks one AD-25 rule at a time, 64 script runs, about 57 s) registered in the hosted `checks` job. The S17 forms and the refusal probes are defined once in `docker/tests/lib-online.sh` (`pct`, `password_form`, `host_probes` with 90 probes, `host_probe_args`, `host_signin`); the live `online-demo` unit pins IRIS's own answer to each (Task 0's MEASURED lines are under Verification).
+
+**Files changed.**
+- `release/demo-host-check.sh` (new, 755): the check script.
+- `release/demo-host-checks.md` (new): the Planner's check list.
+- `docker/tests/test-online-host.sh` (new, 755): the stand-in test, matrix rows 1 to 16 and the review pins.
+- `docker/tests/lib-stub.sh` (new): `test-probe.sh`'s stub scaffolding, now shared.
+- `docker/tests/lib-online.sh`: the shared forms and probes.
+- `docker/tests/test-online-demo.sh`: `form_request` builds F1 to F11 from `password_form`; the Story 29.3 section.
+- `docker/tests/test-probe.sh`: sources `lib-stub.sh`.
+- `ci/units.sh`: `online-host` appended to `CHECK_SCRIPTS`.
+
+**Review.** 52 findings from four layers: high 0, medium 13, low 39. Patched: 13 medium and 14 low (see Decided in-stage 20 to 22 and the triage log); rejected: the rest, each with its reason; nothing deferred. Follow-up review recommended: true, because several medium patches added new fault runs and a curl shim to `test-online-host.sh` that only this pass has read (unverified risk: a stand-in flag that passes for the wrong reason; each has a demonstrated mutation).
+
+**Verification.** `ci/iris.sh build`; Task 0 and the live `online-demo` unit (PASS, 177 checks, again after the review patches, the Story 29.3 section green); `test-online-host.sh` (exit 0, 80+ checks); `test-probe.sh` (all pass); `bash ci/checks.sh` (all 17 scripts pass); teardown of tag `e29s3i` left nothing. The Rule 19 mutation lines are under Verification, each demonstrated red and reverted byte-identical.
+
+**Residual risks.** See Decided in-stage 22. The host-only criteria stay `pending` or `measured ... re-check at the release deploy`; the script was never run against any host.

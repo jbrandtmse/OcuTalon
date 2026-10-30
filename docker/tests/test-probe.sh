@@ -18,28 +18,8 @@ set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 probe="$root/docker/probe.sh"
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-probe-test.XXXXXX") || exit 1
-stub_pid=""
-cleanup() {
-  if [ -n "$stub_pid" ]; then kill "$stub_pid" 2> /dev/null; fi
-  rm -rf "$tmp"
-}
-trap cleanup EXIT
-trap 'exit 130' INT TERM HUP
-
-fails=0
-pass() { echo "PASS $1"; }
-fail() {
-  echo "FAIL $1"
-  fails=$((fails + 1))
-}
-
-for tool in node curl; do
-  if ! command -v "$tool" > /dev/null 2>&1; then
-    echo "FAIL $tool is not installed"
-    exit 1
-  fi
-done
+. "$(dirname "$0")/lib-stub.sh"
+need_tools node curl
 
 user=DemoVisitor
 password=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2> /dev/null | head -c 32)
@@ -72,7 +52,7 @@ chmod 755 "$tmp/alert.sh" "$tmp/reset.sh"
 
 # --- the stub server ---
 
-STUB_USER="$user" STUB_PASS="$password" node - "$flags" "$requests" > "$tmp/port" 2> "$tmp/stub.err" <<'EOF' &
+STUB_USER="$user" STUB_PASS="$password" stub_start "$flags" "$requests" <<'EOF' || exit 1
 const http = require("http");
 const fs = require("fs");
 const [flagsFile, recordFile] = process.argv.slice(2);
@@ -187,18 +167,7 @@ const server = http.createServer((req, res) => {
 });
 server.listen(0, "127.0.0.1", () => console.log(server.address().port));
 EOF
-stub_pid=$!
-port=""
-for _ in $(seq 1 50); do
-  port=$(head -n 1 "$tmp/port" 2> /dev/null)
-  if [ -n "$port" ]; then break; fi
-  sleep 0.1
-done
-case $port in '' | *[!0-9]*)
-  echo "FAIL the stub server did not start: $(head -c 300 "$tmp/stub.err")"
-  exit 1
-  ;;
-esac
+port=$stub_port
 url="http://127.0.0.1:$port"
 closed_port=$(node -e 'const s = require("net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); });')
 

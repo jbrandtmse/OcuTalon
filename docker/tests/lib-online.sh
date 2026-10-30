@@ -1,6 +1,8 @@
 # Helpers shared by the live units that start the online demo's real stack with the online-demo flag on and test start values
-# (test-online-demo.sh, test-online-session.sh and test-online-allowance.sh, Stories 16.4 and 16.9). Sourced after lib-live.sh, not run: it
-# defines functions and nothing else. keys_point and keys_restore point the runners' model keys at the CI mock, and back.
+# (test-online-demo.sh, test-online-session.sh and test-online-allowance.sh, Stories 16.4 and 16.9). Sourced, not run: it defines
+# functions and a few constants and nothing else. The stack helpers need lib-live.sh sourced first; keys_point and keys_restore point the
+# runners' model keys at the CI mock, and back. The password-change forms and the host check's probes, at the end of this file
+# (Story 29.3), need no stack and no lib-live.sh: the live unit, test-online-host.sh and release/demo-host-check.sh all source them here.
 # A unit calls, in this order:
 #   live_start <label>, live_web_port         (lib-live.sh)
 #   online_values                             sets demo_user, readonly_user, readonly_user_caps, demo_password, readonly_password, anchor and
@@ -114,4 +116,231 @@ keys_point() {
 keys_restore() {
   printf '%s\n' 'Set fixture="OcuTalon.Test.Agent.RunnerFixture" Set sc=$ClassMethod(fixture,"RestoreKeys")' \
     'Write !,"CHK|keys|",$SYSTEM.Status.IsOK(sc)&&$ClassMethod(fixture,"KeysAre",##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)' 'Halt' | session_value OCUTALON keys
+}
+
+# --- the password-change forms and the host check's refusal probes (Story 29.3) ---
+# test-online-demo.sh (against real IRIS), test-online-host.sh (against a stand-in) and release/demo-host-check.sh (against a host) all
+# take the S17 forms and the refusal probes from here. These functions need nothing of lib-live.sh.
+
+# HOST_FORM_FIELD_RE: an IRIS sign-in or password-change form field in a page (extended regular expression).
+HOST_FORM_FIELD_RE='name="?(IRISPassword|IRISOldPassword)'
+
+# The dummy values of the host check's requests: no real account, password or token.
+HOST_DUMMY_USER=zz-host-check
+HOST_DUMMY_OLD=dummy-old
+HOST_DUMMY_NEW=dummy-new
+HOST_DUMMY_TOKEN=dummy-token
+
+# host_broker_file: the path of the static /csp/broker/ file that the host check reads, one that IRIS's trace pages load (Task 0 (b)).
+host_broker_file() { printf '%s' '/csp/broker/images/cut.png'; }
+
+# host_trace_refused_marker: a text that IRIS's own sign-in page of a trace application holds: its Login form (Task 0 (c)). With a dummy
+# session token IRIS answers the four-field POST with that same page, the typed user name not put back, so the page is all that tells
+# IRIS's refusal from a proxy's: a proxy's block holds no such form.
+host_trace_refused_marker() { printf '%s' '<form name="Login" method="post"'; }
+
+# pct <text>: every byte of the text as %XX.
+pct() {
+  local s=$1 out="" i
+  for ((i = 0; i < ${#s}; i++)); do
+    out="$out$(printf '%%%02X' "'${s:i:1}")"
+  done
+  printf '%s' "$out"
+}
+
+# password_form <F1..F11> <user> <old> <new> [<token>]: the S17 form for the three values (and a trace sign-in page's session token for
+# F1 and F3, when one is given). Sets form_method (GET or POST), form_query (text for the request's query string, empty when none) and
+# the array form_args (curl arguments, empty for F7; expand it as ${form_args[@]+"${form_args[@]}"} under set -u on bash 3.2), and nothing else. The values must need no URL encoding where they land in a query string or a
+# raw body (F5 to F7, F10, F11): hex or the dummy values of the host check. F1 to F4 are urlencoded, F5 posts nothing, F6 and F7 name
+# the fields percent-encoded, F8 and F9 are multipart, F10 is chunked, and F11 has the names in mixed case and a repeat password.
+password_form() {
+  local form=$1 user=$2 old=$3 new=$4 token=${5-} u o p l plain
+  case $form in
+    F2 | F4 | F9) u=CacheUserName o=CacheOldPassword p=CachePassword l=CacheLogin ;;
+    F11) u=irisusername o=IrisOldPassword p=irispassword l=irislogin ;;
+    *) u=IRISUsername o=IRISOldPassword p=IRISPassword l=IRISLogin ;;
+  esac
+  plain="$u=$user&$o=$old&$p=$new&$l=Sign+in"
+  form_method=POST
+  form_query=
+  form_args=()
+  case $form in
+    F1 | F2) form_args=(${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in") ;;
+    F3 | F4)
+      form_method=GET
+      form_args=(-G ${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in")
+      ;;
+    F5)
+      form_args=(--data-binary '')
+      form_query=$plain
+      ;;
+    F6) form_args=(--data-raw "IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in") ;;
+    F7)
+      form_method=GET
+      form_query="IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in"
+      ;;
+    F8 | F9) form_args=(-F "$u=$user" -F "$o=$old" -F "$p=$new" -F "$l=Sign in") ;;
+    F10) form_args=(-H 'Transfer-Encoding: chunked' --data-raw "$plain") ;;
+    F11) form_args=(--data-raw "$plain&IRISRepeatPassword=$new") ;;
+    *) return 1 ;;
+  esac
+}
+
+# host_probes: the refusal probes of the host check, one line each: <id> <iris> <method> <target> [<body>].
+#   <iris>    IRIS's own answer to the probe signed out with no proxy: <status>:form when the page holds an IRIS form field
+#             (HOST_FORM_FIELD_RE) and <status>:noform when not. Measured on build 154 by the Story 29.3 section of test-online-demo.sh,
+#             which pins every line, so that a build that answers differently turns that unit red.
+#   <target>  the path and query as sent (curl --path-as-is).
+#   <body>    a password_form form (F1 to F11), or case (a body whose names are in mixed case only, so that no name has the canonical
+#             case), extra (a sign-in body with one more name), big (a sign-in body of more than 64 KiB), query
+#             (IRISPassword in the query string), api (a urlencoded body for the JSON API) or F12 (the password-change page's own form).
+host_probes() {
+  cat << 'PROBES'
+block-csp-sys 404:noform GET /csp/sys/
+block-csp-user 404:noform GET /csp/user/
+block-api-mgmnt 401:noform GET /api/mgmnt/
+block-api-monitor 200:noform GET /api/monitor/metrics
+block-api-atelier 401:noform GET /api/atelier/
+block-ui 404:noform GET /ui/
+block-mcp 404:noform GET /mcp/
+block-mcp-ocutalon 404:noform GET /mcp/ocutalon
+block-hook 200:form GET /ocutalon/hook
+block-dotdot 404:noform GET /ocutalon/../csp/sys/
+block-pw-trace-ocutalon-canon 200:form GET /ocutalon/trace/ocutalon/%25CSP.PasswordChange.cls
+block-pw-trace-ocutalon-lower 200:form GET /ocutalon/trace/ocutalon/%25csp.passwordchange.cls
+block-pw-trace-ocutalon-upper 200:form GET /ocutalon/trace/ocutalon/%25CSP.PASSWORDCHANGE.CLS
+block-pw-trace-ocutalon-mixed 200:form GET /ocutalon/trace/ocutalon/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-trace-ocutalon-c43 200:form GET /ocutalon/trace/ocutalon/%25%43SP.PasswordChange.cls
+block-pw-trace-ocutalon-c43h 200:form GET /ocutalon/trace/ocutalon/%25%43SP.Password%43hange.cls
+block-pw-trace-ocutalon-double 200:form GET /ocutalon/trace/ocutalon/%2525CSP.PasswordChange.cls
+block-pw-trace-ocuorders-canon 200:form GET /ocutalon/trace/ocuorders/%25CSP.PasswordChange.cls
+block-pw-trace-ocuorders-lower 200:form GET /ocutalon/trace/ocuorders/%25csp.passwordchange.cls
+block-pw-trace-ocuorders-upper 200:form GET /ocutalon/trace/ocuorders/%25CSP.PASSWORDCHANGE.CLS
+block-pw-trace-ocuorders-mixed 200:form GET /ocutalon/trace/ocuorders/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-trace-ocuorders-c43 200:form GET /ocutalon/trace/ocuorders/%25%43SP.PasswordChange.cls
+block-pw-trace-ocuorders-c43h 200:form GET /ocutalon/trace/ocuorders/%25%43SP.Password%43hange.cls
+block-pw-trace-ocuorders-double 200:form GET /ocutalon/trace/ocuorders/%2525CSP.PasswordChange.cls
+block-pw-root-canon 200:form GET /ocutalon/%25CSP.PasswordChange.cls
+block-pw-root-lower 200:form GET /ocutalon/%25csp.passwordchange.cls
+block-pw-root-upper 200:form GET /ocutalon/%25CSP.PASSWORDCHANGE.CLS
+block-pw-root-mixed 200:form GET /ocutalon/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-root-c43 200:form GET /ocutalon/%25%43SP.PasswordChange.cls
+block-pw-root-c43h 200:form GET /ocutalon/%25%43SP.Password%43hange.cls
+block-pw-root-double 200:form GET /ocutalon/%2525CSP.PasswordChange.cls
+block-pw-api-canon 401:noform GET /ocutalon/api/%25CSP.PasswordChange.cls
+block-pw-api-lower 401:noform GET /ocutalon/api/%25csp.passwordchange.cls
+block-pw-api-upper 401:noform GET /ocutalon/api/%25CSP.PASSWORDCHANGE.CLS
+block-pw-api-mixed 401:noform GET /ocutalon/api/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-api-c43 401:noform GET /ocutalon/api/%25%43SP.PasswordChange.cls
+block-pw-api-c43h 401:noform GET /ocutalon/api/%25%43SP.Password%43hange.cls
+block-pw-api-double 401:noform GET /ocutalon/api/%2525CSP.PasswordChange.cls
+block-pw-public-canon 404:noform GET /ocutalon/public/%25CSP.PasswordChange.cls
+block-pw-public-lower 404:noform GET /ocutalon/public/%25csp.passwordchange.cls
+block-pw-public-upper 404:noform GET /ocutalon/public/%25CSP.PASSWORDCHANGE.CLS
+block-pw-public-mixed 404:noform GET /ocutalon/public/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-public-c43 404:noform GET /ocutalon/public/%25%43SP.PasswordChange.cls
+block-pw-public-c43h 404:noform GET /ocutalon/public/%25%43SP.Password%43hange.cls
+block-pw-public-double 404:noform GET /ocutalon/public/%2525CSP.PasswordChange.cls
+block-pw-broker-canon 404:noform GET /csp/broker/%25CSP.PasswordChange.cls
+block-pw-broker-lower 404:noform GET /csp/broker/%25csp.passwordchange.cls
+block-pw-broker-upper 404:noform GET /csp/broker/%25CSP.PASSWORDCHANGE.CLS
+block-pw-broker-mixed 404:noform GET /csp/broker/%25CsP.PaSsWoRdChAnGe.cls
+block-pw-broker-c43 404:noform GET /csp/broker/%25%43SP.PasswordChange.cls
+block-pw-broker-c43h 404:noform GET /csp/broker/%25%43SP.Password%43hange.cls
+block-pw-broker-double 404:noform GET /csp/broker/%2525CSP.PasswordChange.cls
+block-pw-trace-ocutalon-canon-q 200:form GET /ocutalon/trace/ocutalon/%25CSP.PasswordChange.cls?x=1
+block-pw-trace-ocutalon-lower-q 200:form GET /ocutalon/trace/ocutalon/%25csp.passwordchange.cls?x=1
+block-pw-trace-ocutalon-upper-q 200:form GET /ocutalon/trace/ocutalon/%25CSP.PASSWORDCHANGE.CLS?x=1
+block-pw-trace-ocutalon-mixed-q 200:form GET /ocutalon/trace/ocutalon/%25CsP.PaSsWoRdChAnGe.cls?x=1
+block-pw-trace-ocutalon-c43-q 200:form GET /ocutalon/trace/ocutalon/%25%43SP.PasswordChange.cls?x=1
+block-pw-trace-ocutalon-c43h-q 200:form GET /ocutalon/trace/ocutalon/%25%43SP.Password%43hange.cls?x=1
+block-pw-trace-ocutalon-double-q 200:form GET /ocutalon/trace/ocutalon/%2525CSP.PasswordChange.cls?x=1
+block-pw-trace-ocuorders-canon-q 200:form GET /ocutalon/trace/ocuorders/%25CSP.PasswordChange.cls?x=1
+block-pw-trace-ocuorders-lower-q 200:form GET /ocutalon/trace/ocuorders/%25csp.passwordchange.cls?x=1
+block-pw-trace-ocuorders-upper-q 200:form GET /ocutalon/trace/ocuorders/%25CSP.PASSWORDCHANGE.CLS?x=1
+block-pw-trace-ocuorders-mixed-q 200:form GET /ocutalon/trace/ocuorders/%25CsP.PaSsWoRdChAnGe.cls?x=1
+block-pw-trace-ocuorders-c43-q 200:form GET /ocutalon/trace/ocuorders/%25%43SP.PasswordChange.cls?x=1
+block-pw-trace-ocuorders-c43h-q 200:form GET /ocutalon/trace/ocuorders/%25%43SP.Password%43hange.cls?x=1
+block-pw-trace-ocuorders-double-q 200:form GET /ocutalon/trace/ocuorders/%2525CSP.PasswordChange.cls?x=1
+guard-F1 200:form POST /ocutalon/ F1
+guard-F1-state 401:noform POST /ocutalon/api/v1/state F1
+guard-F1-trace-ocutalon 200:form POST /ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen F1
+guard-F1-trace-ocuorders 200:form POST /ocutalon/trace/ocuorders/EnsPortal.MessageViewer.zen F1
+guard-F2 200:form POST /ocutalon/ F2
+guard-F3 200:form GET /ocutalon/ F3
+guard-F3-state 401:noform GET /ocutalon/api/v1/state F3
+guard-F3-trace-ocutalon 200:form GET /ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen F3
+guard-F3-trace-ocuorders 200:form GET /ocutalon/trace/ocuorders/EnsPortal.MessageViewer.zen F3
+guard-F4 200:form GET /ocutalon/ F4
+guard-F5 200:form POST /ocutalon/ F5
+guard-F6 200:form POST /ocutalon/ F6
+guard-F7 200:form GET /ocutalon/ F7
+guard-F8 200:form POST /ocutalon/ F8
+guard-F9 200:form POST /ocutalon/ F9
+guard-F10 200:form POST /ocutalon/ F10
+guard-F11 200:form POST /ocutalon/ F11
+guard-case 200:form POST /ocutalon/ case
+guard-F12-trace-ocutalon 200:form POST /ocutalon/trace/ocutalon/%25CSP.PasswordChange.cls F12
+guard-F12-trace-ocuorders 200:form POST /ocutalon/trace/ocuorders/%25CSP.PasswordChange.cls F12
+guard-extra 200:form POST /ocutalon/ extra
+guard-big 200:form POST /ocutalon/ big
+guard-query 200:form GET /ocutalon/ query
+guard-api 401:noform POST /ocutalon/api/v1/messages api
+PROBES
+}
+
+# host_probe_args <line of host_probes>: sets probe_id, probe_iris, probe_method, probe_target (the path and query as sent, a body's
+# query text included) and the array probe_args (curl arguments for the body) for one probe. F1 and F3 at a trace application carry
+# the dummy session token.
+host_probe_args() {
+  local target body="" token="" pad
+  read -r probe_id probe_iris probe_method target body <<< "$1"
+  probe_args=()
+  form_query=
+  case $body in
+    '') ;;
+    case) probe_args=(--data-raw "irisusername=$HOST_DUMMY_USER&IrisOldPassword=$HOST_DUMMY_OLD&irispassword=$HOST_DUMMY_NEW&irislogin=Sign+in") ;;
+    extra) probe_args=(--data-raw "IRISUsername=$HOST_DUMMY_USER&IRISPassword=$HOST_DUMMY_OLD&IRISLogin=Sign+in&x=1") ;;
+    big)
+      pad=$(head -c 66000 /dev/zero | tr '\0' a)
+      probe_args=(--data-raw "IRISUsername=$HOST_DUMMY_USER&IRISPassword=$pad&IRISLogin=Sign+in")
+      ;;
+    query) form_query="IRISPassword=$HOST_DUMMY_NEW" ;;
+    api) probe_args=(--data-raw "text=$HOST_DUMMY_USER&IRISPassword=$HOST_DUMMY_NEW") ;;
+    F12)
+      probe_args=(--data-urlencode "IRISSessionToken=$HOST_DUMMY_TOKEN" --data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISOldPassword=$HOST_DUMMY_OLD"
+        --data-urlencode "IRISPassword=$HOST_DUMMY_NEW" --data-urlencode "IRISRepeatPassword=$HOST_DUMMY_NEW" --data-urlencode 'IRISLogin=Login')
+      ;;
+    *)
+      case $target in
+        /ocutalon/trace/*) if [ "$body" = F1 ] || [ "$body" = F3 ]; then token=$HOST_DUMMY_TOKEN; fi ;;
+      esac
+      password_form "$body" "$HOST_DUMMY_USER" "$HOST_DUMMY_OLD" "$HOST_DUMMY_NEW" "$token" || return 1
+      [ "$form_method" = "$probe_method" ] || return 1
+      probe_args=(${form_args[@]+"${form_args[@]}"})
+      ;;
+  esac
+  probe_target=$target
+  if [ -n "$form_query" ]; then
+    case $target in
+      *\?*) probe_target="$target&$form_query" ;;
+      *) probe_target="$target?$form_query" ;;
+    esac
+  fi
+}
+
+# host_signin <3|4>: the dummy-value sign-in POSTs of the guard checks (DW-226): 3 is the splash's three-field form (IRISUsername, IRISPassword,
+# IRISLogin) to /ocutalon/ and 4 is IRIS's trace sign-in page's four-field form (with IRISSessionToken) to a trace application. Sets
+# signin_target and the array signin_args (curl arguments). Neither is a real sign-in: the user, password and token are the dummy values.
+host_signin() {
+  signin_args=(--data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISPassword=$HOST_DUMMY_OLD" --data-urlencode 'IRISLogin=Sign in')
+  case $1 in
+    3) signin_target=/ocutalon/ ;;
+    4)
+      signin_target=/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen
+      signin_args=(--data-urlencode "IRISSessionToken=$HOST_DUMMY_TOKEN" --data-urlencode "IRISUsername=$HOST_DUMMY_USER" --data-urlencode "IRISPassword=$HOST_DUMMY_OLD"
+        --data-urlencode 'IRISLogin=Login')
+      ;;
+    *) return 1 ;;
+  esac
 }

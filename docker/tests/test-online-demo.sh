@@ -62,6 +62,11 @@
 #     rows unchanged, neither password anywhere, and the flag, the cap, the Conversation item and the capped mark read back. Task 0's
 #     MEASURED lines (a) to (f) give a healthy turn's events, the capped mark, the disabled Conversation item, the sign-out (a control
 #     session, then the probe's), the splash cookie and the phase's time. The phase starts only with 150 s of the deadline left;
+#   - Story 29.3, IRIS's own answers to the host check (release/demo-host-check.sh, docker/tests/lib-online.sh): signed out and with no
+#     proxy, each item on a jar of its own ended with logout_all, the section prints one "MEASURED host probe" line per host_probes probe
+#     and pins its status and whether the page holds an IRIS form field against the line's <iris> field; a signed-in trace page loads the
+#     /csp/broker/ file the check reads, which IRIS serves with 200; the splash's three-field POST and the trace page's four-field POST
+#     (dummy values) come back as IRIS's sign-in page, refused;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -82,7 +87,7 @@
 # stop polling and leave for the splash after the idle cap (600 s of no key press, click or sent message): no check here reuses a jar or a
 # page after more than 120 s without a request, and a case of the browser step that lets a page's clock pass 600 s keeps the page active.
 # The shared start (the test values, redact, the probe counter, logout_all and online_signin) is docker/tests/lib-online.sh's, which
-# test-online-session.sh (Story 16.4) uses too.
+# test-online-session.sh (Story 16.4) uses too, and so do the S17 forms (password_form) and the host check's probes (host_probes).
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or later, curl, the
 # built web bundle and Chromium (npx --prefix web playwright install chromium; ci/iris.sh live installs it).
@@ -246,15 +251,6 @@ fi
 
 # --- rows 5 and 6: the password-change forms over HTTP ---
 
-# pct <text>: every byte of the text as %XX.
-pct() {
-  local s=$1 out="" i
-  for ((i = 0; i < ${#s}; i++)); do
-    out="$out$(printf '%%%02X' "'${s:i:1}")"
-  done
-  printf '%s' "$out"
-}
-
 # signin_outcome <user> <password>: a plain sign-in POST to /ocutalon/, on a jar of its own, and what it led to, ended with a sign-out:
 #   shell    IRIS accepted it and the page is the application's shell;
 #   norole   IRIS accepted it and the page says the account has no OcuTalon user role;
@@ -286,18 +282,13 @@ page_token() {
 # application's F1 and F3 carry the session token of its sign-in page; F12 signs in at the application with its form first, then posts
 # the password-change page's own form with that page's token.
 form_request() {
-  local form=$1 path=$2 app=$3 user=$4 old=$5 new=$6 jar url u o p l
+  local form=$1 path=$2 app=$3 user=$4 old=$5 new=$6 jar url
   next_probe
   jar="$tmp/jar.$probes"
   : > "$jar"
   url="$base$path?probe=$probes"
-  case $form in
-    F2 | F4 | F9) u=CacheUserName o=CacheOldPassword p=CachePassword l=CacheLogin ;;
-    F11) u=irisusername o=IrisOldPassword p=irispassword l=irislogin ;;
-    *) u=IRISUsername o=IRISOldPassword p=IRISPassword l=IRISLogin ;;
-  esac
   local common=(-s --max-time 30 -o /dev/null -c "$jar" -b "$jar")
-  local token="" plain="$u=$user&$o=$old&$p=$new&$l=Sign+in"
+  local token=""
   case $path in
     /ocutalon/trace/*)
       if [ "$form" = F12 ]; then
@@ -325,18 +316,8 @@ form_request() {
       esac
       ;;
   esac
-  case $form in
-    F1 | F2) curl "${common[@]}" ${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in" "$url" ;;
-    F3 | F4) curl "${common[@]}" -G ${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in" "$url" ;;
-    F5) curl "${common[@]}" --data-binary '' "$url&$plain" ;;
-    F6)
-      curl "${common[@]}" --data-raw "IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in" "$url"
-      ;;
-    F7) curl "${common[@]}" "$url&IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in" ;;
-    F8 | F9) curl "${common[@]}" -F "$u=$user" -F "$o=$old" -F "$p=$new" -F "$l=Sign in" "$url" ;;
-    F10) curl "${common[@]}" -H 'Transfer-Encoding: chunked' --data-raw "$plain" "$url" ;;
-    F11) curl "${common[@]}" --data-raw "$plain&IRISRepeatPassword=$new" "$url" ;;
-  esac
+  password_form "$form" "$user" "$old" "$new" "$token"
+  curl "${common[@]}" ${form_args[@]+"${form_args[@]}"} "$url${form_query:+&$form_query}"
   logout_all "$jar" "$app"
 }
 
@@ -1578,6 +1559,128 @@ if [ "$keys_attempted" = 1 ]; then
   fi
 fi
 echo "MEASURED Task 0 (f): the probe phase took $((SECONDS - probe_started)) s; the unit has run $SECONDS s at this point (deadline $((deadline - SECONDS)) s away)"
+
+# --- Story 29.3: IRIS's own answers to the host check (release/demo-host-check.sh) ---
+
+# The script and the stand-in of test-online-host.sh rely on what IRIS itself answers to the host check's requests. This section sends
+# every item signed out with no proxy, each on a jar of its own ended with logout_all, prints one MEASURED line per item, and pins:
+# (a) each host_probes line's <iris> (the status and whether the page holds an IRIS form field); (b) the static /csp/broker/ file the
+# check reads, which a signed-in trace page loads and IRIS serves with 200; (c) the two dummy-value sign-in POSTs of the guard checks,
+# which IRIS refuses with its sign-in page.
+host_started=$SECONDS
+
+# host_app <target>: the application whose session an answer to the target can open.
+host_app() {
+  case $1 in
+    /ocutalon/trace/ocutalon/*) printf '%s' /ocutalon/trace/ocutalon/ ;;
+    /ocutalon/trace/ocuorders/*) printf '%s' /ocutalon/trace/ocuorders/ ;;
+    /ocutalon/api/*) printf '%s' /ocutalon/api/ ;;
+    *) printf '%s' /ocutalon/ ;;
+  esac
+}
+
+# host_send <target> [<curl argument>...]: one request signed out on a jar of its own, with a unique probe parameter and the path sent as
+# is; leaves the status in host_code and the body in $tmp/host.body, then ends the jar's sessions.
+host_send() {
+  local target=$1 jar sep='?'
+  shift
+  next_probe
+  jar="$tmp/jar.$probes"
+  : > "$jar"
+  case $target in *\?*) sep='&' ;; esac
+  next_probe
+  host_code=$(curl -s --max-time 30 --path-as-is -c "$jar" -b "$jar" -o "$tmp/host.body" -w '%{http_code}' ${1+"$@"} "$base$target${sep}probe=$probes" < /dev/null)
+  logout_all "$jar" "$(host_app "$target")"
+}
+
+# host_form_flag: form when the last body holds an IRIS form field, otherwise noform.
+host_form_flag() {
+  if grep -Eq "$HOST_FORM_FIELD_RE" "$tmp/host.body"; then printf form; else printf noform; fi
+}
+
+# host_text: the last body as text, up to 600 characters: its style and script blocks and tags removed, white space squeezed.
+host_text() {
+  tr '\r\n' '  ' < "$tmp/host.body" | sed 's/<style[^>]*>[^<]*<\/style>//g; s/<script[^>]*>.*<\/script>//g; s/<[^>]*>/ /g' | tr -s ' \t' ' ' | head -c 600
+}
+
+host_lines=$(host_probes)
+host_count=0
+host_wrong=0
+while IFS= read -r host_line; do
+  [ -n "$host_line" ] || continue
+  if ! host_probe_args "$host_line"; then
+    fail "Story 29.3: the host_probes line '$host_line' cannot be built"
+    host_wrong=$((host_wrong + 1))
+    continue
+  fi
+  host_send "$probe_target" ${probe_args[@]+"${probe_args[@]}"}
+  host_got="$host_code:$(host_form_flag)"
+  echo "MEASURED host probe $probe_id $probe_method $host_got"
+  host_count=$((host_count + 1))
+  if [ "$host_got" != "$probe_iris" ]; then
+    fail "Story 29.3: IRIS answers the probe $probe_id ($probe_method $probe_target) with $host_got, host_probes lists $probe_iris"
+    host_wrong=$((host_wrong + 1))
+  fi
+done << HOSTLINES
+$host_lines
+HOSTLINES
+if [ "$host_wrong" = 0 ] && [ "$host_count" -ge 90 ]; then
+  pass "Story 29.3: IRIS's own answer to each of the $host_count host_probes probes is the one listed (status, and whether the page holds an IRIS form field)"
+else
+  fail "Story 29.3: $host_count host_probes probes were measured (wanted at least 90) and $host_wrong of them differ from the list"
+fi
+
+# (b) a signed-in trace page loads the broker file the check reads, and IRIS serves it with 200.
+trace_page=/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen
+host_jar="$tmp/jar.hosttrace"
+: > "$host_jar"
+next_probe
+host_token=$(page_token "$host_jar" "$base$trace_page?probe=$probes")
+if [ -z "$host_token" ]; then
+  fail "Story 29.3 (b): the trace application's sign-in page gave no session token"
+else
+  next_probe
+  curl -s --max-time 30 -o /dev/null -c "$host_jar" -b "$host_jar" --data-urlencode "IRISSessionToken=$host_token" --data-urlencode "IRISUsername=$readonly_user" \
+    --data-urlencode "IRISPassword=$readonly_password" --data-urlencode 'IRISLogin=Login' "$base$trace_page?probe=$probes" < /dev/null
+  next_probe
+  curl -s --max-time 30 -o "$tmp/host.trace" -c "$host_jar" -b "$host_jar" "$base$trace_page?probe=$probes" < /dev/null
+  host_refs=$(grep -oE '/csp/broker/[A-Za-z0-9_./-]+' "$tmp/host.trace" | sort -u | tr '\n' ' ')
+  echo "MEASURED the signed-in trace page's /csp/broker/ references: ${host_refs% }"
+    host_broker=$(host_broker_file)
+  next_probe
+  host_broker_code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$base$host_broker?probe=$probes" < /dev/null)
+  echo "MEASURED $host_broker answers $host_broker_code with no session"
+  if printf '%s\n' $host_refs | grep -qxF "$host_broker" && [ "$host_broker_code" = 200 ]; then
+    pass "Story 29.3 (b): a signed-in trace page loads $host_broker, and IRIS serves it with 200 with no session"
+  else
+    fail "Story 29.3 (b): the signed-in trace page loads '${host_refs% }' (wanted $host_broker), which answers $host_broker_code (wanted 200)"
+  fi
+fi
+logout_all "$host_jar" /ocutalon/trace/ocutalon/
+
+# (c) the two dummy-value sign-in POSTs of the guard checks come back as IRIS's sign-in page, refused.
+host_signin 3
+host_send "$signin_target" "${signin_args[@]}"
+host_splash_flag=$(grep -c 'aria-invalid="true"' "$tmp/host.body")
+echo "MEASURED the splash's three-field POST: $host_code, aria-invalid $host_splash_flag, $(host_form_flag)"
+if [ "$host_code" = 200 ] && [ "$host_splash_flag" -ge 1 ]; then
+  pass "Story 29.3 (c): the splash's three-field POST with dummy values is refused by IRIS (200, aria-invalid)"
+else
+  fail "Story 29.3 (c): the splash's three-field POST gives $host_code with $host_splash_flag aria-invalid marker(s)"
+fi
+host_send "$trace_page"
+host_plain_marker=$(grep -cF -- "$(host_trace_refused_marker)" "$tmp/host.body")
+echo "MEASURED the trace application's sign-in page, a plain GET: $host_code, $(host_form_flag), Login form markers: $host_plain_marker"
+host_signin 4
+host_send "$signin_target" "${signin_args[@]}"
+host_marker=$(host_trace_refused_marker)
+echo "MEASURED the trace page's four-field POST: $host_code, $(host_form_flag), text: $(host_text)"
+if [ "$host_code" = 200 ] && [ "$(host_form_flag)" = form ] && grep -qF -- "$host_marker" "$tmp/host.body"; then
+  pass "Story 29.3 (c): the trace page's four-field POST with dummy values is IRIS's sign-in page (200, a password field) with the refused marker"
+else
+  fail "Story 29.3 (c): the trace page's four-field POST gives $host_code, $(host_form_flag), and the marker '$host_marker' is $(grep -qF -- "$host_marker" "$tmp/host.body" && echo present || echo absent)"
+fi
+echo "MEASURED Story 29.3 section took $((SECONDS - host_started)) s"
 
 # --- the published passwords stay out of the logs and the event log (Never) ---
 
