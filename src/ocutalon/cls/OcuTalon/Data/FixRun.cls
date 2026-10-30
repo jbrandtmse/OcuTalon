@@ -35,7 +35,7 @@ Property EndedAt As %String(MAXLEN = 20);
 
 /// The counts of the run's final FixResult: the targets of the request, the copies resent, the copies that completed, the copies that failed again, the targets
 /// left out and, for a run that a restart cut short, the targets that were cut off (Total - Completed - FailedAgain; 0 for a run that nothing cut off, and for every run that
-/// ended by itself). A marked run holds the number of the request's targets here until it ends.
+/// ended by itself). A marked run holds the number of the request's targets here, at least 1, until it ends.
 Property Total As %Integer;
 
 Property Resent As %Integer;

@@ -451,7 +451,8 @@ ClassMethod End(run As OcuTalon.Data.FixRun, counts As %DynamicObject, interrupt
 	Quit wrote
 }
 
-/// Marks a run as cut short, under the run's lock: Total and Interrupted are set to total (the number of the request's targets) and the run is saved. A run that has ended or is marked
+/// Marks a run as cut short, under the run's lock: Total is set to total (the number of the request's targets), Interrupted to total and at least 1 (so that a request with no targets
+/// still shows as marked), and the run is saved. A run that has ended or is marked
 /// already is refused (the stored EndedAt and Interrupted decide, as in End). It gives 1 when the run is marked; 0 otherwise, with the reason in sc as an error: a refusal, a save that failed
 /// or a lock that cannot be taken in RUNLOCKSECONDS.
 ClassMethod Mark(run As OcuTalon.Data.FixRun, total As %Integer, Output sc As %Status) As %Boolean

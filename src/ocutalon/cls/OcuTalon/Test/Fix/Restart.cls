@@ -9,7 +9,8 @@ Include Ensemble
 /// Execute waits in its queue, R1 is approved, and the test does what a run that was cut off had done: StartExecution, a FixRun, and the kind's Execute over the first three targets, whose
 /// copies complete. The test holds the run's lock from its save until just before its own Tick, so that no real Tick sweeps the run before the test has looked at it.
 ///   - TestRestartSaysHowFarItGot (AC 1, AC 2, AC 3; Integration; the matrix rows "Cut short by a restart", "Started after the start" and "Reconcile again"): session S's incident awaits
-///     approval with R1 over 5 failed orders. The first Reconcile step leaves the run, which started after the production's start: R1 stays executing and the run is not marked. With
+///     approval with R1 over 5 failed orders. Fix.Run's production start is the running production's ^Ens.Runtime("StartTime"), to the second. The first Reconcile step leaves the run,
+///     which started after the production's start: R1 stays executing and the run is not marked. With
 ///     the run's StartedAt backdated, the next Reconcile step marks it (Total 5, Interrupted 5, no EndedAt) and closes R1 failed with the Result interrupted, and sends no FixResult; one more
 ///     step changes nothing. FixExecutor starts again and refuses its queued Execute: the run keeps its 3 copies and R1 has no other FixRun. After a fixture Tick exactly one FixResult
 ///     (R1, the incident, Final 1, Interrupted 1, 5/3/3/0/0) goes from Checks to IncidentManager in the incident's trace session with R1's TraceRef; the run has an EndedAt, 5/3/3/0/0 and
@@ -18,7 +19,7 @@ Include Ensemble
 ///     {5, 3, 3, 0, 0, 2}; targets 4 and 5 have no copy. The audit log holds one OcuTalon Action entry with the result interrupted and the counts, and the mock logged no request. More Ticks,
 ///     fixture and real-shaped, send no second FixResult and make no second Notification;
 ///   - TestReportedRunGetsNoSecondResult (AC 3; the matrix row "No second result"): a run that FixExecutor ended (Raised over 3 orders, approved, done) has exactly one FixResult across all
-///     senders and sessions and one result Notification, also after more Ticks.
+///     senders and sessions and one result Notification, also after more Ticks, and End refuses to end it again.
 Class OcuTalon.Test.Fix.Restart Extends OcuTalon.Test.Watch.Case
 {
 
@@ -55,6 +56,10 @@ Method TestRestartSaysHowFarItGot()
 	Do $$$AssertEquals($Length(copies, ","), 3, "the kind's Execute made three copies")
 	Do $$$AssertTrue(..WaitCompleted(..#ORDERS, copies), "and they complete")
 	Do $$$AssertEquals(..Runs(ref).%Size(), 1, "R1 has one FixRun")
+
+	// the production's start, as Fix.Run reads it, is that of the running production, not the start of the instance
+	Set live = $Get($$$EnsRuntime("StartTime"))
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).Started(), $Translate($Piece(live, ".", 1), " ", "T")_"Z", "Fix.Run's production start is the running production's ^Ens.Runtime(""StartTime""), "_live)
 
 	// the Reconcile step, first pass: the run started after the production's start
 	Do ##class(OcuTalon.Install.Step).TakeWarnings()
@@ -176,6 +181,14 @@ Method TestReportedRunGetsNoSecondResult()
 	Hang 2
 	Do $$$AssertEquals(..FixResultsFor(refR).%Size(), 1, "more Ticks send no second FixResult, from any sender in any session")
 	Do $$$AssertEquals(..NoticeBodies(ref, "result").%Size(), 1, "and make no second Notification")
+
+	// the run that FixExecutor ended: End refuses to end it again, whoever asks (the stored EndedAt decides)
+	Set run = ..RunOf(ref, refR)
+	Do $$$AssertTrue($IsObject(run) && (run.endedAt '= ""), "R1's run has an EndedAt")
+	If '$IsObject(run) Quit
+	Set counts = {"total": 3, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "reason": ""}
+	Set wrote = ##class(OcuTalon.Fix.Executor).End(##class(OcuTalon.Data.FixRun).%OpenId(run.id), counts, 0, .sc)
+	Do $$$AssertEquals(wrote_"|"_..RunOf(ref, refR).endedAt_"|"_..FixResultsFor(refR).%Size(), "0|"_run.endedAt_"|1", "End refuses the run that has ended and changes nothing: "_$SYSTEM.Status.GetErrorText(sc))
 }
 
 /// The run that was cut short: R1 executing (StartExecution), a FixRun that started now and has no ResentAt, and the kind's Execute over the request's first three targets, which registers

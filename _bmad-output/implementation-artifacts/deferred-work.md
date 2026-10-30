@@ -1938,6 +1938,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fix.Executor.Wait quits on Ens.Job ShouldBeQuiescent/ShouldTerminate and only Run calls it; AD-16's Sweep (7.5) ends runs reported in progress (30.5) or marked interrupted by Reconcile at a start, neither of which covers these; 7.4 spec Residual risks names it for 7.5's Sweep
 - 2026-10-29T13:11:51Z status=routed owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=7.5's Sweep or Reconcile must also end runs whose waiter stopped while IRIS kept running (no restart); fix-risk med
+- 2026-10-29T23:21:03Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=adjudication note=delivered: Fix.Run.Sweep (called on every Checks Tick through FixRunSweep in Checks.Process) ends a run the stopped waiter left once its wait is over and every copy was done inside it (EndLeft, veto U-153), and reports a Reconcile-marked run once; pinned by Test.Fix.Executor TestSweepEndsARunNoWaiterEnded, TestSweepDecidesByTheLatestCopyTime, TestSweepLeavesRunsOfTheWaiterAndOfStory305, TestSweepSkipsALockedRun (bf8716e + QA + review patches); CI 40961979510 Test.Fix.Executor passed
 ### DW-339: A local ci/iris.sh live unit serves a stale web bundle after a merge that brings web/ changes: lib-live.sh ensure_web_bundle rebuilds src/ocutalon/csp only when it is missing and never compares it with web/src
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.6 rework 2: lane-C bundle main-ZNXMCDT7.js predated Epic 6's cards (0 app-incident-card); live demo-path STEP 4/5 red until ci/iris.sh build, then green with no code change; CI builds fresh per job
@@ -2015,3 +2016,34 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: the class stops and starts FixExecutor (two 10 s lock waits) between R1's ResentAt and the copies' item restart, then asserts elapsed <= MARGIN; passed twice locally (85 s), no elapsed value printed (Stopped.cls:24)
 - 2026-10-29T20:57:12Z status=open owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=harvest note=QA at the resume: measure the elapsed margin on a fresh run and on CI; if it can fail on a slow host, reorder the steps or widen the window
+- 2026-10-29T23:21:03Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=adjudication note=measured: CI run 40961979510 (iris shards-2, a fresh CI stack) passed Test.Fix.Stopped in 83.41s, so OrdersFromPartner started again inside the 50s margin on a CI runner; locally the class measured 0s of 50 and the Tick 1s of 60 (QA); QA made Stopped print its measured seconds on a pass (a status-2 assert line), so every later CI run shows the value
+
+### DW-407: The spine's AD-22 'CI as built' record still says six IRIS groups with lane-a run whole; 3308237 (DW-337) made seven groups (shards-2), runs lane-a in two pieces and moved live:cards to install-upgrade
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md:608 reads 'inside six IRIS groups (install-fresh, install-upgrade, production, browser, shards and image)' and lists lane-a as Agent, Bridge, Install, Tools and Digest; ci/units.sh now has seven IRIS_GROUPS and shard_unit_areas pieces
+- 2026-10-29T23:01:40Z status=routed owner=burndown by=cr note=lead: Rule 20 light path, AD-22 as-built line (7 groups, lane-a pieces, live:cards, lane-a areas)
+
+### DW-408: A final FixResult that Checks fails to send is lost: Fix.Run.Sweep has already ended the run, so no later Tick returns it and the incident stays fixing
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Checks/Process.cls Fixes logs LOGFIX and goes on after Sweep saved EndedAt; the spec's Always and Never bullets: a failed send logs LOGFIX, never a second FixResult, no stored property
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=spec-bound at-most-once, as FixExecutor's Report; an unsent marker needs a stored property (spec amendment)
+
+### DW-409: When Fix.Run.EndLeft's close fails or throws after End saved the run, the request stays executing and the final result renders result.stillResending, which nothing follows up
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Fix/Run.cls:212-221 ends, then closes; TestSweepEndsARunNoWaiterEnded case C pins it; the spec's Always bullet orders End then FinishExecution done (residual risk 4)
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=spec-bound order (residual risk 4, as 7.4's Finish); needs a FinishExecution fault; reopen by amending: close first
+
+### DW-410: A run that Reconcile marked counts as V2 rules: its row ends failed/interrupted with an interrupted Action entry even when nothing was cut off, recheck skips count as cut off, and an unreadable read counts every copy as cut off
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:164-184 EndMarked (Skipped 0, Interrupted = Total - Completed - FailedAgain); spec V2 and the spine's Conventions row Fix runs; AD-11 and AD-16 still word it as the interrupted result
+- 2026-10-29T23:01:40Z status=by-design owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=V2 ruled at the spec gate (veto U-154); conservative, never a false all-clear; AD-16's text kept as ruled
+
+### DW-411: Reconcile's Fix.Run.Interrupt leaves a cut-short run unmarked when it cannot take the run's lock in 2 s or Mark's save fails, and nothing marks it before the next start
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:88-89 and :99-100 push a problem and go on; Sweep never marks a run, and EndLeft holds the run's lock while it reads the copies
+- 2026-10-29T23:01:48Z status=wontfix-theoretical owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=real if a Tick's Sweep holds that run's lock over 2 s inside the Reconcile step (thousands of copies) or a storage fault
+
+### DW-412: Fix.Run repeats small parts of FixExecutor's end instead of calling them: Entry is Executor.Audit's try/catch around its own WriteAudit seam, and EndLeft rebuilds Executor.Look's done counts
+- source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Run.cls:208-211 and :241-252 against Fix/Executor.cls:688-691 and :487-498; the spec's Rule 2 note names the lifted methods but not these two
+- 2026-10-29T23:01:48Z status=wontfix-accepted owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=reopen_if=a change to Executor.Look's counts or Audit's handling lands without the same change in Fix.Run.EndLeft or Entry

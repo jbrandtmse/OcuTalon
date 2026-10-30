@@ -5,7 +5,7 @@ Include Ensemble
 /// resume nothing and wait for nothing. Lane A.
 ///   - Interrupt (the Reconcile step calls it through Install.Step.Fix.Reconcile(), at each start, after the Production step): it goes through every FixRun with no EndedAt (Unended)
 ///     and takes each run that started before the production's current start (Started) and whose request's row is executing, a run that the restart cut short. Under the run's lock
-///     it marks the run (Executor.Mark, unless it is marked already: Total and Interrupted are the number of the request's targets) and closes the request through
+///     it marks the run (Executor.Mark, unless it is marked already: Total is the number of the request's targets, and Interrupted that number, at least 1) and closes the request through
 ///     Approval.FinishExecution with the result interrupted (Close), which leaves the row failed. A run that started after that start is live and is left as it is. A problem with one run (a
 ///     mark or a close that failed, no start time known) is one line of problems, and the others still go; the status is an error only when the runs cannot be read. It is idempotent.
 ///   - Sweep (Checks calls it on each heartbeat Tick) goes through every FixRun with no EndedAt (Unended), each under its lock (a run it cannot lock in Executor RUNLOCKSECONDS is skipped
@@ -282,7 +282,7 @@ ClassMethod Started() As %String
 	Set value = $Get($$$EnsRuntime("StartTime"))
 	Set stamp = $Translate($Piece(value, ".", 1), " ", "T")_"Z"
 	If (value '= "") && (##class(OcuTalon.Watch.Settle).Seconds(stamp) '= "") Quit stamp
-	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -($ZHorolog \ 1))
+	Quit ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -($ZHorolog \ 1))
 }
 
 /// The outcome and the statuses of the run's copies (a seam for the tests): Executor.Read's.

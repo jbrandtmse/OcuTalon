@@ -124,7 +124,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Quit $SYSTEM.Status.Error(5001, "Checks does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
 
-/// A Tick: the quiet sweep, then the checks that are due (see the class description). Always OK.
+/// A Tick: the quiet sweep, then the fixes (Fixes), then the checks that are due (see the class description). Always OK.
 Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()

@@ -12,6 +12,9 @@ Include Ensemble
 ///     nothing is sent. A Tick after ResentAt + 60 seconds ends the run: R1 is done and its FixRun holds 3/3/3/0/0 with Interrupted 0; Checks sends one FixResult (Final 1, Interrupted 0)
 ///     in the incident's trace session with R1's TraceRef; S gets result.allThrough, "All 3 orders went through."; one OcuTalon Action entry records the result done; the incident
 ///     is resolved. A further Tick, fixture or real-shaped, gives nothing.
+/// The elapsed seconds that the two timing bounds depend on (DW-399) are written by Timing, so that a passing run shows them too: how long after R1's ResentAt the copies' item was started
+/// again, and how long after it the Tick inside the wait came. Timing logs a message and an assert of the status skipped (2), which ci/iris.sh prints as a SKIP line under the class result
+/// (a status 2 never fails a class); a log message alone is stored but not printed.
 Class OcuTalon.Test.Fix.Stopped Extends OcuTalon.Test.Watch.Case
 {
 
@@ -55,6 +58,7 @@ Method TestRunOfAStoppedWaiterEnds()
 
 	// OrdersFromPartner starts again inside R1's 60 seconds: the copies complete
 	Set used = ..SecondsSince(resentAt)
+	Do ..Timing("DW-399: OrdersFromPartner is started again "_used_" seconds after R1's ResentAt (the most allowed: "_..#MARGIN_"; R1's wait: "_##class(OcuTalon.Fix.Executor).#WAITSECONDS_")")
 	Do $$$AssertTrue(used '> ..#MARGIN, "the item is started again "_used_" seconds after R1's ResentAt, at most "_..#MARGIN_" seconds after it, so that the copies complete inside its "_##class(OcuTalon.Fix.Executor).#WAITSECONDS_" seconds")
 	If used > ..#MARGIN Quit
 	If '..TempStartItem("OrdersFromPartner") Quit
@@ -63,6 +67,7 @@ Method TestRunOfAStoppedWaiterEnds()
 	// a Tick inside the wait changes nothing
 	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
 	Set inside = ..SecondsSince(resentAt)
+	Do ..Timing("DW-399: the Tick inside the wait came "_inside_" seconds after R1's ResentAt (the wait: "_##class(OcuTalon.Fix.Executor).#WAITSECONDS_")")
 	Do $$$AssertTrue(inside < ##class(OcuTalon.Fix.Executor).#WAITSECONDS, "that Tick came "_inside_" seconds after R1's ResentAt, inside its "_##class(OcuTalon.Fix.Executor).#WAITSECONDS_" seconds")
 	If inside '< ##class(OcuTalon.Fix.Executor).#WAITSECONDS Quit
 	Set run = ..RunOf(ref, refR)
@@ -105,6 +110,14 @@ Method TestRunOfAStoppedWaiterEnds()
 	Hang 2
 	Do $$$AssertEquals(..FixResultsFor(refR).%Size(), 1, "more Ticks send no second FixResult")
 	Do $$$AssertEquals(..NoticeBodies(ref, "result").%Size(), 1, "and make no second Notification")
+}
+
+/// Makes a measured value visible in the output of a run that passes (DW-399): a log message, and an assert of the status skipped, which ci/iris.sh prints as "SKIP <method>: <text>".
+/// It does not set SkipTest, so the rest of the test runs.
+Method Timing(text As %String) [ Private ]
+{
+	Do $$$LogMessage(text)
+	Do ..Manager.LogAssert(2, "Timing", text)
 }
 
 /// 1 when no job holds FixExecutor's wait lock (^OcuTalon.Fix.Wait): this process takes it at once and lets go; with seconds above 0 it tries again every tenth of a second until then.

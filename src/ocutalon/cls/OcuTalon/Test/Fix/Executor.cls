@@ -76,7 +76,8 @@ Include Ensemble
 ///   - TestUnknownRequest: a request that is neither a DryRun nor an Execute is the error 5001 that names its class, with no answer.
 /// Story 7.5 (AD-5, AD-16, AD-18, AD-23, AD-33; DW-395) adds the ends that no waiter makes. These tests call Install.Step.Fix.ReconcileWith and Interrupt and Sweep of
 /// Test.Fix.RunProbe (a Fix.Run whose seams are canned) over fixture runs, rows and incidents. The test process holds the lock of each fixture run from its save until the test
-/// ends (Hold), so that the production's own Sweep, which runs on every Tick of a stack, never takes a fixture run; a test that needs the lock free lets go of it (LetGo).
+/// ends (Hold), and the runs are deleted before the locks are let go, so that the production's own Sweep, which runs on every Tick of a stack, never takes a fixture run; a test that
+/// needs the lock free lets go of it (LetGo).
 ///   - TestInterruptMarksOnlyRunsCutByTheRestart (AC 1): of runs with no EndedAt, the one that started before the production's start and whose request is executing is marked
 ///     (Total and Interrupted the number of targets, no EndedAt) and its request is closed failed with the Result interrupted; a run that started after the start, one whose request is done and
 ///     an ended one are left; a run that is marked already keeps its mark and has its request closed; a second pass changes nothing and closes nothing; with no start time nothing is marked and
@@ -94,9 +95,14 @@ Include Ensemble
 ///     the row done, one Action entry done; a failed close logs one Type 3 warning and the result still comes;
 ///   - TestSweepLeavesRunsOfTheWaiterAndOfStory305 (AC 5): unmarked runs inside their wait, with a copy still queued, whose last copy finished after the wait or has no time, whose read is not read,
 ///     with no ResentAt or whose request is done get no result, no EndedAt and no close, and Sweep logs no warning and reads the copies of exactly the runs that get that far;
+///   - TestSweepDecidesByTheLatestCopyTime (AC 4, AC 5; QA): the unmarked branch compares the latest time of the done copies with the end of the wait, strictly: one second before it the run ends done
+///     (the latest copy first in the list, the others earlier), at the end of the wait it is left, and so is one whose copies are done but one of them has no time among others that have one, and one
+///     whose latest done copy is a failed one;
 ///   - TestSweepGoesOnWhenTheEndFails: a marked or an unmarked run whose end cannot be saved gives no result, no entry and one Type 3 warning, and the next Sweep reports it once; a marked run whose audit
 ///     write throws still gives its result (one warning); an unmarked run whose close throws still gives its result and its entry (one warning);
-///   - TestSweepSkipsALockedRun: a run whose lock another job holds is skipped, and reported once the lock is free; End and Mark refuse it as well;
+///   - TestSweepSkipsALockedRun: a marked and an unmarked run whose locks other jobs hold are skipped, with nothing written or closed, and End and Mark refuse the marked one; once the
+///     unmarked one's lock is free the next Sweep reports it, and the marked one, still held, is left (the marked one is held to the end of the test, and the unmarked one's copies are
+///     of a fixture incident, which the production's own Sweep cannot read, so that no real Tick ends either);
 ///   - TestStartedIsTheProductionStart (AC 1): Fix.Run Started gives ^Ens.Runtime("StartTime") as a UTC stamp to the second, and the start of the instance when it is unset or not a time;
 ///   - TestEndRefusesAnEndedOrMarkedRun (AC 1, AC 3): End refuses an ended run, a normal end of a marked run and an interrupted end of an unmarked one, and Mark an ended or a marked run, each
 ///     without a write; Waiting leaves out a marked run, and a look at a marked run ends in a Finish that End refuses: nothing is closed, audited or sent, and one Type 4 line says why.
@@ -136,7 +142,7 @@ Property Incidents As %String(MAXLEN = "");
 /// The number of the newest row of the event log when the test began.
 Property LogMark As %Integer;
 
-/// The flag of the job that holds the probe's wait lock (HoldLock), "" when no test started one.
+/// The flags of the jobs that hold a lock for the test (HoldLock: the probe's wait lock or a run's lock), comma-separated; "" when no test started one.
 Property HoldFlag As %String;
 
 Method OnBeforeAllTests() As %Status
@@ -157,14 +163,14 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
-	Do ..ReleaseLock()
-	Do ..FreeRuns()
-	Do ##class(OcuTalon.Test.Fix.RunProbe).Reset()
-	Do ##class(OcuTalon.Install.Step).TakeWarnings()
 	For i = 1:1:$Length(..Incidents, ",") {
 		If $Piece(..Incidents, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", $Piece(..Incidents, ",", i))
 		If $Piece(..Incidents, ",", i) '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", $Piece(..Incidents, ",", i))
 	}
+	Do ..ReleaseLock()
+	Do ..FreeRuns()
+	Do ##class(OcuTalon.Test.Fix.RunProbe).Reset()
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	Set ..Incidents = ""
@@ -1475,6 +1481,57 @@ Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
 	}
 }
 
+Method TestSweepDecidesByTheLatestCopyTime()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("latest")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+	Set sentAt = ..Stamp(-100)
+	Set early = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 10)
+	Set justIn = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, ##class(OcuTalon.Fix.Executor).#WAITSECONDS - 1)
+	Set atEnd = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, ##class(OcuTalon.Fix.Executor).#WAITSECONDS)
+
+	// A: the latest copy (one second before the end of the wait) is the first of the list: the run ends
+	Set iA = ..Incident(owner)
+	Set statuses = ..CannedAt(9971, 3, "Completed", early)
+	Do statuses.%Set("9971", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (justIn)})
+	Set rA = ..UnmarkedRun(owner, iA, 3, "9971,9972,9973", sentAt, statuses)
+
+	// B: the latest copy is done at the end of the wait itself, and is the first of the list: the run is left
+	Set iB = ..Incident(owner)
+	Set statuses = ..CannedAt(9981, 3, "Completed", early)
+	Do statuses.%Set("9981", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (atEnd)})
+	Set rB = ..UnmarkedRun(owner, iB, 3, "9981,9982,9983", sentAt, statuses)
+
+	// C: two copies are done early and the third has no time: the run is left
+	Set iC = ..Incident(owner)
+	Set statuses = ..CannedAt(9991, 2, "Completed", early)
+	Do statuses.%Set("9993", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": ""})
+	Set rC = ..UnmarkedRun(owner, iC, 3, "9991,9992,9993", sentAt, statuses)
+
+	// D: the copy that is done last is a failed one, at the end of the wait: the run is left
+	Set iD = ..Incident(owner)
+	Set statuses = ..CannedAt(9961, 2, "Completed", early)
+	Do statuses.%Set("9963", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (atEnd)})
+	Set rD = ..UnmarkedRun(owner, iD, 3, "9961,9962,9963", sentAt, statuses)
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "Sweep returns one FixResult: that of the run whose latest copy was done a second before the end of its wait")
+	Do ..AssertDone(results, rA, iA, "3|3|3|0|0", "", "result.allThrough", "All 3 orders went through.", "done|done|finished", "A: the latest copy done a second before the end of the wait, listed first")
+	Set left = $ListBuild($ListBuild(rB, iB, "B: the latest copy done at the end of the wait, listed first"), $ListBuild(rC, iC, "C: one done copy has no time among copies that have one"), $ListBuild(rD, iD, "D: the copy done last is a failed one, at the end of the wait"))
+	Set position = 0
+	While $ListNext(left, position, each) {
+		Set ref = $List(each, 1)
+		Set run = ##class(OcuTalon.Test.Watch.Case).RunOf($List(each, 2), ref)
+		Do $$$AssertEquals(..Stored(run.id)_"#"_..Row(ref), "0|0|0|0|0|0|0|#executing||", $List(each, 3)_": the run is left, with no EndedAt and its request executing")
+		Do $$$AssertTrue('$IsObject(..ResultFor(results, ref)), $List(each, 3)_": no FixResult")
+	}
+	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 4, "the copies of all four runs were read, so the three that are left were left for their copy times")
+	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "1|"_rA_"|done", "one entry is written and one request closed: those of run A")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP")), 0, "and Sweep logged no failure")
+}
+
 Method TestSweepGoesOnWhenTheEndFails()
 {
 	Set probe = "OcuTalon.Test.Fix.RunProbe"
@@ -1580,36 +1637,49 @@ Method TestSweepSkipsALockedRun()
 {
 	Set probe = "OcuTalon.Test.Fix.RunProbe"
 	Set owner = ..Owner("locked")
-	Set incident = ..Incident(owner)
-	Set ref = ..MarkedRun(owner, incident, 5, "9971,9972,9973", ..CannedAt(9971, 3, "Completed", ..Stamp(-5)))
+	// M: a marked run whose request is executing (a Sweep that took it would close the request first); its job holds its lock to the end of the test
+	Set iM = ..Incident(owner)
+	Set refM = ..MarkedRun(owner, iM, 5, "9971,9972,9973", ..CannedAt(9971, 3, "Completed", ..Stamp(-5)))
+	// U: an unmarked run past its wait whose copies were done inside it; the production's own Sweep cannot read copies of a fixture incident, so only the probe's Sweep ends it
+	Set iU = ..Incident(owner)
+	Set sentAt = ..Stamp(-100)
+	Set refU = ..UnmarkedRun(owner, iU, 3, "9974,9975,9976", sentAt, ..CannedAt(9974, 3, "Completed", ##class(OcuTalon.Data.Time).AddSeconds(sentAt, 20)))
 	Do $ClassMethod(probe, "Narrow", ..Incidents)
-	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
-	Set id = run.id
-	Set flag = "runlock"_..Number
-	Set ..HoldFlag = flag
-	Set ^OcuTalonTest("FixExecutor", flag) = ""
-	Job ##class(OcuTalon.Test.Fix.Executor).HoldLock("^OcuTalon.Fix.Run("_id_")", flag)
-	Do ..LetGo(id)
+	Set idM = ##class(OcuTalon.Test.Watch.Case).RunOf(iM, refM).id
+	Set idU = ##class(OcuTalon.Test.Watch.Case).RunOf(iU, refU).id
+	Set flagM = "runlock"_..Number
+	Set flagU = "runlocku"_..Number
+	Set ..HoldFlag = flagM_","_flagU
+	For pair = $ListBuild(idM, flagM), $ListBuild(idU, flagU) {
+		Set ^OcuTalonTest("FixExecutor", $List(pair, 2)) = ""
+		Job ##class(OcuTalon.Test.Fix.Executor).HoldLock("^OcuTalon.Fix.Run("_$List(pair, 1)_")", $List(pair, 2))
+		Do ..LetGo($List(pair, 1))
+	}
 	Set end = $ZHorolog + 10
-	While ($Get(^OcuTalonTest("FixExecutor", flag)) '= "held") && ($ZHorolog < end) {
+	While (($Get(^OcuTalonTest("FixExecutor", flagM)) '= "held") || ($Get(^OcuTalonTest("FixExecutor", flagU)) '= "held")) && ($ZHorolog < end) {
 		Hang 0.1
 	}
-	Do $$$AssertEquals($Get(^OcuTalonTest("FixExecutor", flag)), "held", "another job holds the run's lock")
-	If $Get(^OcuTalonTest("FixExecutor", flag)) '= "held" Quit
+	Set held = $Get(^OcuTalonTest("FixExecutor", flagM))_"|"_$Get(^OcuTalonTest("FixExecutor", flagU))
+	Do $$$AssertEquals(held, "held|held", "other jobs hold the two runs' locks")
+	If held '= "held|held" Quit
 	Set results = $ClassMethod(probe, "Sweep")
 	Do $$$AssertEquals(results.Count(), 0, "Sweep returns nothing for a run it cannot lock")
-	Do $$$AssertEquals(..Stored(id)_"#"_..Row(ref), "0|5|0|0|0|0|5|#executing||", "and writes nothing: no EndedAt, the request still executing")
+	Do $$$AssertEquals(..Stored(idM)_"#"_..Row(refM), "0|5|0|0|0|0|5|#executing||", "and writes nothing for the marked run: no EndedAt, the request still executing")
+	Do $$$AssertEquals(..Stored(idU)_"#"_..Row(refU), "0|0|0|0|0|0|0|#executing||", "nor for the unmarked one")
 	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "0|", "no entry and no close")
 	Set counts = {"total": 5, "resent": 3, "completed": 3, "failedAgain": 0, "skipped": 0, "interrupted": 2, "reason": ""}
-	Set wrote = ##class(OcuTalon.Fix.Executor).End(##class(OcuTalon.Data.FixRun).%OpenId(id), counts, 1, .sc)
+	Set wrote = ##class(OcuTalon.Fix.Executor).End(##class(OcuTalon.Data.FixRun).%OpenId(idM), counts, 1, .sc)
 	Do $$$AssertEquals(wrote_"|"_($SYSTEM.Status.GetErrorText(sc) [ "lock"), "0|1", "End refuses a run whose lock another job holds, naming the lock")
-	Set marked = ##class(OcuTalon.Fix.Executor).Mark(##class(OcuTalon.Data.FixRun).%OpenId(id), 5, .sc)
+	Set marked = ##class(OcuTalon.Fix.Executor).Mark(##class(OcuTalon.Data.FixRun).%OpenId(idM), 5, .sc)
 	Do $$$AssertEquals(marked_"|"_($SYSTEM.Status.GetErrorText(sc) [ "lock"), "0|1", "and so does Mark")
-	Do $$$AssertEquals(..Stored(id), "0|5|0|0|0|0|5|", "neither wrote anything")
-	Do ..ReleaseLock()
-	Do ..Hold(id)
+	Do $$$AssertEquals(..Stored(idM), "0|5|0|0|0|0|5|", "neither wrote anything")
+	Do ..ReleaseFlag(flagU)
+	Set ..HoldFlag = flagM
+	Do ..Hold(idU)
 	Set results = $ClassMethod(probe, "Sweep")
-	Do $$$AssertEquals(results.Count(), 1, "once the lock is free the next Sweep reports the run")
+	Do $$$AssertEquals(results.Count(), 1, "once a run's lock is free the next Sweep reports it")
+	Do $$$AssertEquals($Select(results.Count() = 1: results.GetAt(1).ApprovalRef, 1: ""), refU, "the run whose lock was freed, and not the one still held")
+	Do $$$AssertEquals(..Stored(idM)_"#"_..Row(refM), "0|5|0|0|0|0|5|#executing||", "which is still left as it was")
 }
 
 Method TestEndRefusesAnEndedOrMarkedRun()
@@ -1894,8 +1964,16 @@ ClassMethod Canned(first As %Integer, count As %Integer, status As %String) As %
 Method ReleaseLock()
 {
 	If ..HoldFlag = "" Quit
-	Set flag = ..HoldFlag
+	Set flags = ..HoldFlag
 	Set ..HoldFlag = ""
+	For i = 1:1:$Length(flags, ",") {
+		If $Piece(flags, ",", i) '= "" Do ..ReleaseFlag($Piece(flags, ",", i))
+	}
+}
+
+/// Tells the HoldLock job of the flag to give its lock up, waits up to 5 seconds until it has, and removes the flag.
+ClassMethod ReleaseFlag(flag As %String) [ Private ]
+{
 	If $Get(^OcuTalonTest("FixExecutor", flag)) = "held" Set ^OcuTalonTest("FixExecutor", flag) = "release"
 	Set end = $ZHorolog + 5
 	While ($Get(^OcuTalonTest("FixExecutor", flag)) = "release") && ($ZHorolog < end) {
@@ -2221,6 +2299,8 @@ Method RemoveLogs()
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, method, $Parameter("OcuTalon.Fix.Run", "LOGREAD"))
 	}
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Ended", $Parameter("OcuTalon.Fix.Run", "LOGSAVE"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Entry", $Parameter("OcuTalon.Fix.Run", "LOGAUDIT"))
 }
 
 }
