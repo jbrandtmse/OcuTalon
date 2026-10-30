@@ -15,8 +15,8 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - Story 9.8: A stop-watching injection leaves the watch unchanged (done; split from 9.7)
 - Story 9.4: Ten incidents are recorded from real failures (done)
 - Story 9.9: The other nine incidents come from real failures in a test feed (done; split from 9.4)
-- Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody (next; split from 9.1)
-- Story 9.5: Release candidates pass the evaluation and the demo incident gate (last)
+- Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody (done; split from 9.1)
+- Story 9.5: Release candidates pass the evaluation and the demo incident gate (next, last)
 
 ## Requirements & Constraints
 
@@ -94,7 +94,7 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
      - The request carries no `HostData`.
   2. `check_status`'s eval branch, `WatchAnswers.EvalCheckResults`, answers those rows. It is reached from `WatchTools.CheckStatus` only after `Session` refuses, and only when the call's owner is exactly `eval` and its `ItemId` has a `TurnResult`. A turn with no recorded results gets none, never the live status, and every other owner's answer is unchanged.
   3. On the `Reply`, `EvalIn` calls `Checks.Render` and sends the `TurnResult` to `EvalSink`.
-- **Incident case (Story 9.6, to build).**
+- **Incident case (Story 9.6, as built; lead patch 2026-10-30).** `EvalIn` sends each `incident` case to `IncidentManager` as `OcuTalon.Eval.Msg.IncidentCase` (`IncidentRef` minted by EvalIn, `SourceItemId` = the case folder name, `Snapshot` = the recorded reader snapshot's JSON text), after opening the case row with `ItemId` = `IncidentRef`. `IncidentManager`'s eval branch builds the pack with `EvidencePack.Build(snapshot)`, sends `Decide` the same `diagnose` request the live path builds (shared `DiagnoseRequest`/`SendDiagnose`, owner `eval`), and sends `EvalSink` exactly one `ItemDecision`; it writes no `Incident`/`FailureGroup` row, starts no settle wait, and sends no dry run, approval request, notice or Execute. Every failure ends the case as a fallback `ItemDecision`. The Diagnosis agent's read tools (`read_failed_messages`, `read_event_log`, `read_item_settings`) answer from the recorded snapshot only for owner exactly `eval` with no live incident in scope (`EvidencePack.EvalSnapshot`; veto U-162 kept with the owner's condition, pinned by `Test.Eval.Incident`). On the CI mock the demo incident `orders-date-format` ends decided (`data_format_change`/`OrderDate`/`repair_resend`) and the other nine end as fallback `invalid` (the mock's one diagnosis answers `OrderDate`, which `RepairResend.CheckParameters` refuses for their sample bodies): AC3 was restated so; `eval/run.sh` requires all ten run and the demo decided. The spine's cross-area table names `IncidentCase`. The original plan follows:
   1. `IncidentManager` builds the pack with `EvidencePack.Build` from the case's snapshot.
   2. It calls `Decide` (`diagnose`) with owner `eval`.
   3. It sends `EvalSink` an `ItemDecision` with the incident's `Ref` as `ItemId`, the diagnosis's `DecisionRef` and the case's `SourceItemId`. There is no dry run, approval request, notice or live event.
@@ -108,7 +108,7 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - It is Lane A's table, `^OcuTalonP.EvalCaseResult`, named in the spine's Tables line and kept with no grants and no purge (U-131).
 - `EvalIn` opens one row per case, and `EvalSink` completes it. A row holds the run, the case, `SourceItemId`, `ItemId`, `DecisionRef`, the outcome or the cause fields, any fallback reason, the cost and the largest request size.
 - Cost and size come from the bridge's `Decision` and `Usage` rows, which are read only. `Usage` has one row per agent turn, and totals are sums of rows.
-- **DW-353 (Story 9.6):** `EvalSink` completes a row only by `ItemId`, but an incident's `ItemDecision` carries the incident's `Ref`, which `EvalIn` can't know when it opens the row. 9.6 opens incident rows and matches them by `RunRef` and `SourceItemId`, with an index.
+- **DW-353 (Story 9.6):** `EvalSink` completes a row only by `ItemId`, but an incident's `ItemDecision` carries the incident's `Ref`, which `EvalIn` can't know when it opens the row. Resolved by 9.6 by construction: EvalIn mints the incident's Ref and opens the row with it, so the existing `ItemId` match completes it (no `RunRef`+`SourceItemId` index).
 - A new persistent class needs a `DEFAULTGLOBAL` `^OcuTalonP.<Short>` registered in `src/short-names.tsv` (CI fails a duplicate), and its storage block committed through the storage diff.
 
 **Gate, all-clear and watch rules**
@@ -182,7 +182,7 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
   - Epic 2: `Intake` sends evaluation decisions to `EvalSink`.
   - Epic 5: `IncidentManager`, `EvidencePack`, `WatchOps`, `Checks`, `Checks.Render`, `check_status` and `ReplyGuard`.
   - Epic 7: the dry run, approval and fix path in `IncidentManager`, and Story 7.1's repair-and-resend validation. This branch has already brought Epic 7's merge forward.
-- **Order:** Story 9.6 next, then Story 9.5, then the epic closes. This is the critical path to Epic 11.
+- **Order:** Story 9.6 done; Story 9.5 next, then the epic closes. This is the critical path to Epic 11.
 - **Story 9.6** builds the incident path through `IncidentManager`, extends the isolation test, and adds the incident cases to the mock job. It carries:
   - **DW-353**, the `RunRef` + `SourceItemId` match described above;
   - **DW-385** (routed; an acceptance bullet in 9.6's block): `Test.Eval.Record`'s `FixtureSettings` and `DefinedSettings` near-copy `Test.Watch.Evidence`'s private helpers. Now that Epic 7 has merged, make the Orders-definition fixture one public helper that both classes call.
