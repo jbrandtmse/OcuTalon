@@ -1320,6 +1320,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T04:26:20Z status=decision-pending owner=burndown by=cr note=veto (stored data, security): recommend an HMAC with a per-instance key in the private DB, renewed at each reset
 - 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-156 (Epic 16 decision sheet): before the launch, replace the plain SHA-256 with an HMAC keyed by a per-instance secret in the private database, renewed at each reset
 - 2026-10-30T04:25:32Z status=routed owner=29-5-the-address-counter-s-hash-is-keyed-per-reset by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.5
+- 2026-10-30T16:06:42Z status=resolved-by:29-5-the-address-counter-s-hash-is-keyed-per-reset by=adjudication note=build 363395bb + review patches: AddressCounter.AddressHash is an HMAC-SHA-256 under a 32-byte key in ^OcuTalonP.AddrCountK (private database), made at its first use after a start whose lastReset differs from the key's marker (veto U-167), so no golden copy holds one; TestKeyPerReset proves T1..T4 give pairwise different keys and hashes, a restored captured key is replaced; live online-demo rows 12/13 and phase 2 pin it on a fresh stack
 
 ### DW-234: On the online demo a proxy address that is unset or not equal to REMOTE_ADDR exactly (a changed proxy IP, another address form) exempts every sign-in, so the per-address limit silently stops
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2367,3 +2368,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 29.4 implement: the guide press got a text reply, no check row, and Break the feed answered 409; the second visitor sends [[mock:watch-start-orders]] instead (Decided in-stage 0)
 - 2026-10-30T13:10:06Z status=routed owner=burndown by=cr note=for UJ-1 step 2 under the mock (11.1's 02-watch and the online run's step 2); re-own to 11.1 at the burn-down
+
+### DW-441: The address key and every counter row's hash are also written to the private database's journal while the instance runs
+- source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Key() sets KEYGLOBAL with an ordinary global set in OCUTALON_PRIVATE, which journals by default (inference), and ReferenceHits scans globals, not journal files. Spec Decided in-stage 8 records it: the journal sits on the durable volume and goes with it at each reset (inference); U-156 puts the key in the private database.
+- 2026-10-30T16:03:44Z status=by-design owner=29-5-the-address-counter-s-hash-is-keyed-per-reset by=cr note=spec-bound (Decided 8, U-156); fix-risk high: disabling journaling needs a privilege the demo account lacks
+
+### DW-442: H17's capture check names ^OcuTalonP.AddrCountK literally, not through AddressCounter's KEYGLOBAL parameter
+- source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/demo-host-checks.md H17 prints $Data(^OcuTalonP.AddrCountK); if KEYGLOBAL ever moved, the host check would read an empty node and print 0. The spec's Tasks give H17's text verbatim, and TestKeyIsPrivate pins KEYGLOBAL to that literal, so a move fails a test first.
+- 2026-10-30T16:03:44Z status=by-design owner=29-5-the-address-counter-s-hash-is-keyed-per-reset by=cr note=spec-bound: the spec gives H17's text; TestKeyIsPrivate pins the literal name

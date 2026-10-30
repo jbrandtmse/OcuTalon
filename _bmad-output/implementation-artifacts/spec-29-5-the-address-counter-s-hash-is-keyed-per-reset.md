@@ -162,6 +162,44 @@ deferred: []
 - AC5: Given a counted row and a restart with the same `OCUTALON_LAST_RESET`, when the counter is read after the restart, then the row still counts and the key is unchanged (matrix row 7).
 - AC6: Given the key lock held elsewhere and no valid key, when `Lock(A)` runs, then it answers 0 within its wait and makes no key (matrix row 8).
 
+### Review Findings
+
+Code review, 2026-10-30. Four layers ran at full tier: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor. They returned 25 findings: 6 patch entries (from 11 findings), 2 defer entries (by-design) and 12 rejected findings. None needed a decision. Every patch is applied.
+
+After the patches, these passed:
+- `Test.Data.AddressCounter` (27.7 s) and `Test.Web.SessionEvents` (5.6 s), on a warm lane-C throwaway;
+- `bash ci/checks.sh` (281 s), which includes `test-ci-config.sh` and `test-online-host.sh`;
+- `live online-demo` on a fresh throwaway (369 s, 182 checks), with row 12, phase 2 and row 13's key checks.
+
+Secrecy:
+- No path prints the key, a hash or a client address. Every new assertion has a fixed description, and `AssertEquals` with a description prints no value (`%UnitTest.TestCase:153`).
+- Error texts and the attach log line carry the code only, and the live checks print counts.
+
+Fail-closed and the golden copy:
+- The counter fails closed with no key: the lock timeout is pinned, and a raised read ends in `AttachFor`'s catch, which creates nothing.
+- Outside tests, no code path calls `AddressHash`, `Lock`, `Recent` or `Add` except `AttachVisitor`'s proxied branch, so an AD-25 update start makes no key.
+
+Patch entries:
+- [x] [Review][Patch] (med, Rule 19 hermeticity, fix-risk low: a cleanup call and an assertion in a test, in-story) `TestNoKeyRefusesTheCreation` left its counted row behind on every run. The row is counted under a key the test makes, then the test restores the saved node, and `OnAfterOneTest`'s `DropCounter` hashes under the restored key, so it misses the row. The test now deletes the row while its key is in place, asserts that the counter total is back, and calls `DropCounter` again before the restore in every path [src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls:681]
+- [x] [Review][Patch] (med, Rule 19 hermeticity, fix-risk low: one line, as its siblings `TestLimit` and `TestBusyBeforeTheCounter` do, in-story) `TestNoKeyRefusesTheCreation`'s "let in and counted" relied on an address limit it never set. It now sets 5 [src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls:640]
+- [x] [Review][Patch] (low, Rule 19 falsifiability, fix-risk low: a fixture row in a test, in-story) "Recent answers 0" could not fail if `Recent`'s no-key guard were removed, because no row had an empty hash. `TestKeyBusyFailsClosed` now saves a row with no hash before the probe and deletes it by id in every path. The mutation is recorded under Verification [src/ocutalon/cls/OcuTalon/Test/Data/AddressCounter.cls:270]
+- [x] [Review][Patch] (low, fix-risk low: one assertion, in-story) `TestKeyMadeOnceUnderContention` never asserted that it holds the key lock it releases. It now does [src/ocutalon/cls/OcuTalon/Test/Data/AddressCounter.cls:312]
+- [x] [Review][Patch] (low, fix-risk low: comments only, in-story) Two doc comments were wrong. `Lock` said "at most 5 seconds", but it can wait `WAIT` for the key lock first. `Key` said "its value never leaves this method", but it answers the key to `AddressHash`. Both now state the contract [src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls:73]
+- [x] [Review][Patch] (low, Rule 2, fix-risk low: a pure extraction, in-story) `Key()` repeated its "the node holds this reset's key" check before the lock and under it. The re-read under the lock is what AC3's contention case depends on, so the two copies must not drift apart. Both now call the private `IsCurrent(value, marker)`, which reads the list with `$ListGet`, so a malformed node can no longer raise `<NULL VALUE>` [src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls:129]
+
+Defer entries:
+- [x] [Review][Defer] (low, fix-risk high: turning journaling off needs a privilege the demo account lacks, in-story) The key and every row's hash are also in the private database's journal while the instance runs [src/ocutalon/cls/OcuTalon/Data/AddressCounter.cls:117] — deferred: spec-bound (Decided in-stage 8: the journal goes with the durable volume at each reset; U-156 puts the key in the private database). DW-441, by-design
+- [x] [Review][Defer] (low, fix-risk low, in-story) H17's capture check names `^OcuTalonP.AddrCountK` literally rather than through `KEYGLOBAL`, so a moved global would print 0 [release/demo-host-checks.md:56] — deferred: spec-bound (the Tasks give H17's text verbatim), and `TestKeyIsPrivate` pins `KEYGLOBAL` to that literal, so a move fails a test first. DW-442, by-design
+
+Rejected:
+- (low, 2 findings) `Key()`'s "lastReset cannot be read" branch can never run, because `Settings.Get` errs only for a key that is not fixed, and its two reads sit outside its `Try`. Fail-closed still holds: a raised read propagates to `AttachFor`'s catch, which logs the code and creates nothing. The branch is the spec's step 1. A read fails only if the demo account loses Read on the public or private database, which ends every sign-in anyway (wontfix-theoretical).
+- (false) A node `$ListBuild(m,)` raises `<NULL VALUE>`. Only `Key()` writes the node, always with two values, and `IsCurrent` now uses `$ListGet` in any case.
+- (low) `ClosedProbe`'s before and after `COUNT(*)` could be moved by another writer or by the purge during its 15 s. Nothing else writes counter rows on a unit stack in that window, and the fix would change the probe's count for an unlikely case.
+- (false) AC4 is pinned only by the live unit. It is pinned by row 12, with a recorded mutation, and `live:online-demo` runs in CI's `install-upgrade` group.
+- (low, 5 findings) The spec's records are stale after QA: the 1.5 s risk note, Decided in-stage 11's "1.5 s", the loop's "about 10 s", "3 low" against four `[patch]` rows, the triage log's "no SessionEvents-level test", and items 9 to 11 sitting above item 1. Fixing them means editing the spec under review. QA's own Verification bullet states the current test.
+- (low) `Clean` deletes every row with no hash, including rows it did not create. The product never writes one, because `Add` refuses with no key, and the class runs on throwaways only. The new blank-hash fixture also uses it as a second clean-up.
+- (false) The probe's exemption on the host is assumed. This is not a code defect: the host is owner-only, and H17 and H20 (the probe's source address) carry it.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -299,6 +337,12 @@ Every call runs in the foreground with `timeout: 600000`, one test call per mess
 - mutation: AC3 (one key per reset under contention) applied: the in-lock re-read in `Key()` is removed; red in `TestKeyMadeOnceUnderContention` ("the job did not replace the stored key"); reverted, green again.
 - mutation: AC6 (fail closed for `Add`) applied: `Add` has no no-key guard; red in `TestKeyBusyFailsClosed` ("Add answers an error" and "and writes no row"); reverted, green again, `git status --short` unchanged by the round.
 - mutation: AC4 and AC5 applied together in one live run: `AttachVisitor` calls `AddressHash` before its proxied branch, and `KEYGLOBAL` is `^IRIS.Temp.OcuTalonAddrCountK`; red in `live online-demo` row 12 (`CHK|key|1`, wanted 0) for AC4, and in row 13 (`CHK|counted|0`, wanted 1; also `CHK|raw|0`) for AC5; reverted from backups, the tree byte-identical (`git status --short` and `git diff --stat` unchanged).
+- (QA) Test files: no new file. `Test/Data/AddressCounter.cls`: `TestKeyMadeOnceUnderContention` no longer waits a fixed 1.5 s; it waits until the job's process state shows it waits for a lock (`$SYSTEM.Process.State(pid)` is `LOCKW`, measured on a warm throwaway), bounded at 20 s, and asserts that state before it stores the key, so the contention is proven and not assumed. `Test/Web/SessionEvents.cls`: new `TestNoKeyRefusesTheCreation` and its job `KeyHolder` (matrix row 8 at `AttachVisitor`: a job holds the key lock and signals `held` before the sign-in; the creation attaches nothing, makes no row, cookie, counter row or key, logs the one fixed line with the error code only; after the holder's `done`, the next creation is let in and counted; the node is put back). No message string of either test holds a key, a hash or an address.
+- (QA) mutation: AC3 (one key per reset under contention, on a slow job) applied: the in-lock re-read in `Key()` is removed and `HashJob` hangs 3 s before it starts; red in `TestKeyMadeOnceUnderContention` ("the job did not replace the stored key"), so the test exercises the contention even when the job is slow (the 1.5 s version would have passed here); reverted from backup, green again on the same stack.
+- (QA) mutation: AC3 (the contention handshake) applied: `HashJob` returns at once, so the job never waits for the lock; red in `TestKeyMadeOnceUnderContention` ("the job waits for the key lock (its process state)"); reverted from backup, green again on the same stack.
+- (QA) mutation: AC6 (integration at `AttachVisitor`) applied: `AttachVisitor` ignores the answer of `AddressCounter.Lock`; red in `TestNoKeyRefusesTheCreation` ("it attaches nothing", "it creates no row"); reverted from backup, `Test.Web.SessionEvents` green again on the same stack, and `git status --short` and `git diff --stat` show only the two QA test files.
+- (CR) mutation: AC6 (`Recent`'s no-key guard) applied together with removing `Unlock`'s, on a warm lane-C throwaway. Red in `TestKeyBusyFailsClosed` ("Recent answers 0, also with a row of no hash present"). "Unlock raises nothing" stayed green: on build 154 an unlock of the empty name raises nothing (measured), so `Unlock`'s guard only spares a no-op. Reverted from backup, byte-identical, and the class green again on the same stack.
+- (CR) mutation: the hermeticity of `TestNoKeyRefusesTheCreation`, with its in-test `DropCounter(address)` removed. Red in the test ("and its counter row is deleted under the key it was counted with"). Reverted from backup, byte-identical, and `Test.Web.SessionEvents` green again on the same stack. `git status --short` and `git diff --stat` were unchanged by the round.
 
 ## Auto Run Result
 

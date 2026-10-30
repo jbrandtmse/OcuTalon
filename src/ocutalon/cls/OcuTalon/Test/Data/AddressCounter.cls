@@ -254,7 +254,8 @@ Method TestKeyPerReset()
 }
 
 /// No key can be made (matrix row 8): while another process holds the key lock and no valid node exists, Lock answers 0 after its wait
-/// and no node is made; once the lock is free the next use makes the key. The lock is released and the node restored whatever happens.
+/// and no node is made, and Recent answers 0 even with a row of no hash present (what Recent would count under an empty hash); once
+/// the lock is free the next use makes the key. The lock is released, the row deleted and the node restored whatever happens.
 Method TestKeyBusyFailsClosed()
 {
 	Set node = ##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL
@@ -264,7 +265,9 @@ Method TestKeyBusyFailsClosed()
 	Set address = ..Address("busy")
 	Set held = 0
 	Set closed = ""
+	Set blank = ""
 	Try {
+		Set blank = ..Row("", 10)
 		Kill @node
 		Lock +@node:5
 		Set held = $Test
@@ -275,7 +278,7 @@ Method TestKeyBusyFailsClosed()
 		Do $$$AssertEquals($List(closed, 1), 1, "Add answers an error")
 		Do $$$AssertEquals($List(closed, 2), 1, "that names no address")
 		Do $$$AssertEquals($List(closed, 3), 0, "and writes no row")
-		Do $$$AssertEquals($List(closed, 4), 0, "Recent answers 0")
+		Do $$$AssertEquals($List(closed, 4), 0, "Recent answers 0, also with a row of no hash present")
 		Do $$$AssertEquals($List(closed, 5), 1, "Unlock raises nothing")
 		Do $$$AssertEquals($Data(@node), 0, "and still no node is made")
 		Lock -@node
@@ -286,12 +289,13 @@ Method TestKeyBusyFailsClosed()
 		Do $$$AssertFailure("the test raised an error: "_exception.Name)
 	}
 	If held Lock -@node
+	If blank '= "" Do ##class(OcuTalon.Data.AddressCounter).%DeleteId(blank)
 	Do ..RestoreKey(node, savedNode, savedValue, marker)
 }
 
 /// The key is made once (matrix row 4): a process that waited for the key lock while another made the key takes that key and does not
-/// make a second one. This process holds the key lock, a job asks for a hash and waits, this process stores a key and releases the
-/// lock, and the job's hash is the one under the stored key. The node and lastReset are put back whatever happens.
+/// make a second one. This process holds the key lock, a job asks for a hash, this process waits until the job's process state shows
+/// that it waits for a lock (never a fixed delay), stores a key and releases the lock, and the job's hash is the one under the stored key. The node and lastReset are put back whatever happens.
 Method TestKeyMadeOnceUnderContention()
 {
 	Set node = ##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL
@@ -305,9 +309,16 @@ Method TestKeyMadeOnceUnderContention()
 		Kill @node, @result
 		Lock +@node:5
 		Set held = $Test
+		Do $$$AssertEquals(held, 1, "the test holds the key lock")
 		Job ..HashJob(address)
-		Hang 1.5
-		Do $$$AssertEquals($Data(@result), 0, "the job waits for the key lock")
+		Set pid = $ZChild
+		Do $$$AssertTrue(pid > 0, "the job started")
+		Set deadline = $ZHorolog + 20
+		While ($Extract($SYSTEM.Process.State(pid), 1, 4) '= "LOCK") && ($Data(@result) = 0) && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Do $$$AssertEquals($Extract($SYSTEM.Process.State(pid), 1, 4), "LOCK", "the job waits for the key lock (its process state)")
+		Do $$$AssertEquals($Data(@result), 0, "and has not answered")
 		Set stored = $Translate($Justify("", 32), " ", "k")
 		Set @node = $ListBuild(marker, stored)
 		Lock -@node

@@ -628,6 +628,91 @@ Method TestNoRoleOnTheOnlineDemo()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(visitorRef).CspSessionId, "ZzNoRoleVisitor", "and the visitor's row is not touched")
 }
 
+/// (QA) No key can be made (Story 29.5, matrix row 8, integration): while another job holds the address key's lock and no valid key
+/// exists, a proxied creation is refused as the counter's "busy" error (logged by code only) and creates no session row, no Ref, no
+/// cookie, no counter row and no key; once the lock is free, the next creation is let in and counted. The test sets the limit to 5,
+/// waits for the holder's signal before it signs in, deletes its counter row while the key it was counted under is in place, and
+/// puts the key node back whatever happens.
+Method TestNoKeyRefusesTheCreation()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Do ..SetLimit(5)
+	Set node = ##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL
+	Set savedNode = $Data(@node)
+	Set savedValue = $Get(@node)
+	Set address = ..Address("nokey")
+	Set flag = $Name(^OcuTalonTest("SessionEvents", "keyholder"))
+	Kill @flag
+	Try {
+		Kill @node
+		Job ..KeyHolder(node, flag)
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) = "") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Do $$$AssertEquals($Get(@flag), "held", "another job holds the key lock")
+		Set rows = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+		Set total = ..CounterTotal()
+		Set log = $System.Util.ManagerDirectory()_"messages.log"
+		Do ##class(%SYS.System).WriteToConsoleLog("OcuTalon.Test.Web.SessionEvents: a line that the attach's is not a repeat of", 0, 0)
+		Set mark = ##class(%File).GetFileSize(log)
+		Do $$$AssertStatusOK(..SignIn("", "ZzNoKey", "192.0.2.10", address, .refused, .response), "the creation answers OK")
+		Do $$$AssertEquals($Get(refused.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "it attaches nothing")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), rows, "it creates no row")
+		Do $$$AssertEquals($Order(response.Cookies("")), "", "it sets no cookie")
+		Do $$$AssertEquals(..CounterTotal(), total, "it writes no counter row")
+		Do $$$AssertEquals($Data(@node), 0, "it makes no key")
+		Do $$$AssertEquals($Data(refused.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "it records no refusal marker")
+		Set lines = ..LinesSince(log, mark)
+		Do $$$AssertEquals($ListLength(lines), 1, "it logs one line")
+		If $ListLength(lines) = 1 Do $$$AssertEquals($Piece($List(lines, 1), "OcuTalon.Web.SessionEvents: ", 2), "the session could not be attached, error 5001", "the line holds the sentence and the error code only")
+		Set @flag = "release"
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) '= "done") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Do $$$AssertEquals($Get(@flag), "done", "the holder released the key lock")
+		Do $$$AssertStatusOK(..SignIn("", "ZzNoKeyAfter", "192.0.2.10", address, .after, .response), "once the lock is free the creation answers OK")
+		Do ..AdoptRef($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+		Do $$$AssertTrue($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "and is let in")
+		Do $$$AssertEquals(..CounterRows(address), 1, "and counted")
+		Do ..DropCounter(address)
+		Do $$$AssertEquals(..CounterTotal(), total, "and its counter row is deleted under the key it was counted with")
+	} Catch exception {
+		Do $$$AssertFailure("the test raised an error: "_exception.Name)
+	}
+	If ($Get(@flag) '= "") && ($Get(@flag) '= "done") {
+		Set @flag = "release"
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) '= "done") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+	}
+	Kill @flag
+	Do ..DropCounter(address)
+	If savedNode {
+		Set @node = savedValue
+	} Else {
+		Kill @node
+	}
+}
+
+/// The job of TestNoKeyRefusesTheCreation: holds the key lock, signals "held" (or "failed"), keeps it until the flag says "release" (at
+/// most 30 seconds), releases it and signals "done".
+ClassMethod KeyHolder(node As %String, flag As %String)
+{
+	Lock +@node:10
+	Set held = $Test
+	Set @flag = $Select(held: "held", 1: "failed")
+	Set deadline = $ZHorolog + 30
+	While ($Get(@flag) '= "release") && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	If held Lock -@node
+	Set @flag = "done"
+}
+
 /// The OnLogin work for a sign-in in process: a CSP session with the id, a stand-in request with the cookie, the remote address,
 /// the forwarded list and a response; the CSP session and the response come back in session and response. hasRole is AttachFor's
 /// argument (the user holds the OcuTalon user role by default). The status is AttachFor's.

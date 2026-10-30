@@ -70,8 +70,8 @@ ClassMethod Add(address As %String) As %Status
 	Quit row.%Save()
 }
 
-/// Takes the address's lock, waiting at most 5 seconds: 1 when it is held, 0 otherwise (also when there is no key). The lock
-/// name is the address's AddressHash.
+/// Takes the address's lock, waiting at most WAIT (5) seconds for it, after at most WAIT more for the key lock when Key has to
+/// make the key: 1 when it is held, 0 otherwise (also when there is no key). The lock name is the address's AddressHash.
 ClassMethod Lock(address As %String) As %Boolean
 {
 	Set hash = ..AddressHash(address)
@@ -99,19 +99,20 @@ ClassMethod AddressHash(address As %String) As %String
 
 /// The key of the current reset: the node's key when its marker is the public lastReset, else a new one of 32 random bytes made
 /// under the key lock (waiting at most 5 seconds) and stored with that marker. "" when lastReset cannot be read or the lock was
-/// not taken in time; nothing is stored then. The only reader and writer of KEYGLOBAL, and its value never leaves this method.
+/// not taken in time; nothing is stored then. The only reader and writer of KEYGLOBAL; it answers the key to AddressHash only,
+/// and the key never leaves the class.
 ClassMethod Key() As %String [ Private ]
 {
 	Set marker = ##class(OcuTalon.Data.Public.Settings).Get("lastReset", .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Set node = ..#KEYGLOBAL
 	Set value = $Get(@node)
-	If $ListValid(value) && ($ListLength(value) = 2) && ($List(value, 1) = marker) && ($Length($List(value, 2)) = 32) Quit $List(value, 2)
+	If ..IsCurrent(value, marker) Quit $List(value, 2)
 	Lock +@node:(..#WAIT)
 	If '$Test Quit ""
 	Try {
 		Set value = $Get(@node)
-		If '($ListValid(value) && ($ListLength(value) = 2) && ($List(value, 1) = marker) && ($Length($List(value, 2)) = 32)) {
+		If '..IsCurrent(value, marker) {
 			Set value = $ListBuild(marker, $SYSTEM.Encryption.GenCryptRand(32))
 			Set @node = value
 		}
@@ -121,6 +122,13 @@ ClassMethod Key() As %String [ Private ]
 	}
 	Lock -@node
 	Quit key
+}
+
+/// 1 when a value of KEYGLOBAL holds the key of the reset whose marker is given: $ListBuild(marker, 32 bytes). Key's check before
+/// the key lock and its check under it.
+ClassMethod IsCurrent(value As %String, marker As %String) As %Boolean [ Private ]
+{
+	Quit $ListValid(value) && ($ListLength(value) = 2) && ($ListGet(value, 1) = marker) && ($Length($ListGet(value, 2)) = 32)
 }
 
 /// Deletes every row created more than one hour ago (AD-27), whatever daysToKeep is, and keeps the newer ones. The statement
