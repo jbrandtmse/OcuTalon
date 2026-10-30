@@ -2,10 +2,10 @@
 title: 'An approved tool call runs exactly once, with no model'
 type: 'feature'
 created: '2026-10-30'
-status: 'in-progress'
-baseline_revision: 'a319d5ec3a8056393aab6e86b4985a17e484f4d5'
+status: 'done'
+baseline_revision: 'f950887f9f8a8449df7848c3434223d7ef42368c'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred:
@@ -29,6 +29,27 @@ deferred:
       Not in the known-flake list. The test seeds a fix approval row with no ResultTarget in OCUORDERS, which Reconcile's new pass does not select; the failure shows in no other run, so the cause is unknown (a timing or ordering flake).
     location: >-
       src/ocutalon/cls/OcuTalon/Test/Web/GuideApi.cls:75
+    severity: low
+  - summary: >-
+      The plain-English reason for an old held tool call (U-170) is recorded only as the Reasons of the bridge's fallback Decision row of kind tool; no host surface that a person reads for an approved tool_call shows it.
+    evidence: |-
+      Live.Payload.Approval.reason has no source in the approval row and stays empty; approval.result is {"ref"}; Approval.HoldResponse does not read Decide's replay Reply; Core.Rule.Notice builds a fallback notice from the FallbackReason (error) and never reads Reasons. The sentence reaches a person only through the decision live event (Live.Payload.Decision copies Reasons) and the trace. Making the approval card or a notice show it needs a Lane B payload or web change (AD-33) and a catalog text, outside this story's footprint.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (HELDBEFOREUPDATE, RecordFallback), src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls
+    severity: medium
+  - summary: >-
+      When FinishExecution fails for a stale-column row (lock not taken), Decide records the fallback Decision row with no reason, answers a repeat from it, and the row stays approved; this path has no test.
+    evidence: |-
+      FailUnroutable returns 0 on a refused close and OnRequest passes an empty reasons; the Decision row for the item exists, so a later request is answered from it and never closes the row. This already held for an empty Runner and now covers an empty ToolSource. Forcing it needs a second job holding the row lock; `Set closed = 1` unconditionally would stay green.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (FailUnroutable, OnRequest)
+    severity: low
+  - summary: >-
+      TestReplayOpensTheThrowawaySession reads the order of the calls in the source text, so a release moved under a condition or a NewSession wrapped in If 0 keeps it green.
+    evidence: |-
+      The scan counts textual NewSession, ExecuteTool, ReleaseThrowaway lines in order; it does not run Replay.Run. A behavioural seam (a spy adapter counting the two calls in a real replay) would close the rest. The recorded mutation (both calls deleted) is what the text scan catches, which is DW-452's stated hole.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls (TestReplayOpensTheThrowawaySession)
     severity: low
 ---
 
@@ -267,9 +288,9 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - Given an approved `tool_call` request whose row was held before the update that added `ToolSource` and `Runner` (either empty), when its replay is asked for, then the row closes `failed` with a plain-English reason the person sees: it was held before an update and can't be run again safely, so ask again; the reason holds no class name and no error code (owner decision U-170).
 
 ### Owner decision U-170 (2026-10-30, re-dispatch; work only these items)
-- [ ] [Owner U-170] Row 9 widens: an approved `tool_call` row with `ToolSource` OR `Runner` empty (not only `Runner`) closes `failed` through `FinishExecution` with a plain-English reason the person sees — in substance "it was held before an update and can't be run again safely, so ask again" — that holds no class name, no status text and no error code. Find where a person sees a failed replay's reason today (the row's result text, the `approval.result` payload the host sink publishes, a catalog key) and put the reason there; if a new catalog text is needed, add it as our own entry (shared-by-entry files: `Msg/Catalog/Core.cls`, `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`) and name the key in Design Notes. The words are the owner's (U-170), so no new veto item is needed for them; keep them close to the owner's sentence.
-- [ ] [Owner U-170] Test: a UNIT test (in `Test.Bridge.Decide` or `Test.Bridge.Approval`) seeds an approved `tool_call` row with `ToolSource` empty, and another with `Runner` empty, asks for its replay, and asserts: the row is `failed`, the call ran 0 times, and the reason the person sees matches the plain-English text and contains no class name (`OcuTalon.`, `%`), no `ERROR`/`#` code and no status code. Record its `mutation:` line (for example the check reads only `Runner`, or the reason is the raw status text). Lead's choice, recorded here: a unit test seeding the empty columns, NOT the install-upgrade live path — install-upgrade runs 34-37 minutes on recent CI runs, against REL-4's 35-minute budget, and seeding a pre-update row there would need the old build to raise a real approval.
-- [ ] [Harvest DW-452] Pin the AD-6 throwaway session positively (today deleting `NewSession` and `ReleaseThrowaway` in `Replay.Run` leaves every test green): a `Test.Bridge.CodeRules` check, or a counter seam, that fails when `Replay.Run` no longer opens and releases the throwaway session; record its `mutation:` line.
+- [x] [Owner U-170] Row 9 widens: an approved `tool_call` row with `ToolSource` OR `Runner` empty (not only `Runner`) closes `failed` through `FinishExecution` with a plain-English reason the person sees — in substance "it was held before an update and can't be run again safely, so ask again" — that holds no class name, no status text and no error code. Find where a person sees a failed replay's reason today (the row's result text, the `approval.result` payload the host sink publishes, a catalog key) and put the reason there; if a new catalog text is needed, add it as our own entry (shared-by-entry files: `Msg/Catalog/Core.cls`, `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`) and name the key in Design Notes. The words are the owner's (U-170), so no new veto item is needed for them; keep them close to the owner's sentence.
+- [x] [Owner U-170] Test: a UNIT test (in `Test.Bridge.Decide` or `Test.Bridge.Approval`) seeds an approved `tool_call` row with `ToolSource` empty, and another with `Runner` empty, asks for its replay, and asserts: the row is `failed`, the call ran 0 times, and the reason the person sees matches the plain-English text and contains no class name (`OcuTalon.`, `%`), no `ERROR`/`#` code and no status code. Record its `mutation:` line (for example the check reads only `Runner`, or the reason is the raw status text). Lead's choice, recorded here: a unit test seeding the empty columns, NOT the install-upgrade live path — install-upgrade runs 34-37 minutes on recent CI runs, against REL-4's 35-minute budget, and seeding a pre-update row there would need the old build to raise a real approval.
+- [x] [Harvest DW-452] Pin the AD-6 throwaway session positively (today deleting `NewSession` and `ReleaseThrowaway` in `Replay.Run` leaves every test green): a `Test.Bridge.CodeRules` check, or a counter seam, that fails when `Replay.Run` no longer opens and releases the throwaway session; record its `mutation:` line.
 
 ## Spec Change Log
 
@@ -277,6 +298,24 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - 2026-10-30 (implement stage, per the lead's dispatch): Task `Bridge/Replay.cls` item 6 read "No `Chat`, no session, no Usage row"; it now follows the lead's ruling in Design Notes (a throwaway, never-linked, unsaved AI session; no model request). The intent block's "No AI session is opened" is read as "no session is linked or saved" and is not edited.
 
 ## Review Triage Log
+
+### 2026-10-30 — Review pass (re-dispatch, owner decision U-170)
+- verdicts: 26 findings reported by the four layers, listed in 14 rows by shared root cause (each row names its members) — high 0, medium 1 row, low 11 rows, false 2 rows, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 1 / Gap smaller 3: the repeat answer of the stale-row test is never read — the test now asserts the repeat is a fallback with the reason error and that the Decision row still holds the reason.
+  - `[low]` `[defer]` Blind 2 / Edge 1 / Gap smaller 1 / Intent c: a refused FinishExecution leaves the row approved with a reason-less fallback Decision row, untested — deferred (already true for an empty Runner; forcing it needs a second job holding the row lock).
+  - `[low]` `[patch]` Blind 3 / Edge 5: fixed `$List` offsets in the ReleaseThrowaway scan — the body is now read up to the next method declaration.
+  - `[low]` `[defer]` Blind 4 / Edge 6 / Gap 3: the DW-452 pin reads textual order only — deferred; the spec authorised the CodeRules route and the recorded mutation is the case it catches.
+  - `[low]` `[reject]` Blind 5 / Edge 2: HeldBeforeUpdate is evaluated twice — the second read is the one that decides the close under FinishExecution's own state check; a changed row only loses the reason line, never runs a call.
+  - `[low]` `[patch]` Blind 6 / Edge 7 (first half) / Gap 2: no test for a non-approved row with empty columns — added an executing row with both empty; mutation line written.
+  - `[low]` `[reject]` Blind 7: Replay.Run does not guard an empty ToolSource — Replay.Run is reached only through Decide, which closes the row first; the gate also denies a grant with no matching source.
+  - `[low]` `[reject]` Blind 8: hard-coded English and vague wording — the sentence is the owner's (U-170) and the bridge may not name the host catalog (AD-2); same pattern as USERANSWERED.
+  - `[low]` `[reject]` Edge 3: whitespace-only ToolSource or Runner — old rows hold empty strings; no path writes whitespace (theoretical).
+  - `[medium]` `[defer]` Blind 8 (second half) / Edge 4 and claim / Gap other / Intent a: no host surface a person reads for a tool_call approval shows the reason (Notice reads FallbackReason only; the approval payload reason is empty) — deferred as out of footprint (Lane B payload and web, AD-33); recorded in Design Notes as the surface chosen.
+  - `[low]` `[patch]` Gap 1: the "call ran 0 times" assertion read a counter that only a tool run writes, so it could not fail here — removed with its Kill of a node this test did not own; the no-send-and-no-timer assertion is the pin and is labelled so.
+  - `[low]` `[patch]` Gap smaller 2: the Runner-empty half of the OR had no mutation line — written.
+  - `[false]` `[reject]` Intent b: the test lives at the Decide boundary and not end to end — the lead chose a unit test (U-170); the live empty-Runner path stays in TestReplayOfAnUnroutableRow.
+  - `[false]` `[reject]` Intent readings R2, R3, R4 — descriptive; no defect claimed beyond the rows above.
 
 ### 2026-10-30 — Review pass
 - verdicts: 34 findings — high 0, medium 6, low 21, false 7, maybe-false 0
@@ -347,6 +386,7 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
   - The residual `executing` tool_call row after a crash mid-replay: filed as DW-444 (`routed owner=burndown`). Not this story's work; the exactly-once guarantee holds (the call is never re-run).
 
 **Decided in-stage.**
+- **U-170 (re-dispatch): where the person sees the reason.** No approval-row column, event payload or catalog key carries a reason for a tool_call (the bridge may not name the host catalog, AD-2; `approval.result` is `{"ref"}`; the row's `Result` is a keyword). The person-facing text of a decision is the Decision row's `Reasons` (shown by `Live.Payload.Decision` and the trace), and Decide already writes a code-written sentence there (`Decide.#USERANSWERED`). So: a new `Decide` parameter `HELDBEFOREUPDATE` holds the plain-English sentence ("This request was held before an update and cannot be run again safely, so please ask again."), and the fallback Decision row of the stale-row close (an approved `tool_call` row with `ToolSource` or `Runner` empty, closed `failed` through `FinishExecution`) carries it as `Reasons`; the fallback Reply's `FallbackReason` stays `error`. Set only when the close succeeded. No catalog key, no new column, no `Msg/Catalog` or web change.
 - The approval Ref travels in the request's `ItemId`. So `Msg.Request` is unchanged, and Decide's one-decision-per-item index (ItemId, Kind) also answers a repeated replay from its row. `Summary` = ToolName. A tool request has no Input, and Decide refuses one whose Provenance is not `user`.
 - **The replay opens no AI session.** `ExecuteTool` needs none (measured below), so nothing is linked, saved or counted. AD-6's "throwaway AI session that is never linked" is read as satisfied by having no session. If the lead reads it literally, the replay calls `NewSession` and releases it unsaved (about 3 lines).
 - The grant is built from the `executing` row, not from the request. A replay context denies every call that does not match it, with the existing `FAILED` sentence (no new text). It never holds. Classification, permissions and provenance still run first.
@@ -507,6 +547,12 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - mutation: `Approval.Answer` returns `done` instead of `already_answered` for a settled row -> `TestApprovedToolCallReplays` red (row 3), `TestEveryOtherTransitionIsRefused` and `TestHeldRowIsReadUnderTheLock` red.
 - mutation: Reconcile pass 3 selects `done` tool_call rows too -> `TestApprovedToolCallReplays` red (row 4c: a hold is started for the Ref), `TestReconcileLeavesSettledRows` red.
 - mutation: `Validate` drops the `ToolSource` refusal for a fix -> `TestRefused` red (row 15, the Validate half).
+- mutation (U-170): `Decide.HeldBeforeUpdate` reads only `Runner` (the `ToolSource` check dropped) -> `Test.Bridge.Decide.TestToolRowHeldBeforeAnUpdate` red ("(ToolSource empty)": the request is sent, the row is not failed, no Decision row).
+- mutation (U-170): the fallback reason is the raw status text (`$SYSTEM.Status.GetErrorText` of an error) instead of `HELDBEFOREUPDATE` -> `TestToolRowHeldBeforeAnUpdate` red (the reason is not the plain-English text and holds `#`, `ERROR` and `5001`).
+- mutation (DW-452): `Replay.Run` drops its `adapter.NewSession` call and its `adapter.ReleaseThrowaway()` call -> `Test.Bridge.CodeRules.TestReplayOpensTheThrowawaySession` red ("Replay opens the throwaway session, runs the call, and releases the session, each once and in that order").
+- mutation (U-170): `Decide.HeldBeforeUpdate` reads only `ToolSource` (the `Runner` half of the OR dropped) -> `TestToolRowHeldBeforeAnUpdate` red at "(Runner empty)" (the row is not failed, no reason) and `TestToolRequest` red at "(a) the row is closed failed".
+- mutation (U-170): `Decide.HeldBeforeUpdate` drops the `State = "approved"` check -> `TestToolRowHeldBeforeAnUpdate` red at "(executing, both empty)" (a non-approved row is closed and given the reason).
+- mutation (DW-452): `Adapter.Agent.ReleaseThrowaway` no longer calls `ReleaseSession` -> `TestReplayOpensTheThrowawaySession` red ("and it drops the session through ReleaseSession").
 
 ## Auto Run Result
 
@@ -534,3 +580,10 @@ Blocking condition: none
 - Taint is not read in a replay context (the grant is single use, so no second call can run); permission and provenance rules still run first.
 - A crashed run leaves an `executing` row (DW-444, filed).
 - `Test.Web.GuideApi.TestRunAgain` failed once in the first lane-b pass and passed in two reruns.
+
+**Re-dispatch pass (owner decision U-170, covers only this pass).**
+- Summary: row 9 now also closes an approved `tool_call` row whose `ToolSource` is empty (not only `Runner`), through `FinishExecution`, before any runner is sent the request. The fallback Decision row of that close carries the plain-English `Decide.#HELDBEFOREUPDATE` as its `Reasons` (set only when the close succeeded). No catalog, column or web change. The DW-452 pin of the AD-6 throwaway session is added.
+- Files changed: `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (HELDBEFOREUPDATE, HeldBeforeUpdate, FailUnroutable returns whether it closed, RecordFallback `reasons`); `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` (TestToolRowHeldBeforeAnUpdate; ToolRow `source`); `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` (TestReplayOpensTheThrowawaySession). No file outside "Ours".
+- Review: 26 findings in 14 rows; patched 4 (all low; no high, no medium), deferred 3 (the host surface for the reason, medium; the refused close; the text-only throwaway-session pin), rejected 7 with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched this pass).
+- Verification: Decide, CodeRules, Approval and Runner passed warm (`e30s3i2w`); Decide and CodeRules passed fresh (`e30s3i2`) after the last patch; five mutations applied, red observed, reverted (tree byte-identical); `bash ci/checks.sh` result below. Stacks torn down.
+- Residual risk: the reason sits on the bridge's Decision row (decision live event and trace). The approval card and the notice do not show it (deferred, medium); the lead decides whether U-170's "the person sees" needs the Lane B payload and a catalog text.

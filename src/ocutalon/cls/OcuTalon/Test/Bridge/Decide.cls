@@ -9,6 +9,9 @@
 ///     probe and no ReplyClass; a reply without a failure records the outcome act and a repeat is answered from the row with no send; a
 ///     failure reply records a fallback with the reason error and is never sent again; a row with no runner is closed failed, a missing
 ///     row and a fix row are left alone, and each is answered with a fallback;
+///   - TestToolRowHeldBeforeAnUpdate (Story 30.3, row 9, owner decision U-170): an approved tool_call row with an empty ToolSource, and one with
+///     an empty Runner, is closed failed through FinishExecution and never sent to a runner (the tool runs 0 times); the fallback Decision row
+///     carries a plain-English reason (HELDBEFOREUPDATE) that holds no class name, no code and no status text;
 ///   - TestBadSettings: CheckSettings names TimerSeconds (0, 11, 111, x), ReplyFilterClass (missing, not an extension class) and
 ///     ReplyClass (missing, not a JSON class; a diagnose request with none);
 ///   - TestReplyCheck: a JSON object, also inside one code fence, passes; an outcome that is not one of OUTCOME, no reason, a blank
@@ -378,6 +381,60 @@ Method TestToolRequest()
 	Do ..RemoveToolRows()
 }
 
+/// Story 30.3, row 9 (owner decision U-170): an approved tool_call row that was held before ToolSource and Runner existed, with either one empty,
+/// is closed failed and is never sent to a runner. The person sees the reason in the Reasons of the fallback Decision row: plain English, with no
+/// class name, no `%`, no `#` or ERROR code and no status text. A row with both set is still sent, and an executing row with nothing set is not closed
+/// and its fallback Decision row holds no reason.
+Method TestToolRowHeldBeforeAnUpdate()
+{
+	Set class = "OcuTalon.Bridge.Process.Decide"
+	Set expected = $Parameter(class, "HELDBEFOREUPDATE")
+	Do $$$AssertTrue((expected [ "held before an update") && (expected [ "ask again"), "the reason says the request was held before an update and to ask again")
+	Set noSource = ..ToolRow("zz_replay_send", "ZzRunner", "approved", "tool_call", "")
+	Set noRunner = ..ToolRow("zz_replay_send", "", "approved", "tool_call", "OcuTalon.Test.Bridge.ZzReplayTool")
+	Set neither = ..ToolRow("zz_replay_send", "", "approved", "tool_call", "")
+	Set complete = ..ToolRow("zz_replay_send", "ZzRunner", "approved")
+	Set running = ..ToolRow("zz_replay_send", "", "executing", "tool_call", "")
+	For target = noSource, noRunner, neither, complete, running {
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set label = $Select(target = noSource: "(ToolSource empty)", target = noRunner: "(Runner empty)", target = neither: "(both empty)", target = running: "(executing, both empty)", 1: "(both set)")
+		Set process = ..ToolRecorder()
+		Set sc = process.OnRequest(..NewToolRequest(target), .answer)
+		Do $$$AssertStatusOK(sc, label_" OnRequest answers")
+		Set row = ..RowOf(target, "tool")
+		If target = complete {
+			Do $$$AssertEquals(..Calls("send"), 1, label_" the request is sent to the runner")
+			Do $$$AssertEquals($Piece(..ToolRowState(target), "|", 1), "approved", label_" and the row is left approved")
+			Continue
+		}
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "0|0", label_" no runner is sent the request, so the call runs 0 times, and no timer is set")
+		If target = running {
+			Do $$$AssertEquals($Piece(..ToolRowState(target), "|", 1), "executing", label_" a row that is not approved is left as it is")
+			If $IsObject(row) Do $$$AssertEquals(row.Reasons, "", label_" and its fallback Decision row holds no reason")
+			Continue
+		}
+		Do $$$AssertEquals(..ToolRowState(target), "failed|failed", label_" the row is failed")
+		Do $$$AssertTrue($IsObject(answer) && (answer.Fallback = 1) && (answer.FallbackReason = "error"), label_" the answer is a fallback with the reason error")
+		Do $$$AssertTrue($IsObject(row), label_" a Decision row of kind tool records it")
+		If '$IsObject(row) Continue
+		Set reason = row.Reasons
+		Do $$$AssertEquals(reason, expected, label_" the reason the person sees is the plain-English text")
+		Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Payload, "1|error|", label_" a fallback with the reason error and no payload")
+		For fragment = "OcuTalon", "%", "#", "ERROR", "Error", "<", "5001" {
+			Do $$$AssertTrue(reason '[ fragment, label_" the reason holds no '"_fragment_"'")
+		}
+		// a repeat is answered from the row, and the row still holds the reason
+		Kill ^||ZzDecideCalls
+		Set repeat = ..ToolRecorder()
+		Do $$$AssertStatusOK(repeat.OnRequest(..NewToolRequest(target), .again), label_" the same request again is answered")
+		Do $$$AssertEquals(..Calls("send"), 0, label_" from the row, with no send")
+		Do $$$AssertTrue($IsObject(again) && (again.Fallback = 1) && (again.FallbackReason = "error"), label_" with the same fallback")
+		Do $$$AssertEquals(..RowOf(target, "tool").Reasons, expected, label_" and the row still holds the reason")
+	}
+	Do $$$AssertEquals(..Rows(complete), 0, "a row with both set records no Decision row at OnRequest")
+	Do ..RemoveToolRows()
+}
+
 /// A request of kind tool for the Ref, as the approval hold sends it: provenance user, no Input.
 Method NewToolRequest(ref As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
@@ -403,8 +460,8 @@ Method ToolRecorder() As OcuTalon.Test.Bridge.ZzDecide [ Private ]
 	Quit recorder
 }
 
-/// Saves an approval row in the state (a tool_call of the tool and the runner, or a fix) with no hold, and tracks it for RemoveToolRows.
-Method ToolRow(name As %String, runner As %String, state As %String, kind As %String = "tool_call") As %String [ Private ]
+/// Saves an approval row in the state (a tool_call of the tool, the runner and the source, or a fix) with no hold, and tracks it for RemoveToolRows.
+Method ToolRow(name As %String, runner As %String, state As %String, kind As %String = "tool_call", source As %String = "OcuTalon.Test.Bridge.ZzReplayTool") As %String [ Private ]
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
 	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
@@ -422,7 +479,7 @@ Method ToolRow(name As %String, runner As %String, state As %String, kind As %St
 	If kind = "tool_call" {
 		Set row.ToolName = name
 		Set row.ToolArguments = "{}"
-		Set row.ToolSource = "OcuTalon.Test.Bridge.ZzReplayTool"
+		Set row.ToolSource = source
 		Set row.Runner = runner
 	} Else {
 		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()

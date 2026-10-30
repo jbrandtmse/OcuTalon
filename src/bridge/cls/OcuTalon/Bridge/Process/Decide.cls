@@ -7,7 +7,8 @@ Include Ensemble
 ///     has no Input. It goes to the runner that the approval row names (RunnerFor), with no ReplyClass, no Held probe and no Precheck, because
 ///     the runner makes no model request for it. The reply of the runner is Conclude's: no FailureText records the outcome act with no
 ///     reasons, and a FailureText records a fallback with the reason error (none while the approval row is still approved: the run never started). The runner is never sent a tool request again for an item that
-///     has a Decision row (below), and a row that names no runner is answered with a fallback (FailUnroutable).
+///     has a Decision row (below), and a row that names no runner or no source is answered with a fallback (FailUnroutable); the fallback Decision row
+///     of an approved row that was closed failed for that reason carries the plain-English reason HELDBEFOREUPDATE as its Reasons.
 ///   - One decision per item (AD-6): a decide, diagnose or tool request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
@@ -124,6 +125,10 @@ Parameter STEPSITEM = "AgentSteps";
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest (AD-6).
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
+
+/// The reason line of the fallback Decision row of an approved tool call that was held before ToolSource and Runner existed (either one is
+/// empty), which is closed failed instead of replayed (FailUnroutable). It is plain English for the person: no class name, no code, no status text.
+Parameter HELDBEFOREUPDATE = "This request was held before an update and cannot be run again safely, so please ask again.";
 
 /// The words of the online demo gateway's HTTP 403 for a reached daily cost cap, which Classify finds in a failure text: daily_cap
 /// (source: AD-8; Story 1.6 Task 0 (b) measured the text that AI Hub raises for it). Matched without regard to case.
@@ -260,9 +265,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
-	If tool && (runner = "") {
-		Do ..FailUnroutable(request)
-		Quit ..RecordFallback(request, decisionRef, "error", "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
+	If tool && ((runner = "") || ..HeldBeforeUpdate(request)) {
+		Set closed = ..FailUnroutable(request)
+		Quit ..RecordFallback(request, decisionRef, "error", "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), 0, 0, $Select(closed: ..#HELDBEFOREUPDATE, 1: ""))
 	}
 	Set estimate = 0
 	Set reason = $Select(tool: "", 1: ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate))
@@ -529,22 +534,35 @@ ClassMethod RunnerFor(kind As %String, request As OcuTalon.Bridge.Msg.Request = 
 	Quit runner
 }
 
-/// A tool request that no runner can take (RunnerFor gave ""): an approved tool_call row that names no runner (a row held before Runner existed)
-/// is closed failed through FinishExecution, so that it does not stay approved for ever. A missing row, a fix row and a row in any other state
-/// are never changed. A close that fails is a warning that names the Ref.
-ClassMethod FailUnroutable(request As OcuTalon.Bridge.Msg.Request)
+/// 1 when the Ref names an approved tool_call approval request whose ToolSource or Runner is empty: a row held before those columns existed, which
+/// names no runner (or no source) that can be trusted to replay it. RunnerFor gives "" only for an empty Runner, so this also catches a row with
+/// a Runner and no ToolSource, which must never be sent to a runner.
+ClassMethod HeldBeforeUpdate(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 {
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
+	Quit $IsObject(row) && (row.Kind = "tool_call") && (row.State = "approved") && ((row.ToolSource = "") || (row.Runner = ""))
+}
+
+/// A tool request that no runner can take (RunnerFor gave "", or HeldBeforeUpdate): an approved tool_call row with an empty ToolSource or Runner
+/// (a row held before those columns existed) is closed failed through FinishExecution, so that it does not stay approved for ever, and 1 is
+/// returned. A missing row, a fix row and a row in any other state are never changed, and 0 is returned for them and for a close that failed
+/// (a warning that names the Ref).
+ClassMethod FailUnroutable(request As OcuTalon.Bridge.Msg.Request) As %Boolean
+{
+	Set closed = 0
 	Try {
-		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
-		If $IsObject(row) && (row.Kind = "tool_call") && (row.State = "approved") && (row.Runner = "") {
+		If ..HeldBeforeUpdate(request) {
 			Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(request.ItemId, "failed")
 			If $$$ISERR(sc) {
-				$$$LOGWARNING("The approved tool call "_request.ItemId_" names no runner and was not closed as failed: "_$SYSTEM.Status.GetErrorText(sc))
+				$$$LOGWARNING("The approved tool call "_request.ItemId_" was held before an update and was not closed as failed: "_$SYSTEM.Status.GetErrorText(sc))
+			} Else {
+				Set closed = 1
 			}
 		}
 	} Catch exception {
-		$$$LOGWARNING("The approved tool call "_request.ItemId_" names no runner and was not closed as failed: "_exception.DisplayString())
+		$$$LOGWARNING("The approved tool call "_request.ItemId_" was held before an update and was not closed as failed: "_exception.DisplayString())
 	}
+	Quit closed
 }
 
 /// The ReplyClass setting of the runner item in the active production (OcuTalon.Bridge.Ext.Accessor.ValueFor), or "" with an error
@@ -958,7 +976,8 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 /// Records an unusable request or reply as a fallback decision and answers it (AD-8, AD-20, AD-26, AD-31). reason is one value of
 /// Msg.Enum FALLBACKREASON, and reply is the runner's Reply, or "" when nothing was sent or the runner has not answered (a timer).
 /// stepCount is the AgentStepCount of the earlier attempts, which the row adds to the reply's. The Decision row is NewRow with the outcome
-/// tellnow, Fallback true and the reason; Reasons, Confidence and Payload stay empty, so that no model text is kept. A row that another
+/// tellnow, Fallback true and the reason; Confidence and Payload stay empty, and so does Reasons unless the caller passes reasons, a sentence written in code
+/// (HELDBEFOREUPDATE) and never model text, so that no model text is kept. A row that another
 /// call saved first for the item and kind is answered instead (the row of a turn is refused as ResponseFromRow says), and fires nothing.
 /// When this call saved the row, decision.recorded is fired after the save (FireEvent) and, for daily_cap only, the day is marked as
 /// capped (Budget.MarkCapped), outside any transaction. The answer to a decide or diagnose request is the DecisionResponse of the row;
@@ -967,7 +986,7 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 /// a fresh turn whose reply is refused did move the link, and the caller must know), SessionBroken when broken is 1 (Broken: the
 /// provider rejected the stored history of a user's turn), and no text, host data, steps, failure text or finish reason. Nothing else is
 /// sent: a fallback triggers no tool, fix or approval request.
-ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0, broken As %Boolean = 0) As %Status
+ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0, broken As %Boolean = 0, reasons As %String = "") As %Status
 {
 	Set response = ""
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
@@ -975,7 +994,7 @@ ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef A
 	}
 	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
 	Set row.Outcome = "tellnow"
-	Set row.Reasons = ""
+	Set row.Reasons = reasons
 	Set row.Confidence = ""
 	Set row.Fallback = 1
 	Set row.FallbackReason = reason

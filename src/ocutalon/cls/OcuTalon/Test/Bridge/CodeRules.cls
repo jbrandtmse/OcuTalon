@@ -29,6 +29,9 @@
 ///   - TestSessionsOnlyThroughTheComposer: no OcuTalon class outside the Test package, except the adapter, creates, resumes or opens
 ///     an AI session on an agent, or calls AI Hub's adapter methods that create one from its SessionConfig setting, so that every
 ///     session gets the config that the adapter composes (AD-7);
+///   - TestReplayOpensTheThrowawaySession (Story 30.3, DW-452; AD-6): Replay.Run, the replay of an approved tool call, calls the adapter's NewSession once
+///     before it calls ExecuteTool and its ReleaseThrowaway once after, and ReleaseThrowaway drops the session (ReleaseSession), so that the throwaway AI
+///     session that AD-6 asks for cannot be deleted without this test failing. The scanner is first shown to flag the order and to ignore comment lines;
 ///   - TestOnlyTheRunnerWritesLinks (Story 1.8; AD-6, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter,
 ///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock, Unlock and
 ///     SessionOf of it (Story 1.9: SessionOf only reads) and nothing else, a system method such as %New or %DeleteId included, and never Point; the
@@ -386,6 +389,53 @@ Method TestSessionsOnlyThroughTheComposer()
 	Do $$$AssertEquals(offending, "", "no class but the adapter creates, resumes or opens an AI session on an agent")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#SESSIONMAKERS, .text), ..#SESSIONMAKERS_" has source")
 	Do $$$AssertTrue($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, pattern)) > 0, "and the scan sees the calls of the adapter, the one class that makes sessions")
+}
+
+/// The replay of an approved tool call opens a throwaway AI session and releases it (AD-6 read literally; Story 30.3, DW-452). The test reads the code
+/// lines of Replay (comment lines dropped, so a doc comment that names the calls proves nothing): the adapter's NewSession is called once, then the
+/// tool manager's ExecuteTool once, then the adapter's ReleaseThrowaway once, in that order; and ReleaseThrowaway of the adapter calls ReleaseSession.
+Method TestReplayOpensTheThrowawaySession()
+{
+	Set source = "OcuTalon.Test.Bridge.Source"
+	Set tab = $Char(9), lf = $Char(10)
+	Set good = tab_"If ok Set sc = adapter.NewSession(.session)"_lf_"/// adapter.ReleaseThrowaway() in a comment"_lf_tab_"Set answer = adapter.Agent.ToolManager.ExecuteTool(name, args)"_lf_tab_"Do adapter.ReleaseThrowaway()"
+	Do $$$AssertEquals(..ThrowawayOrder(good), "NewSession>ExecuteTool>ReleaseThrowaway", "the scanner reads the three calls in order, and skips comment lines")
+	Do $$$AssertEquals(..ThrowawayOrder(tab_"Set answer = adapter.Agent.ToolManager.ExecuteTool(name, args)"_lf_tab_"Do adapter.ReleaseThrowaway()"_lf_"/// adapter.NewSession(.session) in a comment"), "ExecuteTool>ReleaseThrowaway", "a call that is only named in a comment is not counted")
+	Do $$$AssertEquals(..ThrowawayOrder(tab_"Do adapter.ReleaseThrowaway()"_lf_tab_"Set answer = adapter.Agent.ToolManager.ExecuteTool(name, args)"_lf_tab_"Set sc = adapter.NewSession(.session)"), "ReleaseThrowaway>ExecuteTool>NewSession", "and an order that differs is shown as it is")
+	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Replay", .replay), "Replay has source")
+	Do $$$AssertEquals(..ThrowawayOrder(replay), "NewSession>ExecuteTool>ReleaseThrowaway", "Replay opens the throwaway session, runs the call, and releases the session, each once and in that order")
+	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Adapter.Agent", .adapter), "the adapter has source")
+	Set codeLines = $ClassMethod(source, "CodeLines", adapter)
+	Set at = 0
+	For i = 1:1:$ListLength(codeLines) {
+		If $ClassMethod(source, "Matches", $List(codeLines, i), "^\s*Method\s+ReleaseThrowaway\(\)") Set at = i
+	}
+	Do $$$AssertTrue(at > 0, "ReleaseThrowaway is declared in the adapter")
+	Set body = ""
+	If at > 0 {
+		For i = at + 1:1:$ListLength(codeLines) {
+			Set line = $List(codeLines, i)
+			If $ClassMethod(source, "Matches", line, "^\s*(Method|ClassMethod)\s") Quit
+			Set body = body _ " " _ line
+		}
+		Do $$$AssertTrue($ClassMethod(source, "Matches", body, "\.\.ReleaseSession\(\)"), "and it drops the session through ReleaseSession")
+	}
+}
+
+/// The throwaway-session calls of the code lines of the text, in the order they stand, as "NewSession>ExecuteTool>ReleaseThrowaway" (the calls the
+/// text lacks are left out, and one that stands twice is named twice).
+ClassMethod ThrowawayOrder(text As %String) As %String [ Private ]
+{
+	Set source = "OcuTalon.Test.Bridge.Source"
+	Set lines = $ClassMethod(source, "CodeLines", text)
+	Set order = ""
+	For i = 1:1:$ListLength(lines) {
+		Set line = $List(lines, i)
+		If $ClassMethod(source, "Matches", line, "adapter\.newsession\(") Set order = order _ $ListBuild("NewSession")
+		If $ClassMethod(source, "Matches", line, "\.toolmanager\.executetool\(") Set order = order _ $ListBuild("ExecuteTool")
+		If $ClassMethod(source, "Matches", line, "adapter\.releasethrowaway\(") Set order = order _ $ListBuild("ReleaseThrowaway")
+	}
+	Quit $ListToString(order, ">")
 }
 
 /// Only the runner writes conversation links (AD-6, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
