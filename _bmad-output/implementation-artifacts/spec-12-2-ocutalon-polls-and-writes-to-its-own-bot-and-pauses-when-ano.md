@@ -264,13 +264,21 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-30, spec gate (runner, from the orchestrator's rulings): both `Install/**` edits are allowed as file-level extensions; the SSL configuration stays one general client configuration with no secret, as planned, and is veto item U-164. No other change to the plan.
+
 - 2026-10-30, spec gate (runner): the proposed split is decided (unattended ruling, split, decide). The page side (the third criterion's banner and card clause, "the banner leaves within one live update", and the search of the page) moved verbatim to the new Story 12.8, planned next (`12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try`). This spec keeps the server side as planned. The two contended `Install/**` edits wait on the orchestrator's ruling.
 
 ## Review Triage Log
 
 ## Design Notes
 
-**Footprint (Rule 11). The runner asks the orchestrator at the spec gate about the two contended edits.**
+**Spec-gate rulings (orchestrator, 2026-10-30; binding).**
+1. `Install/Step/Telegram.cls`: the `Base` method and the `ApiBase` rows written by `Run()` are allowed under the file-level extension already granted for 12.1.
+2. `Install/Step/SSL.cls`: filled in place, allowed (file-level extension). `Install/Registry.cls`'s `Order()` stays untouched. Conditions: the client SSL configuration is one general configuration for all of OcuTalon's outbound HTTPS (the later email story reuses "the installer's client SSL configuration"), not a Telegram-only one; it holds no secret (no private key, certificate password or credential of any kind); and it is a veto item under security posture (inbox U-164, runner ruling).
+3. The split stands: the page side is Story 12.8, planned next.
+4. Both `Install/**` files are footprint extensions the runner reports in its contract.
+
+**Footprint (Rule 11). Both contended edits are allowed (rulings above).**
 - **Epic 12's own:**
   - `Channel/Telegram/In.cls`, `Out.cls` and `Api.cls` (new);
   - `Test/Channel/LiveCase.cls`, `TelegramApi.cls`, `TelegramIn.cls`, `TelegramPause.cls`, `TelegramOut.cls`, `TelegramSettings.cls` and `TelegramNoToken.cls` (new);
