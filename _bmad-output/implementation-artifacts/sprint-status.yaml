@@ -155,8 +155,7 @@ development_status:
   9-4-ten-incidents-are-recorded-from-real-failures: done
   9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: done
   9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
-  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: 
-    ready-for-dev
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: in-progress
   epic-9-retrospective: optional
 
   epic-10: done
