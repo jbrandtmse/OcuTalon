@@ -271,3 +271,4 @@
 2026-10-30T15:43:03Z	Story 9.10	ledger_routed_planned	story=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g entries=1(DW-434) excess=0 by=owner_decision(U-166)
 2026-10-30T15:43:03Z	Epic 9	deps_hash_note	reason=split epics_md_change=9.5_split_marker,new_Story_9.10_block note=for_orchestrator_rerecord(split;no_boundary_or_dependency_statement_change)
 2026-10-30T15:43:17Z	Epic 9	epic_context_compiled	reason=planning_artifact_newer(Story_9.10_inserted,9.5_split_marker) mode=lead_patch(stories_list,order,9.10_criteria) header=ok model=claude-opus-5-5
+2026-10-30T15:43:42Z	Story 9.10	stage_spawned	spawn_at=2026-10-30T15:43:42Z stage=plan model=claude-opus agent_name=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g-plan-1 cycle_iteration=1
