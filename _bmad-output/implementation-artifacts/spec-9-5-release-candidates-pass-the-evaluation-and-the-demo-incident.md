@@ -325,6 +325,35 @@ All class paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise
   - the INFO line lists the targets the mock misses;
   - the run exits 0.
 
+### Review Findings
+
+Code review, 2026-10-30. Four layers ran on the full-opus tier: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor. They reported 25 rows, which grouped into 13 entries (high 0, med 6, low 7) and 9 rejections. Every MED was patched in this pass. Each entry is listed as severity / fix-risk / footprint / disposition.
+
+- [x] [Review][Patch] `rc-stack` runs lib-live's `ensure_web_bundle` on a checkout without the bundle. In the hosted `checks` job that means `npm --prefix web ci` and a web build, or a red rule. The stub folder now holds an `npm` that does nothing. Verified on a copy of the tree without the bundle: the rule passed and npm never ran. [docker/tests/test-eval-set.sh:1688] — med / low / in-story / fixed (blind+edge+auditor)
+- [x] [Review][Patch] The real-key ending of `--release-candidate` had no executing test, and the on-mock rehearsal leaves before it. The untested parts were exit 3 on blocked, exit 0 on pass, the pair copied into `eval/`, the stop after attempt 1 met, the 900 s default and the readiness's key and model lines. Fixed with a new rule, `rc-flow`: the real script runs from a copy tree on a stub of a healthy stack, through six cases, with 8 bad samples derived from `eval/run.sh`. [docker/tests/test-eval-set.sh:1855] — med / med / in-story / fixed (verification-gap; AC1, AC3, AC4)
+- [x] [Review][Patch] `Gate.Attempt` was never run on a set that `Report.Build` made, so the two classes' field names were unpinned. Added `TestAttemptReadsTheReport`: NFR-4 and the model come from the cost entries, NFR-3 from the size, and SM-1 from the items share. [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1621] — med / low / in-story / fixed (verification-gap; Integration)
+- [x] [Review][Patch] No test rendered a blocked result against the exact line `Verdict: blocked` that `--override` requires. `TestText` now renders three not-met attempts and asserts that line. [src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls:477] — med / low / in-story / fixed (blind+verification-gap; AC3)
+- [x] [Review][Patch] The result's `commit`, `branch` and `treeClean` were read after the attempts, so a commit or checkout during a long run named a tree that was never built. They are now read before `stack_start`. [eval/run.sh:370] — med / low / in-story / fixed (blind+edge; AC4)
+- [x] [Review][Patch] The push run's run 3 ran even when run 1 had not diagnosed the demo incident. A demo case that never ends makes each of the ten runs wait the whole limit (10 × 180 s), which passes `lane-a.yml`'s 30-minute job timeout. Run 3 now fails without running in that case. [eval/run.sh:626] — med / low / in-story / fixed (blind; AC5)
+- [x] [Review][Defer] In `--release-candidate`, the key stays in the environment of lib-live's `ensure_web_bundle` (npm install scripts and the web build) when the checkout has no bundle. This is a veto-window item (secret handling), so it was not patched. [eval/run.sh:164] — deferred: DW-434, low / low / in-story / decision-pending owner=burndown, with the recommended one-line fix
+- [x] [Review][Patch] `Test.Eval.Report`'s comments said that `NormalizeDirectory` of a missing directory returns "". Per `%Library.File` it does so only when the base cannot be entered, so the comments now state the contract. [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:59, :1144] — low / low / in-story / fixed (blind)
+- [x] [Review][Patch] `Test.Eval.Gate`'s header said "the eight cases" of `TestVerdict`; there are nine. [src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls:17] — low / low / in-story / fixed (blind)
+- [x] [Review][Patch] `TestDemoLoop`'s label and the header said "no demo snapshot" or "a snapshot that cannot be read" for a folder that has no demo case. [src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls:11, :210] — low / low / in-story / fixed (verification-gap)
+- [x] [Review][Patch] The `demo_checks` comment named a `demo_pushed` function that does not exist. [eval/run.sh:326] — low / low / in-story / fixed (auditor)
+- [x] [Review][Patch] `rc-guard` accepted any exit but 2 for the accepted forms, while the spec says exit 1. [docker/tests/test-eval-set.sh:1473] — low / low / in-story / fixed (auditor)
+- [x] [Review][Defer] `Gate.SampleFields` repeats the sample-field loop of `DiagnosisPayload.CheckFix` (6 lines) instead of a shared `EvidencePack` helper. The spec names the sibling but gives no reason not to share it. [src/ocutalon/cls/OcuTalon/Eval/Gate.cls:118] — deferred: DW-435, low / low / out-of-footprint (`Watch/**`) / wontfix-accepted with reopen_if (reviewer, Rule 2)
+
+Rejected:
+- (blind, verification-gap) The Auto Run Result and residual risks are stale after QA. The fix would edit the spec's own result section.
+- (edge) `SampleFields` returns OK with no field. Low: `TestSampleFields` pins `OrderDate` in the fields on every CI run, and the fix adds a guard.
+- (edge) The second `cp` into `eval/` fails after the first. Low: it needs a full disk between two copies, and the fix is temp-and-rename.
+- (edge) `OCUTALON_EVAL_REPORT_DIR` points inside the checkout. Low: it is an operator setting, and the fix adds a guard.
+- (edge) `Verdict` passes at 2 of 4 attempts. Low: `run.sh` caps the attempts at 3, and the fix adds a guard.
+- (edge, verification-gap) `Test.Eval.Gate`'s folder could be "". False: with an absolute base, `NormalizeDirectory` returns "" only when the base cannot be entered (`%Library/File.cls` :106-116), and the base is the manager's Temp directory.
+- (verification-gap) `SampleFields`'s guards for no plain snapshot file and an unreadable snapshot are untested. Low: they are defensive branches.
+- (verification-gap) Two `TestTargets` blocks depend on the statement before them. False as a hermeticity defect: the order is fixed inside one method, `OnBeforeOneTest` clears the global, and a wrong order fails loudly.
+- (auditor) The result format carries `decidedBy` and each run's `offModel[]`, which the spec's lists do not name. Low: both are additive and documented in the class doc, `offModel` is what the model target over the demo runs needs, and Story 11.4 reads neither.
+
 ## Spec Change Log
 
 - 2026-10-30, lead spec gate: Design Notes gained "Lead gate rulings" (U-166 veto for the key path, the result format and NFR-4's reading; the AD-22 as-built bullet goes to the orchestrator with DW-431; no real-key run in any stage). No intent change.
@@ -545,6 +574,55 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `eval/run.sh` (push run): all checks passed, 20 PASS lines, wall 105 s (ready 89 s); 10 `CHK|demo|` lines with `repair_resend`, valid 1 and a time of 272 to 277 ms on the mock; `CHK|demogate|10|10|1`; `INFO attempt on the CI mock: met 0; below: SM-1,SM-2`. Before this story 99 s.
 - `eval/run.sh --release-candidate --on-mock`: 3 attempts, `VERDICT blocked`, exit 0, wall 120 s (ready 89 s); `release-candidate-on-mock.json` and `.md` in the report folder with `onMock` true; no result file written in `eval/`.
 - `Test.Eval.Run` fresh: passed (8.4 s in the class, 100 s wall). Shard `lane-a@rest --part 5/8` (holds Gate and Report): passed, 169 s wall; `--part 4/8 --reverse` (holds both): passed, 161 s wall. `bash ci/checks.sh`: all 17 blocks passed (232 s). `bash docker/tests/test-eval-set.sh`: every rule passed, 22 s.
+
+**QA stage (tags e9s5q and e9s5qw; no key, no spend; every mutation applied, red observed, reverted, tree compared with a backup).**
+
+Files changed by QA (QA): `docker/tests/test-eval-set.sh` (new rule `rc-stack`; `rc-guard` and `rc-override` strengthened; header updated), `src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls` (new `TestDemoRunReadsTheDiagnoseDecision`), `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (`TestSave` and `TestSaveRefusals` build their directory with `SubDirectoryName`, and `TestSave` asserts that Save makes it). No product file was changed.
+
+Gaps found and closed:
+- `rc-guard` looked for the key only in the output of the accepted forms and in the stub's calls. It now also looks in the output of every refused argument, in every file of the run's folder, and in every file of the tree written during a run (the key of the run before is overwritten by the next, so the scan is after each run).
+- Nothing pinned that the real-key form lays `eval/compose.release-candidate.yml` over its stack, starts it with `OCUTALON_EVAL=1` and the key in the environment, and never calls `PointKeys`, `RestoreKeys` or `ReadyReason`, or that `--on-mock` does the opposite. The new rule `rc-stack` runs the real script with a stub of the container tool that succeeds, prints nothing and records each call, each IRIS session's input and the environment (presence of the key, never its value); the script stops at its first IRIS session. About 2 s per form.
+- `--override` was not pinned to make no container call (Matrix: "No container call"). `rc-override` now runs it with a recording stub on the PATH.
+- `Gate.ReadDiagnosis` was tested only with one decision in the report, so the choice of the demo case's diagnose decision (time, cost, model), the unpriced diagnose decision and an off-model decision of another kind were unpinned.
+- `TestSave`: the implement stage's probe (`NormalizeDirectory("zz-out", ..Folder)` returned an empty string) is a property of the dev slot. On the throwaway (Linux) it returns the full path, and the original assertions went red under the mutation below (so the assertion could fail where the test runs); the construction is still platform-fragile, since an empty string would make Save write into the process's own directory, so it now uses `SubDirectoryName` and asserts the path is its own.
+
+- mutation: AC1 `--release-candidate` accepts an empty `ANTHROPIC_API_KEY` (`-z "${ANTHROPIC_API_KEY+x}"`) -> `test-eval-set.sh` `rc-guard` red ("--release-candidate with the key empty is not refused with exit 2"); reverted.
+- mutation: AC1 the usage line prints `$ANTHROPIC_API_KEY` -> `rc-guard` red ("the key appears in the output of the refused arguments"), 9 args; reverted.
+- mutation: AC1 `eval/run.sh` writes the key to a file (`key.txt`, after the guard) -> `rc-guard` red ("a file of the tree holds the value of the key") and `rc-stack` red; reverted (the file removed).
+- mutation: AC1 the real-key form no longer lays `compose.release-candidate.yml` over the stack -> `rc-stack` red ("is not layered with eval/compose.release-candidate.yml"); reverted.
+- mutation: AC1 the real-key readiness session also calls `PointKeys` -> `rc-stack` red ("calls PointKeys, RestoreKeys or ReadyReason"); reverted.
+- mutation: AC1 `export OCUTALON_EVAL=1` removed -> `rc-stack` red (both forms); reverted.
+- mutation: AC1 `--on-mock` readiness no longer calls `PointKeys` -> `rc-stack` red ("does not point the keys at the mock"); reverted.
+- mutation: AC3 `--override` accepts a non-blocked verdict (the verdict check removed) -> `rc-override` red ("a result whose verdict is pass is not refused with exit 2" and both files changed); reverted.
+- mutation: AC3 `--override` calls the container tool -> `rc-override` red ("the override called the container tool") and `eval-scripts` red; reverted.
+- mutation: AC2 `Gate.ReadDiagnosis` takes the last decision of the case whatever its kind (the kind test dropped) -> `Test.Eval.Gate` `TestDemoRunReadsTheDiagnoseDecision` red; reverted.
+- mutation: AC2 `ReadDiagnosis` takes a diagnose decision of any case (the case test dropped) -> `TestDemoRunReadsTheDiagnoseDecision` red; reverted.
+- mutation: AC1 `ReadDiagnosis` lists only a diagnose decision as off-model -> `TestDemoRunReadsTheDiagnoseDecision` red (listed, and the model target); reverted.
+- mutation: AC4 `Report.WriteFiles` does not create the report directory -> `Test.Eval.Report` `TestSave` and `TestWriteFiles` red ("Save succeeds", "and makes the directory"); reverted. The same mutation was also red against the original `TestSave` on the throwaway.
+- mutation: AC4 `WriteFiles` makes the directory before it checks the name -> `TestSaveRefusals` and `TestWriteFiles` red ("and no directory was made for them"); reverted.
+- mutation: AC4 the directory already exists when `TestSave` asserts that it is not there yet -> `TestSave` red; reverted (test change, restored).
+- mutation: AC2/AC5/Integration `Gate.Demo` makes `RUNS - 1` calls -> `eval/run.sh` push run (fresh, tag e9s5q) red ("the demo gate is '9|10|0' with 9 run line(s)"), the INFO line "below: SM-1,SM-2,Demo gate"; reverted.
+
+Runs after the changes: `bash docker/tests/test-eval-set.sh` all rules passed (about 24 s; was 22 s); `bash ci/checks.sh` all scripts passed; warm `Test.Eval.Gate`, `Test.Eval.Report` and `Test.Bridge.CodeRules` passed. Throwaways `e9s5q` and `e9s5qw` torn down; the lane-b lock folder is empty.
+
+**Code review stage (tags `e9s5r` and `e9s5rw`; no key, no spend).** Each mutation was applied, its red observed, and the file restored from a backup; `git status --short` and `git diff --stat` were then compared with the record taken before.
+- mutation: AC3 `Gate.Text` writes a blocked verdict line as `Verdict: blocked (REL-5)` -> `Test.Eval.Gate` `TestText` red ("and it is exactly the line Verdict: blocked that eval/run.sh --override requires"); restored.
+- mutation: Integration `Gate.SizeTarget` reads the set's `size.unknownCases` instead of `size.unknown` -> `Test.Eval.Report` `TestAttemptReadsTheReport` red ("a request of unknown size in the built set misses NFR-3"); restored.
+- mutation: AC3 `eval/run.sh` ends a blocked verdict with exit 0 (the pass test made `[ "$verdict" = blocked ]`) -> `test-eval-set.sh` rule `rc-flow` red ("--release-candidate with a blocked verdict does not end with VERDICT blocked and exit 3 (exit 0)"); restored. A mutation that removes the text a bad sample edits (`exit 3` -> `exit 0`) stops the sample writer with "rc-flow: eval/run.sh has no text ... to edit", so the samples cannot drift silently from the script.
+- mutation (kept as `rc-flow` bad samples, each flagged for its own reason on every run):
+  - AC3: a blocked verdict exits 0 (`bad-blocked-exit-0`).
+  - AC4: no copy into `eval/` (`bad-no-copy`); `--on-mock` goes on past its exit (`bad-on-mock-goes-on`); an incomplete verdict is kept (`bad-incomplete-kept`).
+  - AC1: a 180 s default wait (`bad-wait-180`); no stop after attempt 1 meets every target (`bad-no-stop-at-1`); a readiness check without the model lines (`bad-any-model`) or without the key lines (`bad-no-key-check`).
+
+Measured after the review patches:
+- `bash docker/tests/test-eval-set.sh`: every rule passed, `rc-flow` included, in 34 s (was 24 s).
+- The same check on a copy of the tree with no web bundle (the hosted `checks` condition): `rc-stack` and `rc-flow` passed, and no npm ran.
+- The push run `bash eval/run.sh` (fresh): all checks passed in 105 s; run 3 gave 10 of 10, and the INFO line read "below: SM-1,SM-2".
+- `--release-candidate --on-mock`: 3 attempts, `VERDICT blocked`, exit 0, in 125 s. The commit `fe2bf5ec` and branch `OCT-epic9` were read before the build, the pair was only in the report folder, and nothing was written in `eval/`.
+- `--override` on a scratch copy of that generated blocked pair: exit 0, verdict `overridden`, and the reason kept.
+- Warm `Test.Eval.Gate`, `Test.Eval.Report` and `Test.Bridge.CodeRules`: passed.
+- `bash ci/checks.sh`: all 17 scripts passed in 4 min 2 s.
+- Throwaways `e9s5r` and `e9s5rw` were torn down, and the lane-b lock folder is empty.
 
 ## Auto Run Result
 

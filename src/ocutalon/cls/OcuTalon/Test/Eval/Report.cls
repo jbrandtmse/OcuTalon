@@ -55,6 +55,10 @@
 ///   - (Story 9.5) TestIncidents and TestCost also pin the entry members that Eval.Gate reads (an incident entry's fixParameters, a cost entry's
 ///     durationMs), TestWriteFiles pins the shared writer (no Markdown for an empty text, Save's refusals) and TestGateReadsTheReport pins the field
 ///     names between Report and Gate: a decided incident row and a diagnose Decision go through Build and Gate.DemoRun, which passes;
+///   - (QA, Story 9.5) TestSave and TestSaveRefusals build their report directory with SubDirectoryName and assert that it is a path of its own
+///     below the test folder (an empty one would make Save write into the process's own directory), and TestSave asserts that Save makes it;
+///   - (Story 9.5) TestAttemptReadsTheReport pins the field names between Report.Build's set and Gate.Attempt: NFR-4 and the model read the cost
+///     entries' kind, cost and model, NFR-3 the size, and SM-1 the share of items;
 ///   - (QA) TestMatchRules, TestNotDecidedNotRight, TestZeroCost, TestTextEmpty, TestSaveRefusals, TestCaseNameStaysInFolder and
 ///     TestFolderWithoutSeparator: the match rules at their edges (an incident's category ignoring case, a near element, an item's outcome
 ///     exactly), a row not decided or an incident fallback that matches is not right and is no tell-now case missed, a cost of 0 is priced,
@@ -1137,9 +1141,12 @@ Method TestSave()
 	Set run = ..NewRun()
 	Do ..Row(run, name, {"Outcome": "digest", "DecisionRef": (..Decision("decide", "claude-haiku-5-5")), "CostUSD": (0.00065)})
 	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
-	Set directory = ##class(%File).NormalizeDirectory("zz-out", ..Folder)
+	// The directory is a path of its own below the test folder: an empty one would make Save write into the process's own directory.
+	Set directory = ##class(%File).SubDirectoryName(..Folder, "zz-out")
+	Do $$$AssertTrue((directory '= "") && (directory '= ..Folder), "the report directory is a path of its own: "_directory)
 	Do $$$AssertTrue('##class(%File).DirectoryExists(directory), "the report directory is not there yet")
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Report).Save(report, "A title", directory, "set"), "Save succeeds")
+	Do $$$AssertTrue(##class(%File).DirectoryExists(directory), "and makes the directory")
 	Set json = ##class(%File).NormalizeFilename("set.json", directory), markdown = ##class(%File).NormalizeFilename("set.md", directory)
 	Do $$$AssertTrue(##class(%File).Exists(json) && ##class(%File).Exists(markdown), "both files are written")
 	If '##class(%File).Exists(json) || '##class(%File).Exists(markdown) Quit
@@ -1250,7 +1257,8 @@ Method TestTextEmpty()
 Method TestSaveRefusals()
 {
 	Set report = ##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder)
-	Set directory = ##class(%File).NormalizeDirectory("zz-refused", ..Folder)
+	Set directory = ##class(%File).SubDirectoryName(..Folder, "zz-refused")
+	Do $$$AssertTrue((directory '= "") && (directory '= ..Folder), "the directory that the refusals are given is a path of its own: "_directory)
 	For name = "", "a\b", "a/b", "../b" {
 		Do $$$AssertTrue($$$ISERR(##class(OcuTalon.Eval.Report).Save(report, "A title", directory, name)), "the name '"_name_"' is refused")
 	}
@@ -1606,6 +1614,30 @@ Method TestGateReadsTheReport()
 	Do $$$AssertEquals(result.fixKind_"|"_result.fixParameters.field_"|"_result.fixParameters.sourceFormat_"|"_result.fixParameters.targetFormat, "repair_resend|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "the fix comes from the incident entry's fixParameters")
 	Do $$$AssertEquals(result.durationMs_"|"_result.model, "4321|"_##class(OcuTalon.Eval.Gate).#MODEL, "the diagnosis time and model come from the cost entry of the diagnose decision")
 	Do $$$AssertEquals(result.validation, "OK", "and Fix.Kind.Check accepted the parameters")
+}
+
+/// Gate.Attempt reads the set that Build makes: NFR-4 and the model read the cost entries' kind, cost and model, NFR-3 the largest request and the
+/// requests of unknown size, and SM-1 the share of items; a decision on another model and a request of unknown size miss their targets.
+Method TestAttemptReadsTheReport()
+{
+	Set model = ##class(OcuTalon.Eval.Gate).#MODEL
+	Set a = ..N("a"), b = ..N("b"), c = ..N("c")
+	For name = a, b, c {
+		Do ..ItemCase(name, "digest")
+	}
+	Set run = ..NewRun()
+	Do ..Row(run, a, {"Outcome": "digest", "DecisionRef": (..Decision("decide", model)), "CostUSD": (0.0002), "LargestRequestTokens": 1200})
+	Do ..Row(run, b, {"Outcome": "digest", "DecisionRef": (..Decision("decide", model)), "CostUSD": (0.0003), "LargestRequestTokens": 3400})
+	Set targets = ##class(OcuTalon.Eval.Gate).Attempt(##class(OcuTalon.Eval.Report).Build(run, ..Folder), {}, 1).targets
+	Do $$$AssertEquals(targets.nfr4.met_"|"_targets.nfr4.priced_"|"_targets.nfr4.maxUSD_"|"_targets.nfr4.maxCase, "1|2|.0003|"_b, "NFR-4 reads the built set's decide decisions and their cost")
+	Do $$$AssertEquals(targets.model.met_"|"_targets.model.off.%Size(), "1|0", "the model target reads their model")
+	Do $$$AssertEquals(targets.nfr3.met_"|"_targets.nfr3.largestTokens_"|"_targets.nfr3.largestCase, "1|3400|"_b, "NFR-3 reads the built set's largest request")
+	Do $$$AssertEquals(targets.sm1.met_"|"_targets.sm1.right_"|"_targets.sm1.total, "1|2|2", "SM-1 reads the built set's share of items")
+	Set other = ..NewRun()
+	Do ..Row(other, c, {"Outcome": "digest", "DecisionRef": (..Decision("decide", "claude-sonnet-5-5")), "CostUSD": (0.0002), "LargestRequestTokens": ""})
+	Set targets = ##class(OcuTalon.Eval.Gate).Attempt(##class(OcuTalon.Eval.Report).Build(other, ..Folder), {}, 1).targets
+	Do $$$AssertEquals(targets.nfr3.met_"|"_..Names(targets.nfr3.unknown, ""), "0|"_c, "a request of unknown size in the built set misses NFR-3")
+	Do $$$AssertEquals(targets.model.met_"|"_..Names(targets.model.off, "model"), "0|claude-sonnet-5-5", "a decision on another model in the built set misses the model target")
 }
 
 /// --- helpers ---

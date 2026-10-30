@@ -30,7 +30,8 @@
 #   3. run 2, the test-only cases of eval/mock-wrong/, which the mock answers wrongly on purpose: saved as mock-wrong.json and
 #      mock-wrong.md. Both runs print a first CHK line before they call Report.Run, because iris_script runs a session again when it
 #      printed no CHK line, and that early line keeps it from starting a second run;
-#   3b. run 3, the demo gate: OcuTalon.Eval.Gate.Demo runs the demo incident 10 times through IncidentManager's evaluation path and saves
+#   3b. run 3, the demo gate, only when run 1 diagnosed the demo incident (else it fails without running): OcuTalon.Eval.Gate.Demo runs the demo
+#      incident 10 times through IncidentManager's evaluation path and saves
 #      demo.json; then Gate.Attempt reads set.json and demo.json and saves attempt.json. The checks are structural (the mock's one diagnosis
 #      is the demo's right answer): 10 runs, 10 passed, no fallback, valid parameters and a diagnosis time for each. The attempt's
 #      targets are printed as an INFO line and never fail the run;
@@ -64,7 +65,8 @@
 #      run's, with PointKeys, and no key is needed;
 #   2. attempt k (k = 1; then 2 and 3 when attempt 1 did not meet every target) is the set over /opt/ocutalon/eval/ (set-k.json and .md), the demo
 #      gate (demo-k.json) and Gate.Attempt (attempt-k.json) with its targets SM-1, SM-2, the demo gate, NFR-3, NFR-4, the model and no problem;
-#   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1);
+#   3. Gate.Result applies REL-5's rule (pass at the first attempt, or at 2 of 3) and saves release-candidate.json and .md (ocutalon.evalResult/1),
+#      with the commit, branch and tree state that the script read before the stack was built;
 #   4. the files are copied out into the report folder. Without --on-mock a finished run (verdict pass or blocked, no structural failure)
 #      also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is release-candidate-on-mock.* in the report
 #      folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke test is not run (Story 30.1).
@@ -321,7 +323,7 @@ fetch() {
 }
 
 # demo_checks <name>: the structural checks of a demo gate session. The demo gate is a score of the attempt and never one of these checks, except
-# on the push run, where the mock's diagnosis is fixed and demo_pushed adds its own.
+# on the push run, where the mock's diagnosis is fixed and run 3 adds its own.
 demo_checks() {
   local name=$1
   if [ ! -s "$tmp/$name.chk" ]; then
@@ -364,6 +366,23 @@ attempt_checks() {
   fi
   pass "$name: the attempt met $(chk_value "$name" met) (below: $(chk_value "$name" below))"
 }
+
+# The commit, branch and tree state of a release-candidate result are those of the checkout that the stack is built from, read before the build.
+if [ "$mode" = rc ]; then
+  commit=$(git rev-parse HEAD 2> /dev/null || true)
+  case $commit in
+    *[!0-9a-f]* | '') commit=unknown ;;
+  esac
+  if [ "${#commit}" -ne 40 ]; then commit=unknown; fi
+  branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || true)
+  case $branch in
+    *[!A-Za-z0-9._/-]* | '') branch=unknown ;;
+  esac
+  tree_clean=0
+  if status=$(git status --porcelain -- . ':(exclude)eval/release-candidate.json' ':(exclude)eval/release-candidate.md' 2> /dev/null) && [ -z "$status" ]; then
+    tree_clean=1
+  fi
+fi
 
 begun=$SECONDS
 stack_start eval
@@ -442,19 +461,6 @@ if [ "$mode" = rc ]; then
 
   verdict=
   if [ "$fails" -eq 0 ]; then
-    commit=$(git rev-parse HEAD 2> /dev/null || true)
-    case $commit in
-      *[!0-9a-f]* | '') commit=unknown ;;
-    esac
-    if [ "${#commit}" -ne 40 ]; then commit=unknown; fi
-    branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || true)
-    case $branch in
-      *[!A-Za-z0-9._/-]* | '') branch=unknown ;;
-    esac
-    tree_clean=0
-    if status=$(git status --porcelain -- . ':(exclude)eval/release-candidate.json' ':(exclude)eval/release-candidate.md' 2> /dev/null) && [ -z "$status" ]; then
-      tree_clean=1
-    fi
     verdict_run "$attempts" "$result_name" "$commit" "$branch" "$tree_clean" "$onmock"
     if [ ! -s "$tmp/$result_name.chk" ]; then
       fail "$result_name: the IRIS session printed nothing"
@@ -500,6 +506,7 @@ fi
 
 # --- run 1: the set ---
 
+demo_ok=0
 eval_run set "$EVAL_FOLDER" "Evaluation set against the CI mock"
 if run_started set; then
   if [ "$(chk_value set problems)" = 0 ]; then
@@ -526,6 +533,7 @@ if run_started set; then
     fail "set: the demo incident '$demo_name' ended as a fallback or with no cause category and element at fault ($demo_line)"
   else
     pass "set: the demo incident '$demo_name' was diagnosed, with no fallback and a cause category and element"
+    demo_ok=1
   fi
   incident_fallbacks=$(printf '%s\n' "$incident_lines" | awk -F'|' 'NF && $6 != "0" { n++ } END { print n + 0 }')
   fallback_reasons=$(awk -F'|' 'NR == FNR { if ($1 == "CHK" && $2 == "case" && $7 == "incident" && $6 != "0") want[$3] = 1; next } $1 == "CHK" && $2 == "fallback" && ($3 in want) { printf "%s%s (%s)", sep, $3, $4; sep = ", " }' "$tmp/set.chk" "$tmp/set.chk")
@@ -614,25 +622,30 @@ fi
 
 # --- run 3: the demo gate and the attempt's targets (Story 9.5) ---
 
-demo_run demo
-if demo_checks demo; then
-  demo_gate=$(chk_value demo demogate)
-  demo_lines=$(awk -F'|' '$1 == "CHK" && $2 == "demo"' "$tmp/demo.chk")
-  demo_count=$(printf '%s' "$demo_lines" | grep -c . || true)
-  demo_bad=$(printf '%s\n' "$demo_lines" | awk -F'|' 'NF && ($4 != "1" || $6 != "0" || $7 != "1" || $8 == "") { n++ } END { print n + 0 }')
-  if [ "$demo_gate" != "10|10|1" ] || [ "$demo_count" -ne 10 ]; then
-    fail "demo: the demo gate is '$demo_gate' with $demo_count run line(s), not 10 of 10 runs passed"
-  elif [ "$demo_bad" -ne 0 ]; then
-    fail "demo: $demo_bad of the 10 runs has no pass, a fallback, invalid fix parameters or no diagnosis time"
-  else
-    pass "demo: all 10 runs of the demo incident passed, with a valid repair-and-resend fix and a diagnosis time"
+# Run 3 needs run 1's demo incident diagnosed: a demo case that did not end in run 1 would make each of the ten runs wait the whole limit.
+if [ "$demo_ok" -ne 1 ]; then
+  fail "demo: the demo gate is not run, because run 1 did not diagnose the demo incident"
+else
+  demo_run demo
+  if demo_checks demo; then
+    demo_gate=$(chk_value demo demogate)
+    demo_lines=$(awk -F'|' '$1 == "CHK" && $2 == "demo"' "$tmp/demo.chk")
+    demo_count=$(printf '%s' "$demo_lines" | grep -c . || true)
+    demo_bad=$(printf '%s\n' "$demo_lines" | awk -F'|' 'NF && ($4 != "1" || $6 != "0" || $7 != "1" || $8 == "") { n++ } END { print n + 0 }')
+    if [ "$demo_gate" != "10|10|1" ] || [ "$demo_count" -ne 10 ]; then
+      fail "demo: the demo gate is '$demo_gate' with $demo_count run line(s), not 10 of 10 runs passed"
+    elif [ "$demo_bad" -ne 0 ]; then
+      fail "demo: $demo_bad of the 10 runs has no pass, a fallback, invalid fix parameters or no diagnosis time"
+    else
+      pass "demo: all 10 runs of the demo incident passed, with a valid repair-and-resend fix and a diagnosis time"
+    fi
+    fetch demo json
   fi
-  fetch demo json
-fi
-attempt_run attempt set demo 1
-if attempt_checks attempt; then
-  echo "INFO attempt on the CI mock: met $(chk_value attempt met); below: $(chk_value attempt below)"
-  fetch attempt json
+  attempt_run attempt set demo 1
+  if attempt_checks attempt; then
+    echo "INFO attempt on the CI mock: met $(chk_value attempt met); below: $(chk_value attempt below)"
+    fetch attempt json
+  fi
 fi
 
 # --- the reports ---

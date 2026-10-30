@@ -7,13 +7,15 @@
 ///   - TestDemoRunPasses and TestDemoRunFails: a run passes with the mock's parameters, and each failure (the wrong cause or element, another or empty
 ///     fix kind, a field not in the sample, an unregistered format, one format twice, a fallback, no decided entry, a problem, a run that acted, no
 ///     report) fails it with its reason;
-///   - TestDemoLoop: Demo calls the run exactly RUNS times; ten good runs pass, and one bad, refused, thrown or empty run gives nine and no pass; a snapshot
-///     that cannot be read is an error status and no call;
+///   - TestDemoLoop: Demo calls the run exactly RUNS times; ten good runs pass, and one bad, refused, thrown or empty run gives nine and no pass; a folder
+///     with no demo case is an error status and no call;
+///   - (QA) TestDemoRunReadsTheDiagnoseDecision: the time, model and cost of a run are those of the demo case's diagnose decision among others of another
+///     kind or case, an unpriced diagnose decision gives a time and no cost, and another model in a turn decision is listed and misses the model target;
 ///   - TestDemoTiming: the mean and the maximum are over the known durations, 20,001 ms is over the share and 20,000 is not, and a run with none is unknown;
 ///   - TestTargets: each of the seven targets flipped alone and on its edge (100,000 tokens, 0.000999 and 0.001 USD, a null met);
 ///   - TestNFR4Kinds: a diagnose or turn decision at 0.002 USD keeps NFR-4 met and is listed; an unpriced decide does not meet it;
-///   - TestVerdict: the eight cases of REL-5's rule;
-///   - TestResult, TestText and TestSave: the result document, its Markdown and its files.
+///   - TestVerdict: the nine cases of REL-5's rule, from no attempt to three;
+///   - TestResult, TestText and TestSave: the result document, its Markdown (a blocked result's Verdict line is the one --override requires) and its files.
 Class OcuTalon.Test.Eval.Gate Extends %UnitTest.TestCase
 {
 
@@ -128,6 +130,40 @@ Method TestDemoRunFails()
 	Do ..Fails(..GoodReport(), "", "the fix parameters were refused: ", "no sample fields")
 }
 
+/// (QA) The diagnosis time, model and cost are those of the demo case's diagnose decision, whatever else the report holds: a decision of another kind or of
+/// another case, listed before or after it, does not stand in for it; a diagnose decision that is unpriced gives its time and no cost; and a decision of another kind
+/// that ran on another model is listed in offModel and does not meet the model target.
+Method TestDemoRunReadsTheDiagnoseDecision()
+{
+	Set model = ##class(OcuTalon.Eval.Gate).#MODEL
+	Set demo = ##class(OcuTalon.Eval.Report).#DEMOCASE
+	Set report = ..GoodReport()
+	Set report.cost.decisions = []
+	Do report.cost.decisions.%Push({"case": (demo), "kind": "decide", "ref": "zz1", "model": (model), "costUSD": 0.0001, "durationMs": 111})
+	Do report.cost.decisions.%Push({"case": (demo), "kind": "diagnose", "ref": "zz3", "model": (model), "costUSD": 0.0004, "durationMs": 4000})
+	Do report.cost.decisions.%Push({"case": "other-case", "kind": "diagnose", "ref": "zz2", "model": (model), "costUSD": 0.0002, "durationMs": 222})
+	Do report.cost.decisions.%Push({"case": (demo), "kind": "turn", "ref": "zz4", "model": (model), "costUSD": 0.0003, "durationMs": 333})
+	Set result = ##class(OcuTalon.Eval.Gate).DemoRun(report, ..Fields(), 1)
+	Do $$$AssertTrue(result.pass, "the run passes: "_result.reason)
+	Do $$$AssertEquals(result.durationMs_"|"_result.costUSD_"|"_result.model, "4000|.0004|"_model, "the time and the cost are those of the diagnose decision of the demo case")
+	Set report = ..GoodReport()
+	Set report.cost.decisions = []
+	Do report.cost.unpriced.%Push({"case": (demo), "kind": "diagnose", "ref": "zz5", "model": (model), "durationMs": 7000})
+	Set result = ##class(OcuTalon.Eval.Gate).DemoRun(report, ..Fields(), 1)
+	Do $$$AssertEquals(result.durationMs_"|"_result.%GetTypeOf("costUSD")_"|"_result.model, "7000|null|"_model, "an unpriced diagnose decision gives its time and no cost")
+	Set report = ..GoodReport()
+	Do report.cost.decisions.%Push({"case": (demo), "kind": "turn", "ref": "zz6", "model": "claude-sonnet-5-5", "costUSD": 0.0003, "durationMs": 333})
+	Set result = ##class(OcuTalon.Eval.Gate).DemoRun(report, ..Fields(), 1)
+	Set off = $Select(result.offModel.%Size(): result.offModel.%Get(0), 1: {})
+	Do $$$AssertEquals(result.offModel.%Size()_"|"_off.kind_"|"_off.model, "1|turn|claude-sonnet-5-5", "a decision of another kind on another model is listed")
+	Do $$$AssertEquals(result.durationMs_"|"_result.model, "4000|"_model, "and the diagnose decision is still the one that the run reads")
+	Do ..Prime(10)
+	Set ^OcuTalonTest("EvalGate", 5) = report.%ToJSON()
+	Do ##class(OcuTalon.Test.Eval.ZzGate).Demo(##class(OcuTalon.Eval.In).#FOLDER, 1, .gate)
+	Do $$$AssertEquals(gate.passed, 10, "another model in a turn decision does not fail the gate itself")
+	Do ..Only(..GoodSet(), gate, "Model", "but it does not meet the model target")
+}
+
 /// Demo calls the run exactly RUNS times and passes only at RUNS of RUNS; a bad, refused, thrown or empty run is one failure and never stops the others.
 Method TestDemoLoop()
 {
@@ -171,7 +207,7 @@ Method TestDemoLoop()
 	Do $$$AssertEquals(gate.passed_"|"_gate.pass_"|"_gate.results.%Get(9).reason, "9|0|there is no report", "a run with no report fails")
 	Kill ^OcuTalonTest("EvalGate")
 	Set sc = ##class(OcuTalon.Test.Eval.ZzGate).Demo(..Folder, 1, .gate)
-	Do $$$AssertTrue($$$ISERR(sc), "a folder with no demo snapshot is an error status")
+	Do $$$AssertTrue($$$ISERR(sc), "a folder with no demo case is an error status")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalGate", "calls"))_"|"_gate.pass_"|"_gate.results.%Size(), "0|0|0", "with no run and no pass")
 }
 
@@ -399,7 +435,8 @@ Method TestResult()
 	Do $$$AssertEquals(result.verdict_"|"_result.attempts.%Size()_"|"_result.summary.%Size(), "incomplete|0|0", "no attempt is an incomplete result with an empty summary")
 }
 
-/// The Markdown: exactly one Verdict line, the tables, and the on-mock line only for an on-mock result.
+/// The Markdown: exactly one Verdict line, the tables, and the on-mock line only for an on-mock result; a blocked result's Verdict line is exactly
+/// the line "Verdict: blocked" that eval/run.sh --override requires.
 Method TestText()
 {
 	Set bad = ..GoodSet()
@@ -433,6 +470,13 @@ Method TestText()
 	Do $$$AssertTrue(mockText [ "On the CI mock: a rehearsal of the sequence, not a release result.", "an on-mock result says so")
 	Do $$$AssertTrue(mockText [ "tree not clean", "and a tree that is not clean")
 	Do $$$AssertEquals(..CountLines(mockText, "Verdict: "), 1, "still with one Verdict line")
+	Set blocked = []
+	For n = 1:1:3 {
+		Do blocked.%Push(##class(OcuTalon.Eval.Gate).Attempt(bad, ..NewGate(), n))
+	}
+	Set blockedText = ##class(OcuTalon.Eval.Gate).Text(##class(OcuTalon.Eval.Gate).Result(blocked, {"commit": "abc123", "branch": "feature/x", "treeClean": 1, "onMock": 0}))
+	Do $$$AssertEquals(..CountLines(blockedText, "Verdict: "), 1, "a blocked result has one Verdict line")
+	Do $$$AssertTrue(blockedText [ (nl_"Verdict: blocked"_nl), "and it is exactly the line Verdict: blocked that eval/run.sh --override requires")
 	Set withProblem = ..GoodSet()
 	Do withProblem.notComplete.%Push({"case": "c|1", "reason": "no cost"})
 	Set one = []
