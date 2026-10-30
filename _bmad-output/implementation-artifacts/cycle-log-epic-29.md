@@ -126,3 +126,5 @@
 2026-10-30T19:35:15Z	Story 29.6	story_cycle	plan_to_commit_min=330 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
 2026-10-30T19:36:06Z	Epic 29	integrated_forward	feature=5e33525c head=728027c9 conflicts_resolved=none merged_in=planning_prose+bookkeeping(no_source) pushed=next_push
 2026-10-30T19:36:06Z	Epic 29	amendment	file=_bmad-output/planning-artifacts/epics.md what=Story_29.8:throwaway_AC(the_load_script_on_a_local_stack)+Release_check_line(the_real-proxy_criterion_verbatim,the_Planners_before_the_flip) tier=1(owner_decision_planner_demo_first)
+2026-10-30T19:38:26Z	Epic 29	epic_context_compiled	reason=planning_artifact_newer(29.7_U-169,29.8_planner_demo_first) model=claude-opus-5-5 words=1527
+2026-10-30T19:38:26Z	Story 29.8	stage_spawned	stage=plan spawn_at=2026-10-30T19:38:26Z model=claude-opus-5-5 agent_name=29-8-plan-1 cycle_iteration=1 note=plan_during_29.6_CI(Rule_23)
