@@ -2,11 +2,11 @@
 title: 'Story 12.1: Telegram stays off without a token, and CI mocks the Telegram API'
 type: 'feature'
 created: '2026-10-29'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
-  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, AD-14, AD-19, AD-22, AD-23, AD-29 and AD-33)'
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, AD-5, AD-14, AD-19, AD-22, AD-23, AD-29 and AD-33)'
 warnings: ['oversized']
 deferred: []
 ---
@@ -83,22 +83,26 @@ deferred: []
   - `web/src/app/rail/telegram-card/telegram-card.ts` (shows "not set up" for `off` and `rejected`);
   - `web/e2e/rail/rail.spec.ts:463-497` (R11: "not set up", and no banner).
 
-**The mock**
+**The mock: Lane B's, read only (ruling of 2026-10-30)**
 - `ci/mock/mock.mjs`:
-  - the header :9-23; the `tg` state :234;
-  - `telegramControl` :322-391: `reset` :328-337 restarts both counters; `updates` :345-361; the `scenario` lookup of `replies` :366-374;
-  - `pendingUpdates` :394-397.
-- `ci/mock/scenarios.mjs:16-22` and `:162-`: the telegram scenario form and `checkTelegramReplies`. Read only.
-- `ci/mock/test/telegram.test.mjs`:
-  - the `bot` and `control` helpers;
-  - :139-170, the defaults; :165-168 pins "a reset restarts the counter";
-  - :172-200, the update queue.
-- `ci/mock/test/scenarios.test.mjs:125-131`: the committed scenario files must load with no problem.
-- `ci/mock/scenarios/A/`: Lane A's folder. A scenario's name is kebab-case and equals its file name.
-- `Test/Contract/Mock.cls` (Lane B's):
-  - `TestTelegramBotApi` :348-390 expects `update_id` 1, `message_id` 1 and exactly 3 calls after its reset;
-  - public helpers: `TelegramMissingReason` :394, `BotCall` :403 (throws on any status but 200), `Control` :417 (returns a Boolean only), `Calls` :429, `LogMark` :471 and `LogSince` :484;
-  - private: `NewRequest` :586.
+  - the header :9-23 describes the Bot API side and its control routes;
+  - `reset` :328-337 clears the updates, the replies and the calls, and restarts `nextUpdateId` and `nextMessageId` at 1. This is why the kept offset is cleared with every reset;
+  - `/updates` :345-361 queues updates with the next ids, replacing any `update_id` given;
+  - `/replies` with `{"scenario"}` :366-374 queues a `telegram` scenario's replies for its method. Anything else in the same body is a 400;
+  - a queued reply answers before the update queue (:578) and is sent as written, its `update_id` included;
+  - `pendingUpdates` :394-397: `getUpdates` drops the queued updates below its offset. With no offset it drops none.
+- `ci/mock/scenarios.mjs:16-22` (the telegram form) and `checkReply` :108-150: a telegram reply holds only `status`, `headers`, `delayMs` and a `body` that is a JSON object. A name is kebab-case, equals its file name and is unique across `A/` and `B/`. No `telegram-*` name exists yet.
+- `ci/mock/test/scenarios.test.mjs:125-131` (row 15) loads every committed file and wants no problem. The scenario counts are computed from the tree (`server.test.mjs:665`, `telegram.test.mjs:370`), so the five new files need no other change.
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls`:
+  - the parameters `TELEGRAMBASE` :53 (`http://mock:8080`), `TELEGRAMBASEVAR` :56 and `TELEGRAMTOKENVAR` :58;
+  - the public helpers to call: `TelegramMissingReason(base, token)` :394, `BotCall(token, method, body)` :403 (throws on any status but 200), `Control(route, body)` :417 (1 when the mock answered 200), `Calls()` :429, `LogMark()` :471 and `LogSince(mark, .entries)` :484;
+  - private, so not callable: `LogHolds` :570 and `NewRequest` :586;
+  - `TestTelegramBotApi` :348-390 resets the mock, then expects `update_id` 1, `message_id` 1 and exactly its own 3 calls (DW-370's residual).
+
+**The kept offset and the poller check**
+- `irislib/Ensemble.inc:134`: `$$$EnsStaticAppData` is `^Ens.AppData`. `irislib/Ens/Adapter.cls:93-99` (`ClearStaticAppData`) calls it the store for persistent adapter values, such as the SQL inbound adapter's `%LastId`; it survives restarts. `$$$EnsRuntimeAppData` (:133) is cleared at each item start, so it would lose the offset.
+- `Install/Step/Production.cls:98-121` `NotRunning()`: the `Ens.Job:Enumerate` loop (`State` "Alive", `DEADSTATUSES` :42) that the poller check follows.
+- `ci/iris.sh:131-149` `is_test_case`: a class with no `Method Test...` is not a test class, so a helper class in `Test/Channel/` joins no shard run.
 
 **CI**
 - `docker/tests/lib-live.sh`:
@@ -109,55 +113,48 @@ deferred: []
   - `check_no_key` :668-677.
 - `docker/tests/test-lib-live.sh:682-734`: the `live_key_count` rows; :718 pins "an empty bot token counts 1".
 - `docker/tests/test-production-restart.sh`: the header :1-30; `check_eval` :50-66; the first start :78-95; row 19's two recreates :97-119 (with `OCUTALON_EVAL=1`, then without).
-- `ci/units.sh:14-21`: `shard_areas`. `lane-a@rest` (in `shards-2`) takes any new area. `docker/tests/test-ci-config.sh` works out the area checks itself (it holds no literal area list).
+- `ci/units.sh:14-21`: `shard_areas`. `lane-a@rest` (in `shards-2`) takes any new area. `docker/tests/test-ci-config.sh` works out its area checks itself and holds no literal area list or class count.
 - `.env.example` has `TELEGRAM_BOT_TOKEN=` (empty), and `docker-compose.yml` passes `.env` as the `env_file`.
 
 ## Tasks & Acceptance
 
 **Execution:**
+- `ci/mock/scenarios/A/telegram-private-update.json`, `telegram-group-update.json` and `telegram-button-update.json` (new). Write the five scenario files before `ci/warm.sh up`, because a warm stack refuses any change under `ci/mock/`.
+  - Each has `match: {"telegram": "getUpdates"}` and one reply `{"status": 200, "body": {"ok": true, "result": [<one update>]}}`, whose update has `"update_id": 1`.
+  - The updates are a text `message` in a chat of type `private`; a `message` in a chat of type `group`; and a `callback_query` from a private chat whose `data` names no request (`ocutalon-ci-unknown-press`).
+  - Use fixture ids and names only, never a real person's.
+- `ci/mock/scenarios/A/telegram-conflict.json` and `telegram-rate-limited.json` (new):
+  - `getUpdates`: 409 `{"ok": false, "error_code": 409, "description": "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}`;
+  - `sendMessage`: 429 `{"ok": false, "error_code": 429, "description": "Too Many Requests: retry after 2", "parameters": {"retry_after": 2}}`.
 - `src/ocutalon/cls/OcuTalon/Install/Step/Telegram.cls`: fill it in place.
   - `Run()` returns `Apply(##class(OcuTalon.Channel.Telegram.In).Included(), TokenSet())`.
   - `TokenSet()` is 1 when `$SYSTEM.Util.GetEnviron("TELEGRAM_BOT_TOKEN")` is not empty, and 0 otherwise. It returns nothing else.
   - `Apply(included, tokenSet)` writes both rows: 1 only when both arguments are 1, else 0. Each row's description says that the step writes it at every start, from `Included()` and whether `TELEGRAM_BOT_TOKEN` is set. On the disabled path, `Apply` also records `off`.
   - The first failure is the step's status.
   - Replace the stub's doc comment with this contract (AD-23, AD-14).
-- `ci/mock/mock.mjs` (DW-370):
-  - `reset` clears the updates, the replies and the calls, and no longer restarts `nextUpdateId` or `nextMessageId`.
-  - `POST /_mock/telegram/updates` also takes `{"scenario": "<name>"}`, alone, naming a telegram `getUpdates` scenario. The mock queues the `body.result` objects of the scenario's 200 replies with the next update ids, replacing any `update_id` in the file, and answers as it does for the list form. Refusals are as in the matrix.
-  - Update the header lines 12 and 16.
-- `ci/mock/scenarios/A/telegram-private-update.json`, `telegram-group-update.json` and `telegram-button-update.json` (new). Each has `match: {"telegram": "getUpdates"}` and one 200 reply `{"ok": true, "result": [<one update, with an update_id>]}`. The updates are:
-  - a text `message` in a private chat;
-  - a `message` in a chat of type `group`;
-  - a `callback_query` from a private chat whose `data` names no request (`ocutalon-ci-unknown-press`).
-
-  Use fixture ids and names only, never a real person's.
-- `ci/mock/scenarios/A/telegram-conflict.json` and `telegram-rate-limited.json` (new):
-  - `getUpdates`: 409 `{"ok": false, "error_code": 409, "description": "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}`;
-  - `sendMessage`: 429 `{"ok": false, "error_code": 429, "description": "Too Many Requests: retry after 2", "parameters": {"retry_after": 2}}`.
-- `ci/mock/test/telegram.test.mjs`:
-  - change :165-168 to "a reset keeps the counter";
-  - add a test (DW-370): a reset keeps the update ids counting, and `getUpdates` at the offset a poller holds returns the next update;
-  - add a test: `/updates {"scenario"}` queues the updates of a fixture `getUpdates` scenario with the next ids;
-  - add a test for each refusal.
-- `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls`: extend the helpers, don't copy them.
-  - New `BotReply(token, method, body, Output statusCode)`: returns the parsed body whatever the status, and throws only when the mock can't be reached. `BotCall` becomes `BotReply` plus its throw on any status but 200.
-  - `Control` gains a trailing `Output answer`.
-  - New public `TelegramPollerReason(item = "TelegramIn")`: `""` when the item has no live job, else a reason that names it.
-  - `TestTelegramBotApi` (DW-370): it first checks `TelegramPollerReason()`. It then expects the `update_id` that `Control("updates", ..., .answer)` returned, and a positive `message_id`.
-  - Update the method's doc comment and the class doc's lines.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls` (new): Lane A's helpers for the mock's Bot API side (DW-370). It has no `Test` methods, and it includes `Ensemble`.
+  - `Offset()`: the offset that `TelegramIn` keeps, `$Get($$$EnsStaticAppData("TelegramIn", "offset"))`, or `""` when there is none. `SetOffset(offset)` sets it, or kills it for `""`; a test calls it to stand in for the poller.
+  - `PollerReason(item = "TelegramIn")`: `""` when the item has no `Alive` job (`Ens.Job:Enumerate`). Otherwise a reason that names the item and says that a reset would take its updates.
+  - `Reset(poller = "TelegramIn") As %Status`. When `PollerReason(poller)` is not empty, it returns an error with that reason, and it sends nothing and clears nothing. Otherwise, in the one call, it kills the kept offset and resets the mock through `Test.Contract.Mock.Control("reset")`. It returns an error when the mock did not answer 200.
+  - `BotReply(token, method, body, Output statusCode) As %DynamicObject`: POST `/bot<token>/<method>` to `Test.Contract.Mock`'s `TELEGRAMBASE`, with the JSON body (none when `""`). It returns the parsed body and the status, whatever the status. It throws only when the mock can't be reached, with a text that names the method and never the token.
+  - The class doc states each helper's contract and the offset's location (Rule 14).
 - `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramSwitch.cls` (new): the tests of the switch.
   - Covers every `Apply` row of the matrix; `Run()` with the seam at 0 and at 1, in the stack's own environment, with the check that nothing holds the token; and the structural row.
   - Reads each row with `%GetSetting`, as `Runners()` does.
   - Saves both rows, the mark and the seam as found, and puts them back (OnBeforeAllTests and OnAfterAllTests).
   - Never calls `Ens.Director`. Runs anywhere.
 - `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramMock.cls` (new): the Integration AC. Runs in throwaways and CI only.
-  - It first checks `TelegramMissingReason` and `TelegramPollerReason`; when either gives a reason, it fails with it and sends nothing.
-  - It then covers the update, reply, calls, reset and owner rows of the matrix, through `BotReply`, `Control`, `Calls`, `LogMark` and `LogSince`.
-  - It resets the mock's Bot API side before and after.
+  - Every test first checks `Test.Contract.Mock.TelegramMissingReason(base, token)` and `BotApi.PollerReason()`. When either gives a reason, the test fails with it and sends nothing.
+  - Every test starts and ends with `BotApi.Reset()`, which must return OK. That leaves the mock empty and no kept offset.
+  - Update rows: for each update scenario, `Control("replies", {"scenario": <name>})`, then `getUpdates`. Use `Test.Contract.Mock.BotCall` where the answer is 200, and `BotApi.BotReply` only where it is not.
+  - Reply rows: the 409, then the 429, then the second `sendMessage`'s 200 default.
+  - Calls rows: `Calls()` lists the group's calls in order, with their methods and parameters. Between `LogMark()` and `LogSince()`, every line whose path starts with `/bot[` is `/bot[redacted]/<method>` with the token's length, and no line holds the token. `LogHolds` is private, so search the entries.
+  - Reset row: queue two updates through `Control("updates", ...)`; `getUpdates` at offset 0 returns ids 1 and 2; `SetOffset(3)`; `BotApi.Reset()`; `Offset()` is `""`; queue one update, which gets id 1; `getUpdates` with the offset the helper left (none) returns it.
+  - Poller-check rows: `PollerReason()` is `""`; `PollerReason("Decide")` names `Decide`. Then `SetOffset(5)` and one queued update; `Reset("Decide")` returns an error naming `Decide`; `Offset()` is still 5, and `getUpdates` at offset 0 still returns the queued update.
 - `docker/tests/lib-live.sh` (DW-367):
   - `live_key_count` counts `TELEGRAM_BOT_TOKEN` only when it is not empty and is not the dummy.
   - New `live_no_bot_token`: writes `$tmp/no-bot-token.yml`, which sets `services.iris.environment.TELEGRAM_BOT_TOKEN: ""`, and adds it with `live_add_file`. `live_pop_file` removes it.
-  - Update the header comment and `check_no_key`'s comment.
+  - Update the header comment and `check_no_key`'s comment. Change nothing else; never `iris_script`.
 - `docker/tests/test-lib-live.sh`: flip :718 to "an empty bot token counts 0". Add a row: `live_no_bot_token` adds one file, last, that sets the iris service's token to the empty value.
 - `docker/tests/test-production-restart.sh`:
   - New `check_telegram_off <label> <tokenset>`. In one terminal session it checks:
@@ -176,8 +173,8 @@ deferred: []
 - Given Telegram included through the seam and an empty `TELEGRAM_BOT_TOKEN`, when OcuTalon starts in CI, then the start ends ready, the step leaves both items disabled and records `off`, the mock lists no Bot API call, every enabled item runs and the no-key check passes (FR-21, AD-23, DW-367).
 - Given a CI start whose release does not include Telegram, with the dummy token set, when it ends, then both rows are `0`, the mark says `off`, `TelegramIn` and `TelegramOut` have no job, and the mock lists no Bot API call (REL-1, AD-23).
 - Given the Telegram step, when `Included()` returns 1 and the token is set, then both rows are `1` and the step leaves the mark alone; and in every other case both rows are `0` and the mark is `off` (AD-23, AD-14).
-- Given the mock with Lane A's scenarios, when IRIS queues each one through the control endpoint and calls the Bot API as the Telegram service will, then each answers as the matrix says, the calls read back in order, and the log holds only the token's length (FR-22, AD-22, NFR-11).
-- Given a reset of the mock's Bot API side, when a test queues an update, then its id continues the count and a poller's kept offset still receives it; and a test that resets the Bot API side fails, naming the item, while `TelegramIn` has a live job (DW-370).
+- Given the mock with Lane A's scenarios, when IRIS queues each one as replies through the control endpoint and calls the Bot API as the Telegram service will, then each answers as the matrix says, the calls read back in order, and the log holds only the token's length (FR-22, AD-22, NFR-11).
+- Given a test that resets the mock's Bot API side through `Test.Channel.BotApi.Reset`, when it then queues an update and calls `getUpdates` with the offset the helper left, then the update comes back, because the reset cleared `TelegramIn`'s kept offset in the same call; and while the poller item has a live job, the helper refuses with a reason that names it, and resets and clears nothing (DW-370, Lane A's half).
 - Given this story merged, when the README check, `/state` and the pairing routes run, then `Included()` keeps its test-only body, `/state` hides Telegram and the pairing routes answer 404 (`test-readme.sh` and `Test.Web.PairingApi`, unchanged; FR-58).
 - Given CI's `browser` group, when the demo path and `sign-in` run, then REL-2's specs pass with Telegram's parts not run, and R11 shows "Telegram not set up" with no banner (unchanged; CI; UX-DR17, UX-DR56).
 
@@ -200,7 +197,8 @@ deferred: []
 - AD-14: the token comes only from the environment; who records the Telegram state.
 - AD-19: bot tokens come from the environment; structural values are rewritten at every start.
 - AD-3: the production class holds structure only, and switches are System Default Settings.
-- AD-22: the CI override, the mock and the scenario files; new mock behaviour is Lane B's, asked for under AD-33.
+- AD-5: the kept offset is state that survives restarts.
+- AD-22: the CI override, the mock and the scenario files; Lane A extends the mock only by adding files under `ci/mock/scenarios/A/`, and new mock behaviour is Lane B's, asked for under AD-33.
 - AD-29: the lanes; the `Included()` seam; `STUB`; the Telegram epic stays inside Lane A's files.
 - AD-33: only the owning lane edits a class.
 
@@ -215,71 +213,84 @@ deferred: []
 - The first such start is row 19's existing `OCUTALON_EVAL=1` recreate, so CI gains no start.
 - Story 12.7, which makes `Included()` return 1 everywhere, reuses `live_no_bot_token` for its no-token start.
 
-**DW-370 (decided).**
-- The mock's ids behave like the Bot API's: update ids and message ids keep counting for the mock's lifetime. `reset` clears only the queues, the replies and the calls, so a poller's kept offset never drops a later test's updates.
-- A test queues an update scenario as an inbound update (`/updates {"scenario"}`), which gets a fresh id. A scripted `getUpdates` reply keeps its file's id, so it is only for a test with no poller.
-- A test reads its ids from the queue's answer, and its calls after its own reset.
-- A test that resets the Bot API side owns it. It first calls `TelegramPollerReason()`, and fails naming `TelegramIn` when that item has a live job.
-- Through Story 12.6, no CI start runs `TelegramIn`: `Included()` is 0 at every start, and a Lane A test that runs it must stop it before it returns.
-- Story 12.7 turns `TelegramIn` on at every start. It must then stop it around these tests, or give them their own bot. The check makes that impossible to miss.
+**DW-370 (re-judged after the ruling: met in part).**
+- **Met from Lane A's side: the updates dropped after a reset.**
+  - `TelegramIn` keeps the next offset to confirm (the last handled `update_id` plus 1) at `$$$EnsStaticAppData("TelegramIn", "offset")`, that is `^Ens.AppData("TelegramIn", "offset")`, and nowhere else. No node means no offset.
+  - `Test.Channel.BotApi.Reset` kills that node in the same call that resets the mock. After the mock's ids restart at 1, the poller polls with no offset and gets the new updates, rather than confirming them away.
+  - The helper refuses to reset while the poller item has a live job. So a Lane A test never resets under a live `TelegramIn`, and never takes its updates or its calls.
+  - A scripted `getUpdates` reply keeps its file's `update_id` (1). After the helper's reset that id is new to the poller, so a test queues one update source per reset.
+- **Not met: one client.**
+  - `Test.Contract.Mock.TestTelegramBotApi` (Lane B's) resets the mock with neither the check nor the offset, and expects `update_id` 1, `message_id` 1 and exactly its own 3 calls. That holds while no poller runs in its stack. It breaks once `TelegramIn` polls at CI starts, from Story 12.7: the poller can take the update the test queued, and its `getUpdates` calls join the list.
+  - A reset made outside the helper restarts the ids under a kept offset, and the helper can't reach it.
+  - The mock's Bot API side stays one queue, one call list and one pair of counters for every client.
+  - Through Story 12.6, no CI start runs `TelegramIn`, because `Included()` is 0 at every start, and a Lane A test that runs it must stop it before it returns. From Story 12.7, `TelegramIn` runs at every CI start, so `Test.Channel.TelegramMock` fails its own check until 12.7 stops the poller around it or the ask below lands. The check makes that impossible to miss.
 
-**Integration ACs (Rule 1).** Three consumers read what this story adds:
+**Lane B mock ask (AD-22, AD-33):**
+- **What:** keep the Bot API side's state per token: the updates, the replies, the calls and the counters, keyed by the `/bot<token>/` segment, with the control routes naming the token. A direct-call test with its own dummy token then shares nothing with `TelegramIn`. Without that, `Test.Contract.Mock.TestTelegramBotApi` must stop `TelegramIn` around itself (or fail with a reason, as Lane A's check does), and read its ids from the mock's answers (`updateIds`) instead of expecting 1.
+- **Why:** a live `TelegramIn` and a direct-call test can't share one queue and one call list, and Lane A's helper reaches only Lane A's resets.
+- **First needed by:** Story 12.7. It makes `Included()` return 1, so `TelegramIn` polls the mock at every CI start, `shard:lane-b` in the `image` group included.
+- **With it:** `Test.Channel.BotApi.BotReply` repeats `Test.Contract.Mock.BotCall` without its throw (Rule 2, below). If `BotCall` gained a status output, or `NewRequest` became public, the copy could go. That is Lane B's choice, so the runner can file it with the same ask.
+
+**Integration ACs (Rule 1).** Four consumers read what this story adds:
 - The start's `Production` step reads the rows. In `test-production-restart.sh`, the items have no job and every other item runs.
 - `/state` and the card read the mark (R11, unchanged).
 - IRIS's Bot API calls read the scenarios (`Test.Channel.TelegramMock`).
+- `Test.Channel.TelegramMock` uses `Test.Channel.BotApi` against the real mock.
 
 **Consumed-by:**
-- Story 12.2: `TelegramIn`'s first enabled start through the switch; the update scenarios and the 409; ids that keep counting across resets.
-- Stories 12.4 and 12.5: the private and group updates.
-- Story 12.6: the 429, for `TelegramOut`'s retry.
-- Story 12.7: the button update; `Included()` returning 1; `live_no_bot_token`; the check on `TelegramIn`'s job.
+- Story 12.2:
+  - `TelegramIn`'s first enabled start through the switch;
+  - the update scenarios and the 409;
+  - the kept offset at `$$$EnsStaticAppData("TelegramIn", "offset")`. `TelegramIn` keeps the next offset there and nowhere else. It uses that one value both to confirm updates and to skip the ids it has handled, and reads it when it starts polling, so a reset made while it is stopped takes effect at its next start;
+  - `Test.Channel.BotApi`'s `Reset`, `PollerReason`, `BotReply`, `Offset` and `SetOffset`, for its tests.
+- Stories 12.4 and 12.5: the private and group updates, and `BotApi`.
+- Story 12.6: the 429, for `TelegramOut`'s retry, through `BotReply`.
+- Story 12.7: the button update; `Included()` returning 1; `live_no_bot_token`; the poller check; and the residual named in the Lane B ask.
 
 **Consumes** (all used against the real mock and a real start):
 - `StatusMark.RecordTelegram` and `TelegramState` (Story 10.3);
 - `Channel.Telegram.In.Included()` (Epic 0);
 - `Install.Step.Production.WriteDefault` (the bridge accessor);
 - `Test.Data.Fixture.SetTelegramIncluded`;
-- the mock's Bot API side and `Test.Contract.Mock`'s helpers (Story 10.3).
+- the mock's Bot API side and `Test.Contract.Mock`'s public helpers and parameters (Story 10.3), all called, none changed;
+- the platform's `Ens.Job:Enumerate` query and `$$$EnsStaticAppData`.
 
 **Extend, don't copy (Rule 2):**
 - The step follows `SetEval` and calls `WriteDefault`, so there is no second writer.
-- `BotCall` calls `BotReply`, which holds its old body, and `Control` gains an output.
-- `/updates {"scenario"}` reuses the scenario lookup of `/replies` and the id assignment of `/updates`.
-- `live_no_bot_token` follows the generated-file pattern of `$tmp/compose.tz.yml` and `port.yml`.
-- `check_telegram_off` follows `check_eval`.
-- One exception: `TelegramSwitch` saves and restores its two rows itself. `Test.Install.Production`'s `RowId` and `RestoreRow` are private and keyed to EvalIn's one row, and the copy is a few lines.
+- `BotApi` and `TelegramMock` call `Test.Contract.Mock`'s `TelegramMissingReason`, `BotCall`, `Control`, `Calls`, `LogMark`, `LogSince` and its `TELEGRAM*` parameters. They copy none of them.
+- One copy: `BotApi.BotReply` repeats `BotCall`'s request, about 8 lines, without the throw on a status other than 200. `BotCall` throws on the 409 and the 429 that this story must read, `NewRequest` is private, and the ruling keeps `Test.Contract.Mock` unchanged (AD-33). The unification is Lane B's (see the ask).
+- `PollerReason`'s job query follows `Install.Step.Production.NotRunning()`. It is not a call, for two reasons. `NotRunning` answers a different question (which enabled items have no live job), and it sits in Epic 15's contended `Install/**`. The query is a few lines.
+- `TelegramSwitch` saves and restores its two rows itself. `Test.Install.Production`'s `RowId` and `RestoreRow` are private and keyed to EvalIn's one row, and the copy is a few lines.
+- `live_no_bot_token` follows the generated-file pattern of `$tmp/compose.tz.yml` and `port.yml`. `check_telegram_off` follows `check_eval`.
+- The scenario files follow Story 10.3's telegram form, as in `scenarios.test.mjs:218-233`.
 
 **Footprint:**
-- **Epic 12's own:** `Test/Channel/TelegramSwitch.cls` and `Test/Channel/TelegramMock.cls` (new); the five new `ci/mock/scenarios/A/telegram-*.json` files.
-- **Contended (Epic 15, `Install/**`):** `Install/Step/Telegram.cls`, filled in place as its stub says. The registry's order is unchanged. This needs the orchestrator's ruling at the spec gate.
-- **Shared by region:** `ci/units.sh` (`Channel` appended to `lane-a`, Epic 12's own entry).
-- **Cross-lane: Lane B's files, not contended.** These are the edits the epic context lists for DW-367 and DW-370 as "to settle when the story is planned":
-  - `ci/mock/mock.mjs` and `ci/mock/test/telegram.test.mjs`;
-  - `Test/Contract/Mock.cls`;
-  - `docker/tests/lib-live.sh`, `docker/tests/test-lib-live.sh` and `docker/tests/test-production-restart.sh`.
+- **Epic 12's own:** `Test/Channel/BotApi.cls`, `Test/Channel/TelegramSwitch.cls` and `Test/Channel/TelegramMock.cls` (new); the five `ci/mock/scenarios/A/telegram-*.json` files (new, in Lane A's scenario folder; no collision with Epic 9's `eval-*` or Epic 13's `bridge-example-*`).
+- **`Install/Step/Telegram.cls`:** filled in place, a footprint extension into Epic 15's `Install/**` (ruling Q1). The registry's order is unchanged.
+- **Allowed extensions (ruling Q2):** `docker/tests/lib-live.sh` (only `live_key_count`'s empty-token rule, the new `live_no_bot_token` and their comments; never `iris_script`), `docker/tests/test-lib-live.sh` and `docker/tests/test-production-restart.sh`.
+- **Shared by region:** `ci/units.sh` (`Channel` appended to `lane-a`, Epic 12's own entry). Epic 9 appends `Eval` to the same line, so the merge is one line.
+- **Nothing else.** `ci/mock/*.mjs`, `ci/mock/test/**` and `Test/Contract/Mock.cls` are read only.
+- **Spine:** no change. DW-420 records that AD-22's as-built `lane-a` list gains `Channel`, and the orchestrator writes it at the merge gate.
 
-  Three ADs bear on them: AD-29 keeps the Telegram epic inside Lane A's files; AD-33 lets only the owning lane edit a class; and AD-22 makes new mock behaviour Lane B's, asked for under AD-33. This plan makes that ask here, for the orchestrator's ruling at the spec gate.
-- **Fallback if the orchestrator refuses:**
-  - DW-370 by "reset the offset": a Lane A test helper clears `TelegramIn`'s kept offset with each reset, and the update scenarios are queued as replies only, with no change to the mock or `Contract.Mock`.
-  - DW-367's live start is asked of Lane B.
-- **Spine:** AD-22's as-built shard list ("`lane-a`: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch") gains `Channel`. This is a factual as-built correction for the lead (Rule 20), like the one after Epic 1 added Tools and Digest.
+**Owned ledger:**
+- DW-367: addressed, by the `lib-live.sh`, `test-lib-live.sh` and `test-production-restart.sh` tasks and the "CI start with no token" and `live_key_count` rows.
+- DW-370: addressed in part, by the `BotApi` and `TelegramMock` tasks and the "Reset with the kept offset" and "A direct-call test owns the Bot API side" rows. The residual is the one-client mock and `Test.Contract.Mock.TestTelegramBotApi`, under "Not met" above, filed as the Lane B mock ask; Story 12.7 needs it first.
 
-**Owned ledger:** Both entries are addressed and none is declined.
-- DW-367: the `lib-live.sh`, `test-lib-live.sh` and `test-production-restart.sh` tasks, and the "CI start with no token" and `live_key_count` rows.
-- DW-370: the `mock.mjs`, `telegram.test.mjs`, `Contract.Mock` and `TelegramMock` tasks, and the "Reset keeps counting" and "A direct-call test owns the Bot API side" rows.
-
-**Decided in-stage:**
+**Decided in-stage** ("re-plan" marks the choices new in this re-plan):
 1. The switch is two structural System Default Setting rows written through `WriteDefault`, as EvalIn's is. The XData flag stays `false`.
 2. "Set" means not empty.
 3. The step records `off` only on the disabled path. On the enabled path the mark is `TelegramIn`'s (AD-14).
 4. `Run()` is `Apply(Included(), TokenSet())`. Tests drive `Apply` with all four combinations, whatever the environment, and run `Run()` in the stack's own environment.
 5. No enabled stub runs in this story. The rows are the pinned surface.
 6. DW-367 is settled by an explicit empty value; see above.
-7. DW-370 is settled by ids that keep counting, update scenarios queued as inbound updates, and a direct-call test that checks first that no `TelegramIn` job is live.
+7. (re-plan) DW-370 is met from Lane A's side by `BotApi.Reset`. It refuses under a live poller, and otherwise clears the kept offset and resets the mock in one call. The residual goes to Lane B as an ask.
 8. The scenario names start with `telegram-`. The 429 has `retry_after` 2, so a retry can be told apart from a 1-second default. The 409 uses the Bot API's own text.
 9. The new area `Channel` is appended to `lane-a`.
-10. `Contract.Mock`'s helpers are extended (`BotReply`, `Control`'s output, `TelegramPollerReason`), not copied.
+10. (re-plan) The kept offset lives at `$$$EnsStaticAppData("TelegramIn", "offset")`, the platform's per-item store for persistent adapter values. It needs no new OcuTalon global, mapping, short name or table, so no AD-33 table row and no spine change, and it survives restarts (AD-5). It holds the next offset to confirm; no node means none.
 11. The step prints no `WARN` line, because that would be public-facing text that the UX and the PRD don't specify.
+12. (re-plan) The update scenarios are scripted `getUpdates` replies with `update_id` 1. The mock sends a reply as written, so a test queues one update source per helper reset.
+13. (re-plan) The helpers are one class, `Test.Channel.BotApi`, with no `Test` methods. `Reset` and `PollerReason` take the poller item as an argument (default `TelegramIn`), so that a test can see the refusal with `Decide`, an item with a live job.
+14. (re-plan) `TelegramMock` calls `BotCall` where the answer is 200 and `BotReply` only where it is not. It checks the log for the token in `LogSince`'s entries, because `LogHolds` is private.
 
 ## Verification
 
@@ -287,36 +298,36 @@ deferred: []
 - Run one command per tool call, in the foreground, with `timeout: 600000`. Never put two IRIS test runs in one message.
 - The harness moves a call to the background after about 180 s. Poll such a run to the end in foreground calls of under 170 s each, and never start a second copy.
 - IRIS tests run only on throwaways, never on `ocutalon-slot-a`.
-- A warm run refuses any change under `ci/mock/`. After such a change, run `<lane> OCUTALON_RUN_TAG=e12s1iw ci/warm.sh down`, then `up`.
+- A warm run refuses any change under `ci/mock/`. Add the scenario files first. After any later change there, run `<lane> OCUTALON_RUN_TAG=e12s1iw ci/warm.sh down`, then `up`.
 
 **Commands:**
-- (loop) `bash docker/tests/test-mock.sh`. Expected: every node test passes.
+- (loop) `bash docker/tests/test-mock.sh`. Expected: every node test passes; `scenarios.test.mjs` row 15 loads the five new files with no problem.
 - (loop) `bash docker/tests/test-lib-live.sh`. Expected: all checks pass.
 - (loop) `<lane> OCUTALON_RUN_TAG=e12s1iw ci/warm.sh up`, once per stage. Expected: the stack is ready.
-- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e12s1iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Channel.TelegramSwitch`, `OcuTalon.Test.Channel.TelegramMock`, `OcuTalon.Test.Contract.Mock`. Expected: `CLASS … passed`.
+- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e12s1iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Channel.TelegramSwitch`, then `OcuTalon.Test.Channel.TelegramMock`. Expected: `CLASS … passed`.
 - (loop) `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh live production-restart`, on a fresh stack (about 90 to 120 s locally). Expected: every PASS line, including the new Telegram lines.
-- (once) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e12s1iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Install.Production`, `OcuTalon.Test.Install.Registry`, `OcuTalon.Test.Web.PairingApi`, `OcuTalon.Test.Web.Api`. Expected: passed.
+- (once) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e12s1iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Contract.Mock` (after `TelegramMock` on the same stack), `OcuTalon.Test.Install.Production`, `OcuTalon.Test.Install.Registry`, `OcuTalon.Test.Web.PairingApi`, `OcuTalon.Test.Web.Api`. Expected: passed.
 - (once) `<lane> OCUTALON_RUN_TAG=e12s1iw ci/warm.sh down`.
-- (once) The fresh-environment check, one call each: `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh shard lane-a@Channel`, then the same with `--reverse`. Expected: both classes pass in both orders.
+- (once) The fresh-environment check, one call each: `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh shard lane-a@Channel`, then the same with `--reverse`. Expected: both test classes pass in both orders (`BotApi` is no test class).
 - (once) `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh shard lane-b@Contract`. Expected: passed.
 - (once) `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh live production`, then `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh live compose-start`, one per call. These consumers of `live_key_count` are unchanged. Expected: passed.
 - (once) `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-ci-changes.sh` and `bash docker/tests/test-readme.sh`, one per call. Expected: each passes, and every test class runs once.
 - (once) Write the story's changed and new paths (`git diff --name-only HEAD` plus `git ls-files --others --exclude-standard`) to a file in the stage's scratchpad folder. Then run `bash ci/changes.sh ci.yml --paths-from <that file>`. Expected: exit 0, with one `GROUP` line per group.
 - (once) `bash ci/checks.sh`. Expected: every script passes.
 - (once) `<lane> OCUTALON_RUN_TAG=e12s1i ci/iris.sh teardown`, also after a failure, and `ci/warm.sh down` if it has not run.
+- (once) `git status --short -- ci/mock/mock.mjs ci/mock/scenarios.mjs ci/mock/server.mjs ci/mock/health.mjs ci/mock/test src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls` prints nothing (the ruling: Lane B's mock code, its tests and `Test.Contract.Mock` are unchanged).
 - CI runs every group on fresh instances on each push (Rule 23). The `browser` group (REL-2's demo path, and `sign-in` with R11), both install groups, `image` (`shard:lane-b`), `shards` and `shards-2` (`lane-a@rest`, now with `Channel`) are left to CI.
 
 **Shared surfaces:**
 - **Two new structural System Default Setting rows** (`TelegramIn` and `TelegramOut`, `Enabled`), written at every start. `Test.Install.Production` reads only EvalIn's row, the live scripts read only rows they name, and no test counts the production's rows. `Test.Fix.Snapshot` compares rows before and after inside one test, and only a start writes these rows.
 - **The Telegram mark**, which now exists with `off` after every start that leaves Telegram off. Its readers already see `off` when there is no mark, so the value they read is unchanged: `/state` (`Test.Web.Api`, `Test.Web.PairingApi`), `rail.spec.ts` R11 and `Test.Demo.Guide`.
 - **`ci/units.sh`'s `lane-a` areas** (with `Channel` added): `test-ci-config.sh` (it works out its checks), `ci/iris.sh classes lane-a` and the class list of `shards-2`.
-- **The mock's scenario list** (5 new `telegram-*` files): `scenarios.test.mjs` row 15, and the health counts, which are computed from the tree.
-- **The mock's Telegram control endpoint**:
-  - a reset now keeps the counters, which changes `telegram.test.mjs` :165-168 and `Test.Contract.Mock.TestTelegramBotApi`;
-  - `/updates` now also takes `{"scenario"}`.
+- **The mock's scenario list** (5 new `telegram-*` files): `scenarios.test.mjs` row 15, and the counts, which are computed from the tree.
+- **The mock's Bot API state** (unchanged code): `TelegramMock` resets it at the start and the end of each test, and so does `Test.Contract.Mock.TestTelegramBotApi`, so the two pass in either order on one stack. In CI they run in different shards.
+- **The kept offset** `^Ens.AppData("TelegramIn", "offset")` (new): nothing reads it until Story 12.2, and `BotApi.Reset` leaves it absent.
 - **`live_key_count`'s rule for an empty token**: `test-lib-live.sh` :718, and every live script's `check_no_key`. CI starts hold the dummy, so their counts are unchanged.
-- **`Test.Contract.Mock`'s helpers**: `BotCall` now goes through `BotReply`, and `Control` has a new optional output. Today only the class itself calls them.
 - **The production's item list and enabled flags** are unchanged (`Test.Install.Production`, `Test.Core.ProductionItems`, `check_items_run`).
+- The mock's control endpoint and `Test.Contract.Mock` do not change.
 - Every test added or changed passes on a fresh environment, in either order.
 
 **Pinning mutations to apply (Rule 19).** The implement stage applies each one, sees red, reverts the change byte for byte, and records `mutation: … → …` here.
@@ -332,9 +343,9 @@ deferred: []
 | No Bot API call at a start | `Run` makes one `getMe` call | `production-restart`'s first-start calls (`200` with 1 call) |
 | Update scenarios | `telegram-group-update.json`'s chat type becomes `private` | `TelegramMock`'s update test |
 | Reply scenarios | `telegram-rate-limited.json` loses `parameters` | `TelegramMock`'s reply test |
-| DW-370: the counter | `reset` sets `tg.nextUpdateId = 1` again | `TelegramMock`'s reset row; `telegram.test.mjs`'s reset test |
-| `/updates {"scenario"}` | The mock keeps the file's `update_id` | `telegram.test.mjs`'s scenario test |
-| DW-370: the poller check | `TelegramPollerReason` always returns `""` | `TelegramMock`'s check row (`Decide`) |
+| DW-370: the offset cleared with the reset | `BotApi.Reset` leaves the kept offset | `TelegramMock`'s reset row (`getUpdates` at offset 3 returns no update) |
+| DW-370: the poller check | `PollerReason` always returns `""` | `TelegramMock`'s check row (`Decide`) |
+| DW-370: no reset under a live poller | `Reset` skips `PollerReason` | `TelegramMock`'s refusal row (the queued update is gone, and `Offset()` is `""`) |
 | DW-367: the count | `live_key_count` counts an empty token again | `test-lib-live.sh`'s row; `production-restart` row 19's `check_no_key` |
 | DW-367: the file | `live_no_bot_token` writes the dummy | `production-restart` row 19's "set and empty" check and `TokenSet` 0; `test-lib-live.sh`'s row |
 | `Included()` unchanged | `Included()` returns 1 | `test-readme.sh` |
@@ -344,4 +355,4 @@ deferred: []
 Status: ready-for-dev
 Blocking condition: none
 
-Planned and halted after planning (`Halt after planning.`). The spec passed the READY FOR DEVELOPMENT gate after one repair pass (explicit labels for the live checks, the `Run()` row's wording, and the boundary on new text). Before implementation, the orchestrator rules at the spec gate on the contended edit (`Install/Step/Telegram.cls`, Epic 15) and the Lane B edits listed under Design Notes, Footprint (AD-22, AD-29, AD-33).
+Re-planned (cycle iteration 2) and halted after planning (`Halt after planning.`). The intent block is kept verbatim. Following the orchestrator's spec-gate rulings, the plan no longer edits `ci/mock/*.mjs`, `ci/mock/test/**` or `Test/Contract/Mock.cls`. DW-370 is met from Lane A's side by the new helper `Test.Channel.BotApi`, with the kept offset at `$$$EnsStaticAppData("TelegramIn", "offset")`. Its residual is a Lane B mock ask that Story 12.7 needs first. The switch, the DW-367 work and the verification arrangement are as before.

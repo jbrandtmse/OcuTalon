@@ -2299,3 +2299,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
 - 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
+
+### DW-421: The CI mock's Bot API side keeps one global state (updates, replies, calls, counters) for every client, so once TelegramIn polls in CI a direct-call test such as Test.Contract.Mock.TestTelegramBotApi shares its queue and call list with the live poller
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs one tg state; Test/Contract/Mock.cls TestTelegramBotApi resets then expects update_id 1 and its own 3 calls; Lane A's Test.Channel.BotApi.Reset clears TelegramIn's kept offset with its own resets only (Story 12.1 re-plan); reachable from Story 12.7 (Included() 1 at every CI start)
+- 2026-10-30T06:46:50Z status=escalated owner=burndown by=spec_gate note=Lane B mock ask under AD-33 (AD-22): keep the Bot API state per token (keyed by the /bot<token>/ segment, control routes naming the token), or have TestTelegramBotApi stop TelegramIn around itself and read its ids from updateIds; optional: a status output on BotCall so Lane A's BotReply copy can go; DW-370 residual (orchestrator ruling 2026-10-30, Q2)
