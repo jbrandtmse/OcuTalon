@@ -11,8 +11,8 @@
 ///   - TestCallsAndLog: the calls read back in order with their methods and parameters, and the mock's log holds each Bot API path as
 ///     /bot[redacted]/<method> with the token's length and never the token;
 ///   - TestResetClearsKeptOffset: after a reset through the helper, a new update with id 1 comes back from getUpdates;
-///   - TestPollerCheck: PollerReason is empty for TelegramIn and names an item that has a live job, and Reset refuses for that item,
-///     clearing and sending nothing.
+///   - TestPollerCheck: PollerReason names an item that has a live job, and Reset refuses for that item, clearing and sending nothing
+///     (that it is empty for TelegramIn is every test's precondition, which Ready() asserts).
 Class OcuTalon.Test.Channel.TelegramMock Extends %UnitTest.TestCase
 {
 
@@ -86,8 +86,8 @@ Method TestReplyScenarios()
 		Set body = {"chat_id": 42, "text": "zz rate limited"}.%ToJSON()
 		Set answer = ##class(OcuTalon.Test.Channel.BotApi).BotReply(..Token, "sendMessage", body, .code)
 		Do $$$AssertEquals(code_"|"_answer.ok_"|"_answer."error_code"_"|"_answer.parameters."retry_after", "429|0|429|2", "the first sendMessage answers 429 with retry_after 2")
-		Set answer = ##class(OcuTalon.Test.Channel.BotApi).BotReply(..Token, "sendMessage", body, .code)
-		Do $$$AssertEquals(code_"|"_answer.ok, "200|1", "the second sendMessage gets the 200 default")
+		Set answer = ##class(OcuTalon.Test.Contract.Mock).BotCall(..Token, "sendMessage", body)
+		Do $$$AssertEquals(answer.ok, 1, "the second sendMessage gets the 200 default")
 	} Catch ex {
 		Do $$$AssertTrue(0, "a Bot API call failed: "_..Safe(ex))
 	}
@@ -136,7 +136,7 @@ Method TestCallsAndLog()
 			If $Find(entry.%ToJSON(), ..Token) Set holds = 1
 			If $Extract(entry.path, 1, 5) '= "/bot[" Continue
 			Set seen = seen + 1
-			Do $$$AssertEquals(entry.path_"|"_entry.tokenLength, "/bot[redacted]/"_$Piece(entry.path, "/", 3)_"|"_$Length(..Token), "a Bot API line has the masked path and the token's length")
+			Do $$$AssertEquals(entry.path_"|"_entry.tokenLength, "/bot[redacted]/"_$Piece("getMe,getUpdates,sendMessage,sendMessage", ",", seen)_"|"_$Length(..Token), "Bot API line "_seen_" has the masked path of its call's method and the token's length")
 		}
 		Do $$$AssertEquals(seen, 4, "the log holds the four calls")
 		Do $$$AssertEquals(holds, 0, "and no line of the log holds the token")
@@ -178,7 +178,6 @@ Method TestPollerCheck()
 	Set mock = "OcuTalon.Test.Contract.Mock"
 	Set helper = "OcuTalon.Test.Channel.BotApi"
 	Try {
-		Do $$$AssertEquals($ClassMethod(helper, "PollerReason"), "", "TelegramIn has no live job, so there is no reason")
 		Set reason = $ClassMethod(helper, "PollerReason", "Decide")
 		If reason = "" {
 			Do $$$AssertTrue(0, "Decide has no live job in this stack, so the production is not running and the refusal cannot be shown")

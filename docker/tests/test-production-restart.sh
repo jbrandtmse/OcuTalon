@@ -28,7 +28,7 @@
 #     0 and the mark off, with no job for TelegramIn and TelegramOut and no Bot API call at the mock. The OCUTALON_EVAL=1 start
 #     runs with the seam at 1, the mark on and TELEGRAM_BOT_TOKEN set and empty (live_no_bot_token, which is what a .env copied
 #     from .env.example holds): it ends ready, the no-key check passes, both rows are 0, the mark is off, and every enabled item
-#     runs. The last start has the seam off and the dummy token again, and leaves the rows 0 and the mark off.
+#     runs. The last start has the seam off, the mark on and the dummy token again, and leaves the rows 0 and the mark off.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -157,10 +157,13 @@ check_no_key "row 19, no token"
 check_items_run "row 19, no token"
 check_telegram_off "row 19, no token" 0
 
-check_session "row 19: the Telegram seam is back to 0 before the start with the dummy token" OCUTALON \
-  "CHK|seam|1" \
+check_session "row 19: the Telegram seam is back to 0 and the mark is on before the start with the dummy token" OCUTALON \
+  "CHK|seam|1
+CHK|mark|on" \
   'Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(0)' \
+  'Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on","ocutalon_ci_bot")' \
   'Write !,"CHK|seam|",(##class(OcuTalon.Channel.Telegram.In).Included()=0)' \
+  'Write !,"CHK|mark|",##class(OcuTalon.Data.StatusMark).TelegramState()' \
   'Halt'
 live_pop_file
 if ! dc up -d >/dev/null 2>&1; then

@@ -5,7 +5,10 @@
 ///     (1, 1), the mark is off for the other three, and it is left as it was for (1, 1);
 ///   - TestRun: Run() reads the seam and the environment of the stack it runs in: both rows are 1 exactly when the seam is 1 and
 ///     TELEGRAM_BOT_TOKEN is not empty, and no row value, row description or status text holds the token;
-///   - TestStructural: a row set to 1 by hand is 0 again after Run() with the seam at 0.
+///   - TestStructural: a row set to 1 by hand is 0 again after Run() with the seam at 0;
+///   - TestRowDescription: each row's description says that the step writes it at every start, from the release and the token variable;
+///   - TestPrintsNothing: Apply() and Run() write nothing to the current device (no WARN line, no user-facing text); a probe shows
+///     that the capture sees output.
 /// The two rows, the Telegram mark and the seam ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
 Class OcuTalon.Test.Channel.TelegramSwitch Extends %UnitTest.TestCase
 {
@@ -94,11 +97,14 @@ Method TestRun()
 	For seam = 0, 1 {
 		Set label = "Run() with the seam at "_seam
 		Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(seam)
+		Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
 		Set status = ##class(OcuTalon.Install.Step.Telegram).Run()
 		Do $$$AssertStatusOK(status, label_" succeeds")
 		Set want = seam && (token '= "")
 		Do $$$AssertEquals(..Resolved("TelegramIn"), want, label_": TelegramIn's row is "_want)
 		Do $$$AssertEquals(..Resolved("TelegramOut"), want, label_": TelegramOut's row is "_want)
+		Set state = ##class(OcuTalon.Data.StatusMark).TelegramState(.bot)
+		Do $$$AssertEquals(state_"|"_bot, $Select(want: "on|ocutalon_ci_bot", 1: "off|"), label_": the mark is "_$Select(want: "left as it was", 1: "off"))
 		Set leaked = 0
 		If token '= "" {
 			For item = "TelegramIn", "TelegramOut" {
@@ -123,6 +129,62 @@ Method TestStructural()
 	For item = "TelegramIn", "TelegramOut" {
 		Do $$$AssertEquals(..Resolved(item), 0, item_"'s row is 0 again")
 	}
+}
+
+/// Each row's description is an admin note: it says that the step writes the row at every start, from the release and from the
+/// token variable (by name; the value is never read into it). Checked on the enabled and the disabled path.
+Method TestRowDescription()
+{
+	For included = 0, 1 {
+		Set label = "Apply("_included_", "_included_")"
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Telegram).Apply(included, included), label_" succeeds")
+		For item = "TelegramIn", "TelegramOut" {
+			Set description = ##class(Ens.Config.DefaultSettings).%OpenId(..RowId(item)).Description
+			Do $$$AssertTrue($Find(description, "every start") > 0, label_": "_item_"'s description says that the step writes the row at every start")
+			Do $$$AssertTrue($Find(description, "TELEGRAM_BOT_TOKEN") > 0, label_": "_item_"'s description names the token variable")
+		}
+	}
+}
+
+/// The step prints no WARN line and no user-facing text: Apply() on both paths and Run() with the seam at 0 and at 1 write nothing.
+Method TestPrintsNothing()
+{
+	Do $$$AssertEquals(..Printed("Write ""probe"""), "probe", "the capture sees what is written to the current device")
+	Do $$$AssertEquals(..Printed("Do ##class(OcuTalon.Install.Step.Telegram).Apply(0, 0)"), "", "Apply(0, 0) prints nothing")
+	Do $$$AssertEquals(..Printed("Do ##class(OcuTalon.Install.Step.Telegram).Apply(1, 1)"), "", "Apply(1, 1) prints nothing")
+	For seam = 0, 1 {
+		Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(seam)
+		Do $$$AssertEquals(..Printed("Do ##class(OcuTalon.Install.Step.Telegram).Run()"), "", "Run() with the seam at "_seam_" prints nothing")
+	}
+}
+
+/// What the code writes to the current device, captured through a temporary file; the device is restored whatever happens.
+ClassMethod Printed(code As %String) As %String [ Private ]
+{
+	Set file = ##class(%File).TempFilename("txt"), original = $IO, text = "", opened = 0
+	Try {
+		Open file:"NWS":5
+		If $Test {
+			Set opened = 1
+			Use file
+			Xecute code
+			Use original
+			Close file
+			Set opened = 0
+			Set stream = ##class(%Stream.FileCharacter).%New()
+			Do stream.LinkToFile(file)
+			Set text = stream.Read(32000)
+			Kill stream
+		} Else {
+			Set text = "capture file not opened"
+		}
+	} Catch ex {
+		Use original
+		If opened Close file
+		Set text = "capture failed: "_ex.DisplayString()
+	}
+	Do ##class(%File).Delete(file)
+	Quit text
 }
 
 /// The id of an item's Enabled row.

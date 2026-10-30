@@ -12,9 +12,11 @@ Include Ensemble
 ///     its updates. The job query follows Ens.Job:Enumerate.
 ///   - Reset(poller): refuses with PollerReason's text as an error status when it is not empty, sending nothing and clearing nothing.
 ///     Otherwise, in the one call, it kills the kept offset and resets the mock's Bot API side, and fails when the mock did not answer 200.
+///     A scripted getUpdates reply (the telegram-*-update scenarios) is sent as written, with update_id 1, and moves neither the mock's
+///     update ids nor its offset filter, so a test queues one update source (a scenario or /updates) per Reset.
 ///   - BotReply(token, method, body, .statusCode): the Bot API call of Mock.BotCall that returns the parsed body and the status
-///     whatever the status is, so that a test can read a 409 or a 429. It throws only when the mock cannot be reached, with a text that
-///     names the method and never the token.
+///     whatever the status is, so that a test can read a 409 or a 429. It throws when the mock cannot be reached, with a text that
+///     names the method and never the token, and when the answer is not JSON (the mock answers JSON on every path).
 Class OcuTalon.Test.Channel.BotApi Extends %RegisteredObject
 {
 
@@ -65,7 +67,8 @@ ClassMethod Reset(poller As %String = {..#POLLER}) As %Status
 }
 
 /// A Bot API call to the mock: POST /bot<token>/<method> with the JSON body (none when ""). Returns the parsed body, and the status in
-/// statusCode, whatever the status. Throws only when the mock is not reached, naming the method and never the token.
+/// statusCode, whatever the status. Throws when the mock is not reached, naming the method and never the token, and when the answer
+/// is not JSON.
 ClassMethod BotReply(token As %String, method As %String, body As %String, Output statusCode As %Integer) As %DynamicObject
 {
 	Set statusCode = ""

@@ -1,7 +1,7 @@
 /// The Telegram step (AD-23): the one switch of the Telegram items TelegramIn and TelegramOut. At every start it writes the System
 /// Default Setting row Enabled of each item, through the one writer of OcuTalon.Install.Step.Production (the bridge's accessor):
 /// 1 only when OcuTalon.Channel.Telegram.In.Included() returns 1 and TELEGRAM_BOT_TOKEN is not empty, and 0 otherwise. The rows are
-/// structural (AD-19): the step rewrites them at every start, so a value set by hand does not last, and a token removed since the
+/// structural (AD-19): the step rewrites them at every start, so a value set by hand in them does not last, and a token removed since the
 /// last start leaves Telegram off at this one. A row overrides the Enabled flag of the production definition, which keeps false
 /// (AD-3). The registry runs this step before Production, so the start reads the rows.
 /// When the step leaves the items disabled it records the Telegram state off through OcuTalon.Data.StatusMark (AD-14). When it

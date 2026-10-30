@@ -18,7 +18,8 @@
 # the temporary directory.
 # The project receives no keys (the decoy key file is dropped by the override) and publishes no host port,
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819. The only bot token
-# in the container is the dummy of ci/compose.ci.yml, which is no key (live_key_count, check_no_key).
+# in the container is the dummy of ci/compose.ci.yml, or the empty value that live_no_bot_token layers after it; neither is a key
+# (live_key_count, check_no_key).
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #

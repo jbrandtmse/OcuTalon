@@ -187,6 +187,43 @@ deferred:
 - Given this story merged, when the README check, `/state` and the pairing routes run, then `Included()` keeps its test-only body, `/state` hides Telegram and the pairing routes answer 404 (`test-readme.sh` and `Test.Web.PairingApi`, unchanged; FR-58).
 - Given CI's `browser` group, when the demo path and `sign-in` run, then REL-2's specs pass with Telegram's parts not run, and R11 shows "Telegram not set up" with no banner (unchanged; CI; UX-DR17, UX-DR56).
 
+### Review Findings
+
+Code review, 2026-10-30. Full mode: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, no model override. 33 rows became 11 entries, all low; 19 more were rejected. No high, no medium. The AD checks are clean: Lane B's mock code is unchanged (AD-22, AD-33); the token is never stored, returned, logged or printed (AD-14, AD-19, NFR-11); there is one switch, a failed step returns its status and the registry is unchanged (AD-23); the production class is unchanged (AD-3).
+
+- [x] [Review][Patch] The doc claim "a value set by hand does not last" was wider than the step. A row that names the host class outranks `(production, item, *, Enabled)` in `%GetSetting`. The claim now reads "set by hand in them"; the behavior stays as specified, the shape of the EvalIn switch [src/ocutalon/cls/OcuTalon/Install/Step/Telegram.cls:4]
+- [x] [Review][Patch] `BotApi`'s doc did not state that a scripted `getUpdates` reply keeps `update_id` 1 and moves neither the mock's ids nor its offset filter. Added: one update source per `Reset` (Decided in-stage 12) [src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls:15]
+- [x] [Review][Patch] `BotReply`'s doc said "throws only when the mock cannot be reached". It now also says it throws on an answer that is not JSON [src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls:18]
+- [x] [Review][Patch] The 200 `sendMessage` in `TestReplyScenarios` used `BotReply`. It now uses `BotCall`, per the Task and Decided in-stage 14 [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramMock.cls:89]
+- [x] [Review][Patch] The masked-path check in `TestCallsAndLog` took the method from the logged path itself. Each Bot API line is now compared with its call's method, in order [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramMock.cls:139]
+- [x] [Review][Patch] `TestPollerCheck`'s `PollerReason() = ""` assertion could not fail after `Ready()`. It is removed; the class doc names `Ready()` as the check [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramMock.cls:181]
+- [x] [Review][Patch] The `lib-live.sh` header still said the only bot token in the container is the dummy. It now names `live_no_bot_token`'s empty value [docker/tests/lib-live.sh:20]
+- [x] [Review][Patch] Row 19's last `check_telegram_off` relied on the previous start's `off` (Rule 19, hermeticity). Its session now records the mark `on` first, and the header says so. Demonstrated in `## Verification` (CR) [docker/tests/test-production-restart.sh:160]
+- [x] [Review][Patch] AC7 (R11, unchanged) had no `mutation:` line (Rule 19). The line is now demonstrated and recorded in `## Verification` (CR) [web/e2e/rail/rail.spec.ts:464]
+- [x] [Review][Defer] `TelegramMock` calls the `Mock` and `BotApi` helpers through `$ClassMethod` string names in three tests [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramMock.cls:101]. Deferred: DW-428 `wontfix-accepted` with `reopen_if`. The change is about 29 mechanical lines, so it is not a two-way door.
+- [x] [Review][Defer] Rule 2: `BotApi.BotReply` copies `Test.Contract.Mock.BotCall`'s request, a copy the spec forces (AD-33) [src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls:72]. Deferred: an occurrence on DW-421, the Lane B ask that includes a status output on `BotCall`.
+
+Rejected:
+- low: TelegramSwitch can race a live `TelegramIn` on the mark. This needs a poller to start or stop during the class run, and none runs at any CI start before 12.7.
+- low: the calls are read back for one group, not for each one (AA2 and BH4). Recording and redaction are Lane B's code and do not depend on the scenario. `TestCallsAndLog` uses one scenario from each group, and the fix would add assertions to every test.
+- low: `check_telegram_off` hard-codes `mock:8080`. `test-compose-file.sh` pins the override, and a move makes the check fail loudly.
+- low: the review counts in the spec do not add up. The fix would edit the spec's bookkeeping.
+- low: the button update has no bot `from` and no `reply_markup`. Story 12.7 can add the fields it reads to its own scenario.
+- low: a whitespace-only token counts as set. "Set means not empty" is a spec decision (Decided in-stage 2), and such a token reaches the getMe rejection path.
+- low: a split row write leaves the mark unrecorded. The step returns the first failure, so the start stops (AD-23).
+- low: the mark goes stale on the enabled path. On that path the mark is `TelegramIn`'s (AD-14).
+- maybe-false: `PollerReason` ignores a job in the `Starting` state. This was adjudicated before; it would be low if true.
+- low: `Reset` kills the offset before the mock answers. The spec sets that order, and the error status is returned.
+- low: the planted offset 5 stays when `Finish` is refused. That needs a `TelegramIn` job to start in the middle of the test.
+- false: ignored restore errors would enable stub items at a later start. The rows are structural, so the next start rewrites them.
+- low: AC4's call and log clauses have no `mutation:` line. Rule 19 asks for one mutation per AC, and AC4 has five; those clauses are Lane B's code.
+- false: AC6's `/state` and pairing parts lack a mutation. AC6 has its line (`Included()` returns 1, `test-readme.sh`).
+- low: four live reds that the plan table listed were not recorded. Each AC has a demonstrated mutation.
+- low: `TestRun`'s leak check is vacuous without a token. Every `ci/iris.sh` stack sets the dummy, and with no token there is nothing to leak.
+- false: the copied `PRODUCTION` parameter. It is the project-wide convention, a constant and not a helper.
+- false: `TestPollerCheck` needs a running production. That is spec-decided (Decided in-stage 13), and the test fails loudly without one.
+- false: AD-29's area rule against `Test.Channel`. The orchestrator's ruling (Q2, Q3) covers it, and DW-420 records it.
+
 ## Spec Change Log
 
 - 2026-10-30, spec gate (runner, from the orchestrator's rulings; re-plan of the mock part only). Q1: filling `Install/Step/Telegram.cls` in place is allowed (a file-level footprint extension into Epic 15's `Install/**`). Q2: `docker/tests/lib-live.sh`, `test-lib-live.sh` and `test-production-restart.sh` are allowed (DW-367 stays as planned); `ci/mock/mock.mjs`, `ci/mock/test/telegram.test.mjs` and `Test/Contract/Mock.cls` must not change (comply with AD-22 and AD-33, U7 step 1): DW-370 is met from Lane A's side (a `Test/Channel/**` helper resets the Bot API side and clears `TelegramIn`'s kept offset together), the update scenarios are queued as replies, and Lane A's helpers live in `Test/Channel/**`. Q3: the spine is left alone; DW-420 records AD-22's as-built `Channel` for the orchestrator. The intent block's Approach, Never list and the update, reset and poller-check rows were changed to match; the `/updates` refusal row was removed. Status reset to `draft` for the re-plan.
@@ -403,6 +440,22 @@ deferred:
 - mutation: `live_key_count` counts an empty token (`+x`) -> `test-lib-live.sh` red ("an empty bot token counts 0").
 - mutation: `live_no_bot_token` writes a non-empty token -> `test-lib-live.sh` red ("live_no_bot_token does not add the empty-token file").
 - mutation: `Included()` returns 1 -> `test-readme.sh` red (`product-links`).
+
+**QA stage (QA) - tests added or strengthened, each mutation applied, red observed, reverted byte for byte (`git status --short` unchanged) and green again.**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramSwitch.cls`: new `TestRowDescription` (each row's description says the step writes it at every start and names `TELEGRAM_BOT_TOKEN`), new `TestPrintsNothing` (no `WARN` line and no text from `Apply` or `Run`, with a probe that shows the capture sees output), and `TestRun` now also pins the mark through `Run()` (left as it was when enabled, `off` otherwise).
+- (QA) `docker/tests/test-lib-live.sh`: rows "a model key with an empty bot token counts 1" and "an empty bot token counts 0 when the CI override sets no dummy"; row "dc passes the empty-token file after the CI override" (the real `dc` with `docker` stubbed).
+- mutation: the row description becomes `managed row` -> `TelegramSwitch.TestRowDescription` red.
+- mutation: `Apply` writes `WARN: Telegram is off` on the disabled path -> `TelegramSwitch.TestPrintsNothing` red (`Apply(0, 0)` and `Run()` with the seam at 0).
+- mutation: `Run` records `off` after `Apply` -> `TelegramSwitch.TestRun` red ("Run() with the seam at 1: the mark is left as it was").
+- mutation: `live_key_count` skips the model key when the bot token is set and empty -> `test-lib-live.sh` red ("a model key with an empty bot token counts 1"; the other rows stay green).
+- mutation: `live_no_bot_token` inserts its file before the CI override -> `test-lib-live.sh` red ("dc does not pass the empty-token file last, after the CI override", with the add-last row).
+- mutation: `ci/mock/scenarios/A/telegram-conflict.json` named `telegram-conflicts` -> `test-mock.sh` red (`scenarios.test.mjs` row 15: the name differs from the file name; the server tests that start the mock with the tree fail too). This pins that the five Lane A files load through the mock's own loader.
+- QA runs: warm `TelegramSwitch` and `TelegramMock` passed; fresh `shard lane-a@Channel` passed forward and reverse; `test-lib-live.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh` and `test-readme.sh` passed; Lane B's mock files are untouched.
+
+**Code review (CR): each mutation applied, red observed, reverted byte for byte (`git status --short`, `git diff --stat` and the file's checksum unchanged).**
+- (CR) mutation: `Apply` records `off` only when no token is set (`If 'enabled && 'tokenSet`) -> `production-restart` red at "first start" (no mark row) and at "row 19, no variable" (`CHK|mark|1|on`). Before the review's patch to row 19's last session, the previous start's `off` would have kept that last line green (inference).
+- (CR) mutation (AC7): `Apply` records `on` instead of `off` on the disabled path -> `live sign-in --part 7/10` (`phone.spec.ts` and `rail.spec.ts`) red at R11, "the card says it is not set up". The other 24 tests passed.
+- (CR) runs after the patches: warm `TelegramMock`, `TelegramSwitch` and `Contract.Mock` passed; fresh `live production-restart` passed (30 PASS lines, all three `check_telegram_off` lines included); `test-lib-live.sh` and `bash ci/checks.sh` passed (16 scripts).
 
 ## Auto Run Result
 

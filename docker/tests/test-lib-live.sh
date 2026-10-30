@@ -26,7 +26,8 @@
 #     the claim runs, names the project, is deleted by the exit trap, a lock that another run holds makes live_start exit 75
 #     before anything starts, and after a wait for the lock the deadline and acquired_at count from the moment it is held;
 #   - live_key_count (Story 10.3, Story 12.1): the CI dummy bot token and an empty one count 0, a model key and any other bot token
-#     count 1; live_no_bot_token adds the compose file that sets the token to the empty value, last.
+#     count 1, an empty bot token counts 0 whether or not a model key or a CI dummy is present; live_no_bot_token adds the compose file
+#     that sets the token to the empty value, last, and dc passes it after the CI override.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 15 s: the waits sleep 3 s each.
 set -u
 
@@ -718,6 +719,8 @@ check_count "the decoy bot token counts 1" 1 - decoy
 check_count "a bot token of the dummy plus a character counts 1" 1 - fixture-dummy-token-x
 check_count "a bot token of the dummy less a character counts 1" 1 - fixture-dummy-toke
 check_count "an empty bot token counts 0" 0 - ""
+check_count "a model key with an empty bot token counts 1" 1 anything ""
+check_count "an empty bot token counts 0 when the CI override sets no dummy" 0 - "" "$tmp/keyroot-none"
 check_count "a model key and the decoy bot token count 2" 2 decoy decoy
 check_count "any bot token counts 1 when the CI override sets no dummy" 1 - fixture-dummy-token "$tmp/keyroot-none"
 check_count "a case-changed dummy counts 1" 1 - FIXTURE-DUMMY-TOKEN
@@ -732,6 +735,22 @@ if [ "${#LIVE_FILES[@]}" -eq 3 ] && [ "${LIVE_FILES[2]}" = "$tmp/no-bot-token.ym
   pass "live_no_bot_token: adds one file, last, that sets the iris service's TELEGRAM_BOT_TOKEN to the empty value"
 else
   fail "live_no_bot_token does not add the empty-token file as the last compose file (${#LIVE_FILES[@]} files)"
+fi
+# In the files of a throwaway start, dc passes the empty-token file last, after the CI override, so that it wins over the dummy.
+layering=$( (
+  . "$root/docker/tests/lib-live.sh"
+  docker() { echo "$*"; }
+  P=probe
+  tmp=$tmp/layering
+  mkdir -p "$tmp"
+  LIVE_FILES=(/r/docker-compose.yml /r/docker/tests/compose.throwaway.yml /r/ci/compose.ci.yml)
+  live_no_bot_token
+  dc up -d
+) 2>&1)
+if [ "$layering" = "compose -p probe -f /r/docker-compose.yml -f /r/docker/tests/compose.throwaway.yml -f /r/ci/compose.ci.yml -f $tmp/layering/no-bot-token.yml up -d" ]; then
+  pass "live_no_bot_token: dc passes the empty-token file after the CI override"
+else
+  fail "live_no_bot_token: dc does not pass the empty-token file last, after the CI override ($layering)"
 fi
 live_pop_file
 if [ "${#LIVE_FILES[@]}" -eq 2 ] && [ "${LIVE_FILES[1]}" = b ]; then
