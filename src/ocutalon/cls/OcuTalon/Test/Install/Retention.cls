@@ -9,13 +9,16 @@
 ///   - TestDeclarations: Retention.Tasks() is exactly the three declarations, with no NameSpace, RunAsUser or Suspended, and the two item names are items of
 ///     OcuTalon.Production;
 ///   - TestNoSettingRead (AC 4): no purge code names OcuTalon.Data.Setting;
-///   - TestCreatedOnce (matrix 1, 2): the start made one task of each name, with the declared class, settings, schedule and namespace; the Tasks step run again
-///     leaves one of each, and recreates a deleted one as declared, the other two keeping their ids;
+///   - TestCreatedOnce (matrix 1, 2): the start made one task of each name (counted in OnBeforeAllTests, before any test runs the Tasks step), with the
+///     declared class, settings, schedule and namespace; the Tasks step run again leaves one of each, and recreates a deleted one as declared, the other
+///     two keeping their ids;
 ///   - TestAdminChangesKept (matrix 3): the changed day counts and start time are kept by a later Tasks step;
-///   - TestOwnNamespaceOnly (matrix 4): every task runs in OCUTALON and the 92-day message in OCUORDERS stays, with its body;
+///   - TestOwnNamespaceOnly (matrix 4): every run of every task was in OCUTALON (the Task Manager's history, read in OnBeforeAllTests) and the 92-day
+///     message in OCUORDERS stays, with its body;
 ///   - TestMessagesPurge (matrix 5), TestAllPurge (matrix 6): the 7-day and the 90-day standard purges;
 ///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge and the Digest and Watch areas with the task's days;
-///   - TestAuditUntouched (matrix 8), TestHistoryReadsTables (matrix 9).
+///   - TestAuditUntouched (matrix 8), TestHistoryReadsTables (matrix 9: a decision whose trace session and an incident whose trace header are purged
+///     are still read through Data.Ownership).
 Class OcuTalon.Test.Install.Retention Extends %UnitTest.TestCase
 {
 
@@ -45,9 +48,15 @@ Property SetupProblem As %String(MAXLEN = "");
 
 Method OnBeforeAllTests() As %Status
 {
-	Set ..Fx = {"runs": {}, "errors": {}}
+	Set ..Fx = {"runs": {}, "errors": {}, "namespaces": {}, "started": {}}
 	Set ..SetupProblem = ""
+	Do ..RestoreAdmin()
 	Do ..RestorePurgeSettings()
+	Set names = ..Names()
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Do ..Fx.started.%Set(name, +..TaskCount(name))
+	}
 	Do ..Cleanup()
 	Try {
 		Do ..Seed()
@@ -152,7 +161,7 @@ Method TestCreatedOnce()
 	Set tasks = $ClassMethod(..#AREA, "Tasks")
 	For i = 0:1:2 {
 		Set entry = tasks.%Get(i)
-		Do $$$AssertEquals(..TaskCount(entry.name), 1, entry.name_": the start made exactly one")
+		Do $$$AssertEquals(..Fx.started.%Get(entry.name), 1, entry.name_": the start made exactly one (counted before any test ran the step)")
 		Do ..AssertTask(entry)
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Tasks).Run(), "the Tasks step runs")
@@ -194,15 +203,15 @@ Method TestAdminChangesKept()
 }
 
 /// --- the purge outcome (set-up in OnBeforeAllTests) ---
-/// Matrix 4. Every declared task has the namespace OCUTALON, ran in it, and the message in OCUORDERS is untouched.
+/// Matrix 4. Every declared task ran in OCUTALON, as the Task Manager's history of the runs records it, and the message in OCUORDERS is untouched.
 Method TestOwnNamespaceOnly()
 {
 	If '..Ready() Quit
 	Set names = ..Names()
 	Set position = 0
 	While $ListNext(names, position, name) {
-		Do $$$AssertEquals(..TaskField(name, "NameSpace"), "OCUTALON", name_": the task's namespace is OCUTALON")
 		Do ..AssertRan(name)
+		Do $$$AssertEquals(..Fx.namespaces.%Get(name), "OCUTALON", name_": every run of the task was in OCUTALON")
 	}
 	Do $$$AssertEquals(..HeaderState(..#ORDERS, "orders"), "1|1", "the 92-day message in "_..#ORDERS_" and its body are untouched")
 	Do $$$AssertEquals(..HeaderState("OCUTALON", "msg92"), "0|0", "control: the 92-day message in OCUTALON is gone")
@@ -239,8 +248,8 @@ Method TestOcuTalonPurge()
 {
 	If '..Ready() Quit
 	Do ..AssertRan($ListGet(..Names(), 3))
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec61) _ "|" _ ..UsageExists(..Fx.use61), "0|0", "the decision and the usage row 61 days old are gone")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec59) _ "|" _ ..UsageExists(..Fx.use59), "1|1", "the ones 59 days old are kept")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec61) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists(..Fx.use61), "0|0", "the decision and the usage row 61 days old are gone")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec59) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists(..Fx.use59), "1|1", "the ones 59 days old are kept")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc61), 0, "the incident closed 61 days ago is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc59), 1, "the one closed 59 days ago is kept")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item61), 0, "the digest item 61 days old is gone")
@@ -260,12 +269,17 @@ Method TestAuditUntouched()
 	Do $$$AssertEquals(entries.%Size(), 1, "the audit entry that carries the marker is still found after the three runs")
 }
 
-/// Matrix 9. After the messages are purged, the history is still read from the tables: a decision and an incident whose messages are gone.
+/// Matrix 9. After the messages are purged, the history is still read from the tables: a decision and an incident whose trace messages are gone.
 Method TestHistoryReadsTables()
 {
 	If '..Ready() Quit
+	Set names = ..Names()
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Do ..AssertRan(name)
+	}
 	Do $$$AssertEquals(..HeaderState("OCUTALON", "msg92"), "0|0", "the messages of the decision's trace session are gone")
-	Do $$$AssertEquals(..HeaderState("OCUTALON", "ck9"), "0|0", "and the Checks message of the incident")
+	Do $$$AssertEquals(..HeaderState("OCUTALON", "ck9"), "0|0", "and the Checks message of the incident's trace")
 	Set decision = ##class(OcuTalon.Data.Ownership).Decision(..Fx.dec59, ..Fx.owner, .sc)
 	Do $$$AssertStatusOK(sc, "reading the decision is OK")
 	Do $$$AssertTrue($IsObject(decision) && (decision.Ref = ..Fx.dec59), "the owner still reads the decision recorded 59 days ago")
@@ -311,8 +325,8 @@ Method Seed()
 	Do ..Track("refs", ..Fx.use59)
 	Do ..Track("refs", ..Fx.inc61)
 	Do ..Track("refs", ..Fx.inc59)
-	// 9: an incident closed and noticed 30 days ago
-	Set ..Fx.inc30 = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..Utc(30), "ZZNS", "Zz.Retention30", {"State": "closed", "OpenVariant": "", "ClosedAt": (..Utc(30))})
+	// 9: an incident closed and noticed 30 days ago whose trace is the 9-day Checks message (a header that is its own session)
+	Set ..Fx.inc30 = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..Utc(30), "ZZNS", "Zz.Retention30", {"State": "closed", "OpenVariant": "", "ClosedAt": (..Utc(30)), "TraceHeaderId": (..Fx.ck9)})
 	Do ..Track("refs", ..Fx.inc30)
 	// 7: digest items
 	Set sessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -360,7 +374,8 @@ Method RunTasks()
 	Do ..RunAndWait($ListBuild(purge), mark)
 }
 
-/// RunNow for each task, then waits for each task's history row after the mark and keeps the number of runs and of failed runs in Fx.
+/// RunNow for each task, then waits for each task's history row after the mark and keeps in Fx the number of runs, of failed runs and the namespaces
+/// that the runs were in.
 Method RunAndWait(names As %List, mark As %Integer)
 {
 	Set position = 0
@@ -371,6 +386,7 @@ Method RunAndWait(names As %List, mark As %Integer)
 	While $ListNext(names, position, name) {
 		Do ..Fx.runs.%Set(name, ..WaitRun(name, mark))
 		Do ..Fx.errors.%Set(name, ..RunErrors(name, mark))
+		Do ..Fx.namespaces.%Set(name, ..RunNamespaces(name, mark))
 		If ..Fx.runs.%Get(name) = 0 Do ..Fx.%Set("state "_name, ..TaskState(name))
 	}
 }
@@ -571,14 +587,6 @@ Method ObjectExists(class As %String, key As %String) As %Boolean
 	Quit $ClassMethod(class, "%ExistsId", ..Fx.%Get(key))
 }
 
-/// 1 when a Usage row of the decision Ref exists.
-ClassMethod UsageExists(decisionRef As %String) As %Boolean
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", decisionRef)
-	Do result.%Next()
-	Quit +result.%GetData(1) > 0
-}
-
 /// A UTC time stamp as the Interoperability classes hold it, YYYY-MM-DD hh:mm:ss.fff, that many days ago.
 ClassMethod Stamp(days As %Integer) As %String
 {
@@ -686,12 +694,14 @@ Method AssertTask(entry As %DynamicObject)
 	}
 }
 
-/// Changes a setting (when it is named) and the start time (when it is given) of the stored task.
+/// Changes a setting (when it is named) and the start time (when it is given) of the stored task. A new start time moves the StartDate to tomorrow,
+/// as an admin would: the Task Manager refuses a change of DailyStartTime whose first start is not ahead of the clock (ERROR #7432), which a start
+/// time of 02:00 on a StartDate of today is from 02:00 on. A change of the settings alone is accepted at any time.
 Method ChangeTask(name As %String, setting As %String = "", value As %String = "", startTime As %String = "")
 {
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(name))
 	If setting '= "" Set task.Settings = ..WithSetting(task.Settings, setting, value)
-	If startTime '= "" Set task.DailyStartTime = startTime
+	If startTime '= "" Set task.DailyStartTime = startTime, task.StartDate = +$Horolog + 1
 	Do $$$AssertStatusOK(task.%Save(), name_": the task is changed by hand")
 }
 
@@ -754,6 +764,17 @@ ClassMethod RunErrors(name As %String, mark As %Integer) As %Integer
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %SYS_Task.History WHERE "_..RunsWhere()_" AND ((Status <> '1') OR (ER IS NOT NULL AND ER <> ''))", mark, name)
 	Do result.%Next()
 	Quit result.%GetData(1)
+}
+
+/// The namespaces that the runs of the task after the mark were in, as the history records them: a comma list, in name order, "" with no run.
+ClassMethod RunNamespaces(name As %String, mark As %Integer) As %String
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DISTINCT %EXACT(NameSpace) FROM %SYS_Task.History WHERE "_..RunsWhere()_" ORDER BY 1", mark, name)
+	Set list = ""
+	While result.%Next() {
+		Set list = list _ $Select(list = "": "", 1: ",") _ result.%GetData(1)
+	}
+	Quit list
 }
 
 /// 1 when the set-up worked; otherwise a failed assertion that says why.

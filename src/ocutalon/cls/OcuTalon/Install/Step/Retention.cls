@@ -70,7 +70,7 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 
 /// The schedule of every task: daily at 03:00 instance time (DailyStartTime 10800). The Task Manager refuses a task whose first start (StartDate and
 /// DailyStartTime) is not ahead of the clock, so StartDate is today while 03:00 is more than STARTMARGIN seconds away and tomorrow otherwise; the first
-/// run is always the next 03:00. now is a Horolog value (default the current time). RescheduleOnStart 1 drops the runs that an IRIS stop missed instead of replaying them at the start.
+/// run is the next 03:00 that is more than STARTMARGIN seconds away, so a task created from 02:55 on first runs at 03:00 the next day. now is a Horolog value (default the current time). RescheduleOnStart 1 drops the runs that an IRIS stop missed instead of replaying them at the start.
 ClassMethod Schedule(now As %String = "") As %DynamicObject
 {
 	If now = "" Set now = $Horolog

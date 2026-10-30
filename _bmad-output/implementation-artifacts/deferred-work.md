@@ -2142,6 +2142,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
 - 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
+- 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
@@ -2153,6 +2154,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 10.3 fresh check, lane C, fresh shard lane-b --part 3/3 (e10s3f, 2026-10-29): failed once at 159 s, then passed unchanged on a fresh class run (170 s); the story changes nothing under Schedule/
 - 2026-10-29T00:23:31Z status=routed owner=burndown by=fresh_check note=flake class like DW-349: a fixed wait on the Task Manager's RunNow; a rerun clears it; route to the release-1 flake story at the burn-down gate
 - 2026-10-29T01:11:55Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=Epic 10 burn-down overflow: the release-1 flake class beside DW-349 (a fixed wait on a heartbeat-driven run); 11.1 gates REL-2 on a green CI, so it fixes the RunNow wait or ledgers the rerun rule
+- 2026-10-30T15:56:40Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule
 
 ### DW-378: Tagline: replace 'An OpenClaw-style assistant for InterSystems IRIS.' with 'An AI assistant for InterSystems IRIS.' in the About dialog and the tests that pin it; the not-affiliated note stays verbatim
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
@@ -2299,3 +2301,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls declares DailyStartTime 10800 for all three; Test.Install.Retention runs both together on a fresh stack and passes, but at tiny volume; settle by a concurrent run on a large message table watching for lock waits or a failed history row
 - 2026-10-30T14:46:16Z status=open owner=30-2-old-messages-and-records-are-purged-on-schedule by=harvest note=implement deferred (medium, unverified); AC fixes 03:00 for all three
+- 2026-10-30T15:56:40Z status=by-design owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=spec-bound (AD-27: all three at 03:00); steady-state selections are disjoint; Ens purge goes on past a lost header
+
+### DW-437: After the OcuTalon purge deletes a turn's Decision and Usage rows (90 days), its Turn, Delivery and Session rows stay (no area purges them): Ownership.TurnCost reads 0 and ShownDecisionRef names a missing decision
+- source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Data/Ownership.cls TurnCost sums the Usage of Turn.TriageDecisionRef/TurnDecisionRef; the areas' Purge (Core, Web, Digest, Watch, Retention) never touch Data.Turn, Delivery or Session; AD-27 names no turn retention
+- 2026-10-30T15:56:40Z status=decision-pending owner=burndown by=cr note=product call: purge turns and sessions with their decisions, or keep usage as long as turns; AD-27 weight (Rule 20 Deferred)
+
+### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
+- source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls:33; 30.2 measured on build 154 that %SYS.Task keeps only the first 100 characters of a description
+- 2026-10-30T15:56:40Z status=wontfix-accepted owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Lane B file (AD-33), cosmetic. reopen_if=an operator doc, README or demo step shows the heartbeat task's Task Manager entry
+
+### DW-439: Test.Install.Retention's task-history helpers (HistoryMark, RunsWhere, Runs, RunErrors) are name-keyed copies of Lane B's Test.Schedule.Heartbeat helpers (Rule 2; the spec states the lane reason)
+- source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls history helpers vs src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls:799-837; unifying edits a Lane B class (AD-33)
+- 2026-10-30T15:56:40Z status=wontfix-accepted owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=reopen_if=a third test class copies HistoryMark/RunsWhere/Runs/RunErrors: extract one name-keyed Test.Install.TaskHistory
+
+### DW-440: The three purge tasks are created on every throwaway and warm stack and run at 03:00 instance time (UTC in the containers), so a suite that spans 03:00 can lose back-dated fixtures mid-test
+- source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Install.Step.Retention declares daily 03:00 runs; the Tasks step creates them on CI, fresh and warm stacks; tests such as Test.Bridge.Purge hold 400-day rows for seconds; no ci/ step suspends the tasks
+- 2026-10-30T15:56:40Z status=wontfix-accepted owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=rare CI flake. reopen_if=a CI or fresh-check red at about 03:00 UTC names a purge test or a back-dated fixture that went

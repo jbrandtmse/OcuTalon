@@ -10,7 +10,7 @@
 ///   - PlusSeconds: a UTC time moved by a whole number of seconds, which the approval expiry (AD-11) uses;
 ///   - SecondsUntil: the whole seconds, rounded down, from now to a UTC time, negative for a time in the past, which a re-armed
 ///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it;
-///   - DaysCutoff: the day check and UTC cutoff that Bridge.Purge and Digest.Data.Item.Purge share (AD-27, DW-371): now moved back a whole number of days, at least 1.
+///   - DaysCutoff: the day check and UTC cutoff of a purge, which Bridge.Purge and the host's purges share (AD-27, DW-371): now moved back a whole number of days, at least 1.
 /// Each returns "" for an unreadable input, except DaysCutoff, which returns an error status.
 Class OcuTalon.Bridge.Time
 {

@@ -154,6 +154,51 @@ deferred:
 - AC 4. Given the tasks were created, when an admin changes a day count or the schedule in the Task Manager and a later start runs the Tasks step, then the changed value is kept, and no purge reads `OcuTalon.Data.Setting` (NFR-19, AD-2, AD-27; matrix 3).
 - AC 5. Given fixture records older and newer than each retention period, when the purge tasks run, then only the records past their period are gone (business-process instances, rule logs and event-log entries included), the audit entries are untouched, and history still reads from OcuTalon's and the bridge's tables after the messages are purged (NFR-19, AD-27; matrix 5-9).
 
+### Review Findings
+
+Code review 2026-10-30 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 42 rows, 22 entries after grouping, 15 rejected). Fields: severity, fix-risk, footprint, disposition. Mutation lines for the patched pins are under `## Verification`, "Code review additions".
+
+- [x] [Review][Patch] Matrix 9's incident fixture named no trace header, so the incident half of AC 5's history pin could not fail (med, fix-risk low, in-story, fixed: `inc30` gets `TraceHeaderId` = the 9-day `Checks` header; mutation line) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:329]
+- [x] [Review][Patch] `TestOwnNamespaceOnly` read the namespace of the task that `TestCreatedOnce` had deleted and recreated (run order), never the namespace a run used (med, low, in-story, fixed: `RunAndWait` keeps the runs' `NameSpace` from `%SYS_Task.History`; AC 2 mutation line) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:379]
+- [x] [Review][Patch] `TestAdminChangesKept` depended on the time of day: measured on build 154 (warm throwaway e30s2crw), the Task Manager refuses a change of `DailyStartTime` whose first start has passed (`ERROR #7432`; a change of `Settings` or `Description` alone is accepted, and so is a `DailyStartTime` set to its own value), so 10800 -> 7200 on a task with `StartDate` today goes red from 02:00, which a CI stack started between about 01:30 and 02:55 instance time reaches (med, low, in-story, fixed: `ChangeTask` moves `StartDate` to tomorrow with a new start time, as an admin would; the probe confirmed that save is accepted) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:700]
+- [x] [Review][Patch] The CodeRules pin "a SELECT that writes nothing" passed a `DELETE ... WHERE SessionId IN (SELECT ...)` on the link table (low, low, in-story, fixed: the line may hold no SQL verb that changes data; mutation line) [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:455]
+- [x] [Review][Patch] `TestNoHandWrittenInteropPurge` missed the event, rule and I/O logs and business processes (class and SQL forms), and its message claimed "no other Ens class" without checking (low, low, in-story, fixed; mutation line) [src/ocutalon/cls/OcuTalon/Test/Install/RetentionRules.cls:46]
+- [x] [Review][Patch] The namespace and audit scans missed extended global references and `%SYS.Task.PurgeAudit` (low, low, in-story, fixed; mutation line) [src/ocutalon/cls/OcuTalon/Test/Install/RetentionRules.cls:59]
+- [x] [Review][Patch] `TestHistoryReadsTables` did not assert that the three tasks ran (low, low, in-story, fixed) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:273]
+- [x] [Review][Patch] `TestCreatedOnce`'s "the start made exactly one" counted after `TestAdminChangesKept` had run the Tasks step (low, low, in-story, fixed: counted in `OnBeforeAllTests`) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:164]
+- [x] [Review][Patch] `TestBadArguments`' "no link was written" compared two empty strings (no link of its owner existed) (low, low, in-story, fixed: removed; the link pins are `TestSessions` and CodeRules) [src/ocutalon/cls/OcuTalon/Test/Bridge/Purge.cls:232]
+- [x] [Review][Patch] The `BodiesToo` mutation had gone red only on the settings text, in a run with a Task Manager stall (low, low, in-story, closed: re-run, red on the body half of rows 5 and 6; mutation line) [src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls:36]
+- [x] [Review][Patch] `Digest.Data.Item.Purge`'s exact error text (Always) had no pin (low, low, in-story, fixed in `Test.Bridge.Time.TestDaysCutoff`; mutation line) [src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls:184]
+- [x] [Review][Patch] `OnBeforeAllTests` restored a leftover settings copy but not a leftover admin copy (low, low, in-story, fixed) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:53]
+- [x] [Review][Patch] `Retention.Schedule`'s doc said the first run is "always the next 03:00", which a task created from 02:55 on is not (low, low, in-story, fixed: comment) [src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls:73]
+- [x] [Review][Patch] `Test.Bridge.Purge`'s header claimed every mark it made is removed; `TestMarks`' fake mark stayed after a failed run, and `Run` marks other sessions (low, low, in-story, fixed: `Kill` and an exact header) [src/ocutalon/cls/OcuTalon/Test/Bridge/Purge.cls:17]
+- [x] [Review][Patch] `TestOtherDataKept`'s price and model-family counts could compare 0 with 0 (low, low, in-story, fixed: control assertion that the start seeded them) [src/ocutalon/cls/OcuTalon/Test/Bridge/Purge.cls:135]
+- [x] [Review][Patch] Bridge doc comments named OcuTalon classes (AD-2's separable bridge) (low, low, in-story, fixed: "the host") [src/bridge/cls/OcuTalon/Bridge/Purge.cls:1]
+- [x] [Review][Patch] Rule 2: `UsageExists` was copied into two new test classes (low, low, in-story, fixed: `Test.Install.Retention` calls `Test.Bridge.Purge.UsageExists`) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:251]
+- [x] [Review][Defer] A turn's Decision and Usage rows go after 90 days while its Turn, Delivery and Session rows stay (no area purges them): `Ownership.TurnCost` then reads 0 and `ShownDecisionRef` names a missing decision [src/ocutalon/cls/OcuTalon/Data/Ownership.cls:63] — deferred: med, fix-risk med, out-of-footprint (Lane B tables, AD-27's retention scope), DW-437 decision-pending owner=burndown (product call; architectural weight)
+- [x] [Review][Defer] DW-371's residual: `Data.Pairing.Purge` (Lane B) and `IncidentManager.Purge` (Epic 9) keep their day-check copies [src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217] — deferred: med, low, out-of-footprint, DW-371 routed owner=burndown (Lane A's side done here)
+- [x] [Review][Defer] The heartbeat task's description (124 characters) is stored cut at 100 [src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls:33] — deferred: low, low, out-of-footprint (Lane B), DW-438 wontfix-accepted with reopen_if
+- [x] [Review][Defer] The three tasks run at 03:00 on throwaway and warm stacks too, so a suite spanning 03:00 can lose back-dated fixtures [src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls:31] — deferred: low, med, out-of-footprint (ci/), DW-440 wontfix-accepted with reopen_if
+- [x] [Review][Defer] Rule 2: the task-history helpers are name-keyed copies of Lane B's `Test.Schedule.Heartbeat` helpers (the spec states the lane reason) [src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls:740] — deferred: low, med, out-of-footprint, DW-439 wontfix-accepted with reopen_if
+- DW-436 (the 03:00 overlap of the two Interoperability purges) judged `by-design`: AD-27 fixes 03:00 for all three; in steady state the 7-day task removes the `HeartbeatIn`/`Checks` headers long before 90 days, so the two selections are disjoint, and on a first run with an older backlog `Ens.Util.MessagePurge` reports a header the other job deleted and goes on (`irislib/Ens/Util/MessagePurge.cls`). The implement stage's Task Manager stall is recorded as an occurrence on DW-376.
+
+Rejected:
+- `low` Blind: the destructive test classes ship in the package with no runtime guard. The module declares no UnitTest phase, so only a deliberate %UnitTest run of internal classes on an install reaches it; 80 test classes share the pattern.
+- `low` Blind: `TestNoSettingRead` scans this story's classes, not the other areas' Purge callees. None of them reads a setting today (acceptance auditor checked); a method-level scan of out-of-footprint classes is more than a correction.
+- `reject` Blind: the spec's Always and Design Notes still state `StartDate` today, the long descriptions and "93 characters" (the stored text is 94). Superseded by the Spec Change Log; the fix edits the spec under review.
+- `low` Blind: CI time, and the sequential 180 s waits in `RunAndWait` (up to about 540 s on a stall). Only a failing run waits that long; the shards group stays inside REL-4.
+- `false` Blind: `DeleteBefore` is a public delete-from-any-table. Its only callers pass two literals (and the test double); no input reaches the table name.
+- `low` Blind: the purge reports no counts. Not specified; an enhancement.
+- `low` Edge: a day count of about 150 digits throws `<MAXNUMBER>`. No realistic task property; a guard adds a branch.
+- `low` Edge: one DELETE of a large backlog can escalate locks. Once a day at 03:00 at product scale; batching adds complexity (the Digest purge is the same shape).
+- `low` Edge: `Test.Install.Registry`'s purge calls now delete decisions, usage and closed incidents on a warm stack. The spec's Shared surfaces names it; no test relies on another's back-dated rows.
+- `low` Edge: `Seed` tracks the decision and incident Refs after the batch. Leftovers only on a throwaway after a failed set-up.
+- `low` Edge: `TestDaysCutoff`'s default-now read can straddle midnight UTC. A window of microseconds; the fix adds branches.
+- `low` Verification gap: the session-delete failure branch is never run. `%DeleteId` of an unlocked AI session has no realistic failure; the fix adds a seam to product code.
+- `low` Acceptance: `ZzRetentionProcess` adds a persistent class. A test double, like three before it; the Always line is about product storage (AD-5).
+- `false` Acceptance: `TestLinkWithoutSession` writes a link directly. `Point` cannot make a link with no session id, which is the state under test; AD-6 binds product code and the clean-up removes it.
+- `low` Acceptance: on a fall-back DST day, a hand run with `DaysToKeep` 1 in the day's last hour can delete that local day's first hour of usage (AD-20). Needs the minimum count and a hand run at that hour.
+
 ## Spec Change Log
 
 - 2026-10-30 (implement): the declared `StartDate` is "today" only while 03:00 is more than 300 s away, otherwise tomorrow (`Retention.Schedule()`, `STARTMARGIN`). Measured on build 154: the Task Manager refuses a once-daily task whose first start is not ahead of the clock (`ERROR #7432: Start Date and Time must be after the current date and time`), so a start after 03:00 with `StartDate` = `+$Horolog` failed `STEP Tasks`, and with it the whole start. The first run is always the next 03:00. `Test.Install.Retention` pins the first start as ahead of the clock and within a day and a half.
@@ -357,6 +402,27 @@ Mutation results (2026-10-30, tags e30s2h and e30s2hw; every file reverted byte-
 - mutation: `Run` runs the session part before it validates the day count -> red: `Bridge.Purge.TestBadArguments` (a mark is written for every bad argument).
 - mutation: `Bridge.Purge.Run` calls `ConversationLink.SessionOf` -> red: `CodeRules.TestOnlyTheRunnerWritesLinks` (Purge calls no method of the link class).
 - mutation (fresh stack e30s2i, one run for the three): `STARTMARGIN` 300 -> 0 -> red: `Retention.TestStartDate` (10,500 s and 10,799 s of the day); the messages declaration without `BodiesToo` -> red: `Retention.TestDeclarations` (its settings); the test sets the all task's `NameSpace` to `OCUORDERS` before `RunNow` -> red: `Retention.TestOwnNamespaceOnly` (the 92-day `OCUORDERS` message and its body are gone) and `TestCreatedOnce` (the task runs in OCUTALON). In that run the Task Manager also left the tasks unrun for the whole 180 s ceiling, the stall of the known flake DW-376; the unrun tasks show in the other reds of that run and are not part of these mutations.
+
+**QA additions (2026-10-30, tags e30s2qa fresh and e30s2qaw warm; each file restored byte-identically, `shasum` and `git status --short` unchanged):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Install/RetentionRules.cls` (new, non-destructive, warm-safe): `TestWatchAreaOnlyPurges`, `TestNoHandWrittenInteropPurge` (AD-27 Prevents), `TestStaysInItsNamespace` (owner rule), `TestAuditNotNamed` (AD-17). Each scan first shows the scanner flags a sample.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Bridge/Purge.cls` (edited): `TestOtherDataKept` for the Never list (ApprovalRequest, Price, ModelFamily, BackgroundCheck, WatchMark untouched by `Run`); it makes and removes its own rows.
+- mutation: `Bridge.Purge.Run` gains a dead line naming `Ens.MessageHeader` -> red: `RetentionRules.TestNoHandWrittenInteropPurge`.
+- mutation: `Bridge.Purge.Run` gains a dead `ZN "OCUORDERS"` -> red: `RetentionRules.TestStaysInItsNamespace`.
+- mutation: `Bridge.Purge.Run` gains a dead `%SYS.Audit` call -> red: `RetentionRules.TestAuditNotNamed`.
+- mutation: `Install.Step.Watch` gains a `Tasks()` declaration -> red: `RetentionRules.TestWatchAreaOnlyPurges`.
+- mutation: `Bridge.Purge.Run` deletes `ApprovalRequest` rows older than the cutoff -> red: `Bridge.Purge.TestOtherDataKept`.
+- mutation: `Bridge.Purge.Run` gains a second line naming the link table with a DELETE -> red: `CodeRules.TestOnlyTheRunnerWritesLinks` (one line, SELECT, writes nothing).
+- mutation: `Bridge.Purge.Run` gains a `Lock +^OcuTalonBP.Conv(...)` -> red: `CodeRules.TestOnlyTheRunnerWritesLinks` (no globals or lock of the link).
+
+**Code review additions (2026-10-30, tags e30s2crw warm and e30s2cr fresh; each mutated file restored from its own backup, `shasum` equal, `git status --short` and `git diff --stat` unchanged; every class green again after the revert: warm `RetentionRules` 0.04 s, `CodeRules` 1.70 s, `Bridge.Time` 1.41 s; fresh `Test.Install.Retention` 104.83 s, `Test.Bridge.Purge` 0.21 s; `bash ci/checks.sh` passed):**
+- mutation: `Bridge.Purge.Run` gains a dead `Do ##class(Ens.Util.Log).%DeleteId(1)` -> red: `RetentionRules.TestNoHandWrittenInteropPurge` (the scan now covers the event, rule and I/O logs, business processes and their SQL tables).
+- mutation: `Bridge.Purge.Run` gains a dead `Kill ^|"OCUORDERS"|ZzReviewX` -> red: `RetentionRules.TestStaysInItsNamespace` (extended global references).
+- mutation: the link read in `Bridge.Purge` becomes `DELETE FROM ...ConversationLink WHERE SessionId IN (SELECT ...)` -> red: `CodeRules.TestOnlyTheRunnerWritesLinks` ("and holds no SQL verb that changes data"; before the review it passed).
+- mutation: `Digest.Data.Item.Purge` passes the caller `OcuTalon.Digest.Data.Item.Purg` -> red: `Bridge.Time.TestDaysCutoff` ("Digest.Data.Item.Purge keeps its text for a bad count").
+- mutation (AC 5, matrix 9, the incident half): `Install.Step.Watch.Purge` also deletes the closed incidents whose `TraceHeaderId` header is gone -> red: `Retention.TestHistoryReadsTables` ("and the incident closed and noticed 30 days ago"; its fixture's `TraceHeaderId` is now the 9-day `Checks` header).
+- mutation (AC 5, rows 5 and 6, bodies): the messages declaration without `BodiesToo` -> red: `Retention.TestMessagesPurge` (both 9-day headers: header gone, body kept), also `TestDeclarations` and `TestHistoryReadsTables` (the `Checks` body).
+- mutation (AC 2): the test sets the all task's `NameSpace` to `OCUORDERS` before `RunNow` -> red: `Retention.TestOwnNamespaceOnly` ("every run of the task was in OCUTALON", read from `%SYS_Task.History`), the `OCUORDERS` message gone, and `TestAllPurge`, `TestCreatedOnce`.
+- The three Retention mutations ran together in one fresh run (each red on its own assertion); the Task Manager ran every task (no `AssertRan` red).
 
 ## Auto Run Result
 

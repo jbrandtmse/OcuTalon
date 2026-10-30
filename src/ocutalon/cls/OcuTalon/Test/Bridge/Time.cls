@@ -12,7 +12,8 @@
 ///     rounded down, to a UTC time, negative for the past, the same in three zones, and "" for an unreadable time;
 ///   - TestDaysCutoff (Story 30.2; DW-371): DaysCutoff moves a UTC time back a whole number of days, keeping the time of day, across a month end, a year
 ///     end and a leap day, the same in three zones; it gives an error status that names the caller for "", 0, -1, 1.5, abc and 00, and for an unreadable
-///     now, and an empty cutoff for a count that reaches before the calendar's first date;
+///     now, and an empty cutoff for a count that reaches before the calendar's first date; Digest.Data.Item.Purge, which uses it, refuses a bad count
+///     with its own text, word for word (it deletes nothing then);
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
 ///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
 ///     (at least 600 ms less, whatever pause there is between the two reads);
@@ -180,6 +181,7 @@ Method TestDaysCutoff()
 		Do $$$AssertEquals(cutoff, "", "'"_bad_"' leaves no cutoff")
 		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Caller.Name needs a UTC time", "and the error names the caller")
 	}
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText(##class(OcuTalon.Digest.Data.Item).Purge("abc")), "ERROR #5001: OcuTalon.Digest.Data.Item.Purge needs a whole number of days, at least 1, not 'abc'", "Digest.Data.Item.Purge keeps its text for a bad count")
 }
 
 /// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 98 to 100 (the clock moves

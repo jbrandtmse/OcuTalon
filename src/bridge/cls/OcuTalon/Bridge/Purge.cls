@@ -1,5 +1,5 @@
-/// The bridge's purge (AD-27): the part of the daily OcuTalon purge task that deletes the bridge's own old records. Run(daysToKeep) is called through
-/// OcuTalon.Install.Step.Retention with the day count of the task (a task property, AD-19).
+/// The bridge's purge (AD-27): the part of the host's daily purge task that deletes the bridge's own old records. The host calls Run(daysToKeep) with
+/// the day count of its task (a task property, AD-19).
 ///   - Decisions and usage: the Decision and Usage rows recorded before the cutoff, which is now moved back daysToKeep whole days
 ///     (Time.DaysCutoff). A row recorded at the cutoff stays;
 ///   - AI sessions: a session is deleted, with its context stream, when no conversation link has named it for a day. The links only move forward,

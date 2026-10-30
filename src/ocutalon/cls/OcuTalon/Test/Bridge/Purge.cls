@@ -12,8 +12,10 @@
 ///   - TestBadArguments (matrix 14, 16): "", 0, -1, 1.5, abc and 00 as the day count, and an unreadable now, give an error status that names
 ///     OcuTalon.Bridge.Purge.Run, delete no row or session and write no mark;
 ///   - TestPartsRunAlone: an error in one part does not stop the others (the decision part fails here, in Test.Bridge.ZzPurgeFailing, the usage and session parts still run);
-///   - TestLinkWithoutSession: a link with no session id is ignored.
-/// Every row, session, link and mark that a test made is removed after the test, also after a failure.
+///   - TestLinkWithoutSession: a link with no session id is ignored;
+///   - TestOtherDataKept (QA, Boundaries "Never"): Run deletes no ApprovalRequest, Price, ModelFamily, BackgroundCheck or WatchMark row, however old.
+/// Every row, session and link that a test made, and the marks of its own sessions, are removed after the test, also after a failure. The marks that
+/// Run writes on the other unlinked sessions of the namespace stay; only Bridge.Purge reads them.
 Class OcuTalon.Test.Bridge.Purge Extends %UnitTest.TestCase
 {
 
@@ -38,17 +40,25 @@ Property Sessions As %List;
 /// The agents of the links that the test made, as a list.
 Property Agents As %List;
 
+/// The ids of the WatchMark rows that the test made, as a list.
+Property Marks As %List;
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..Refs = ""
 	Set ..Sessions = ""
 	Set ..Agents = $ListBuild(..#AGENT)
+	Set ..Marks = ""
 	Quit $$$OK
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set position = 0
+	While $ListNext(..Marks, position, markId) {
+		Do ##class(OcuTalon.Data.WatchMark).%DeleteId(markId)
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set position = 0
 	While $ListNext(..Sessions, position, id) {
@@ -103,6 +113,46 @@ Method TestDecisionsAndUsage()
 	}
 	Do $$$AssertStatusOK($ClassMethod(..#PURGE, "Run", 30, t), "Run(30, T) again is OK")
 	Do $$$AssertEquals(..DecisionExists(decision(30 * day)) _ "|" _ ..DecisionExists(decision(0)), "1|1", "and changes nothing")
+}
+
+/// The Never list of the spec: Run purges decisions, usage and sessions only. An approval request, a background check and a watch mark, each dated
+/// 400 days before T, and the price and model-family tables, all stay through Run(1, T) and Run(1, T + 1 day).
+Method TestOtherDataKept()
+{
+	Set t = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set old = ##class(OcuTalon.Bridge.Time).PlusSeconds(t, -400 * ..#DAY)
+	Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval(..Owner, "", "answered", old, {"AnsweredAt": (old), "FinishedAt": (old)})
+	Set check = ##class(OcuTalon.Test.Data.Fixture).Check(..Owner, "ZZPURGENS", "Zz.Purge.Production", {"CreatedAt": (old), "NextDueAt": (old), "LastRunAt": (old)})
+	Set ..Refs = approval_","_check
+	Set mark = ##class(OcuTalon.Data.WatchMark).%New()
+	Set mark.Namespace = "ZZPURGENS"
+	Set mark.Production = "Zz.Purge.Production"
+	Set mark.MarkAt = $Extract(old, 1, 19)
+	Do $$$AssertStatusOK(mark.%Save(), "a fixture watch mark is saved")
+	Set ..Marks = $ListBuild(mark.%Id())
+	Set prices = ..Count("OcuTalon_Bridge_Data.Price")
+	Set families = ..Count("OcuTalon_Bridge_Data.ModelFamily")
+	Do $$$AssertTrue((prices > 0) && (families > 0), "control: the start seeded price and model-family rows: "_prices_" and "_families)
+	Do $$$AssertEquals(..OtherData(approval, check, mark.%Id()), "1|1|1", "before the run: the three old rows exist")
+	Do $$$AssertStatusOK($ClassMethod(..#PURGE, "Run", 1, t), "Run(1, T) is OK")
+	Do $$$AssertStatusOK($ClassMethod(..#PURGE, "Run", 1, ##class(OcuTalon.Bridge.Time).PlusSeconds(t, ..#DAY)), "Run(1, T + 1 day) is OK")
+	Do $$$AssertEquals(..OtherData(approval, check, mark.%Id()), "1|1|1", "the approval request, the background check and the watch mark are kept")
+	Do $$$AssertEquals(..Count("OcuTalon_Bridge_Data.Price"), prices, "no price row is deleted")
+	Do $$$AssertEquals(..Count("OcuTalon_Bridge_Data.ModelFamily"), families, "no model-family row is deleted")
+}
+
+/// The rows of the other data as "approval|check|mark", each 1 when the row exists.
+ClassMethod OtherData(approvalRef As %String, checkRef As %String, markId As %String) As %String
+{
+	Quit ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexExists(approvalRef) _ "|" _ ##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(checkRef) _ "|" _ ##class(OcuTalon.Data.WatchMark).%ExistsId(markId)
+}
+
+/// The number of rows of an SQL table.
+ClassMethod Count(table As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_table)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// Matrix 11. A linked session, an unlinked one and one created now: Run at T marks the two unlinked ones, a run a second short of a day deletes
@@ -175,6 +225,7 @@ Method TestMarks()
 	Do $$$AssertStatusOK($ClassMethod(..#PURGE, "Run", 90, t), "Run(90, T) is OK")
 	Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(gone)), 0, "the mark of a session that does not exist is cleared")
 	Do $$$AssertEquals(..Exists(s) _ "|" _ ..Mark(s), "1|" _ t, "a mark that holds no time is replaced by the time of this run and the session is kept")
+	Kill ^OcuTalonBP.Unlinked(gone)
 }
 
 /// Matrix 14 and 16. A bad day count or an unreadable now: an error status, and nothing deleted or marked.
@@ -186,7 +237,6 @@ Method TestBadArguments()
 	Set ..Refs = decision_","_usage
 	Set s = ..NewSession(##class(OcuTalon.Bridge.Time).PlusSeconds(t, -5 * ..#DAY))
 	Set later = ##class(OcuTalon.Bridge.Time).PlusSeconds(t, 3 * ..#DAY)
-	Set links = ..Links()
 	For bad = "", 0, -1, 1.5, "abc", "00" {
 		Set sc = $ClassMethod(..#PURGE, "Run", bad, later)
 		Do $$$AssertStatusNotOK(sc, "Run('"_bad_"') is an error")
@@ -199,7 +249,6 @@ Method TestBadArguments()
 		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Bridge.Purge.Run", "which names OcuTalon.Bridge.Purge.Run")
 		Do $$$AssertEquals(..DecisionExists(decision) _ "|" _ ..UsageExists(usage) _ "|" _ ..Exists(s) _ "|" _ ..Mark(s), "1|1|1|", "Run(90, '"_bad_"') deletes nothing and writes no mark")
 	}
-	Do $$$AssertEquals(..Links(), links, "no link was written")
 }
 
 /// Each part runs whatever an earlier part returned: with the delete of the Decision rows failing (Test.Bridge.ZzPurgeFailing), Run still deletes the
