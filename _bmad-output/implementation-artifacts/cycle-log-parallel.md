@@ -845,3 +845,7 @@
 2026-10-30T05:25:30Z	Epic 7	deps_hash_rerecorded	reason=ledger_routed hash=754135e2
 2026-10-30T05:25:39Z	Epic 7	inbox_resolved	id=U-158,U-159(veto_kept),U-160,U-161(applied_6c9cbe8)
 2026-10-30T05:27:18Z	Epic 12	ruling	q=slot_A_free_after_Epic_7_merge;Lane_A_own_next=11(needs_9),17/22/23/28(step_epics,no_v0.1.1_tag) choice=dispatch_Epic_12_on_runner_A(first_eligible_in_lanes.pool.order:12,deps[10]_merged;12.1-12.6_runnable,12.7_waits_11;merge_gate_v0.1.0) rejected=leave_A_idle(policy:take_first_eligible_pool_epic),Epic_30(after_12_in_pool_order) note=Epic_11_exception:when_9_merges_A_ends_12_at_its_next_story_boundary(reason_waiting)_and_takes_11 category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
+2026-10-30T05:36:36Z	Epic 12	worktree_provisioned	path=.worktrees/epic-12 branch=OCT-epic12 base=ea69029 submodules=(none)
+2026-10-30T05:36:36Z	Epic 12	worktree_bootstrapped	epic=12 result=ok check=ok tree=clean note=orchestrator_shell_returned_to_the_main_checkout
+2026-10-30T05:36:36Z	Epic 12	ci_green_verified	runs=41008531966,41008531971 head=ea69029 branch=feature/OCT_OcuTalon_MVP result=success via=none note=dispatch_base
+2026-10-30T05:37:07Z	Epic 12	runner_dispatched	agent=a309caf0259cbd66d model=opus(claude-opus-5-5) lane=pool(runner_A) slot=ocutalon-slot-a base=ea69029 retro_review=skip(no_X.0_input) prompt=scratchpad/dispatch-epic-12.md order=12.1-12.6,then_waiting_on_11 epic11_exception=on_Epic_9_merge
