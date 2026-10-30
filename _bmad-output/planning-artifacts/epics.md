@@ -6183,11 +6183,15 @@ So that I can check status and history from my own tools without opening a new w
 
 **Stories 29.1 and 29.2 moved back to Stories 16.1 and 16.3**, whole and verbatim, in Lane B's Epic 16 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].
 
+**Stories 29.5 and 29.6 are split from Story 29.3** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: the address counter's keyed hash (DW-233) and the probe's alert-only outcome for fallbacks (DW-260, DW-94), the repository work the owner decision of 2026-10-30 (epic29_brief) names beside Story 29.3's host check script.
+
 ### Story 29.3: The demo host is adapted for the launch
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.7, renumbered, whole and verbatim. It needs Lane B's Stories 16.5 and 16.6 (the pages and the probe), and no longer waits for Story 11.5: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. The host's deployment stays outside this repository, and the host itself is the owner's (Rule 22.4)]
 
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Lane B builds this story right after Epic 16 merges (Epic 29 moved to Lane B), so Stories 16.5 and 16.6 are in place when it starts]
+
+[AMENDED 2026-10-30, split by runner C under the unattended policy (Rule 5 tier 2: siblings planned next in this epic), at this story's plan: this story keeps the repository's host check script, its stand-in test and the release check list for the Contest Planner's hands-on pass (DW-214, DW-226, DW-234, DW-240, DW-254, DW-287); DW-233 moved to Story 29.5 and DW-260 and DW-94 to Story 29.6, as the owner decision of 2026-10-30 (epic29_brief) describes them. The criteria below are unchanged.]
 
 As the author,
 I want the demo host's proxy, gateway, resets and monitoring set up as the architecture describes,
@@ -6224,11 +6228,8 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 **When** it runs
 **Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
 **And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
-- DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 - DW-287: At 8 licence units `iris session` terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy (AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
 - DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS (ledger; routed by cr 2026-10-26)
-- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
-- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
 - DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path (ledger; routed by harvest 2026-10-25)
 
 ### Story 29.4: Sessions stay isolated under load
@@ -6267,6 +6268,39 @@ So that what I see is my own work.
 - DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test (ledger; routed by burndown 2026-10-30)
 - DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable (ledger; routed by merge_gate 2026-10-30)
 - DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red (ledger; routed by burndown 2026-10-30)
+
+### Story 29.5: The address counter's hash is keyed per reset
+
+[AMENDED 2026-10-30, split from Story 29.3 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): DW-233, kept by the owner's veto ruling U-156 as the owner decision of 2026-10-30 (epic29_brief) describes it]
+
+As the author,
+I want the online demo's address counter to store a keyed hash of each client address, with a key that changes at every reset,
+So that a counter row can't be turned back into a visitor's address, and a reset never brings an old key back.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's per-address sign-in counter
+**When** a counted sign-in stores or looks up a client address
+**Then** the row holds an HMAC of the address, keyed by a per-instance secret in the private database, instead of a plain SHA-256, and the key is never printed, logged or sent (FR-59, AD-3, AD-13)
+**And** the key never comes back with the golden copy: either it is made at start whenever the reset marker changes, or it lives outside what the golden copy captures; the spec names which one, and a test proves that two resets give two different keys (FR-15, AD-19, AD-25)
+- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
+
+### Story 29.6: The probe alerts when every turn falls back
+
+[AMENDED 2026-10-30, split from Story 29.3 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): DW-260, kept by the owner's veto ruling U-157, and DW-94, as the owner decision of 2026-10-30 (epic29_brief) describes them]
+
+As the author,
+I want the probe to alert me when the demo answers but its turns fall back,
+So that a demo whose replies are all fallbacks never reports healthy, and still never resets because of it.
+
+**Acceptance Criteria:**
+
+**Given** the probe from Story 16.6
+**When** its chat check gets a decision that is a `no_key`, timeout or rate-limit fallback
+**Then** it reports an alert-only outcome: it alerts the author and never counts toward an unscheduled reset, like busy, while `auth_failed` and `no_decision` still count (FR-59, NFR-23, AD-25)
+**And** a reached daily cost cap is recognized as the daily cap from the gateway's HTTP 403 "daily cost cap reached", or the release check names the body the gateway must send; the change is made in the repository if it needs one (FR-22, AD-8, AD-20, AD-25)
+- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
+- DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 
 ## Epic 30: Lane A post-demo hardening
 

@@ -412,6 +412,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Task 0 (b) measured ci/mock/scenarios/A/daily-cap.json (permission_error JSON) only and did not try a plain-text body; Story 29.3's AC names HTTP 403 and the fixed text only; Classify finds daily_cap by the text
 - 2026-10-23T02:11:46Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=unverified; settled by the gateway sending the measured JSON body, or a plain-text 403 measured to give daily_cap
+- 2026-10-30T04:25:32Z status=routed owner=29-6-the-probe-alerts-when-every-turn-falls-back by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.6
 
 ### DW-95: RecordFallback marks the day of the call (MarkCapped with no day), so a cap reached within one call's latency before local midnight marks the next day as capped
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
@@ -1314,6 +1315,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AddressCounter.Add stores Session.Hash(address), a plain SHA-256 (AD-13: a hashed address); the 2^32 IPv4 values can be enumerated in minutes; rows live one hour, in OCUTALON_PRIVATE
 - 2026-10-26T04:26:20Z status=decision-pending owner=burndown by=cr note=veto (stored data, security): recommend an HMAC with a per-instance key in the private DB, renewed at each reset
 - 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-156 (Epic 16 decision sheet): before the launch, replace the plain SHA-256 with an HMAC keyed by a per-instance secret in the private database, renewed at each reset
+- 2026-10-30T04:25:32Z status=routed owner=29-5-the-address-counter-s-hash-is-keyed-per-reset by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.5
 
 ### DW-234: On the online demo a proxy address that is unset or not equal to REMOTE_ADDR exactly (a changed proxy IP, another address form) exempts every sign-in, so the per-address limit silently stops
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1358,6 +1360,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: high | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 16.5 Task 0: the count reads 1 with no session, one and two sessions (browser), over keep-alive and after sign-out; S13 had found one connection per signed-in session through a proxy; tests reach busy via a baseline-relative cap
 - 2026-10-26T07:48:33Z status=routed owner=29-4-sessions-stay-isolated-under-load by=harvest note=29.4 measures on the demo host, through the proxy, whether signed-in sessions raise InstanceConnections() and whether status busy, the splash busy state and the post-sign-in reserve engage before IRIS's own 503; if they do not, raise the AD-13 counter question (a counter OcuTalon controls, e.g. attached visitor CSP sessions) to the orchestrator
+- 2026-10-30T04:25:32Z by=runner note=host fact measured on the gated host by the Contest Planner 2026-10-30: busy is one connection lenient (OWNCONNECTIONS=1 assumes the new session holds a connection; a signed-in CSP session is not counted, so a proxied sign-in was admitted while busy); Story 29.4's author load case measures it against the 8-licence-unit ceiling
 
 ### DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test
 - source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1375,6 +1378,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 16.6 implement: on a stack with no model key the probe logs 'healthy ... fallback=no_key'; the AC defines healthy as 'a decision' and only daily_cap as capped
 - 2026-10-26T11:11:47Z status=decision-pending owner=burndown by=harvest note=product call for the decision sheet: should a non-daily_cap fallback (no_key, timeout, rate_limit) alert the author without counting toward a reset? Recommended: yes, as an alert-only outcome like busy, if the owner agrees (it changes the AC's outcome list)
 - 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-157 (Epic 16 decision sheet): an alert-only probe outcome for no_key, timeout and rate_limit fallbacks, which alerts the author and never counts toward a reset, like busy
+- 2026-10-30T04:25:32Z status=routed owner=29-6-the-probe-alerts-when-every-turn-falls-back by=spec_gate note=split from 29-3 (Rule 5 tier 2, runner C ruling 2026-10-30); bullet moved to Story 29.6
 
 ### DW-268: The probe never signs out a sign-in IRIS accepted (3xx) when the redirect GET is not the shell (busy, timeout, other page), so the CSP session holds its connection until its 120 s timeout
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: med | footprint: in-story
@@ -2119,3 +2123,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 40975637263 attempt 1 (75d731a), iris (shards), shard:lane-a: FAIL TestWindow ... 2026-10-29 23:59:24.000; green on the unchanged rerun (attempt 2); Test/Checks is Epic 5's (Lane A), untouched by Epic 16
 - 2026-10-30T01:32:49Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; DW-289 (real-Tick interference in Test.Checks.Runs) was resolved by 5.10, so a new entry; the same run's two other reds also sat at 23:59Z (16.9's same-day time assertion, reworked)
 - 2026-10-30T02:55:13Z owner=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=burndown note=overflow(Epic_16_burn-down):Test.Checks.Runs_TestWindow_read_the_real_clock_near_instance_midnight_(23:59:24Z);30.4_is_the_next_story_on_the_Checks_runs_and_their_tests_(Lane_A)
+
+### DW-416: Behind a TLS-terminating proxy every online-demo API POST fails the origin check (403 wrong_origin): IRIS expects an http:// origin and the browser sends https://; the demo host maps that exact origin on /ocutalon/api/* as a workaround
+- source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: med | footprint: in-epic
+- evidence: the Planner's API POSTs through the gated proxy got 403 wrong_origin until the host mapped the origin; a foreign or missing Origin still gets 403 with the workaround
+- 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=repository option the Planner prefers: trust X-Forwarded-Proto only from the trusted proxy address (the one trusted for X-Forwarded-For), or a configured public origin; a veto-window change to the origin check (security posture); not needed for the launch while the host workaround stands; runner C ruling 2026-10-30: no repository change in Story 29.3
+
+### DW-417: Times the model writes itself on the online demo carry no ET (for example 'due at 23:39'), against UX-DR108 and UX-DR123; the catalog's message times do carry it
+- source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: the Planner saw a bare model-written time in a reply on the gated host; the agent's input preamble names the zone (Agent/Input.cls) but no instruction asks for the ET suffix on the online demo
+- 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=raised from the Planner's LOW: every judge reads model-written times on the online demo; the likely fix is one online-demo instruction line (Agent/Chat.cls or Agent/Input.cls, Lane A files outside Epic 29's footprint); runner C ruling 2026-10-30: not Story 29.3's goal, decided at Epic 29's burn-down gate
+
+### DW-418: An online-demo start whose OCUTALON_CONNECTION_RESERVE is not below OCUTALON_CONNECTION_CAP leaves IRIS never ready without a clear start-up error
+- source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Install/Step/Public.cls:109 already refuses the pair with a status naming OCUTALON_CONNECTION_RESERVE; the Planner saw only that IRIS never became ready (Install/** is Epic 15's contended path)
+- 2026-10-30T04:25:44Z status=wontfix-accepted owner=29-3-the-demo-host-is-adapted-for-the-launch by=runner note=reopen_if=a start with reserve >= cap leaves no line naming OCUTALON_CONNECTION_RESERVE in the IRIS container's log; the host's own config, refused by design (AD-19)
