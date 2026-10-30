@@ -255,3 +255,4 @@
 2026-10-30T02:55:26Z	Epic 16	epic_status_done	stories=8 model=claude-opus-5-5
 2026-10-30T02:55:26Z	Epic 16	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=4.50 unresolved_high_med_avg=1.00 metric=unresolved rework_stories=2(16.4_ci,16.9_ci) review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=36 result=hold applied=false gate=record_only note=10_cr_complete_over_8_stories;unresolved_8(16.3:5,16.8:1,16.4:1,16.9:1)_below_the_threshold_of_2;both_reworks_were_CI_reds(group_time,a_navigation_race;same-day_time) model=claude-opus-5-5
 2026-10-30T02:55:26Z	Epic 16	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-30T02:55:36Z	Epic 16	report_error	fault=runner field=model_tier_checkpoint.review_med,high_med_avg reported=36,4.50 actual=34,4.25 impact=none(result_hold_unchanged;the_threshold_reads_unresolved_high_med_avg=1.00)
