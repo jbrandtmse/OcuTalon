@@ -2022,6 +2022,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: ARCHITECTURE-SPINE.md:608 reads 'inside six IRIS groups (install-fresh, install-upgrade, production, browser, shards and image)' and lists lane-a as Agent, Bridge, Install, Tools and Digest; ci/units.sh now has seven IRIS_GROUPS and shard_unit_areas pieces
 - 2026-10-29T23:01:40Z status=routed owner=burndown by=cr note=lead: Rule 20 light path, AD-22 as-built line (7 groups, lane-a pieces, live:cards, lane-a areas)
+- 2026-10-30T03:44:43Z status=decision-pending owner=burndown by=burndown note=set aside for the decision sheet (orchestrator ruling, option b): the orchestrator writes the factual AD-22 as-built correction in the main checkout after the merge; no worktree AD edit (U14: AD-22 cited by Epics 9, 16, 15 and 13)
 
 ### DW-408: A final FixResult that Checks fails to send is lost: Fix.Run.Sweep has already ended the run, so no later Tick returns it and the incident stays fixing
 - source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
@@ -2047,3 +2048,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Fix/Run.cls:208-211 and :241-252 against Fix/Executor.cls:688-691 and :487-498; the spec's Rule 2 note names the lifted methods but not these two
 - 2026-10-29T23:01:48Z status=wontfix-accepted owner=7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got by=cr note=reopen_if=a change to Executor.Look's counts or Audit's handling lands without the same change in Fix.Run.EndLeft or Entry
+
+### DW-415: flake: live:sign-in web/e2e/sign-in/shell.spec.ts:93 row 9 failed with page.goto: net::ERR_NETWORK_CHANGED (Chromium saw the CI host's network interfaces change mid-run, likely another job's compose networks), then passed on an unchanged rerun
+- source: orchestrator ruling: Epic 7 CI on 89685f6 (run 40993669822) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: run 40993669822 iris (browser) attempt 1: 1 failed (shell.spec.ts row 9, page.goto net::ERR_NETWORK_CHANGED at http://127.0.0.1:52808/ocutalon/); attempt 2 green
+- 2026-10-30T03:44:09Z status=routed owner=burndown by=runner note=flake class per CI Is a Gate; no assertion failed; burn-down gate re-owns it
+- 2026-10-30T03:44:43Z status=wontfix-accepted by=burndown note=a single CI-host network blip (no assertion failed; green on the unchanged rerun); reopen_if=net::ERR_NETWORK_CHANGED appears again in any iris job log
