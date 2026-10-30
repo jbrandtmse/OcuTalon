@@ -10,6 +10,9 @@
 ///   - TestPlusSeconds, TestSecondsUntil (Story 3.4): PlusSeconds moves a UTC time by whole seconds across a day, a month end (also 29 February
 ///     of a leap year) and a year end, backwards too, and gives "" for an unreadable time or count; SecondsUntil is the whole seconds,
 ///     rounded down, to a UTC time, negative for the past, the same in three zones, and "" for an unreadable time;
+///   - TestDaysCutoff (Story 30.2; DW-371): DaysCutoff moves a UTC time back a whole number of days, keeping the time of day, across a month end, a year
+///     end and a leap day, the same in three zones; it gives an error status that names the caller for "", 0, -1, 1.5, abc and 00, and for an unreadable
+///     now, and an empty cutoff for a count that reaches before the calendar's first date;
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
 ///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
 ///     (at least 600 ms less, whatever pause there is between the two reads);
@@ -136,6 +139,47 @@ Method TestPlusSeconds()
 		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 3600 * 24 * 365), "2027-10-24T13:05:09Z", label_"a year of 365 days")
 	}
 	Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "1840-12-31T00:00:00Z", -1), "", "a result before the calendar's start is empty")
+}
+
+/// DaysCutoff: the cutoff of a purge, now moved back a whole number of days (DW-371).
+Method TestDaysCutoff()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set label = "in the zone '"_zone_"': "
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 30, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), label_"a whole count of days is accepted")
+		Do $$$AssertEquals(cutoff, "2026-09-30T13:05:09Z", label_"30 days back keeps the time of day")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 1, "Caller.Name", .cutoff, "2026-03-01T00:00:00Z"), label_"1 day")
+		Do $$$AssertEquals(cutoff, "2026-02-28T00:00:00Z", label_"1 day back from a month start")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 1, "Caller.Name", .cutoff, "2028-03-01T23:59:59Z"), label_"1 day in a leap year")
+		Do $$$AssertEquals(cutoff, "2028-02-29T23:59:59Z", label_"1 day back reaches 29 February")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 365, "Caller.Name", .cutoff, "2027-01-01T12:00:00Z"), label_"365 days")
+		Do $$$AssertEquals(cutoff, "2026-01-01T12:00:00Z", label_"365 days back crosses a year end")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", "007", "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), label_"leading zeros before a count are fine")
+		Do $$$AssertEquals(cutoff, "2026-10-23T13:05:09Z", label_"7 days back")
+	}
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 90, "Caller.Name", .cutoff), "the current time is the default")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 90, "Caller.Name", .cutoff, ""), "an empty now is the current time too")
+	Do $$$AssertEquals($ZDateH($Piece($ClassMethod(time, "NowUtc"), "T", 1), 3) - $ZDateH($Piece(cutoff, "T", 1), 3), 90, "exactly 90 days")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 100000, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), "a count that reaches before the calendar is accepted")
+	Do $$$AssertEquals(cutoff, "", "with an empty cutoff")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 55000, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), "a large count that stays in the calendar")
+	Do $$$AssertNotEquals(cutoff, "", "has a cutoff")
+	For bad = "", 0, -1, 1.5, "abc", "00", " 1", "1 ", "1e2", "+1" {
+		Set sc = $ClassMethod(time, "DaysCutoff", bad, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z")
+		Do $$$AssertStatusNotOK(sc, "'"_bad_"' is refused")
+		Do $$$AssertEquals(cutoff, "", "'"_bad_"' leaves no cutoff")
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorText(sc), "ERROR #5001: Caller.Name needs a whole number of days, at least 1, not '"_bad_"'", "'"_bad_"' names the caller and the count")
+	}
+	Set long = $Translate($Justify("", 50), " ", "x")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText($ClassMethod(time, "DaysCutoff", long, "Caller.Name", .cutoff)), "ERROR #5001: Caller.Name needs a whole number of days, at least 1, not '"_$Extract(long, 1, 40)_"'", "a long count is cut to 40 characters")
+	For bad = "yesterday", "2026-10-30", "2026-10-30T13:05:09", "2026-13-30T13:05:09Z", "2026-10-30T25:05:09Z", "2026-02-30T13:05:09Z" {
+		Set sc = $ClassMethod(time, "DaysCutoff", 30, "Caller.Name", .cutoff, bad)
+		Do $$$AssertStatusNotOK(sc, "the time '"_bad_"' is refused")
+		Do $$$AssertEquals(cutoff, "", "'"_bad_"' leaves no cutoff")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Caller.Name needs a UTC time", "and the error names the caller")
+	}
 }
 
 /// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 98 to 100 (the clock moves

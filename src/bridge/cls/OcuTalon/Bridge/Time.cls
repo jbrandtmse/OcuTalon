@@ -9,8 +9,9 @@
 ///   - MsSince: whole milliseconds from a UTC timestamp, in the form of Ens.DataType.UTC, to now;
 ///   - PlusSeconds: a UTC time moved by a whole number of seconds, which the approval expiry (AD-11) uses;
 ///   - SecondsUntil: the whole seconds, rounded down, from now to a UTC time, negative for a time in the past, which a re-armed
-///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it.
-/// Each returns "" for an unreadable input.
+///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it;
+///   - DaysCutoff: the day check and UTC cutoff that Bridge.Purge and Digest.Data.Item.Purge share (AD-27, DW-371): now moved back a whole number of days, at least 1.
+/// Each returns "" for an unreadable input, except DaysCutoff, which returns an error status.
 Class OcuTalon.Bridge.Time
 {
 
@@ -113,6 +114,29 @@ ClassMethod SecondsUntil(utc As %String) As %Integer
 	Set whole = delta \ 1
 	If whole > delta Set whole = whole - 1
 	Quit whole
+}
+
+/// The cutoff of a purge (AD-27, DW-371): the UTC time now, YYYY-MM-DDThh:mm:ssZ (default NowUtc), moved back daysToKeep whole days by date
+/// arithmetic on the UTC date, so the time of day is kept. daysToKeep must be a whole number of at least 1: anything else ("", 0, -1, 1.5,
+/// abc, 00) is an error status that names the caller, and so is a now that is given and unreadable; cutoff is "" then. Otherwise the result
+/// is OK, and cutoff is "" when it falls before the first date of the calendar, which means nothing is old enough to purge. A caller deletes
+/// nothing on an error, and nothing older than an empty cutoff.
+ClassMethod DaysCutoff(daysToKeep As %String, caller As %String, Output cutoff As %String, now As %String = "") As %Status
+{
+	Set cutoff = ""
+	If (daysToKeep '? 1.N) || (+daysToKeep < 1) {
+		Quit $SYSTEM.Status.Error(5001, caller_" needs a whole number of days, at least 1, not '"_$Extract(daysToKeep, 1, 40)_"'")
+	}
+	If now = "" Set now = ..NowUtc()
+	Set days = ""
+	If now ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" {
+		Set time = $ZTimeH($Piece($Piece(now, "T", 2), "Z", 1), 1, "")
+		If time '= "" Set days = $ZDateH($Piece(now, "T", 1), 3, , , , , , , "")
+	}
+	If days = "" Quit $SYSTEM.Status.Error(5001, caller_" needs a UTC time, YYYY-MM-DDThh:mm:ssZ, not '"_$Extract(now, 1, 40)_"'")
+	Set day = days - daysToKeep
+	If day >= 0 Set cutoff = $ZDate(day, 3)_"T"_$Piece(now, "T", 2)
+	Quit $SYSTEM.Status.OK()
 }
 
 }
