@@ -6400,6 +6400,7 @@ So that a stopped production or a disabled item reaches me once.
 **Then** the finding becomes one Item sent to `Intake`, whose `CatalogKey` and `Slots` are the production state-change key from `OcuTalon.Msg.Catalog.Watch` and its slots ("The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."), which `Intake` copies to the `ItemDecision` so `OutcomeRouter`'s notification uses them (Story 2.7), and the same finding is never sent again (FR-23, FR-33, AD-14, AD-30, AD-32, UX-DR112)
 **And** a test sends two Ticks after stopping a test production and finds exactly one finding Item (FR-33)
 - DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight (ledger; routed by burndown 2026-10-30)
+- DW-368: A stopped target production renders as 'had changed since the dry run': AD-16 counts each copy a stopped production refuses as Skipped, and the Result texts convention then picks result.skipped, whose text claims the orders changed since the dry run (a false claim in an edge case) (ledger; routed by merge_gate 2026-10-30)
 
 ### Story 30.5: Mixed and unfinished resends say how far they got
 
@@ -6418,6 +6419,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Given** copies still running when `FixExecutor`'s 60-second wait ends
 **When** the wait ends
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
+- DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
+- DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
 
 ## Epic 31: Lane B post-demo hardening
 
