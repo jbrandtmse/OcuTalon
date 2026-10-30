@@ -4,11 +4,12 @@
 ///     missing after each give a line;
 ///   - TestNewHeaders: a new header gives a line, unless its session is one of the allowed sessions of its namespace or the session of a new HeartbeatIn header; a session
 ///     allowed in another namespace does not allow it; a changed or missing header gives a line;
-///   - TestRunningTimersAreNotChanges: in OCUTALON, the request of a timer (a header to Ens.Alarm) that was not final in "before", its completing, and one wake-up header
-///     that Ens.Alarm sent in its session give no line. A timer armed after "before" (its request and its wake-up, in a new session or in the session of the earlier
-///     timer), a second wake-up in the session (two pending timers in one session allow two wake-ups, not three), a request that was
-///     final in "before" (Discarded, Aborted, Error or Completed), a header to another target, another change in that session, and the same headers in another
-///     namespace give a line each;
+///   - TestRunningTimersAreNotChanges: in OCUTALON, the request of a timer (a header to Ens.Alarm) that was Created, Queued or Delivered in "before", its completing,
+///     and one wake-up header that Ens.Alarm sent in its session give no line. A timer armed after "before" (its request and its wake-up, in a new session or in the
+///     session of the earlier timer), a second wake-up in the session (two running timers in one session allow two wake-ups, not three), a wake-up in a session with
+///     no running timer, a request in any other status in "before" (Discarded, Suspended, Deferred, Aborted, Error, Completed, or no status), a header to another
+///     target, a new header from another source and a changed header in the running timer's session, its request missing after, and the same headers in another
+///     namespace give a line each, and the four lines that isolate one condition each are checked by their text;
 ///   - TestNothingChanged: two equal snapshots give no line.
 Class OcuTalon.Test.Fix.SnapshotDiff Extends %UnitTest.TestCase
 {
@@ -91,6 +92,12 @@ Method Lines(namespace As %String, was As %DynamicObject, now As %DynamicObject)
 	Quit ##class(OcuTalon.Test.Fix.Snapshot).Diff(..TakenIn(namespace, was), ..TakenIn(namespace, now), "", namespace)
 }
 
+/// The one line of lines, or all of them as JSON when there is not exactly one.
+Method One(lines As %DynamicArray) As %String [ Private ]
+{
+	Quit $Select(lines.%Size() = 1: lines.%Get(0), 1: lines.%ToJSON())
+}
+
 Method TestRunningTimersAreNotChanges()
 {
 	Set ns = ##class(OcuTalon.Test.Fix.Snapshot).#ALARMIN
@@ -120,6 +127,15 @@ Method TestRunningTimersAreNotChanges()
 	Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, 3)), "2": (..Row(6, "A", "B", 2))}, {"1": (completed), "2": (..Row(6, "A", "B", 9)), "3": (wake)})
 	Do $$$AssertEquals(lines.%Size(), 1, "a change of another header gives a line while the timer's does not "_lines.%ToJSON())
 
+	Set lines = ..Lines(ns, pending, {"1": (pending.%Get("1")), "2": (..Row(5, "Decide", "Other", 1))})
+	Do $$$AssertEquals(..One(lines), ns_" header 2 is new: session 5, from Decide to Other", "a new header from another source in a running timer's session, before its wake-up, gives its line")
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (..Row(7, alarm, "Decide", 1))})
+	Do $$$AssertEquals(..One(lines), ns_" header 2 is new: session 7, from "_alarm_" to Decide", "a wake-up in a session with no running timer gives its line")
+	Set lines = ..Lines(ns, {"1": (pending.%Get("1")), "2": (..Row(5, "A", "Decide", 2))}, {"1": (completed), "2": (..Row(5, "A", "Decide", 9)), "3": (wake)})
+	Do $$$AssertEquals(..One(lines), ns_" headers 2 changed", "a change of another header in the running timer's session gives its line")
+	Set lines = ..Lines(ns, pending, {})
+	Do $$$AssertEquals(..One(lines), ns_" headers 1 is missing after", "a running timer's request that is missing after gives its line")
+
 	Set two = {"1": (..Row(5, "Decide", alarm, 3)), "2": (..Row(5, "Decide", alarm, 3))}
 	Set twoDone = {"1": (completed), "2": (completed), "3": (wake), "4": (wake)}
 	Set lines = ..Lines(ns, two, twoDone)
@@ -128,9 +144,13 @@ Method TestRunningTimersAreNotChanges()
 	Set lines = ..Lines(ns, two, twoDone)
 	Do $$$AssertEquals(lines.%Size(), 1, "and not a third "_lines.%ToJSON())
 
-	For status = 4, 7, 8 {
-		Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, status))}, {"1": (..Row(5, "Decide", alarm, 9)), "2": (wake)})
-		Do $$$AssertEquals(lines.%Size(), 2, "a request in the final status "_status_" in before is not a running timer "_lines.%ToJSON())
+	For status = 1, 2 {
+		Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, status))}, {"1": (completed), "2": (wake)})
+		Do $$$AssertEquals(lines.%Size(), 0, "a request in the status "_status_" (Created or Queued) in before is a running timer "_lines.%ToJSON())
+	}
+	For status = 4, 5, 6, 7, 8, "x" {
+		Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, status))}, {"1": (completed), "2": (wake)})
+		Do $$$AssertEquals(lines.%Size(), 2, "a request in the status "_status_" (not Created, Queued or Delivered) in before is not a running timer "_lines.%ToJSON())
 	}
 
 	Set lines = ..Lines("ZZNS", pending, {"1": (completed), "2": (wake)})

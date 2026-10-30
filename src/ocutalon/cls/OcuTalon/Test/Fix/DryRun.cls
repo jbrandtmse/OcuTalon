@@ -5,8 +5,9 @@
 /// removes the headers of the request's session in the end; the orders and the incident rows are removed by Case.
 ///   - TestFiftyOrdersChangeNothing (AC 3, AC 4): 50 failed orders of one session, with a snapshot (Test.Fix.Snapshot) of OCUTALON and OCUORDERS before and after: the
 ///     snapshot before holds the 50 orders with their bodies, the Orders production and its queues; the targets are the 50 header ids, ascending; the dry run has exactly the
-///     keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace changed but the request's own session, the incident's row and its group's
-///     rows are unchanged, FixExecutor wrote no event-log row in the request's session; and the mock logged no request;
+///     keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace changed but the request's own session (and the firing of a timer that was
+///     already running, which Test.Fix.Snapshot leaves out), the incident's row and its group's rows are unchanged, FixExecutor wrote no event-log row in the
+///     request's session; and the mock logged no request;
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
 ///     was delivered are not counted; the example is the lowest target;
 ///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap, and one order is only in the second group: every group is read,
@@ -128,7 +129,7 @@ Method TestFiftyOrdersChangeNothing()
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take($ListBuild($Namespace, ..#ORDERS), .after)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after, session)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session).%Size(), 2, "the request's session holds the request and its answer, and nothing else")
-	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUTALON or OCUORDERS changed but the request's own session: "_lines.%ToJSON())
+	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUTALON or OCUORDERS changed but the request's own session (and a timer that was already running): "_lines.%ToJSON())
 	Do $$$AssertTrue($Length(rows, $Char(30)) = 3, "the incident and its one group are read")
 	Do $$$AssertEquals(..RowsOf(incident.Ref), rows, "and the incident's row and its group's rows are unchanged")
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE SessionId = ?", session)
