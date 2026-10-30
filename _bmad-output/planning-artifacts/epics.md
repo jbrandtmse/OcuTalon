@@ -6214,6 +6214,8 @@ So that I can check status and history from my own tools without opening a new w
 
 **Story 29.7 is split from Story 29.4** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: the author's real-proxy load run and its capacity measurements (DW-286, DW-251), so the isolation criteria proceed while the AD-13 busy-rule question is ruled.
 
+**Story 29.8 is split from Story 29.7** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: Story 29.7 keeps the AD-13 visitor count (owner decision U-163) and is retitled "Demo busy counts the live visitors"; Story 29.8 takes the author's real-proxy load run with DW-286.
+
 ### Story 29.3: The demo host is adapted for the launch
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.7, renumbered, whole and verbatim. It needs Lane B's Stories 16.5 and 16.6 (the pages and the probe), and no longer waits for Story 11.5: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. The host's deployment stays outside this repository, and the host itself is the owner's (Rule 22.4)]
@@ -6327,11 +6329,13 @@ So that a demo whose replies are all fallbacks never reports healthy, and still 
 - DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
 - DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 
-### Story 29.7: The author's load run measures the demo's capacity
+### Story 29.7: Demo busy counts the live visitors
 
 [AMENDED 2026-10-30, split from Story 29.4 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): Story 29.4's fourth criterion, verbatim, with DW-286 and DW-251. The run itself is the author's (the Contest Planner's pass) on the adapted host, as the owner decision of 2026-10-30 (epic29_brief) says: it spends no more than a brief, bounded number of model turns under the $20 daily cost cap, stays within the 8-licence-unit ceiling, and its results go into the 1.0.0 release notes. The repository holds the load script and its procedure in `release/`, proven on a local stack. Story 29.4's plan measured that a signed-in visitor holds no connection on build 154, so AD-13's busy rule and case 1's busy expectation are at odds; the ruling on that question is applied before this story is planned.]
 
 [AMENDED 2026-10-30, owner decision U-163 (answered by the Contest Planner under the owner's delegation; applied by runner C as a tier-1 amendment): option (a), AD-13 amended on the feature branch (busy also counts OcuTalon's own live demo visitor sessions against a visitor cap of about 6, P12 and NFR-23 unchanged; OWNCONNECTIONS 0; the InstanceConnections check stays as the trace-licence guard). The owner's four conditions are this story's first criteria, below.]
+
+[AMENDED 2026-10-30, split and retitled by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic), at this story's plan: it was "The author's load run measures the demo's capacity"; the author's real-proxy load criterion moved verbatim to Story 29.8 with DW-286, and this story keeps the AD-13 visitor count (U-163's conditions) with DW-251.]
 
 As a judge,
 I want the online demo to stay responsive and say "Demo busy" when it is full,
@@ -6343,12 +6347,22 @@ So that I either get a working demo or a clear reason to come back later.
 **When** visitors sign in through the proxy
 **Then** `/ocutalon/public/status` and the login page report busy, sessionless and without taking a connection, once the count of live online-demo visitor sessions reaches the visitor cap (about 6), and the post-sign-in check ends a new public session with the busy text when it would take the count past the cap, so a 6th visitor gets in and a 7th sees "Demo busy"; the connection check stays as the guard on trace licence units, and a new session counts no connection of its own (FR-15, NFR-23, P12, AD-13, AD-25) [AMENDED 2026-10-30, owner decision U-163, condition 4]
 **And** a session leaves the count at sign-out and at its CSP timeout (about 120 seconds, as measured), so a crashed tab can't hold a place; the probe and the host's admin path never count; and every reset starts the count at 0 (AD-13, AD-19, AD-25) [AMENDED 2026-10-30, owner decision U-163, conditions 1 to 3]
+- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
+
+### Story 29.8: The author's load run measures the demo's capacity
+
+[AMENDED 2026-10-30, split from Story 29.7 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): the author's real-proxy load criterion, verbatim (first Story 29.4's, then Story 29.7's), with DW-286. The run itself is the author's (the Contest Planner's pass) on the adapted host, as the owner decision of 2026-10-30 (epic29_brief) says: it spends no more than a brief, bounded number of model turns under the $20 daily cost cap, stays within the 8-licence-unit ceiling, and its results go into the 1.0.0 release notes. The repository holds the load script and its procedure in `release/`, proven on a local stack.]
+
+As the author,
+I want a repeatable load run I can point at the adapted demo host,
+So that the demo's capacity and its response under load are measured before the launch, not assumed.
+
+**Acceptance Criteria:**
 
 **Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model
 **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
 **Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
 - DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference (inbox U-103) (ledger; routed by orchestrator 2026-10-27)
-- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
 
 ## Epic 30: Lane A post-demo hardening
 
