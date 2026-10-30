@@ -2,7 +2,7 @@
 title: 'An approved tool call runs exactly once, with no model'
 type: 'feature'
 created: '2026-10-30'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'a319d5ec3a8056393aab6e86b4985a17e484f4d5'
 review_loop_iteration: 0
 followup_review_recommended: true
@@ -264,8 +264,16 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - Given a test answers a request and replays its approved test tool, when it reads the audit log back through `Test.Bridge.AuditLog.Wait`, then it finds the approval entry and the action entry, each with time, IRIS user and session (row 10).
 - Given a hold whose delivery was lost, or a late start, when the hold or `Reconcile` runs, then rows 11 to 14 hold (DW-192, DW-195). And a held call's row names its source and runner (row 15, DW-194).
 
+- Given an approved `tool_call` request whose row was held before the update that added `ToolSource` and `Runner` (either empty), when its replay is asked for, then the row closes `failed` with a plain-English reason the person sees: it was held before an update and can't be run again safely, so ask again; the reason holds no class name and no error code (owner decision U-170).
+
+### Owner decision U-170 (2026-10-30, re-dispatch; work only these items)
+- [ ] [Owner U-170] Row 9 widens: an approved `tool_call` row with `ToolSource` OR `Runner` empty (not only `Runner`) closes `failed` through `FinishExecution` with a plain-English reason the person sees — in substance "it was held before an update and can't be run again safely, so ask again" — that holds no class name, no status text and no error code. Find where a person sees a failed replay's reason today (the row's result text, the `approval.result` payload the host sink publishes, a catalog key) and put the reason there; if a new catalog text is needed, add it as our own entry (shared-by-entry files: `Msg/Catalog/Core.cls`, `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`) and name the key in Design Notes. The words are the owner's (U-170), so no new veto item is needed for them; keep them close to the owner's sentence.
+- [ ] [Owner U-170] Test: a UNIT test (in `Test.Bridge.Decide` or `Test.Bridge.Approval`) seeds an approved `tool_call` row with `ToolSource` empty, and another with `Runner` empty, asks for its replay, and asserts: the row is `failed`, the call ran 0 times, and the reason the person sees matches the plain-English text and contains no class name (`OcuTalon.`, `%`), no `ERROR`/`#` code and no status code. Record its `mutation:` line (for example the check reads only `Runner`, or the reason is the raw status text). Lead's choice, recorded here: a unit test seeding the empty columns, NOT the install-upgrade live path — install-upgrade runs 34-37 minutes on recent CI runs, against REL-4's 35-minute budget, and seeding a pre-update row there would need the old build to raise a real approval.
+- [ ] [Harvest DW-452] Pin the AD-6 throwaway session positively (today deleting `NewSession` and `ReleaseThrowaway` in `Replay.Run` leaves every test green): a `Test.Bridge.CodeRules` check, or a counter seam, that fails when `Replay.Run` no longer opens and releases the throwaway session; record its `mutation:` line.
+
 ## Spec Change Log
 
+- 2026-10-30 (lead, re-dispatch after implement): owner decision U-170 (the Contest Planner under the owner's delegation, through the orchestrator) adds an acceptance criterion — an old approved tool_call row with ToolSource or Runner empty closes failed with a plain-English reason, never a class name or error code — and its unit test; the lead adds DW-452's positive pin to the same pass. epics.md Story 30.3 gained the same criterion. Status reset to in-progress for one implement pass on these items only.
 - 2026-10-30 (implement stage, per the lead's dispatch): Task `Bridge/Replay.cls` item 6 read "No `Chat`, no session, no Usage row"; it now follows the lead's ruling in Design Notes (a throwaway, never-linked, unsaved AI session; no model request). The intent block's "No AI session is opened" is read as "no session is linked or saved" and is not edited.
 
 ## Review Triage Log

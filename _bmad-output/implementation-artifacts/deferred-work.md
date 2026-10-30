@@ -2333,3 +2333,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 30.3 spec Design Notes residual: closing it as interrupted at start (as AD-16's Reconcile does for a FixRun) would also hit a live replay when tests call Reconcile; needs a start-only path
 - 2026-10-30T17:04:59Z status=routed owner=burndown by=spec_gate note=not in 30.3's ACs; candidate fix: Reconcile at instance start (not test calls) closes executing tool_call rows through FinishExecution with result interrupted
+
+### DW-451: The replay touches the model provider: AI Hub makes one tokenless GET /v1/models/<model> at a runner's first ExecuteTool, and BuildAgent needs a provider key, so an approved call fails (row failed, never retried) when the key is unset or the provider unreachable at replay time
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: measured in 30.3 implement: mock log holds the GET once per runner and no POST /v1/messages; no key -> ProviderCreateFailed; Test.Bridge.Runner pins POST /v1/messages = 0 and allows only the GET
+- 2026-10-30T21:56:21Z status=by-design owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=ruled at dev_complete (veto U-172): a model request is an inference call; exactly once holds; reversal = a story running ExecuteTool without the agent build
+
+### DW-452: The AD-6 throwaway session of the replay (NewSession, ReleaseThrowaway) is pinned only negatively (no link, no saved session), which also holds when no session is created
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: deleting the NewSession and ReleaseThrowaway calls in Replay.Run leaves every test green
+- 2026-10-30T21:56:21Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=fix in the U-170 re-dispatch: a positive pin (CodeRules: Replay.Run calls NewSession and ReleaseThrowaway, or a counter seam) with a mutation line
+
+### DW-453: flake: OcuTalon.Test.Web.GuideApi TestRunAgain ('steps 3 to 5 reset; the watch still counts') failed once in a local fresh shard lane-b part 2/2 and passed on the warm stack and on the rerun of the part
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 30.3 implement (before its review patches); the test seeds a fix approval row with no ResultTarget in OCUORDERS, which Reconcile's new pass does not select; cause unknown
+- 2026-10-30T21:56:21Z status=routed owner=burndown by=harvest note=flake: first occurrence (local, not CI); watch for a CI recurrence
