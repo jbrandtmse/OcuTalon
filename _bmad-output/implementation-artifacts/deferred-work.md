@@ -1969,6 +1969,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-3 makes Watch.Reader the only reader and AD-16 asks for the scope check, so the code is right; ARCHITECTURE-SPINE.md L98 does not name these arrows (Checks already uses the same classes); the spec's spine notes list them for the lead
 - 2026-10-28T01:02:38Z status=escalated owner=burndown by=cr note=Rule 20 spine write: add Fix -> Watch.Reader, FailurePoller.Scope, ItemNoun, Transitions to the domain sentence (veto item)
+- 2026-10-30T05:18:18Z status=resolved-by:7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing owner=burndown by=merge_gate note=closed at Epic 7's decision sheet: the orchestrator extended the spine's dependency sentence after merge eb313fa (Fix may call Watch.Reader, FailurePoller.Scope, ItemNoun, Transitions, Settle helpers, ErrorText, Notice.NOERRORTEXT, as built); veto U-159
 
 ### DW-329: A data_format_change whose sample has no body, or whose values are in a format outside the registered nine, has no valid reply and ends as the fallback invalid
 - source: spec-7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing.md | severity: low | fix-risk: low | footprint: in-story
@@ -2032,6 +2033,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Proposed (later) builds its slots with Notice.WithFixSlots(incident, ...), whose fixSummary is Incident.FixSummary; Agent/Diagnosis.cls does not forbid a count; the UX fixtures in Test.Msg.Catalog put counts in it
 - 2026-10-28T21:18:33Z status=decision-pending owner=burndown by=cr note=human=run a live diagnosis to see if fixSummary names a count; then choose a count-free prompt rule or other later text
+- 2026-10-30T05:17:59Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=the Contest Planner's hands-on pass with a real key checks whether a live diagnosis writes a count into fixSummary; if it can, a count-free rule in the diagnosis prompt or count-free later-request text (decide)
 
 ### DW-366: The spine's Conventions row 'Later requests' does not say that stragglers of the first ask start a round after its raise, or that a failed later round's failures rejoin the next round's window
 - source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: low | fix-risk: low | footprint: in-epic
@@ -2045,6 +2047,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T22:37:53Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=7.4 owns the result texts (E > Incidents and Approvals > Results): give a stopped production an honest result (its plain reason, or a key of its own); new wording is a veto-window public-text item at 7.4's spec gate
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=an_honest_stopped-production_result_needs_an_AD-16_amendment(a_production_not_running_at_the_run's_start_ends_it_as_couldn't_start,Skipped_0)_or_a_new_result_key_with_a_Result_texts_row_and_the_page's_key_selection(web/src/app/approvals/approval-view.ts);AD-16_is_cited_by_done_specs(U7(c):a_re-architecture,the_owner's);recommended:amend_AD-16,then_a_small_fix_story(Epic_11_X.0_or_30.x)
 - 2026-10-29T13:12:01Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through by=cr note=also a resend that errs partway: its unreached targets count as Skipped and render as changed since the dry run
+- 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-160
 
 ### DW-379: The retention purge of closed incidents (IncidentManager.PurgeOne) does not delete the incident's FixRun rows, which Story 7.3 is the first to write
 - source: _bmad-output/implementation-artifacts/spec-7-3-approved-repairs-are-re-checked-and-resent.md | severity: med | fix-risk: low | footprint: in-story
@@ -2069,6 +2072,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: split from DW-380 at 7.4's spec gate: 7.4 ends the StartExecution-failure half (NOSTART, AC 11); the past-expiry half needs AD-16's refused-Execute list amended
 - 2026-10-29T05:56:54Z status=escalated owner=burndown by=spec_gate note=recommended: amend AD-16 so that an approved row past its ExpiresAt ends as couldn't start with NOSTART ('OcuTalon couldn't start the resend'), one line in Executor.Refusal; AD-16 is cited by done specs (U7(c): the owner's)
+- 2026-10-30T05:17:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-161
 
 ### DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed, or a stop that timed out) leaves every run still in its 60-second wait executing and its incident fixing, with no result, because no job calls Wait again until another run resends copies
 - source: spec-7-4-ocutalon-reports-how-many-orders-went-through.md | severity: med | fix-risk: med | footprint: in-epic
@@ -2164,6 +2168,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ARCHITECTURE-SPINE.md:608 reads 'inside six IRIS groups (install-fresh, install-upgrade, production, browser, shards and image)' and lists lane-a as Agent, Bridge, Install, Tools and Digest; ci/units.sh now has seven IRIS_GROUPS and shard_unit_areas pieces
 - 2026-10-29T23:01:40Z status=routed owner=burndown by=cr note=lead: Rule 20 light path, AD-22 as-built line (7 groups, lane-a pieces, live:cards, lane-a areas)
 - 2026-10-30T03:44:43Z status=decision-pending owner=burndown by=burndown note=set aside for the decision sheet (orchestrator ruling, option b): the orchestrator writes the factual AD-22 as-built correction in the main checkout after the merge; no worktree AD edit (U14: AD-22 cited by Epics 9, 16, 15 and 13)
+- 2026-10-30T05:18:18Z status=resolved-by:7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got owner=burndown by=merge_gate note=closed at Epic 7's decision sheet: the orchestrator corrected AD-22's as-built CI line after merge eb313fa (seven groups, lane-a in two pieces, live:cards in install-fresh, lane-a areas); owner_decision dw407_ad22_as_built via contest_planner
 
 ### DW-408: A final FixResult that Checks fails to send is lost: Fix.Run.Sweep has already ended the run, so no later Tick returns it and the incident stays fixing
 - source: spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: med | footprint: in-story
