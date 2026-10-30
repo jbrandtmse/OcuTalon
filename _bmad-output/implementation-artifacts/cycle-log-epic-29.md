@@ -106,3 +106,5 @@
 2026-10-30T17:02:25Z	Epic 29	integrated_forward	feature=1a087baa head=e29d7d2f conflicts_resolved=none merged_in=bookkeeping+spine(AD-13_trace_form,U-169) pushed=later(after_29.5_CI)
 2026-10-30T17:02:25Z	Story 29.7	owner_decision_applied	id=U-169 at=2026-10-30T16:49:58Z#512 by=Contest_Planner(delegation)_via_orchestrator what=trace_form_/status?for=trace;three_test_conditions_as_criteria(epics.md_tier-1);condition2_read_plain_keeps_its_own_rule
 2026-10-30T17:02:25Z	Epic 29	amendment	file=_bmad-output/planning-artifacts/epics.md what=Story_29.7:U-169_three_test_conditions_as_a_criterion tier=1(owner_decision)
+2026-10-30T17:29:03Z	Story 29.5	ci_red_classified	run=41088697760_attempt2 workflow=.github/workflows/ci.yml job=iris(image) unit=shard:lane-b test=Test.Live.GuideRefresh.TestHeldLock class=flake(DW-349,occurrence_bumped;Heartbeat_passed_this_time) action=gh_run_rerun_--failed(attempt_3)
+2026-10-30T17:29:18Z	Story 29.7	stage_spawned	stage=plan spawn_at=2026-10-30T17:29:18Z model=claude-opus-5-5 agent_name=29-7-plan-2 cycle_iteration=2 dispatch=spec_path(draft) note=plan_during_29.5_CI_rerun(Rule_23);built_after_29.6

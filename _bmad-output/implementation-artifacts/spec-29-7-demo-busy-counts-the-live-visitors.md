@@ -2,7 +2,7 @@
 title: 'Story 29.7: Demo busy counts the live visitors'
 type: 'feature'
 created: '2026-10-30'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -113,6 +113,8 @@ None in this pass: the plan HALTs (Design Notes, "HALT"). The re-plan writes the
 
 - 2026-10-30, lead: the plan HALTed (split recommended; AD-13's trace-window bullet). Rulings 1 and 2 applied (story retitled and split, 29.8 added; the count's home accepted); ruling 3 is with the orchestrator. The spec stays `blocked` until that ruling.
 
+- 2026-10-30, lead: ruling 3 answered (U-169, kept with three test conditions); status reset to `draft` for the re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -136,7 +138,7 @@ None in this pass: the plan HALTs (Design Notes, "HALT"). The re-plan writes the
 1. **The split is accepted (decide; Rule 5 tier 2 within `split_children`).** This story is retitled "Demo busy counts the live visitors" (key `29-7-demo-busy-counts-the-live-visitors`; this spec file renamed to match) and keeps U-163's conditions 1 to 4 and DW-251; Story 29.8, "The author's load run measures the demo's capacity" (key `29-8-the-author-s-load-run-measures-the-demo-s-capacity`), takes the real-proxy load criterion verbatim and DW-286 (re-owned). The load-script part of this plan is 29.8's input; remove it from this spec at the re-plan.
 2. **The count's home is accepted (decide; within the orchestrator's rule):** derived on read from IRIS's own CSP session store, each proxied visitor's CSP session carrying one marker in its session data (the `REFUSALKEY` mechanism); no new global, key, table or mapping. The re-plan's Task 0 measures the four unmeasured points (the marker survives to the next request; sign-out deletes the session; a restart empties the store; a sessionless request can read it) on a lane-C throwaway before any code; a failed measurement is a new intent gap.
 3. **AD-13's trace-window bullet is amended (orchestrator ruling, veto U-169, kept by the Contest Planner with three test conditions; `apply U-169 at=2026-10-30T16:49:58Z#512`; the amendment arrived by the integrate-forward of 2026-10-30, never edit AD-13 here):** the page's trace check (`openTrace` and its re-check) uses `/status?for=trace`, whose `busy` comes from the connection check alone; `/status` keeps the same five keys in both forms; the `for` value is an exact match, and any other or missing value, or a repeated parameter, answers the plain form; the endpoint stays unauthenticated and sessionless. The Planner's conditions, now criteria in `epics.md`: (1) with 6 visitors signed in and connections under cap minus reserve, `/status?for=trace` reports not busy and a REAL signed-in visitor opens Visual Trace (not only the `/status` answer); (2) with connections at cap minus reserve and fewer than 6 visitors, the trace form reports busy and the page shows the busy text, while plain `/status` keeps its own rule (busy from the connection check OR the visitor count, so it is busy here too) — plus a case with the visitor count at the cap and connections low, where plain is busy and trace is not; (3) any other or missing `for` value answers the plain form, and both forms keep the same five keys with no extra field. The probe, the splash and `release/demo-host-check.sh` stay unchanged.
-4. **Order:** this story is re-planned after Story 29.6 is built. The re-plan's Task 0 measures the four points of ruling 2 on a lane-C throwaway first; if any fails, it is an intent gap (the lead returns to the orchestrator before any other store is chosen).
+4. **Order:** this story is re-planned now (during Story 29.5's CI rerun) and built after Story 29.6. The re-plan's Task 0 measures the four points of ruling 2 on a lane-C throwaway first; if any fails, it is an intent gap (the lead returns to the orchestrator before any other store is chosen).
 
 ### HALT: intent gap (two questions for the lead and the orchestrator)
 
