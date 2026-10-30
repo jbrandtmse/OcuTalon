@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 11:04
+last_updated: 10-30-2026 11:05
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -296,9 +296,9 @@ development_status:
   29-4-sessions-stay-isolated-under-load: backlog
   epic-29-retrospective: optional
 
-  epic-30: backlog
+  epic-30: in-progress
   30-1-long-conversations-are-compacted-under-the-limit: backlog
-  30-2-old-messages-and-records-are-purged-on-schedule: ready-for-dev
+  30-2-old-messages-and-records-are-purged-on-schedule: in-progress
   30-3-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
   30-4-a-stopped-production-or-a-disabled-item-is-reported-once: backlog
   30-5-mixed-and-unfinished-resends-say-how-far-they-got: backlog
