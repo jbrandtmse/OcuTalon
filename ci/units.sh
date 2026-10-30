@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm install-script readme"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm probe install-script readme"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -27,16 +27,20 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 # A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
 # one piece, so every test class runs once. lane-a runs in two pieces (DW-337): Checks, Install and Watch beside live:floor in
-# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later.
+# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. live:cards runs in
+# install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
+# Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
+# run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
+# bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder" ;;
-    install-upgrade) echo "live:install-upgrade live:audit live:cards" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
+    install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
     shards-2) echo "shard:lane-a@rest" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start live:demo-switch shard:lane-b live:install-script-live" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
 }
@@ -88,7 +92,7 @@ shard_unit_areas() {
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor demo-switch answers cards"
+BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

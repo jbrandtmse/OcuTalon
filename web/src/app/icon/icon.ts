@@ -15,6 +15,7 @@ export type IconName =
   | 'circle-x'
   | 'clock'
   | 'contrast'
+  | 'copy'
   | 'external-link'
   | 'eye'
   | 'eye-off'
@@ -106,6 +107,10 @@ export type IconName =
         @case ('contrast') {
           <circle cx="12" cy="12" r="10" />
           <path d="M12 18a6 6 0 0 0 0-12v12z" />
+        }
+        @case ('copy') {
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
         }
         @case ('external-link') {
           <path d="M15 3h6v6" />

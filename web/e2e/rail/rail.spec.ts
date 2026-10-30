@@ -75,10 +75,15 @@ const rowOf = (page: Page, marker: string): Locator => rail(page).locator('li.ro
 const headings = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
 const mainOf = (page: Page): Locator => page.locator('main.main');
 
-/** Signs the rail user in and waits for the loaded page. */
+/**
+ * Signs the rail user in and waits for the loaded page. The wait is on the answer: signIn waits for no navigation, so the GET of /state is
+ * armed before the press and awaited with its status (DW-333), and only then does the page get its time to show the snapshot.
+ */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser('RAIL');
+  const state = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE);
   await signIn(page, user, password);
+  expect((await state).status(), 'the snapshot is served').toBe(200);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(headings(page).first()).toBeVisible();
 }

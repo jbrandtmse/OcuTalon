@@ -15,11 +15,15 @@ import type {
   MessageAccepted,
   MessagePost,
   PairingCode,
+  PublicStatus,
   StateSnapshot,
   UnpairDone,
 } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
+
+/** The address of the online demo's public status, which needs no session (Story 16.5). */
+const PUBLIC_STATUS = '/ocutalon/public/status';
 
 /** The typed client of the REST API: one method per call that the page makes. */
 @Injectable({ providedIn: 'root' })
@@ -107,6 +111,14 @@ export class ApiClient {
    */
   unpair(): Observable<UnpairDone> {
     return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
+  }
+
+  /**
+   * The online demo's public status (Story 16.5; AD-13, AD-25): a GET of /ocutalon/public/status, which needs no session, with a unique
+   * query so that no cache answers. DemoBusyState's trace check and its quiet re-check read it.
+   */
+  publicStatus(): Observable<PublicStatus> {
+    return this.http.get<PublicStatus>(`${PUBLIC_STATUS}?t=${Date.now()}`);
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

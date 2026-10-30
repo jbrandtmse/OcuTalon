@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's texts and the audit line. The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts and the audit line. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -321,6 +321,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Reconnecting"
  },
+ "banner.demoBusy": {
+  "text": "The demo is busy right now. Try again in a few minutes, or install it yourself.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Demo busy"
+ },
  "bannerAction.installYourself": {
   "text": "Install it yourself",
   "slots": {},
@@ -395,6 +400,151 @@ XData Entries [ MimeType = application/json ]
   "text": "Show password",
   "slots": {},
   "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Sign-in page labels"
+ },
+ "splash.title": {
+  "text": "Try OcuTalon",
+  "slots": {},
+  "source": "EXPERIENCE Information Architecture / Titles and headings"
+ },
+ "splash.heading": {
+  "text": "Try OcuTalon in two minutes",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo)"
+ },
+ "splash.subheading": {
+  "text": "Break the feed, and approve the fix from your phone.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo)"
+ },
+ "splash.description": {
+  "text": "OcuTalon is an assistant that lives inside InterSystems IRIS Interoperability. When a feed breaks, it reads the failed messages and the trace, names the cause in plain English, and proposes a fix that waits for your approval. For everything that arrives, an AI Hub agent makes one attention decision (ignore it, save it for your daily digest, tell you now, or act), and every decision, with its reasons and cost, is a production message you can open in Visual Trace. No API key needed.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / What it is"
+ },
+ "splash.signInHeading": {
+  "text": "Sign in to the demo",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Sign in to the demo"
+ },
+ "splash.sessionNote": {
+  "text": "Your session is yours alone and lasts until the next reset. Signing in again from this browser picks it up.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Sign in to the demo"
+ },
+ "splash.warning": {
+  "text": "Other visitors can see messages in Visual Trace, so don't type personal information.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Sign in to the demo"
+ },
+ "splash.submit": {
+  "text": "Sign in and start",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Sign in to the demo"
+ },
+ "splash.copyUserName": {
+  "text": "Copy user name",
+  "slots": {},
+  "source": "EXPERIENCE Component Patterns / Sign-in / Credential card"
+ },
+ "splash.copyPassword": {
+  "text": "Copy password",
+  "slots": {},
+  "source": "EXPERIENCE Component Patterns / Sign-in / Credential card"
+ },
+ "splash.copied": {
+  "text": "Copied",
+  "slots": {},
+  "source": "EXPERIENCE Component Patterns / Sign-in / Credential card"
+ },
+ "splash.copyFailed": {
+  "text": "Couldn't copy. Select the text and copy it yourself.",
+  "slots": {},
+  "source": "EXPERIENCE Component Patterns / Sign-in / Credential card"
+ },
+ "splash.beforeHeading": {
+  "text": "Before you start",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.resetLine": {
+  "text": "The demo resets every {interval}. Next reset: {time} ({countdown}).",
+  "slots": {"interval": "text", "time": "text", "countdown": "text"},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.resetNotice": {
+  "text": "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one.",
+  "slots": {"time": "text"},
+  "source": "EXPERIENCE State Patterns / Session ended by a scheduled reset"
+ },
+ "splash.restartNotice": {
+  "text": "The demo was restarted, which cleared your session. Sign in again for a fresh one.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Session ended by an unscheduled restart"
+ },
+ "splash.placeFreed": {
+  "text": "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Place freed (online demo)"
+ },
+ "splash.resetSoon": {
+  "text": "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}.",
+  "slots": {"countdown": "text", "time": "text"},
+  "source": "EXPERIENCE State Patterns / Reset soon at sign-in"
+ },
+ "splash.ownLine": {
+  "text": "Your chat, phone, mailbox and orders are yours alone.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.telegramLine": {
+  "text": "Have Telegram? You can scan a QR code inside to get the notices on your own phone.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.limitLine": {
+  "text": "Each session can send {limit} messages an hour in the chat or Telegram.",
+  "slots": {"limit": "count"},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.tooManySessions": {
+  "text": "Too many new sessions from your network this hour. You can start another at {time}.",
+  "slots": {"time": "text"},
+  "source": "EXPERIENCE State Patterns / Too many sessions"
+ },
+ "splash.shellLine": {
+  "text": "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
+ "splash.visualTrace": {
+  "text": "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The Visual Trace card"
+ },
+ "splash.copyTraceUserName": {
+  "text": "Copy Visual Trace user name",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The Visual Trace card"
+ },
+ "splash.copyTracePassword": {
+  "text": "Copy Visual Trace password",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The Visual Trace card"
+ },
+ "splash.footerNote": {
+  "text": "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The footer"
+ },
+ "splash.install": {
+  "text": "Install it yourself (README)",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The footer"
+ },
+ "splash.newTab": {
+  "text": "(opens in a new tab)",
+  "slots": {},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / The footer"
  },
  "audit.recorded": {
   "text": "Recorded in the IRIS audit log.",

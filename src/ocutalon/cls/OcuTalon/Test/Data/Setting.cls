@@ -108,6 +108,120 @@ Method TestPublicKey()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "no row was written for the public key")
 }
 
+/// Every public key, and the readiness key, written through Public.Settings is read back by Setting.Get at once, and gives the
+/// default after it is removed (Story 16.1). Readiness goes through SetReady and ClearReady. Each key's value is put back, also
+/// after a failure.
+Method TestEveryPublicKeyIsDelegated()
+{
+	Set keys = ##class(OcuTalon.Data.Public.Settings).#KEYS_",ready"
+	Set count = $Length(keys, ",")
+	Do $$$AssertEquals(count, 14, "the 13 keys and ready")
+	For i = 1:1:count {
+		Set saved($Piece(keys, ",", i)) = $ClassMethod(..#PUBLIC, "Get", $Piece(keys, ",", i))
+	}
+	Set error = ""
+	Try {
+		For i = 1:1:count {
+			Set key = $Piece(keys, ",", i)
+			Set value = "zz"_..Number_"v"_i
+			If key = "ready" {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "SetReady"), "readiness is set")
+				Set value = 1
+			} Else {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "Set", key, value), key_" is written")
+			}
+			Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "d"), value, key_" is read at once through Setting.Get")
+			If key = "ready" {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "ClearReady"), "readiness is cleared")
+			} Else {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "Set", key, ""), key_" is removed")
+			}
+			Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "d"), "d", key_" gives the default once removed")
+		}
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	For i = 1:1:count {
+		Set key = $Piece(keys, ",", i)
+		If key = "ready" {
+			If saved(key) = "" {
+				Do $ClassMethod(..#PUBLIC, "ClearReady")
+			} Else {
+				Do $ClassMethod(..#PUBLIC, "SetReady")
+			}
+		} Else {
+			Do $ClassMethod(..#PUBLIC, "Set", key, saved(key))
+		}
+	}
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// The address limit's key and seed (Story 16.3, matrix row 14): the two parameters, and the Web step's seed with the flag on writes the
+/// seed when the key is absent and keeps an existing value, and with the flag off writes no row. The key's row and the flag are put back.
+Method TestAddressLimitSetting()
+{
+	Set key = "onlineDemo.sessionsPerAddress"
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "ADDRESSLIMITKEY"), key, "the key")
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "ADDRESSLIMITSEED"), 5, "the seed is 5")
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id)
+	Set saved = $Select(existed: ##class(OcuTalon.Data.Setting).%OpenId(id).Value, 1: "")
+	Try {
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 1, "writes the row of the absent key")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 5, "with the value 5")
+		Do ..RemoveRow(key)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Seed(key, "7"), "a changed value is written")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on and the key present")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 7, "keeps the value 7")
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag off")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row")
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "0")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag 0")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row either")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the checks ran without an exception")
+	}
+	Do ..RemoveRow(key)
+	If existed Do ##class(OcuTalon.Data.Setting).Seed(key, saved)
+}
+
+/// The idle cap's key and seed (Story 16.4, matrix row 6): the two parameters, and the Web step's seed with the flag on writes 600 when
+/// the key is absent and keeps an existing value, and with the flag off writes no row. The key's row and the flag are put back.
+Method TestIdleSetting()
+{
+	Set key = "onlineDemo.idleSeconds"
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "IDLEKEY"), key, "the key")
+	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "IDLESEED"), 600, "the seed is 600")
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key, .id)
+	Set saved = $Select(existed: ##class(OcuTalon.Data.Setting).%OpenId(id).Value, 1: "")
+	Try {
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 1, "writes the row of the absent key")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 600, "with the value 600")
+		Do ..RemoveRow(key)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Seed(key, "300"), "a changed value is written")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag on and the key present")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key), 300, "keeps the value 300")
+		Do ..RemoveRow(key)
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag off")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row")
+		Do $ClassMethod(..#PUBLIC, "Set", ..#PUBLICKEY, "0")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).SeedSettings(), "the seed with the flag 0")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "writes no row either")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the checks ran without an exception")
+	}
+	Do ..RemoveRow(key)
+	If existed Do ##class(OcuTalon.Data.Setting).Seed(key, saved)
+}
+
 /// Set writes an absent key and overwrites a present one, each time with the time of the write; Get in the same process sees the
 /// new value at once, over a fresh cache entry. An empty key and a public key are refused, naming the key, and write nothing.
 Method TestSet()

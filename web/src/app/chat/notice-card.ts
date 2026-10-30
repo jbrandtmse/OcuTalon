@@ -6,7 +6,7 @@ import { DecisionStrip } from './decision-strip';
 import { pageTimeBeside } from './page-time';
 
 /**
- * A notice card (UX-DR69, FR-1): a tell-now notification or a reminder in the chat, in the conversation's order. It has no title
+ * A notice card (UX-DR69, FR-1): a tell-now notification, a reminder or an allowance message in the chat, in the conversation's order. It has no title
  * or heading: the message text stands as the catalog gives it, so nothing repeats.
  * - A tell-now card has the attention accent bar and the bell-ring icon in the attention ink, the text, the "Why now:" line, and a
  *   decision strip that holds line 1 and Details only (the "Why now:" line is the decision's first reason). The strip shows the
@@ -15,6 +15,8 @@ import { pageTimeBeside } from './page-time';
  * - A reminder card has the info accent bar and the bell icon in the info ink, the text, and the caption "Due 14:12 \u00B7 arrived
  *   14:12" (left out when the reminder has no due time). Each time is in the browser's zone and hour format, followed by the
  *   zone's short name when the browser's UTC offset at that time differs from the instance's (UX-DR123).
+ * - An allowance card (Story 16.9: the session's message allowance, and the online demo's daily-cap message) has the danger accent bar and the
+ *   circle-alert icon of the danger banner in the danger ink, and the text. It has no strip and no caption.
  * Every text is bound by interpolation, never as markup. The card is not a live region and takes focus only when the New messages
  * button sends it there.
  */
@@ -23,7 +25,7 @@ import { pageTimeBeside } from './page-time';
   imports: [DecisionStrip, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
+    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
       <app-icon class="bell" [name]="icon()" [size]="16" />
       <div class="body">
         <p class="text">{{ notice().text }}</p>
@@ -65,12 +67,18 @@ import { pageTimeBeside } from './page-time';
       border-inline-start: var(--notice-card-accent-bar-tell-now);
       border-inline-start-style: solid;
     }
+    .notice.allowance {
+      border-inline-start-color: var(--status-banner-danger-accent);
+    }
     .bell {
       margin-top: var(--space-1);
       color: var(--info-ink);
     }
     .tell-now .bell {
       color: var(--attention-ink);
+    }
+    .allowance .bell {
+      color: var(--status-banner-danger-accent);
     }
     .body {
       display: flex;
@@ -101,8 +109,11 @@ export class NoticeCard {
   /** The instance's time zone, from the snapshot: the caption's times name the browser's zone when its offset differs. */
   readonly instanceZone = input('');
 
-  /** The icon of the kind: bell-ring for a tell now, bell for a reminder. */
-  protected readonly icon = computed(() => (this.notice().kind === 'tellnow' ? 'bell-ring' : 'bell'));
+  /** The icon of the kind: bell-ring for a tell now, circle-alert for an allowance message, bell for a reminder. */
+  protected readonly icon = computed(() => {
+    const kind = this.notice().kind;
+    return kind === 'tellnow' ? 'bell-ring' : kind === 'allowance' ? 'circle-alert' : 'bell';
+  });
 
   /** "Due 14:12 \u00B7 arrived 14:12" for a reminder with a due time; "" for any other card. */
   protected readonly caption = computed(() => {

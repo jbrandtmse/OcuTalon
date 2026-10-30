@@ -9,7 +9,7 @@ import { execFileSync, spawn } from 'node:child_process';
  */
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} must be set by the e2e unit's script (docker/tests/test-sign-in.sh, test-floor.sh or test-demo-path.sh)`);
+  if (!value) throw new Error(`${name} must be set by the e2e unit's script (docker/tests/test-sign-in.sh, test-floor.sh, test-demo-path.sh, or test-online-demo.sh for the public accounts)`);
   return value;
 }
 
@@ -40,8 +40,27 @@ function irisContainer(): string {
   return foundContainer;
 }
 
-/** The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, ANSWERS, the answers unit's, and CARDS, the cards unit's. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR' | 'ANSWERS' | 'CARDS';
+/**
+ * The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, ANSWERS, the answers unit's, CARDS, the cards unit's, and
+ * DEMOACCOUNT and READONLYACCOUNT, the online-demo unit's two public accounts (their values are the unit's test start values).
+ */
+export type FixtureKind =
+  | 'LIVE'
+  | 'SESSION'
+  | 'SIGNIN'
+  | 'CHAT'
+  | 'PANEL'
+  | 'DECISION'
+  | 'NOTICE'
+  | 'RAIL'
+  | 'THREAD'
+  | 'LINKS'
+  | 'BANNERS'
+  | 'FLOOR'
+  | 'ANSWERS'
+  | 'CARDS'
+  | 'DEMOACCOUNT'
+  | 'READONLYACCOUNT';
 
 /** A fixture user of the sign-in or the floor unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {

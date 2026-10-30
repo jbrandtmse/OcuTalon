@@ -30,7 +30,8 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// A message from the paired chat is allowed: 1, no retry time and no first refusal.
+/// A message from the paired chat is allowed below the limit: 1, no retry time and no first refusal (the refusal at the limit is
+/// Test.Core.Allowance's).
 Method TestTryConsumeAllowsATelegramMessage()
 {
 	Set session = ..Session("consume")
@@ -39,7 +40,7 @@ Method TestTryConsumeAllowsATelegramMessage()
 		Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "call "_i_": allowed, retryAt empty, no first refusal")
 	}
 	Set allowed = ##class(OcuTalon.Core.Allowance).TryConsume(##class(OcuTalon.Bridge.Ids).NewRef(), "telegram", "hello", .retryAt, .firstRefusal)
-	Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "a session with no row is allowed too: the gate refuses nothing yet")
+	Do $$$AssertEquals(allowed_"|"_retryAt_"|"_firstRefusal, "1||0", "a session with no row is allowed too: the allowance records nothing for it")
 }
 
 /// Join gives the thread of the session's day: the same positive id twice once the thread is started, and "" with an OK status before.

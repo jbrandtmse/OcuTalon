@@ -110,6 +110,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-19T17:28:35Z status=routed owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=16.3 extends Ownership's resolution (one method, 2.2) with the per-sign-in branch; test: two sign-ins of the shared demo account get different sessions
 - 2026-10-21T03:37:13Z status=routed owner=29-2-signing-in-opens-a-session-this-browser-resumes-until-the-re by=lead note=owner decision Oct 20: moved from 16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re
 - 2026-10-21T13:18:50Z owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=load note=renumbered_at_the_unattended_launch:Story_29.2_is_Story_16.3_again(owner_decision,worked_out_with_the_Contest_Planner)
+- 2026-10-26T04:29:55Z status=resolved-by:16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=adjudication note=Ownership.SessionRef stays the one resolver; on the online demo it resolves from the CSP session OnLogin attached (resume cookie or a new row), never by IRIS user (answers empty with an error); resume.spec R5 two sign-ins of the shared account get two epochs, two cookies, isolated chats and /events; a sessionRef in body or query is ignored; Test.Data.Ownership.TestSessionRefOnTheOnlineDemo (mutation recorded)
 
 ### DW-17: Unchecked SQL prepares (%Prepare(sql,0)) are allowed by AD-13 only for the API's two ownership-filtered queries; nothing stops the exception spreading
 - source: Contest Planner note 2026-10-19 (0.5 review) | severity: med | fix-risk: low | footprint: in-epic
@@ -1189,6 +1190,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
+- 2026-10-25T21:33:15Z occurrence=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac note=ci run 40233631799 iris(shards) floor-webkit G1 ring bottom 600.78 at 1280x600, sha ab3203b; rerun
+- 2026-10-26T05:22:57Z occurrence=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re note=ci run 40270323742 iris(shards) floor-webkit G1 at 1280x600, sha 4ded1e0; rerun
+- 2026-10-26T09:37:32Z occurrence=16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena note=ci run 40297305113 iris(shards) floor-webkit G1 ring bottom 600.78 at 1280x600, sha a535d13; third Epic 16 first-run red in a row; rerun
 - 2026-10-25T16:37:49Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat note=run_40209749982_attempt_2_floor-webkit_G1_ring_bottom_600.86_over_600_(ci-6);rerun
 
 ### DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks once Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block
@@ -1261,6 +1265,126 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+
+### DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.1 implement stage, live online-demo on lane C: signed in, %25CSP.PasswordChange.cls answers 200 at both trace apps; a change through it (F12) succeeds for a non-public user and is refused for both public accounts by the guard
+- 2026-10-25T19:05:03Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=harvest note=29.3 blocks every password-change page: include /ocutalon/trace/*/%CSP.PasswordChange.cls (any letter case, percent-encoded) in the proxy's blocked list and its test
+
+### DW-217: Web/Api.cls's class comment and StateBody's comment do not name the new traceAccount key (only TraceAccount()'s own comment does)
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Web/Api.cls:1-20 and the StateBody comment ('keys in this order, ending at status')
+- 2026-10-25T19:56:52Z status=open owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=harvest note=two-way door: the code-review stage may edit those comment lines (doc-only; a conflict with Epic 4 on them is a plain union, lead ruling)
+- 2026-10-25T20:53:31Z status=resolved-by:16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=adjudication note=code-review patched both comment lines of Web/Api.cls (class comment :10, StateBody comment :270-271) to name traceAccount and its condition
+
+### DW-219: test-online-demo.sh's Never-line password scan searches no production message body (the logs, event log, live events and audit are searched)
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The Never line names a log line, a live event, a production message and an audit entry; check_logs_clean covers all but message bodies, which have no generic search across body classes.
+- 2026-10-25T20:49:40Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=cr note=reopen_if=a message body or live payload gains a field fed from readonlyPassword or demoPassword (grep src/)
+
+### DW-220: live:online-demo joined the image group on a unit-against-group comparison (116-138 s local against the group's 600 s CI guideline)
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: image ran 9m42s-13m50s on CI before (Rule 21); +116-138 s local is about +280-540 s on CI at the measured 2.4-3.9x factor, so the group likely passes 600 s; the group is the lead's call.
+- 2026-10-25T20:49:40Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=cr note=reopen_if=the image job of the first CI run with online-demo is the longest IRIS job, or the run passes 35 min
+- 2026-10-25T20:53:31Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=adjudication note=lead keeps live:online-demo in image (CI image job ~1050-1065 s today, ~+300-500 s: about 25 min, inside the 40 min job timeout and REL-4's 35 min run budget; production stays web-bundle-free; a seventh group needs ci.yml, Epic 10's) reopen_if=the image job passes 30 min or a whole ci run passes 35 min
+- 2026-10-29T12:13:57Z status=routed owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=spec_gate note=reopen_if met: on b582ed4 (run 40813183274) the image job took 2369 s and the run 40 min, over REL-4's 35 min (owner-fixed 9: rebalance the groups first); live:online-demo (556 s on CI) leaves image for install-upgrade (794 s), so image is about 1813 s and no IRIS job passes shards' 1896 s, with Story 16.9's new unit placed in whichever of install-fresh and install-upgrade keeps both under it
+- 2026-10-29T12:16:50Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=spec_gate note=moved from 16.9 to 16.4's CI rework: on 0af9742 the image job timed out at 40 min (run 40866408272), shard:lane-b 706->866 s with 16.4's classes; move live:online-demo to install-upgrade
+- 2026-10-29T14:01:55Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi
+- 2026-10-29T14:01:55Z status=routed owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=image left at ~2047 s (0af9742 units minus online-demo, ~34.6 min job): reopen_if 30 min still met; 16.9 rebalances
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=ci/units.sh_moves(live:demo-switch_to_install-upgrade,live:online-allowance_to_install-fresh;16.4_moved_live:online-demo_to_install-upgrade);CI_run_40945229992(ba6856d,same_ci/units.sh):image_26.9min(was_34.1),install-upgrade_31.7,install-fresh_27.8,shards_32.4,browser_25.0,production_18.1;wall-clock_32m28s;image_no_longer_the_longest;no_job_over_REL-4s_35min;the_committed_head_and_the_merged_head_are_measured_at_their_ci_resolved
+
+### DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view
+- source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.2 spec gate: the demo-path project lists every spec under web/e2e/demo-path/ and demo-path-summary/test-demo-path-gate.sh pin file-to-step mapping, so the online run sits in the online-demo project; Story 16.2's AC says Story 11.1 turns its later steps on
+- 2026-10-25T21:32:41Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=11.1 turns on the online run's steps 2-6 in web/e2e-online/demo-path.spec.ts together with the web run's (the online-demo unit runs them on its flag-on throwaway)
+
+### DW-225: The path lists that name SignInAssets.cls (ci/units.sh WEB_INPUT_PATTERN, test-ci-changes, test-compose-file's not-ignored check, test-boundaries' scope) do not name SplashAssets.cls or splash.css/js
+- source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh:54, docker/tests/test-ci-changes.sh:191, test-compose-file.sh:336 and test-boundaries.sh:110 name only the sign-in assets (shared or contended files); staleness is still caught by every IRIS job's npm build (tokens.mjs --check) on any src/ change
+- 2026-10-26T00:29:42Z status=wontfix-accepted owner=16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details by=cr note=reopen_if=a SplashAssets.cls-only change passes CI with no job running tokens.mjs --check, or the file is gitignored
+
+### DW-226: AD-25 says a sign-in POST's decoded field names are exactly IRISSessionToken, IRISUsername, IRISPassword and IRISLogin, but the splash (like the local page) posts three, with no IRISSessionToken
+- source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Task 0 (b) measured the splash form's inputs as IRISPassword and IRISUsername (plus the IRISLogin button); row 7, S7, TestPage and the unit read AD-25 as only-these; a proxy built on the literal word would refuse every sign-in
+- 2026-10-26T00:29:46Z status=wontfix-accepted owner=16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details by=cr note=reopen_if=Story 29.3's proxy or its stand-in refuses a sign-in POST that carries no IRISSessionToken
+- 2026-10-26T00:55:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=integration risk for the demo host, not a LOW to close: the splash's first sign-in POST carries IRISUsername, IRISPassword and IRISLogin with no IRISSessionToken (measured, Story 16.2); 29.3's proxy allow-list must admit any subset of the four names (only-these), never require all four, else every online-demo sign-in is refused; test it with the splash's real POST
+
+### DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: AddressCounter.Add stores Session.Hash(address), a plain SHA-256 (AD-13: a hashed address); the 2^32 IPv4 values can be enumerated in minutes; rows live one hour, in OCUTALON_PRIVATE
+- 2026-10-26T04:26:20Z status=decision-pending owner=burndown by=cr note=veto (stored data, security): recommend an HMAC with a per-instance key in the private DB, renewed at each reset
+- 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-156 (Epic 16 decision sheet): before the launch, replace the plain SHA-256 with an HMAC keyed by a per-instance secret in the private database, renewed at each reset
+
+### DW-234: On the online demo a proxy address that is unset or not equal to REMOTE_ADDR exactly (a changed proxy IP, another address form) exempts every sign-in, so the per-address limit silently stops
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: SessionEvents.ClientAddress counts a sign-in only when proxyAddress = REMOTE_ADDR exactly and exempts the rest (AC 5, epics 16.3, AD-13); nothing reports a proxy address that never matches
+- 2026-10-26T04:26:20Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=launch check on the host: one proxied sign-in writes a counter row (the unit's phase 2 precondition); pin the proxy IP
+
+### DW-235: AddressCounter.Shift and SessionEvents.CookieExpiry repeat Public.Settings' private ToSeconds/FromSeconds UTC parsing instead of sharing one helper
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Shift is ToSeconds + n + FromSeconds (Data/Public/Settings.cls ToSeconds/FromSeconds, private, read-only in 16.3); CookieExpiry parses the same form again
+- 2026-10-26T04:26:20Z status=routed owner=16-8-the-page-counts-down-to-the-reset-and-waits-it-out by=cr note=Rule 2: one public UTC-seconds helper in Public.Settings; Shift and CookieExpiry delegate to it
+- 2026-10-26T20:06:41Z status=resolved-by:16-8-the-page-counts-down-to-the-reset-and-waits-it-out by=adjudication note=ed9351c: Public.Settings ToSeconds/FromSeconds/Shift public; AddressCounter.Shift delegates (AddressCounter.cls:84); CookieExpiry parses through Settings.ToSeconds (SessionEvents.cls:112); Test.Data.PublicSettings source check holds no $ZDateTimeH, mutation-proved (spec Verification AC 6)
+
+### DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ref_script repeats iris_script's retry loop and CHK filter (docker/tests/lib-live.sh:307-317) adding -e; lib-live.sh is a contended path, so 16.3 could not extend it
+- 2026-10-26T04:26:20Z status=escalated owner=burndown by=cr note=Rule 2: give iris_script an env pass-through and let ref_script/check_ref_session delegate (contended file)
+- 2026-10-30T03:14:28Z status=routed owner=29-4-sessions-stay-isolated-under-load by=merge_gate note=Epic 16 decision sheet (decide): Rule 2, give iris_script an environment pass-through and let ref_script and check_ref_session delegate, when 29.4 edits the online test scripts
+
+### DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
+- 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
+
+### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ForUser's SELECT has no ResumeHash IS NULL; only Ownership.Attach calls it, on the flag-off path; visitor rows exist only on a demo instance
+- 2026-10-26T04:26:21Z status=wontfix-theoretical owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=real if a demo instance restarts with onlineDemo off and keeps its data; fix: AND ResumeHash IS NULL
+
+### DW-239: Test.Web.Install.CounterRow repeats Test.Data.AddressCounter.Row (a counter row of a given age)
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: two 5-line fixture helpers in test classes of two areas; sharing one would tie the Web-area class to the Data-area class
+- 2026-10-26T04:26:21Z status=wontfix-accepted owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=reopen_if=a third test class builds AddressCounter rows by hand
+
+### DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS
+- source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.5 spec gate: AC 'with only its own inline styles and the logo files beside it'; a PNG in docker/ fails test-boundaries.sh on macOS grep, so the logos stay in logo/web/ and the host copies them beside the page
+- 2026-10-26T05:22:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 deploys docker/busy.html and docker/maintenance.html with the logo/web/ files the maintenance page names, beside it
+- 2026-10-26T20:05:20Z occurrence=16-8-the-page-counts-down-to-the-reset-and-waits-it-out
+- 2026-10-26T20:05:20Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=also at /ocutalon/assets/brand/<name>: the 16.8 resetting view asks for them there at the switch, as IRIS stops
+
+### DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host
+- source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: high | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 16.5 Task 0: the count reads 1 with no session, one and two sessions (browser), over keep-alive and after sign-out; S13 had found one connection per signed-in session through a proxy; tests reach busy via a baseline-relative cap
+- 2026-10-26T07:48:33Z status=routed owner=29-4-sessions-stay-isolated-under-load by=harvest note=29.4 measures on the demo host, through the proxy, whether signed-in sessions raise InstanceConnections() and whether status busy, the splash busy state and the post-sign-in reserve engage before IRIS's own 503; if they do not, raise the AD-13 counter question (a counter OcuTalon controls, e.g. attached visitor CSP sessions) to the orchestrator
+
+### DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test
+- source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ChatOutbox.send(text, fromGuide) has no caller with fromGuide true in web/src/app; the first caller is Epic 4's guide; the rule is in ChatOutbox.refuse; B2 sends typed text only
+- 2026-10-26T07:48:33Z status=routed owner=burndown by=harvest note=testable once Epic 4's guide sends prompts and has been integrated forward; the burn-down gate checks
+- 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down,no_charter:5_entries_under_the_cap_of_8,none_with_2+_occurrences):the_guide_now_sends_prompts(demo-guide.ts_via_ChatOutbox.send(text,true));chat-outbox.ts:130_drops_a_refused_guide_entry_silently_but_no_test_pins_the_online_demos_503_rule_for_it;29.4_drives_the_online_demo_full_with_one_more_visitor_seeing_busy:add_an_e2e-online_case_(a_guide_prompt_answered_503_leaves,nothing_announced)
+
+### DW-254: The demo host must run docker/probe.sh every 15 minutes with bash and curl, reach IRIS directly from an address other than the public proxyAddress, and provide its environment (OCUTALON_PROBE_URL, the demo credentials, alert and reset commands, a state directory)
+- source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.6 spec gate: the probe's host interface is recorded in the spine's Consistency Conventions row 'Online-demo probe'; a probe reaching IRIS from proxyAddress is counted and refused like a visitor
+- 2026-10-26T09:37:00Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 installs and schedules the probe per the spine's 'Online-demo probe' row and checks its alert and reset wiring on the host
+
+### DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason
+- source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Story 16.6 implement: on a stack with no model key the probe logs 'healthy ... fallback=no_key'; the AC defines healthy as 'a decision' and only daily_cap as capped
+- 2026-10-26T11:11:47Z status=decision-pending owner=burndown by=harvest note=product call for the decision sheet: should a non-daily_cap fallback (no_key, timeout, rate_limit) alert the author without counting toward a reset? Recommended: yes, as an alert-only outcome like busy, if the owner agrees (it changes the AC's outcome list)
+- 2026-10-30T03:14:28Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=veto U-157 (Epic 16 decision sheet): an alert-only probe outcome for no_key, timeout and rate_limit fallbacks, which alerts the author and never counts toward a reset, like busy
+
+### DW-268: The probe never signs out a sign-in IRIS accepted (3xx) when the redirect GET is not the shell (busy, timeout, other page), so the CSP session holds its connection until its 120 s timeout
+- source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: docker/probe.sh step 3 sets signed_in=1 only on <app-root; signout() returns when it is 0; hermetic QA path shell_other expects 0 sign-outs (edge-case-hunter, acceptance-auditor)
+- 2026-10-26T12:16:12Z status=by-design owner=16-6-a-probe-checks-the-demo-every-15-minutes by=cr note=spec Boundaries: signed in = shell, no API call before it, no IRIS query field; reopen via spec amendment
+
+### DW-269: At every reset the demo host must set OCUTALON_LAST_RESET to the time of the reset that just happened (never earlier than its scheduled time) and OCUTALON_LAST_RESET_KIND; the page leaves its resetting view only when status reports ready with lastReset later than the page's load time (or 15 minutes past the reset)
+- source: spec-16-8-the-page-counts-down-to-the-reset-and-waits-it-out.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.8 spec gate: the resetting view navigates on ready AND lastReset later than its load time; a host that leaves the old lastReset keeps visitors on the resetting view for 15 minutes
+- 2026-10-26T13:04:41Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3's reset command writes the new last reset and its kind into the start values before IRIS starts again
 - 2026-10-28T23:55:20Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=adjudication note=AnswersIn FromTelegram resolves the session from the live Pairing row and passes Approval.Answer that 22-character Ref, never a ChatRef; a malformed SessionRef answers not_allowed with nothing sent; pinned by Test.Core.AnswersTelegram and AnswersTelegramProduction (FromTelegram rows, DW-200 argument mutation)
 
 ### DW-213: The security overview must list the service role's demo-mode-only Read on %DB_OCUORDERS_DATA (granted by the Demo step with demo mode on, removed with it off or kept), so it never overstates least privilege
@@ -1511,6 +1635,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 2.9's doc clause in Test/Web/Api.cls; Story 5.6 replaced that assertion (L251) with the check's traceUrl into OCUTALON, and ruling Q1 allowed only the three assertion lines in that contended file
 - 2026-10-27T05:15:41Z status=escalated owner=burndown by=cr note=LOW; a doc-only replacement for the Lane B story that next edits Test/Web/Api.cls; out of 5.6's Q1 scope
 - 2026-10-27T20:43:25Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=merge_gate note=Epic 5 decision sheet (orchestrator, decide): doc-only fix in Epic 16's Test/Web/Api.cls class doc; bullet under 16.4
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=Test/Web/Api.cls class doc now says a check carries its latest run's traceUrl (Story 5.6), none without a run
 
 ### DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is still told OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets no status there
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -1523,6 +1648,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T12:47:05Z status=routed owner=burndown by=harvest note=residual of DW-289 (orchestrator ruling): Epic 5 cannot edit Test/Core (Epic 6) or Test/Web (Epic 16); route to an open Epic 8, 6 or 16 story at merge (rows due a day ahead, or typed event counts)
 - 2026-10-27T21:20:07Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=x0 note=Epic_7_X.0_triage:not_in_Lane_A's_files(Test/Core_is_Epic_6's,Test/Web_Epic_16's);16.4_already_owns_Test.Web.Api(DW-290)_and_Epic_16_owns_Core/BridgeSink;residual:the_four_Test.Core.BridgeSink_methods(L286-L403)_and_Test.Web.Api.TestStateSections_make_their_check_rows_due_a_day_ahead_or_count_typed_events_so_a_real_HeartbeatIn_Tick_cannot_interfere;bullet_is_the_orchestrator's_post-merge
 - 2026-10-29T01:11:55Z owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=burndown note=Epic 10 burn-down overflow: Test.Core.BridgeSink and Test.Web.Api.TestStateSections are Epic 16's (Core/BridgeSink, Test/Web); Story 16.9 edits BridgeSink's budget.capped path and /state's status, so it seeds those check rows a day ahead or counts typed events
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=delivered:Test.Core.BridgeSinks_four_methods_seed_check_rows_through_Check_Ahead()(asserted_over_23h_out)_and_count_approval_events_only;Test.Web.Api.TestStateSections_the_same_for_check1,check2(20cc3f9+review)
 ### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
@@ -1581,11 +1707,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-103 owner's delegate: route to 16.4
+- 2026-10-29T04:27:46Z by=spec_gate note=addressed by 16.4's spec: every leave the page can see (idle cap, epoch change, Sign out) signs the group out at once; a trace tab closed while the page stays open is IRIS's own page, which no OcuTalon code observes, and falls to AD-25's own 120 s backstop (AD-25 Rule: 'with the 120-second timeout as the backstop (Story 16.4)'); the units after that case are measured with DW-286 (29.4)
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=idle cap, epoch change and Sign out sign the group out at once (Task 0: a sign-out ends the trace CSP session at once); a closed page or trace tab falls to the 120 s timeout on all four applications (Test.Web.Install, live online-session rows 1 and 4; closed jar gone 152-153 s); the AD-25 backstop case is measured with DW-286 (29.4)
 
 ### DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.7 measurement on a lane-B throwaway, build 154 (DW-146): sign-in takes no licence unit; the first trace page per user and client address takes one; closing frees nothing until sign-out or the session timeout; at 8 units trace pages 503 and iris session terminals are refused; AD-13 and AD-25 amended 2026-10-27 (U-103)
 - 2026-10-27T00:47:19Z status=routed owner=29-4-sessions-stay-isolated-under-load by=orchestrator note=U-103 owner's delegate: route to 29.4
+- 2026-10-29T04:27:46Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=spec_gate note=also measure the units of a trace tab closed while the OcuTalon page stays open (AD-25's backstop case, Story 16.4 spec gate)
+- 2026-10-29T10:33:42Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi note=16.4 MEASURED (d): a closed jar's sessions went 152-153 s after its last request; AD-13 says 5-15 s past the 120 s
 
 ### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1797,10 +1927,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T02:25:30Z status=routed owner=burndown by=ci note=flake: first occurrence; the sign-in readiness wait in the rail spec's open() helper
 - 2026-10-28T02:25:49Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=overflow: the next story on the sign-in path; it waits because the flake sits in rail.spec's shared open() helper (sign-in readiness), outside Epic 6's footprint; if 16.4 does not touch that helper, re-route at the merge gate
 - 2026-10-29T14:54:02Z occurrence=7-4-ocutalon-reports-how-many-orders-went-through note=CI_run_40888894726(cece969)_iris(browser):banners.spec.ts_B17_open():main_data-snapshot_loaded_not_found_after_signIn(same_shape);one_rerun_per_the_flake_rule
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=rail.spec.ts open() waits for the GET /state answer (200) instead of main.main within 10 s; DW-333 mutation (12 s /state delay) recorded in the spec
+- 2026-10-30T02:54:15Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=CI_run_40987940151_attempt_1_(0990fbe),iris_(shards),live:floor,web/e2e/floor/layout.spec.ts_G1_[floor]_chromium:main.main_not_found_within_10_s_after_signIn_(support/floor.ts:138_openFloor);green_on_the_unchanged_rerun
+- 2026-10-30T02:54:15Z status=routed owner=burndown by=ci note=residual:the_same_sign-in_readiness_wait_remains_in_web/e2e/support/floor.ts_openFloor(data-snapshot_loaded_within_the_default_10_s);16.4_fixed_only_rail.spec.ts_open()(wait_for_the_GET_/state_200)
+- 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down):web/e2e/support/floor.ts_openFloor_waits_the_default_10_s_for_data-snapshot_loaded_after_signIn;wait_for_the_GET_/state_answer_as_rail.spec.ts_open()_does_(16.4);29.4_is_the_next_Lane_B_story_that_signs_visitors_in_under_load
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
 - 2026-10-27T06:44:53Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=orchestrator note=U-107 condition: tracked on 16.4 before it is planned; whichever of 8.4 and 16.4 merges second turns the real path on
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=Test.Core.SessionOpsProduction and e2e-online/session/sign-out.spec.ts cancel reminders through the real ReminderOps (ReminderFixture.WaitEnded), no double
 
 ### DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh (TestHookPublishesOnChange, TestEventsBodyServesTheGuide) and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide: a new session watching Orders sees a step past the expected one
 - source: integrate-forward of OCT-epic5 (CI run 40525019781, head 2a287f3) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1957,6 +2092,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T15:00:54Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat
 - 2026-10-28T15:47:49Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat by=lead note=flake:OcuTalon.Test.Live.GuideRefresh.TestHeldLock('the_counter_moved')_red_once_in_CI_run_40713989310_(image_group,shard_lane-b,2f4daf2):_Fixture.Check_seeds_its_OCUORDERS_check_with_no_NextDueAt,_so_a_real_minute_tick's_Checks_run_published_a_check_event_on_the_session_between_Publish_and_LastSeq;_IRIS_unit_tests_seeding_Fixture.Check_share_DW-349's_root_cause;_passed_locally_fwd+rev
 - 2026-10-29T01:47:57Z occurrence=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=lead note=flake: web/e2e/banners/banners.spec.ts B2 'before the stall the check reads Last run 15:30' got 'Last run 6:54 · No read access to its namespace' (a real heartbeat tick ran the seeded check row) in CI run 40799281663 attempt 1, iris (browser), live:sign-in, on 5076f54 (Epic 10's final integrate-forward; code identical to ecee507, where browser passed); one rerun
+- 2026-10-29T12:16:33Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=ci note=CI run 40866408272 (0af9742), live:floor focus.spec.ts P4: the seeded check row was run by a real tick ('No read access to its namespace') before the republish assertion
+- 2026-10-29T21:42:13Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test;CI_run_40945229992_attempt_1_(ba6856d,16.9s_implement_20cc3f9),iris_(browser),web/e2e/banners/banners.spec.ts_B2_got_'Last_run_tomorrow_at_1:40_·_No_read_access_to_its_namespace'(a_real_heartbeat_tick_ran_the_seeded_check_row);B2_untouched_by_16.9;attempt_2_green
+- 2026-10-30T00:24:16Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40975637263_attempt_1_(75d731a),iris_(browser),live:sign-in,web/e2e/session/session.spec.ts_S1:the_seeded_Zz.Production_check_row_got_lastRunAt,finding_'No_read_access_to_its_namespace'_from_a_real_tick(session.spec.ts:68_is_on_DW-349s_list);rerun_requested
+- 2026-10-30T02:20:58Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40987940151_attempt_1_(0990fbe),iris_(browser),live:sign-in,web/e2e/rail/rail.spec.ts_R5:'Last_run_2:02_·_No_read_access_to_its_namespace'_(a_real_tick_ran_the_seeded_row;rail_is_on_DW-349s_list);rerun_requested
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1980,6 +2119,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: banner-view.ts:64-67 sends both actions to README_URL (#readme); epics.md Story 10.2 AC (line 3508) asks for an existing section; Design Note 1 kept #readme because web/src/app/banners/** is contended (Epic 16)
 - 2026-10-28T19:20:22Z status=escalated owner=burndown by=cr note=recommend: the Epic 16 story that next edits banners/** targets #set-a-model-key and #install-it-yourself; or accept #readme
 - 2026-10-29T02:22:28Z status=routed owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=merge_gate note=Epic 10 decision sheet (decide): the banners' How to set a key and Install it yourself actions target the README's #set-a-model-key and #install-it-yourself sections, not #readme
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=banner-view.ts_actions_target_#set-a-model-key_and_#install-it-yourself;README_has_both_headings;pinned_by_banner-view.test.mjs,banners.spec.ts_B1/B4/B5,busy.spec.ts,allowance-sources.test.mjs,test-readme.sh
 
 ### DW-367: The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so once Included() can be 1 a start with no bot token (FR-21: no token, so Telegram off) has no way to be expressed in CI
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2054,3 +2194,90 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 40993669822 iris (browser) attempt 1: 1 failed (shell.spec.ts row 9, page.goto net::ERR_NETWORK_CHANGED at http://127.0.0.1:52808/ocutalon/); attempt 2 green
 - 2026-10-30T03:44:09Z status=routed owner=burndown by=runner note=flake class per CI Is a Gate; no assertion failed; burn-down gate re-owns it
 - 2026-10-30T03:44:43Z status=wontfix-accepted by=burndown note=a single CI-host network blip (no assertion failed; green on the unchanged rerun); reopen_if=net::ERR_NETWORK_CHANGED appears again in any iris job log
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
+
+### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: 16.4 QA: 2 of 9 warm runs with QA tests, 1 of 4 runs at HEAD 247dfad without them; Story 10.3 methods in the class 16.4 extends
+- 2026-10-29T09:38:55Z status=open owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=harvest note=found by 16.4 QA; the class is in this story's footprint extension, so 16.4's code review makes the wait deterministic
+- 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=16.4 code review: every audit mark in Test.Core.SessionOpsProduction is taken past the newest audit entry (Mark); 4 of 4 warm runs green; mutation recorded
+
+### DW-388: The idle cap counts only the OcuTalon page's key presses and clicks, so a visitor who reads Visual Trace for 10 minutes without going back to the page is signed out of the trace tab too
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: session-gate.ts:64-66 listens on the OcuTalon document only, and leave('idle') runs the group sign-out (:164), which Task 0 (a) measured ends the trace CSP session at once; the trace pages are IRIS's own, so the page cannot see activity there
+- 2026-10-29T10:33:41Z status=by-design owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=spec-bound: AD-13 and the spec count only key presses, clicks and sends in the page; IRIS's trace pages can't be watched
+
+### DW-389: After an unscheduled restart, a resume cookie set before it still makes the splash show the place-freed notice ('pick up where you left off'), though signing in starts a fresh session
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Splash.InfoNotice shows PLACEFREED on the cookie alone when there is no since; the cookie expires at the next scheduled reset, which an unscheduled restart does not shift (AD-25), and the restored golden copy holds no session
+- 2026-10-29T10:33:41Z status=decision-pending owner=burndown by=cr note=product call: accept; or no PLACEFREED while the period's last reset was unscheduled; or a reset id in the cookie (veto)
+- 2026-10-30T03:14:28Z status=wontfix-accepted by=merge_gate note=Epic 16 decision sheet (decide): LOW, high fix-risk; reopen_if=a judge or the probe reports the place-freed notice after an unscheduled restart
+
+### DW-390: SessionOps.End sends CancelReminder and StopWatch straight to ReminderOps and WatchOps, so CommandsIn's origin check for those two verbs is not applied to them
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.Carry sends them with SendRequestSync and the EndSession's origin (spec Design Notes, Direct messages); CommandsIn's Routes accept every EndSession origin for both verbs today, so nothing is bypassed now
+- 2026-10-29T10:33:41Z status=wontfix-theoretical owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=theoretical: real only if CommandsIn's Routes drop an EndSession origin from CancelReminder or StopWatch
+
+### DW-391: Test.Web.SessionEndApi repeats Test.Web.PairingApi's private Guard, Session, ErrorBody and clean-up helpers instead of sharing them (the spec's one stated copy, Rule 2)
+- source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: SessionEndApi.cls Guard, Session, ErrorBody and OnBefore/AfterAllTests match PairingApi.cls's; sharing them means a route-test base class and an edit of Epic 10's merged PairingApi
+- 2026-10-29T10:33:41Z status=wontfix-accepted owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=cr note=reopen_if=a third route test class copies PairingApi's Guard, Session and ErrorBody helpers
+
+### DW-396: flake: checks ci-warm 'up beside a held warm-iris.lock' printed LOCK busy after 1 s without its LOCK waiting line (docker/tests/test-ci-warm.sh, Story 32.4)
+- source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 40893085769 attempt 1 (8a89586): FAIL missing /^LOCK waiting: warm-iris is held by /; green on the unchanged rerun (attempt 2)
+- 2026-10-29T15:14:20Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; the test's 1 s wait leaves no room for the waiting line on a slow host
+- 2026-10-30T02:55:13Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=overflow(Epic_16_burn-down):docker/tests/test-ci-warm.sh_(Story_32.4)_waits_1_s_for_the_LOCK_waiting_line_beside_a_held_warm-iris.lock;give_it_room_on_a_slow_host;11.1_owns_the_CI_flakes_that_block_REL-2s_green_(DW-349,DW-376);the_file_is_on_Epic_7s_branch_(DW-337),so_after_Epic_7_merges
+
+### DW-398: Core/NoticesIn.cls's class comment still calls Story 16.9's daily-cap message a sender to come; BridgeSink sends it now (comment only)
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 16.9 implement deferred: Task 0 (a) found NoticesIn's two branches already give each notice its own session's TraceRef; only the comment is stale
+- 2026-10-29T18:56:14Z status=open owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=harvest note=a two-way-door LOW for 16.9's review to patch
+- 2026-10-29T22:51:03Z status=resolved-by:16-9-allowances-cap-messages-model-cost-and-simulated-emails by=adjudication note=code_review_patched_the_Core/NoticesIn.cls_class_comment(names_BridgeSinks_daily-cap_message_as_a_sender;comment_only)
+
+### DW-400: The allowance banner's clear at retryAt on the page's own clock (BannerStack.withAllowance) is pinned only by a source-text test
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: A2 waits 45 s for the clear with retryAt about 30 s ahead; StatusMonitor's clear (15 s tick) also arrives in that time, so keeping the store's condition in withAllowance leaves A2 green; only allowance-sources.test.mjs (a regex) goes red.
+- 2026-10-29T22:47:08Z status=wontfix-accepted owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=reopen_if=a page shows the allowance banner after retryAt while its composer is usable (A2 trace, smoke or bug report)
+
+### DW-401: After a visitor's first allowance window ends, each later short window that opens at the limit starts with a first refusal and sends another allowance card
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Matrix row 5: a refusal once now >= AllowanceUntil is a first refusal; with a rolling hour the later windows last only until the next oldest entry ages out, so a visitor who keeps sending at the limit gets a card per short window.
+- 2026-10-29T22:47:08Z status=by-design owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=spec-bound (matrix row 5, AC 3: one notice per window); reopens only by a spec amendment
+
+### DW-402: AllowanceUntil is not reconciled when messageAllowance changes during an open window
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TryConsume keeps AllowanceUntil on an allowed message and returns the newly computed until on a later refusal: a raised limit accepts while the banner holds, a lowered one gives a 429 retryAt later than the status time.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if an admin changes messageAllowance on a running demo while a visitor's window is open
+
+### DW-403: Allowance.Refund after a concurrent first refusal leaves AllowanceUntil set though the count is back under the limit
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Refund removes the newest entry under the row lock but never clears AllowanceUntil, so the banner and the disabled composer hold until retryAt although TryConsume would accept.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if an Item send fails on the 50th message while a concurrent post of that session is refused
+
+### DW-404: Allowance.MailAllowed gives a retryAt too early when a session has more than 20 incoming emails in the hour
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: retryAt is the oldest incoming email plus 3600 s; with 21 or more in the window the count is still 20 or more then, so the page re-enables the chips and the next press is refused again.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if the online-demo flag is switched on while a session has over 20 incoming emails in the past hour
+
+### DW-405: Ownership.Resume's unlocked save at sign-in can write back a stale AllowanceUntil or DailyCapDay, not only AllowanceTimes
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Resume opens, sets CspSessionId and saves the whole Session row without its lock; a refusal or daily-cap send of the same session between its open and save is overwritten, so the next one sends a second card.
+- 2026-10-29T22:47:08Z status=wontfix-theoretical owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=real only if a sign-in's Resume interleaves with a refusal or daily-cap send of that session; a second card would show it
+
+### DW-406: The browser timer idiom (LONGEST_TIMER_MS, arm, disarm, re-arm) is copied into live/allowance-state.ts and mailbox/simulated-mailbox.ts beside reset-watch.ts and session/idle-cap.ts
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Rule 2, weak reason: the spec names reset-watch.ts as the sibling AllowanceState follows but not why the timer is not shared; the copies already differ (one clamps at 0, one clears at once).
+- 2026-10-29T22:47:08Z status=wontfix-accepted owner=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=cr note=reopen_if=a fifth copy of the LONGEST_TIMER_MS idiom lands in web/src/app, or a fix to one copy's clamp or re-arm misses another
+
+### DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red
+- source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: web/e2e-online/allowance/daily-cap.spec.ts seeds today's spend (seedUsage, :110 and :180) and later reads today's mark and day again (cappedMarked :127/:160, localToday :133/:165, support.ts:563-570); Bridge.Budget.State counts only the current local day. A midnight between them (a window of about 1-2 min per case) gives no daily_cap card, or a mark and DailyCapDay of the day before.
+- 2026-10-30T01:29:01Z status=routed owner=burndown by=cr note=re-review 1 of 16.9 (verification-gap): take the day once (e.g. from the fallback's RecordedAt) and keep each case clear of instance midnight; not patched: the wait path is unexercisable here
+- 2026-10-30T02:55:13Z owner=29-4-sessions-stay-isolated-under-load by=burndown note=overflow(Epic_16_burn-down):web/e2e-online/allowance/daily-cap.spec.ts_D1,D2,AP_read_the_instance_day_more_than_once;take_the_day_once_(e.g._the_fallbacks_RecordedAt)_and_keep_each_case_clear_of_instance_midnight;29.4_runs_the_online-demo_e2e_with_the_online-demo_start_values
+
+### DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight
+- source: cycle-log-epic-16.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 40975637263 attempt 1 (75d731a), iris (shards), shard:lane-a: FAIL TestWindow ... 2026-10-29 23:59:24.000; green on the unchanged rerun (attempt 2); Test/Checks is Epic 5's (Lane A), untouched by Epic 16
+- 2026-10-30T01:32:49Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; DW-289 (real-Tick interference in Test.Checks.Runs) was resolved by 5.10, so a new entry; the same run's two other reds also sat at 23:59Z (16.9's same-day time assertion, reworked)
+- 2026-10-30T02:55:13Z owner=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=burndown note=overflow(Epic_16_burn-down):Test.Checks.Runs_TestWindow_read_the_real_clock_near_instance_midnight_(23:59:24Z);30.4_is_the_next_story_on_the_Checks_runs_and_their_tests_(Lane_A)

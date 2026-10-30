@@ -8,6 +8,19 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Setting";
 /// How long Get keeps a value in the per-process cache (AD-19).
 Parameter CACHESECONDS = 60;
 
+/// The key of the new sessions per client address per hour, online demo (Web.SessionEvents; seeded by Install.Step.Web).
+Parameter ADDRESSLIMITKEY = "onlineDemo.sessionsPerAddress";
+
+/// The seeded value of ADDRESSLIMITKEY: new sessions per client address per hour, online demo.
+Parameter ADDRESSLIMITSEED = 5;
+
+/// The key of the idle cap in seconds, online demo: how long the page may go without a key press, a click or a sent message
+/// before it frees its place (Web.Api /state idleSeconds; seeded by Install.Step.Web).
+Parameter IDLEKEY = "onlineDemo.idleSeconds";
+
+/// The seeded value of IDLEKEY, and the value that stands for any stored value that is not a whole number above 0: 600 seconds.
+Parameter IDLESEED = 600;
+
 /// The key; unique. Product keys are dotted, such as digest.time.
 Property Key As %String(MAXLEN = 128);
 
