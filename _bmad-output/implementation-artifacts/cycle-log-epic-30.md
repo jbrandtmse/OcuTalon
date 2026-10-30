@@ -1,0 +1,12 @@
+2026-10-30T10:22:30Z	Epic 30	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec state=<state> hold_at=none lane=A slot=ocutalon-slot-a dispatch=first note=first_dispatch
+2026-10-30T10:22:30Z	Epic 30	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-30T10:22:30Z	Epic 30	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh workflows=ci,lane-a visibility=PRIVATE
+2026-10-30T10:22:30Z	Epic 30	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-30T10:22:30Z	Epic 30	telemetry_gate	pending=0 action=none
+2026-10-30T10:22:30Z	Epic 30	bootstrap_check	result=ok
+2026-10-30T10:22:30Z	Epic 30	slot_checked	slot=ocutalon-slot-a server=ocutalon-slot-a port=52790 build=154 namespace=OCUTALON merge_cpf=match refresh=none loaded=532_classes(src/bridge_46,src/ocutalon_486) compiled=CompilePackage(OcuTalon,ck-d)_ok errors=0 stale_deleted=none nongenerated_after=532 lane_a_locks=empty
+2026-10-30T10:22:30Z	Epic 30	epic_branch_checked_out	repos=. head=179de73 mode=fresh_adopted provisioned_by=orchestrator commits_beyond_feature=0 feature_at_dispatch=179de73(origin_feature_now_4c7f893) ci_expected=ci,lane-a
+2026-10-30T10:22:30Z	Epic 30	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 highest=AD-33 status=final updated=2026-10-30 spine_next_id=34 note=AD-16_amended_2026-10-30(U-160:stopped_target_production=couldnt_start;U-161:Execute_past_ExpiresAt=NOSTART;erring_resend_reports_unreached_targets_by_how_far)_read_for_30.4,30.5
+2026-10-30T10:22:30Z	Epic 30	ledger_load	total=390 open=0 routed=65 escalated=0 decision_pending=0 terminal=325 owner_unknown=0 burndown=0 reowned_none=0 epic30_owned=12(30-1:DW-93,DW-125,DW-130;30-2:DW-371;30-3:DW-99,DW-192,DW-194,DW-195;30-4:DW-368,DW-414;30-5:DW-384,DW-419) ledger_next_id=430
+2026-10-30T10:23:10Z	Epic 30	sprint_planning_complete	gate=PASS mode=headless readiness_recheck=U8 in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,epic_list_heading) validate=ok prerequisites_present=Fix.Executor/Run/Msg,Install.Task.Purge,Install.Step.Tasks,Checks.Process,Bridge.Compaction/Approval,Watch.IncidentManager note=30.1_story_waits_on_Epic9(9.5_RC_run_runs_its_live_smoke) model=claude-opus-5-5
+2026-10-30T10:23:10Z	Epic 30	retro_review_skipped	reason=no_x0_input assignment=skip(no_X.0_input) burndown_owned=0 to_x0=0 open_action_items=human-owned_only(listed_not_acted) retro=skipped(policy)
