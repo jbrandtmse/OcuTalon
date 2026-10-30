@@ -16,10 +16,16 @@ Include Ensemble
 ///     otherwise the job's user with the channel system. A write that fails is logged as a warning and never undoes the change;
 ///   - Hold and HoldResponse are the logic of the business process ApprovalHold, which stores only the request's Ref (AD-5): Hold sends the
 ///     Workflow task to the role WORKFLOWROLE and sets the 24-hour timer, and replies to the start; HoldResponse acts only on what the row
-///     shows: on the timer it expires the row, and it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix only), rejection
-///     or expiry;
-///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns and starts
-///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt.
+///     shows: on the timer it expires the row, it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix only), rejection
+///     or expiry, and on the approval of a tool_call it sends a Msg.Request of kind tool (the Ref in ItemId) to Decide, which has the runner that
+///     held the call replay it exactly once with no model request (Replay.Run). The hold never ends while its row is pending or owes an outcome:
+///     it re-arms a pending row whose task ended without an answer, retries an expiry that failed, and Hold starts a delivery hold (a timer of one
+///     second and no task) for an approved, rejected or expired row. Hold refuses a start that arrived late (its message is older than STARTSECONDS
+///     less STARTMARGIN), because Raise has given up on it by then;
+///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
+///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
+///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix with a ResultTarget whose ApprovalOutcome
+///     was not sent.
 /// Nothing here makes a %AI call or runs Python (AD-6).
 Class OcuTalon.Bridge.Approval
 {
@@ -51,6 +57,18 @@ Parameter STARTSECONDS = 10;
 /// How long Answer and Cancel wait for the hold's Workflow task to exist, in seconds: the Workflow operation creates it asynchronously after
 /// the hold sends it. The five state methods wait LOCKSECONDS plus this for the row's lock, the longest any of them holds it.
 Parameter TASKSECONDS = 5;
+
+/// The production item that serves a request of kind tool: the hold sends the replay of an approved tool_call to it.
+Parameter DECIDEITEM = "Decide";
+
+/// How long a hold waits before it tries again to expire a row that is still pending, in seconds.
+Parameter RETRYSECONDS = 5;
+
+/// How many days after its ExpiresAt a row of a fix still owes its outcome to Reconcile, which delivers a lost one (messages are kept 90 days).
+Parameter DELIVERYDAYS = 7;
+
+/// The seconds under STARTSECONDS within which a start must reach the hold: a start older than STARTSECONDS less this margin is refused.
+Parameter STARTMARGIN = 2;
 
 /// Raises one approval request from the unsaved row, and returns its public Ref in ref. The three optional arguments come after the Epic 0 pair:
 /// sinkClass is the host sink that receives approval.raised (empty: the HostSinkClass setting), and sessionId and superSession are the
@@ -190,6 +208,8 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 		If request.FixParameters '= "" Quit ..Refuse("FixParameters", "must be empty for a tool_call request")
 		If request.FixTargets '= "" Quit ..Refuse("FixTargets", "must be empty for a tool_call request")
 	} Else {
+		If request.ToolSource '= "" Quit ..Refuse("ToolSource", "must be empty for a fix request")
+		If request.Runner '= "" Quit ..Refuse("Runner", "must be empty for a fix request")
 		If '..IsJsonObject(request.DryRun) Quit ..Refuse("DryRun", "is not a JSON object")
 		If request.ResultTarget = "" Quit ..Refuse("ResultTarget", "is empty for a fix request")
 		If request.ToolName '= "" Quit ..Refuse("ToolName", "must be empty for a fix request")
@@ -550,59 +570,113 @@ ClassMethod CompleteHoldTask(ref As %String, action As %String) [ Private ]
 	}
 }
 
-/// The logic of ApprovalHold.OnRequest (AD-5): holds the request that the start names. It stores the Ref on the process, opens the row (a
-/// missing or non-pending row is an error that names the Ref and the state, so a start that arrives after Raise deleted its row holds
-/// nothing), sends an EnsLib.Workflow.TaskRequest to WORKFLOWROLE with the completion key task, sets the timer for the whole seconds until
-/// the row's ExpiresAt (at least 1) with the key expiry, and replies to the start, so that ApprovalStartIn returns while the hold keeps
-/// waiting. The task sets no %UserName, %Title, %Message or %Command: a %UserName would assign the task to that Workflow user, a member of
-/// the role or not, and without one it goes to every active member, which is the one technical user. Makes no %AI call and runs no Python (AD-6).
+/// The logic of ApprovalHold.OnRequest (AD-5): holds the request that the start names. It stores the Ref on the process, and in this order:
+///   1. refuses a start that arrived late (DW-195): when the start message is at least STARTSECONDS less STARTMARGIN seconds old, ApprovalStartIn has
+///      given up or is about to, and Raise deletes the row, so the hold starts nothing (an error that names the Ref and the age). A header
+///      that cannot be read proceeds;
+///   2. opens the row (a missing row is an error that names the Ref, so a start that arrives after Raise deleted its row holds nothing);
+///   3. a pending row is armed (Arm): an EnsLib.Workflow.TaskRequest to WORKFLOWROLE with the completion key task, and the timer for the whole
+///      seconds until the row's ExpiresAt (at least 1) with the key expiry;
+///   4. an approved, rejected or expired row owes its outcome (DW-192): it gets a delivery hold, the timer of one second with the key expiry and no
+///      task, so that HoldResponse delivers what the row shows;
+///   5. a row in any other state is an error that names the Ref and the state;
+/// and replies to the start, so that ApprovalStartIn returns while the hold keeps waiting. The task sets no %UserName, %Title, %Message or
+/// %Command: a %UserName would assign the task to that Workflow user, a member of the role or not, and without one it goes to every active
+/// member, which is the one technical user. Makes no %AI call and runs no Python (AD-6).
 ClassMethod Hold(hold As OcuTalon.Bridge.Process.ApprovalHold, request As OcuTalon.Bridge.Msg.ApprovalStart, Output response As %Persistent) As %Status [ Internal ]
 {
 	Set response = ""
 	Set ref = request.Ref
 	Set hold.Ref = ref
+	Set age = ..StartAge(hold)
+	If (age '= "") && (age >= ((..#STARTSECONDS - ..#STARTMARGIN) * 1000)) {
+		Quit $SYSTEM.Status.Error(5001, "ApprovalHold: the start of the approval request " _ ref _ " is " _ (age \ 1000) _ " seconds old, so the start has been given up and nothing is held")
+	}
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	If '$IsObject(row) Quit $SYSTEM.Status.Error(5001, "ApprovalHold: there is no approval request " _ ref)
-	If row.State '= "pending" Quit $SYSTEM.Status.Error(5001, "ApprovalHold: the approval request " _ ref _ " is " _ row.State _ ", not pending")
-	Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil(row.ExpiresAt)
-	If seconds = "" Quit $SYSTEM.Status.Error(5001, "ApprovalHold: the approval request " _ ref _ " has no readable ExpiresAt")
-	If seconds < 1 Set seconds = 1
-	Set task = ##class(EnsLib.Workflow.TaskRequest).%New()
-	Set task.%Actions = ..#ACTIONS
-	Set task.%Subject = ..#TASKSUBJECT _ ref
-	Set sc = hold.SendRequestAsync(..#WORKFLOWROLE, task, 1, "task")
-	If $$$ISERR(sc) Quit sc
-	Set sc = hold.SetTimer(seconds, "expiry")
+	If row.State = "pending" {
+		Set sc = ..Arm(hold, row, 1)
+	} ElseIf $ListFind($ListBuild("approved", "rejected", "expired"), row.State) {
+		Set sc = hold.SetTimer(1, "expiry")
+	} Else {
+		Quit $SYSTEM.Status.Error(5001, "ApprovalHold: the approval request " _ ref _ " is " _ row.State _ ", not pending or waiting for its outcome to be delivered")
+	}
 	If $$$ISERR(sc) Quit sc
 	Quit hold.Reply(##class(Ens.Response).%New())
 }
 
-/// The logic of ApprovalHold.OnResponse: the answer of the Workflow task (key task) or the timer (key expiry). The hold acts only on what the
-/// row shows.
-///   1. For the key expiry it first calls Expire(Ref); a row that is no longer pending is refused, which is expected, and any other failure is
-///      logged as a warning.
-///   2. It reads the row; with no row it does nothing.
-///   3. For the key task the outcome is approved when the TaskResponse's %Action is Approve and the row is approved, and rejected when the
-///      action is Reject and the row is rejected; anything else, a task completed outside Answer or cancelled by Cancel included, has none.
-///   4. For the key expiry the outcome is the row's state when that is expired, approved or rejected, so that an answer whose task Answer could
+/// The milliseconds since the start message of the hold was created (its header's TimeCreated, UTC), or "" when the header cannot be read.
+ClassMethod StartAge(hold As OcuTalon.Bridge.Process.ApprovalHold) As %Integer [ Private ]
+{
+	Set age = ""
+	Try {
+		Set age = ##class(OcuTalon.Bridge.Time).MsSince(hold.%PrimaryRequestHeader.TimeCreated)
+	} Catch {
+		Set age = ""
+	}
+	Quit age
+}
+
+/// Arms the hold for a pending row: sends the Workflow task when withTask is 1, and sets the timer for the whole seconds until the row's
+/// ExpiresAt (at least 1) with the key expiry. An unreadable ExpiresAt is an error that names the Ref.
+ClassMethod Arm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Bridge.Data.ApprovalRequest, withTask As %Boolean) As %Status [ Private ]
+{
+	Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil(row.ExpiresAt)
+	If seconds = "" Quit $SYSTEM.Status.Error(5001, "ApprovalHold: the approval request " _ row.Ref _ " has no readable ExpiresAt")
+	If seconds < 1 Set seconds = 1
+	If withTask {
+		Set task = ##class(EnsLib.Workflow.TaskRequest).%New()
+		Set task.%Actions = ..#ACTIONS
+		Set task.%Subject = ..#TASKSUBJECT _ row.Ref
+		Set sc = hold.SendRequestAsync(..#WORKFLOWROLE, task, 1, "task")
+		If $$$ISERR(sc) Quit sc
+	}
+	Quit hold.SetTimer(seconds, "expiry")
+}
+
+/// The logic of ApprovalHold.OnResponse: the answer of the Workflow task (key task), the timer (key expiry) or the replay (key replay). The hold
+/// acts only on what the row shows.
+///   1. For the key replay it does nothing but log a warning that names the Ref when the row is still approved (the replay did not start it); the
+///      reply of Decide is not read, and carries no result text.
+///   2. For the key expiry it first calls Expire(Ref); a row that is no longer pending is refused, which is expected, and any other failure is
+///      logged as a warning that names the Ref.
+///   3. It reads the row; with no row it does nothing.
+///   4. For the key task the outcome is approved when the TaskResponse's %Action is Approve and the row is approved, and rejected when the
+///      action is Reject and the row is rejected.
+///   5. For the key expiry the outcome is the row's state when that is expired, approved or rejected, so that an answer whose task Answer could
 ///      not complete is delivered when the timer fires at the latest.
-///   5. An approved tool_call sends nothing (the replay is Story 30.3's). Any other outcome is sent to the row's ResultTarget as an
-///      OcuTalon.Bridge.Msg.ApprovalOutcome, asynchronously with no response; an empty ResultTarget sends nothing.
-///   6. A failed send is logged as an error that names the Ref and the target; the method still returns OK, so that the hold ends.
+///   6. An approved tool_call is replayed: a Msg.Request of kind tool, provenance user, the Ref in ItemId, the row's OwnerRef and TraceRef, the
+///      channel of the answer (else system), the tool's name as the summary and the hold's trace session, goes to DECIDEITEM with the key replay
+///      and a response required. Any other outcome is sent to the row's ResultTarget as an OcuTalon.Bridge.Msg.ApprovalOutcome, asynchronously
+///      with no response; an empty ResultTarget sends nothing.
+///   7. No outcome (DW-192): after a task response whose action the row does not show, a pending row is armed again with a task (Arm), and an
+///      approved, rejected or expired row gets the timer of one second with the key expiry, which delivers what the row shows; after an expiry
+///      whose row is still pending (Expire failed, for a lock) the timer is set again for RETRYSECONDS. A row that is cancelled, executing, done or
+///      failed ends the hold.
+///   8. A failed send is logged as an error that names the Ref and the target; the method still returns OK, so that the hold ends.
 ClassMethod HoldResponse(hold As OcuTalon.Bridge.Process.ApprovalHold, response As %Persistent, completionKey As %String) As %Status [ Internal ]
 {
 	Set ref = hold.Ref
+	If completionKey = "replay" {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If $IsObject(row) && $$$ISOK(row.%Reload()) && (row.State = "approved") {
+			$$$LOGWARNING("OcuTalon.Bridge.Approval: the replay of " _ ref _ " did not start the run, so the request is still approved")
+		}
+		Quit $$$OK
+	}
 	If completionKey = "expiry" {
 		Set sc = ..Expire(ref)
 		If $$$ISERR(sc) {
 			Set pending = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
-			If $IsObject(pending) && (pending.State = "pending") {
+			If $IsObject(pending) && $$$ISOK(pending.%Reload()) && (pending.State = "pending") {
 				$$$LOGWARNING("OcuTalon.Bridge.Approval: the timer of " _ ref _ " could not expire it: " _ $SYSTEM.Status.GetErrorText(sc))
 			}
 		}
 	}
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	If '$IsObject(row) Quit $$$OK
+	Set sc = row.%Reload()
+	If $$$ISERR(sc) Quit $$$OK
 	Set outcome = ""
 	If completionKey = "task" {
 		Set action = $Select($IsObject(response) && response.%IsA("EnsLib.Workflow.TaskResponse"): response.%Action, 1: "")
@@ -611,8 +685,10 @@ ClassMethod HoldResponse(hold As OcuTalon.Bridge.Process.ApprovalHold, response 
 	} ElseIf completionKey = "expiry" {
 		If $ListFind($ListBuild("expired", "approved", "rejected"), row.State) Set outcome = row.State
 	}
+	If outcome = "" Quit ..Rearm(hold, row, completionKey)
+	If (outcome = "approved") && (row.Kind = "tool_call") Quit ..Replay(hold, row)
 	Set target = row.ResultTarget
-	If (outcome = "") || (target = "") || ((outcome = "approved") && (row.Kind = "tool_call")) Quit $$$OK
+	If target = "" Quit $$$OK
 	Set message = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%New()
 	Set message.ApprovalRef = ref
 	Set message.IncidentRef = row.IncidentRef
@@ -620,6 +696,50 @@ ClassMethod HoldResponse(hold As OcuTalon.Bridge.Process.ApprovalHold, response 
 	Set sc = hold.SendRequestAsync(target, message, 0)
 	If $$$ISERR(sc) {
 		$$$LOGERROR("OcuTalon.Bridge.Approval: the outcome " _ outcome _ " of " _ ref _ " was not sent to " _ target _ ": " _ $SYSTEM.Status.GetErrorText(sc))
+	}
+	Quit $$$OK
+}
+
+/// What a hold does when its response shows no outcome (HoldResponse 7): keeps the hold alive for a row that still owes one, and lets it end for
+/// any other. A failure is logged as an error that names the Ref and never escapes.
+ClassMethod Rearm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Bridge.Data.ApprovalRequest, completionKey As %String) As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		If completionKey = "task" {
+			If row.State = "pending" {
+				Set sc = ..Arm(hold, row, 1)
+			} ElseIf $ListFind($ListBuild("approved", "rejected", "expired"), row.State) {
+				Set sc = hold.SetTimer(1, "expiry")
+			}
+		} ElseIf (completionKey = "expiry") && (row.State = "pending") {
+			Set sc = hold.SetTimer(..#RETRYSECONDS, "expiry")
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGERROR("OcuTalon.Bridge.Approval: the hold of " _ row.Ref _ " could not wait on: " _ $SYSTEM.Status.GetErrorText(sc))
+	}
+	Quit $$$OK
+}
+
+/// Sends the replay of the approved tool_call row (HoldResponse 6): the Request of kind tool to DECIDEITEM, key replay, response required. A failed
+/// send is logged as an error that names the Ref; the method returns OK, so that the hold ends.
+ClassMethod Replay(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Bridge.Data.ApprovalRequest) As %Status [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "tool"
+	Set request.Provenance = "user"
+	Set request.ItemId = row.Ref
+	Set request.OwnerRef = row.OwnerRef
+	Set request.TraceRef = row.TraceRef
+	Set request.Channel = $Select(row.AnsweredChannel '= "": row.AnsweredChannel, 1: "system")
+	Set request.Summary = $Extract(row.ToolName, 1, 80)
+	Set request.ThreadSessionId = hold.%SessionId
+	Set sc = hold.SendRequestAsync(..#DECIDEITEM, request, 1, "replay")
+	If $$$ISERR(sc) {
+		$$$LOGERROR("OcuTalon.Bridge.Approval: the replay of " _ row.Ref _ " was not sent to " _ ..#DECIDEITEM _ ": " _ $SYSTEM.Status.GetErrorText(sc))
 	}
 	Quit $$$OK
 }
@@ -643,12 +763,15 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 	Quit 'hold.%IsCompleted && 'hold.%IsTerminated && (hold.%MasterPendingResponses.Count() > 0)
 }
 
-/// Re-arms the holds after a start (AD-5, AD-23), in two passes that try every task and every row and combine the failures into one status,
+/// Re-arms the holds after a start (AD-5, AD-23), in three passes that try every task and every row and combine the failures into one status,
 /// each naming its Ref. It is idempotent and fires no event.
 ///   1. It cancels, with EnsLib.Workflow.Engine.%CancelRequest, every incomplete task of the role WORKFLOWROLE that is not the task of a live
 ///      hold of a pending row. The hold that sent a task is the BusinessProcessId of its TaskRequest's message header.
 ///   2. It starts, through ApprovalStartIn, a new hold for every pending row that has no live hold, in a new session whose SuperSession is the
 ///      row's TraceRef (AD-26). The new hold sets its timer from the row's ExpiresAt, and one that is past it fires at once.
+///   3. It starts a delivery hold, through ApprovalStartIn, for every row that owes a delivery and has no live hold (DW-192): an approved
+///      tool_call (its replay), and an approved, rejected or expired fix with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
+///      which no ApprovalOutcome message names the Ref. A cancelled, executing, done or failed row, and a row that is older, gets no hold.
 /// The Lane A declaration OcuTalon.Install.Step.Approvals.Reconcile calls it, and the Reconcile step runs it after the production starts.
 ClassMethod Reconcile() As %Status
 {
@@ -684,7 +807,40 @@ ClassMethod Reconcile() As %Status
 		Set one = ..StartHold(ref, "", $List(entry, 2))
 		If $$$ISERR(one) Set sc = ..Combine(sc, "the hold of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
 	}
+	Quit ..ReconcileDeliveries(sc)
+}
+
+/// Reconcile's pass 3: starts a delivery hold for each row that owes a delivery and has no live hold; see Reconcile.
+ClassMethod ReconcileDeliveries(sc As %Status) As %Status [ Private ]
+{
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, TraceRef, Kind, ExpiresAt FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE (Kind = 'tool_call' AND State = 'approved') OR (Kind = 'fix' AND State IN ('approved', 'rejected', 'expired') AND ResultTarget <> '')")
+	If rows.%SQLCODE < 0 {
+		Quit ..Combine(sc, "the requests that owe a delivery cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
+	}
+	Set owing = ""
+	While rows.%Next() {
+		Set owing = owing _ $ListBuild($ListBuild(rows.%Get("Ref"), rows.%Get("TraceRef"), rows.%Get("Kind"), rows.%Get("ExpiresAt")))
+	}
+	Set position = 0
+	While $ListNext(owing, position, entry) {
+		Set ref = $List(entry, 1)
+		If $List(entry, 3) = "fix" {
+			Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil($List(entry, 4))
+			If (seconds = "") || (seconds < (0 - (..#DELIVERYDAYS * 86400))) Continue
+			If ..OutcomeSent(ref) Continue
+		}
+		If ..LiveHold(ref) '= "" Continue
+		Set one = ..StartHold(ref, "", $List(entry, 2))
+		If $$$ISERR(one) Set sc = ..Combine(sc, "the delivery hold of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
+	}
 	Quit sc
+}
+
+/// 1 when an ApprovalOutcome message names the Ref: the outcome of the request was already sent to its ResultTarget.
+ClassMethod OutcomeSent(ref As %String) As %Boolean [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Bridge_Msg.ApprovalOutcome WHERE ApprovalRef = ?", ref)
+	Quit result.%Next()
 }
 
 /// 1 when the TaskRequest with the id was sent by a live hold whose row is pending.

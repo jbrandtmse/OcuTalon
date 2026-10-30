@@ -25,9 +25,18 @@ Include Ensemble
 ///      0. In an untrusted or tainted turn a call runs only when its classification is safe and its readOnly is 1: every other call (a safe
 ///      tool that is not read-only, a risky tool even if it is read-only, an unclassified tool and an MCP tool) is denied with UNTRUSTED, fires
 ///      no turn.step and never reaches step 5, so no approval request can come from it. This holds for every request kind.
-///   5. The result: a safe call is allowed, and every other call is held (Hold): the gate raises one approval request of kind tool_call through
+///   5. The result of a replay context (the Kind of the context is tool: Replay.Run, the approved call of an approval request, StartExecution done):
+///      the call runs only when it matches the grant that the replay built from the executing row (Context.TakeGrant: the name, the hash of the
+///      canonical arguments and the source). A call with no source of its own takes the source of the grant (GrantSource). The grant stands in
+///      place of step 4's hold: the first matching call consumes it and is allowed, and every other call (a second matching call, a call that
+///      differs in the name, an argument value or the source, a call with no grant) is denied with FAILED, never held: a replay raises no approval
+///      request. Classification, permissions and the provenance of the context still apply first (a replay is a user's turn: its Provenance must be user),
+///      and an allowed call is reported and taints like any other. The taint is not read in a replay context, because the grant is single use: the
+///      call that follows the allowed one is denied by the missing grant (FAILED), whatever the taint says.
+///   5. (other contexts) The result: a safe call is allowed, and every other call is held (Hold): the gate raises one approval request of kind tool_call through
 ///      Approval.Raise and denies the call with HELD. The request is built from the call and the context only:
-///        - Kind tool_call, ToolName the call's name, and ToolArguments the call's arguments as given: an object as its %ToJSON(), a JSON text that
+///        - Kind tool_call, ToolName the call's name, ToolSource the source of the call (the class or the MCP toolref the call was classified by),
+///          Runner the runner item of the context (DW-194: the runner that replays the call once it is approved), and ToolArguments the call's arguments as given: an object as its %ToJSON(), a JSON text that
 ///          is not blank verbatim, and no arguments (or null) as {}. Arguments of any other type (an array, a number, a boolean) are not held: the
 ///          call is denied with FAILED. The call is never modified;
 ///        - OwnerRef and TraceRef of the context, and no ResultTarget, IncidentRef or DryRun, so the hold sends no outcome;
@@ -67,6 +76,9 @@ Parameter FAILED = "the check of this tool call failed, so nothing was run.";
 /// The sentence for a call that is not both safe and read-only in a turn that holds content that did not come from the user (untrusted or tainted). The
 /// model describes the action to the user as an offer, which never becomes an approval request by itself.
 Parameter UNTRUSTED = "this turn holds content that did not come from the user, so only read-only tools can run in it and nothing was run; describe the action to the user as an offer they can ask for in their own turn.";
+
+/// The Kind of the context of a replay (Msg.Enum REQUESTKIND tool).
+Parameter REPLAYKIND = "tool";
 
 /// The only Provenance of a user's turn: any other value counts as untrusted, which fails safe.
 Parameter USERPROVENANCE = "user";
@@ -121,11 +133,18 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	If '##class(OcuTalon.Bridge.Context).Active() $$$ThrowStatus($SYSTEM.Status.Error(5001, "There is no context for the call"))
 	If name = "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The call is not an object with a name"))
 	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	Set replay = (context.Kind = ..#REPLAYKIND)
+	If replay && (source = "") Set source = ##class(OcuTalon.Bridge.Context).GrantSource()
 	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call))
 	Set missing = ..MissingPrivilege(source, name)
 	If missing '= "" Quit ..Denial($Replace(..#NOPRIVILEGE, "{privilege}", missing))
-	If ((context.Provenance '= ..#USERPROVENANCE) || (context.Tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
-	If classification.classification '= ..#SAFE Quit ..Hold(context, name, call, sinkClass)
+	Set tainted = $Select(replay: 0, 1: context.Tainted)
+	If ((context.Provenance '= ..#USERPROVENANCE) || (tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
+	If replay {
+		If '##class(OcuTalon.Bridge.Context).TakeGrant(name, ..ArgumentsOf(call), source) Quit ..Denial(..#FAILED)
+	} ElseIf classification.classification '= ..#SAFE {
+		Quit ..Hold(context, name, source, call, sinkClass)
+	}
 	Do ..ReportStep(context, source, name, sinkClass)
 	If classification.trustedOutput '= 1 {
 		Set sc = ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
@@ -136,7 +155,7 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 
 /// Holds a call that is not safe: raises one tool_call request for it through Approval.Raise (see the class comment, step 5) and denies the
 /// call with HELD. It throws Raise's status when Raise fails, which Check turns into FAILED and one warning.
-ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
+ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
 {
 	Set type = call.%GetTypeOf("arguments")
 	If (type '= "object") && (type '= "string") && (type '= "null") && (type '= "unassigned") {
@@ -154,6 +173,8 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, call As %D
 	Set request.Kind = "tool_call"
 	Set request.ToolName = name
 	Set request.ToolArguments = text
+	Set request.ToolSource = source
+	Set request.Runner = context.Runner
 	Set request.OwnerRef = context.OwnerRef
 	Set request.TraceRef = context.TraceRef
 	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .ref, sinkClass)

@@ -65,6 +65,9 @@ Class OcuTalon.Test.Bridge.Gate Extends %UnitTest.TestCase
 
 Parameter GATE = "OcuTalon.Bridge.Policy.Gate";
 
+/// The class of the replay tests' tools (Story 30.3).
+Parameter REPLAYTOOL = "OcuTalon.Test.Bridge.ZzReplayTool";
+
 /// The test tool class, the odd declarations, the built-in tool classes of rows 1 and 2, the toolset of the sample and the agent.
 Parameter TOOLS = "OcuTalon.Test.Bridge.ZzGateTool";
 
@@ -419,7 +422,7 @@ Method TestRiskyByCodeAndUnclassified()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Set sc = ..Verdict("zz_gate_held", ..#TOOLS, arguments, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), held, "a tool that is risky in code is denied with HELD")
-	Set ref = ..AssertHeld(request, "zz_gate_held", arguments.%ToJSON(), "row 1")
+	Set ref = ..AssertHeld(request, "zz_gate_held", arguments.%ToJSON(), "row 1", 1, ..#TOOLS, "")
 	Do $$$AssertEquals(arguments.%ToJSON(), "{""value"":1,""nested"":{""b"":2,""a"":1}}", "control: the arguments are in the order of the call")
 	If ref '= "" {
 		Set start = ##class(OcuTalon.Test.Bridge.Approval).HoldMessages(mark, ref).start
@@ -457,13 +460,13 @@ Method TestRiskyByCodeAndUnclassified()
 	Kill ^||ZzProbeSink
 	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_other", {}), {}, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), held, "(d) an MCP call is denied with HELD")
-	Do ..AssertHeld(request, "zz_mcp_other", "{}", "(d)")
+	Do ..AssertHeld(request, "zz_mcp_other", "{}", "(d)", 1, "mcp:zzserver", "")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin()
 	Kill ^||ZzProbeSink
 	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("zz_gate_risky", ..Call("zz_gate_risky", {}), {}, ..#SINK)
 	Do $$$AssertEquals(..Sentence(sc), held, "a call whose metadata has no origin_class is held")
-	Do ..AssertHeld(request, "zz_gate_risky", "{}", "no origin_class")
+	Do ..AssertHeld(request, "zz_gate_risky", "{}", "no origin_class", 1, "", "")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set request = ..Begin()
 	Kill ^||ZzProbeSink
@@ -866,7 +869,7 @@ Method TestDeveloperRiskyEndToEnd()
 	Do $$$AssertTrue($IsObject(manager.AuditPolicy) && manager.AuditPolicy.%IsA("OcuTalon.Bridge.Policy.StepAudit"), "and its AuditPolicy the step audit policy")
 
 	// row 6: rejected
-	Set ref = ..AssertHeld(request, "zz_gate_risky", "{}", "row 6", 0)
+	Set ref = ..AssertHeld(request, "zz_gate_risky", "{}", "row 6", 0, ..#TOOLS, "ZzRunner")
 	If ref = "" Quit
 	Set session = ##class(OcuTalon.Test.Bridge.Approval).HoldMessages(mark, ref).session
 	Set result = $ClassMethod(approval, "Answer", ref, "reject", "web", approver, "", .winner)
@@ -882,7 +885,7 @@ Method TestDeveloperRiskyEndToEnd()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Do ..Turn("gate-risky", .reply, .requests, .request, .host)
 	If '$IsObject(reply) Quit
-	Set ref = ..AssertHeld(request, "zz_gate_risky", "{}", "row 7", 0)
+	Set ref = ..AssertHeld(request, "zz_gate_risky", "{}", "row 7", 0, ..#TOOLS, "ZzRunner")
 	If ref = "" Quit
 	Set session = ##class(OcuTalon.Test.Bridge.Approval).HoldMessages(mark, ref).session
 	Do ##class(OcuTalon.Test.Bridge.Approval).Age(ref, 86460, -60)
@@ -1079,7 +1082,8 @@ Method TestClassWideHook()
 	Do $$$AssertEquals(result.classification_"|"_result.by, "safe|code", "while the method of the tool's own name outranks the class-wide one")
 }
 
-/// The gate decides every request kind alike (decide, diagnose, turn and tool). With provenance user, a safe built-in (set_reminder) is allowed and reported
+/// The gate decides the request kinds decide, diagnose and turn alike (the kind tool is the replay of an approved call: its context holds a grant, and
+/// TestReplayGrant, TestReplayGovernance and TestReplaySourceFallback pin its rules). With provenance user, a safe built-in (set_reminder) is allowed and reported
 /// to the sink with the request's own owner and DecisionRef, and a risky tool is denied with HELD, fires no turn.step and raises one request for the
 /// owner (approval.raised). With any other
 /// provenance only a safe, read-only built-in (list_reminders) is allowed and reported, and set_reminder is denied with UNTRUSTED and reported to nobody.
@@ -1087,7 +1091,7 @@ Method TestAnyRequestKindAndProvenance()
 {
 	Set held = $Parameter(..#GATE, "HELD")
 	Set untrusted = $Parameter(..#GATE, "UNTRUSTED")
-	For kind = "decide", "diagnose", "turn", "tool" {
+	For kind = "decide", "diagnose", "turn" {
 		Kill ^||ZzProbeSink
 		Set request = ..Begin(kind, "user")
 		Do $$$AssertEquals(..Sentence(..Decided("set_reminder", ..#REMINDERS)), "<OK>", kind_" with provenance user: a safe built-in is allowed")
@@ -1588,11 +1592,270 @@ Method TestFailedRaiseIsDeniedWithFailed()
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "(c) the sink got no call")
 }
 
+/// Story 30.3, row 5 (the hash): the grant compares the canonical form of the arguments, made by Context.ArgumentsHash. Key order (of every object),
+/// number spelling (1.0, 1 and 1e0) and an object against its JSON text do not matter; a changed nested value, the order of an array, a string
+/// against a number, an extra or missing key, a null against a missing key and the case of a key do.
+Method TestReplayArgumentsHash()
+{
+	Set context = "OcuTalon.Bridge.Context"
+	Set e = $Char(233)
+	Set base = $ClassMethod(context, "ArgumentsHash", "{""b"":2,""a"":{""y"":1.0,""x"":"""_e_"""}}")
+	Do $$$AssertTrue($Length(base) = 44, "the hash is a SHA-256 in base64: "_base)
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1.0},""b"":2}"), base, "the key order of every object does not matter")
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1},""b"":2}"), base, "1.0 and 1 are one number")
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1e0},""b"":2.00}"), base, "so are 1e0 and 2.00 and 1 and 2")
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", {}.%FromJSON("{""b"":2,""a"":{""y"":1.0,""x"":"""_e_"""}}")), base, "an object and its JSON text have one hash")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":""z"",""y"":1},""b"":2}"), base, "a changed nested value changes it")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1},""b"":3}"), base, "so does a changed top-level value")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1},""b"":""2""}"), base, "a string 2 is not the number 2")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1},""b"":2,""c"":1}"), base, "an extra key changes it")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":{""x"":"""_e_""",""y"":1}}"), base, "a missing key changes it")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""A"":{""x"":"""_e_""",""y"":1},""b"":2}"), base, "the case of a key matters")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""a"":1,""n"":null}"), $ClassMethod(context, "ArgumentsHash", "{""a"":1}"), "a null member is not a missing one")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""l"":[1,2]}"), $ClassMethod(context, "ArgumentsHash", "{""l"":[2,1]}"), "the order of an array matters")
+	Do $$$AssertNotEquals($ClassMethod(context, "ArgumentsHash", "{""t"":true}"), $ClassMethod(context, "ArgumentsHash", "{""t"":""true""}"), "a boolean is not a string")
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", ""), $ClassMethod(context, "ArgumentsHash", "{}"), "no arguments are an empty object")
+	Do $$$AssertEquals($ClassMethod(context, "ArgumentsHash", "   "), $ClassMethod(context, "ArgumentsHash", {}), "and so is blank text")
+	Set thrown = 0
+	Try {
+		Set x = $ClassMethod(context, "ArgumentsHash", "not json")
+	} Catch {
+		Set thrown = 1
+	}
+	Do $$$AssertTrue(thrown, "text that is not JSON throws, so that a grant is never built from it")
+}
+
+/// Story 30.3, row 5 (AC 2): the gate in a replay context (Kind tool) with a grant that Context.Grant built from an executing row.
+///   - A call that differs in the name, an argument value or the source is denied with FAILED and the grant stays; none raises an approval request.
+///   - The first call that matches the name, the canonical arguments (key order and number spelling ignored, here as a JSON text) and the source is
+///     allowed, reported to the sink with the DecisionRef, and consumes the grant; the second matching call is denied with FAILED.
+///   - With no grant (none built, or a row that is not executing) every call is denied with FAILED, also a safe one, and nothing is held.
+///   - Context.Grant builds a grant only from an executing tool_call row; the grant is no field, so Current and Put never show or set it, and Begin
+///     and End kill it.
+Method TestReplayGrant()
+{
+	If ..Guard(1) Quit
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set tool = ..#REPLAYTOOL
+	Set e = $Char(233)
+	Set text = "{""b"":2,""a"":{""y"":1.0,""x"":"""_e_"""}}"
+	Set ref = ..ExecutingRow("zz_replay_send", text, tool)
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Set owner = request.OwnerRef
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), tool, "its source is the row's ToolSource")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Runner, "ChatAgent", "the context carries the runner")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Context).Put("grant", "x"), "the grant is no field that Put may set")
+	Kill ^||ZzProbeSink
+	Set gate = "OcuTalon.Bridge.Policy.Gate"
+	Set same = "{""a"":{""x"":"""_e_""",""y"":1},""b"":2}"
+	Set cases = $ListBuild(
+		$ListBuild("another name", "zz_replay_throw", same, tool),
+		$ListBuild("another argument value", "zz_replay_send", "{""a"":{""x"":""z"",""y"":1},""b"":2}", tool),
+		$ListBuild("another source", "zz_replay_send", same, ..#TOOLS),
+		$ListBuild("an argument missing", "zz_replay_send", "{""b"":2}", tool))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set sc = $ClassMethod(gate, "Check", $List(case, 2), ..Call($List(case, 2), $List(case, 3)), ..Meta($List(case, 4)), ..#SINK)
+		Do $$$AssertEquals(..Sentence(sc), failed, "a call with "_$List(case, 1)_" is denied with FAILED")
+	}
+	Do $$$AssertEquals(..ApprovalRows(owner), 0, "none of them raised an approval request")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and none was reported")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), tool, "the grant is still there")
+
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", same), ..Meta(tool), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), "<OK>", "the first matching call is allowed: the arguments in another order, 1 for 1.0, as a JSON text")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and reported once")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), "", "the grant is consumed")
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", same), ..Meta(tool), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), failed, "a second matching call is denied with FAILED")
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", {}.%FromJSON(text)), ..Meta(tool), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), failed, "also with the arguments as an object")
+	Do $$$AssertEquals(..ApprovalRows(owner), 0, "no approval request was raised")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and nothing more was reported")
+
+	// the grant is the call's: an object with the arguments of the row matches too, once
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "the grant is built again")
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", {}.%FromJSON(text)), ..Meta(tool), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), "<OK>", "an object with the row's arguments matches")
+	Do ##class(OcuTalon.Bridge.Context).Grant(ref)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), tool, "a grant stands again")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals($Data(^||OcuTalonBP.Context), 0, "End kills the context and its grant")
+
+	// no grant: every call is denied with FAILED, also a safe one, and nothing is held
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Kill ^||ZzProbeSink
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", same), ..Meta(tool), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), failed, "with no grant a risky call is denied with FAILED, not HELD")
+	Set sc = $ClassMethod(gate, "Check", "set_reminder", ..Call("set_reminder", {}), ..Meta(..#REMINDERS), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), failed, "and so is a safe call")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "no approval request was raised")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and nothing was reported")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Context).Grant(##class(OcuTalon.Bridge.Ids).NewRef()), "a Ref with no row gets no grant")
+	Set pending = ..ExecutingRow("zz_replay_send", "{}", tool, "approved")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Context).Grant(pending), "a row that is not executing gets no grant")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), "", "and leaves none")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 30.3, AC 2: the permission and provenance rules run before the grant in a replay context, and a denial by them keeps the grant. A granted
+/// call whose privilege the job lacks (zz_gate_admin) is denied with NOPRIVILEGE, and a granted risky call in a context of untrusted provenance
+/// is denied with UNTRUSTED; in both the grant is still there, and no approval request is raised.
+Method TestReplayKeepsThePermissionAndProvenanceRules()
+{
+	If ..Guard(1) Quit
+	Set gate = ..#GATE
+	Set admin = ..ExecutingRow("zz_gate_admin", "{}", ..#TOOLS)
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(admin), "a grant is built for a tool whose privilege the job lacks")
+	Set sc = $ClassMethod(gate, "Check", "zz_gate_admin", ..Call("zz_gate_admin", {}), ..Meta(..#TOOLS), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), $Replace($Parameter(gate, "NOPRIVILEGE"), "{privilege}", "%Admin_Secure:U"), "the matching call is denied with NOPRIVILEGE, not allowed by the grant")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), ..#TOOLS, "and the grant is still there")
+	Do ##class(OcuTalon.Bridge.Context).End()
+
+	Set risky = ..ExecutingRow("zz_replay_send", "{}", ..#REPLAYTOOL)
+	Set request = ..Begin("tool", "untrusted", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(risky), "a grant is built in a context of untrusted provenance")
+	Set sc = $ClassMethod(gate, "Check", "zz_replay_send", ..Call("zz_replay_send", {}), ..Meta(..#REPLAYTOOL), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), $Parameter(gate, "UNTRUSTED"), "the matching risky call is denied with UNTRUSTED")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), ..#REPLAYTOOL, "and the grant is still there")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "no approval request was raised")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 30.3, row 6a (AC 2): when the call's metadata has no origin_class, a replay takes the source from the grant (the row's ToolSource), so the
+/// call is classified and matched by it; when origin_class arrives and names another class than the row's, the call is denied with FAILED (the live
+/// case is row 6b in Test.Bridge.Approval).
+Method TestReplaySourceFallback()
+{
+	If ..Guard(1) Quit
+	Set failed = $Parameter(..#GATE, "FAILED")
+	Set tool = ..#REPLAYTOOL
+	Set ref = ..ExecutingRow("zz_replay_send", "{""b"":2}", tool)
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row")
+	Kill ^||ZzProbeSink
+	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("zz_replay_send", ..Call("zz_replay_send", {"b": 2}), {"requires_auth": false}, ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), "<OK>", "(a) metadata without origin_class: the source comes from the grant and the call is allowed")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "(a) and reported")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "the grant is built again")
+	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("zz_replay_send", ..Call("zz_replay_send", {"b": 2}), ..Meta(..#TOOLS), ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), failed, "(b) origin_class names another class: the call is denied with FAILED")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).GrantSource(), tool, "(b) and the grant is kept")
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "no approval request was raised")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	// a context that is no replay never takes the source from a grant: the call has none, and is held as unclassified
+	Set request = ..Begin("turn", "user", , , "ChatAgent")
+	Kill ^||ZzProbeSink
+	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("zz_replay_send", ..Call("zz_replay_send", {"b": 2}), {"requires_auth": false}, ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), $Parameter(..#GATE, "HELD"), "in a turn the same call is held, as an unclassified one")
+	Do ..AssertHeld(request, "zz_replay_send", "{""b"":2}", "a turn", 1, "", "ChatAgent")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Story 30.3, row 5 (AC 2, the governance test): a real %AI.ToolMgr with the toolset of the replay tests, the gate and the step audit policy, in a replay
+/// context with a grant from an executing row. ExecuteTool runs the approved call once (the tool ran 1 time), and a second ExecuteTool with the same call in
+/// the same context raises ToolAccessDenied: the tool still ran once, the steps are one ok step and one denied step, and no approval request was raised.
+Method TestReplayGovernance()
+{
+	If ..Guard(1) Quit
+	Kill ^OcuTalonTest("Replay")
+	Do ..Clean()
+	Set tool = ..#REPLAYTOOL
+	Set text = "{""b"":2,""a"":{""y"":1.0,""x"":""v""}}"
+	Set ref = ..ExecutingRow("zz_replay_send", text, tool)
+	Set request = ..Begin("tool", "user", , , "ChatAgent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Grant(ref), "a grant is built from the executing row")
+	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(0)
+	Set manager = ##class(%AI.ToolMgr).%New()
+	Set sc = manager.RegisterToolSet("OcuTalon.Test.Bridge.ZzReplayTools")
+	If $$$ISOK(sc) Set sc = manager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
+	If $$$ISOK(sc) Set sc = manager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
+	Do $$$AssertStatusOK(sc, "the tool manager is set up")
+	Set first = ""
+	Set raised = ""
+	Try {
+		Set first = manager.ExecuteTool("zz_replay_send", {}.%FromJSON(text))
+	} Catch exception {
+		Set raised = $SYSTEM.Status.GetErrorCodes(exception.AsStatus())
+	}
+	Do $$$AssertEquals(raised, "", "the first ExecuteTool of the approved call returns")
+	Do $$$AssertTrue($IsObject(first) && first.%IsDefined("value"), "with a result that has a value")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "the tool ran once")
+	Set raised = ""
+	Try {
+		Do manager.ExecuteTool("zz_replay_send", {}.%FromJSON(text))
+	} Catch exception {
+		Set raised = $SYSTEM.Status.GetErrorCodes(exception.AsStatus())
+	}
+	Do $$$AssertEquals(raised, ..#DENIED, "a second ExecuteTool in the same context raises ToolAccessDenied")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "and the tool did not run again")
+	Set records = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records()
+	Do $$$AssertEquals(records.%Size(), 2, "the steps are two")
+	If records.%Size() = 2 Do $$$AssertEquals(records.%Get(0).status_"|"_records.%Get(1).status, "ok|denied", "an ok step and a denied step")
+	If records.%Size() = 2 Do $$$AssertTrue(records.%Get(1).summary [ "Denied: Tool access denied: the check of this tool call failed", "the denial is the gate's FAILED sentence: "_records.%Get(1).summary)
+	Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "no approval request was raised")
+	Do ..Clean()
+	Kill ^OcuTalonTest("Replay")
+}
+
+/// Story 30.3, row 15 (DW-194): a held call's row names the source the gate classified it by (origin_class, or the mcp: toolref) and the runner item
+/// of the context; a context that no runner began leaves the runner empty.
+Method TestHeldRowNamesSourceAndRunner()
+{
+	If ..Guard(1) Quit
+	Set held = $Parameter(..#GATE, "HELD")
+	Set request = ..Begin("turn", "user", , , "ChatAgent")
+	Kill ^||ZzProbeSink
+	Set sc = ..Verdict("zz_gate_held", ..#TOOLS, {}, ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), held, "a risky call is held")
+	Do ..AssertHeld(request, "zz_gate_held", "{}", "a runner context", 1, ..#TOOLS, "ChatAgent")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("turn", "user", , , "DeveloperAgent")
+	Kill ^||ZzProbeSink
+	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_other", {}), {}, ..#SINK)
+	Do $$$AssertEquals(..Sentence(sc), held, "an MCP call is held")
+	Do ..AssertHeld(request, "zz_mcp_other", "{}", "an MCP call", 1, "mcp:zzserver", "DeveloperAgent")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set request = ..Begin("turn", "user")
+	Kill ^||ZzProbeSink
+	Set sc = ..Verdict("zz_gate_held", ..#TOOLS, {}, ..#SINK)
+	Do ..AssertHeld(request, "zz_gate_held", "{}", "a context of no runner", 1, ..#TOOLS, "")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// Saves an executing tool_call row (a replay's row after StartExecution) of the tool, its arguments and its source, with no hold, tracks it for Clean
+/// and returns its Ref; a state other than executing makes a row that gets no grant.
+Method ExecutingRow(name As %String, arguments As %String, source As %String, state As %String = "executing") As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = "tool_call"
+	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.State = state
+	Set row.RequiredRole = "OcuTalonUser"
+	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
+	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, 3600)
+	Set row.AnsweredAction = "approve"
+	Set row.AnsweredChannel = "web"
+	Set row.AnsweredBy = "ocutalon"
+	Set row.AnsweredAt = now
+	Set row.ToolName = name
+	Set row.ToolArguments = arguments
+	Set row.ToolSource = source
+	Set row.Runner = "ChatAgent"
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row ("_state_") is saved")
+	Set ^OcuTalonTest("Gate", "replayrows", row.Ref) = ""
+	Quit row.Ref
+}
+
 /// --- helpers ---
 /// Begins a context of a user's turn (kind turn, provenance user) with refs of its own, and returns the request. The OwnerRef is a new tracked Ref (Owner)
 /// and so is the TraceRef; a thread session and a SuperSession, when given, are the context's (AD-26). The first call of a test checks that the
 /// production is ready (CheckReady): a risky call is held through it.
-Method Begin(kind As %String = "turn", provenance As %String = "user", threadSession As %Integer = "", superSession As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
+Method Begin(kind As %String = "turn", provenance As %String = "user", threadSession As %Integer = "", superSession As %String = "", runner As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Do ..CheckReady()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
@@ -1604,7 +1867,7 @@ Method Begin(kind As %String = "turn", provenance As %String = "user", threadSes
 	Set request.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request.Channel = "system"
 	If threadSession '= "" Set request.ThreadSessionId = threadSession
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, superSession), "a context of a user's turn begins")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, superSession, runner), "a context of a user's turn begins")
 	Quit request
 }
 
@@ -1671,9 +1934,9 @@ ClassMethod ApprovalRef(owner As %String) As %String [ Private ]
 
 /// Asserts what a held call leaves (the I/O matrix of Story 3.6): exactly one row for the request's owner, pending, a tool_call with RequiredRole
 /// OcuTalonUser, the ToolName and the ToolArguments given, the OwnerRef and the TraceRef of the request and no ResultTarget, IncidentRef or DryRun; its
-/// task exists and exactly one hold is live. With checkSink (the private ProbeSink was the gate's sink), the sink got exactly one call, approval.raised,
+/// task exists and exactly one hold is live. With a source and a runner (Story 30.3, DW-194) the row also names the gate's source and the runner item of the context. With checkSink (the private ProbeSink was the gate's sink), the sink got exactly one call, approval.raised,
 /// with the OwnerRef and {"ref"}, at transaction level 0, with the row existing and pending, and no turn.step. Returns the row's Ref, or "".
-Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, arguments As %String, label As %String, checkSink As %Boolean = 1) As %String [ Private ]
+Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, arguments As %String, label As %String, checkSink As %Boolean = 1, source As %String = "<unchecked>", runner As %String = "<unchecked>") As %String [ Private ]
 {
 	Set owner = request.OwnerRef
 	Set refs = ..ApprovalRefs(owner)
@@ -1687,6 +1950,8 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 	Do $$$AssertEquals(row.ToolArguments, arguments, label_": its arguments are as given")
 	Do $$$AssertEquals(row.OwnerRef_"|"_row.TraceRef, owner_"|"_request.TraceRef, label_": its OwnerRef and TraceRef are the context's")
 	Do $$$AssertEquals(row.ResultTarget_row.IncidentRef_row.DryRun, "", label_": it has no ResultTarget, IncidentRef or DryRun")
+	If source '= "<unchecked>" Do $$$AssertEquals(row.ToolSource, source, label_": its ToolSource is the source the gate classified the call by")
+	If runner '= "<unchecked>" Do $$$AssertEquals(row.Runner, runner, label_": its Runner is the runner item of the context")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitTask(ref, 10) '= "", label_": its task exists")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).HoldCount(ref)_"|"_(##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= ""), "1|1", label_": exactly one hold, and it is live")
 	If checkSink {
@@ -2033,6 +2298,14 @@ ClassMethod Clean() [ Private ]
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	Kill ^||ZzGateRan, ^||ZzProbeSink, ^OcuTalonTest("Gate", "ran")
+	Set ref = ""
+	For {
+		Set ref = $Order(^OcuTalonTest("Gate", "replayrows", ref))
+		Quit:ref=""
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
+	}
+	Kill ^OcuTalonTest("Gate", "replayrows"), ^OcuTalonTest("Replay")
 }
 
 /// How many times the tool of the name ran in any job (the tools' job-independent marker, ^OcuTalonTest("Gate","ran",name)); 0 when it never ran since

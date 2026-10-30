@@ -17,7 +17,7 @@
 ///   - TestCacheOverThreshold: a probe agent whose system prompt is over min_tokens_for_cache, run through the same runner path, has
 ///     its system block marked for the cache in the mock's log, so the cache block of the composed config reaches the provider;
 ///   - TestOpenKeepsConfig: a session that a freshly built adapter opens still has the cap and the effort;
-///   - TestUnbuiltKinds: kind tool, an unknown kind and an Input that is empty or white space only send nothing and build nothing; a
+///   - TestUnbuiltKinds: an unknown kind and an Input that is empty or white space only send nothing and build nothing; a
 ///     runner with no model sends nothing;
 ///   - TestUsageRows (Story 1.4; AD-6, AD-9, AD-20): the runner writes one Usage row for each Chat that returns, with the config name of
 ///     the runner item as its agent, and puts the same counts, the cost, the model, the steps and the wall time on the Reply; a call
@@ -65,6 +65,13 @@
 /// (NewUsageRequest, TestContext, TestFailureKeepsContext), and OnAfterOneTest deletes the sessions saved since the test began and the links
 /// that name them. TestStepsRedacted and TestStepsRedactedText drop the session of their turn before they scan: the saved conversation holds what
 /// the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
+/// Added by Story 30.3 (an approved tool call runs exactly once, with no model; AD-6, AD-10, AD-11):
+///   - TestReplayThroughTheRunner: a request of kind tool (the Ref of an approved tool_call in ItemId) to the shadow runner ZzRunner, whose agent is
+///     ZzReplayAgent: the stored call runs once (the reply holds no text, ToolsRun 1 and a tool step), the row is done, the grant is gone and the
+///     mock got no request (rows 4b, 7, 8 and the success reply); a second request for the same Ref is refused by StartExecution and runs nothing;
+///     a tool that raises gives a failed row, a failed Action entry and a failure reply, and is not retried; an approved row past its ExpiresAt is
+///     closed failed, runs nothing and writes no Action entry; a Ref that is no tool_call is refused and left alone; the throwaway session that the
+///     replay creates is never linked.
 /// Added by Story 1.13 (AD-6; DW-149):
 ///   - TestShadowRecordsNothing: the adapter of a shadow host, which is no item in its own job, records no key state in OnInit and forgets
 ///     none in OnTearDown, even a record that this job wrote.
@@ -478,8 +485,7 @@ Method TestOpenKeepsConfig()
 	If id '= "" Do $$$AssertStatusOK(##class(%AI.Agent.Session).%DeleteId(id), "the saved session is deleted")
 }
 
-/// Kind tool is not implemented yet; a kind that is none of the request kinds and an empty Input are refused, naming the kind or the
-/// Input. None of them builds the agent or sends anything. A runner whose model is empty fails before it sends.
+/// A kind that is none of the request kinds and an empty Input are refused, naming the kind or the Input. None of them builds the agent or sends anything. A runner whose model is empty fails before it sends.
 Method TestUnbuiltKinds()
 {
 	If ..Guard() Quit
@@ -487,12 +493,6 @@ Method TestUnbuiltKinds()
 	Set adapter = host.Adapter
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
-
-	Set request = ..NewRequest("tool", "user", "Replay the call. (test "_ref_")")
-	Set sc = host.OnMessage(request, .response)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "kind tool is not implemented")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "#5003: Not implemented", "with the text of the stubs")
-	Do $$$AssertTrue('$IsObject(response), "and no response")
 
 	Set request = ..NewRequest("zzkind", "user", "Do something. (test "_ref_")")
 	Set sc = host.OnMessage(request, .response)
@@ -979,6 +979,224 @@ Method SaveSession() As %String [ Private ]
 	Do $$$AssertStatusOK(session.%Save(), "the session is saved")
 	Set id = session.%Id()
 	Quit id
+}
+
+/// Story 30.3, rows 4b, 7 and 8, the success reply, the grant and the mock's log: a request of kind tool goes straight to the shadow runner ZzRunner
+/// (agent ZzReplayAgent) for fixture rows of approved tool_calls, and the runner never calls the model.
+///   - Success: the reply holds no text, no host data and no failure text, Tainted 0, ToolsRun 1 and a tool step of zz_replay_send; the tool ran once;
+///     the row is done with Result done; one Action entry (done); the context and the grant are gone.
+///   - Row 4b: the same request again is refused by StartExecution: a failure reply with ToolsRun 0, no second run, the row as it was, no new entry.
+///   - Row 7: zz_replay_throw raises: the row is failed, the Action entry says failed, the reply carries a failure text and ToolsRun 1, and the tool
+///     ran once (no retry). Task 0 (a): ExecuteTool raises for a tool that raises.
+///   - Row 8: an approved row past its ExpiresAt: StartExecution is refused, the runner closes the row failed, nothing runs, no Action entry is written.
+///   - A Ref with no row, and a fix row, are refused and left alone.
+///   - The throwaway AI session of the replay is never linked: no conversation link is made, and the mock's log holds no request.
+Method TestReplayThroughTheRunner()
+{
+	If ..Guard() Quit
+	Kill ^OcuTalonTest("Replay")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", ..ProviderConfig())
+	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set links = ..LinkCount()
+	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set tool = "OcuTalon.Test.Bridge.ZzReplayTool"
+
+	// success
+	Set ref = ..ApprovedRow("zz_replay_send", "{""b"":2,""a"":{""y"":1.0,""x"":""v""}}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(ref), .reply)
+	Do $$$AssertStatusOK(sc, "the replay is answered")
+	Do $$$AssertTrue($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"), "with a Reply")
+	If $IsObject(reply) {
+		Do $$$AssertEquals(reply.Text_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.FinishReason, "|||", "it holds no text, host data, failure text or finish reason")
+		Do $$$AssertEquals(reply.Tainted_"|"_reply.ToolsRun_"|"_reply.Busy, "0|1|0", "Tainted 0, ToolsRun 1, not busy")
+		Set steps = {}.%FromJSON(reply.Steps)
+		Do $$$AssertEquals(steps.%Size(), 1, "one step record")
+		If steps.%Size() = 1 Do $$$AssertEquals(steps.%Get(0).kind_"|"_steps.%Get(0).status, "tool|ok", "a tool step, ok")
+		If steps.%Size() = 1 Do $$$AssertTrue(steps.%Get(0).summary [ "ZZ-REPLAY-RESULT-5182", "the result text appears in the step record of the trace, like any tool step")
+		Do $$$AssertEquals(reply.AgentStepCount, 1, "the step count is 1")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "the tool ran once")
+	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "done|done", "the row is done")
+	Set finished = ..Prop(ref, "FinishedAt")
+	Do $$$AssertTrue(finished '= "", "with FinishedAt set")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "the context is over")
+	Do $$$AssertEquals($Data(^||OcuTalonBP.Context), 0, "and so is its grant")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), 0, "and the step buffer")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).TakeGrant("zz_replay_send", {}, tool), 0, "a call after the run finds no grant")
+	Do $$$AssertEquals(..ActionEntries(audit, ref, "done"), 1, "one Action entry says done")
+
+	// row 4b: the same request again
+	Set sc = host.OnMessage(..ToolRequest(ref), .again)
+	Do $$$AssertStatusOK(sc, "(4b) the second request is answered")
+	Do $$$AssertTrue($IsObject(again), "(4b) with a Reply")
+	If $IsObject(again) Do $$$AssertTrue((again.FailureText '= "") && (again.ToolsRun = 0) && (again.Steps = ""), "(4b) with a failure reply: ToolsRun 0, no steps: "_again.FailureText)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(4b) the tool did not run again")
+	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result")_"|"_..Prop(ref, "FinishedAt"), "done|done|"_finished, "(4b) the row is as it was")
+	Do $$$AssertEquals(..ActionEntries(audit, ref, "done"), 1, "(4b) and there is still one Action entry")
+
+	// row 7: a tool that raises
+	Set thrown = ..ApprovedRow("zz_replay_throw", "{}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(thrown), .failed)
+	Do $$$AssertStatusOK(sc, "(7) the replay of a tool that raises is answered")
+	Do $$$AssertTrue($IsObject(failed), "(7) with a Reply")
+	If $IsObject(failed) {
+		Do $$$AssertTrue(failed.FailureText [ "ZZ-REPLAY-THROW", "(7) the failure text is the tool's error: "_failed.FailureText)
+		Do $$$AssertEquals(failed.ToolsRun_"|"_failed.Text, "1|", "(7) ToolsRun 1 and no text")
+		Set steps = {}.%FromJSON(failed.Steps)
+		If steps.%Size() = 1 Do $$$AssertEquals(steps.%Get(0).status, "error", "(7) the step is an error step")
+	}
+	Do $$$AssertEquals(..Prop(thrown, "State")_"|"_..Prop(thrown, "Result"), "failed|failed", "(7) the row is failed")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_throw"), 1, "(7) the tool ran once, and is not retried")
+	Do $$$AssertEquals(..ActionEntries(audit, thrown, "failed"), 1, "(7) the Action entry says failed")
+
+	// row 8: could not start
+	Set late = ..ApprovedRow("zz_replay_send", "{}", tool, -60)
+	Set sc = host.OnMessage(..ToolRequest(late), .refused)
+	Do $$$AssertStatusOK(sc, "(8) the request is answered")
+	Do $$$AssertTrue($IsObject(refused), "(8) with a Reply")
+	If $IsObject(refused) Do $$$AssertTrue((refused.FailureText '= "") && (refused.ToolsRun = 0), "(8) with a failure reply and ToolsRun 0: "_refused.FailureText)
+	Do $$$AssertEquals(..Prop(late, "State")_"|"_..Prop(late, "Result"), "failed|failed", "(8) the row is closed failed")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(8) nothing ran")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Approval", "Approval", late, , 2).%Size(), 1, "(8) the Approval finished entry is the only entry of the Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", late).%Size(), 0, "(8) no Action entry")
+
+	// a replay of a row that another run holds (executing) is refused and does not run the call
+	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
+	Set busy = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
+	Set busyRow = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(busy)
+	Set busyRow.State = "executing"
+	Do $$$AssertStatusOK(busyRow.%Save(), "(duplicate) the row is executing, as while another run holds it")
+	Kill busyRow
+	Set sc = host.OnMessage(..ToolRequest(busy), .duplicate)
+	Do $$$AssertStatusOK(sc, "(duplicate) the request is answered")
+	Do $$$AssertTrue($IsObject(duplicate), "(duplicate) with a Reply")
+	If $IsObject(duplicate) Do $$$AssertTrue((duplicate.FailureText '= "") && (duplicate.ToolsRun = 0), "(duplicate) with a failure reply and ToolsRun 0: "_duplicate.FailureText)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(duplicate) the tool did not run")
+	Do $$$AssertEquals(..Prop(busy, "State"), "executing", "(duplicate) and the row is as it was")
+
+	// a failure before ExecuteTool is called: the tool did not run, so ToolsRun is 0, and the row is closed failed
+	Set broken = ..ApprovedRow("zz_replay_send", "this is not json", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(broken), .unrun)
+	Do $$$AssertStatusOK(sc, "(before the call) the request is answered")
+	Do $$$AssertTrue($IsObject(unrun), "(before the call) with a Reply")
+	If $IsObject(unrun) Do $$$AssertTrue((unrun.FailureText '= "") && (unrun.ToolsRun = 0), "(before the call) with a failure reply and ToolsRun 0: "_unrun.FailureText)
+	Do $$$AssertEquals(..Prop(broken, "State")_"|"_..Prop(broken, "Result"), "failed|failed", "(before the call) the row is closed failed")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(before the call) the tool did not run")
+
+	// a fix row and a missing row are left alone
+	Set fix = ..ApprovedRow("", "", "", 3600, "fix")
+	Set before = ..Prop(fix, "State")
+	Set sc = host.OnMessage(..ToolRequest(fix), .other)
+	Do $$$AssertStatusOK(sc, "a fix Ref is answered")
+	Do $$$AssertTrue($IsObject(other), "with a Reply")
+	If $IsObject(other) Do $$$AssertTrue((other.FailureText '= "") && (other.ToolsRun = 0), "with a failure reply and ToolsRun 0")
+	Do $$$AssertEquals(..Prop(fix, "State"), before, "and the fix row is not touched")
+	Set sc = host.OnMessage(..ToolRequest(##class(OcuTalon.Bridge.Ids).NewRef()), .none)
+	Do $$$AssertStatusOK(sc, "a Ref with no row is answered")
+	Do $$$AssertTrue($IsObject(none), "with a Reply")
+	If $IsObject(none) Do $$$AssertTrue((none.FailureText '= "") && (none.ToolsRun = 0), "with a failure reply and ToolsRun 0")
+
+	// no model, no link
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
+	Set others = ""
+	For i = 0:1:entries.%Size() - 1 {
+		Set entry = entries.%Get(i)
+		If (entry.method = "POST") && (entry.path = "/v1/messages") Set others = others _ " model-request"
+		If (entry.method '= "POST") && ((entry.method '= "GET") || ($Extract(entry.path, 1, 11) '= "/v1/models/")) Set others = others _ " "_entry.method_" "_entry.path
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Case).Posts(mark), 0, "the mock's log holds no model request (POST /v1/messages)")
+	Do $$$AssertEquals(others, "", "and nothing but AI Hub's model lookup (GET /v1/models/<model>, no tokens): "_$Extract(entries.%ToJSON(), 1, 300))
+	Do $$$AssertEquals(..LinkCount(), links, "no conversation link was made")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and no AI session was saved: the replay's throwaway session is never linked or saved")
+	Do ..RemoveRows()
+}
+
+/// A request of kind tool for the Ref, as the hold sends it through Decide.
+ClassMethod ToolRequest(ref As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "tool"
+	Set request.Provenance = "user"
+	Set request.ItemId = ref
+	Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.Channel = "system"
+	Quit request
+}
+
+/// Saves an approved tool_call (or fix) row of the shadow runner ZzRunner, with no hold, expiring expiresIn seconds from now, and tracks its Ref
+/// for RemoveRows. The row is answered by the README account over the web.
+Method ApprovedRow(name As %String, arguments As %String, source As %String, expiresIn As %Integer, kind As %String = "tool_call") As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = kind
+	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.State = "approved"
+	Set row.RequiredRole = "OcuTalonUser"
+	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
+	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, expiresIn)
+	Set row.AnsweredAction = "approve"
+	Set row.AnsweredChannel = "web"
+	Set row.AnsweredBy = "ocutalon"
+	Set row.AnsweredAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -30)
+	If kind = "tool_call" {
+		Set row.ToolName = name
+		Set row.ToolArguments = arguments
+		Set row.ToolSource = source
+		Set row.Runner = "ZzRunner"
+	} Else {
+		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set row.ResultTarget = "IncidentManager"
+		Set row.DryRun = "{""affected"":1}"
+		Set row.FixKind = "zz_fix"
+		Set row.FixParameters = "{}"
+		Set row.FixTargets = "1"
+	}
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row "_kind_" is saved, approved")
+	Set ^OcuTalonTest("Replay", "rows", row.Ref) = ""
+	Quit row.Ref
+}
+
+/// Deletes the fixture rows of ApprovedRow.
+ClassMethod RemoveRows() [ Private ]
+{
+	Set ref = ""
+	For {
+		Set ref = $Order(^OcuTalonTest("Replay", "rows", ref))
+		Quit:ref=""
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
+	}
+	Kill ^OcuTalonTest("Replay", "rows")
+}
+
+/// The column of the approval row.
+ClassMethod Prop(ref As %String, name As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit "<no row>"
+	Quit $Property(row, name)
+}
+
+/// The number of Action entries since the mark that name the Ref with the result.
+ClassMethod ActionEntries(mark As %String, ref As %String, result As %String) As %Integer
+{
+	Set count = 0
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "Action", ref)
+	For i = 0:1:entries.%Size() - 1 {
+		If (entries.%Get(i).data.approvalRef = ref) && (entries.%Get(i).data.result = result) Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of conversation links.
+ClassMethod LinkCount() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink")
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 /// A runner host made in memory, a shadow named configName (ZzRunner unless another is given), whose adapter has the agent class, an

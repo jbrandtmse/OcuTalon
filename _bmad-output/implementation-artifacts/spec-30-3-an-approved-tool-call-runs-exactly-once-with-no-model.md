@@ -2,12 +2,34 @@
 title: 'An approved tool call runs exactly once, with no model'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a319d5ec3a8056393aab6e86b4985a17e484f4d5'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The replay path touches the model provider: AI Hub makes one GET /v1/models/<model> at a runner's first ExecuteTool, and BuildAgent needs a provider key, so an approved call fails (row failed, never retried) when the key is unset or the provider is unreachable at replay time.
+    evidence: |-
+      Measured at implementation (Design Notes, "Measured at implementation"): the mock log holds the GET once per runner and no POST /v1/messages; a runner with no key fails with ProviderCreateFailed. The matrix and Test.Bridge.Runner assert POST /v1/messages = 0 and allow only that GET; the intent says the mock's request log is the evidence of no model request. Whether a tokenless metadata GET counts as a model request, and whether a replay may fail on provider trouble, is a product call.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Replay.cls (adapter.BuildAgent, ExecuteTool)
+    severity: medium
+  - summary: >-
+      The AD-6 throwaway session of the replay (NewSession, ReleaseThrowaway) is pinned only negatively: no conversation link and no saved session, which also hold when no session is created.
+    evidence: |-
+      Deleting the NewSession and ReleaseThrowaway calls in Replay.Run leaves every test green, so the lead's literal reading of AD-6 could be reverted silently. A pin needs a seam (a counter on NewSession) or a CodeRules check that Replay.Run calls it.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Replay.cls
+    severity: low
+  - summary: >-
+      Test.Web.GuideApi.TestRunAgain failed once in shard lane-b part 2/2 ("steps 3 to 5 reset; the watch still counts") and passed on the warm stack and on the rerun of the same part.
+    evidence: |-
+      Not in the known-flake list. The test seeds a fix approval row with no ResultTarget in OCUORDERS, which Reconcile's new pass does not select; the failure shows in no other run, so the cause is unknown (a timing or ordering flake).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Web/GuideApi.cls:75
+    severity: low
 ---
 
 <intent-contract>
@@ -192,7 +214,7 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
   3. One Action entry through `Audit.Record`: action = ToolName, target = ToolSource, result, counts {}, approvalRef = Ref, irisUser = AnsweredBy, sessionRef = OwnerRef when it is a Ref, channel = AnsweredChannel else system. Then `FinishExecution(ref, result)`. A failed write or finish is a warning naming the Ref.
   4. Reply: no Text, no HostData, Tainted 0, ToolsRun 1, Steps from `StepRecords`.
   5. Context and StepBuffer end on every path.
-  6. No `Chat`, no session, no Usage row.
+  6. No `Chat` and no Usage row. Per the lead's ruling (Design Notes, "Lead rulings"; AD-6 read literally), Run calls `adapter.NewSession` for a throwaway AI session before ExecuteTool, never links it and releases it unsaved on every path (`adapter.ReleaseSession`); no model request is made on it. A test pins that no `ConversationLink` names it.
   - -- AC 1, 3, 5.
 - [ ] `Bridge/Adapter/Agent.cls` -- `Answer`: kind `tool` returns `##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)` before the Input check. Every other kind's `Context.Begin` passes `..BusinessHost.%ConfigName` as the runner. Make `BuildAgent` callable by Replay, and update the doc comments. `AgentRunner.cls` gets a doc comment only -- AC 1, DW-194.
 - [ ] `Bridge/Process/Decide.cls` -- kind `tool`:
@@ -244,7 +266,47 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 
 ## Spec Change Log
 
+- 2026-10-30 (implement stage, per the lead's dispatch): Task `Bridge/Replay.cls` item 6 read "No `Chat`, no session, no Usage row"; it now follows the lead's ruling in Design Notes (a throwaway, never-linked, unsaved AI session; no model request). The intent block's "No AI session is opened" is read as "no session is linked or saved" and is not edited.
+
 ## Review Triage Log
+
+### 2026-10-30 — Review pass
+- verdicts: 34 findings — high 0, medium 6, low 21, false 7, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1 / Edge 2: a start refused by the row lock leaves the row approved, and Decide's fallback Decision row then answers every later replay from the row, so the approved call never runs — Decide.ConcludeTool records no Decision row and answers with a FailureText Reply while the row is still approved (StillApproved); Decide test "(never started)" added.
+  - `[low]` `[reject]` Blind 2: no recovery for a replay that never completes (a crashed runner leaves the row executing, a Runner naming a missing item) — the executing row is DW-444 and a missing item is not reachable from the gate's own Runner value; wontfix-accepted, reopen_if an approved call is seen stuck with a non-empty Runner.
+  - `[medium]` `[defer]` Blind 3: the no-model replay still depends on the model provider (BuildAgent, the first-ExecuteTool GET) — no fix inside the story; deferred as a product call.
+  - `[false]` `[reject]` Blind 4: Context.Runner writable by Put — the lead ruled "stands" (Design Notes), and tools are developer code.
+  - `[low]` `[patch]` Blind 5 / Edge 4: Context.Grant quits an undefined `failure` when ArgumentsHash returns "" — `failure` now starts as an error status.
+  - `[low]` `[patch]` Blind 6: ArgumentsHash doc says null is {} though only blank is — doc corrected.
+  - `[medium]` `[patch]` Blind 7 / Gap 3: no test pins the permission and provenance rules in a replay context — Test.Bridge.Gate TestReplayKeepsThePermissionAndProvenanceRules (NOPRIVILEGE and UNTRUSTED with the grant kept).
+  - `[low]` `[reject]` Blind 8: Runner and ToolSource are not validated on a tool_call — only the gate writes them (theoretical); a 512-character toolref is far beyond any real MCP toolref.
+  - `[low]` `[reject]` Blind 9: DELIVERYDAYS assumes the 90-day message retention — Story 30.2's purge keeps messages 90 days (Design Notes); by design.
+  - `[low]` `[patch]` Blind 10: `answer` not killed between loop cases in TestReplayOfAnUnroutableRow, and no test of a failure before ExecuteTool — Kill answer; Runner test "(before the call)".
+  - `[false]` `[reject]` Blind 11: the spec's Auto Run Result is out of step — rewritten at finalize; a finding to edit the spec.
+  - `[low]` `[reject]` Edge 1: a failed or missing FinishExecution, or a runner that dies, leaves the row executing — DW-444 (filed by the lead, not this story).
+  - `[low]` `[reject]` Edge 3: a tool that outlasts Decide's TimerSeconds records a timeout fallback Decision though the tool ran — the row and approval.result carry the truth; wontfix-accepted, reopen_if a risky tool runs longer than the Decide timer.
+  - `[low]` `[reject]` Edge 5: the expiry retry re-arms every RETRYSECONDS for ever when Expire keeps failing for a reason other than the lock — theoretical (Expire fails on the lock only).
+  - `[low]` `[reject]` Edge 6: a pending row whose task is completed without an answer gets a new task each time — each re-arm needs an explicit completion outside Answer; theoretical.
+  - `[low]` `[patch]` Edge 7 / Gap other 1: the reply says ToolsRun 1 and the Action entry is written though the failure came before ExecuteTool — ToolsRun is 1 only once ExecuteTool is called; Runner test "(before the call)". The Action entry (result failed) stays: the call was approved and consumed.
+  - `[false]` `[reject]` Edge 8: a rejected or expired tool_call with a ResultTarget is not redelivered — the gate raises tool_call rows with no ResultTarget.
+  - `[false]` `[reject]` Edge 9: blank ToolArguments make %FromJSON throw after the grant — Gate.Hold stores {} for blank arguments, so the row never holds blank text.
+  - `[low]` `[reject]` Edge 10: a Runner naming an absent item is sent to a missing target — same as Blind 2.
+  - `[low]` `[reject]` Edge 11: Context.End or StepBuffer.End raising skips Record — both are plain Kills; theoretical.
+  - `[medium]` `[patch]` Gap 1: nothing pins that Agent.Answer passes the runner item to Context.Begin, so every real hold could have an empty Runner while the tests stay green — AssertHeld in TestDeveloperRiskyEndToEnd rows 6 and 7 now check ToolSource and Runner ZzRunner; mutation recorded.
+  - `[medium]` `[patch]` Gap 2: the replay test asserts the Decision row and the sink call right after the row turns done — WaitDecision and WaitSinkCalls poll first.
+  - `[low]` `[patch]` Gap 4: AC 4 rows 3 and 4c, row 7, row 9's fix-row protection, the Validate half of row 15, Admit's tool rules and the grant plumbing have no mutation line, and the in-flight duplicate (executing row) is untested — mutations applied and recorded; Runner test "(duplicate)"; the End assertion in TestReplayGrant now reads the global.
+  - `[low]` `[defer]` Gap 5: the throwaway session is pinned only negatively — deferred.
+  - `[low]` `[patch]` Gap 6: guarded asserts without an existence check — AssertTrue($IsObject(...)) added. The fixed Hang 10 stays: the later WaitState(expired) is the real signal.
+  - `[false]` `[reject]` Gap other 2: TestToolRequest asserts UsageCapped without a kill — Decide's OnAfterOneTest cleans it.
+  - `[low]` `[reject]` Intent A: the intent block says "No AI session is opened" while the code opens a throwaway one — the lead's ruling (Design Notes) and the Spec Change Log; the intent block is read-only.
+  - `[medium]` `[defer]` Intent surface 1: the mock's log holds one GET /v1/models/<model> for a replay, so "the mock's log holds no model request" holds for POST /v1/messages only — grouped with Blind 3.
+  - `[low]` `[reject]` Intent surface 3: the runner's Reply.Steps carries the result text — the spec puts it in the trace step record only; Decide's answer and every row and payload hold none (row 16).
+  - `[low]` `[reject]` Intent surface 4: the hold ends after sending the replay, so a replay leg that fails is retried only by Reconcile — by design (Design Notes: "The hold logs it, and Reconcile delivers it again at the next start").
+  - `[low]` `[reject]` Intent surface 6: no test races two concurrent replays of one Ref — StartExecution's atomic change is the single gate; the in-flight duplicate test was added.
+  - `[false]` `[reject]` Intent B1/B2, C1/C2, E, F, G readings — descriptive, no divergence beyond the rows above.
+  - `[low]` `[reject]` Intent surface 2 and 5: tests use the shadow runner and ZzReplayAgent behind the production's ChatAgent, and the Action entry names the approver — the spec's design (rows 1, 2, 10).
+  - `[false]` `[reject]` Intent surface 7: the GuideApi red — filed under deferred as a one-off, not this story's change.
 
 ## Design Notes
 
@@ -295,6 +357,13 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - `ExecuteTool("zz_context_probe", {"b":2,"a":{"y":1.0,"x":"e"}})` returned `{"timing":0.0174,"value":{"seen":1}}`.
 - The audit policy got `origin_class` = `OcuTalon.Test.Bridge.ProbeTool`, the implementing class (not the toolset), and arguments `{"a":{"x":"e","y":1.0},"b":2}` (keys sorted, `1.0` kept). So `origin_class` arrives through `ExecuteTool` on build 154 (with Story 3.2's measurement for the auth policy). The runner-job case is row 6b.
 - IRIS round-trips `{"a":1.0,"b":1e2,"c":0.50,"d":-0}` unchanged.
+
+**Measured at implementation (Task 0, warm throwaway e30s3hw, build 154; the mock is the CI mock).**
+- (a) `ExecuteTool` raises for a tool that raises (`ZzReplayTool.Throws`): the Catch of `Replay.Run` got the error, and the row went `failed` with the tool's text as FailureText (Test.Bridge.Runner `TestReplayThroughTheRunner`, row 7). It does not return an object without `value`. `Run` also treats a result without `value` as failed, and accepts `is_void`.
+- (b) `hold.%PrimaryRequestHeader.TimeCreated` is readable in the hold. A start taken while `ApprovalHold` was disabled reached the hold 10 seconds old (the event-log error reads "the start of the approval request <Ref> is 10 seconds old, so the start has been given up and nothing is held"), over the 8-second limit (STARTSECONDS - STARTMARGIN). A normal start is a few milliseconds old.
+- (c) Row 6b: `metadata.origin_class` arrives in the runner job (the production's ChatAgent): a row whose ToolSource names another class is denied, the row is `failed` and the tool ran 0 times.
+- Not in the spec: the first `ExecuteTool` of a runner makes one `GET /v1/models/<model>` request to the provider (measured with the mock: it is logged once, at the first ExecuteTool, not at BuildAgent or NewSession). It carries no tokens. The "no model request" evidence is therefore `POST /v1/messages` = 0 (`Watch.Case.Posts`), and the Runner test allows only that `GET /v1/models/` entry.
+- Not in the spec: `BuildAgent` creates the provider, so a replay on a runner whose model key is unset fails (`ProviderCreateFailed`) and the row goes `failed`. The live tests point the runners' keys at the CI mock key (`RunnerFixture.PointKeys`, restored in Clean).
 
 **Contended edits:** none. `Test/Data/Tables.cls` is shared by entry, and only our own ApprovalRequest entry changes.
 
@@ -361,6 +430,8 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 - (once) `<lane> OCUTALON_RUN_TAG=e30s3i ci/iris.sh shard lane-b --part 1/2`, then `--part 2/2`. Expected: passed.
 - (once) `<lane> OCUTALON_RUN_TAG=e30s3iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e30s3i ci/iris.sh teardown`, also after a failure.
 
+**Run record (implement stage, after the last patch; fresh stack e30s3i unless noted):** warm `(loop)` classes all passed (`Gate` 27 s, `Decide` 7 s, `Runner` 15 s, `Approval` 105 s, `CodeRules`, `Contracts`, `Ext`, `Data.Tables`, `Core.BridgeSink`). `(once)` `bash ci/checks.sh` passed (207 s). `(once)` `shard lane-a`: part 1/6 427 s, 2/6 176 s, 3/6 264 s, 4/6 503 s, 5/6 345 s, 6/6 401 s, all passed. `(once)` `shard lane-b`: part 1/2 308 s, 2/2 563 s, both passed. An earlier full pass (before the review patches) took lane-a 418, 155, 259, 470, 294, 348 s and lane-b 262 s and 541 s; its lane-b part 2/2 had one red, `Test.Web.GuideApi.TestRunAgain` ("steps 3 to 5 reset; the watch still counts"), which is not in the known-flake list, passed on the warm stack and on a rerun of the part, and passed again in the final pass (filed under `deferred:`). Both tags (`e30s3iw`, `e30s3i`) are torn down.
+
 **Shared surfaces:**
 - **The ApprovalRequest contract** (+2 columns): `Test.Data.Tables`, and Approval's `GIVENFIELDS`/`RowText`.
 - **`Context.FIELDS`** (+Runner): ProbeTool's snapshot, `Test.Bridge.Runner` TestContext, `Test.Bridge.Ext` and `Test.Core.CommandsContext` iterate it. Search for exact lists.
@@ -396,7 +467,62 @@ Paths: `src/bridge/cls/OcuTalon/Bridge/…` is shortened to `Bridge/…`, and `s
 | DW-195, row 14 | the age check is dropped | row 14 (task and live hold appear) |
 | DW-194, row 15 | Gate.Hold omits Runner | row 15 |
 
+**Pinning mutations done (Rule 19; each applied on the warm throwaway, red observed, reverted byte-identically).**
+- mutation: HoldResponse sends nothing for an approved tool_call (`Quit $$$OK` for `Replay`) -> `TestApprovedToolCallReplays` red (row stays approved, ran 0).
+- mutation: `Replay.Run` calls `adapter.Agent.Chat` instead of ExecuteTool -> `TestApprovedToolCallReplays` and `TestReplayThroughTheRunner` red (model POST, tool not run).
+- mutation: `Context.TakeGrant` does not kill the grant -> `TestReplayGovernance` (second ExecuteTool not denied, ran 2) and `TestReplayGrant` red.
+- mutation: the replay context falls through to `Hold` after TakeGrant -> `TestReplayGrant` red (HELD instead of FAILED).
+- mutation: the gate takes the source from the grant always (`If replay Set source = GrantSource()`) -> `TestReplayDeniesAnotherSource` (row 6b) red.
+- mutation: the `GrantSource()` fallback dropped -> `TestReplaySourceFallback` red.
+- mutation: `ArgumentsHash` keeps key order -> `TestReplayArgumentsHash` and `TestReplayGrant` red.
+- mutation: `Replay` passes sinkClass `OcuTalon.Bridge.Ext.HostSink` to FinishExecution -> `TestApprovedToolCallReplays` (no approval.result) and `TestReplayReachesTheLiveStream` (no approval event) red.
+- mutation: Decide's answer carries the runner's Reply.Text (the replay sets Text to the tool's value as JSON) -> `TestApprovedToolCallReplays` row 16 red. (Decide's tool path reads no Text, so this needs both edits; a Text on the runner's reply alone is not copied.)
+- mutation: `Replay.Run` ignores StartExecution's refusal -> `TestReplayThroughTheRunner` red (row 4b: the failure reply, ToolsRun and the Action entry; the tool is not run a second time because Context.Grant refuses a row that is not executing).
+- mutation: Decide's tool path skips the one-decision-per-item check -> `TestApprovedToolCallReplays` (4a) and `TestToolRequest` red.
+- mutation: `Replay` writes no Action entry -> `TestApprovedToolCallReplays` (10) and `TestReplayThroughTheRunner` red.
+- mutation: the past-expiry branch of `CloseUnstarted` dropped -> `TestReplayThroughTheRunner` (row 8) red.
+- mutation: Decide routes kind tool by `RunnerFor("turn")` -> `TestReplayOfAnUnroutableRow` and `TestToolRequest` red.
+- mutation: the task re-arm of `Approval.Rearm` dropped -> `TestHoldReArmsAfterATaskWithoutAnAnswer` red.
+- mutation: the expiry retry dropped -> `TestExpireRetriesWhenTheLockIsHeld` red.
+- mutation: Reconcile pass 3 dropped -> `TestReconcileDeliversWhatLostHoldsOwed` red.
+- mutation: the age check of `Approval.Hold` dropped -> `TestLateStartIsRefusedByItsAge` red.
+- mutation: `Gate.Hold` omits Runner -> `TestHeldRowNamesSourceAndRunner` and `TestApprovedToolCallReplays` red.
+- mutation (review pass): `Decide.StillApproved` always 0 -> `Test.Bridge.Decide.TestToolRequest` red ("(never started)": a Decision row is recorded and the repeat is not sent).
+- mutation: `FailUnroutable` drops its `Kind = "tool_call"` guard -> `TestToolRequest` red ("(b) the fix row is unchanged").
+- mutation: `Admit` drops the tool provenance rule -> `TestRefusedRequests` red; drops the `IsRef` rule -> `TestRefusedRequests` red.
+- mutation: `Gate.Decision` skips `MissingPrivilege` in a replay context -> `TestReplayKeepsThePermissionAndProvenanceRules` red (NOPRIVILEGE); skips the provenance rule in a replay context -> the same test red (UNTRUSTED).
+- mutation: `Agent.Answer` calls `Context.Begin` without the runner item -> `TestDeveloperRiskyEndToEnd` red (rows 6 and 7: the held row's Runner).
+- mutation: `Replay.Run` ignores StartExecution's refusal -> `TestReplayThroughTheRunner` red at "(duplicate)" (an executing row: the tool ran again) as well as 4b.
+- mutation: `Replay.Run` sets `ToolsRun = 1` whatever happened -> `TestReplayThroughTheRunner` red at "(before the call)".
+- mutation: `Replay.Run` marks a raised call `done` -> `TestReplayThroughTheRunner` red (row 7: the row and the Action entry).
+- mutation: `Context.End` keeps the grant -> `TestReplayGrant` red ("End kills the context and its grant"). The earlier assertion read `GrantSource()`, which is "" without a context, so it could not fail.
+- mutation: `Approval.Answer` returns `done` instead of `already_answered` for a settled row -> `TestApprovedToolCallReplays` red (row 3), `TestEveryOtherTransitionIsRefused` and `TestHeldRowIsReadUnderTheLock` red.
+- mutation: Reconcile pass 3 selects `done` tool_call rows too -> `TestApprovedToolCallReplays` red (row 4c: a hold is started for the Ref), `TestReconcileLeavesSettledRows` red.
+- mutation: `Validate` drops the `ToolSource` refusal for a fix -> `TestRefused` red (row 15, the Validate half).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** An approved `tool_call` now replays exactly once with no model generation request. `ApprovalHold` sends a `tool` request (the Ref in `ItemId`) through `Decide` to the runner the row names. `Replay.Run` (new) calls `StartExecution` (the single gate), opens a throwaway never-linked AI session (AD-6 read literally, per the lead), begins a context with provenance `user`, the Ref, the runner item and a process-private grant built from the `executing` row, and calls `ToolManager.ExecuteTool` with exactly the stored call. It writes the Action audit entry and calls `FinishExecution`, which fires `approval.result`. The gate consumes the grant at the first matching call (name, canonical-arguments hash, source) and denies every other call with `FAILED`, after the permission and provenance rules. The row gains `ToolSource` and `Runner` (DW-194, slots 24 and 25). The hold re-arms, retries and delivers (DW-192), refuses a late start (DW-195), and `Reconcile` pass 3 delivers what lost holds owed.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Replay.cls` (new): the runner's replay.
+- `Bridge/Context.cls`: `Runner` field, `Grant`, `TakeGrant`, `GrantSource`, `ArgumentsHash`.
+- `Bridge/Policy/Gate.cls`: the replay context, and `ToolSource` and `Runner` on a held row.
+- `Bridge/Adapter/Agent.cls`: kind `tool` goes to `Replay.Run`; the context carries the runner item; `ReleaseThrowaway`, public `StepRecords`/`StepsJson`.
+- `Bridge/Process/Decide.cls`: kind `tool` routing, `FailUnroutable`, `ConcludeTool`, `StillApproved`.
+- `Bridge/Approval.cls`: late-start refusal, `Arm`, delivery hold, re-arm, retry, `Replay`, Reconcile pass 3, `Validate`.
+- `Bridge/Data/ApprovalRequest.cls`: `ToolSource`, `Runner`. Doc-only: `Process/ApprovalHold.cls`, `Operation/AgentRunner.cls`.
+- Tests: `Test/Bridge/{Approval,Decide,Gate,Runner}.cls`, new `ZzReplayAgent`, `ZzReplayTool`, `ZzReplayTools`; `Test/Data/Tables.cls` (shared by entry: our own ApprovalRequest entry).
+
+**Review.** 34 findings from four layers: 10 patched (grouped into 7 fixes: no Decision row when the run never started; the grant failure variable; the hash doc; the replay-context permission and provenance test; the runner-item pin on real turns; polling before the Decision and sink assertions; ToolsRun 0 before ExecuteTool, with the duplicate-in-flight and before-the-call tests; the End assertion that could not fail; existence checks), 3 deferred (provider dependency of the replay and its one GET, the unpinned throwaway session, the GuideApi one-off), 21 rejected with reasons in the Review Triage Log. Follow-up review recommended: true. Patched mediums: 4 (the never-started Decision row in Decide, the runner-item pin, the race in the replay test, the replay-context rules test). Unverified risk: the lock-timeout path (a refused start leaving the row approved) is covered at Decide and Runner level only, not live end to end.
+
+**Verification.** Warm classes, `ci/checks.sh`, lane-a parts 1 to 6 and lane-b parts 1 and 2 all green after the last patch (times in Verification). 31 pinning mutations applied, red observed, reverted.
+
+**Residual risks (for the lead).**
+- The first `ExecuteTool` of a runner makes one `GET /v1/models/<model>` (no tokens); the mock log holds no `POST /v1/messages`. The tests allow only that GET. A replay on a runner with no provider key fails (`ProviderCreateFailed`, row failed, never retried). Deferred as a product call.
+- Taint is not read in a replay context (the grant is single use, so no second call can run); permission and provenance rules still run first.
+- A crashed run leaves an `executing` row (DW-444, filed).
+- `Test.Web.GuideApi.TestRunAgain` failed once in the first lane-b pass and passed in two reruns.

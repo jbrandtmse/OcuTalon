@@ -2,8 +2,13 @@
 /// the I/O matrix. They drive the class methods that the business process itself calls, in particular Conclude, which OnResponse
 /// calls, with the probe filter and the probe sink of this package. Nothing is sent. Every test removes the Decision rows it made
 /// and kills the process-private globals ^||ZzProbeFilter and ^||ZzProbeSink.
-///   - TestRefusedRequests: Admit gives "not implemented" (5003) for a foreign message class and for kind tool, and an error that
-///     names the field for a kind, provenance, ItemId, OwnerRef or Input that is missing or unknown;
+///   - TestRefusedRequests: Admit gives "not implemented" (5003) for a foreign message class, and an error that names the field for a
+///     kind, provenance, ItemId, OwnerRef or Input that is missing or unknown; a request of kind tool (Story 30.3) is admitted with
+///     provenance user and the Ref of an approval request as its ItemId and no Input, and refused naming the Provenance or the ItemId;
+///   - TestToolRequest (Story 30.3, rows 4a and 9): a tool request goes to the Runner of the approval row it names, with no precheck, no
+///     probe and no ReplyClass; a reply without a failure records the outcome act and a repeat is answered from the row with no send; a
+///     failure reply records a fallback with the reason error and is never sent again; a row with no runner is closed failed, a missing
+///     row and a fix row are left alone, and each is answered with a fallback;
 ///   - TestBadSettings: CheckSettings names TimerSeconds (0, 11, 111, x), ReplyFilterClass (missing, not an extension class) and
 ///     ReplyClass (missing, not a JSON class; a diagnose request with none);
 ///   - TestReplyCheck: a JSON object, also inside one code fence, passes; an outcome that is not one of OUTCOME, no reason, a blank
@@ -195,6 +200,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
+	Do ..RemoveToolRows()
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
@@ -221,16 +227,24 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit sc
 }
 
-/// Admit: a message of another class and a request of kind tool give 5003; a kind, provenance, ItemId, OwnerRef or Input that is
-/// missing or unknown gives an error that names the field; a usable request is admitted.
+/// Admit: a message of another class gives 5003; a kind, provenance, ItemId, OwnerRef or Input that is missing or unknown gives an
+/// error that names the field; a usable request is admitted. A request of kind tool needs provenance user and a Ref as its ItemId, and
+/// no Input.
 Method TestRefusedRequests()
 {
 	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Admit(##class(Ens.StringRequest).%New("x"))
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "a message of another class gets 5003")
 	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Admit("")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "so does no message at all")
-	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Admit(..NewRequest("tool"))
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "a request of kind tool gets 5003")
+	Set tool = ..NewToolRequest(##class(OcuTalon.Bridge.Ids).NewRef())
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(tool), "a tool request of provenance user with a Ref as its ItemId and no Input is admitted")
+	Set tool.Provenance = "untrusted"
+	Do ..AssertNamed(tool, "Provenance", "a tool request of untrusted provenance")
+	Set tool = ..NewToolRequest("not-a-ref")
+	Do ..AssertNamed(tool, "ItemId", "a tool request whose ItemId is no Ref")
+	Set tool = ..NewToolRequest(##class(OcuTalon.Bridge.Ids).NewRef())
+	Set tool.OwnerRef = ""
+	Do ..AssertNamed(tool, "OwnerRef", "a tool request with no OwnerRef")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(..NewRequest("decide")), "a decide request is admitted")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(..NewRequest("turn", "user")), "and so is a user's turn")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(..NewRequest("diagnose")), "and a diagnose request")
@@ -250,6 +264,205 @@ Method TestRefusedRequests()
 	Do ..AssertNamed(request, "Input", "an Input of white space only")
 	Set request.Input = ""
 	Do ..AssertNamed(request, "Input", "an empty Input")
+}
+
+/// Story 30.3, rows 4a and 9: the tool request (the replay of an approved call) in Decide, with the recorder (Test.Bridge.ZzDecide) for the sends and
+/// the timers and the probe sink for the events. Fixture approval rows are saved and deleted by the test.
+///   - A tool_call row that names the runner ZzRunner: the request goes to ZzRunner with the key reply, once, and one timer; no precheck runs (a
+///     request limit of one token and a decision budget of one would otherwise record a fallback), no ReplyClass is read and no probe is made.
+///   - A reply with no FailureText records one Decision row of kind tool, the outcome act, no reasons and no fallback, fires decision.recorded and
+///     answers a Reply (DecisionRef, Outcome act, no text); the same request again is answered from the row and sends nothing.
+///   - A reply with a FailureText (also one that reads like a rate limit, which is not sent again, and one that reads like the daily cap, which does
+///     not mark the day) records a fallback with the reason error and answers a Reply with Fallback 1.
+///   - A row with no runner: the approved row is closed failed through FinishExecution (approval.result fires), and the answer is a fallback with
+///     the reason error, recorded like any fallback, with no send. A missing row and a fix row are answered the same way and are not changed.
+Method TestToolRequest()
+{
+	Set class = "OcuTalon.Bridge.Process.Decide"
+	Kill ^||ZzDecideCalls, ^||ZzProbeSink
+	Set ref = ..ToolRow("zz_replay_send", "ZzRunner", "approved")
+	Set recorder = ..ToolRecorder()
+	Set recorder.DecisionTokenBudget = 1
+	Set recorder.RequestTokenLimit = 1
+	Set request = ..NewToolRequest(ref)
+	Do $$$AssertEquals($ClassMethod(class, "RunnerFor", "tool", request), "ZzRunner", "RunnerFor gives the Runner of the row for kind tool")
+	Set sc = recorder.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "OnRequest takes the tool request")
+	Do $$$AssertEquals(response, "", "it does not answer yet")
+	Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "1|1", "one send and one timer")
+	Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 1)_"|"_$ListGet($Get(^||ZzDecideCalls("send", 1)), 4)_"|"_$ListGet($Get(^||ZzDecideCalls("send", 1)), 5), "ZzRunner|reply|"_ref, "the send goes to the row's Runner with the key reply, for the Ref")
+	Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 7), 0, "its Compact flag is 0")
+	Do $$$AssertEquals(..Rows(ref), 0, "no precheck recorded a fallback, though the limits are one token")
+	Do $$$AssertEquals(..SinkTypes(), "", "and no event fired")
+
+	Set callRequest = request.%ConstructClone()
+	Set callRequest.DecisionRef = recorder.DecisionRef
+	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	Set reply.ToolsRun = 1
+	Set sc = recorder.OnResponse(request, .response, callRequest, reply, "reply")
+	Do $$$AssertStatusOK(sc, "OnResponse takes the runner's reply")
+	Set row = ..RowOf(ref, "tool")
+	Do $$$AssertTrue($IsObject(row), "a Decision row of kind tool records it")
+	If $IsObject(row) Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.Reasons_"|"_row.Payload_"|"_row.ItemId, "act|0|||"_ref, "with the outcome act, no fallback, no reasons and no payload")
+	Do $$$AssertEquals(..SinkTypes(), "decision.recorded", "decision.recorded is fired")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
+	If $IsObject(response) && $IsObject(row) Do $$$AssertEquals(response.DecisionRef_"|"_response.Outcome_"|"_response.Fallback_"|"_response.Text_"|"_response.FailureText_"|"_response.Steps, row.Ref_"|act|0|||", "of the row, with no text, failure text or steps")
+
+	Kill ^||ZzDecideCalls, ^||ZzProbeSink
+	Set again = ..ToolRecorder()
+	Set sc = again.OnRequest(request, .answered)
+	Do $$$AssertStatusOK(sc, "the same request again is answered")
+	Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_..SinkTypes(), "0|0|", "from the row: nothing is sent, no timer is set and no event fires")
+	If $IsObject(answered) && $IsObject(row) Do $$$AssertEquals(answered.DecisionRef_"|"_answered.Outcome, row.Ref_"|act", "with the recorded row's Reply")
+	Do $$$AssertEquals(..Rows(ref), 1, "and there is still one row")
+
+	// a failure reply is a fallback with the reason error, and is never sent again
+	For failure = "ZZ tool failure", $Parameter(class, "RATELIMITTEXT"), $Parameter(class, "DAILYCAPTEXT") {
+		Set one = ..ToolRow("zz_replay_throw", "ZzRunner", "failed")
+		Set requestOne = ..NewToolRequest(one)
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set processOne = ..ToolRecorder()
+		Do $$$AssertStatusOK(processOne.OnRequest(requestOne, .nothing), "(failure '"_failure_"') the request is sent")
+		Set callOne = requestOne.%ConstructClone()
+		Set callOne.DecisionRef = processOne.DecisionRef
+		Set failed = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+		Set failed.FailureText = failure
+		Set failed.ToolsRun = 0
+		Do $$$AssertStatusOK(processOne.OnResponse(requestOne, .out, callOne, failed, "reply"), "(failure '"_failure_"') OnResponse takes the failure reply")
+		Set rowOne = ..RowOf(one, "tool")
+		If $IsObject(rowOne) Do $$$AssertEquals(rowOne.Fallback_"|"_rowOne.FallbackReason_"|"_rowOne.Outcome, "1|error|tellnow", "(failure '"_failure_"') a fallback with the reason error")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "1|1", "(failure '"_failure_"') nothing was sent again and no resend timer was set")
+		If $IsObject(out) Do $$$AssertEquals(out.Fallback_"|"_out.FallbackReason, "1|error", "(failure '"_failure_"') and the answer says so")
+	}
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))), 0, "a tool's own error text did not mark the day as capped")
+
+	// a failure while the row is still approved: the run never started, so no Decision row stands in the way of a later replay
+	Set unstarted = ..ToolRow("zz_replay_send", "ZzRunner", "approved")
+	Set requestUnstarted = ..NewToolRequest(unstarted)
+	Kill ^||ZzDecideCalls, ^||ZzProbeSink
+	Set processUnstarted = ..ToolRecorder()
+	Do $$$AssertStatusOK(processUnstarted.OnRequest(requestUnstarted, .nothing), "(never started) the request is sent")
+	Set callUnstarted = requestUnstarted.%ConstructClone()
+	Set callUnstarted.DecisionRef = processUnstarted.DecisionRef
+	Set refused = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	Set refused.FailureText = "ZZ the lock was not taken"
+	Do $$$AssertStatusOK(processUnstarted.OnResponse(requestUnstarted, .refusal, callUnstarted, refused, "reply"), "(never started) OnResponse takes the refusal")
+	Do $$$AssertEquals(..Rows(unstarted), 0, "(never started) no Decision row is recorded")
+	Do $$$AssertEquals(..SinkTypes(), "", "(never started) and no event fires")
+	Do $$$AssertTrue($IsObject(refusal) && (refusal.FailureText = "ZZ the lock was not taken"), "(never started) the answer is a Reply that holds the failure text")
+	Kill ^||ZzDecideCalls
+	Set again = ..ToolRecorder()
+	Do $$$AssertStatusOK(again.OnRequest(requestUnstarted, .nothing), "(never started) the same request again is taken")
+	Do $$$AssertEquals(..Calls("send"), 1, "(never started) and it is sent to the runner again")
+
+	// row 9: no runner
+	Set noRunner = ..ToolRow("zz_replay_send", "", "approved")
+	Set missing = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set fix = ..ToolRow("", "", "approved", "fix")
+	Set fixText = ..ToolRowText(fix)
+	For target = noRunner, missing, fix {
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set ..ItemIds = ..ItemIds _ $ListBuild(target)
+		Set label = $Select(target = noRunner: "(a) an approved tool_call with no Runner", target = missing: "(b) a Ref with no row", 1: "(b) a fix row")
+		Set process = ..ToolRecorder()
+		Set sc = process.OnRequest(..NewToolRequest(target), .fallback)
+		Do $$$AssertStatusOK(sc, label_": OnRequest answers")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "0|0", label_": nothing is sent and no timer is set")
+		If $IsObject(fallback) Do $$$AssertEquals(fallback.Fallback_"|"_fallback.FallbackReason, "1|error", label_": a fallback with the reason error")
+		Set rowOf = ..RowOf(target, "tool")
+		Do $$$AssertTrue($IsObject(rowOf), label_": recorded like any fallback")
+	}
+	Do $$$AssertEquals(..ToolRowState(noRunner), "failed|failed", "(a) the row is closed failed through FinishExecution")
+	Do $$$AssertTrue(..SinkTypes() [ "decision.recorded", "and the decision was recorded")
+	Do $$$AssertEquals(..ToolRowText(fix), fixText, "(b) the fix row is unchanged")
+	Do ..RemoveToolRows()
+}
+
+/// A request of kind tool for the Ref, as the approval hold sends it: provenance user, no Input.
+Method NewToolRequest(ref As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "tool"
+	Set request.Provenance = "user"
+	Set request.ItemId = ref
+	Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.Channel = "system"
+	Set request.Summary = "zz_replay_send"
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Quit request
+}
+
+/// A Decide for the tool test: the recorder with the settings of a runner-less process, and the probe sink as its host sink.
+Method ToolRecorder() As OcuTalon.Test.Bridge.ZzDecide [ Private ]
+{
+	Set recorder = ..NewRecorder()
+	Set recorder.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set recorder.HostSinkClass = ..#SINK
+	Set recorder.TimerSeconds = 60
+	Set recorder.%SessionId = 4301
+	Quit recorder
+}
+
+/// Saves an approval row in the state (a tool_call of the tool and the runner, or a fix) with no hold, and tracks it for RemoveToolRows.
+Method ToolRow(name As %String, runner As %String, state As %String, kind As %String = "tool_call") As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = kind
+	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.State = state
+	Set row.RequiredRole = "OcuTalonUser"
+	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
+	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, 3600)
+	Set row.AnsweredAction = "approve"
+	Set row.AnsweredChannel = "web"
+	Set row.AnsweredBy = "ocutalon"
+	Set row.AnsweredAt = now
+	If kind = "tool_call" {
+		Set row.ToolName = name
+		Set row.ToolArguments = "{}"
+		Set row.ToolSource = "OcuTalon.Test.Bridge.ZzReplayTool"
+		Set row.Runner = runner
+	} Else {
+		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set row.ResultTarget = "IncidentManager"
+		Set row.DryRun = "{""affected"":1}"
+		Set row.FixKind = "zz_fix"
+		Set row.FixParameters = "{}"
+		Set row.FixTargets = "1"
+	}
+	Do $$$AssertStatusOK(row.%Save(), "the fixture "_kind_" row is saved, "_state)
+	Set ^||ZzToolRows(row.Ref) = ""
+	Set ..ItemIds = ..ItemIds _ $ListBuild(row.Ref)
+	Quit row.Ref
+}
+
+/// "<State>|<Result>" of the approval row of the Ref.
+ClassMethod ToolRowState(ref As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Quit $Select($IsObject(row): row.State_"|"_row.Result, 1: "<no row>")
+}
+
+/// The state, result and finish time of the approval row of the Ref, as one text.
+ClassMethod ToolRowText(ref As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Quit $Select($IsObject(row): row.State_"|"_row.Result_"|"_row.FinishedAt_"|"_row.ToolName_"|"_row.Runner, 1: "<no row>")
+}
+
+/// Deletes the fixture approval rows of ToolRow.
+ClassMethod RemoveToolRows() [ Private ]
+{
+	Set ref = ""
+	For {
+		Set ref = $Order(^||ZzToolRows(ref))
+		Quit:ref=""
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
+	}
+	Kill ^||ZzToolRows
 }
 
 /// CheckSettings names the setting: TimerSeconds outside 12 to 110 or not a whole number, a ReplyFilterClass that is missing or

@@ -4,7 +4,9 @@
 /// threw, a failure Reply that holds the redacted failure text and the steps of the call, so that Decide classifies the failure and
 /// still sends the steps (DW-83). An error before Chat keeps its error status. A turn of a conversation that another turn still holds
 /// (the conversation lock, Data.ConversationLink) is answered, after the lock's 2 seconds, with a Reply whose Busy is 1 and nothing
-/// else set, and a status OK: Decide relays it as its own Busy answer (AD-6). A ToolInventory request gets
+/// else set, and a status OK: Decide relays it as its own Busy answer (AD-6). A Request of kind tool is the replay of an approved tool call
+/// (Replay.Run): it runs the stored call once, through the whole policy chain, with no model request, and gets a Reply that holds no text, the
+/// step of the call and a FailureText when the call did not run or failed. A ToolInventory request gets
 /// an Ens.StringResponse that holds the JSON of the live ToolManager's tools. Any other message class gets "not implemented"
 /// and no response. Its ReplyClass setting names the %JSON.Adaptor class that Decide checks the runner's reply against
 /// (AD-7); the runner itself never reads it.

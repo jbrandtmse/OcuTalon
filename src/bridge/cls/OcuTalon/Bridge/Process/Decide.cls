@@ -1,10 +1,14 @@
 Include Ensemble
 
 /// Decide, the business process that every model use passes through (AD-6, AD-30).
-///   - A Request is admitted (Admit): a message of another class, and kind tool (the replay of an approved call), get "not
-///     implemented", and a kind, provenance, ItemId, OwnerRef or Input that is missing or unknown gets an error that names the
-///     field, before anything is sent.
-///   - One decision per item (AD-6): a decide or diagnose request for an item that has a Decision row is answered from the
+///   - A Request is admitted (Admit): a message of another class gets "not implemented", and a kind, provenance, ItemId, OwnerRef or
+///     Input that is missing or unknown gets an error that names the field, before anything is sent. A request of kind tool is the replay
+///     of an approved tool call (Approval.HoldResponse sends it): its provenance is user, its ItemId the Ref of the approval request, and it
+///     has no Input. It goes to the runner that the approval row names (RunnerFor), with no ReplyClass, no Held probe and no Precheck, because
+///     the runner makes no model request for it. The reply of the runner is Conclude's: no FailureText records the outcome act with no
+///     reasons, and a FailureText records a fallback with the reason error (none while the approval row is still approved: the run never started). The runner is never sent a tool request again for an item that
+///     has a Decision row (below), and a row that names no runner is answered with a fallback (FailUnroutable).
+///   - One decision per item (AD-6): a decide, diagnose or tool request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
 ///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Absent), the daily cost cap reached (Budget.State), an
@@ -241,21 +245,27 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
 		Quit ..ResponseFromId(id, .response)
 	}
-	Set runner = ..RunnerFor(kind)
+	Set runner = ..RunnerFor(kind, request)
 	Set replyClass = ""
-	If kind '= "turn" {
+	Set tool = (kind = "tool")
+	If (kind '= "turn") && 'tool {
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
 	Set sc = ..CheckSettings(kind, runner, replyClass, ..ReplyFilterClass, ..TimerSeconds)
 	If $$$ISERR(sc) Quit sc
-	If ..Held(request, runner) {
+	If 'tool && ..Held(request, runner) {
 		Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
 		Quit $$$OK
 	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
-	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
+	If tool && (runner = "") {
+		Do ..FailUnroutable(request)
+		Quit ..RecordFallback(request, decisionRef, "error", "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
+	}
+	Set estimate = 0
+	Set reason = $Select(tool: "", 1: ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate))
 	If reason '= "" {
 		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 	}
@@ -303,7 +313,7 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set kind = request.Kind
-	Set runner = ..RunnerFor(kind)
+	Set runner = ..RunnerFor(kind, request)
 	If pCompletionKey = "timer" {
 		Set facts = {}
 		Do facts.%Set("timedOut", 1, "boolean")
@@ -326,7 +336,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		Set failure = callresponse.FailureText
 		Set answered = 1
 	}
-	If answered && (failure '= "") {
+	If answered && (failure '= "") && (kind '= "tool") {
 		Set facts = {}
 		Do facts.%Set("failure", failure)
 		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs())
@@ -336,7 +346,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		}
 	}
 	Set replyClass = ""
-	If kind '= "turn" {
+	If (kind '= "turn") && (kind '= "tool") {
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
@@ -474,29 +484,42 @@ ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Re
 	Quit messages
 }
 
-/// OK when the message is a Request that Decide serves. A message of another class, and a request of kind tool, give "not
-/// implemented"; any other problem is an error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not
-/// one of PROVENANCE), ItemId, OwnerRef, Input (empty once white space and control characters are removed), or SessionMode (not
-/// empty, which means continue, and not one of Request SESSIONMODES; the match is exact, so Fresh is refused).
+/// OK when the message is a Request that Decide serves. A message of another class gives "not implemented"; any other problem is an
+/// error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not one of PROVENANCE, and for kind tool not user),
+/// ItemId (empty, and for kind tool not the Ref of an approval request), OwnerRef, Input (empty once white space and control characters are
+/// removed; a request of kind tool needs none), or SessionMode (not empty, which means continue, and not one of Request SESSIONMODES; the
+/// match is exact, so Fresh is refused).
 ClassMethod Admit(request As %Library.Persistent) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Bridge.Msg.Request") Quit $$$ERROR($$$NotImplemented)
 	Set kinds = ##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND
 	If '$ListFind($ListFromString(kinds), request.Kind) Quit $$$ERROR($$$GeneralError, "The Kind '"_request.Kind_"' of the request is not one of "_kinds)
-	If request.Kind = "tool" Quit $$$ERROR($$$NotImplemented)
 	Set provenances = ##class(OcuTalon.Bridge.Msg.Enum).#PROVENANCE
 	If '$ListFind($ListFromString(provenances), request.Provenance) Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the request is not one of "_provenances)
 	If request.ItemId = "" Quit $$$ERROR($$$GeneralError, "The ItemId of the request is empty")
 	If request.OwnerRef = "" Quit $$$ERROR($$$GeneralError, "The OwnerRef of the request is empty")
-	If $ZStrip(request.Input, "*WC") = "" Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
+	If request.Kind = "tool" {
+		If request.Provenance '= "user" Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the tool request is not user: only a call that a user approved is replayed")
+		If '##class(OcuTalon.Bridge.Approval).IsRef(request.ItemId) Quit $$$ERROR($$$GeneralError, "The ItemId of the tool request is not the Ref of an approval request")
+	} ElseIf $ZStrip(request.Input, "*WC") = "" {
+		Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
+	}
 	Set modes = ##class(OcuTalon.Bridge.Msg.Request).#SESSIONMODES
 	If (request.SessionMode '= "") && '$ListFind($ListFromString(modes), request.SessionMode) Quit $$$ERROR($$$GeneralError, "The SessionMode '"_request.SessionMode_"' of the request is not empty or one of "_modes)
 	Quit $$$OK
 }
 
-/// The runner item of the request kind (RUNNERS), or "".
-ClassMethod RunnerFor(kind As %String) As %String
+/// The runner item of the request kind (RUNNERS), or "". For kind tool it is the Runner of the tool_call approval request that the ItemId of the
+/// request names (the runner whose job held the call, DW-194), or "" when there is no such row or it names none; a developer's runner item
+/// is not in RUNNERS.
+ClassMethod RunnerFor(kind As %String, request As OcuTalon.Bridge.Msg.Request = "") As %String
 {
+	If kind = "tool" {
+		If '$IsObject(request) Quit ""
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
+		If '$IsObject(row) || (row.Kind '= "tool_call") Quit ""
+		Quit row.Runner
+	}
 	Set runner = ""
 	Set pairs = $ListFromString(..#RUNNERS)
 	Set position = 0
@@ -504,6 +527,24 @@ ClassMethod RunnerFor(kind As %String) As %String
 		If $Piece(pair, ":", 1) = kind Set runner = $Piece(pair, ":", 2)
 	}
 	Quit runner
+}
+
+/// A tool request that no runner can take (RunnerFor gave ""): an approved tool_call row that names no runner (a row held before Runner existed)
+/// is closed failed through FinishExecution, so that it does not stay approved for ever. A missing row, a fix row and a row in any other state
+/// are never changed. A close that fails is a warning that names the Ref.
+ClassMethod FailUnroutable(request As OcuTalon.Bridge.Msg.Request)
+{
+	Try {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
+		If $IsObject(row) && (row.Kind = "tool_call") && (row.State = "approved") && (row.Runner = "") {
+			Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(request.ItemId, "failed")
+			If $$$ISERR(sc) {
+				$$$LOGWARNING("The approved tool call "_request.ItemId_" names no runner and was not closed as failed: "_$SYSTEM.Status.GetErrorText(sc))
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING("The approved tool call "_request.ItemId_" names no runner and was not closed as failed: "_exception.DisplayString())
+	}
 }
 
 /// The ReplyClass setting of the runner item in the active production (OcuTalon.Bridge.Ext.Accessor.ValueFor), or "" with an error
@@ -522,14 +563,14 @@ ClassMethod ReplyClassOf(runner As %String, Output sc As %Status) As %String
 ///   - timer (TimerSeconds): a whole number from MINTIMER to MAXTIMER (Timeouts.Check);
 ///   - filterClass (ReplyFilterClass): passes OcuTalon.Bridge.Ext.Accessor.Check, so that no text is ever recorded unfiltered;
 ///   - replyClass (the ReplyClass setting of the runner), for kind decide and diagnose: a compiled %JSON.Adaptor class. A
-///     runner with no ReplyClass cannot answer these kinds. A turn needs no ReplyClass.
+///     runner with no ReplyClass cannot answer these kinds. A turn and a tool request need no ReplyClass.
 ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %String, filterClass As %String, timer As %String) As %Status
 {
 	Set sc = ##class(OcuTalon.Bridge.Timeouts).Check(timer)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("ReplyFilterClass", filterClass)
 	If $$$ISERR(sc) Quit sc
-	If kind = "turn" Quit $$$OK
+	If (kind = "turn") || (kind = "tool") Quit $$$OK
 	If replyClass = "" {
 		Quit $$$ERROR($$$GeneralError, "The runner "_runner_" has no ReplyClass setting, so a "_kind_" request cannot be sent: ReplyClass names the %JSON.Adaptor class that the reply is checked against")
 	}
@@ -745,6 +786,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set isReply = $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply")
 	If (failure = "") && 'isReply Set failure = "The runner gave no Reply"
+	If kind = "tool" Quit ..ConcludeTool(request, decisionRef, reply, sinkClass, traceSessionId, .response, durationMs, failure, stepCount)
 	Set facts = {}
 	Do facts.%Set("failure", failure)
 	Set text = ""
@@ -795,6 +837,47 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		Quit $$$OK
 	}
 	Quit ..ResponseFromRow(row, .response)
+}
+
+/// Conclude for kind tool: the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
+/// runner's failure, or of a Reply whose FailureText is set) is a fallback with the reason error (RecordFallback), whatever the text says, so
+/// that a tool's own error text never marks the day as capped. A failure while the approval row is still approved means the run never started
+/// (the row's lock was not taken): no Decision row is recorded, so that a later replay of the row is not answered from a fallback, and the answer
+/// is a Reply that holds only the FailureText. Otherwise one Decision row is saved with the outcome act, no reasons, no
+/// confidence and no payload, decision.recorded is fired after the save (FireEvent), and the answer is the row's Reply (ResponseFromRow). A
+/// row that another call saved first for the item is answered instead and fires nothing.
+ClassMethod ConcludeTool(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer, failure As %String, stepCount As %Integer) As %Status [ Private ]
+{
+	Set response = ""
+	If failure '= "" {
+		If ..StillApproved(request.ItemId) {
+			Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+			Set response.FailureText = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(failure, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
+			Quit $$$OK
+		}
+		Quit ..RecordFallback(request, decisionRef, "error", reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
+	}
+	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
+		Quit ..ResponseFromId(id, .response)
+	}
+	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
+	Set row.Outcome = "act"
+	Set row.Reasons = ""
+	Set row.Confidence = ""
+	Set row.Fallback = 0
+	Set row.FallbackReason = ""
+	Set row.Payload = ""
+	Set sc = ..Record(row, .saved, .response)
+	If $$$ISERR(sc) || 'saved Quit sc
+	Do ..FireEvent(sinkClass, request.OwnerRef, decisionRef)
+	Quit ..ResponseFromRow(row, .response)
+}
+
+/// 1 when the Ref names a tool_call approval request that is still approved: no run has started it (StartExecution makes it executing).
+ClassMethod StillApproved(ref As %String) As %Boolean [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Quit $IsObject(row) && $$$ISOK(row.%Reload()) && (row.Kind = "tool_call") && (row.State = "approved")
 }
 
 /// Checks the text of a decide or diagnose reply against the replyClass (CheckReply) and filters each reason once with filterClass, and
@@ -1004,13 +1087,23 @@ ClassMethod ResponseFromId(id As %String, Output response As %Persistent) As %St
 }
 
 /// The DecisionResponse for a recorded decide or diagnose row: its Ref as DecisionRef, outcome, reasons, confidence,
-/// fallback flag and reason, payload and totals (CarryTotals). The row of a turn keeps no reply text, so a turn is refused with an
+/// fallback flag and reason, payload and totals (CarryTotals). The row of a tool request is answered with a Reply instead: DecisionRef, Outcome,
+/// Fallback, FallbackReason and the totals, and no text, steps or failure text. The row of a turn keeps no reply text, so a turn is refused with an
 /// error that names the item and the Ref.
 ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output response As %Persistent) As %Status
 {
 	Set response = ""
 	If row.Kind = "turn" {
 		Quit $$$ERROR($$$GeneralError, "The item "_row.ItemId_" already has the turn decision "_row.Ref_"; the row keeps no reply text, and a second answer would answer the message twice")
+	}
+	If row.Kind = "tool" {
+		Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+		Set response.DecisionRef = row.Ref
+		Set response.Outcome = row.Outcome
+		Set response.Fallback = row.Fallback
+		Set response.FallbackReason = row.FallbackReason
+		Do ..CarryTotals(row, response)
+		Quit $$$OK
 	}
 	Set response = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
 	Set response.DecisionRef = row.Ref
