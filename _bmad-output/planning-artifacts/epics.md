@@ -6331,11 +6331,18 @@ So that a demo whose replies are all fallbacks never reports healthy, and still 
 
 [AMENDED 2026-10-30, split from Story 29.4 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): Story 29.4's fourth criterion, verbatim, with DW-286 and DW-251. The run itself is the author's (the Contest Planner's pass) on the adapted host, as the owner decision of 2026-10-30 (epic29_brief) says: it spends no more than a brief, bounded number of model turns under the $20 daily cost cap, stays within the 8-licence-unit ceiling, and its results go into the 1.0.0 release notes. The repository holds the load script and its procedure in `release/`, proven on a local stack. Story 29.4's plan measured that a signed-in visitor holds no connection on build 154, so AD-13's busy rule and case 1's busy expectation are at odds; the ruling on that question is applied before this story is planned.]
 
+[AMENDED 2026-10-30, owner decision U-163 (answered by the Contest Planner under the owner's delegation; applied by runner C as a tier-1 amendment): option (a), AD-13 amended on the feature branch (busy also counts OcuTalon's own live demo visitor sessions against a visitor cap of about 6, P12 and NFR-23 unchanged; OWNCONNECTIONS 0; the InstanceConnections check stays as the trace-licence guard). The owner's four conditions are this story's first criteria, below.]
+
 As a judge,
 I want the online demo to stay responsive and say "Demo busy" when it is full,
 So that I either get a working demo or a clear reason to come back later.
 
 **Acceptance Criteria:**
+
+**Given** the online demo with the AD-13 visitor count
+**When** visitors sign in through the proxy
+**Then** `/ocutalon/public/status` and the login page report busy, sessionless and without taking a connection, once the count of live online-demo visitor sessions reaches the visitor cap (about 6), and the post-sign-in check ends a new public session with the busy text when it would take the count past the cap, so a 6th visitor gets in and a 7th sees "Demo busy"; the connection check stays as the guard on trace licence units, and a new session counts no connection of its own (FR-15, NFR-23, P12, AD-13, AD-25) [AMENDED 2026-10-30, owner decision U-163, condition 4]
+**And** a session leaves the count at sign-out and at its CSP timeout (about 120 seconds, as measured), so a crashed tab can't hold a place; the probe and the host's admin path never count; and every reset starts the count at 0 (AD-13, AD-19, AD-25) [AMENDED 2026-10-30, owner decision U-163, conditions 1 to 3]
 
 **Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model
 **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
