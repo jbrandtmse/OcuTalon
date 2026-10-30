@@ -35,3 +35,8 @@
 2026-10-27T00:50:57Z	Story 15.1	ci_resolved	story=15.1 sha=fa9a9e7 runs=40427188466,40427188207 result=success failed=none via=none resolved_at=story_boundary note=first_ci=success;lane-a_ipm-install_job_4m09s_on_x64(00:33:45-00:37:54Z),standalone-bridge_3m41s;ci_all_six_iris_groups_ran_and_passed
 2026-10-27T00:50:57Z	Epic 15	ruling	question=gap-fill_while_15.2(on_4)_and_15.3(on_9,11)_wait choice=no_gap-fill;end_waiting rejected=charter_gap-fill_from_DW-34,DW-212,DW-80 why=none_is_closable_now:DW-34_and_DW-212_need_15.2s_IPM_install_into_OCUTALON(DW-34_also_touches_Data/Time.cls,Epic_8_contended);DW-80_is_15.3s_own_AC(Reconcile_on_autostart);taking_it_early_splits_15.3 category=decide policy=36abb05b2ba2f34d6e14569e62a14b8fcd06550f
 2026-10-27T00:50:57Z	Epic 15	epic_runner_ended	reason=waiting waiting_on=4(15.2),9+11(15.3) stories_done=1(15.1) note=resume_prompt_refreshed;epic-15-context_older_than_spine(re-pre-warm_before_15.2_plan)
+2026-10-30T22:47:53Z	Epic 15	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=redispatch_after_epic_4 lane=B slot=ocutalon-slot-b runner=B previous_runner=C policy_changed_from=36abb05 hashes_checked=main_checkout_ok
+2026-10-30T22:47:53Z	Epic 15	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-30T22:47:53Z	Epic 15	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-30T22:47:53Z	Epic 15	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-10-30T22:47:53Z	Epic 15	ci_resolved	story=epic_head sha=c4b564c runs=40428982190,40428982105 result=success failed=none via=none resolved_at=resume
