@@ -6,10 +6,10 @@ import {
   answerApproval,
   cappedMarked,
   cleanPopulated,
+  clearOfMidnight,
   dailyCapSettled,
   epochOf,
   fallbackReasons,
-  localToday,
   mockRequests,
   populate,
   removeSession,
@@ -38,6 +38,9 @@ import {
  *   such request, the day is marked, the banner shows and one card follows.
  * - AP (both caps hold): S1 is capped and has an allowance window (a seeded hour and one 429), a real Orders watch and a fixture approval:
  *   Approval.Answer answers the approval with done, and pressing Break the feed in the page answers 200.
+ * - D0 (DW-413, browserless): clearOfMidnight waits past instance midnight and reads the day again when a case's budget does not fit in what is
+ *   left of the day, and returns at once when it does.
+ * D1, D2 and AP call clearOfMidnight first and use its day for every mark, check and cleanup, so that the day cannot turn inside a case.
  * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ mode: 'serial', timeout: 300_000 });
@@ -45,6 +48,11 @@ test.describe.configure({ mode: 'serial', timeout: 300_000 });
 const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const CAPPED_CARD = "The online demo has used today's model allowance. Decisions use fixed rules until ";
 const MARKER = '[[mock:daily-cap]]';
+
+/** The seconds of the instance's day that each case needs (its waits, with a margin): clearOfMidnight waits past midnight when fewer are left. */
+const D1_BUDGET_S = 240;
+const D2_BUDGET_S = 150;
+const AP_BUDGET_S = 200;
 
 const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
@@ -90,19 +98,42 @@ async function settleMonitor(): Promise<void> {
   await expect.poll(dailyCapSettled, { message: 'StatusMonitor remembers the daily cap as lifted', timeout: 90_000, intervals: [1_000] }).toBe(true);
 }
 
-/** Restores what a case changed instance-wide: its Usage row and the day's capped mark. */
-async function restore(usage: string | undefined): Promise<void> {
+/** Restores what a case changed instance-wide: its Usage row and the capped mark of the day that it used (undefined when it never read one). */
+async function restore(day: string | undefined, usage: string | undefined): Promise<void> {
   if (usage !== undefined) await removeUsage(usage);
-  await unmarkCapped();
+  if (day !== undefined) await unmarkCapped(day);
 }
+
+test('D0: clearOfMidnight waits past instance midnight when the budget does not fit in the day, and reads the day once more', async () => {
+  const slept: number[] = [];
+  const sleep = async (ms: number): Promise<void> => {
+    slept.push(ms);
+  };
+  const readings = [
+    { day: '2026-10-30', secondsLeft: 2 },
+    { day: '2026-10-31', secondsLeft: 86_398 },
+  ];
+  const day = await clearOfMidnight(100, async () => readings.shift()!, sleep);
+  expect(slept, 'one sleep of the 2 seconds left plus 2').toEqual([4000]);
+  expect(day, 'the day after midnight').toBe('2026-10-31');
+  expect(readings, 'the day was read twice and no more').toEqual([]);
+
+  slept.length = 0;
+  const early = [{ day: '2026-10-30', secondsLeft: 100 }];
+  expect(await clearOfMidnight(100, async () => early.shift()!, sleep), 'a budget that just fits returns the day at once').toBe('2026-10-30');
+  expect(slept, 'with no sleep').toEqual([]);
+});
 
 test('D1: the daily cap reached by IRIS\'s own count sends the daily-cap message once to each session with activity', async ({ browser }) => {
   let s1: Visitor | undefined;
   let s2: Visitor | undefined;
   let s3: Visitor | undefined;
   let usage: string | undefined;
+  let day: string | undefined;
+  test.setTimeout(300_000 + D1_BUDGET_S * 1000);
   try {
-    expect(await cappedMarked(), 'the day is not marked to begin with').toBe(false);
+    day = await clearOfMidnight(D1_BUDGET_S);
+    expect(await cappedMarked(day), 'the day is not marked to begin with').toBe(false);
     s3 = await visit(browser);
     await send(s3, 'zz S3 before the cap', 'd1s3');
     await expect.poll(async () => (await turnRowsOf(s3!.epoch)).map((turn) => turn.state), { message: "S3's turn is done before the cap is reached", timeout: 90_000 }).toEqual(['done']);
@@ -124,21 +155,20 @@ test('D1: the daily cap reached by IRIS\'s own count sends the daily-cap message
     await expect(cappedCards(s2.page), 'S2 has one after its own send').toHaveCount(1, { timeout: 90_000 });
     await s1.page.waitForTimeout(5000);
     await expect(cappedCards(s1.page), 'another send from S1 adds none').toHaveCount(1);
-    expect(await cappedMarked(), "S1's fallback marked the day").toBe(true);
+    expect(await cappedMarked(day), "S1's fallback marked the day").toBe(true);
 
     for (const [name, visitor] of [['S1', s1], ['S2', s2], ['S3', s3]] as const) {
       await expect(dailyCapBanner(visitor.page), `${name}: the "daily cap" banner shows`).toBeVisible({ timeout: 60_000 });
       await expect(composer(visitor.page), `${name}: the composer stays usable`).not.toHaveAttribute('aria-disabled', 'true');
     }
-    const today = await localToday();
     for (const [name, visitor] of [['S1', s1], ['S2', s2], ['S3', s3]] as const) {
-      expect((await allowanceRow(visitor.epoch)).dailyCapDay, `${name}: DailyCapDay is today`).toBe(today);
+      expect((await allowanceRow(visitor.epoch)).dailyCapDay, `${name}: DailyCapDay is today`).toBe(day);
     }
   } finally {
     await leave(s1);
     await leave(s2);
     await leave(s3);
-    await restore(usage);
+    await restore(day, usage);
   }
 });
 
@@ -149,23 +179,26 @@ async function page2Quiet(visitor: Visitor): Promise<void> {
 
 test('D2: the gateway\'s 403 falls back with daily_cap, marks the day and sends the message once', async ({ browser }) => {
   let s4: Visitor | undefined;
+  let day: string | undefined;
+  test.setTimeout(300_000 + D2_BUDGET_S * 1000);
   try {
-    expect(await cappedMarked(), 'the clean state: the day is not marked').toBe(false);
+    day = await clearOfMidnight(D2_BUDGET_S);
+    expect(await cappedMarked(day), 'the clean state: the day is not marked').toBe(false);
     await settleMonitor();
     const before = await mockRequests('daily-cap');
     s4 = await visit(browser);
     await send(s4, `${MARKER} zz capped by the gateway`, 'd2');
     await expect(cappedCards(s4.page), 'one daily-cap card').toHaveCount(1, { timeout: 90_000 });
     expect(await fallbackReasons(s4.epoch), 'its decision fell back with daily_cap').toContain('daily_cap');
-    expect(await cappedMarked(), 'the day is marked').toBe(true);
+    expect(await cappedMarked(day), 'the day is marked').toBe(true);
     expect((await mockRequests('daily-cap')) - before, 'the mock saw one request').toBe(1);
     await expect(dailyCapBanner(s4.page), 'the banner shows').toBeVisible({ timeout: 60_000 });
     await s4.page.waitForTimeout(5000);
     await expect(cappedCards(s4.page), 'and still one card').toHaveCount(1);
-    expect((await allowanceRow(s4.epoch)).dailyCapDay).toBe(await localToday());
+    expect((await allowanceRow(s4.epoch)).dailyCapDay).toBe(day);
   } finally {
     await leave(s4);
-    await restore(undefined);
+    await restore(day, undefined);
   }
 });
 
@@ -173,8 +206,11 @@ test('AP: an approval is answered and Break the feed is pressed while both caps 
   let s1: Visitor | undefined;
   let usage: string | undefined;
   let rows: Populated | undefined;
+  let day: string | undefined;
+  test.setTimeout(300_000 + AP_BUDGET_S * 1000);
   try {
-    expect(await cappedMarked(), 'the clean state: the day is not marked').toBe(false);
+    day = await clearOfMidnight(AP_BUDGET_S);
+    expect(await cappedMarked(day), 'the clean state: the day is not marked').toBe(false);
     await settleMonitor();
     s1 = await visit(browser);
     usage = await seedUsage(20);
@@ -201,6 +237,6 @@ test('AP: an approval is answered and Break the feed is pressed while both caps 
   } finally {
     if (rows !== undefined) await cleanPopulated(rows);
     await leave(s1);
-    await restore(usage);
+    await restore(day, usage);
   }
 });

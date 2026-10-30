@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
+import { STATE } from './api';
 import {
   cleanFixtureRows,
   fixtureUser,
@@ -131,11 +132,24 @@ export function settled(page: Page): Promise<void> {
   return page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))));
 }
 
+/**
+ * Runs the sign-in action and waits until the page has loaded its snapshot (DW-333). The wait is on the answer: the GET of /state is armed
+ * before the action and awaited with its status, and only then does the page get its time to show the snapshot, so a /state that a loaded
+ * host answers late is waited for and a failed one is named. The action may be any sign-in that ends at the application's page.
+ */
+export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
+  const state = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE);
+  // The wait is awaited below; a sign-in that fails first must not leave its timeout unhandled.
+  state.catch(() => undefined);
+  await signInAction();
+  expect((await state).status(), 'the snapshot is served').toBe(200);
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+}
+
 /** Signs the floor user in and waits for the loaded page with its composer. */
 export async function openFloor(page: Page): Promise<void> {
   const { user, password } = fixtureUser('FLOOR');
-  await signIn(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(composerOf(page)).toBeVisible();
 }
 

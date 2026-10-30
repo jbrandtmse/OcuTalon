@@ -21,6 +21,8 @@ import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, 
  * - B2: a message that the server refuses with 503 comes back to an empty composer with no "Not sent" and no announcement, the banner shows
  *   while the 503s last and clears at the first 2xx poll, and Send then posts the text; with other text already in the composer the message
  *   stays as "Not sent" with Retry sending (today's failure).
+ * - B2b (DW-252): the guide's prompt button, pressed while the server refuses its post with 503, leaves no entry behind: no bubble, no "Not
+ *   sent", no Retry sending, an empty composer and no announcement, and the "Demo busy" banner shows, as in B2.
  * - B3: a reply's Trace link, pressed while the status says busy, opens nothing and shows the banner; the check asks the status with a
  *   unique ?t= query; a quiet re-check that fails keeps the banner, and the real status clears it.
  * - B3b: the same press while the status check fails (an answer that is not JSON) opens the tab and shows no banner.
@@ -41,6 +43,7 @@ const BANNER = '[data-banner="demoBusy"]';
 
 const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
+const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
 const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 const refusal = { error: { code: 'busy', message: 'Something went wrong inside OcuTalon. Try again.' } };
 
@@ -238,6 +241,43 @@ test('B2: a message refused with 503 comes back to the composer, and stays as No
     await expect(page.getByRole('button', { name: 'Retry sending' }), 'with Retry sending').toHaveCount(1);
     await expect(field, 'the composer keeps the newer text').toHaveValue('newer text');
     await expect(page.locator('app-chat-panel .bubble').filter({ hasText: 'first text' })).toHaveCount(1);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+test('B2b: the guide prompt refused with 503 leaves the chat with no Not sent, an empty composer and the busy banner', async ({ page }) => {
+  let epoch = '';
+  try {
+    await recordAnnouncements(page);
+    ({ epoch } = await open(page));
+    await expect(guideSend(page), "the guide's prompt button is usable").not.toHaveAttribute('aria-disabled', 'true');
+    const bubbles = page.locator('app-chat-panel .bubble');
+    const before = await bubbles.count();
+
+    await page.route(`**${EVENTS}*`, async (route) => {
+      await route.fulfill({ status: 503, json: refusal });
+    });
+    let refused = 0;
+    const post = async (route: import('@playwright/test').Route): Promise<void> => {
+      if (refused === 0) {
+        refused += 1;
+        await route.fulfill({ status: 503, json: refusal });
+        return;
+      }
+      await route.continue();
+    };
+    await page.route(`**${MESSAGES}`, post);
+    await guideSend(page).click();
+    await expect.poll(() => refused, { message: "the prompt's post was answered with 503" }).toBe(1);
+    await expectBanner(page, 'after the 503');
+    await expect(bubbles, "the prompt's entry has left the chat").toHaveCount(before);
+    await expect(page.locator('app-chat-panel .failed'), 'with no "Not sent"').toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Retry sending' }), 'and no Retry sending').toHaveCount(0);
+    await expect(composer(page), "the composer holds nothing: the prompt's text did not move into it").toHaveValue('');
+    expect(await announcements(page, 'Message not sent'), 'nothing says "Message not sent"').toBe(0);
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await signOutGroup(page);

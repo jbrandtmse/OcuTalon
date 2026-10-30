@@ -30,8 +30,9 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. live:cards runs in
 # install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
 # Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
-# run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
-# bundle, because its Web classes check the built bundle.
+# run times (DW-220; the expected times are in the spec of Story 16.9). live:online-demo-path (Story 29.4: REL-2's online run and the
+# second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. shard:lane-b cannot go to production,
+# whose units read no web bundle, because its Web classes check the built bundle.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
@@ -39,7 +40,7 @@ group_units() {
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
-    shards-2) echo "shard:lane-a@rest" ;;
+    shards-2) echo "shard:lane-a@rest live:online-demo-path" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
@@ -92,7 +93,7 @@ shard_unit_areas() {
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance"
+BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance online-demo-path"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

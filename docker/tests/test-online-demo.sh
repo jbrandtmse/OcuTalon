@@ -32,8 +32,8 @@
 #     events, the production message headers, the audit log, each of the three databases of the global scan) holds something the search
 #     can find, so that a count of 0 cannot come from a search that sees nothing;
 #   - the browser (rows 7 to 12, Story 16.8's reset.spec.ts (the last ten minutes before a reset on a controlled clock, and a real reset four
-#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2, and Story
-#     16.3's R1, R2, R4 and R5): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
+#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b, and Story 16.3's R1, R2, R4 and R5; the REL-2 online run
+#     has its own unit, test-online-demo-path.sh): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - the proxied phase (Story 16.3, rows 10 and 11 and Task 0 (c)): the public proxy address is set to the address IRIS sees for this
 #     host's requests, a first proxied sign-in must write a counter row (else the check fails naming the derived address), then five
 #     sign-ins from one forwarded address are counted and the sixth is refused with the splash's field error, a cookie sign-in resumes,
@@ -1701,32 +1701,12 @@ check_password_not_logged() {
     fail "$label: '$n' line(s) of the container's output, messages.log or the after-start log hold it"
   fi
 }
-# ref_script <namespace> < script: iris_script with the resume reference of row 6 in the session's environment as OCUTALON_T16_REF (the
-# way live_fixture_user hands a password over), so that the reference is in no script text.
-ref_script() {
-  local script out try=1
-  script=$(cat)
-  while :; do
-    out=$(printf '%s\n' "$script" | OCUTALON_T16_REF="$resume_ref" dc exec -T -e OCUTALON_T16_REF iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
-    if [ -n "$out" ] || [ "$try" -ge 3 ]; then break; fi
-    try=$((try + 1))
-    sleep 5
-  done
-  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
-}
-# check_ref_session <label> <namespace> <expected CHK lines> <script line>...: check_session with ref_script.
-check_ref_session() {
-  local label=$1 ns=$2
-  printf '%s\n' "$3" > "$tmp/expected.chk"
-  printf '%s\n' "${@:4}" | ref_script "$ns" > "$tmp/actual.chk"
-  compare_chk "$label" "$tmp/actual.chk" "$tmp/expected.chk"
-}
-# check_records_clean <when> <check_session or check_ref_session> <what> <variable>...: none of the values of the variables (in the
-# environment of the session that runs the script) is in a row of the production event log, of the live events (OCUTALON) or in an audit
-# entry (%SYS); <what> names them in the labels. Only counts are printed.
+# check_records_clean <when> <what> <variable>...: none of the values of the variables (in the environment of the session that runs the
+# script; LIVE_SESSION_ENV names those that check_session hands over) is in a row of the production event log, of the live events
+# (OCUTALON) or in an audit entry (%SYS); <what> names them in the labels. Only counts are printed.
 check_records_clean() {
-  local when=$1 runner=$2 what=$3 names="" events="" audits="" live="" v
-  shift 3
+  local when=$1 what=$2 names="" events="" audits="" live="" v
+  shift 2
   for v in "$@"; do
     names="$names${names:+,}\"$v\""
     events="$events${events:+
@@ -1736,13 +1716,13 @@ check_records_clean() {
     audits="$audits${audits:+
 }CHK|audit|$v|0"
   done
-  "$runner" "$when: the production event log and the live events hold $what" OCUTALON \
+  check_session "$when: the production event log and the live events hold $what" OCUTALON \
     "$events
 $live" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ ?\",e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|eventlog|\",p,\"|\",n }" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ?\",e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|liveevent|\",p,\"|\",n }" \
     'Halt'
-  "$runner" "$when: no audit entry holds $what" %SYS \
+  check_session "$when: no audit entry holds $what" %SYS \
     "$audits" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?\",e,e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|audit|\",p,\"|\",n }" \
     'Halt'
@@ -1791,7 +1771,7 @@ CHK|control|scan-public|seen" \
 check_logs_clean() {
   check_password_not_logged OCUTALON_DEMO_PASSWORD "$1: the demo account's password"
   check_password_not_logged OCUTALON_READONLY_PASSWORD "$1: the read-only account's password"
-  check_records_clean "$1" check_session "neither published password" OCUTALON_DEMO_PASSWORD OCUTALON_READONLY_PASSWORD
+  check_records_clean "$1" "neither published password" OCUTALON_DEMO_PASSWORD OCUTALON_READONLY_PASSWORD
   if [ -z "$resume_ref" ]; then
     fail "$1: row 6 kept no resume reference, so a search for it proves nothing"
     return
@@ -1801,8 +1781,8 @@ check_logs_clean() {
   else
     fail "$1: row 6: '$(log_hits "$resume_ref")' line(s) of the container's output, messages.log or the after-start log hold the resume reference"
   fi
-  check_records_clean "$1: row 6" check_ref_session "the resume reference" OCUTALON_T16_REF
-  check_ref_session "$1: row 6: no node of any global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the resume reference" OCUTALON \
+  OCUTALON_T16_REF="$resume_ref" LIVE_SESSION_ENV=OCUTALON_T16_REF check_records_clean "$1: row 6" "the resume reference" OCUTALON_T16_REF
+  OCUTALON_T16_REF="$resume_ref" LIVE_SESSION_ENV=OCUTALON_T16_REF check_session "$1: row 6: no node of any global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the resume reference" OCUTALON \
     "CHK|globals|0" \
     'Write !,"CHK|globals|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($SYSTEM.Util.GetEnviron("OCUTALON_T16_REF"))' \
     'Halt'

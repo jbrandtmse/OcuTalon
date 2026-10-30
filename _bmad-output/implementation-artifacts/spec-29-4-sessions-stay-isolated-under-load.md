@@ -2,13 +2,21 @@
 title: 'Story 29.4: Sessions stay isolated under load'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '23e7b0461e34bed64768a43ca951075a2be83399'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Two more online visitors still sign in with the pre-DW-333 order (sign-in, then a 10 s wait for data-snapshot), so a slow GET /state can still fail them.
+    evidence: |-
+      web/e2e-online/allowance/daily-cap.spec.ts visit() and web/e2e-online/allowance/messages.spec.ts open() call signInFromSplash and then expect data-snapshot="loaded". Matrix row 10 and the task list name openFloor, banners' open() and openVisitor only, so loadedAfter was not applied to them. Pre-existing, found by the verification-gap layer.
+    location: >-
+      web/e2e-online/allowance/daily-cap.spec.ts:69, web/e2e-online/allowance/messages.spec.ts:50
+    severity: low
 ---
 
 <intent-contract>
@@ -201,6 +209,42 @@ The online run is `web/e2e-online/demo-path/demo-path.spec.ts`, in the unit `liv
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 32 findings - high 0, medium 2, low 20, false 10, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: clearOfMidnight re-reads once and does not loop - the host and instance clocks are the same machine; a loop adds a branch for a skew that was not shown
+  - `[low]` `[reject]` Blind: step 6 does not require agentStepCount above 0 - matrix row 6 says "at least agentStepCount"; the guide-watch mock turn may legitimately have none
+  - `[low]` `[reject]` Blind: Decided-in-stage item 2 is stale next to item 0 - the fix edits this spec; item 0 is the later account
+  - `[low]` `[reject]` Blind: the second-visitor finally has no per-item guard - the stack is a throwaway torn down at the end; a throw there already fails the case
+  - `[low]` `[patch]` Blind: weak oracles in the baseline (circular check and mail refs, guide may be absent) - added `expect(bBefore.guide).toBeDefined()`; the check and mail refs are guarded by the 1/1/1/1 count and the cross-containment searches
+  - `[low]` `[reject]` Blind: report check pins counts per story, not titles - a swap needs a deliberate edit and the row 7 mutation went red on a count
+  - `[low]` `[patch]` Blind: the cleanPopulated comment is wrong (Clean(",") deletes nothing) - the guard and its comment were removed; the hunk is back to the baseline line
+  - `[false]` `[reject]` Blind: units.sh header omits online-demo-path in the Lane B list - the unit is not Lane B's; the next sentence names it
+  - `[false]` `[reject]` Blind: shards-2 becomes the longest group - Decided in-stage 1 chose it for headroom, the merge gate re-checks REL-4; measured 141 to 162 s locally
+  - `[medium]` `[patch]` Edge: report_check that cannot run prints nothing and reads as no problems - `|| problems="the report check could not run"` added
+  - `[low]` `[reject]` Edge: finally cleanup loops stop at the first throw - same as the Blind finding on per-item guards
+  - `[low]` `[reject]` Edge: step 6 finally, sessionRow throw - same class
+  - `[low]` `[reject]` Edge: populate() of B throws before populated.push - same class
+  - `[low]` `[reject]` Edge: eventsSince stops after 20 polls - 20 pages of events after a cursor is far above what one Break the feed produces
+  - `[false]` `[reject]` Edge: B's own watch.progress would flag a false leak - watch.progress is published only by IncidentManager for incidents; B has none
+  - `[false]` `[reject]` Edge: loadedAfter may take an early non-200 /state - the splash polls no /state; a non-200 is named by the status expectation, which is the point
+  - `[low]` `[reject]` Edge: clearOfMidnight loop - same as the first Blind finding
+  - `[low]` `[reject]` Edge: budgets of 240/150/200 s against 300 s timeouts - measured case times are 18 to 34 s; the budget is a margin, not a limit
+  - `[false]` `[reject]` Edge: setTimeout raised by only the budget - the midnight wait is at most budget plus 2 s and the cases run 18 to 34 s
+  - `[false]` `[reject]` Edge: LIVE_SESSION_ENV naming an unset variable - the check prints `<unset>` and fails; the DW-236 mutation run shows it
+  - `[false]` `[reject]` Edge: retried flake counts as passed - playwright.config.ts sets retries 0
+  - `[low]` `[reject]` Edge: step 1 leaves its session row - step 1 "stays as it is" (spec); the throwaway is torn down
+  - `[medium]` `[patch]` Gap: step 6 clicks the guide button before it is usable (Rule 19 hermeticity) - `not.toHaveAttribute('aria-disabled','true')` added before the click, as B2b has it
+  - `[low]` `[reject]` Gap: agent steps not required above 0 in step 6 - same as the second Blind finding
+  - `[low]` `[reject]` Gap: circular baseline fields - covered by the patch above and the count and containment guards
+  - `[false]` `[reject]` Gap: the shards-2 placement is unpinned - mutation run: removing the unit from shards-2 turns test-ci-config.sh and test-ci-changes.sh red
+  - `[low]` `[reject]` Gap: D1/D2/AP use of the day has no mutation - `day` is a string argument checked by tsc; a midnight straddle cannot be scheduled
+  - `[low]` `[defer]` Gap: allowance visit() and messages open() keep the old sign-in wait - pre-existing, outside matrix row 10's list; deferred
+  - `[low]` `[reject]` Other: unused costUSD in the decision cast - cosmetic
+  - `[low]` `[reject]` Other: step 6 finally runs removeSession before cleanPopulated - same class as the per-item guards
+  - `[false]` `[reject]` Other: the report check is skipped with -g - by design (matrix and Tasks: arguments run only those tests)
+  - `[false]` `[reject]` Intent audit: divergences (watch started by the mock marker in the composer, A's rows after the press checked with toContain, separate waits inside the 90 s row, the 12 s hold run as a mutation check only, clearOfMidnight's second read) - descriptive; each is the spec's own Decided in-stage 0 or its Verification text, none is a defect
+
 ## Design Notes
 
 **Owner decision for Epic 29** (`owner_decision id=epic29_brief`, the Contest Planner under the owner's delegation, 2026-10-30). It binds. The parts that concern 29.4, quoted:
@@ -293,6 +337,7 @@ The first, fifth and last ACs run those consumers.
 Apart from `lib-live.sh` (Epic 12's three hunks, kept clear of), none of these is contended, and no other epic branch changes them. `ci/units.sh` gets only this story's own unit and list entries, on lines no other branch changes. The rest is in the footprint: `web/e2e-online/**`, `docker/tests/test-online-*.sh` and `docker/tests/test-online-demo-path.sh`.
 
 **Decided in-stage:**
+0. (implement) **The second visitor starts its watch with the mock's marker** (this supersedes item 2's "from each visitor's own guide watch prompt" and its agent-steps remark for the second visitor). `ci/mock/scenarios/B/guide-watch.json` answers the guide's watch prompt with text only and calls no `start_watch`, so no Orders check is made and Break the feed would answer 409. The case sends `[[mock:watch-start-orders]]` plus the guide's watch prompt text through the composer (the real StartWatch tool). Step 6 presses the guide button, since it needs only a turn with a decision. The mock stays as it is (outside the footprint). The phone's answer line is matched with its optional zone suffix. `eventsSince` in the spec reads `/events` from a cursor on both streams until nothing new arrives.
 1. **REL-2's online run moves to its own project and unit** (`web/e2e-online/demo-path/`, `online-demo-path`, `live:online-demo-path` in `shards-2`):
    - The second visitor needs the keys pointed at the mock. Without them every decision is a `no_key` fallback, and no approval request is raised. The `online-demo` unit keeps them unpointed during its browser step.
    - `shards-2` has the largest headroom (20.0 min measured; `shards` 20.9).
@@ -343,20 +388,44 @@ The implement stage searches the test trees for each of these.
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order. Each online-run case creates and removes its own sessions and rows, and the mutation runs below run single cases alone.
 
 **Mutations (Rule 19), one per AC.** Each is applied, observed red, reverted, and the tree confirmed byte-identical:
-- AC1: mutation: `Data/Session.cls` `Recipients` also returns every other session of the same IRIS user. Expected red: the second-visitor case at row 2 (B's phone gets A's notice). Run with `live online-demo-path -g "second visitor"`.
-- AC1, step 6: mutation: `Web/TraceLink.cls` adds 1 to `SESSIONID`. Expected red: step 6 (the turn is not drawn).
-- AC1, row 7: mutation: one `notBuilt(..., '31.4')` becomes an empty passing test. Expected red: the unit's report check.
-- AC2: mutation: `Data/Ownership.cls` `Approval` returns the row whatever its owner. Expected red: the second-visitor case at row 4.
-- AC3 (CI): mutation: `online-demo-path` is left out of `BROWSER_UNITS`. Expected red: `test-ci-config.sh` ("it runs Playwright, but online-demo-path is not in BROWSER_UNITS").
-- AC4: mutation: `online-demo` without the `demo-path/` ignore. Expected red: `npm --prefix web test`.
-- AC5, DW-252: mutation: `chat-outbox.ts` `refuse()` without `!entry.fromGuide &&`. Expected red: the new busy case (the prompt lands in the composer). Run `ci/iris.sh build` before the mutation run and after the revert.
-- AC5, DW-413: mutation: `clearOfMidnight` never sleeps. Expected red: D0.
-- AC5, DW-333: mutation: `loadedAfter` waits for the snapshot only, with a temporary 12 s hold on GET `/state` in one floor case. Expected red: that case. With the fix and the hold, it is green.
-- AC6, DW-236: mutation: `iris_script` ignores `LIVE_SESSION_ENV` (no `-e`). Expected red: `live online-demo`'s row 6 search of the production event log and the live events (`CHK|eventlog|OCUTALON_T16_REF|<unset>` instead of `0`).
+- AC1: mutation: `Data/Session.cls` `Recipients` returns every session's Ref when it is called with an incident Ref (the incident path of `IncidentManager`). Red (observed): the second-visitor case at row 2 ("B's chat has no incident card": expected 0, received 1). Run with `live online-demo-path -g "second visitor"`. Two variants were also run: returning every session on every call goes red at row 1 (A's phone gets no notice, because `IsSession` checks for exactly one Ref), and the same extra Refs in `Core/BridgeSink.cls` `Recipients` stay green (the approval row is read through `Ownership.Approval`, which refuses B's).
+- AC1, step 6: mutation: `Web/TraceLink.cls` `Url` adds 1000000 to `SESSIONID`. Red (observed): step 6 ("the page draws messages": expected > 0, received 0). Adding 1 stays green, because the next header lies in the same session and Visual Trace still draws the turn.
+- AC1, row 7: mutation: one `notBuilt(..., '31.4')` becomes an empty passing test. Red (observed): the unit's report check ("wanted 3 passed cases, found 4" and "wanted 3 skipped cases of Story 31.4, found 2").
+- AC2: mutation: `Data/Ownership.cls` `Approval` returns the row whatever its owner (`ApprovalRequest.RefIndexOpen(ref)`). Red (observed): the second-visitor case at row 4 (B's answer: expected 404, received 200).
+- AC3 (CI): mutation: `online-demo-path` is left out of `BROWSER_UNITS`. Red (observed): `test-ci-config.sh` ("it runs Playwright, but online-demo-path is not in BROWSER_UNITS").
+- AC4: mutation: `online-demo` without the `demo-path/` ignore. Red (observed): `npm --prefix web test` (the `online-demo` and `online-demo-path` list pins, 2 failures).
+- AC5, DW-252: mutation: `chat-outbox.ts` `refuse()` without `!entry.fromGuide &&`. Red (observed): B2b (the prompt lands in the composer; `live online-demo` has no case filter, so the whole unit ran). `ci/iris.sh build` ran before the mutation run and after the revert.
+- AC5, DW-413: mutation: `clearOfMidnight` never sleeps. Red (observed): D0 ("one sleep of the 2 seconds left plus 2": expected [4000], received []). D0 is browserless, so it ran alone with `playwright test --project=online-allowance -g D0` and no stack.
+- AC5, DW-333: mutation: `loadedAfter` waits for the snapshot only, with a temporary 12 s hold on GET `/state` in one floor case. Red (observed): the hold was put on the first GET `/state` of step 6 in the online run instead of a floor case (the same `loadedAfter`, and a 2.5-minute stack); with the mutation, "data-snapshot" stayed unloaded for the 10 s expect timeout. With the fix and the hold, step 6 is green (14.6 s).
+- AC6, DW-236: mutation: `iris_script` ignores `LIVE_SESSION_ENV` (no `-e`). Red (observed): `live online-demo`'s row 6 searches (`CHK|eventlog|OCUTALON_T16_REF|<unset>` instead of `0`, and the same for the live events, the audit log and the globals).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan re-dispatch 1 (2026-10-30): re-planned around the lead's and the orchestrator's rulings. This story keeps criteria 1 to 3 (the third skipped for Story 31.4) and DW-252, DW-333, DW-413 and DW-236; the fourth criterion, DW-286 and DW-251 are Story 29.7's (parked, U-163). Three intent lines were updated (Spec Change Log). `footprint_extensions:` now names `docker/tests/lib-live.sh` (`iris_script` and `check_session` only). The new unit's expected CI time is 7 to 9 min, so `shards-2` becomes about 27 to 29 min (inference from run 41027546659). No throwaway was started in this pass.
+**Summary.** REL-2's online run moved to its own project and unit, `live:online-demo-path` (`shards-2`). Step 6 is real, and a "second visitor" case shows that A's incident, notice and approval request reach only A, that B's page, `/state` and `/events` get nothing, that B's answer to A's request is refused with 404 `not_found`, and that A then answers on its phone. Four steps stay `notBuilt('11.1')` and three cases `notBuilt('31.4')`, checked by the unit's report check. DW-252 (B2b), DW-333 (`loadedAfter`), DW-413 (`clearOfMidnight`, D0) and DW-236 (`LIVE_SESSION_ENV`) are fixed beside it.
+
+**Files changed.**
+- `web/e2e-online/demo-path/demo-path.spec.ts`: the moved online run, step 6 and the second-visitor case.
+- `web/e2e-online/support.ts`: `openVisitor`, `populate` options, `ordersOf`, the moved O4 helpers, `instanceDay` and `clearOfMidnight`; `cappedMarked` and `unmarkCapped` take a day.
+- `web/e2e-online/allowance/daily-cap.spec.ts`: D0, and D1, D2 and AP on one day.
+- `web/e2e-online/busy.spec.ts`: B2b (DW-252).
+- `web/e2e-online/demo-account.spec.ts`: imports the moved helpers.
+- `web/e2e/support/floor.ts`, `web/e2e/banners/banners.spec.ts`: `loadedAfter` (DW-333).
+- `web/playwright.config.ts`, `web/package.json`, `web/scripts/playwright-projects.test.mjs`: the project, its script and its pins.
+- `docker/tests/test-online-demo-path.sh` (new): the unit and its report check.
+- `docker/tests/lib-live.sh`: `iris_script` and `check_session` pass `LIVE_SESSION_ENV` (DW-236).
+- `docker/tests/test-online-demo.sh`: no `ref_script` or `check_ref_session`; row 6 uses the pass-through.
+- `ci/units.sh`: `shards-2`, `BROWSER_UNITS` and the grouping comment.
+
+**Review.** One pass, 32 findings: high 0, medium 2, low 20, false 10. Four patched (2 medium, 2 low): the report check that cannot run now fails, step 6 waits for the guide button to be usable, the baseline asserts B's guide is served, and the `cleanPopulated` guard and its wrong comment are gone. One low deferred (the allowance `visit()` and messages `open()` sign-in wait). Every rejected finding and its reason is in the Review Triage Log.
+
+**Follow-up review recommended: true** (two medium entries patched). Unverified risk: the failure branch of the patched report-check call (`|| problems=...`) was not exercised; the other patches ran in two unit reruns.
+
+**Verification.** `bash -n` of the three scripts, `npm --prefix web run lint` and `npm --prefix web test` (1126 of 1126): pass. `live online-demo-path`: PASS twice (154 s then 141 s for the unit; the browser step 49 s and 48 s; step 1 1.2 s, step 6 2.1 s, second visitor 44 s). Once-only units: `live online-demo` PASS (the browser step 203 s; the unit about 360 s), `live online-allowance` PASS (266 s, rerun after the patches 224 s), `live floor` PASS (105 passed, 4.5 min), `live sign-in --part 1/2` PASS (127 passed, 3.8 min), `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml --group shards-2`, `ci/checks.sh` (twice) and the `ref_script|check_ref_session` grep: pass or empty. Teardown of tag `e29s4i`: nothing left. All ten Rule 19 mutations were applied, observed red and reverted with the tree byte-identical (see the `mutation:` lines).
+
+**Residual risks.**
+- `live:online-demo-path` is measured at 141 to 162 s locally, below the plan's 4 to 5.5 min; the CI time for `shards-2` (plan: 27 to 29 min) is not measured here.
+- The second visitor starts its watch with the mock's `[[mock:watch-start-orders]]` marker, not the guide's button (Decided in-stage 0), because the `guide-watch` mock calls no tool.
+- Two mutations in the plan did not go red as worded and were corrected in `## Verification`: `Recipients` returning other sessions on every call breaks `IsSession` first (red at row 1), and `SESSIONID` plus 1 still draws the turn.
