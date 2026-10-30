@@ -4,6 +4,11 @@
 ///     missing after each give a line;
 ///   - TestNewHeaders: a new header gives a line, unless its session is one of the allowed sessions of its namespace or the session of a new HeartbeatIn header; a session
 ///     allowed in another namespace does not allow it; a changed or missing header gives a line;
+///   - TestRunningTimersAreNotChanges: in OCUTALON, the request of a timer (a header to Ens.Alarm) that was not final in "before", its completing, and one wake-up header
+///     that Ens.Alarm sent in its session give no line. A timer armed after "before" (its request and its wake-up, in a new session or in the session of the earlier
+///     timer), a second wake-up in the session (two pending timers in one session allow two wake-ups, not three), a request that was
+///     final in "before" (Discarded, Aborted, Error or Completed), a header to another target, another change in that session, and the same headers in another
+///     namespace give a line each;
 ///   - TestNothingChanged: two equal snapshots give no line.
 Class OcuTalon.Test.Fix.SnapshotDiff Extends %UnitTest.TestCase
 {
@@ -14,8 +19,16 @@ ClassMethod Taken(headers As %DynamicObject = "", productions As %DynamicObject 
 	Quit {"ZZNS": {"headers": ($Select($IsObject(headers): headers, 1: {})), "productions": ($Select($IsObject(productions): productions, 1: {})), "state": ($Select($IsObject(state): state, 1: {})), "defaults": ($Select($IsObject(defaults): defaults, 1: {})), "queues": ($Select($IsObject(queues): queues, 1: {}))}}
 }
 
-/// The text of a header row as Snapshot.Take keeps it, with the session and the source in their columns.
-ClassMethod Row(session As %String, source As %String) As %String [ Private ]
+/// A snapshot of one namespace with the given headers only.
+ClassMethod TakenIn(namespace As %String, headers As %DynamicObject) As %DynamicObject [ Private ]
+{
+	Set taken = {}
+	Do taken.%Set(namespace, {"headers": (headers), "productions": {}, "state": {}, "defaults": {}, "queues": {}})
+	Quit taken
+}
+
+/// The text of a header row as Snapshot.Take keeps it, with the session, the source, the target and the status in their columns.
+ClassMethod Row(session As %String, source As %String, target As %String = "x", status As %String = "x") As %String [ Private ]
 {
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 * FROM Ens.MessageHeader")
 	Set metadata = rs.%GetMetadata()
@@ -23,7 +36,7 @@ ClassMethod Row(session As %String, source As %String) As %String [ Private ]
 	Set row = ""
 	For i = 1:1:columns {
 		Set name = $ZConvert(metadata.columns.GetAt(i).colName, "U")
-		Set row = row _ $Select(name = "SESSIONID": session, name = "SOURCECONFIGNAME": source, 1: "x") _ $Char(31)
+		Set row = row _ $Select(name = "SESSIONID": session, name = "SOURCECONFIGNAME": source, name = "TARGETCONFIGNAME": target, name = "STATUS": status, 1: "x") _ $Char(31)
 	}
 	Quit row _ $Char(30)
 }
@@ -70,6 +83,58 @@ Method TestNewHeaders()
 	Set changed = ..Taken({"1": (..Row(2, "A"))})
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, changed).%Size(), 1, "a changed header gives a line")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, ..Taken()).%Size(), 1, "and a missing header gives a line")
+}
+
+/// The lines Diff gives for headers in the namespace, from "before" to "after" (header id: row).
+Method Lines(namespace As %String, was As %DynamicObject, now As %DynamicObject) As %DynamicArray [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Fix.Snapshot).Diff(..TakenIn(namespace, was), ..TakenIn(namespace, now), "", namespace)
+}
+
+Method TestRunningTimersAreNotChanges()
+{
+	Set ns = ##class(OcuTalon.Test.Fix.Snapshot).#ALARMIN
+	Set alarm = ##class(OcuTalon.Test.Fix.Snapshot).#ALARM
+	Set pending = {"1": (..Row(5, "Decide", alarm, 3))}
+	Set completed = ..Row(5, "Decide", alarm, 9)
+	Set wake = ..Row(5, alarm, "Decide", 1)
+
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake)})
+	Do $$$AssertEquals(lines.%Size(), 0, "a timer that was pending in before completes and wakes its process once: no line "_lines.%ToJSON())
+
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake), "3": (..Row(9, "Decide", alarm, 3))})
+	Do $$$AssertEquals(lines.%Size(), 1, "a timer armed after before, in a new session, gives a line "_lines.%ToJSON())
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake), "3": (..Row(9, "Decide", alarm, 3)), "4": (..Row(9, alarm, "Decide", 1))})
+	Do $$$AssertEquals(lines.%Size(), 2, "and so does its wake-up: a line each "_lines.%ToJSON())
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake), "3": (..Row(5, "Decide", alarm, 3))})
+	Do $$$AssertEquals(lines.%Size(), 1, "a timer armed after before in the session of the earlier timer gives a line "_lines.%ToJSON())
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake), "3": (..Row(5, alarm, "Decide", 1))})
+	Do $$$AssertEquals(lines.%Size(), 1, "a second wake-up in that session gives a line: one per pending request "_lines.%ToJSON())
+
+	Set lines = ..Lines(ns, {"1": (completed)}, {"1": (..Row(5, "Decide", alarm, 8)), "2": (wake)})
+	Do $$$AssertEquals(lines.%Size(), 2, "a request that was final in before is not a running timer: its change and a wake-up give a line each "_lines.%ToJSON())
+	Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", "Other", 3))}, {"1": (..Row(5, "Decide", "Other", 9)), "2": (wake)})
+	Do $$$AssertEquals(lines.%Size(), 2, "a pending header to another target is not a timer "_lines.%ToJSON())
+	Set lines = ..Lines(ns, pending, {"1": (completed), "2": (wake), "3": (..Row(5, "Decide", "Other", 1))})
+	Do $$$AssertEquals(lines.%Size(), 1, "another new header in the timer's session gives a line "_lines.%ToJSON())
+	Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, 3)), "2": (..Row(6, "A", "B", 2))}, {"1": (completed), "2": (..Row(6, "A", "B", 9)), "3": (wake)})
+	Do $$$AssertEquals(lines.%Size(), 1, "a change of another header gives a line while the timer's does not "_lines.%ToJSON())
+
+	Set two = {"1": (..Row(5, "Decide", alarm, 3)), "2": (..Row(5, "Decide", alarm, 3))}
+	Set twoDone = {"1": (completed), "2": (completed), "3": (wake), "4": (wake)}
+	Set lines = ..Lines(ns, two, twoDone)
+	Do $$$AssertEquals(lines.%Size(), 0, "two timers pending in one session allow two wake-ups "_lines.%ToJSON())
+	Do twoDone.%Set("5", wake)
+	Set lines = ..Lines(ns, two, twoDone)
+	Do $$$AssertEquals(lines.%Size(), 1, "and not a third "_lines.%ToJSON())
+
+	For status = 4, 7, 8 {
+		Set lines = ..Lines(ns, {"1": (..Row(5, "Decide", alarm, status))}, {"1": (..Row(5, "Decide", alarm, 9)), "2": (wake)})
+		Do $$$AssertEquals(lines.%Size(), 2, "a request in the final status "_status_" in before is not a running timer "_lines.%ToJSON())
+	}
+
+	Set lines = ..Lines("ZZNS", pending, {"1": (completed), "2": (wake)})
+	Do $$$AssertEquals(lines.%Size(), 2, "the same headers in another namespace give a line each "_lines.%ToJSON())
 }
 
 }

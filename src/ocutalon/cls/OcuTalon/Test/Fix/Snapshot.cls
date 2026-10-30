@@ -1,3 +1,4 @@
+Include Ensemble
 /// A snapshot of what a fix could change in namespaces (Story 7.1; the helper of the "nothing changed" tests; Stories 7.3 and 7.4 reuse it). It has no Test methods.
 ///   - Take(namespaces) first waits up to WAITQUEUES seconds for every queue of every namespace to be empty, then reads, in each namespace: every Ens.MessageHeader
 ///     row (all columns) with the stored properties of its body; each production definition (its XML export: the production's attributes and settings, and every
@@ -8,6 +9,10 @@
 ///     allowedIn (the namespace Diff runs in, by default) and its SessionId is one of allowedSessions (a comma-separated list: the session of the request the test
 ///     sent, which its answer shares), or when its session is one that a new HeartbeatIn header of its namespace started (a scheduled tick, with whatever it sends on).
 ///     The lines are given as a dynamic array of strings, empty when nothing changed.
+///   - A timer that was already running when "before" was taken is no change of the fix: in ALARMIN, a header whose target is ALARM and whose status in "before" was not
+///     final (not Discarded, Aborted, Error or Completed) is the request of a timer armed by an earlier session (a Decide call's SetTimer), and it still fires after that
+///     session has ended. Diff leaves out any change of that request (it completes, or ends in another final status) and, for each such request, one new header that ALARM sent in the same session (the
+///     wake-up). A timer armed after "before" (its request is new) and every other header still count.
 /// It only reads. It switches namespace in QueuedIn and TakeIn, which call Ens, %SQL and dictionary classes there and open each header's body through its own class.
 Class OcuTalon.Test.Fix.Snapshot
 {
@@ -17,6 +22,12 @@ Parameter WAITQUEUES = 10;
 
 /// The source of a scheduled tick, whose new headers Diff allows.
 Parameter HEARTBEAT = "HeartbeatIn";
+
+/// The config name that timers are sent to, and that sends their wake-ups.
+Parameter ALARM = "Ens.Alarm";
+
+/// The only namespace in which Diff leaves out the firing of a timer that was already running (the namespace of the Decide process).
+Parameter ALARMIN = "OCUTALON";
 
 /// The snapshot of the namespaces (a list of names).
 ClassMethod Take(namespaces As %List, Output snapshot As %DynamicObject)
@@ -147,11 +158,14 @@ ClassMethod Diff(before As %DynamicObject, after As %DynamicObject, allowedSessi
 
 ClassMethod DiffCategory(namespace As %String, category As %String, was As %DynamicObject, now As %DynamicObject, allowedSessions As %String, lines As %DynamicArray) [ Private ]
 {
+	Kill pending, wakeups
+	If (category = "headers") && (namespace = ..#ALARMIN) Do ..PendingTimers(was, .pending, .wakeups)
 	Set iterator = was.%GetIterator()
 	While iterator.%GetNext(.key, .value) {
 		If 'now.%IsDefined(key) {
 			Do lines.%Push(namespace_" "_category_" "_key_" is missing after")
 		} ElseIf now.%Get(key) '= value {
+			If $Data(pending(key)) Continue
 			Do lines.%Push(namespace_" "_category_" "_key_" changed")
 		}
 	}
@@ -170,10 +184,31 @@ ClassMethod DiffCategory(namespace As %String, category As %String, was As %Dyna
 			Set columns = $Piece(value, $Char(30), 1)
 			Set session = ..Column(columns, "SessionId")
 			If $ListFind($ListFromString(allowedSessions), session) || $Data(allowed(session)) Continue
+			If (session '= "") && (..Column(columns, "SourceConfigName") = ..#ALARM) && ($Get(wakeups(session)) > 0) {
+				Set wakeups(session) = wakeups(session) - 1
+				Continue
+			}
 			Do lines.%Push(namespace_" header "_key_" is new: session "_session_", from "_..Column(columns, "SourceConfigName")_" to "_..Column(columns, "TargetConfigName"))
 		} Else {
 			Do lines.%Push(namespace_" "_category_" "_key_" is new")
 		}
+	}
+}
+
+/// The timers that were running in "before": pending(header id) for each request to ALARM whose status was not final, and wakeups(session), the number of such
+/// requests of the session (each may be followed by one wake-up header from ALARM).
+ClassMethod PendingTimers(was As %DynamicObject, ByRef pending, ByRef wakeups) [ Private ]
+{
+	Set iterator = was.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set columns = $Piece(value, $Char(30), 1)
+		If ..Column(columns, "TargetConfigName") '= ..#ALARM Continue
+		Set status = ..Column(columns, "Status")
+		If (status = "") || $ListFind($ListBuild($$$eMessageStatusDiscarded, $$$eMessageStatusAborted, $$$eMessageStatusError, $$$eMessageStatusCompleted), +status) Continue
+		Set pending(key) = ""
+		Set session = ..Column(columns, "SessionId")
+		If session = "" Continue
+		Set wakeups(session) = $Get(wakeups(session)) + 1
 	}
 }
 

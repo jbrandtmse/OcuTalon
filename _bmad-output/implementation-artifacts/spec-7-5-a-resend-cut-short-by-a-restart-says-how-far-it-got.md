@@ -2,11 +2,11 @@
 title: 'A resend cut short by a restart says how far it got'
 type: 'feature'
 created: '2026-10-29'
-status: 'in-progress'
-baseline_revision: 'f84b5474b99faa7b52f71bea26b198df972e07af'
+status: 'done'
+baseline_revision: '6ab53bdf3c4c1e299d6828acbdbe7189e28cbdcd'
 baseline_commit: 'f84b5474b99faa7b52f71bea26b198df972e07af'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred:
@@ -390,7 +390,7 @@ Rejected:
 
 ### CI (rework iteration 1 of 3)
 
-- [ ] [CI] iris (shards-2): `OcuTalon.Test.Fix.DryRun` `TestFiftyOrdersChangeNothing` went red twice on 17bb839 (run 40978098377, attempt 1 and its unchanged rerun, https://github.com/jbrandtmse/OcuTalon/actions/runs/40978098377): "nothing in OCUTALON or OCUORDERS changed but the request's own session: [OCUTALON headers 1240 changed, OCUTALON header 1302 is new: session 1238, from Ens.Alarm to Decide]" (rerun: 1241 and 1303 in session 1239). The cause is not the dry run: `OcuTalon.Bridge.Process.Decide` arms a `SetTimer` alarm (TimerSeconds, 60 s by default) on every model call, and the alarm still fires after the session has ended. Since the DW-337 split (3308237) the piece `shard:lane-a@rest` runs `Fix.DryRun` about 20 s after the Bridge and Digest classes, with no Checks classes in between, so an older `Decide` session's alarm wakes up inside the dry run's snapshot window. Fix it in the shared helper `src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls`, which seven Fix classes use (Refused, DryRun, Recheck, Execute, SnapshotDiff, Raise, Runs; all of them now run in `shards-2`), so that a timer that was already pending when the "before" snapshot was taken is not counted as a change. Keep it narrow: only the `Ens.Alarm` request and wake-up of a session whose `Ens.Alarm` request was pending (not yet completed) at the "before" snapshot, in OCUTALON; every other change, and any alarm armed after the snapshot, still counts. Pin it with a test in `Test.Fix.SnapshotDiff` (hermetic: it builds the snapshots or the headers it needs, Rule 19) and a demonstrated mutation (the exemption removed → red; widened to every Ens.Alarm header → red on a case where an alarm armed after the snapshot must count). Reproduce the CI order on a fresh throwaway before and after the fix with `ci/iris.sh shard lane-a@rest --part 2/2` (it holds the last Bridge classes, Digest and the Fix classes), and run `Test.Fix.DryRun`, `Test.Fix.SnapshotDiff` and the other six users fresh. Do not change product code, the CI recipe (`ci/units.sh`, `ci/iris.sh`, `ci.yml`) or the class order.
+- [x] [CI] iris (shards-2): `OcuTalon.Test.Fix.DryRun` `TestFiftyOrdersChangeNothing` went red twice on 17bb839 (run 40978098377, attempt 1 and its unchanged rerun, https://github.com/jbrandtmse/OcuTalon/actions/runs/40978098377): "nothing in OCUTALON or OCUORDERS changed but the request's own session: [OCUTALON headers 1240 changed, OCUTALON header 1302 is new: session 1238, from Ens.Alarm to Decide]" (rerun: 1241 and 1303 in session 1239). The cause is not the dry run: `OcuTalon.Bridge.Process.Decide` arms a `SetTimer` alarm (TimerSeconds, 60 s by default) on every model call, and the alarm still fires after the session has ended. Since the DW-337 split (3308237) the piece `shard:lane-a@rest` runs `Fix.DryRun` about 20 s after the Bridge and Digest classes, with no Checks classes in between, so an older `Decide` session's alarm wakes up inside the dry run's snapshot window. Fix it in the shared helper `src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls`, which seven Fix classes use (Refused, DryRun, Recheck, Execute, SnapshotDiff, Raise, Runs; all of them now run in `shards-2`), so that a timer that was already pending when the "before" snapshot was taken is not counted as a change. Keep it narrow: only the `Ens.Alarm` request and wake-up of a session whose `Ens.Alarm` request was pending (not yet completed) at the "before" snapshot, in OCUTALON; every other change, and any alarm armed after the snapshot, still counts. Pin it with a test in `Test.Fix.SnapshotDiff` (hermetic: it builds the snapshots or the headers it needs, Rule 19) and a demonstrated mutation (the exemption removed → red; widened to every Ens.Alarm header → red on a case where an alarm armed after the snapshot must count). Reproduce the CI order on a fresh throwaway before and after the fix with `ci/iris.sh shard lane-a@rest --part 2/2` (it holds the last Bridge classes, Digest and the Fix classes), and run `Test.Fix.DryRun`, `Test.Fix.SnapshotDiff` and the other six users fresh. Do not change product code, the CI recipe (`ci/units.sh`, `ci/iris.sh`, `ci.yml`) or the class order.
 
 ## Spec Change Log
 
@@ -441,6 +441,21 @@ Rejected:
   - `[low]` `reject` I7: Mark stores at least 1, an empty StartedAt is left, Started falls back to the instance start - decided in-stage; the last two are now tested
   - `[false]` `reject` I8: helpers moved into Case may clash with a subclass - no other test class defines them
   - `[false]` `reject` I9: SendFixResult is typed on FixResult - a type reference; Checks calls only Fix.Run.Sweep() (Test.Bridge.CodeRules passes)
+
+### 2026-10-29 - Review pass (CI rework iteration 1)
+- verdicts: 20 findings (three reviewing layers; the intent-alignment layer is descriptive and gave none; a row groups findings with the same claim) - high 0, medium 0, low 20, false 0, maybe-false 0
+- findings:
+  - `[low]` `patch` Any change of a pending timer's request is left out, not only its completing (blind-hunter, edge-case-hunter, verification-gap, intent-alignment): by construction a change of a timer pending before the snapshot is not the fix's; the class doc said "its own change (it completes)" - patched the doc to "any change of that request (it completes, or ends in another final status)"; the code stays as the spec's "the request ... of a session whose request was pending" says.
+  - `[low]` `reject` The rest of a waking process's work in the old session is still flagged (blind-hunter): spec-bound ("every other change still counts"), and the test pins "another change in that session gives a line".
+  - `[low]` `patch` Status codes 4, 7, 8, 9 hard-coded (blind-hunter): replaced by the `$$$eMessageStatus...` macros (`Include Ensemble`).
+  - `[low]` `patch` Missing cases: two pending timers in one session, final statuses 4/7/8 (blind-hunter, edge-case-hunter, verification-gap): added to `TestRunningTimersAreNotChanges`, with two mutation lines.
+  - `[low]` `reject` The same finding's empty-SessionId case: unreachable, an empty session already throws in `DiffCategory`'s existing `allowed(session)` look-up (seen in a first test run); a header always has a session.
+  - `[low]` `reject` One big test method (blind-hunter): the cases share the fixture rows; splitting adds no coverage.
+  - `[low]` `reject` Namespace OCUTALON hard-coded in `ALARMIN` (blind-hunter, edge-case-hunter): the spec says "in OCUTALON"; a rename would fail the SnapshotDiff test's ZZNS/OCUTALON cases first.
+  - `[low]` `reject` Wake-up already in "before", requests without a return queue, Suspended/Deferred counted as pending, a wake-up matched by source and session and not by target or body class, a purged timer header (edge-case-hunter, 5 findings): theoretical windows in a test helper; the spec's "pending (not yet completed)" and "narrow" are met, and each finding's fix adds guards for a case no run has shown.
+  - `[low]` `reject` Test never feeds `Diff` a row from `TakeIn` (verification-gap, defer suggested): `TakeIn` and `Row` use the same `%SQL.Statement` select mode (logical in the test process), and `Column` already relies on it for SessionId and SourceConfigName; a real alarm round-trip cannot be built hermetically.
+  - `[low]` `reject` `Kill pending, wakeups` is redundant (verification-gap): harmless, one line.
+  - `[low]` `reject` The two other verification-gap statements (no assertion that cannot fail; mutation lines present) and the intent-alignment readings A-G (descriptive; the diff implements reading A, which the spec's text names): no defect.
 
 ## Design Notes
 
@@ -697,6 +712,16 @@ Conventions: "Result texts", "Audit entries", "Messages" and "Redaction".
 - mutation: `End` ignores the stored `EndedAt` -> `Restart.TestReportedRunGetsNoSecondResult` red (AC 3, the run that FixExecutor ended) and `Restart.TestRestartSaysHowFarItGot` red
 - Runs: warm `Test.Fix.Executor` passed (29.6 s; 28.6 s after the reverts), with `Test.Bridge.CodeRules` and `Test.Checks.Runs` passing warm; fresh `Test.Fix.Restart` passed (39.8 s, stack ready in 82 s). `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` passed. Every changed class compiled on slot A. Each mutation was reverted from a backup, and `git status --short` and `git diff --stat` matched the state before it.
 
+**CI rework iteration 1 (tags e7s5r1 and e7s5r1w).** `Test.Fix.Snapshot.Diff` leaves out the firing of a timer that was already running: in OCUTALON, a request to `Ens.Alarm` whose status in "before" was not final (not Discarded, Aborted, Error or Completed), its own change, and one new header from `Ens.Alarm` per such request in its session. `Test.Fix.SnapshotDiff.TestRunningTimersAreNotChanges` builds the snapshots by hand.
+- Reproduction: `shard lane-a@rest --part 2/2` before the fix passed (28 classes, 656 s; `Fix.DryRun` 5.3 s). The failure is timing-dependent on the CI host (an older Decide session's 60 s alarm must fire inside the dry run's window), so it did not go red here; the red case is the hand-made one in `TestRunningTimersAreNotChanges`, whose lines match the CI lines ("headers 1 changed", "header 2 is new: session 5, from Ens.Alarm to Decide").
+- After the fix, fresh: `shard lane-a@rest --part 2/3` (19 classes, 251 s; `Fix.DryRun`, `Fix.Execute` passed) and `--part 3/3` (18 classes, 568 s; `Fix.Raise`, `Fix.Recheck`, `Fix.Refused`, `Fix.Runs` and `Fix.SnapshotDiff` passed). Warm: `Fix.SnapshotDiff`, `Fix.DryRun`, `Fix.Refused`, `Fix.Recheck` passed. `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` passed. Both tags were torn down.
+- mutation: the exemption removed (`PendingTimers` never called) -> `SnapshotDiff.TestRunningTimersAreNotChanges` red (the CI case gives the changed and the new header)
+- mutation: the exemption widened to every header to or from `Ens.Alarm` (any session, any status) -> `SnapshotDiff.TestRunningTimersAreNotChanges` red (an alarm armed after the snapshot, in a new session and in the session of the earlier timer, its wake-up, a second wake-up, a request that was final in before, a pending header to another target, and another namespace)
+- Each mutation was reverted from a backup (`cmp` identical), and `git status --short` and `git diff --stat` matched the state before it.
+- mutation (review pass): the wake-up allowance is 1 per session whatever the number of pending requests -> `SnapshotDiff.TestRunningTimersAreNotChanges` red (two timers pending in one session)
+- mutation (review pass): Error (8) is not a final status in `PendingTimers` -> `SnapshotDiff.TestRunningTimersAreNotChanges` red (a request that was Error in before)
+- Review-pass patches were checked warm: `Fix.SnapshotDiff`, `Fix.DryRun`, `Fix.Refused`, `Fix.Recheck`, `Fix.Execute`, `Fix.Raise` and `Fix.Runs` passed; the mutations were reverted from a backup (`cmp` identical).
+
 ## Auto Run Result
 
 Status: done
@@ -747,3 +772,10 @@ Also:
   - A close that fails after the end is saved in `EndLeft` leaves the request executing with a "still resending" notice (residual risk 4; the test now says so).
   - A final FixResult is sent at most once: if the send fails after the end is saved, the incident stays `fixing` (spec-bound; no stored property to mark it).
   - `Test.Fix.Stopped` passes with a margin of 50 seconds from `ResentAt` (deferred above); the first CI run settles it.
+
+**CI rework iteration 1 (2026-10-29; follow-up pass).**
+- Status: done. Blocking condition: none.
+- Change: `Test.Fix.Snapshot.Diff` no longer counts the firing of a timer (an `Ens.Alarm` request not final in "before", in OCUTALON) that was already running when "before" was taken: the request's change and one wake-up per such request. `Test.Fix.SnapshotDiff.TestRunningTimersAreNotChanges` pins it on hand-made snapshots (mutation lines under `## Verification`). Files: `Test/Fix/Snapshot.cls`, `Test/Fix/SnapshotDiff.cls`.
+- Review: 20 findings, all low; 3 patched (doc wording, status macros, added test cases), 17 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched).
+- Verification: the reproduction `shard lane-a@rest --part 2/2` passed before the fix (656 s), so the CI red did not reproduce here (timing-dependent on the CI host); after the fix fresh parts 2/3 and 3/3 passed. After the review patches, warm `Fix.SnapshotDiff`, `DryRun`, `Refused`, `Recheck`, `Execute`, `Raise` and `Runs` passed; `test-class-rules.sh` and `test-boundaries.sh` passed; both throwaways were torn down.
+- Residual risk: CI is the only confirmation that `Fix.DryRun` stays green when an older `Decide` alarm fires in its window.
