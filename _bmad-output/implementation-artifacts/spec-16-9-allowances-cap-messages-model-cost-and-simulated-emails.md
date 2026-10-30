@@ -2,7 +2,7 @@
 title: 'Story 16.9: Allowances cap messages, model cost and simulated emails'
 type: 'feature'
 created: '2026-10-29'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'c6339034b26342969d6d9964d224b64623a5fe63'
 baseline_commit: 'c6339034b26342969d6d9964d224b64623a5fe63'
 review_loop_iteration: 0
@@ -455,7 +455,13 @@ Rejected (13 rows):
 - `maybe-false`, at most `low`: `AllowanceInProduction`'s "the phone has no message" may be vacuous when the stack's demo mode is off. `Test.Core.Routing` pins AC 3's phone rule. Settled by reading `DemoOn()` on the CI shard stack.
 - fix edits the spec: Design Notes' D1 claim for Task 0 (a), and the open `- [ ] DW-220` checkbox (the lead's).
 
+### CI rework 1 (lead, 2026-10-30)
+
+- [ ] [CI] iris (image), `shard:lane-b`: `OcuTalon.Test.Core.AllowanceInProduction` `TestARefusedMessageGivesOneWebCard` failed on `75d731a` (CI run 40975637263, about 23:59Z): its `retryAt` (the window's first message, seeded 3000 s back, plus 3600 s) fell after midnight in instance time, so the card rightly read "You can send more on Friday at 00:09 ET, ..." while the test accepts only the same-day form "You can send more at ". The tests are wrong, not the product (`Test.Core.WebChatOut` already accepts both forms). Fix: every test this story added or changed that asserts the same-day form of an allowance, email-limit or daily-cap time must hold at any time of day, in instance time (IRIS) and page time (Playwright). At least `Test.Core.AllowanceInProduction` (both cases), `Test.Core.Allowance` (the "as 7 messages" case near line 388, and line 327 if its clock can cross a day), and `web/e2e-online/allowance/messages.spec.ts` (`CARD_TEXT`, `USED_UP`, `EMAIL_LIMIT`). Search the story's other tests and `docker/tests/test-online-allowance.sh` for the same assumption. Prefer asserting through the product's own formatter, or accepting both forms exactly as `WebChatOut` does, over loosening to a bare prefix. Pin the other-day form deterministically once, with no wall-clock dependence (a window placed so its `retryAt` is on the next day in instance time), with a `mutation:` line. Test-only: no product change unless a test proves the product wrong. (`CI` rework, Rule 19 hermeticity: a test must not depend on the time of day.) Verification: the changed classes on a warm lane-C stack, `ci/iris.sh live online-allowance` once, and the changed node or e2e files.
+
 ## Spec Change Log
+
+- 2026-10-30, lead (CI rework 1, trigger=ci): one `[CI]` item under "CI rework 1": the story's allowance-time assertions assumed the same day (red on `75d731a` at 23:59Z). The same run's other reds were flakes outside this story: `live:sign-in` S1 (DW-349) and `Test.Checks.Runs` `TestWindow` at midnight (Epic 5's area).
 
 - 2026-10-29, lead (after Story 16.4's CI re-review): DW-220's residual (the image job about 2047 s) added as a Tasks item; owned_ledger now DW-220, DW-300, DW-361.
 
