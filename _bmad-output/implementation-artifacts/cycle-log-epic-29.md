@@ -57,3 +57,4 @@
 2026-10-30T09:47:09Z	Story 29.7	story_unparked_pending	inbox=U-163 answer_ref=2026-10-30T09:33:18Z#496 answer=(a)_amend_AD-13(orchestrator_wrote_9021f29) note=story_unparked_logged_at_the_boundary_before_29.7s_plan,after_29.4,29.5,29.6(orchestrator_order)
 2026-10-30T10:02:36Z	Story 29.3	ci_red_classified	run=41027546659 workflow=.github/workflows/ci.yml class=flake test=web/e2e-online/session/leave.spec.ts_L2 ledger=DW-429(routed_burndown) rerun=attempt_2_success
 2026-10-30T10:02:36Z	Story 29.3	ci_resolved	story=29.3 sha=468654f runs=41027546659,41027546839 result=success failed=none via=none resolved_at=next_plan first_ci=flake
+2026-10-30T10:02:50Z	Story 29.4	stage_spawned	stage=implement spawn_at=2026-10-30T10:02:50Z model=claude-sonnet-5-5 agent_name=29-4-implement-1 cycle_iteration=1 story_base=81bd09c
