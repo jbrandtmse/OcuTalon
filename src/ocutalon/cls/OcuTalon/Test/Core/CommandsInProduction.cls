@@ -1,58 +1,91 @@
 /// End-to-end tests of the command gate over the running production (Story 2.3; AD-1, AD-22, AD-26). THIS CLASS RUNS IN
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has. Where the
 /// production does not run, every test fails with that reason, so that a broken start can never give a green shard. Every
-/// test goes through OcuTalon.Core.Commands.Submit, to the five stub owners (ReminderOps, WatchOps, SettingsOps,
-/// SessionOps and IncidentManager). Each owner's story rewrites its row here when it builds the owner.
-///   - TestStubOwnersAnswerPlainEnglish: a command to each stub owner gives status OK and a CommandResult with Ok 0, not_built
-///     and the plain-English text;
+/// test goes through OcuTalon.Core.Commands.Submit, to the built SessionOps and SettingsOps and to IncidentManager. No owner
+/// is a stub any more: Story 16.4 built the last, SessionOps' EndSession; Test.Core.CommandsRouting's probe pins not_built for
+/// an owner that is still one. Each owner's story rewrites its row here when it builds the owner.
+///   - TestEndSessionReachesSessionOps: an EndSession from web_user is carried out by the real SessionOps (Ok 1, ended), and its answer
+///     is one response header to CommandsIn that is not an error;
+///   - TestSettingsOpsSwitches: a SetDemoMode from the system, with the mode the stack already has, is carried out by the real
+///     SettingsOps (the Demo step reruns, changing nothing), which writes the row, with the text of its mode, and its answer is
+///     one response header that is not an error; the demo.mode row is put back after it;
 ///   - TestTraceAndThread: outside a turn the command and the owner's answer are messages of one session whose SuperSession is
-///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId. A stub owner's answer is
-///     one response header (type 2, IsError 1) from the owner to CommandsIn, which carries the owner's error status;
+///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId;
 ///   - TestGovernanceRefusedFromTool: inside a context the governance verbs are refused and no header goes to SettingsOps or
 ///     SessionOps;
 ///   - TestToolDismissReachesIncidentManager: inside a context, the Dismiss of the session's own noticed incident reaches
-///     IncidentManager, and the Dismiss of another session's incident is not_found with no header.
+///     IncidentManager and closes it (Ok 1, closed), and the Dismiss of another session's incident is not_found with no header.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("CommandsInProduction","n")) and the clean-up are those
 /// of Test.Core.InProduction; the SuperSessions of the tests' contexts are added to the run's, so that the clean-up removes
 /// their messages too.
 Class OcuTalon.Test.Core.CommandsInProduction Extends OcuTalon.Test.Core.InProduction
 {
 
-/// The text of a stub owner's answer.
-Parameter NOTBUILT = "This part of OcuTalon isn't built yet. Nothing was changed.";
-
-/// Each stub owner gets one verb with an origin it accepts: ReminderOps (SetReminder), WatchOps (StartWatch), SettingsOps
-/// (SetDemoMode from the system, with the mode it already has), SessionOps (EndSession) and IncidentManager (Dismiss). Each
-/// answers with status OK and a CommandResult that carries nothing out, in plain English.
-Method TestStubOwnersAnswerPlainEnglish()
+/// An EndSession from web_user for a fixture session with nothing to end is carried out by the real SessionOps through the gate: the
+/// status is OK, the CommandResult is Ok 1, ended, the command reached the owner, and the owner's answer is one response header to
+/// CommandsIn that is not an error.
+Method TestEndSessionReachesSessionOps()
 {
 	If '..Guard() Quit
-	Set a = ..Session("stubs")
+	Set a = ..Session("end")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set mode = (..Mode() = "1")
-	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "StartWatch|WatchOps|web_user", "SetDemoMode|SettingsOps|system", "EndSession|SessionOps|web_user", "Dismiss|IncidentManager|web_user")
-	For i = 1:1:$ListLength(table) {
-		Set verb = $Piece($List(table, i), "|", 1)
-		Set owner = $Piece($List(table, i), "|", 2)
-		Set command = $ClassMethod("OcuTalon.Msg.Command."_verb, "%New")
-		Set command.SessionRef = a
-		Set command.IdempotencyKey = "zzkey"_..Number_verb
-		If verb = "SetDemoMode" Set command.DemoMode = mode
-		If verb = "Dismiss" Set command.IncidentRef = "zzinc"_..Number
-		Set before = ..Sent(owner)
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, $Piece($List(table, i), "|", 3), .result)
-		Do $$$AssertStatusOK(sc, verb_" to "_owner_": the status is OK")
-		If '$IsObject(result) {
-			Do $$$AssertTrue(0, verb_" to "_owner_": a CommandResult comes back, not '"_$Get(result)_"'")
-			Continue
-		}
-		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_built", verb_" to "_owner_": nothing was carried out, the owner is not built")
-		Do $$$AssertEquals(result.Message, ..#NOTBUILT, verb_" to "_owner_": and the text is plain English")
-		Do $$$AssertEquals(..Sent(owner), before + 1, verb_" to "_owner_": the command reached the owner")
-		Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, owner, "CommandsIn")
-		Do $$$AssertEquals(answers.%Size(), 1, verb_" to "_owner_": the owner's answer is a response header to CommandsIn")
-		If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 1, verb_" to "_owner_": that carries the owner's error")
+	Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()
+	Set command.SessionRef = a
+	Set command.IdempotencyKey = "zzkey"_..Number_"EndSession"
+	Set before = ..Sent("SessionOps")
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	Do $$$AssertStatusOK(sc, "EndSession to SessionOps: the status is OK")
+	If '$IsObject(result) {
+		Do $$$AssertTrue(0, "EndSession to SessionOps: a CommandResult comes back, not '"_$Get(result)_"'")
+		Quit
 	}
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "EndSession to SessionOps: carried out: "_result.Message)
+	Do $$$AssertEquals(..Sent("SessionOps"), before + 1, "the command reached the owner")
+	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, "SessionOps", "CommandsIn")
+	Do $$$AssertEquals(answers.%Size(), 1, "the owner's answer is one response header to CommandsIn")
+	If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 0, "that is not an error")
+}
+
+/// A SetDemoMode from the system, with the mode the stack already has, reaches the real SettingsOps once: it is carried out
+/// (Ok 1, on or off with the text of that mode), the job writes the row (the same mode, and an UpdatedAt that moves from the
+/// test's dated-back one), and the owner's answer is one response header to CommandsIn that is not an error. The Demo step
+/// reruns in the SettingsOps job and changes nothing. The demo.mode row is saved first and put back after the switch
+/// (Test.Demo.Step); without a row (the Demo step seeds it at the first start) the test fails and switches nothing.
+Method TestSettingsOpsSwitches()
+{
+	If '..Guard() Quit
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
+	If 'found {
+		Do $$$AssertTrue(0, "the stack has a demo.mode row (the Demo step seeds it at the first start)")
+		Quit
+	}
+	Set a = ..Session("settings")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
+	Set mode = (value = "1")
+	Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()
+	Set command.SessionRef = a
+	Set command.IdempotencyKey = "zzkey"_..Number_"SetDemoMode"
+	Set command.DemoMode = mode
+	Set command.ActingUser = $USERNAME
+	Set before = ..Sent("SettingsOps")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(value, "2000-01-01T00:00:00Z")
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Set written = $Select($IsObject(row): row.Value_"|"_(row.UpdatedAt '= "2000-01-01T00:00:00Z"), 1: "<none>")
+	Kill row
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+	Do $$$AssertEquals(written, $Select(mode: "1", 1: "0")_"|1", "the SettingsOps job wrote the row with the same mode")
+	Do $$$AssertStatusOK(sc, "SetDemoMode to SettingsOps: the status is OK")
+	If '$IsObject(result) {
+		Do $$$AssertTrue(0, "SetDemoMode to SettingsOps: a CommandResult comes back, not '"_$Get(result)_"'")
+		Quit
+	}
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|"_$Select(mode: "on", 1: "off"), "SetDemoMode to SettingsOps: carried out")
+	Do $$$AssertEquals(result.Message, $Select(mode: "Demo mode is on. The Orders production runs in namespace OCUORDERS. Reload the OcuTalon page in a minute to see the change.", 1: "Demo mode is off. The Orders production is stopped and namespace OCUORDERS is removed. Reload the OcuTalon page in a minute to see the change."), "and the text is that of the mode")
+	Do $$$AssertEquals(..Sent("SettingsOps"), before + 1, "the command reached SettingsOps once")
+	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, "SettingsOps", "CommandsIn")
+	Do $$$AssertEquals(answers.%Size(), 1, "the answer is one response header to CommandsIn")
+	If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 0, "that is not an error")
 }
 
 /// A ListReminders from web_user for session A has one request header from CommandsIn to ReminderOps in a session of its own
@@ -148,7 +181,7 @@ Method TestGovernanceRefusedFromTool()
 	Do $$$AssertEquals(..Mode(), mode, "and demo.mode is as it was")
 }
 
-/// Inside a context, the Dismiss of session A's own noticed incident reaches IncidentManager (the stub answers not_built);
+/// Inside a context, the Dismiss of session A's own noticed incident reaches IncidentManager, which closes it (Story 5.5);
 /// the Dismiss of session B's incident is not_found, and no header goes to IncidentManager.
 Method TestToolDismissReachesIncidentManager()
 {
@@ -166,7 +199,7 @@ Method TestToolDismissReachesIncidentManager()
 		Set before = ..Sent("IncidentManager")
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(..Dismissal(a, own), "web_user", .result)
 		Do $$$AssertStatusOK(sc, "the Dismiss of the session's own incident is submitted")
-		Do $$$AssertEquals($IsObject(result) && (result.Ok_"|"_result.Outcome = "0|not_built"), 1, "it reached the stub: not_built")
+		Do $$$AssertEquals($IsObject(result) && (result.Ok_"|"_result.Outcome = "1|closed"), 1, "it reached IncidentManager, which closed the incident")
 		Do $$$AssertEquals(..Sent("IncidentManager"), before + 1, "and a header went to IncidentManager")
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(..Dismissal(a, other), "web_user", .result)
 		Do $$$AssertStatusOK(sc, "the Dismiss of another session's incident is submitted")

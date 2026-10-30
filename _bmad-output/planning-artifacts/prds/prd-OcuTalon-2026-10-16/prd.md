@@ -7,7 +7,7 @@ updated: 2026-10-18
 
 # PRD: OcuTalon
 
-*An OpenClaw-style assistant for InterSystems IRIS.*
+*An AI assistant for InterSystems IRIS.* [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it was "An OpenClaw-style assistant for InterSystems IRIS."]
 
 ## 0. Document purpose
 
@@ -435,7 +435,7 @@ Only signed-in users reach the web app.
 
 #### FR-15: Session isolation on the online demo [1.0.0 kit]
 
-**Delivery:** Before the online demo goes public.
+**Delivery:** Before the online demo goes public. [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": its session-isolation part is met by Epic 16 before the demo goes public this weekend; the paired-chat part (Story 31.4) applies when Telegram reaches the demo host with the 1.0.0 update]
 
 Judges using the online demo at the same time never see or affect each other's work in the web app.
 
@@ -1256,7 +1256,7 @@ The full product is defined now and built in this order. **The build order is th
 
 Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real components, shipped as two releases: release 1 (0.1.0, the floor) and 0.1.1 (Telegram). Nothing is faked except the labelled simulated phone and mailbox. Release 1 targets **October 30** and ships **no later than November 1**.
 
-**Planned split (the author's decision, October 17):** 0.1.0 ships the floor, the web demo path. Telegram (FR-18 to FR-22) is built right after it, by the build lane that finishes the floor, and ships as **0.1.1**, the very next release, before any step 2 work in either build lane and before the online demo goes public. A release without Telegram shows no Telegram section on the page. This is the "if Telegram slips" path below, taken by plan.
+**Planned split (the author's decision, October 17):** 0.1.0 ships the floor, the web demo path. Telegram (FR-18 to FR-22) is built right after it, by the build lane that finishes the floor, and ships as **0.1.1**, the very next release, before any step 2 work in either build lane and before the online demo goes public [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about November 1), without Telegram; Telegram (0.1.1, Epic 12) reaches the demo host with the 1.0.0 update, and Story 10.3 keeps it switched off until then]. A release without Telegram shows no Telegram section on the page. This is the "if Telegram slips" path below, taken by plan.
 
 - **The floor** is the web demo path: UJ-1 without Telegram, plus everything it depends on. By ID, it is every step 1 requirement in §7.1 except the Telegram requirements, FR-18 to FR-22. Every floor item is reproducible on a clean install. It covers:
   - the bridge, the attention decision, cost in the trace and the fallback route;
@@ -1270,7 +1270,7 @@ Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real c
 - **Order inside step 1:** the web demo path comes first (0.1.0), and Telegram (FR-18 to FR-22) comes last (0.1.1). That way the floor never waits on a bot token or the gateway's Telegram route.
 - **Telegram after the floor** (the author's decision on October 16, which refines the brief's floor, taken by plan on October 17):
   - release 1 ships the floor;
-  - Telegram goes out as the very next release (0.1.1), before any step 2 work in either build lane, and before the online demo goes public.
+  - Telegram goes out as the very next release (0.1.1), before any step 2 work in either build lane, and before the online demo goes public [AMENDED 2026-10-30, as above: the demo goes public first, without Telegram, which reaches the demo host with the 1.0.0 update].
 - **Telegram's dependencies:** the author's bot tokens (one per running instance), and a Telegram route on the online demo's gateway. Both must be ready before the stories that need them.
 - **Sizing:** size the stories at sprint planning, and keep release 1 green. Two pieces of work need stories of their own, because both are bigger than they look:
   - recording the 10 incidents for the evaluation set (FR-62);
@@ -1313,8 +1313,8 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
 | --- | --- |
 | After sprint planning and the author's review of the planning documents | Build starts (the author sets the date; October 21 was the original plan) |
 | October 30 (no later than November 1) | Release 1 (0.1.0, the floor); by November 1 the online demo runs with access restricted, on the latest release |
-| Right after 0.1.0, before the online demo goes public | 0.1.1 with Telegram (§7.2) |
-| November 2-4 | The online demo goes public; the judges' README |
+| Right after 0.1.0 | 0.1.1 with Telegram (§7.2); it reaches the demo host with the 1.0.0 update [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan."; it read "Right after 0.1.0, before the online demo goes public"] |
+| About November 1 (Sat October 31 evening at the earliest) | The online demo goes public on its own; the repository, the judges' README, the Open Exchange listing and the contest entry wait for 1.0.0 (about November 3) [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan."; it read "November 2-4 | The online demo goes public; the judges' README"] |
 | November 5 | Last feature merge for the submission release; the hands-on pass and rehearsal follow |
 | Before November 7 | The voting-week polish list is written |
 | November 7 (planned) | Contest submission |

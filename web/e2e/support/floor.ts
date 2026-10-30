@@ -54,6 +54,7 @@ export const banner = (page: Page, id: string): Locator => page.locator(`app-ban
 
 /** The skip links' texts, written out here as the independent oracle of the page's own. */
 export const SKIP_CHAT = 'Skip to chat';
+export const SKIP_DEVICES = 'Skip to simulated devices';
 export const SKIP_STATUS = 'Skip to status';
 export const skipLink = (page: Page, name: string): Locator => page.getByRole('link', { name, exact: true });
 
@@ -112,7 +113,7 @@ export function stepKeys(page: Page): Promise<StepKeys> {
  * The regions that a walk or a skip link reaches and that draw their ring inside their own edge (the class ring-inside of
  * styles/base.css, which a banner also carries; a banner is no stop of a walk).
  */
-export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list'] as const;
+export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list', 'app-device-panel section', 'app-simulated-phone .feed'] as const;
 
 /** Seeds one attention decision with a trace link, whose row is a disclosure with a Trace link beside it, and returns its summary. */
 export async function seedRow(user: string, refs: string[], label: string): Promise<string> {

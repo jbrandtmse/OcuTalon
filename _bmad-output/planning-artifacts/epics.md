@@ -55,7 +55,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 - FR-12 [Step 1]: IRIS serves the Angular web app with no separate web server and no Node.js at runtime. The page shows the chat; the session's recent attention decisions with outcome and reasons; background checks and pending reminders; pending approval requests; the Telegram QR code, the pairing state or "Telegram not set up"; and in demo mode the simulated phone, simulated mailbox, demo guide and Break the feed. Each turn, decision and incident links to its trace in Visual Trace. New messages, notifications and approval results appear without a reload within 2 seconds, with a polling fallback. Times on the page use the browser's zone; times in messages use the instance's zone; the online demo uses US Eastern and labels times in messages ("14:12 ET"), while a local install shows the time alone. Works in current desktop Chrome, Edge, Firefox and Safari at 1280×720 and above.
 - FR-13 [Step 1]: The simulated phone and mailbox carry a visible "Simulated" label and are real production channels whose messages look in Visual Trace exactly like a real channel's. The phone shows notifications, reminders and approval requests with Approve and Reject. The mailbox shows email OcuTalon sends, lets the user simulate an incoming email from any sender, and offers one-click samples: a newsletter, a partner notice and a suspicious request. Each simulated email is an item that did not come from the user and gets a live attention decision (so it can be ignored or digested). The samples are inputs, not canned responses.
 - FR-14 [Step 1: local sign-in; 1.0.0 kit: the online demo's splash screen]: Online demo: a splash screen shows the demo user name and password and the read-only Visual Trace account, says what the demo is, that it resets on a schedule, and that other visitors can see messages in Visual Trace so no personal information should be typed. Signing in opens a fresh session; signing in again from the same browser before the next reset resumes it (conversation, pairing, orders, approval requests); signing out ends it. Local install: IRIS sign-in; the README gives the account and password the install sets and how to change them; no forced password change. No page except the splash and sign-in pages is reachable without signing in, with two exceptions: the webhook endpoint with its own secret (FR-45), and the online demo's read-only status endpoint, which holds no session and reports readiness, the next reset, whether the demo is busy, and the last reset's time and kind (P32). While the online demo's IRIS is down during a reset, scheduled or not, the demo host may serve a maintenance page, and when the demo is full a busy page; IRIS doesn't serve those pages, so the rule above doesn't cover them.
-- FR-15 [1.0.0 kit, before the online demo goes public]: Each online-demo session has its own conversation, simulated phone, simulated mailbox, background checks, reminders, approval requests, paired chat and demo orders. Tested with concurrent sessions: one session's Break the feed never creates an incident, notification or approval request in another, and no session can see or answer another's approval requests. Load: as many signed-in visitors as the instance's licence allows (about 6, about 3 with Visual Trace open), each running the demo path within NFR-7; beyond that the splash screen says the demo is busy. Visual Trace is shared under the read-only account, as the splash warns; production messages hold only an internal chat reference, never Telegram names, user names or phone numbers. One IP address can open at most 5 new sessions per hour. The scheduled reset clears every session, pairing and demo order, and the page shows the time left until the next reset.
+- FR-15 [1.0.0 kit, before the online demo goes public] [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": its session-isolation part is met by Epic 16 before the demo goes public this weekend; the paired-chat part (Story 31.4) applies when Telegram reaches the demo host with the 1.0.0 update]: Each online-demo session has its own conversation, simulated phone, simulated mailbox, background checks, reminders, approval requests, paired chat and demo orders. Tested with concurrent sessions: one session's Break the feed never creates an incident, notification or approval request in another, and no session can see or answer another's approval requests. Load: as many signed-in visitors as the instance's licence allows (about 6, about 3 with Visual Trace open), each running the demo path within NFR-7; beyond that the splash screen says the demo is busy. Visual Trace is shared under the read-only account, as the splash warns; production messages hold only an internal chat reference, never Telegram names, user names or phone numbers. One IP address can open at most 5 new sessions per hour. The scheduled reset clears every session, pairing and demo order, and the page shows the time left until the next reset.
 - FR-16 [Step 1]: Demo mode is on for `docker compose up` and off for an IPM install, and an admin can switch it. With it on, the Orders production runs in its own namespace, and Break the feed, the demo guide, the simulated phone and the simulated mailbox appear, labelled as demo features; with it off none of these exist and nothing else changes. Each demo-guide prompt, clicked, sends its exact text as the user's message. Break the feed is active only while the session watches Orders and has no Orders incident that is open, awaiting approval or fixing, and otherwise shows a hint. Clicked, it has the simulated partner send the session's batch of 50 orders in a changed date format, failing for real, without affecting other sessions or shared partner state; if the session's Orders incident is resolved, it closes it first, so each run opens a new incident with its own approval request. Nothing on the demo path is canned; mocks exist only in CI.
 - FR-17 [Step 2]: An admin views and changes settings in the web app: the model per agent, budgets, channels (Telegram status and, from step 4, email), the digest time and channels, the time zone, and check thresholds. A change takes effect within a minute without restarting IRIS or the production (affected items may restart themselves) and is audited. Non-admins can't open the settings page.
 
@@ -323,7 +323,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - UX-DR13 [R1] Elevation: Shadows only on popovers, dialogs (over `scrim`), the new-messages button and the simulated phone (D › Elevation & Depth). Cards never lift on hover; no glassmorphism or gradient cards. (Supports: —; Source: D › Elevation & Depth)
 - UX-DR14 [R1] Motion and timings: Under `prefers-reduced-motion`, nothing rotates, pulses, shimmers or smooth-scrolls. No shimmering skeletons, celebrations, sounds, logo animation or model-progress bars. Timings: tooltip 300 ms; skeleton, button restore and "reconnecting" 10 s; "unreachable" 30 s; "Telegram unpaired" 5 s; countdown per minute (per second in the last); updates within 2 s (NFR-9). (Supports: NFR-9, NFR-25; Source: E › Accessibility Floor)
 - UX-DR15 [R1] Icons: Bundled outline set, no CDN (e.g. Lucide, ISC: suggestion): `eye-off` Ignore, `inbox` Digest, `bell-ring` Tell now, `zap` Act and Break the feed, `life-buoy` Fallback, `triangle-alert` warning, `circle-alert` danger, `info`, `external-link` trace, `circle-check` success states, `circle-x` failed, `circle-dashed` not checked, `circle-slash` rejected and unpaired, `clock` expired, `pause-circle` paused, `bell` reminder, `mail` sample, `file-text` citation, `chevron-down` new messages. Icons are hidden from assistive technology; text carries state; no AI sparkles. (Supports: —; Source: D › Components)
-- UX-DR16 [R1] Brand, logo, naming: Mark (`logo/web/icon-192.png`): 28px in the header, 24px as avatar. Full logo (alt "OcuTalon"): only splash (240px), sign-in and resetting views (320px), never tinted or altered; wordmark "Ocu" in `ink` and "Talon" in `brand-orange`. The tagline "An OpenClaw-style assistant for InterSystems IRIS" always shares a block with the note "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation." (verbatim); that name is never a product label, and none of its artwork, interface or wording is reused. (Supports: CON-2; Source: D › Brand & Style)
+- UX-DR16 [R1] Brand, logo, naming: Mark (`logo/web/icon-192.png`): 28px in the header, 24px as avatar. Full logo (alt "OcuTalon"): only splash (240px), sign-in and resetting views (320px), never tinted or altered; wordmark "Ocu" in `ink` and "Talon" in `brand-orange`. The tagline is "An AI assistant for InterSystems IRIS." The note "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation." stays verbatim in the README and the About dialog; "OpenClaw" never appears in a tagline, product label, repository description or listing summary, and none of its artwork, interface or wording is reused; CON-2 and the release checklist's verbatim-note check are unchanged [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it read "The tagline 'An OpenClaw-style assistant for InterSystems IRIS' always shares a block with the note '...' (verbatim); that name is never a product label"]. (Supports: CON-2; Source: D › Brand & Style)
 - UX-DR17 [R1] Surfaces, contexts, roles: Desktop single-page app served by IRIS (FR-12), Telegram, Visual Trace (linked, never re-created). Online demo: splash, demo mode, countdown, "Online demo" badge, allowances, own bot; local `docker compose up`: sign-in page, demo mode on, "Demo mode" badge, Telegram only with the user's bot token; IPM: sign-in page, no demo mode. Roles: user, admin (R1); approver, viewer (S6, FR-11); the demo account: user plus read-only trace roles. (Supports: FR-11, FR-12, FR-14, FR-16, FR-18 to FR-22, FR-59; Source: E › Foundation)
 - UX-DR18 [R1] Channel routing: Replies go to the turn's channel; the web chat shows every turn, Telegram ones marked "via Telegram". Notifications (non-reply tell-now, incident notices, approval requests, reminders, results) go to web chat, simulated phone (demo mode) and paired chat. (Supports: FR-1, FR-20; Source: E › Foundation)
 - UX-DR19 [R1] Main page regions: Reading, landmark and tab order: header; banners; demo guide (steps, prompt bar, Break the feed box); status rail (Telegram, Approval requests, Background checks, Reminders, Recent decisions); chat and composer; simulated devices (phone tab by default, then mailbox). Without demo mode, guide and devices are absent and the chat widens. (Supports: FR-12; Source: E › Information Architecture)
@@ -855,7 +855,7 @@ Ships in the release that completes this step, which bumps the minor version (th
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new list: the criteria only the owner or the Contest Planner can meet left the feature stories, so that no story parks on the owner and holds its epic's merge; each story keeps a one-line release check, whose note quotes the removed criterion] Each item is checked at its step's release (the 1.0.0 item at the 1.0.0 release), in the release checklist and sequence (Stories 11.4 and 11.5), and a finding is fixed before that release ships. A step ships in the release that completes it, which bumps the minor version (see each step epic's version line).
 
-- **1.0.0:** Story 31.3, run by the Contest Planner (REL-7's amendment of 2026-10-25), on the launched online demo [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: moved verbatim from Story 31.3 as a 1.0.0 release check, so Story 31.3 never parks on the launch and Epic 31 merges once `v0.1.1` is tagged]: **Given** the online demo after launch **When** the measurement runs 20 times each **Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
+- **1.0.0:** Story 31.3, run by the Contest Planner (REL-7's amendment of 2026-10-25), on the public online demo host serving the 1.0.0 candidate [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so this measurement runs on the public host; it read "on the online demo host serving the 1.0.0 candidate, still behind the access gate, before 1.0.0's public flip"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "If that is the case, we'll just have one release and release the demo at the same time that we do the contest entry with v1.0.0." and "Okay, yes we keep the tag.": the online demo now goes public with 1.0.0 instead of 0.1.1, so this measurement runs on the same deployment just before the flip; it read "on the launched online demo". `v0.1.1` stays a private tag, so Epic 31's merge gate is unchanged] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: moved verbatim from Story 31.3 as a 1.0.0 release check, so Story 31.3 never parks on the launch and Epic 31 merges once `v0.1.1` is tagged]: **Given** the public online demo host serving the 1.0.0 candidate [AMENDED 2026-10-30, as above; it read "the online demo host serving the 1.0.0 candidate behind the access gate, before the public flip"] [AMENDED 2026-10-29, as above; it read "the online demo after launch"] **When** the measurement runs 20 times each **Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
 - **Step 2:** Story 17.3: the Contest Planner's hands-on pass with real keys (REL-7) runs the demo path on each provider, and a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes.
 - **Step 3:** Story 20.2: the Contest Planner's hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram.
 - **Step 4:** Story 22.6: the author follows the worked Jira example on a clean local install with a real Jira MCP server: the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace. Story 35.1 (was 22.1): the Contest Planner checks on the demo host that its gateway configuration lets traffic through to exactly the online demo's preconfigured MCP servers, that the release checklist names each one, and that a call to a server off the list is refused on the running demo. Story 35.2 (was 21.1): the Contest Planner checks on the demo host that the proxy's allow-list blocks the webhook path.
@@ -1573,7 +1573,7 @@ So that I can sign in and find every part of the page by sight or by keyboard.
 
 **Given** I choose "About OcuTalon"
 **When** the About dialog opens
-**Then** it shows, in order, "OcuTalon {version}"; the tagline "An OpenClaw-style assistant for InterSystems IRIS."; "An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention."; "Default model: {model}." with the model's display name from the snapshot; a link to the README; "Built with the BMAD Method and Claude Code."; and "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.", so the tagline and the note share the dialog's one block (CON-2, UX-DR16, UX-DR28)
+**Then** it shows, in order, "OcuTalon {version}"; the tagline "An AI assistant for InterSystems IRIS." [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it was "An OpenClaw-style assistant for InterSystems IRIS."]; "An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention."; "Default model: {model}." with the model's display name from the snapshot; a link to the README; "Built with the BMAD Method and Claude Code."; and "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.", so the tagline and the note share the dialog's one block (CON-2, UX-DR16, UX-DR28)
 **And** the bridge developer guide and security overview links are left out until those documents ship; Story 31.3 (was Story 16.10) adds them once Stories 13.3 and 14.2 supply their targets (FR-5, FR-61)
 **And** the dialog is modal over the scrim with focus trapped and first focus on its heading (`tabindex="-1"`); Esc closes it and returns focus to the trigger; dialogs stack at most one deep, and an open popover closes before a dialog opens (UX-DR21, UX-DR38)
 
@@ -2286,7 +2286,7 @@ So that my install shows the demo features only when I want them, and the change
 **Then** `OcuTalon.Core.Admin` submits the change through `Commands.Submit` with origin `system`, and `CommandsIn` passes it to `SettingsOps`, which writes the demo-mode value in `OcuTalon.Data.Setting`, writes a `Settings` entry to the IRIS audit log through `OcuTalon.Bridge.Audit` with the time, my IRIS user and the change, runs `OcuTalon.Install.Step.Demo` to create OCUORDERS, the OCUORDERS trace application `/ocutalon/trace/ocuorders/` and the OCUORDERS grants of `OcuTalonTraceViewer` (which the Demo step also adds back on every start with demo mode on, after the role step has rebuilt the role) and start the Orders production (on), or stop it and remove those grants, that trace application and OCUORDERS (off), and returns a `CommandResult` that the terminal prints in plain English (FR-9, FR-16, AD-3, AD-17, AD-19, AD-23, AD-24)
 **And** a test reads the audit entry back from the IRIS audit log, polling with a timeout (FR-9, AD-17)
 
-**Given** I don't hold `OcuTalonAdmin`
+**Given** I hold neither `OcuTalonAdmin` nor `%All` (a terminal caller holding `%All` is accepted like an `OcuTalonAdmin` holder, and its audit entry still names the person) [AMENDED 2026-10-26, Story 4.6, U-72, decided by the Contest Planner under the owner's delegation; it read "**Given** I don't hold `OcuTalonAdmin`"; the web endpoints stay `OcuTalonAdmin` only]
 **When** I run the same command
 **Then** it refuses with a plain-English message that the OcuTalon admin role is needed, submits nothing and changes nothing (FR-16, AD-19)
 
@@ -2465,6 +2465,7 @@ So that I see the quiet outcomes, and that an email can't make OcuTalon act.
 **Given** a simulated incoming email and a message OcuTalon sends to the simulated mailbox
 **When** they are opened in Visual Trace
 **Then** each travels as a production message through `SimMailboxIn` or `SimMailboxOut` and looks exactly as a real channel's message would, with no field revealing that it is simulated beyond the channel's name (FR-13, NFR-20)
+- DW-275: U-72 (owner decision, decided by the Contest Planner under the owner's delegation): the terminal command `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)` accepts a caller holding `OcuTalonAdmin` OR `%All`; every other caller is refused as now, the web endpoints stay `OcuTalonAdmin` only, the audit entry still names the person (`ActingUser`), and a change whose audit entry cannot be written is still refused; tests: `%All` accepted, `OcuTalonAdmin` accepted, neither refused (AD-19's terminal entry, amended 2026-10-26) (ledger; routed by owner_decision 2026-10-26)
 
 ### Story 4.7: Finish the demo guide
 
@@ -2502,6 +2503,7 @@ So that I finish the demo in about two minutes and know what I saw.
 **When** this epic's page parts are on the integration branch
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
 - DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
+- DW-215: Guide.Compute could report finished true together with step 4 current and a rejected, fallback or no_fix variant if a resolved incident keeps that OpenVariant (unverified until Story 5.5's IncidentManager exists): when this story renders the finish state and the step 4 hints, make the finish condition exclude an incident whose variant is rejected, fallback or no_fix, or prove with a test that a resolved incident never keeps one (ledger; routed by cr 2026-10-25)
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 
@@ -2573,6 +2575,7 @@ So that the incident notice can reach me in about half a minute.
 **Then** the batch reaches `IncidentManager` scoped to that session; pickup within 15 seconds (typically under 3) is measured in the clean-machine rehearsal, not asserted in CI (FR-23, NFR-7, AD-15, UX-DR102, UX-DR150)
 
 - DW-35: The poller and the evidence read a failed Orders message by its header `Status` 8 (Error) and its event-log row, because on build 154 an asynchronous send leaves `IsError` 0 and `ErrorStatus` empty; the failure sentence is parsed out of the "Terminating BP" wrapper (measured in Story 0.10; 5.4 and 6.1's fallback line read it the same way) (ledger; routed by harvest 2026-10-20)
+- DW-222: `Watch.Reader` lists only a namespace's running, suspended or troubled production (`GetProductionStatus` gives an empty name after a clean stop), so a stopped production cannot be watched and a watch on it cannot be stopped from chat. The reader also lists a readable namespace's last production when none runs (measured in a Task 0; never every `Ens.Config.Production` row, so DW-38 holds), and `stop_watch` also resolves from the session's own watch rows (ledger; routed by spec_gate 2026-10-25)
 
 ### Story 5.3: Same-cause failures become one incident by the settle rule
 
@@ -2600,8 +2603,9 @@ So that I get one message, not fifty.
 
 **Given** several local sessions watching the same production, and failures with scope `instance`
 **When** the incident is noticed
-**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with one notice per watcher session and its events on each watcher's stream (FR-23, AD-4, UX-DR74)
+**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with its events on each watcher's stream (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: "one notice per watcher session" moved to Story 5.4's notice criterion, because the notice needs 5.4's diagnosis; 5.3 ends at the settle rule]
 **And** failures tagged with two different sessions' `TraceRef`s form two incidents, each seen only by its own session (AD-4, UX-DR104)
+- DW-227: The fresh `lane-a` shard took 539 s with 54 classes, about a minute under the 10-minute foreground cap every stage runs inside. Give `ci/iris.sh shard` a local split (for example `--part k/n` over the sorted class list, `--reverse` taking the parts of the reversed list), with the CI groups unchanged (ledger; routed by harvest 2026-10-25)
 
 ### Story 5.4: The diagnosis explains the cause from the failed messages
 
@@ -2619,28 +2623,17 @@ So that I know what broke without reading every error.
 **When** it answers
 **Then** Diagnosis, with its instructions and its read-only watch tools, which this story builds as the toolset `OcuTalon.Tools.Watch` (failed message bodies, the event log and item settings, through `Watch.Reader`; Stories 1.1 and 1.9 used a fixture of that name), replies with one JSON object checked against `OcuTalon.Watch.Msg.DiagnosisPayload`: a cause category (such as data format change, connection failure, setting change, partner outage, validation error or unknown), the element at fault, evidence references, the fix kind with its parameters, the plain sentences for the cause and the fix summary, the item noun `ItemNoun` in its singular and plural forms ("order", "orders"), and plain-English reasons with a confidence between 0 and 1, which the incident card's decision strip and Visual Trace show; a reply that fails the check is `invalid` (FR-24, AD-7, AD-8, AD-16)
 
-**Given** a usable diagnosis, with outcome `act` and its proposed fix (a data-format cause; Story 7.2 adds the dry run and the approval request)
-**When** `IncidentManager` consumes it, never routing it to `OutcomeRouter`
-**Then** it sends one `OcuTalon.Msg.Notification` per recipient session with kind `incident`, the incident notice's catalog key from `OcuTalon.Msg.Catalog.Watch`, and `Slots` holding the count, the start time as UTC ISO 8601, the item noun as `itemNoun: {"one", "other"}` (from the diagnosis's `ItemNoun`; the `*Out` operation picks the form by the `count` slot) and the agent's cause and fix summary as plain sentences without times, sets `NoticedAt`, and publishes the `incident` event in state `open` (FR-24, AD-15, AD-30, AD-32, UX-DR113)
-
-**Given** a usable diagnosis whose cause has no fix in the fixed set (any cause other than a data-format change, `unknown` included)
-**When** `IncidentManager` consumes it
-**Then** it sends one `Notification` of kind `incident` per recipient session with the no-fix notice's catalog key (its unknown-cause variant for `unknown`), the count, the time, the item noun, the agent's cause sentence and one line per group, and no `ApprovalRef`; sets `NoticedAt`; and publishes the incident as Open with the no-fix variant, which in demo mode only Dismiss closes (FR-24, P25, AD-15, AD-32)
-**And** a render test of that key from `OcuTalon.Msg.Catalog.Watch` with fixture slots gives the source's text exactly: "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.", then "Failures:" with one line per group and "Details and trace: on your OcuTalon page."; for `unknown` the first line is "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed." (FR-24, P25, AD-32, UX-DR155)
-
-**Given** a refusal, a timeout or any other fallback, forced through the mock
-**When** the diagnosis falls back
-**Then** the incident stays grouped by the fixed rules (production item and error pattern), claims no cause and proposes no fix, its decision is flagged as a fallback, and the notification, of kind `incident`, carries the fallback incident notice's catalog key with the count, the time, the item noun, the fallback reason and one line per group (readable item name, count, plain error summary, first time), all written by code, where `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `NoticedAt` is set and the incident is Open with the fallback variant (FR-4, FR-24, AD-8, AD-32, UX-DR104, UX-DR115)
-**And** for the fallback notice, and whenever no usable diagnosis gives an item noun, code takes it in both forms from `OcuTalon.Watch.ItemNoun`, a fixed map from the failed messages' class to its noun: the Orders demo's message class gives "order" and "orders", and any other class "message" and "messages"; a unit test covers both (FR-24, AD-15, AD-32)
-
-**Given** a noticed incident
-**When** its `incident` payload is read
-**Then** `IncidentManager` has filled the fields Story 0.5 fixes on `OcuTalon.Live.Payload.Incident`, including what Show details needs: `CauseCategory` and `Element`, `Evidence` (a sample failed message's header id and its error, and failures per item with first and last times), and `TraceTargets` (`diagnosis`, the diagnosis session holding the decision message, its agent steps and its cost; `sample`, the sample message; `firstFailure`, the first failure), plus `Groups` for the fallback and no-fix notices (FR-24, AD-12, AD-26, UX-DR78, UX-DR103, UX-DR139)
-**And** its `Requests` list each of the incident's approval requests with its `Ref`, `State` and `Result`, so the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74)
+**Given** a diagnosis that gives no usable item noun, or a fallback
+**When** code needs the item noun
+**Then** code takes it in both forms from `OcuTalon.Watch.ItemNoun`, a fixed map from the failed messages' class to its noun: the Orders demo's message class gives "order" and "orders", and any other class "message" and "messages"; a unit test covers both (FR-24, AD-15, AD-32)
 
 **Given** a recorded snapshot of the demo's date-format failures and its mock scenario under `ci/mock/scenarios/A/`
 **When** the incident is diagnosed
-**Then** the cause category is a data format change, the element at fault is the order date, the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order; diagnosis within 20 seconds is measured in the rehearsal (FR-24, NFR-7, AD-15, AD-22)
+**Then** the cause category is a data format change, the element at fault is the order date, and CI sees `noticed`, `settling`, then `diagnosing`, in that order; the diagnosis (or the bridge's fallback) is stored on the incident row for the notice; diagnosis within 20 seconds is measured in the rehearsal (FR-24, NFR-7, AD-15, AD-22)
+
+[AMENDED 2026-10-26, Story 5.4 spec gate, unattended ruling (decide: split into siblings planned next, within limits.split_children): the notice criteria (the with-fix notice, the no-fix and fallback notices with their render test, one notice per watcher session from veto U-86, the incident payload's Show details fields and `Requests`, and the notification's slots of the UJ-1 fixture) moved to Story 5.8, planned next and run before 5.5; the item-noun map's paragraph is restated as its own criterion; AC 7's diagnosis part stays here]
+
+[AMENDED 2026-10-26, Story 5.8, moved to Stories 7.2 and 7.4, DW-270, DW-271 and DW-272, U-92: of the criteria moved to 5.8, the with-fix notice and the UJ-1 notification slots move on to Story 7.2, and the `Requests` writer and `Result` counts to Stories 7.2 and 7.4]
 
 ### Story 5.5: An incident moves through its states and closes
 
@@ -2662,10 +2655,7 @@ So that I'm never asked twice about the same failures and a new problem opens a 
 **Then** it closes synchronously, while a dismiss from any other session is refused (FR-24, AD-4, AD-15, UX-DR74)
 **And** `closeForReplay` closes a resolved incident synchronously, and is refused with its reason while the incident is open, awaiting approval or fixing (FR-24, FR-16, AD-12, AD-15, UX-DR50)
 
-**Given** a user asks in the chat to dismiss an incident
-**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
-**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
-**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+[AMENDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split into siblings planned next, within limits.split_children): the chat dismiss tool's criteria ("Given a user asks in the chat to dismiss an incident" and its And) moved verbatim to Story 5.9, which runs right after 5.5 and before 5.6]
 
 **Given** a `closeQuiet` command
 **When** the incident's last same-cause failure is more than 15 minutes old
@@ -2735,6 +2725,89 @@ So that an all-clear means every check passed.
 **Then** the reply contains no all-clear, and `Render` names the failing check first (FR-37)
 **And** with a mock scenario under `ci/mock/scenarios/A/` in which the model claims everything is fine while a check fails, the reply still contains no all-clear (FR-37)
 - DW-90: `checks.notEverything` and `notEverythingRestPassed` take a whatFailed slot that the pinned `Checks.Render(results, *rows)` has no way to return, so the page (Story 2.6) shows no sentence for those keys. This story says how the page gets whatFailed (from the failing row, or a slot path through Render), and the page renders both keys (ledger; routed by spec_gate 2026-10-22)
+
+### Story 5.8: Each noticed incident says what broke, with its evidence behind Show details
+
+[ADDED 2026-10-26, Story 5.4 spec gate, unattended ruling (decide: split of Story 5.4 into siblings planned next); its criteria are Story 5.4's notice criteria, moved verbatim. It runs after 5.4 and before 5.5.]
+
+As a user,
+I want each incident's notice to say what broke, how many items and since when, with its evidence behind Show details,
+So that I know what broke without reading every error.
+
+**Acceptance Criteria:**
+
+**Given** a usable diagnosis, with outcome `act` and its proposed fix (a data-format cause; Story 7.2 adds the dry run and the approval request)
+**When** `IncidentManager` consumes it, never routing it to `OutcomeRouter`
+**Then** it sends one `OcuTalon.Msg.Notification` per recipient session with kind `incident`, the incident notice's catalog key from `OcuTalon.Msg.Catalog.Watch`, and `Slots` holding the count, the start time as UTC ISO 8601, the item noun as `itemNoun: {"one", "other"}` (from the diagnosis's `ItemNoun`; the `*Out` operation picks the form by the `count` slot) and the agent's cause and fix summary as plain sentences without times, sets `NoticedAt`, and publishes the `incident` event in state `open` (FR-24, AD-15, AD-30, AD-32, UX-DR113) [AMENDED 2026-10-26, Story 5.8, moved to Story 7.2, DW-270, U-92: the with-fix notice is first sent by 7.2 with the dry run and `Raise` through this story's delivery; Epic 5 stores a usable data-format diagnosis and leaves the incident unnoticed, and 5.8 builds the delivery and a unit-tested with-fix slot builder]
+**And** for an `instance` incident with several local watcher sessions, the notice is one `Notification` per session of `Session.Recipients(ownerRef, incidentRef)`, with the `incident` event on each watcher's stream, whichever notice variant it is (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: moved from Story 5.3]
+
+**Given** a usable diagnosis whose cause has no fix in the fixed set (any cause other than a data-format change, `unknown` included)
+**When** `IncidentManager` consumes it
+**Then** it sends one `Notification` of kind `incident` per recipient session with the no-fix notice's catalog key (its unknown-cause variant for `unknown`), the count, the time, the item noun, the agent's cause sentence and one line per group, and no `ApprovalRef`; sets `NoticedAt`; and publishes the incident as Open with the no-fix variant, which in demo mode only Dismiss closes (FR-24, P25, AD-15, AD-32)
+**And** a render test of that key from `OcuTalon.Msg.Catalog.Watch` with fixture slots gives the source's text exactly: "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.", then "Failures:" with one line per group and "Details and trace: on your OcuTalon page."; for `unknown` the first line is "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed." (FR-24, P25, AD-32, UX-DR155)
+
+**Given** a refusal, a timeout or any other fallback, forced through the mock
+**When** the diagnosis falls back
+**Then** the incident stays grouped by the fixed rules (production item and error pattern), claims no cause and proposes no fix, its decision is flagged as a fallback, and the notification, of kind `incident`, carries the fallback incident notice's catalog key with the count, the time, the item noun, the fallback reason and one line per group (readable item name, count, plain error summary, first time), all written by code, where `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `NoticedAt` is set and the incident is Open with the fallback variant (FR-4, FR-24, AD-8, AD-32, UX-DR104, UX-DR115)
+
+**Given** a noticed incident
+**When** its `incident` payload is read
+**Then** `IncidentManager` has filled the fields Story 0.5 fixes on `OcuTalon.Live.Payload.Incident`, including what Show details needs: `CauseCategory` and `Element`, `Evidence` (a sample failed message's header id and its error, and failures per item with first and last times), and `TraceTargets` (`diagnosis`, the diagnosis session holding the decision message, its agent steps and its cost; `sample`, the sample message; `firstFailure`, the first failure), plus `Groups` for the fallback and no-fix notices (FR-24, AD-12, AD-26, UX-DR78, UX-DR103, UX-DR139)
+**And** its `Requests` list each of the incident's approval requests with its `Ref`, `State` and `Result`, so the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) [AMENDED 2026-10-26, Story 5.8, moved to Stories 7.2 and 7.4, DW-271 and DW-272, U-92: 5.8 lists each request's `Ref` and `State` through `Incident.RequestRefs`, which 7.2's `Raise` appends to; 7.4 stores the counts that fill `Result`]
+
+**Given** a recorded snapshot of the demo's date-format failures and its mock scenario under `ci/mock/scenarios/A/`
+**When** the incident is noticed
+**Then** the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order (FR-24, NFR-7, AD-15, AD-22) [AMENDED 2026-10-26, Story 5.8, moved to Story 7.2, DW-270, U-92: the date-format snapshot is a data-format cause, whose notice 7.2 sends]
+- DW-264: The evidence pack and the `read_event_log` tool send `Ens_Util.Log` row ids (`logId`) to the model, while the spine's Identifiers row lets only Ens header and session ids leave the server: use a pack-local log reference (an ordinal) instead (ledger; routed by spec_gate 2026-10-26)
+- DW-261: `EvidencePack.Sentence` repeats `FailurePoller`'s `ErrorText.Sentence(Redact.Text(raw))`; the fallback notice's error summary needs the same composition, so make it one `ErrorText` helper that all three use (ledger; routed by spec_gate 2026-10-26)
+- DW-273: The owner's answer U-91: the evidence pack's credential-name rule (`Watch.Reader` `CREDENTIALPARTS`, matched case-insensitively as a substring of the setting's name) also leaves out settings whose name holds `bearer` or `cookie`, so the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie; a false positive only hides a value, a miss sends one to the model (ledger; routed by spec_gate 2026-10-26)
+
+### Story 5.9: Ask OcuTalon in the chat to dismiss an incident
+
+[ADDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split of Story 5.5 into siblings planned next); its criteria are Story 5.5's chat dismiss criteria, moved verbatim. It runs right after 5.5 and before 5.6, because UJ-1's rejected path says to dismiss the incident in the chat.]
+
+As a user,
+I want to dismiss an incident by asking OcuTalon in the chat,
+So that I can close what I've dealt with without hunting for a button.
+
+**Acceptance Criteria:**
+
+**Given** a user asks in the chat to dismiss an incident
+**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
+**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
+**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+- DW-288: The owner's answer U-102: `dismiss_incident` stays trusted output on a condition: a `Test.Bridge.Gate` test pins the tool's answer to its code-built fields (Refs, states, variants, times, counts, the watch's display name, outcome codes, and messages that are the code's own parameter texts), so a free-text field (diagnosis, error or message text) added later fails that test instead of reaching the model as trusted (ledger; routed by spec_gate 2026-10-27)
+
+### Story 5.10: Epic 5 burn-down
+
+[ADDED 2026-10-27, Epic 5 burn-down gate (Rule 17): the ledger entry this epic owns that is still open, chartered under the orchestrator's ruling (DW-289 re-owned from Story 8.1, which is done, to this epic's burn-down).]
+
+As a maintainer,
+I want Epic 5's open ledger entry resolved before the epic closes,
+So that the Watch and Checks tests stay reliable once the real heartbeat ticks every minute.
+
+**Acceptance Criteria:**
+
+- DW-289: A real `HeartbeatIn` Tick (Epic 8 makes it tick every minute) runs every due check row and sweeps every quiet incident it finds, so the tests that make check rows due at once or quiet incidents 16 minutes old (`Test.Checks.Runs`, `Test.Checks.Heartbeat`, `Test.Checks.Turns.TestFailingOrdersInTheChat` — the occurrence from Story 5.7 —, and any `Test.Watch` fixture that makes check rows) can see a real Tick's run or close mid-test. Resolve it in this epic's own tests: fixture check rows that a real Tick does not find due (for example a `NextDueAt` in the future wherever a test does not mean to run them) and quiet-incident times that a real Tick does not sweep, while every test still proves what it proves; a test that must drive a Tick itself does so without a real Tick changing its outcome. If a pause hook from Epic 8 is still needed after that, leave that residual routed to `burndown` and say so (the orchestrator routes it to an open Epic 8 story) (ledger; routed by the orchestrator 2026-10-27)
+
+### Story 5.11: The demo guide's tests hold now that incidents are real
+
+[ADDED 2026-10-27, Epic 5 integrate-forward, unattended ruling (fix-forward, veto): after the feature branch (with Epic 4's demo guide) was merged into Epic 5, the guide's tests went red in CI because Epic 5's real `FailurePoller` and `IncidentManager` now turn real failures into noticed incidents that those tests do not clean up.]
+
+As a maintainer,
+I want the demo guide's tests to hold now that real failures become real, noticed incidents,
+So that the integrated feature branch stays green and each case's guide shows the step its own rows say.
+
+**Acceptance Criteria:**
+
+**Given** the floor unit's case that presses Break the feed for real (M4, `web/e2e/floor/guide.spec.ts`)
+**When** the case ends
+**Then** no incident or failure group of the FLOOR session that its press caused remains, including one that the real `IncidentManager` records or notices after the case's batch clean-up, so the next case's guide opens at the step its own rows say (CI runs 40525019781 and 40535207067: M7 "the page opens at step 3", M9 "while step 5 is current the box is the secondary style")
+
+**Given** a test that computes a new watching session's guide (`Test.Live.GuideRefresh` in lane-b, or any floor case)
+**When** earlier tests in the same stack sent real failing Orders messages
+**Then** no incident those tests left is visible to that session, whichever test made it (CI run 40525019781: `TestHookPublishesOnChange`, `TestEventsBodyServesTheGuide`)
+- DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide (ledger; routed by integrate-forward 2026-10-27)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
@@ -2811,6 +2884,7 @@ So that nothing risky happens without my yes, and I know at once whether my answ
 - DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request. Story 2.8 made the failed read loud (Watchers and Recipients pass its status on; BridgeSink logs it and publishes nothing). Residual for this story: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; this story hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113) (ledger; routed by adjudication 2026-10-23)
 - DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green; no role change, login or bound value makes the checked prepare fail in %UnitTest. This story's privilege-limited REST answer path is where the read really fails: pin those branches there (ledger; routed by merge_gate 2026-10-25)
 - DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. A test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
+- DW-98: Add a Test/Core test that drives the real gate (Story 3.2) through this story's approval path and asserts that its `turn.step` reaches the session stream through BridgeSink, with no bridge edit; today every test calls OnEvent directly (the `decision.recorded` half is met by Story 2.17's RoutingProduction and ConversationProduction) (ledger; routed by orchestrator 2026-10-27, Epic 4 burn-down overflow)
 
 ### Story 6.3: Answer on the simulated phone and see every answer everywhere
 
@@ -2893,6 +2967,7 @@ So that I always know the outcome and can start a new run.
 **When** `IncidentManager` closes it after 15 quiet minutes or by the replay rule (P26)
 **Then** the card compacts to its headline and result in place, and a later same-cause failure opens a new card (FR-24, UX-DR73)
 - DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run. This story's fallbacks extend Conversation's turn tests: remove those rows in the test's teardown, the Observe.RemoveWarnings shape (Rule 19) (ledger; routed by burndown 2026-10-25)
+- DW-315: live floor runs 491-527 s of its 540 s local deadline because Epic 6's floor specs (incident.spec.ts I1-I11, approval.spec.ts A1-A10) added about 130 s; move them into the live:answers unit, keeping their @browsers cases' cross-engine coverage, so floor regains its margin (ledger; routed by smoke 2026-10-27)
 
 ## Epic 7: Approve the fix and the orders go through
 
@@ -2957,9 +3032,24 @@ So that I approve or reject exactly the change I can see.
 **Then** the incident moves per AD-15's transition table (to Open when no other request is pending and no fix is running; otherwise it stays awaiting approval or fixing), an `answered` notification, carrying the request's `ApprovalRef` and `IncidentRef`, gives the rejected status ("Rejected from {channel} at {time}. Nothing was changed.") or the expired one ("Expired at {time}. Nothing was changed."), no `Execute` request is sent, and nothing in the watched production changes (FR-8, FR-24, NFR-13, AD-15, AD-32, UX-DR76, UX-DR118)
 **And** a cancelled request sends no `ApprovalOutcome` and the incident stays as it is (AD-15)
 
+[AMENDED 2026-10-28, Story 7.2 spec gate, Epic 7 runner, unattended ruling (split, decide): the later-request criterion and both of its And clauses moved verbatim to Story 7.6, planned next, because 7.2 was too large for one implement pass.]
+
+- DW-270: Moved from Story 5.8 (U-92, R2): for a usable data-format diagnosis (outcome act, its proposed fix), IncidentManager first sends the with-fix incident notice here, through Epic 5's notice delivery and with Raise: one `OcuTalon.Msg.Notification` per recipient session of kind incident, the incident notice's catalog key, Slots with the count, the start time as UTC ISO 8601, the item noun as itemNoun {one, other} from the diagnosis, the agent's cause and fix summary as plain sentences without times, plus 7.2's dry-run slots and the first request's ApprovalRef; it sets NoticedAt; and for the live case the recorded date-format snapshot records (50 orders sent as `MM/DD/YYYY` through `Partner.Send`) and the mock's diagnosis scenario [AMENDED 2026-10-28, Story 7.2 spec gate, Rule 5 apply-and-report: IncidentManager builds evidence only from live incidents, so a recorded snapshot cannot drive a dry run] the notification's slots give 50 orders and the first failure's time, with CI seeing noticed, settling, diagnosing, then the notice, in that order (ledger; routed by merge_gate 2026-10-27)
+- DW-271: Moved from Story 5.8 (U-92, R3): Raise appends the new approval request's Ref to the incident's `Incident.RequestRefs`, so the incident payload's Requests list each of the incident's approval requests with its Ref and State (FromRow opens each ApprovalRequest by Ref, SQL-free for /state under AD-13) (ledger; routed by merge_gate 2026-10-27)
+
+### Story 7.6: Later failures in the same incident get their own dry run and approval request
+
+[ADDED 2026-10-28, Story 7.2 spec gate, Epic 7 runner, unattended ruling (split, decide): split from Story 7.2, whose later-request criterion and its two And clauses are moved here verbatim; planned next in Epic 7, after 7.2 and before 7.3.]
+
+As a user,
+I want failures that arrive after the notice to get their own dry run and approval request in the same incident,
+So that I never approve more than I was shown, and later failures are not lost.
+
+**Acceptance Criteria:**
+
 **Given** same-cause failures that join the incident after its notice, while it is awaiting approval, fixing or resolved
 **When** `IncidentManager` updates the incident's count
-**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156)
+**Then** they are never added to an existing request's fixed targets; once they settle by the same rule, they get a dry run and an approval request of their own in the same incident, sent as one `Notification` of kind `approval` per recipient session with the later-request catalog key and its `ApprovalRef`; the incident moves per AD-15's transition table (awaiting approval while a request is pending; fixing stays fixing, and a request approved while a fix runs waits for that fix's final `FixResult`, because one fix runs at a time per incident), and each approved request gets its own `FixRun` (FR-8, P27, AD-15, UX-DR74, UX-DR156) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: 7.6 delivers IncidentManager's half, one `Execute` per approved request, one at a time per incident; the `FixRun` row of each approved request is written by `Execute` and pinned in Story 7.3]
 **And** a test that renders the later-request entry of `OcuTalon.Msg.Catalog.Watch` with fixture slots gets "{count} more {item noun} failed since {time}, with the same cause. I can {fix summary}. Approve?" filled in (fixture "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?"), then its own "Dry run:" paragraph and "Details and trace: on your OcuTalon page." (FR-8, P27, UX-DR156)
 **And** failures that join an Open incident (fallback, no fix, rejected or expired) only update its count (FR-8, P27)
 
@@ -2998,6 +3088,10 @@ So that the broken orders are delivered without the originals being touched or a
 **And** a test finds every original header and body unchanged, each copy in its original's trace session with the same `SuperSession`, and the incident's trace linking to the copies by their registered header ids (FR-25, NFR-20, AD-16, AD-26)
 **And** when the target production isn't running, each copy it couldn't take is reported as skipped with a plain reason (AD-16)
 
+**Given** two approved requests of one incident (a first request and a later one, Story 7.6)
+**When** `IncidentManager` sends their `Execute` requests one at a time
+**Then** each run writes its own `FixRun` row with its own `ApprovalRef`, and each request's result is its own (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.6, Epic 7 runner, owner U-134: moved from Story 7.6, whose `Execute` ordering is pinned there]
+
 ### Story 7.4: OcuTalon reports how many orders went through
 
 As a user,
@@ -3024,6 +3118,17 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **When** one approval request covers them and is approved
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
+**Given** two approved requests of one incident whose runs resent copies (Story 7.6's later request)
+**When** each run's copies have completed or failed again within `FixExecutor`'s wait
+**Then** each request's final `FixResult`, its `FixRun` and its result notice carry its own counts and its own `ApprovalRef`, and neither run's copies count in the other's result (FR-8, P27, AD-15, AD-16) [AMENDED 2026-10-28, Story 7.3 spec gate, Epic 7 runner, unattended ruling (veto U-140): moved from Story 7.3, which pins the results it sends itself]
+
+- DW-272: Moved from Story 5.8 (U-92, R3): the final FixResult's counts (Total, Resent, Completed, FailedAgain, Skipped, Interrupted, Reason) are stored so that each request in the incident payload's Requests carries its Result, and the page can show each request card's own answered status and result (FR-8, AD-12, AD-15, UX-DR74) (ledger; routed by merge_gate 2026-10-27)
+- DW-318: A dry run reads only each failure group's Seen set (the newest 1000 keys, Settle.SEENMAX), so for an incident with more than 1000 failures its affected and resend counts are lower than the incident's Count with nothing in the result saying so (ledger; routed by harvest 2026-10-27)
+- DW-292: `/state`'s incident entries carry what the incident's live events carry: `Live.Payload.Incident.FromRow` fills its groups, requests, evidence and traceTargets, so a reloaded or resynced incident card shows its request cards, results, Show details evidence and diagnosis link (AD-12) (ledger; routed by merge_gate 2026-10-28)
+- DW-368: A stopped target production renders as 'had changed since the dry run' (AD-16 counts its refused copies as Skipped and the Result texts convention picks result.skipped); give it an honest result: its plain reason, or a key of its own (new wording is a veto-window item) (ledger; routed by spec_gate 2026-10-28)
+- DW-380: An approved request whose ExpiresAt passes before FixExecutor takes its Execute, or whose StartExecution fails, is refused with an info line only, so it stays approved and its incident stays fixing with no result; give it an ending (its wording is a veto-window item) (ledger; routed by cr 2026-10-29)
+- DW-381: FixExecutor (PoolSize 1) also answers every incident's dry-run ask, so a 60-second copy wait in its job would hold other incidents' notices past AD-15's 35 s; run the wait where it cannot block a dry run (ledger; routed by cr 2026-10-29)
+
 ### Story 7.5: A resend cut short by a restart says how far it got
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: retitled from "Mixed, unfinished and interrupted resends say how far they got". The mixed and still-running results moved to Story 30.5; the interrupted-run safety rule stays here.]
@@ -3044,6 +3149,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Given** the three catalog keys
 **When** the catalog test runs
 **Then** each key, created in Epic 0 (Story 0.9 [AMENDED 2026-10-19, split for size, Rule 22]), exists in `OcuTalon.Msg.Catalog.Watch` with its slots and renders through the same `*Out` path as the other results, and its wording is P16's, accepted by the author on October 17 (EXPERIENCE.md › Results) (AD-16, AD-29, AD-32)
+
+- DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed) leaves every run still in its 60-second wait executing and its incident fixing with no result; the Sweep (or a waiter restart) must end them (ledger; routed by cr 2026-10-29)
 
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
@@ -3141,20 +3248,16 @@ So that reminders work the way I would ask a person.
 **Then** it converts a `LocalDueAt` through `OcuTalon.Data.Time` in the instance's zone, so "Thursday at 10" fires at 10:00 local time, including in a week with a daylight-saving change, and a `DelaySeconds` counts from the moment the command arrives (FR-34, AD-18)
 **And** an empty `Text`, a due time already past, or anything other than exactly one of the due forms Story 0.4 fixes (`DueAt`, `DelaySeconds`, `LocalDueAt`) is refused with a `CommandResult` carrying a plain-English reason the tool passes back, and no row or waiter is created (FR-34, NFR-24)
 
-**Given** the CI mock with scenarios under `ci/mock/scenarios/B/`: one keyed by the guide prompt's exact text "Remind me in 1 minute to stretch." and one selected by a marker for "Remind me Thursday at 10 to load the new certificate."
-**When** each is sent as a chat message
-**Then** the Chat agent calls Epic 1's set tool, `ReminderOps` creates the reminder, the reply confirms it, the rail shows it, and the tool call is an agent step in Visual Trace (FR-34, AD-22)
-**And** the REL-2 spec for UJ-1's reminder step is turned on once it passes on the integration branch with the CI mock: pressing Send on guide step 2 shows the reply and a "Stretch" row with its countdown under Reminders, and the guide marks step 2 done (REL-2, AD-29, UX-DR44)
-
-**Given** a pending reminder set through the chat in each of two sessions
-**When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`)
-**Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command with its `ReminderRef` marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
+**Given** a pending reminder in each of two sessions, set through `ReminderOps`
+**When** a `ListReminders` command and then a `CancelReminder` command with the reminder's `ReminderRef` arrive for one session, as Epic 1's list and cancel tools (Story 1.10) send them
+**Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
 **And** a cancel naming another session's reminder, or one already fired or cancelled, is refused with a plain-English reason and changes nothing, and a command repeated with the same `IdempotencyKey` returns the first result without creating a second row or waiter (AD-1, AD-4, AD-8)
 **And** this story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, which cancels reminders through a test double until this story merges (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before this epic] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before Epic 16 starts, so Story 16.4 uses the real path from the start and this story turns on nothing in it.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for this epic. This story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, and in Story 16.4's closed-page case a reminder set before the CSP session times out fires on time after it ended.]
 - DW-135: Cross-lane contract for ReminderOps (Story 8.4): ListReminders answers with CommandResult.Data = {"reminders":[{"ref","text","dueAt"}]}, the command's session's pending reminders, earliest due first, dueAt in UTC; Story 1.10's list tool and its CommandsIn test double read and answer exactly this shape (ledger; routed by spec_gate 2026-10-23)
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran (ledger; routed by harvest 2026-10-24)
 - DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls (ledger; routed by harvest 2026-10-24)
 - DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request (ledger; routed by cr 2026-10-24)
+[AMENDED 2026-10-27, Epic 8 runner, unattended ruling (decide: a split into a sibling planned next in this epic, doctrine U5): the chat side of this story moved, unchanged in intent, to Story 8.6: the CI mock scenarios and their chat replies, the REL-2 reminder step, the cancel sent as a chat message, DW-210 and DW-232. This story keeps the command side. Its third criterion read "**Given** a pending reminder set through the chat in each of two sessions **When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`) **Then** ..., the reply confirms, ..."; its second criterion is Story 8.6's first.]
 
 ### Story 8.5: Reminders survive restarts and upgrades, and late ones say so
 
@@ -3185,8 +3288,41 @@ So that I never silently lose a reminder.
 **Then** it fires, because `ReminderTimer`'s persistent properties are frozen (append-only, with its logic in other classes), its storage block is committed and CI's storage diff against the previous release tag passes; the full upgrade harness of FR-60 stays with Lane A's release work (NFR-17, AD-5)
 
 **Given** the restart cases above
-**When** CI runs the Schedule shard on the IRIS runner
+**When** CI runs the Schedule area's restart unit on the IRIS runner [AMENDED 2026-10-27, Story 8.5 plan, Rule 5 apply-and-report (intent unchanged): a `%UnitTest` shard runs inside the IRIS it would have to restart, so the restart cases are a live unit in their own compose project; it read "When CI runs the Schedule shard on the IRIS runner"]
 **Then** the tests restart IRIS in their own compose project and assert order and outcome (one notification per channel, late or not), never the seconds (NFR-10, NFR-16, AD-22)
+
+### Story 8.6: Reminders through the chat on the demo path
+
+As a user,
+I want to set and cancel a reminder by chatting, as guide step 2 does on the demo path,
+So that reminders work the way I would ask a person.
+
+**Acceptance Criteria:**
+
+**Given** the CI mock with scenarios under `ci/mock/scenarios/B/`: one keyed by the guide prompt's exact text "Remind me in 1 minute to stretch." and one selected by a marker for "Remind me Thursday at 10 to load the new certificate."
+**When** each is sent as a chat message
+**Then** the Chat agent calls Epic 1's set tool, `ReminderOps` creates the reminder, the reply confirms it, the rail shows it, and the tool call is an agent step in Visual Trace (FR-34, AD-22)
+**And** the REL-2 spec for UJ-1's reminder step is turned on once it passes on the integration branch with the CI mock: pressing Send on guide step 2 shows the reply and a "Stretch" row with its countdown under Reminders, and the guide marks step 2 done (REL-2, AD-29, UX-DR44)
+
+**Given** a pending reminder set through the chat in each of two sessions
+**When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`)
+**Then** the Chat agent calls Epic 1's list and cancel tools, Story 8.4's `ReminderOps` cancels that session's reminder, its row leaves the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
+- DW-232: The CI mock scenario for 'Remind me in 1 minute to stretch.' already exists as Story 4.4's `ci/mock/scenarios/B/guide-reminder.json`, and the mock loader refuses a repeated prompt (`scenarios.mjs`), so this story extends `guide-reminder.json` rather than adding a second scenario (ledger; routed by orchestrator 2026-10-27)
+- DW-210: demo-path-summary.test.mjs's playwrightEnv() leaves the machine's browsers usable, so 'skip every unbuilt part' stays green for a demo-path test that launches a browser before it skips wherever Chromium is installed; only the browserless hosted web job goes red (ledger; routed by cr 2026-10-25)
+[AMENDED 2026-10-27, Epic 8 runner, unattended ruling (decide, doctrine U5): split from Story 8.4, whose chat side this is; the criteria above are 8.4's, unchanged in intent.]
+
+### Story 8.7: Epic 8 burn-down
+
+[AMENDED 2026-10-27, chartered by the burn-down gate, Rule 17 and Rule 22: DW-314 is the owner's decision through the Contest Planner (fix before Epic 8 merges; the orchestrator ruled it into this story), and DW-204 is the order dependence the split would expose.]
+
+As the author,
+I want the browser sign-in unit split into two runs that each fit a stage's foreground limit, and its instance-stream assertions independent of spec order,
+So that later stories can add sign-in tests without a run outgrowing the 10-minute cap or passing only because of file order.
+
+**Acceptance Criteria:**
+
+- DW-314: `live sign-in` runs as two parts of the same script (part 1/2 and 2/2, split by spec file, as `ci/iris.sh shard --part k/n` splits classes), each about 4 to 5 minutes on the developer machine, together running every spec the whole unit runs, exactly once; CI's `browser` group still runs the whole unit; Rule 21's recipe says how to run the two parts (owner via Contest Planner: split live sign-in into two ~4-5 min runs) (ledger; chartered by burndown 2026-10-27)
+- DW-204: `web/e2e/api/api.spec.ts` reads the instance stream's status events against a baseline it takes itself, so it passes whether or not `heartbeat.spec.ts` ran before it, in either part and in the whole unit (ledger; chartered by burndown 2026-10-27)
 
 ## Epic 9: Quality is measured: the evaluation set
 
@@ -3221,6 +3357,7 @@ So that the scores measure the product and a run can never notify a user or chan
 **When** it receives an `OcuTalon.Msg.ItemDecision`
 **Then** it stores one result row per case in a Lane A table under `OcuTalon.Eval` (its `DEFAULTGLOBAL` from the short-name registry, its storage block committed, and the spine's ownership tables updated in the same change): the run, the case, the `SourceItemId`, the `DecisionRef`, the outcome (from the message) or, for an incident case, the cause category and element at fault and the proposed fix kind and parameters (read from the `Decision` row), any fallback reason, and the cost and largest request size from the bridge's `Decision` and `Usage` rows (FR-62, NFR-3, NFR-4, AD-3, AD-5, AD-33)
 - DW-110: Evaluation turn cases (EvalIn, Stories 9.1 to 9.3) would share one linked conversation per (OwnerRef eval, ChatAgent) from Story 1.8 on, so one case's history leaks into the next, unless each case is sent with SessionMode fresh (or its own OwnerRef) (ledger; routed by spec_gate 2026-10-23)
+- DW-337: First change, test infrastructure only: CI's shards group took 31 min 52 s on Epic 6's head (REL-4's budget is 35), so `live:cards` (about 230 s locally) moves to an unpinned shorter group (install-fresh or install-upgrade), measured on CI, with any pin in test-ci-config.sh updated (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 9.2: Each run scores decisions and causes and records cost and size
 
@@ -3418,6 +3555,8 @@ So that I can try it without help and trust that it claims only what the release
 - The README says OcuTalon runs on the plain IRIS (non-Health) AI Hub build 154 image, supported and verified on ARM64; CI tests only the IRIS for Health image (NFR-21, P15 wording) [AMENDED 2026-10-20, owner decision 3]
 
 - DW-45: Where the README explains demo mode off, it quotes the owner's sentence for a kept OCUORDERS: "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
+- DW-2: The README's install sections state Docker Compose 2.24 or later as the minimum (the judges' compose file uses `env_file` with `required: false`); `install.sh` already refuses an older Compose with the exact fix (Story 10.1) (ledger; routed by adjudication 2026-10-23)
+- DW-134: The README's key and update steps give the commands `install.sh` prints: after adding a key to `.env`, `docker compose up -d --force-recreate`; to apply an update, `docker compose up -d --build`; never "run ./install.sh again" for either, because a rerun leaves a healthy OcuTalon alone (Story 10.1, ruling U-45), and never `docker compose restart`, which does not re-read `.env` (ledger; routed by cr 2026-10-23)
 
 ### Story 10.3: The session side of Telegram is ready and stays off
 
@@ -3483,6 +3622,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **Then** it pins a QR-code library and records it in the spine's Stack section (as for the component library), adds the typed API-client methods for the pairing endpoints and the `TelegramState` interface, and creates the Telegram parts of the REL-2 demo-path specs as separate, skipped spec files, `web/e2e/demo-path/telegram-*.spec.ts`, which Lane A owns from Epic 12 with the rail's Telegram card (REL-2, AD-29)
 **And** every criterion above runs on fixtures (a fixture pairing, fixture `TelegramIn` submissions and fixture `AnswersIn` calls), because Lane A's Telegram epic builds `TelegramIn` and `TelegramOut` after release 1 (AD-29)
 - DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live `Pairing` row, never a `ChatRef` or chat id: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. The entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
+- DW-231: Move Story 4.4's `web/src/app/feed/break-feed-api.ts` press() and Story 4.7's guide-marker calls into `ApiClient`, so the page has one typed API client (Stack row); this story already edits `web/src/app/api/**`. U-84's condition: `ApiClient` absorbs `break-feed-api.ts` before 1.0.0, and until then the guide client keeps the same envelope interceptor and headers (`Content-Type`, `X-OcuTalon-Request`) (ledger; routed by orchestrator 2026-10-27, inbox U-84)
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
@@ -3521,6 +3661,13 @@ So that every README claim happens on the product's real items in about two minu
 **Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
 **When** it reaches a decision
 **Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
+
+- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+- DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time; U-118 (kept by the owner): Lane A's cancel_reminder takes one or more reminder ids and sends one CancelReminder per id within one tool call, each with its own IdempotencyKey, with no AD-20 change; Story 11.6 runs the live check (DW-358) (ledger; routed by merge_gate 2026-10-28)
+- DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools; U-118 (kept by the owner): Chat's instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest, and a live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, passes before 0.1.0 is cut (ledger; routed by merge_gate 2026-10-28)
+- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
+- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
+- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
 
 ### Story 11.2: Upgrades and restarts keep every record working
 
@@ -3616,6 +3763,7 @@ So that I publish accurate plain-language notes and never ship a naming, licence
 **Given** the release checklist
 **When** it is used for any release
 **Then** it states that posts, articles, the video and bonus claims are the author's actions, and confirms that no script or workflow posts anything or claims a bonus (REL-11)
+- DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); the release checklist rechecks every README link and GitHub's heading slugs on the public page before the release (ledger; routed by merge_gate 2026-10-29)
 
 ### Story 11.5: One scripted sequence cuts a release
 
@@ -3690,6 +3838,10 @@ So that what the automated tests can't see is found and fixed before the first r
 **When** it is resumed after the recorded pass and it finishes
 **Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
 
+- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
+- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
+- DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
@@ -3719,6 +3871,8 @@ So that Telegram is optional and the web demo path never waits on it.
 **Given** Telegram's stories are not all merged
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` still returns 0, so `/state` keeps the Telegram section hidden and the pairing endpoints answer 404, and this epic's tests turn Telegram on through Epic 0's test-only seam `^OcuTalonTest("TelegramIncluded")`; Story 12.7 sets `Included()` to 1 with the README's Telegram section (FR-21, FR-58)
+- DW-367: The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so once Included() can be 1 a start with no bot token (FR-21: no token, so Telegram off) has no way to be expressed in CI (ledger; routed by merge_gate 2026-10-29)
+- DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls (ledger; routed by merge_gate 2026-10-29)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
@@ -3880,6 +4034,7 @@ So that I can follow and steer it from my own phone.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
+- DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 12.7: Approve or reject from Telegram, and every copy shows who answered
 
@@ -4070,6 +4225,8 @@ So that what I approve is exactly what ships, release after release.
 **When** a release is cut
 **Then** it regenerates the generated sections and stops the release if the drift test or the privilege test fails, so the overview is updated with every release (FR-61, REL-3)
 
+- DW-213: The generated security overview lists the service role's demo-mode-only Read on `%DB_OCUORDERS_DATA` (granted by the Demo step with demo mode on, removed with it off or kept; U-79), so it never overstates least privilege (ledger; routed by merge_gate 2026-10-27)
+
 ### Story 14.2: The security overview says what OcuTalon can do and what stops it
 
 As a security reviewer,
@@ -4180,6 +4337,8 @@ So that one package gives me a working OcuTalon in my existing instance.
 
 - DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
 - DW-212: With the online-demo flag off, an install into an instance whose `PasswordValidationRoutine` names another routine leaves the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition). Story 3.8's `TestForeignGuardIsRefused` pins the setting; add the assertion that the foreign routine still exists after the flag-off run, and prove both cases on this story's IPM install into an existing instance (ledger; routed by owner 2026-10-25, inbox U-75)
+- DW-207: `SetDemoMode(1)` on an instance whose OCUORDERS OcuTalon did not create refuses the on-switch before the audit entry and the settings write when `Install.Step.Demo.Plan` answers error, prints one terminal line that names the foreign OCUORDERS and changes nothing, and leaves `demo.mode` 0, so later starts still reach Production and Ready (today it writes 1 first and every later start stops at STEP Demo FAILED); prove both on this story's IPM install into an existing instance. U-106's condition on the terminal line: it says that demo mode stays off and why (OCUORDERS exists and OcuTalon did not create it), in the same style as the other Install step lines, and names no customer data from that namespace (ledger; routed by orchestrator 2026-10-27, Epic 4 decision sheet, veto U-106, kept by the Contest Planner under the owner's delegation)
+- DW-223: `Install.Step.Demo.WithOrdersData` (Story 5.1, U-79) is a near-copy of `WithOrders` (about 18 of its 20 lines), differing only in the resource list it edits (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
@@ -4212,6 +4371,7 @@ So that the IPM install is as durable as the Docker one.
 **When** the registry install path is run once on a clean build 154 instance with the README's two commands
 **Then** it gives the same working OcuTalon, and the result is recorded in the release notes (FR-57, REL-8, REL-11)
 - DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
+- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
 
 ## Epic 16: Anyone can try the online demo
 
@@ -4362,6 +4522,12 @@ So that other visitors can get in while my session waits for me.
 **Then** a closed page's session is resumed after its CSP session ended, an idle page returns to the splash and is resumed, and a signed-out session's pairing, reminders, watches and pending requests end while another session's are untouched (FR-14, FR-15, AD-4)
 **And** until Lane A's Story 5.1 merges, the tests stop watches through a `WatchOps` test double that records the call, and this story's Telegram cases (0.1.1's Telegram channel, Epic 12) stay off; Story 31.3 (was Story 16.10) turns on the real `WatchOps` path and those cases (AD-29)
 **And** until Lane B's Story 8.4 merges, the tests cancel reminders through a `ReminderOps` test double that records the call, and Story 8.4 turns on the real path (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before Epic 8] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before this epic starts, so the tests cancel reminders through the real `ReminderOps` and no test double is needed.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for Epic 8. Until Story 8.4 merges, the tests cancel reminders through the recording test double, and the closed-page case checks that the session's reminder rows are untouched; Story 8.4 turns on the real cancel path and a real reminder that fires after the CSP session ended.]
+- DW-378: Tagline: replace "An OpenClaw-style assistant for InterSystems IRIS." with "An AI assistant for InterSystems IRIS." in web/src/app/about/about-dialog.ts and the tests that pin it (web/e2e/frame/frame.spec.ts, web/scripts/ux-strings.test.mjs); the not-affiliated note stays verbatim; UX-DR16 and the About criterion already read the new tagline (ledger; owner decision 2026-10-29, relayed by the Contest Planner; before the 0.1.0 candidate is cut)
+- DW-285: Closing a trace tab frees nothing: its licence unit is held until sign-out or the session timeout, so leaving the page must sign the trace session out (`?IRISLogout=end`), with the 120-second timeout as the backstop (AD-13, AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+- DW-291: The sign-out test exercises the real `ReminderOps` cancel path that Story 8.4 delivers (U-65). If Story 8.4 has merged when this story is planned, the test uses the real path from the start, with no double. Otherwise it uses the recording double, and whichever of 8.4 and this story merges second turns the real path on, with a test that asserts a real cancel. Either way, the merged sign-out test runs the real cancel (ledger; routed by orchestrator 2026-10-27, inbox U-107, kept by the Contest Planner under the owner's delegation)
+- DW-290: `Test.Web.Api`'s class doc no longer says that a check in a namespace with no trace application carries no traceUrl, which DW-66 made untrue (doc-only) (ledger; routed by merge_gate 2026-10-27)
+- DW-333: flake: `live:sign-in` rail.spec.ts R1 (`open()`: main.main not found within 10 s after signIn) went red once in CI and passed on an unchanged rerun; the shared `open()` helper's sign-in readiness wait is made deterministic (ledger; routed by merge_gate 2026-10-28)
+- DW-220: The image CI job took 2369 s and then timed out at 40 minutes with this story's classes (run 40866408272): move `live:online-demo` from the `image` group to `install-upgrade`, with the expectations that pin the groups (ledger; routed by spec_gate 2026-10-29, CI rework of this story)
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 
@@ -4459,6 +4625,8 @@ So that a reset never surprises me or leaves me on a broken page.
 **When** it takes a signed-in page through the last 10 minutes before a reset
 **Then** the countdown turns urgent at 10 minutes, the banner appears at 5, the resetting view shows at the reset, and the page lands once on the splash with the reset notice when status reports ready (FR-15, FR-59)
 
+- DW-235: `AddressCounter.Shift` and `SessionEvents.CookieExpiry` (Story 16.3) repeat `OcuTalon.Data.Public.Settings`' private UTC parsing (`ToSeconds`/`FromSeconds`); while this story computes the next reset from the same settings, share one helper and make both callers use it (ledger; routed by cr 2026-10-26)
+
 ### Story 16.9: Allowances cap messages, model cost and simulated emails
 
 As a judge,
@@ -4495,6 +4663,9 @@ So that the demo stays affordable and available, and I always know what still wo
 **When** the tests run
 **Then** the 51st message from the web chat and from Telegram, the allowance message sent once, the 21st simulated email, and the daily cap reached both through `Budget.State()` and through the mock's 403 all behave as above, and an approval still completes while both caps hold, tested with a fixture approval request answered through `OcuTalon.Bridge.Approval.Answer` (FR-40, AD-11, AD-20)
 **And** the Telegram cases use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off, like the approval's real Lane A path, until Story 31.3 (was Story 16.10) turns them on (FR-20, AD-29)
+- DW-300: Test.Core.BridgeSink (four methods) and Test.Web.Api.TestStateSections make check rows due at once or count untyped stream events, so a real HeartbeatIn Tick can run their rows or add check events mid-test (DW-289's root cause): seed those check rows a day ahead or count typed events when this story edits BridgeSink's budget.capped path and /state's status (ledger; routed by merge_gate 2026-10-29)
+- DW-361: The page's How to set a key and Install it yourself actions open the README's top (#readme); point them at the README's #set-a-model-key and #install-it-yourself sections when this story edits web/src/app/banners/** (Epic 10's decision sheet) (ledger; routed by merge_gate 2026-10-29)
+- DW-220 (residual): after Story 16.4 moved `live:online-demo` into `install-upgrade`, the `image` group still sums to about 2047 s on CI (34.6 minutes, `shard:lane-b` 866 s): rebalance Lane B's own units so that no IRIS job passes about 30 minutes, with this story's new unit placed too (ledger; routed by cr 2026-10-29)
 
 
 **Story 16.10 moved to Story 31.3**, whole and verbatim, in Lane B's Epic 31 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].
@@ -6081,6 +6252,11 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 **Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
 **And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
 - DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
+- DW-287: At 8 licence units `iris session` terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy (AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+- DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS (ledger; routed by cr 2026-10-26)
+- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
+- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
+- DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path (ledger; routed by harvest 2026-10-25)
 
 ### Story 29.4: Sessions stay isolated under load
 
@@ -6113,6 +6289,11 @@ So that what I see is my own work.
 **Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model
 **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
 **Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
+- DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference (inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
+- DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test (ledger; routed by burndown 2026-10-30)
+- DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable (ledger; routed by merge_gate 2026-10-30)
+- DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red (ledger; routed by burndown 2026-10-30)
 
 ## Epic 30: Lane A post-demo hardening
 
@@ -6167,6 +6348,7 @@ So that OcuTalon's databases don't grow without limit while the records people n
 **Given** fixture records older and newer than each retention period
 **When** the purge tasks run
 **Then** only the records past their period are gone, business-process instances, rule logs and event-log entries included, audit entries are untouched (they follow the instance's own audit retention), and history reads from OcuTalon's and the bridge's tables, not from purged messages (NFR-19, AD-27)
+- DW-371: Data.Pairing.Purge repeats about 20 of the 22 lines of Lane A's Digest.Data.Item.Purge (the day-count check and the UTC cutoff), a copy forced by AD-29, so the purges drift when the day rule changes (ledger; routed by merge_gate 2026-10-29)
 
 ### Story 30.3: An approved tool call runs exactly once, with no model
 
@@ -6217,6 +6399,8 @@ So that a stopped production or a disabled item reaches me once.
 **When** the check finds it
 **Then** the finding becomes one Item sent to `Intake`, whose `CatalogKey` and `Slots` are the production state-change key from `OcuTalon.Msg.Catalog.Watch` and its slots ("The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."), which `Intake` copies to the `ItemDecision` so `OutcomeRouter`'s notification uses them (Story 2.7), and the same finding is never sent again (FR-23, FR-33, AD-14, AD-30, AD-32, UX-DR112)
 **And** a test sends two Ticks after stopping a test production and finds exactly one finding Item (FR-33)
+- DW-414: flake: OcuTalon.Test.Checks.Runs TestWindow 'the next reads from the previous run less 2 seconds' read from the real clock (2026-10-29 23:59:24) instead of the test's own Tick time, at an instance midnight (ledger; routed by burndown 2026-10-30)
+- DW-368: A stopped target production renders as 'had changed since the dry run': AD-16 counts each copy a stopped production refuses as Skipped, and the Result texts convention then picks result.skipped, whose text claims the orders changed since the dry run (a false claim in an edge case) (ledger; routed by merge_gate 2026-10-30)
 
 ### Story 30.5: Mixed and unfinished resends say how far they got
 
@@ -6235,6 +6419,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Given** copies still running when `FixExecutor`'s 60-second wait ends
 **When** the wait ends
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
+- DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
+- DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
 
 ## Epic 31: Lane B post-demo hardening
 
@@ -6294,12 +6480,15 @@ So that I can try OcuTalon in two minutes from the README.
 **Then** "Try it in two minutes" is at the top, with the online demo link the author gives and a note that the sign-in details are on the splash screen; it names the read-only Visual Trace account and says that trace links on the demo open it without a second sign-in; it carries the IPM install section, which this story adds from `docs/install-ipm.md`, the file Lane A's Story 15.2 writes; and the rest of FR-58's list covers what 1.0.0 ships and claims nothing it doesn't (FR-57, FR-58, FR-59) [AMENDED 2026-10-23, owner decision, relayed by the Contest Planner; the owner: "Yes I agree with your recommendations". Story 10.2 now puts the online demo link and the top section (What's interesting, the contest-task table and the video link) into release 1's README. This story keeps them and updates the section and the table for what 1.0.0 adds.]
 **And** the About dialog gains the bridge developer guide and security overview links, and the demo guide's finish state its "Use the same bridge in your own production ↗" link, at the paths Stories 13.3 and 14.2 supply, once both have merged (FR-5, FR-61, UX-DR28, UX-DR47)
 **And** it keeps the BMAD Method and Claude Code credits and the not-affiliated note, is plain English with no class name or error code outside its developer sections, names no private infrastructure detail, and every link in it resolves (FR-58, CON-2, CON-5)
+**And** it adds `LICENSE` at the repository root with the standard MIT License text and the holder line "Copyright (c) 2026 jbrandtmse" (the same holder line as the owner's OcuPilot), and one line under "Credits and licences": "OcuTalon is under the MIT License: [LICENSE](LICENSE)."; the README test (`docker/tests/test-readme.sh`) pins both: the file's MIT text with that holder line, and the README line [AMENDED 2026-10-28, owner decision U-136, relayed by the Contest Planner under the owner's delegation: release 1's README was kept as written, with this condition; OcuTalon has no project licence yet and is MIT, as OcuPilot is; written into this story before its plan]
+**And** the README shows two screenshots under "What's interesting", each with plain-English alt text: (1) the OcuTalon page on the demo path, with the incident card, its dry run with counts, and the approval request; (2) Visual Trace of one decision, showing the agent's model requests and tool calls as steps. The PNG files live in `docs/images/`, each under 300 KB. They are captured by a Playwright spec on a throwaway stack, the way `web/e2e/trace` already opens real Visual Trace pages; the mocked model is fine. They show no key, secret, password other than the README account's, or private host name. `docker/tests/test-readme.sh` checks that both files exist and are linked [AMENDED 2026-10-28, decided by the Contest Planner under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), written in by the orchestrator as an unattended ruling, veto U-142: judges skim, and Visual Trace showing every model request and tool call as an agent step is OcuTalon's clearest difference, so the README shows it without an install; written into this story before its plan]
 
 **Given** 0.1.1's Telegram channel (Epic 12, Lane A) and Lane A's real paths merged [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: split from the paired-chat criterion that moved to Story 29.4]
 **When** this story's tests run
 **Then** it turns on Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths (`WatchOps` stopping a signed-out session's watches; the approval that completes while both caps hold) (FR-14, FR-20, FR-40, AD-29)
+- DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account; the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to (Epic 10's decision sheet, veto U-145) (ledger; routed by merge_gate 2026-10-29)
 
-**Release check:** measured on the launched online demo at the 1.0.0 release, the author's [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
+**Release check:** measured on the public online demo host serving the 1.0.0 candidate, at the 1.0.0 release, the author's [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so Story 31.3 measures on the public host (see the Epic List's step release checks); it read "measured on the online demo host serving the 1.0.0 candidate, behind the access gate before the public flip, at the 1.0.0 release, the author's"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner (one public release at 1.0.0; see the Epic List's step release checks); it read "measured on the launched online demo at the 1.0.0 release"] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 
 ### Story 31.4: The paired chat stays isolated under load too
 

@@ -13,7 +13,13 @@
     "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/catalog.mjs --check && node scripts/brand.mjs && ng build",
     "e2e": "playwright test --project=chromium",
     "e2e:demo-path": "playwright test --project=demo-path",
+    "e2e:demo-switch": "playwright test --project=demo-switch",
+    "e2e:answers": "playwright test --project=answers",
+    "e2e:cards": "playwright test --project=cards",
     "e2e:floor": "playwright test --project=floor --project=floor-firefox --project=floor-webkit",
+    "e2e:online-demo": "playwright test --project=online-demo",
+    "e2e:online-session": "playwright test --project=online-session",
+    "e2e:online-allowance": "playwright test --project=online-allowance",
     "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
     "test": "node --test scripts/*.test.mjs"
   },
@@ -25,6 +31,7 @@
     "@angular/forms": "22.2.3",
     "@angular/platform-browser": "22.2.3",
     "@angular/router": "22.2.3",
+    "qrcode-generator": "2.0.4",
     "rxjs": "7.8.2",
     "tslib": "2.8.1"
   },

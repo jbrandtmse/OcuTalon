@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, signInReadme, watchViolations } from './helpers';
 
 /** The value of a custom property on the root element, as the page computes it. */
@@ -168,6 +169,9 @@ test('row 10: the API and the trace application share the session', async ({ pag
   await page.context().clearCookies({ name: /CSPSESSIONID/, path: '/ocutalon/' });
   const grouped = await page.request.get('/ocutalon/api/v1/zz');
   expect(grouped.status(), 'the API signs in from the group').toBe(404);
+
+  // DW-146: the trace page held a licence connection for this user until its session ends.
+  await signOutTrace(page.request);
 });
 
 /** Row 11: Sign out ends the whole group. */

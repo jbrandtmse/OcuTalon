@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-27-2026 00:20
+last_updated: 10-30-2026 22:50
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -96,47 +96,54 @@ development_status:
   3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-switch-demo-mode-from-the-terminal: backlog
-  4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: backlog
-  4-3-break-the-feed-with-a-real-batch-of-50-orders: backlog
-  4-4-show-the-demo-guide-and-the-break-the-feed-box: backlog
-  4-5-get-notifications-on-the-simulated-phone: backlog
-  4-6-simulate-incoming-email-in-the-simulated-mailbox: backlog
-  4-7-finish-the-demo-guide: backlog
+  epic-4: done
+  4-1-switch-demo-mode-from-the-terminal: done
+  4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: done
+  4-3-break-the-feed-with-a-real-batch-of-50-orders: done
+  4-4-show-the-demo-guide-and-the-break-the-feed-box: done
+  4-5-get-notifications-on-the-simulated-phone: done
+  4-6-simulate-incoming-email-in-the-simulated-mailbox: done
+  4-7-finish-the-demo-guide: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: backlog
-  5-2-new-failures-are-picked-up-within-seconds: backlog
-  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: backlog
-  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: backlog
-  5-5-an-incident-moves-through-its-states-and-closes: backlog
-  5-6-the-production-watch-runs-on-every-heartbeat: backlog
-  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
+  epic-5: done
+  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
+  5-2-new-failures-are-picked-up-within-seconds: done
+  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
+  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: done
+  5-5-an-incident-moves-through-its-states-and-closes: done
+  5-6-the-production-watch-runs-on-every-heartbeat: done
+  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: done
+  5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
+  5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
+  5-10-epic-5-burn-down: done
+  5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
   epic-5-retrospective: optional
 
-  epic-6: backlog
-  6-1-show-each-incident-as-one-card-in-the-chat: backlog
-  6-2-approve-or-reject-a-fix-from-the-web-chat: backlog
-  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: backlog
-  6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: backlog
+  epic-6: done
+  6-1-show-each-incident-as-one-card-in-the-chat: done
+  6-2-approve-or-reject-a-fix-from-the-web-chat: done
+  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: done
+  6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: done
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: backlog
-  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: backlog
-  7-3-approved-repairs-are-re-checked-and-resent: backlog
-  7-4-ocutalon-reports-how-many-orders-went-through: backlog
-  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: backlog
+  epic-7: done
+  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: done
+  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: done
+  7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an: done
+  7-3-approved-repairs-are-re-checked-and-resent: done
+  7-4-ocutalon-reports-how-many-orders-went-through: done
+  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
   epic-7-retrospective: optional
 
-  epic-8: backlog
-  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: backlog
-  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: backlog
-  8-3-a-reminder-fires-on-time-on-every-channel: backlog
-  8-4-set-list-and-cancel-reminders-in-plain-words: backlog
-  8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: backlog
+  epic-8: done
+  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: done
+  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: done
+  8-3-a-reminder-fires-on-time-on-every-channel: done
+  8-4-set-list-and-cancel-reminders-in-plain-words: done
+  8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: done
+  8-6-reminders-through-the-chat-on-the-demo-path: done
+  8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
   epic-9: backlog
@@ -147,10 +154,10 @@ development_status:
   9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
   epic-9-retrospective: optional
 
-  epic-10: backlog
-  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: backlog
-  10-2-the-readme-gets-a-judge-from-download-to-sign-in: backlog
-  10-3-the-session-side-of-telegram-is-ready-and-stays-off: backlog
+  epic-10: done
+  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: done
+  10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
+  10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   epic-10-retrospective: optional
 
   epic-11: backlog
@@ -189,15 +196,15 @@ development_status:
   15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: backlog
   epic-15-retrospective: optional
 
-  epic-16: backlog
-  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: backlog
-  16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: backlog
-  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: backlog
-  16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: backlog
-  16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: backlog
-  16-6-a-probe-checks-the-demo-every-15-minutes: backlog
-  16-8-the-page-counts-down-to-the-reset-and-waits-it-out: backlog
-  16-9-allowances-cap-messages-model-cost-and-simulated-emails: backlog
+  epic-16: done
+  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: done
+  16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: done
+  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: done
+  16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: done
+  16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: done
+  16-6-a-probe-checks-the-demo-every-15-minutes: done
+  16-8-the-page-counts-down-to-the-reset-and-waits-it-out: done
+  16-9-allowances-cap-messages-model-cost-and-simulated-emails: done
   epic-16-retrospective: optional
 
   epic-17: backlog
@@ -361,7 +368,7 @@ action_items:
       whether such a call can be truncated on the real Anthropic API (DW-92). Until
       then Epic 3 gate governs risky tool calls."
     owner: "user"
-    status: open
+    status: done
     ref: ""
   - id: "epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi"
     epic: 2

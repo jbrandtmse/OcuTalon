@@ -7,7 +7,7 @@ updated: 2026-10-17
 
 # Product Brief: OcuTalon
 
-*An OpenClaw-style assistant for InterSystems IRIS.*
+*An AI assistant for InterSystems IRIS.* [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it was "An OpenClaw-style assistant for InterSystems IRIS."]
 
 ## Executive summary
 

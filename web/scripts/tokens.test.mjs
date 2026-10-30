@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { buildModel, parseFrontMatter, renderSignInAssets, renderTokensCss, tokenEntries } from './tokens.mjs';
+import { buildModel, parseFrontMatter, renderSignInAssets, renderSplashAssets, renderTokensCss, tokenEntries } from './tokens.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, 'tokens.mjs');
@@ -19,6 +19,8 @@ const realDesign = readFileSync(
 );
 const realSigninCss = readFileSync(join(here, '..', 'src/signin/signin.css'), 'utf8');
 const realSigninJs = readFileSync(join(here, '..', 'src/signin/signin.js'), 'utf8');
+const realSplashCss = readFileSync(join(here, '..', 'src/signin/splash.css'), 'utf8');
+const realSplashJs = readFileSync(join(here, '..', 'src/signin/splash.js'), 'utf8');
 
 const work = mkdtempSync(join(tmpdir(), 'ocutalon-tokens-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -72,6 +74,8 @@ function fixtureDir(name, design, css = FIXTURE_CSS, js = FIXTURE_JS) {
   writeFileSync(join(dir, 'DESIGN.md'), design);
   writeFileSync(join(dir, 'signin.css'), css);
   writeFileSync(join(dir, 'signin.js'), js);
+  writeFileSync(join(dir, 'splash.css'), css);
+  writeFileSync(join(dir, 'splash.js'), js);
   return dir;
 }
 
@@ -85,6 +89,9 @@ function runWith(scriptPath, dir, ...extra) {
       '--cls-out', join(dir, 'out', 'SignInAssets.cls'),
       '--signin-css', join(dir, 'signin.css'),
       '--signin-js', join(dir, 'signin.js'),
+      '--splash-css', join(dir, 'splash.css'),
+      '--splash-js', join(dir, 'splash.js'),
+      '--splash-cls-out', join(dir, 'out', 'SplashAssets.cls'),
       ...extra,
     ],
     { encoding: 'utf8' },
@@ -157,6 +164,10 @@ describe('the real DESIGN.md', () => {
       renderSignInAssets(again, realSigninCss, realSigninJs),
       renderSignInAssets(realModel, realSigninCss, realSigninJs),
     );
+    assert.equal(
+      renderSplashAssets(again, realSplashCss, realSplashJs),
+      renderSplashAssets(realModel, realSplashCss, realSplashJs),
+    );
   });
 
   it('names one custom property per group the shell reads', () => {
@@ -184,6 +195,24 @@ describe('the real DESIGN.md', () => {
     assert.ok(css.length < 8000);
     assert.ok(!/[^\x20-\x7e\n\t]/.test(cls), 'ASCII only');
     assert.ok(!css.includes('\n'));
+  });
+
+  it('writes the splash assets as one ASCII line each, with the light and the dark custom properties it uses', () => {
+    const cls = renderSplashAssets(realModel, realSplashCss, realSplashJs);
+    assert.match(cls, /^\/\/\/ The online demo's splash screen's inline stylesheet and script/);
+    assert.match(cls, /\nClass OcuTalon\.Web\.Public\.SplashAssets\n/);
+    const css = /Parameter CSS = "(.*)";/.exec(cls)[1];
+    const script = /Parameter SCRIPT = "(.*)";/.exec(cls)[1];
+    assert.ok(css.startsWith(':root{'));
+    assert.match(css, /^:root\{--surface:#FFFFFF;/);
+    assert.match(css, /@media\(prefers-color-scheme:dark\)\{:root\{--surface:#18233A;/);
+    assert.ok(css.includes('--splash-canvas-background:#FFFFFF'));
+    assert.ok(css.includes('--splash-canvas-background:#11192B'));
+    assert.ok(!css.includes('--brand-orange'));
+    assert.ok(!/[^\x20-\x7e\n\t]/.test(cls), 'ASCII only');
+    assert.ok(!css.includes('\n') && !script.includes('\n'), 'one line each');
+    assert.ok(!script.includes('//'), 'no // anywhere in the script');
+    assert.ok(script.startsWith('(function () {'));
   });
 });
 
@@ -236,6 +265,24 @@ describe('fixture front matter', () => {
     r = run(dir, '--check');
     assert.equal(r.status, 1);
     assert.match(r.stderr, /SignInAssets\.cls is stale/);
+  });
+
+  it('finds the splash assets stale after a change of the splash stylesheet, and not the sign-in assets', () => {
+    const dir = fixtureDir('check-splash', FIXTURE);
+    let r = run(dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /wrote .*SplashAssets\.cls/);
+    r = run(dir, '--check');
+    assert.equal(r.status, 0, r.stderr);
+    writeFileSync(join(dir, 'splash.css'), '.a { color: var(--ink); }\n.b { color: var(--bg); }\n');
+    r = run(dir, '--check');
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /SplashAssets\.cls is stale/);
+    assert.doesNotMatch(r.stderr, /SignInAssets\.cls is stale/);
+    r = run(dir);
+    assert.equal(r.status, 0, r.stderr);
+    r = run(dir, '--check');
+    assert.equal(r.status, 0, r.stderr);
   });
 
   it('runs when the script is reached through a symbolic link', () => {

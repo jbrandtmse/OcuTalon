@@ -104,14 +104,17 @@ export const gaps = (times: number[]): number[] => times.slice(1).map((time, ind
  * that was already out when the call began (one that a test holds) is not waited for. Time that has passed already counts, so the check
  * after it stands at that distance from `since` whatever the earlier assertions took, unless they took the page past it: then it returns
  * at once and the check stands that much later. A check therefore keeps a margin from the next threshold for the time of the assertions
- * before it, or stops the clock first (freeze). The page must have been given recordTraffic.
+ * before it, or stops the clock first (freeze). The page must have been given recordTraffic. stepMs (a second by default) is the longest
+ * step: a case that runs the clock for minutes with a page that makes a poll a second (the idle cap's) takes steps of a few seconds, which keep
+ * the page's answers inside its 10 s contact threshold.
  */
-export async function runUntil(page: Page, since: number, ms: number): Promise<void> {
+export async function runUntil(page: Page, since: number, ms: number, stepMs: number = STEP_MS): Promise<void> {
   const known = (await traffic(page)).length;
-  for (let step = 0; step < MOST_STEPS; step += 1) {
+  const most = Math.max(MOST_STEPS, Math.ceil(ms / stepMs) + MOST_STEPS);
+  for (let step = 0; step < most; step += 1) {
     const left = since + ms - (await pageNow(page));
     if (left <= 0) return;
-    await page.clock.runFor(Math.ceil(Math.min(STEP_MS, left)));
+    await page.clock.runFor(Math.ceil(Math.min(stepMs, left)));
     await requestsEnded(page, known);
   }
   throw new Error(`the page's clock did not reach ${ms} ms past ${since}`);

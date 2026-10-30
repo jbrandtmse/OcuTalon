@@ -1,4 +1,4 @@
-// Tests the chat panel's view model (src/app/chat/chat-view.ts): the order of the entries (turns and notice cards) and the merge
+// Tests the chat panel's view model (src/app/chat/chat-view.ts): the order of the entries (turns, incident cards and notice cards) and the merge
 // of the page's own messages, the notice cards (their kinds, keys, times, decision and fallback strip), every reply state of a turn, the elapsed seconds and the step label of a running one, the decision strip's inputs of
 // a turn (strip, newest, fallback reason, decision, cost, check rows), what the turn indicator shows, the captions, when the chat is
 // fresh, the client ids, and the fixed strings against the UX's wording. The module is imported as it is: Node strips its types, which
@@ -23,17 +23,45 @@ const turn = (ref, over = {}) => ({
 const incident = (ref) => ({ type: 'incident', payload: { ref, state: 'open' } });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Dana: Invoice', whyNow: 'Why now: zz first.', dueAt: '', ...over });
+const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself";
+const allowance = (ref, over = {}) => notice(ref, { kind: 'allowance', text: ALLOWANCE_TEXT, ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
 const keys = (views) => views.map((view) => view.key);
 
 describe('the order of the entries', () => {
-  it('lists the store\'s chat.message entries and notice cards in store order and renders nothing for incidents', () => {
+  it('lists the store\'s chat.message entries, incident cards and notice cards in store order', () => {
     const chat = [turn('B'), incident('I1'), turn('A'), notice('N1'), tellNow('N2'), turn('C')];
     const views = chatView(chat, [], NO_RUNNING, NOW);
-    assert.deepEqual(keys(views), ['c-B', 'c-A', 'notification:N1', 'notification:N2', 'c-C']);
-    assert.deepEqual(views.map((view) => view.entry), ['turn', 'turn', 'notice', 'notice', 'turn']);
+    assert.deepEqual(keys(views), ['c-B', 'incident:I1', 'c-A', 'notification:N1', 'notification:N2', 'c-C']);
+    assert.deepEqual(views.map((view) => view.entry), ['turn', 'incident', 'turn', 'notice', 'notice', 'turn']);
+  });
+
+  it('keeps the incident payload as the store holds it, keyed incident:<ref>, one entry per ref in the store\'s place', () => {
+    const first = incident('I1');
+    const [view] = chatView([first], [], NO_RUNNING, NOW);
+    assert.equal(view.incident, first.payload);
+    assert.equal(view.key, 'incident:I1');
+    const again = chatView([turn('A'), { type: 'incident', payload: { ref: 'I1', state: 'fixing', count: 52 } }], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(again), ['c-A', 'incident:I1']);
+    assert.equal(again[1].incident.state, 'fixing');
+  });
+
+  it('keeps a closed incident\'s card when a new ref comes after it: two entries, in store order', () => {
+    const views = chatView([{ type: 'incident', payload: { ref: 'I1', state: 'closed' } }, turn('A'), incident('I2')], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['incident:I1', 'c-A', 'incident:I2']);
+    assert.deepEqual(views.filter((view) => view.entry === 'incident').map((view) => view.incident.state), ['closed', 'open']);
+  });
+
+  it('shows an incident payload of a snapshot (row fields only) and one with no ref', () => {
+    const views = chatView([{ type: 'incident', payload: { state: 'open' } }, { type: 'incident', payload: {} }], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['incident:', 'incident:']);
+  });
+
+  it('leaves out a notification of the incident kinds: the incident card is their web form', () => {
+    const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('K4', { kind: 'result' })];
+    assert.deepEqual(chatView(chat, [], NO_RUNNING, NOW), []);
   });
 
   it('puts a card between the turns around it, as the server held it, and the page\'s own messages after them', () => {
@@ -294,10 +322,11 @@ describe('the notice cards', () => {
   const decision = (over = {}) => ({ ref: 'D1', kind: 'decide', outcome: 'tellnow', reasons: 'zz first.\nzz second.', confidence: 0.9, costUSD: 0.0003, ...over });
   const view = (item) => chatView([item], [], NO_RUNNING, NOW)[0];
 
-  it('shows a tell now and a reminder, keyed notification:<ref>, and nothing for any other kind', () => {
+  it('shows a tell now, a reminder and an allowance card, keyed notification:<ref>, and nothing for any other kind', () => {
     assert.equal(view(tellNow('A')).kind, 'tellnow');
     assert.equal(view(notice('B')).kind, 'reminder');
-    for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'allowance', 'pairing', 'status', 'digest', '', undefined]) {
+    assert.equal(view(allowance('Z')).kind, 'allowance');
+    for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'pairing', 'status', 'digest', '', undefined]) {
       assert.deepEqual(chatView([notice('X', { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
       assert.equal(noticeOf(notice('X', { kind })), undefined, `noticeOf: a ${kind} notification`);
     }
@@ -305,6 +334,15 @@ describe('the notice cards', () => {
     assert.equal(noticeOf(incident('I')), undefined, 'an incident is no notice');
     assert.equal(view(tellNow('A')).key, 'notification:A');
     assert.equal(view(tellNow(undefined)).key, 'notification:', 'a card with no ref still has a key');
+  });
+
+  it('shows an allowance notice (Story 16.9) with its text as the server rendered it, and no strip, no Why now line and no due time', () => {
+    const card = view(allowance('A', { createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip], ['notice', 'allowance', 'notification:A', ALLOWANCE_TEXT, '', '2026-10-22T14:11:09Z', '', false]);
+    const dailyCap = view(allowance('B', { text: "The online demo has used today's model allowance. Decisions use fixed rules until 05:00 ET." }));
+    assert.equal(dailyCap.kind, 'allowance', 'the daily-cap message is the same kind');
+    assert.equal(view(allowance('C', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, an allowance card has no strip');
+    assert.deepEqual(keys(chatView([turn('T1'), allowance('A'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:A', 'notification:N'], 'it stands among the other entries as a card');
   });
 
   it('carries the text, the Why now line, the times and the decision of its payload', () => {
@@ -367,7 +405,7 @@ describe('a fresh chat', () => {
     assert.equal(isFreshChat([], [local('x', 'failed')]), false);
   });
 
-  it('is not fresh with an incident or a notice alone, though the page draws no incident yet', () => {
+  it('is not fresh with an incident or a notice alone', () => {
     assert.equal(isFreshChat([incident('I1')], []), false);
     assert.equal(isFreshChat([notice('N1')], []), false);
   });
@@ -426,6 +464,7 @@ describe('the fixed strings', () => {
         emptyWatches: 'It watches your productions from inside IRIS, and every decision is a production message you can trace.',
         emptyRisky: 'Anything risky waits for your approval.',
         emptyAsk: 'Ask OcuTalon to watch a production, set a reminder, or say what you need.',
+        emptyDemo: 'Start with step 1 of the demo guide above.',
         chipIgnore: 'Ignore',
         chipDigest: 'Digest',
         chipTellNow: 'Tell now',

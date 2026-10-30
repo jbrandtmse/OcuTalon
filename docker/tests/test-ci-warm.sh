@@ -464,7 +464,7 @@ unit_env_run() { # unit_env_run <function and arguments...>: OCUTALON_WARM is $U
 out=$(unit_env_run cmd_group shards)
 rc=$?
 check "group with OCUTALON_WARM=1: one WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=1'
+  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=1'
 if [ "$(printf '%s\n' "$out" | grep -c '^WARM ignored')" -eq 1 ]; then pass "group prints its WARM ignored line once"; else fail "group printed WARM ignored more than once"; fi
 out=$(unit_env_run cmd_all)
 rc=$?
@@ -476,7 +476,7 @@ for v in 0 ""; do
   out=$(UNIT_WARM=$v unit_env_run cmd_group shards)
   rc=$?
   check "group with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-    '!^WARM' '^UNIT-PROCESS shard lane-a warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=[01]'
+    '!^WARM' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=[01]'
   out=$(UNIT_WARM=$v unit_env_run cmd_all)
   rc=$?
   check "all with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and every group's process sees no OCUTALON_WARM" "$out" "$rc" 0 \
@@ -1437,3 +1437,70 @@ if [ "$fails" -ne 0 ]; then
   exit 1
 fi
 echo "test-ci-warm: all checks passed"
+
+# --- warm up reads the after-start log (DW-164; Story 5.1): READY and the WARM up line only when the log's last RESULT line is OK. ---
+# This block is self-contained: it runs after the summary above and ends with a summary of its own.
+
+# dw164_run <tag> <log text, with \n for a line break> [<exit status of dc exec>]: warm_up with the start stubbed and the after-start log
+# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, and the dc calls in
+# $work/dw164.calls. The lane folder is $work/locks-dw164.
+dw164_run() {
+  local tag=$1
+  dw164_text=$2
+  dw164_exec_rc=${3:-0}
+  mkdir -p "$work/locks-dw164"
+  : > "$work/dw164.calls"
+  dw164_out=$(
+    {
+      export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$work/locks-dw164 OCUTALON_LOCK_OWNER='epic=0 stage=qa' OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1
+      preflight() { :; }
+      ensure_web_bundle() { return 0; }
+      docker() { docker_stub "$@"; }
+      dc() {
+        echo "dc $*" >> "$work/dw164.calls"
+        if [ "$1" = exec ]; then printf '%b' "$dw164_text"; return "$dw164_exec_rc"; fi
+        return 0
+      }
+      warm_up
+    } 2>&1
+  )
+  dw164_rc=$?
+}
+dw164_begin='AFTER-START begin 2026-10-25T00:00:00Z\nSTEP roles OK 1.0s\n'
+dw164_end='AFTER-START end 2026-10-25T00:00:09Z\n'
+
+dw164_run cw-d1 "${dw164_begin}RESULT FAILED 1.0.0\n${dw164_end}"
+check "DW-164: a log that ends RESULT FAILED fails the up with exit 1, naming that line, and prints no READY and no WARM up line" "$dw164_out" "$dw164_rc" 1 \
+  '^STACK warm: project ocutalon-warm-cw-d1-' '^FAIL warm: the last RESULT line of the after-start log is: RESULT FAILED 1\.0\.0$' '!^READY' '!^WARM up' '!ready [0-9]+s'
+if grep -q '^dc down -v --rmi local' "$work/dw164.calls" && [ -z "$(ls "$work/locks-dw164")" ] && [ ! -e "$(state_of cw-d1)" ]; then
+  pass "DW-164: the failed up tears the project down, releases the lock and leaves no state folder"
+else
+  fail "DW-164: the failed up left '$(ls "$work/locks-dw164" | tr '\n' ' ')' in the lane folder, the state '$(ls "$(state_of cw-d1)" 2> /dev/null | tr '\n' ' ')', dc calls '$(tr '\n' '|' < "$work/dw164.calls")'"
+fi
+
+dw164_run cw-d2 "${dw164_begin}RESULT FAILED 1.0.0\nSTEP late OK 1.0s\nRESULT OK 1.0.0\n${dw164_end}"
+check "DW-164: it is the last RESULT line that counts (a later RESULT OK passes)" "$dw164_out" "$dw164_rc" 0 '^READY warm [0-9]+s$' '^WARM up project ocutalon-warm-cw-d2-.* ready [0-9]+s$' '!^FAIL'
+rm -rf "$(state_of cw-d2)"
+rm -f "$work/locks-dw164"/*
+
+dw164_run cw-d3 "${dw164_begin}RESULT OK 1.0.0\nSTEP late FAILED boom\n${dw164_end}"
+check "DW-164: a log that ends RESULT OK keeps the output unchanged (the STACK, READY and WARM up lines, no FAIL)" "$dw164_out" "$dw164_rc" 0 \
+  '^STACK warm: project ocutalon-warm-cw-d3-' '^READY warm [0-9]+s$' '^WARM up project ocutalon-warm-cw-d3-[0-9]{10}-[0-9]+ tag cw-d3 ready [0-9]+s$' '!^FAIL'
+rm -rf "$(state_of cw-d3)"
+rm -f "$work/locks-dw164"/*
+
+dw164_run cw-d4 "${dw164_begin}${dw164_end}"
+check "DW-164: a log with no RESULT line fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the last RESULT line of the after-start log is: \(no RESULT line\)$' '!^READY' '!^WARM up'
+rm -rf "$(state_of cw-d4)"
+rm -f "$work/locks-dw164"/*
+
+dw164_run cw-d5 "" 1
+check "DW-164: a log that cannot be read fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the after-start log could not be read$' '!^READY' '!^WARM up'
+rm -rf "$(state_of cw-d5)"
+rm -f "$work/locks-dw164"/*
+
+if [ "$fails" -ne 0 ]; then
+  echo "test-ci-warm: $fails check(s) failed (including the DW-164 block)"
+  exit 1
+fi
+echo "test-ci-warm: all checks passed (including the DW-164 block)"

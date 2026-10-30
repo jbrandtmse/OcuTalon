@@ -10,12 +10,13 @@
 #   - row 15, outside Decide: a terminal session reads the three extension classes and a runner's model from the active
 #     production;
 #   - row 16, the stubs over the running production: a created CommandsIn service sends to SessionOps, Intake,
-#     TriageAgent and OutcomeRouter. The operations answer code 5003, Intake (built in Story 2.7) refuses a message that is
+#     TriageAgent and OutcomeRouter. TriageAgent answers code 5003, SessionOps (built in Story 10.3) refuses a message that
+#     is not a command with an error status of code 5001, Intake (built in Story 2.7) refuses a message that is
 #     not an Item with a warning and answers OK with nothing, the router answers OK with nothing and sends nothing on, and
 #     every target keeps the job it had; then the same for every enabled stub with a pool, so that no stub kills its job on a
 #     request;
 #   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context, and
-#     CommandsIn answers both with ReminderOps' plain-English not_built result (status OK, Ok 0) after sending the command from
+#     CommandsIn answers both with ReminderOps' plain-English refusal (the command names no session) (status OK, Ok 0) after sending the command from
 #     CommandsIn to ReminderOps; an origin outside the enumeration is refused naming it;
 #   - row 18, the Running branch: the Production step run on the running production starts every item with a pool again;
 #   - row 21, an item that cannot start: with a WatchOps whose OnInit fails the step fails naming WatchOps, and with the
@@ -134,8 +135,8 @@ CHK|model|TriageAgent|claude-haiku-5-5" \
 # --- row 16: the stubs over the running production ---
 
 item_jobs "$tmp/jobs.16.before"
-check_session "row 16: the stubs answer 'not implemented', and the router answers OK with nothing" OCUTALON \
-  "CHK|sync|SessionOps|0|5003|1|0
+check_session "row 16: a stub answers 'not implemented', SessionOps refuses a message that is no command, and the router answers OK with nothing" OCUTALON \
+  "CHK|sync|SessionOps|0|5001|0|0
 CHK|sync|Intake|1||0|0
 CHK|sync|TriageAgent|0|5003|1|0
 CHK|sync|OutcomeRouter|1||0|0
@@ -192,8 +193,8 @@ fi
 # --- row 17: Submit, live ---
 
 check_session "row 17: Submit reaches CommandsIn with the origin of the caller, tool inside a context, and refuses a bad origin" OCUTALON \
-  "CHK|submit-user|1|0|not_built|web_user
-CHK|submit-tool|1|0|not_built|tool
+  "CHK|submit-user|1|0|refused|web_user
+CHK|submit-tool|1|0|refused|tool
 CHK|submit-zz|1|1|web_admin
 CHK|commandsin-sent|1" \
   'Set sql="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = ?" Set rs=##class(%SQL.Statement).%ExecDirect(,sql,"CommandsIn","ReminderOps","OcuTalon.Msg.Command.ListReminders") Do rs.%Next() Set before=rs.%GetData(1)' \

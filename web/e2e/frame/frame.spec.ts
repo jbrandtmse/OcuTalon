@@ -84,11 +84,18 @@ test('F1: landmarks, headings and order', async ({ page }) => {
   await expect(page.getByRole('main')).toHaveCount(1);
   await expect(page.getByRole('navigation'), 'the page has no nav landmark').toHaveCount(0);
 
+  const guide = page.getByRole('region', { name: 'Demo guide' });
+  await expect(guide, 'the demo guide (demo mode on) is the region Demo guide, there once').toHaveCount(1);
+  await expect(page.locator('app-demo-guide'), 'and it sits outside main').toHaveCount(1);
+
   const inOrder = await page.evaluate(() => {
-    const nodes = ['app-header', '.banner-slot', 'section.rail', 'main'].map((selector) => document.querySelector(selector));
+    const nodes = ['app-header', '.banner-slot', 'app-demo-guide', 'section.rail', 'main', 'app-device-panel section'].map((selector) => document.querySelector(selector));
     return nodes.map((node, i) => (i === 0 ? node !== null : !!node && !!nodes[i - 1] && !!(nodes[i - 1]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)));
   });
-  expect(inOrder, 'DOM order: banner, banner slot, Status region, main').toEqual([true, true, true, true]);
+  expect(inOrder, 'DOM order: banner, banner slot, Demo guide, Status region, main, Simulated devices').toEqual([true, true, true, true, true, true]);
+  const devices = page.getByRole('region', { name: 'Simulated devices' });
+  await expect(devices, 'the Simulated devices region (demo mode on) is there once, with no heading of its own').toHaveCount(1);
+  await expect(devices.getByRole('heading'), 'so the page keeps its two h2s').toHaveCount(0);
   await expect(page.locator('[tabindex]:not([tabindex="-1"]):not([tabindex="0"])'), 'tab order is DOM order').toHaveCount(0);
 });
 
@@ -97,11 +104,13 @@ test('F2: demo mode off', async ({ page }) => {
   await changeSnapshot(page, (snapshot) => {
     snapshot['demoMode'] = false;
     snapshot['onlineDemo'] = false;
+    snapshot['nextReset'] = '2099-01-01T00:00:00Z';
   });
   await signInReadme(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   await expect(page.locator('.context-badge')).toHaveCount(0);
+  await expect(page.locator('.reset-countdown, app-resetting-view'), 'no reset countdown off the online demo, even with a nextReset in the snapshot, and no resetting view').toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Demo guide' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Simulated devices' })).toHaveCount(0);
 
@@ -240,7 +249,7 @@ test('F6: the About dialog', async ({ page }) => {
   const lines = (await dialog.locator('h2, p').allTextContents()).map((line) => line.replace(/\s+/g, ' ').trim());
   expect(lines, 'the seven lines, in order').toEqual([
     title,
-    'An OpenClaw-style assistant for InterSystems IRIS.',
+    'An AI assistant for InterSystems IRIS.',
     'An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention.',
     'Default model: Claude Haiku 5.5.',
     'README (opens in a new tab)',
@@ -250,7 +259,7 @@ test('F6: the About dialog', async ({ page }) => {
   const sameBody = await dialog.evaluate((root) => {
     const parentOf = (text: string): Element | null | undefined =>
       [...root.querySelectorAll('p')].find((p) => p.textContent?.trim() === text)?.parentElement;
-    const tagline = parentOf('An OpenClaw-style assistant for InterSystems IRIS.');
+    const tagline = parentOf('An AI assistant for InterSystems IRIS.');
     const note = parentOf('OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.');
     return !!tagline && tagline === note;
   });
@@ -433,7 +442,7 @@ test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and E
   expect(shown - entered, 'absent before 300 ms, then shown').toBeGreaterThanOrEqual(295);
   expect(shown - entered, 'shown once the 300 ms have passed, not seconds later').toBeLessThan(1500);
 
-  await page.mouse.move(640, 400);
+  await page.mouse.move(0, 0);
   await expect(tooltip, 'it hides when the pointer leaves').toHaveCount(0);
 
   await theme.focus();
@@ -495,7 +504,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   await signInReadme(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['user']).toBe(README_ACCOUNT.user);
   expect(body['onlineDemo']).toBe(false);
   expect(body['demoMode']).toBe(true);

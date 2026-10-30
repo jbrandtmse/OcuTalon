@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { TRACE_DONT_SHOW_KEY, TRACE_FLAG, TRACE_SEEN_KEY, TRACE_TEXTS, conversationUrl, needsSignInHelp } = await import(app('shared', 'trace-view.ts'));
+const { TRACE_DONT_SHOW_KEY, TRACE_FLAG, TRACE_SEEN_KEY, TRACE_TEXTS, conversationUrl, needsSignInHelp, signInNameOf } = await import(app('shared', 'trace-view.ts'));
 
 const turn = (ref, traceUrl) => ({ type: 'chat.message', payload: { ref, ...(traceUrl === undefined ? {} : { traceUrl }) } });
 const notice = (ref, traceUrl) => ({ type: 'notification', payload: { ref, kind: 'tellnow', decision: { ref: `d-${ref}`, traceUrl } } });
@@ -25,6 +25,8 @@ describe('the fixed strings', () => {
         trace: 'Trace',
         opensInNewTab: '(opens in a new tab)',
         signInName: 'Open in Visual Trace (shows sign-in help first)',
+        signInFor: '{label} (shows sign-in help first)',
+        arrow: '\u2197',
         signInHeading: 'Sign in to Visual Trace',
         signInText: 'Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.',
         openVisualTrace: 'Open Visual Trace',
@@ -32,9 +34,15 @@ describe('the fixed strings', () => {
         menu: 'Visual Trace',
         openConversation: 'Open my conversation in Visual Trace',
         conversationNotYet: 'Available after your first message.',
+        userNameLabel: 'User name',
+        passwordLabel: 'Password',
+        copyUserName: 'Copy Visual Trace user name',
+        copyPassword: 'Copy Visual Trace password',
+        copied: 'Copied',
+        copyFailed: "Couldn't copy. Select the text and copy it yourself.",
       },
     );
-    for (const value of Object.values(TRACE_TEXTS)) {
+    for (const value of Object.values(TRACE_TEXTS).filter((one) => one !== '\u2197')) {
       assert.match(value, /^[\x20-\x7e]+$/, `${value} is ASCII`);
     }
   });
@@ -43,6 +51,14 @@ describe('the fixed strings', () => {
     assert.equal(TRACE_SEEN_KEY, 'ocutalon.traceHelp.seen');
     assert.equal(TRACE_DONT_SHOW_KEY, 'ocutalon.traceHelp.dontShow');
     assert.equal(TRACE_FLAG, '1');
+  });
+});
+
+describe('signInNameOf', () => {
+  it('is signInName for the default text, and the text with the help words for another (the visible label stays first, WCAG 2.5.3)', () => {
+    assert.equal(signInNameOf('Trace'), 'Open in Visual Trace (shows sign-in help first)');
+    assert.equal(signInNameOf('Open the trace'), 'Open the trace (shows sign-in help first)');
+    assert.equal(signInNameOf('See the whole conversation in Visual Trace'), 'See the whole conversation in Visual Trace (shows sign-in help first)');
   });
 });
 

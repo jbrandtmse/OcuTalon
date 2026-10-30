@@ -4,10 +4,12 @@
  * and uses only erasable TypeScript syntax, so Node runs it as it is. The components call parseReply, renderPageText and
  * pageTime themselves.
  *
- * - chatView lists the store's chat.message entries (turns) and its notification entries of the kinds tellnow and reminder
- *   (notices) in store order, then the page's own messages that the store does not hold yet, in send order. A local message is
- *   gone as soon as the store holds a chat.message with its clientId, whatever its status was. Incident entries render nothing
- *   yet (Story 6.1), and neither does a notification of any other kind (Stories 6.x and 16.x).
+ * - chatView lists the store's chat.message entries (turns), its incident entries (incident cards, one per Ref) and its notification
+ *   entries of the kinds tellnow and reminder (notices) in store order, then the page's own messages that the store does not hold
+ *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its status
+ *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x); the incident kinds are the incident card's.
+ * - An incident entry carries the store's payload as it is, keyed incident:<ref>, the store's key of the entry; the card
+ *   (incidents/incident-view.ts) turns it into what it draws.
  * - A notice is a card (UX-DR69): its text as the server rendered it, split from its "Why now:" line, the times of a reminder, and
  *   for a tell now the decision strip's inputs. Its key is notification:<ref>, the store's key of the entry.
  * - A turn's reply is none (no indicator: the post is in flight or failed), deciding (the post was accepted, or the turn is
@@ -19,7 +21,7 @@
  * - indicatorOf says what the turn indicator shows for a reply: the text, the form it is spoken in and whether the dots animate.
  */
 import type { LiveItem } from '../api/api-types';
-import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, NotificationPayload, TurnStepPayload } from '../live/payloads';
+import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, IncidentPayload, NotificationPayload, TurnStepPayload } from '../live/payloads';
 
 /**
  * Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. announceReplied and announceTellNow are said
@@ -50,6 +52,7 @@ export const CHAT_TEXTS = {
   emptyWatches: 'It watches your productions from inside IRIS, and every decision is a production message you can trace.',
   emptyRisky: 'Anything risky waits for your approval.',
   emptyAsk: 'Ask OcuTalon to watch a production, set a reminder, or say what you need.',
+  emptyDemo: 'Start with step 1 of the demo guide above.',
   chipIgnore: 'Ignore',
   chipDigest: 'Digest',
   chipTellNow: 'Tell now',
@@ -123,9 +126,9 @@ export interface TurnView {
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
-export type NoticeKind = 'tellnow' | 'reminder';
+export type NoticeKind = 'tellnow' | 'reminder' | 'allowance';
 
-/** One notice card of the chat: a notification of the kind tellnow or reminder. */
+/** One notice card of the chat: a notification of the kind tellnow, reminder or allowance (the session allowance and the daily-cap message, Story 16.9). */
 export interface NoticeView {
   entry: 'notice';
   /** `notification:<ref>`, the key of the entry in the live store's chat. */
@@ -147,8 +150,16 @@ export interface NoticeView {
   strip: boolean;
 }
 
+/** One incident card of the chat: the incident payload, the full view of one incident. */
+export interface IncidentEntryView {
+  entry: 'incident';
+  /** `incident:<ref>`, the key of the entry in the live store's chat. */
+  key: string;
+  incident: IncidentPayload;
+}
+
 /** An entry of the chat list. */
-export type ChatEntryView = TurnView | NoticeView;
+export type ChatEntryView = TurnView | NoticeView | IncidentEntryView;
 
 /** What the turn indicator shows: the text, the text it is spoken as, the whole seconds once past 10 s, and whether the dots animate. */
 export interface IndicatorView {
@@ -181,13 +192,13 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
   return item.type === 'chat.message' ? item.payload : undefined;
 }
 
-/** The notice card of a chat entry: a notification of the kind tellnow or reminder; undefined for any other entry. */
+/** The notice card of a chat entry: a notification of the kind tellnow, reminder or allowance; undefined for any other entry. */
 export function noticeOf(item: LiveItem): NoticeView | undefined {
   if (item.type !== 'notification') {
     return undefined;
   }
   const payload: NotificationPayload = item.payload;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder') {
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance') {
     return undefined;
   }
   const view: NoticeView = {
@@ -270,7 +281,7 @@ function captionOf(channel: string | undefined, fromGuide: boolean | undefined):
 }
 
 /**
- * The entries to render, turns and notices in the store's order. runningSince holds, by key, when (ms, the page's clock) the page first saw each turn running; now is
+ * The entries to render, turns, incident cards and notices in the store's order. runningSince holds, by key, when (ms, the page's clock) the page first saw each turn running; now is
  * the page's clock in ms; steps are the store's turn steps by the ref of the running turn.
  */
 export function chatView(
@@ -285,6 +296,10 @@ export function chatView(
   for (const item of chat) {
     const message = messageOf(item);
     if (message === undefined) {
+      if (item.type === 'incident') {
+        views.push({ entry: 'incident', key: `incident:${item.payload.ref ?? ''}`, incident: item.payload });
+        continue;
+      }
       const notice = noticeOf(item);
       if (notice !== undefined) {
         views.push(notice);

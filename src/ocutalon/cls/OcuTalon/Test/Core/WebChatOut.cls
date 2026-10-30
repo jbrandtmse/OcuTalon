@@ -8,6 +8,10 @@
 ///     reminder keeps its due time from the slot dueAt;
 ///   - TestOnlineDemoTimesNameTheZone: the times in a card's text come from Render, with " ET" on the online demo, and the row keeps
 ///     that text;
+///   - TestIncidentKindsRecordOnly: the incident kinds (INCIDENTKINDS) record their Delivery row, with no text and no event, because
+///     the incident card is their web form;
+///   - TestAllowanceCards (Story 16.9): the kind allowance is a card: the session allowance notice and the daily-cap message are
+///     rendered for the web, with " ET" on the online demo, recorded with no fallback reason and published as one notification event;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -160,26 +164,64 @@ Method TestOnlineDemoTimesNameTheZone()
 	Do $$$AssertEquals(..Newest(session).Text, row.Text, "and the card keeps that text after the demo switch is off again")
 }
 
+/// The incident kinds (the parameter INCIDENTKINDS) record their Delivery row only: the kind, the DecisionRef and the ApprovalRef,
+/// with no text, no ChannelMessageId and no event, and the row is not one of the chat's cards. The incident card carries the notice.
+Method TestIncidentKindsRecordOnly()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS, "incident,approval,answered,result", "the kinds whose web form is the incident card")
+	Do ..AssertRecordOnly(..Session("incident"), $ListFromString(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS), "the incident kinds")
+}
+
 /// Any other kind records its Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text, no ChannelMessageId
 /// and no event, and the row is not one of the chat's cards.
 Method TestOtherKindsRecordOnly()
 {
-	Set session = ..Session("other")
-	Set kinds = $ListFromString("incident,approval,answered,result,fallback,allowance,pairing,status,digest")
-	Set position = 0
-	While $ListNext(kinds, position, kind) {
-		Set notification = ..Notification(session, kind, "zz.notRendered", {"zz": "slot"})
-		Set notification.ApprovalRef = "ZzApproval"_kind
-		Set notification.DecisionRef = "ZzDecision"_kind
-		Set before = ..Rows(session)
-		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), kind_": the notification is delivered")
-		Do $$$AssertEquals(..Rows(session), before + 1, kind_": one row is recorded")
-		Set row = ..LastRow(session)
-		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|"_kind_"|ZzApproval"_kind_"|ZzDecision"_kind, kind_": its channel, kind, approval and decision")
-		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId_"|"_row.DueAt_"|"_row.FallbackReason, "|||", kind_": no text, no message id, no due time and no reason")
+	Do ..AssertRecordOnly(..Session("other"), $ListFromString("fallback,pairing,status,digest"), "the other kinds")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance", "allowance is a card kind, so it is not one of them")
+}
+
+/// The kind allowance (Story 16.9) is a card, as tellnow and reminder are: the session allowance notice and the daily-cap message
+/// are rendered with Msg.Catalog.Render for the web, with " ET" after the time on the online demo, recorded as a Delivery row with
+/// the kind, the whole text, no decision, no due time and no fallback reason, and published as one notification event whose payload
+/// is the row's (kind allowance, the whole text, no whyNow). The cards are in RecentNotices, which is what the snapshot's chat reads.
+Method TestAllowanceCards()
+{
+	Set session = ..Session("allowance")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set link = ##class(OcuTalon.Core.Allowance).#INSTALLLINK
+	Set notice = ##class(OcuTalon.Core.Allowance).Notice(session, "2030-06-15T10:00:00Z")
+	Set capped = ##class(OcuTalon.Core.Allowance).DailyCapNotice(session, "2030-06-16T04:00:00Z")
+	Set sc1 = ..Out().OnNotification(notice, .response)
+	Set sc2 = ..Out().OnNotification(capped, .response)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusOK(sc1, "the session allowance notice is delivered")
+	Do $$$AssertStatusOK(sc2, "and so is the daily-cap message")
+	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
+	Do $$$AssertEquals(cards.Count(), 2, "two cards")
+	Set limit = ##class(OcuTalon.Core.Allowance).Limit()
+	Set head1 = "You've used this session's "_limit_" messages for the hour. You can send more "
+	Set tail1 = " ET, or install OcuTalon yourself to keep going: "_link
+	Set head2 = "The online demo has used today's model allowance. Decisions use fixed rules until "
+	Set tail2 = " ET. You can install OcuTalon yourself to keep going: "_link
+	Set found1 = 0, found2 = 0
+	For i = 1:1:cards.Count() {
+		Set row = cards.GetAt(i)
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.DecisionRef_"|"_row.DueAt_"|"_row.FallbackReason_"|"_row.ApprovalRef, "web|allowance||||", "card "_i_": the web, kind allowance, and nothing else but the text")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "card "_i_": a new message id")
+		Set text = row.Text
+		If ($Extract(text, 1, $Length(head1)) = head1) && ($Extract(text, $Length(text) - $Length(tail1) + 1, *) = tail1) Set found1 = 1
+		If ($Extract(text, 1, $Length(head2)) = head2) && ($Extract(text, $Length(text) - $Length(tail2) + 1, *) = tail2) Set found2 = 1
 	}
-	Do $$$AssertEquals(..Notifications(session).%Size(), 0, "no kind publishes an event")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 0, "and none is a card of the chat")
+	Do $$$AssertEquals(found1, 1, "the session allowance text of the catalog, its time in instance time and followed by ET, with the install link")
+	Do $$$AssertEquals(found2, 1, "the daily-cap text of the catalog, its time in instance time and followed by ET, with the install link")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 2, "two notification events are published")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.kind_"|"_payload.whyNow_"|"_payload.fallbackReason_"|"_payload.%IsDefined("decision"), "allowance|||0", "the payload: kind allowance, no whyNow, no reason, no decision")
+		Do $$$AssertEquals(payload.text, cards.GetAt(2).Text, "and the text of its row (the newest card is the first one listed)")
+	}
+	Do $$$AssertEquals(..Rows(session), 2, "and only the two rows are recorded")
 }
 
 /// A reply records its Delivery row for the web, with its DecisionRef and no ChannelMessageId, no kind and no text; it publishes
@@ -267,6 +309,27 @@ Method TestPublishFailureKeepsTheRow()
 }
 
 /// --- helpers ---
+/// Sends the session one Notification of each kind, with an ApprovalRef and a DecisionRef, and asserts that each records its
+/// Delivery row only (channel web, the kind, the approval and the decision; no text, no ChannelMessageId, no due time and no
+/// reason), that none publishes an event and that none is a card of the chat.
+Method AssertRecordOnly(session As %String, kinds As %List, what As %String) [ Private ]
+{
+	Set position = 0
+	While $ListNext(kinds, position, kind) {
+		Set notification = ..Notification(session, kind, "zz.notRendered", {"zz": "slot"})
+		Set notification.ApprovalRef = "ZzApproval"_kind
+		Set notification.DecisionRef = "ZzDecision"_kind
+		Set before = ..Rows(session)
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), kind_": the notification is delivered")
+		Do $$$AssertEquals(..Rows(session), before + 1, kind_": one row is recorded")
+		Set row = ..LastRow(session)
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|"_kind_"|ZzApproval"_kind_"|ZzDecision"_kind, kind_": its channel, kind, approval and decision")
+		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId_"|"_row.DueAt_"|"_row.FallbackReason, "|||", kind_": no text, no message id, no due time and no reason")
+	}
+	Do $$$AssertEquals(..Notifications(session).%Size(), 0, what_": none publishes an event")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 0, what_": and none is a card of the chat")
+}
+
 /// A fixture session; its Ref is kept for the clean-up.
 Method Session(name As %String) As %String [ Private ]
 {

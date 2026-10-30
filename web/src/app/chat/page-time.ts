@@ -2,8 +2,10 @@
  * The times of the page as it shows them (EXPERIENCE: Formats): hour and minute in the browser's zone and hour format.
  * pageTime adds no zone name; pageTimeBeside adds the browser zone's short name when that zone's UTC offset at the
  * instant differs from the instance's (UX-DR123); pageWhen adds the day when the time is not today's, in English day and
- * month names whatever the browser's language is; countdownText says how long is left until a time (UX-DR124), in the short
- * form and in the full words that assistive technology reads. A framework-free module: it imports nothing and uses only
+ * month names whatever the browser's language is; pageWhenBeside adds the zone name to that (the top time of an incident card);
+ * messageTime is a time inside message text, as Data.Time.ForMessage writes it, in the instance's zone, with " ET" on the online
+ * demo; countdownText says how long is left until a time (UX-DR124), in the short form and in the full words that assistive
+ * technology reads. A framework-free module: it imports nothing and uses only
  * erasable TypeScript syntax, so Node runs it as it is.
  */
 
@@ -55,27 +57,41 @@ function offsetMinutes(date: Date, timeZone: string): number | undefined {
 }
 
 /**
- * The hour and minute of an ISO time as pageTime gives it, followed by a space and the short name of the browser's zone (such as
- * CEST, or GMT+5:30 where the locale has no abbreviation) when that zone's UTC offset at that instant differs from the instance
- * zone's, or when the instance zone is not a valid zone. Two zones with the same offset at the instant read the same clock, so
- * they get no suffix whatever their names. The locale and the browser's zone default to the browser's own; a test names both.
- * An empty or unreadable time gives "".
+ * The short name of the browser's zone (such as CEST, or GMT+5:30 where the locale has no abbreviation) at the instant of an
+ * ISO time, when that zone's UTC offset then differs from the instance zone's or the instance zone is not a valid zone; "" when
+ * the two offsets are the same (two zones with the same offset read the same clock, whatever their names), when the zone has no
+ * name, or when the time is unreadable. The locale and the browser's zone default to the browser's own.
+ */
+function zoneSuffix(iso: string, instanceZone: string, locale?: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (iso === '' || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const browserZone = timeZone ?? new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const instance = offsetMinutes(date, instanceZone);
+  if (instance !== undefined && instance === offsetMinutes(date, browserZone)) {
+    return '';
+  }
+  return (
+    new Intl.DateTimeFormat(locale, { hour: 'numeric', timeZoneName: 'short', timeZone })
+      .formatToParts(date)
+      .find((part) => part.type === 'timeZoneName')?.value ?? ''
+  );
+}
+
+/**
+ * The hour and minute of an ISO time as pageTime gives it, followed by a space and the short name of the browser's zone when
+ * that zone's UTC offset at that instant differs from the instance zone's, or when the instance zone is not a valid zone
+ * (zoneSuffix). The locale and the browser's zone default to the browser's own; a test names both. An empty or unreadable time
+ * gives "".
  */
 export function pageTimeBeside(iso: string, instanceZone: string, locale?: string, timeZone?: string): string {
   const time = pageTime(iso, locale, timeZone);
   if (time === '') {
     return '';
   }
-  const date = new Date(iso);
-  const browserZone = timeZone ?? new Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const instance = offsetMinutes(date, instanceZone);
-  if (instance !== undefined && instance === offsetMinutes(date, browserZone)) {
-    return time;
-  }
-  const name = new Intl.DateTimeFormat(locale, { hour: 'numeric', timeZoneName: 'short', timeZone })
-    .formatToParts(date)
-    .find((part) => part.type === 'timeZoneName')?.value;
-  return name === undefined ? time : `${time} ${name}`;
+  const name = zoneSuffix(iso, instanceZone, locale, timeZone);
+  return name === '' ? time : `${time} ${name}`;
 }
 
 /** The day words of pageWhen and the countdown words of countdownText. */
@@ -86,6 +102,7 @@ export const WHEN_TEXTS = {
   months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
   dateWithYear: '{month} {day}, {year}',
   date: '{month} {day}',
+  onlineDemo: '{time} ET',
   seconds: 'in {n} s',
   secondsOne: 'in {n} second',
   secondsOther: 'in {n} seconds',
@@ -97,6 +114,12 @@ export const WHEN_TEXTS = {
   hoursOther: 'in {h} hours {m} {minutes}',
   minuteOne: 'minute',
   minuteOther: 'minutes',
+  elapsedSeconds: '{n} s',
+  elapsedSecondsOne: '{n} second',
+  elapsedSecondsOther: '{n} seconds',
+  elapsedMinutes: '{n} min',
+  elapsedMinutesOne: '{n} minute',
+  elapsedMinutesOther: '{n} minutes',
 } as const;
 
 const DAY_MS = 86_400_000;
@@ -123,6 +146,32 @@ const fill = (template: string, values: Readonly<Record<string, string>>): strin
   template.replace(/\{(\w+)\}/g, (_match, name: string) => values[name] ?? '');
 
 /**
+ * The clock text with the day words of the page: its calendar date against nowMs's, both in the zone (the browser's own when
+ * undefined). The same date gives the clock alone; the next date "tomorrow at" when `tomorrow` is set; up to six dates either
+ * way "Monday at 14:13"; further "Oct 17 at 14:12", with the year after the day when it differs from nowMs's year.
+ */
+function withDay(clock: string, ms: number, nowMs: number, timeZone: string | undefined, tomorrow: boolean): string {
+  const at = calendarDay(ms, timeZone);
+  const today = calendarDay(nowMs, timeZone);
+  const apart = at.days - today.days;
+  if (apart === 0) {
+    return clock;
+  }
+  if (apart === 1 && tomorrow) {
+    return fill(WHEN_TEXTS.tomorrowAt, { time: clock });
+  }
+  if (Math.abs(apart) <= 6) {
+    return fill(WHEN_TEXTS.dayAt, { day: WHEN_TEXTS.weekdays[(((at.days + 4) % 7) + 7) % 7] ?? '', time: clock });
+  }
+  const date = fill(at.year === today.year ? WHEN_TEXTS.date : WHEN_TEXTS.dateWithYear, {
+    month: WHEN_TEXTS.months[at.month - 1] ?? '',
+    day: String(at.day),
+    year: String(at.year),
+  });
+  return fill(WHEN_TEXTS.dayAt, { day: date, time: clock });
+}
+
+/**
  * An ISO time as the page shows a time that may be on another day, in the browser's zone and hour format (the locale and the
  * zone default to the browser's; a test names both), the clock itself from pageTime:
  * - the same date as nowMs: "14:13";
@@ -136,27 +185,64 @@ export function pageWhen(iso: string, nowMs: number, locale?: string, timeZone?:
   if (time === '') {
     return '';
   }
-  const at = calendarDay(new Date(iso).getTime(), timeZone);
-  const today = calendarDay(nowMs, timeZone);
-  const apart = at.days - today.days;
-  if (apart === 0) {
-    return time;
-  }
-  if (apart === 1) {
-    return fill(WHEN_TEXTS.tomorrowAt, { time });
-  }
-  if (Math.abs(apart) <= 6) {
-    return fill(WHEN_TEXTS.dayAt, { day: WHEN_TEXTS.weekdays[(((at.days + 4) % 7) + 7) % 7] ?? '', time });
-  }
-  const date = fill(at.year === today.year ? WHEN_TEXTS.date : WHEN_TEXTS.dateWithYear, {
-    month: WHEN_TEXTS.months[at.month - 1] ?? '',
-    day: String(at.day),
-    year: String(at.year),
-  });
-  return fill(WHEN_TEXTS.dayAt, { day: date, time });
+  return withDay(time, new Date(iso).getTime(), nowMs, timeZone, true);
 }
 
-/** The time left until a due time, short ("in 59 s") and spoken ("in 59 seconds"). */
+/**
+ * pageWhen followed by a space and the short name of the browser's zone when its UTC offset at that instant differs from the
+ * instance zone's (zoneSuffix, the rule of pageTimeBeside): "15:12 CET", "Monday at 15:12 CET". An empty or unreadable time gives "".
+ */
+export function pageWhenBeside(iso: string, nowMs: number, instanceZone: string, locale?: string, timeZone?: string): string {
+  const when = pageWhen(iso, nowMs, locale, timeZone);
+  if (when === '') {
+    return '';
+  }
+  const name = zoneSuffix(iso, instanceZone, locale, timeZone);
+  return name === '' ? when : `${when} ${name}`;
+}
+
+const clockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** The 24-hour two-digit clock of an instant in a zone, in English digits: "07:05", "00:00". */
+function clockIn(date: Date, timeZone: string): string {
+  let found = clockFormatters.get(timeZone);
+  if (found === undefined) {
+    found = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone });
+    clockFormatters.set(timeZone, found);
+  }
+  return found.format(date);
+}
+
+/** The zone to read the instance's time in: the instance zone, or UTC (the server's default) when it is empty or not a zone that Intl knows. */
+function instanceZoneOf(instanceZone: string): string {
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: instanceZone });
+    return instanceZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+/**
+ * An ISO time as message text, the way Data.Time.ForMessage writes it, in the instance's zone against the instance's date of
+ * nowMs, whatever the browser's zone, language and hour format: "14:12" on the same date, "Thursday at 14:12" from one to six
+ * dates either way ("tomorrow" is not used), "Oct 9 at 14:12" further, and "Dec 30, 2025 at 10:00" in another year. On the online
+ * demo the text ends " ET" (WHEN_TEXTS.onlineDemo). An empty or unreadable time gives "".
+ */
+export function messageTime(iso: string, nowMs: number, instanceZone: string, onlineDemo: boolean): string {
+  const date = new Date(iso);
+  if (iso === '' || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const zone = instanceZoneOf(instanceZone);
+  const text = withDay(clockIn(date, zone), date.getTime(), nowMs, zone, false);
+  return onlineDemo ? fill(WHEN_TEXTS.onlineDemo, { time: text }) : text;
+}
+
+/** The text with the count in it: the singular for 1 and the plural for any other count. */
+const plural = (n: number, one: string, other: string): string => fill(n === 1 ? one : other, { n: String(n) });
+
+/** A time span of the page, short ("in 59 s", "23 s") and spoken ("in 59 seconds", "23 seconds"). */
 export interface Countdown {
   text: string;
   spoken: string;
@@ -173,7 +259,6 @@ export function countdownText(dueIso: string, nowMs: number): Countdown {
     return { text: '', spoken: '' };
   }
   const seconds = Math.max(0, Math.ceil((due - nowMs) / 1000));
-  const plural = (n: number, one: string, other: string): string => fill(n === 1 ? one : other, { n: String(n) });
   if (seconds < 60) {
     return { text: fill(WHEN_TEXTS.seconds, { n: String(seconds) }), spoken: plural(seconds, WHEN_TEXTS.secondsOne, WHEN_TEXTS.secondsOther) };
   }
@@ -191,4 +276,36 @@ export function countdownText(dueIso: string, nowMs: number): Countdown {
       minutes: minutes === 1 ? WHEN_TEXTS.minuteOne : WHEN_TEXTS.minuteOther,
     }),
   };
+}
+
+/**
+ * The time left until a due time in full words of whole minutes: countdownText's spoken form while 60 seconds or more remain
+ * ("in 1 hour 42 minutes", "in 10 minutes"), and "in 1 minute" through the last minute, so that it changes only at whole-minute
+ * boundaries (the reset countdown's accessible text, UX-DR37). An empty or unreadable time gives "".
+ */
+export function countdownSpokenMinutes(dueIso: string, nowMs: number): string {
+  const left = countdownText(dueIso, nowMs);
+  if (left.spoken === '') {
+    return '';
+  }
+  const seconds = Math.max(0, Math.ceil((new Date(dueIso).getTime() - nowMs) / 1000));
+  return seconds < 60 ? fill(WHEN_TEXTS.minutesOne, { n: '1' }) : left.spoken;
+}
+
+/**
+ * The time that has passed from an ISO time to nowMs, in whole seconds rounded down and never below 0: under a minute "23 s", from a
+ * minute in whole minutes rounded down "2 min". The spoken form uses full words with singular and plural agreeing. An empty or
+ * unreadable time gives empty texts.
+ */
+export function elapsedText(sinceIso: string, nowMs: number): Countdown {
+  const since = new Date(sinceIso).getTime();
+  if (sinceIso === '' || Number.isNaN(since)) {
+    return { text: '', spoken: '' };
+  }
+  const seconds = Math.max(0, Math.floor((nowMs - since) / 1000));
+  if (seconds < 60) {
+    return { text: fill(WHEN_TEXTS.elapsedSeconds, { n: String(seconds) }), spoken: plural(seconds, WHEN_TEXTS.elapsedSecondsOne, WHEN_TEXTS.elapsedSecondsOther) };
+  }
+  const minutes = Math.floor(seconds / 60);
+  return { text: fill(WHEN_TEXTS.elapsedMinutes, { n: String(minutes) }), spoken: plural(minutes, WHEN_TEXTS.elapsedMinutesOne, WHEN_TEXTS.elapsedMinutesOther) };
 }

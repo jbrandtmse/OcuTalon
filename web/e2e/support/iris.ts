@@ -1,18 +1,66 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 /**
- * What the specs of Story 2.2 need from the throwaway stack that docker/tests/test-sign-in.sh starts (or, for the floor specs of
- * e2e/floor/, docker/tests/test-floor.sh): the fixture users it created, and a way to run a line of ObjectScript in the OCUTALON
- * namespace of its IRIS container (the stack publishes no management port). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
+ * What the e2e specs need from the throwaway stack that their script starts (docker/tests/test-sign-in.sh, test-floor.sh for the floor
+ * specs of e2e/floor/, or test-demo-path.sh): the fixture users the sign-in and floor scripts created, and a way to run a line of
+ * ObjectScript in the OCUTALON namespace of the stack's IRIS container (the stack publishes no management port). The container is named
+ * by OCUTALON_E2E_IRIS_CONTAINER, which the sign-in and floor scripts set, or else found by the web port of OCUTALON_URL, which the
+ * demo-path script sets (irisContainer). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
  */
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user)`);
+  if (!value) throw new Error(`${name} must be set by the e2e unit's script (docker/tests/test-sign-in.sh, test-floor.sh, test-demo-path.sh, or test-online-demo.sh for the public accounts)`);
   return value;
 }
 
-/** The kinds of fixture user of the sign-in unit, and FLOOR, the floor unit's. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR';
+/** The container found by the web port, kept for the run. */
+let foundContainer: string | undefined;
+
+/**
+ * The IRIS container of the stack under test. Two ways name it, in this order:
+ *   - OCUTALON_E2E_IRIS_CONTAINER, which the sign-in and floor scripts set;
+ *   - the web port of OCUTALON_URL, which the demo-path script sets: the one container that publishes that host port (docker ps
+ *     --filter publish matches the host port; only the iris service publishes it, through the override of lib-live.sh's live_web_port,
+ *     and each runner and lane uses its own port). Exactly one container must publish it, else this fails naming the variable and the port.
+ */
+function irisContainer(): string {
+  const named = process.env['OCUTALON_E2E_IRIS_CONTAINER'];
+  if (named) return named;
+  if (foundContainer) return foundContainer;
+  const port = new URL(required('OCUTALON_URL')).port;
+  if (!port) throw new Error('OCUTALON_E2E_IRIS_CONTAINER is not set and OCUTALON_URL names no port to find the IRIS container by');
+  const ids = execFileSync('docker', ['ps', '--filter', `publish=${port}`, '--format', '{{.ID}}'], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  if (ids.length !== 1) {
+    throw new Error(`OCUTALON_E2E_IRIS_CONTAINER is not set, and ${ids.length} containers publish port ${port} (OCUTALON_URL): exactly one is needed`);
+  }
+  foundContainer = ids[0];
+  return foundContainer;
+}
+
+/**
+ * The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, ANSWERS, the answers unit's, CARDS, the cards unit's, and
+ * DEMOACCOUNT and READONLYACCOUNT, the online-demo unit's two public accounts (their values are the unit's test start values).
+ */
+export type FixtureKind =
+  | 'LIVE'
+  | 'SESSION'
+  | 'SIGNIN'
+  | 'CHAT'
+  | 'PANEL'
+  | 'DECISION'
+  | 'NOTICE'
+  | 'RAIL'
+  | 'THREAD'
+  | 'LINKS'
+  | 'BANNERS'
+  | 'FLOOR'
+  | 'ANSWERS'
+  | 'CARDS'
+  | 'DEMOACCOUNT'
+  | 'READONLYACCOUNT';
 
 /** A fixture user of the sign-in or the floor unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {
@@ -22,7 +70,7 @@ export function fixtureUser(kind: FixtureKind): { user: string; password: string
 /** Runs one script in a session of the container and returns whatever it printed. */
 function runOnce(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['exec', '-i', required('OCUTALON_E2E_IRIS_CONTAINER'), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
+    const child = spawn('docker', ['exec', '-i', irisContainer(), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
       stdio: ['pipe', 'pipe', 'ignore'],
     });
     let out = '';
@@ -103,6 +151,29 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
   );
   const seq = Number(chk(lines, 'seq'));
   if (!Number.isInteger(seq) || seq < 1) throw new Error(`the reminder could not be published (${lines.join(' ')})`);
+  return seq;
+}
+
+/**
+ * Publishes one fixture incident on the user's own session stream and returns its Seq: the payload (a camelCase object of
+ * OcuTalon.Live.Payload.Incident, parts included: itemNoun, groups, requests, evidence, traceTargets) is imported into the payload
+ * class and published as the `incident` event, as IncidentManager will (Live.Publish.Publish). A later event with the same ref
+ * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it. A payload the class cannot
+ * import throws with the import's error text.
+ */
+export async function publishIncident(user: string, payload: Record<string, unknown>): Promise<number> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set p=##class(OcuTalon.Live.Payload.Incident).%New()',
+      `Set sc=p.%JSONImport(${quoted(JSON.stringify(payload))})`,
+      'If $System.Status.IsError(sc) { Write !,"CHK|error|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  "),!,"CHK|seq|0" Halt }',
+      'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"incident",p,.q)',
+      'Write !,"CHK|seq|",q',
+    ].join('\n'),
+  );
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the incident could not be published (${lines.join(' ')})`);
   return seq;
 }
 
@@ -194,6 +265,8 @@ export interface SeedTurn {
   replyText: string;
   channel?: string;
   fromGuide?: boolean;
+  /** The turn's trace session (Turn.TraceHeaderId), which gives its chat.message a trace target. */
+  traceHeaderId?: number;
   catalogKey?: string;
   fallbackReason?: string;
   state?: 'done' | 'running';
@@ -321,6 +394,7 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
       `Set t.CreatedAt=${quoted(turn.createdAt)}`,
       `Set t.Channel=${quoted(turn.channel ?? 'web')}`,
       `Set t.FromGuide=${turn.fromGuide ? 1 : 0}`,
+      ...(turn.traceHeaderId === undefined ? [] : [`Set t.TraceHeaderId=${numeric(turn.traceHeaderId, 'traceHeaderId')}`]),
       `Set t.Text=${quoted(turn.text)}`,
       `Set t.ReplyText=${quoted(turn.replyText)}`,
       `Set t.ReplyCatalogKey=${quoted(turn.catalogKey ?? '')}`,
@@ -479,6 +553,7 @@ export interface NotificationFields {
   slots: Record<string, unknown>;
   decisionRef?: string;
   approvalRef?: string;
+  incidentRef?: string;
 }
 
 /**
@@ -572,6 +647,7 @@ export function sendNotification(user: string, notification: NotificationFields)
       `Set m.Slots=${quoted(JSON.stringify(notification.slots))}`,
       ...setText('DecisionRef', notification.decisionRef),
       ...setText('ApprovalRef', notification.approvalRef),
+      ...setText('IncidentRef', notification.incidentRef),
     ],
     'SessionRef',
   );
@@ -593,15 +669,24 @@ function properties(values: Record<string, string | undefined>): Record<string, 
 }
 
 /**
- * The dry run of a fix request as the stored JSON (ApprovalRequest.DRYRUNKEYS): the count of items it affects and the noun that
- * names one and many. null gives a request with no dry run.
+ * The dry run of a fix request as the stored JSON (ApprovalRequest.DRYRUNKEYS): the count of items it affects, the noun that names
+ * one and many, the count to resend (the affected count unless given), and the field with its example (the field OrderDate and an
+ * empty example unless given). null gives a request with no dry run.
  */
 export interface SeedDryRun {
   affected: number;
   itemNoun?: { one: string; other: string };
+  resend?: number;
+  field?: string;
+  before?: string;
+  after?: string;
 }
 
-/** The fields of an approval request that seedApproval sets; a field left out keeps Fixture.Approval's default (a pending fix of 4 orders raised now). */
+/**
+ * The fields of an approval request that seedApproval sets; a field left out keeps Fixture.Approval's default (a pending fix of 4 orders
+ * raised now, expiring in 2030, with no required role). requiredRole is the IRIS role that Approval.Answer demands of the answerer
+ * (OcuTalonUser for a request that the floor user may answer); the answered fields describe an answer that is already recorded.
+ */
 export interface ApprovalFields {
   kind?: string;
   state?: string;
@@ -610,30 +695,122 @@ export interface ApprovalFields {
   raisedAt?: string;
   expiresAt?: string;
   dryRun?: SeedDryRun | null;
+  requiredRole?: string;
+  answeredAction?: string;
+  answeredChannel?: string;
+  answeredBy?: string;
+  answeredAt?: string;
 }
 
+/** Who owns a seeded request: the user's own session, the owner instance, or the fixture session with this Ref (seedOtherSession). */
+export type ApprovalOwner = 'session' | 'instance' | { sessionRef: string };
+
 /**
- * Writes an approval request through Test.Data.Fixture.Approval: owned by the user's own session, or with 'instance' by the owner
- * instance (for the incident that incidentRef names). Returns its Ref; cleanFixtureRows removes it.
+ * Writes an approval request through Test.Data.Fixture.Approval: owned by the user's own session, by the owner instance (for the
+ * incident that incidentRef names) or by another fixture session. Returns its Ref; cleanFixtureRows removes it.
  */
-export async function seedApproval(user: string, fields: ApprovalFields = {}, owner: 'session' | 'instance' = 'session'): Promise<string> {
+export async function seedApproval(user: string, fields: ApprovalFields = {}, owner: ApprovalOwner = 'session'): Promise<string> {
   const dryRun =
     fields.dryRun === undefined
       ? undefined
       : fields.dryRun === null
         ? ''
-        : JSON.stringify({ affected: fields.dryRun.affected, resend: fields.dryRun.affected, leftOut: 0, field: 'OrderDate', before: '', after: '', itemNoun: fields.dryRun.itemNoun });
-  const row = properties({ Kind: fields.kind, ToolName: fields.toolName, ExpiresAt: fields.expiresAt, DryRun: dryRun });
+        : JSON.stringify({
+            affected: fields.dryRun.affected,
+            resend: fields.dryRun.resend ?? fields.dryRun.affected,
+            leftOut: 0,
+            field: fields.dryRun.field ?? 'OrderDate',
+            before: fields.dryRun.before ?? '',
+            after: fields.dryRun.after ?? '',
+            itemNoun: fields.dryRun.itemNoun,
+          });
+  const row = properties({
+    Kind: fields.kind,
+    ToolName: fields.toolName,
+    ExpiresAt: fields.expiresAt,
+    DryRun: dryRun,
+    RequiredRole: fields.requiredRole,
+    AnsweredAction: fields.answeredAction,
+    AnsweredChannel: fields.answeredChannel,
+    AnsweredBy: fields.answeredBy,
+    AnsweredAt: fields.answeredAt,
+  });
+  const ownerExpression = owner === 'instance' ? '"instance"' : owner === 'session' ? 's.Ref' : quoted(owner.sessionRef);
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
-      `Set r=##class(OcuTalon.Test.Data.Fixture).Approval(${owner === 'instance' ? '"instance"' : 's.Ref'},${quoted(fields.incidentRef ?? '')},${quoted(fields.state ?? 'pending')},${fields.raisedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.raisedAt)},${fieldsObject(row)})`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Approval(${ownerExpression},${quoted(fields.incidentRef ?? '')},${quoted(fields.state ?? 'pending')},${fields.raisedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.raisedAt)},${fieldsObject(row)})`,
       'Write !,"CHK|approval|",r',
     ].join('\n'),
   );
   const ref = chk(lines, 'approval');
   if (!ref) throw new Error(`the approval request could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/**
+ * Writes a fixture session of another IRIS user (Test.Data.Fixture.Session): it belongs to no one who signs in, so what it owns is
+ * invisible to the floor user. Returns its Ref; cleanFixtureRows removes it.
+ */
+export async function seedOtherSession(user: string): Promise<string> {
+  const lines = await irisScript([`Set r=##class(OcuTalon.Test.Data.Fixture).Session(${literal(user)})`, 'Write !,"CHK|session|",r'].join('\n'));
+  const ref = chk(lines, 'session');
+  if (!ref) throw new Error(`the fixture session could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/**
+ * Answers a request as the user from the script's job, with the bridge's own API and no event: the sink is the bridge's no-op
+ * HostSink, so nothing reaches any stream and the page learns of the answer only when it presses, polls or reloads. Returns the
+ * result (done, already_answered, expired, not_found or not_allowed). A real answer on a fixture row waits about 5 s for the hold's
+ * task, which a fixture row does not have.
+ */
+export async function answerQuietly(user: string, ref: string, action: 'approve' | 'reject', channel: 'web' | 'phone'): Promise<string> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      `Set r=##class(OcuTalon.Bridge.Approval).Answer(${quoted(ref)},${quoted(action)},${quoted(channel)},${literal(user)},s.Ref,.w,"OcuTalon.Bridge.Ext.HostSink")`,
+      'Write !,"CHK|answer|",r',
+    ].join('\n'),
+  );
+  const result = chk(lines, 'answer');
+  if (!result) throw new Error(`the answer could not be given (${lines.join(' ')})`);
+  return result;
+}
+
+/** What the row of a request holds after an answer, read back: State, AnsweredAction, AnsweredChannel, AnsweredBy and AnsweredAt. */
+export async function readApproval(ref: string): Promise<{ state: string; action: string; channel: string; by: string; at: string }> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      `If '$IsObject(r) { Write !,"CHK|row|missing" Halt }`,
+      'Write !,"CHK|row|",r.State,"|",r.AnsweredAction,"|",r.AnsweredChannel,"|",r.AnsweredBy,"|",r.AnsweredAt',
+    ].join('\n'),
+  );
+  const row = chk(lines, 'row');
+  if (row === undefined || row === 'missing') throw new Error(`the approval request could not be read (${lines.join(' ')})`);
+  const [state = '', action = '', channel = '', by = '', at = ''] = row.split('|');
+  return { state, action, channel, by, at };
+}
+
+/**
+ * The number of production messages from AnswersIn to AnswerOps in the trace sessions tagged with the session's TraceRef (the user's
+ * own session), and that TraceRef: what an answer leaves in Visual Trace besides the audit entry.
+ */
+export async function answerHeaders(user: string): Promise<{ count: number; traceRef: string }> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SuperSession = ? AND SourceConfigName = \'AnswersIn\' AND TargetConfigName = \'AnswerOps\' AND Type = 1",s.TraceRef)',
+      'Do rs.%Next()',
+      'Write !,"CHK|count|",rs.%GetData(1)',
+      'Write !,"CHK|trace|",s.TraceRef',
+    ].join('\n'),
+  );
+  const count = Number(chk(lines, 'count'));
+  const traceRef = chk(lines, 'trace');
+  if (!Number.isInteger(count) || !traceRef) throw new Error(`the answer headers could not be counted (${lines.join(' ')})`);
+  return { count, traceRef };
 }
 
 /** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */
@@ -660,6 +837,12 @@ export interface CheckFields {
   lastRunAt?: string;
   result?: string;
   finding?: string;
+  /**
+   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at the next
+   * heartbeat tick (Checks runs it, overwrites its last run and makes it due again a minute later), so a spec that asserts the row's seeded
+   * last run while a real tick may run, its own or the minute task's, gives it a time after the spec.
+   */
+  nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
   lastRunHeaderId?: number;
 }
@@ -672,6 +855,7 @@ export async function seedCheck(user: string, fields: CheckFields = {}): Promise
     LastRunAt: fields.lastRunAt,
     Result: fields.result,
     Finding: fields.finding,
+    NextDueAt: fields.nextDueAt,
     LastRunHeaderId: fields.lastRunHeaderId === undefined ? undefined : numeric(fields.lastRunHeaderId, 'lastRunHeaderId'),
   });
   const lines = await irisScript(
@@ -773,17 +957,28 @@ export interface IncidentFields {
   noticedAt?: string;
   /** The incident's trace session, which its approval request's trace link opens (AD-26). */
   traceHeaderId?: number;
+  /** The incident's state (open unless given) and its open variant (fix unless given). */
+  state?: string;
+  openVariant?: string;
 }
 
 /**
- * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance' or the user whose own session owns it. Returns its
- * Ref; cleanFixtureRows removes it.
+ * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance', the user whose own session owns it, or `{sessionRef}`,
+ * the fixture session with this Ref (seedOtherSession), as seedApproval's ApprovalOwner is. Returns its Ref; cleanFixtureRows removes it.
  */
-export async function seedIncident(owner: string, fields: IncidentFields = {}): Promise<string> {
-  const row = properties({ TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId') });
+export async function seedIncident(owner: string | { sessionRef: string }, fields: IncidentFields = {}): Promise<string> {
+  const row = properties({
+    TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
+    State: fields.state,
+    OpenVariant: fields.openVariant,
+  });
   const lines = await irisScript(
     [
-      ...(owner === 'instance' ? ['Set o="instance"'] : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
+      ...(typeof owner === 'object'
+        ? [`Set o=${quoted(owner.sessionRef)}`]
+        : owner === 'instance'
+          ? ['Set o="instance"']
+          : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
       `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
       'Write !,"CHK|incident|",r',
     ].join('\n'),
@@ -791,6 +986,52 @@ export async function seedIncident(owner: string, fields: IncidentFields = {}): 
   const ref = chk(lines, 'incident');
   if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/**
+ * Puts Test.Demo.IncidentManagerDouble behind the IncidentManager item of the stack's production (its Use), so that a dismissal reaches a
+ * fixture owner that closes the incident and publishes its closed view (Story 6.4; AD-29). Throws with the status text when the item
+ * could not take it. A spec that calls this puts the item back with restoreIncidentManager in its afterAll.
+ */
+export async function useIncidentManagerDouble(): Promise<void> {
+  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Use()', 'Write !,"CHK|use|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
+  const use = chk(lines, 'use');
+  if (!use?.startsWith('1|')) throw new Error(`the IncidentManager item could not take the double (${lines.join(' ')})`);
+}
+
+/** Puts the IncidentManager item's class back as useIncidentManagerDouble found it (the double's Restore); throws when that fails. */
+export async function restoreIncidentManager(): Promise<void> {
+  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()', 'Write !,"CHK|restore|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
+  const restore = chk(lines, 'restore');
+  if (!restore?.startsWith('1|')) throw new Error(`the IncidentManager item could not be restored (${lines.join(' ')})`);
+}
+
+/** A command that the double recorded: its verb, the session it came for and its origin. */
+export interface DoubleCommand {
+  verb: string;
+  session: string;
+  origin: string;
+}
+
+/** The commands about the incident that the IncidentManager double recorded, oldest first (the double's Recorded). */
+export async function doubleCommands(ref: string): Promise<DoubleCommand[]> {
+  const lines = await irisScript(`Write !,"CHK|commands|",##class(OcuTalon.Test.Demo.IncidentManagerDouble).Recorded(${quoted(ref)})`);
+  const recorded = chk(lines, 'commands');
+  if (recorded === undefined) throw new Error(`the double's commands could not be read (${lines.join(' ')})`);
+  return recorded === ''
+    ? []
+    : recorded.split(';').map((command) => {
+        const [verb = '', session = '', origin = ''] = command.split('|');
+        return { verb, session, origin };
+      });
+}
+
+/** The State of the incident's row ("" when there is none). */
+export async function incidentState(ref: string): Promise<string> {
+  const lines = await irisScript([`Set r=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(ref)})`, 'Write !,"CHK|state|",$Select($IsObject(r):1_"|"_r.State,1:0)'].join('\n'));
+  const state = chk(lines, 'state');
+  if (state === undefined) throw new Error(`the incident could not be read (${lines.join(' ')})`);
+  return state.startsWith('1|') ? state.slice(2) : '';
 }
 
 /**

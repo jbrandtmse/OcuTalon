@@ -139,7 +139,7 @@ The logo, then "The demo is resetting." and "It usually takes a few minutes. Thi
 In order:
 
 1. "OcuTalon {version}".
-2. The tagline, "An OpenClaw-style assistant for InterSystems IRIS."
+2. The tagline, "An AI assistant for InterSystems IRIS." [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it was "An OpenClaw-style assistant for InterSystems IRIS."]
 3. One sentence: "An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention."
 4. "Default model: {model}."
 5. The links: README, the bridge developer guide, and the security overview (FR-61) once it exists.
@@ -162,7 +162,7 @@ Microcopy rules. The brand posture lives in `DESIGN.md` under Brand & Style.
   - "Your IRIS system is healthy" (step 2) appears only when every vital sign passed; otherwise the text names the failing sign.
   - Model text never says any of these banned phrases, a closed list that the guard removes: "all good", "everything's fine", "everything is fine", "no issues", "no problems", "nothing to worry about".
 - **Glossary terms, exactly.** The outcome labels are **Ignore**, **Digest**, **Tell now**, and **Act**. The demo control is always **Break the feed**, and the device label is always **Simulated**. "Approval requests" is the rail heading. In limits, the interface says "messages" where the PRD says "turns" ("50 messages an hour"), always with the definition nearby: "messages you send in the chat or Telegram".
-- **The tagline.** Wherever "An OpenClaw-style assistant for InterSystems IRIS" appears, the not-affiliated note appears in the same block: "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation."
+- **The tagline.** The tagline is "An AI assistant for InterSystems IRIS." The not-affiliated note, "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.", stays verbatim in the README and the About dialog. "OpenClaw" never appears in a tagline, product label, repository description or listing summary. No OpenClaw artwork, interface or wording is reused. CON-2 and the release checklist's verbatim-note check are unchanged. [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner; the owner: "I don't want to infrenge on openClaw..." and, choosing the new wording, "Okay, let's go with A": it read 'Wherever "An OpenClaw-style assistant for InterSystems IRIS" appears, the not-affiliated note appears in the same block']
 
 | Do | Don't |
 | --- | --- |

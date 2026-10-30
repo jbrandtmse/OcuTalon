@@ -1,12 +1,19 @@
 Include Ensemble
 
-/// Tests of StatusMonitor (Story 2.10; AD-12, AD-18, AD-33), the one publisher of the status live event. They drive a shadow
+/// Tests of StatusMonitor (Story 2.10; AD-12, AD-18, AD-33), the one publisher of the status live event (Story 16.9 adds the allowance
+/// statuses, which it publishes on each session's own stream). They drive a shadow
 /// instance of Test.Core.StatusMonitorProbe, which takes the keys and the budget that the test sets and publishes on a private
-/// stream, so that they run on a slot with no production and publish nothing on the instance stream:
+/// stream, so that they run on a slot with no production and publish nothing on the instance stream. The allowance tests set the
+/// instance-wide onlineDemo flag and a real session's AllowanceUntil, so the probe publishes each session's allowance status on a
+/// private stream of its own (Divert): a production's own StatusMonitor, where one runs, publishes on the session's stream and
+/// cannot change a count:
 ///   - TestFirstRunPublishesNothing: the first run only remembers the state, whatever it is;
 ///   - TestChangePublishesTheChangedConditions: a change publishes the full view of exactly the conditions that changed, in the
 ///     catalog's order, and a run with nothing changed publishes nothing;
 ///   - TestSlotChangeAndClear: a change of the slots publishes, and a clear publishes the condition with active false and no slots;
+///   - TestTelegramPausePublishes (Story 10.3, AD-12): a telegramPaused mark recorded for a time in the future makes the next run publish one
+///     status event telegramPaused, active, with that time; a run after the pause has ended publishes it inactive with no slots; nothing in
+///     between. The test records the mark and puts it back;
 ///   - TestRefusedPublishIsPublishedAtTheNextRun: a publish that is refused (inside an open transaction, or to a stream that is
 ///     no stream) leaves the run returning OK with a warning, and the change is published at the next run;
 ///   - TestFailingReadingReturnsOK: a reading that throws gives OK with a warning and publishes nothing;
@@ -14,6 +21,12 @@ Include Ensemble
 ///     leaves nothing remembered and the next run that reads only remembers, with the conditions that hold, before a change publishes;
 ///   - TestEventsBodyServesWhatItPublishes (an Integration AC): Web.Api.EventsBody, with the private stream as the instance
 ///     stream, serves what the monitor published, as the page polls it;
+///   - TestAllowancePublishesOnTheSessionsStream (Story 16.9, AD-12): a session whose allowance window opens gets one status event
+///     allowance, active, with the limit and the end of the window, on its own stream, when the next run sees it; a run after the
+///     window has ended publishes the clear (active false, no slots) once; nothing in between, and nothing on the instance stream;
+///   - TestAllowanceFirstRunOnlyRemembers: the first run publishes nothing for a window that is open, and a clear follows when it ends;
+///   - TestAllowanceOnlyOnTheOnlineDemoAndFailedReadRemembersNothing: with the flag off nothing is read or published, and a failed
+///     read of the held sessions is one warning that remembers nothing, so the next run publishes;
 ///   - TestProductSeams: the monitor's own seams, as the production job runs them, publish on the instance stream and read the
 ///     three agents' keys and the budget as Status.Readings gives them (Test.Core.StatusMonitorSeamProbe; nothing is published).
 /// The private stream is the stream of a fixture session, zzstatmon<n>; its events and counter are removed before and after, and so
@@ -27,6 +40,9 @@ Property Number As %Integer;
 /// The Ref of the fixture session whose stream is the private stream.
 Property Stream As %String;
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
 /// The number of the newest row of the event log when the test began.
 Property LogMark As %Integer;
 
@@ -34,6 +50,7 @@ Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
 	Set ..Number = $Increment(^OcuTalonTest("StatusMonitor", "n"))
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -49,12 +66,14 @@ Method OnAfterOneTest() As %Status
 {
 	If $TLevel > 0 TROLLBACK
 	Do ..ClearStream()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "OnProcessInput", "StatusMonitor could not")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ..Clean()
 	Quit $SYSTEM.Status.OK()
 }
@@ -143,6 +162,39 @@ Method TestSlotChangeAndClear()
 	Set probe.BudgetReading = ..Budget(0, 30, "2026-10-26T04:00:00Z")
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do $$$AssertEquals(..Events().%Size(), 3, "a new reset time on a condition that doesn't hold publishes nothing")
+}
+
+/// A telegramPaused mark for a time in the future: the next run publishes telegramPaused, active, with Time = the mark. A run with the same
+/// state publishes nothing. Once the time has passed the next run publishes it inactive, with no slots. The mark is put back afterwards.
+Method TestTelegramPausePublishes()
+{
+	Set saved = ##class(OcuTalon.Data.StatusMark).Get("telegramPaused")
+	Try {
+		Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", "")
+		Set probe = ..Probe()
+		Set probe.KeysReading = ..Keys(1)
+		Set probe.BudgetReading = ..Budget(0, 0, "")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 0, "the first run remembers the state, with no pause")
+		Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record("telegramPaused", until), "a pause is recorded")
+		Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
+		Set events = ..Telegram()
+		Do $$$AssertEquals(events.%Size(), 1, "one telegramPaused event is published")
+		If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""telegramPaused"",""active"":true,""slots"":{""time"":"""_until_"""}}", "active, with the time of the pause")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 1, "a run with the same state publishes nothing")
+		Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -60))
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Set events = ..Telegram()
+		Do $$$AssertEquals(events.%Size(), 2, "after the pause has ended the next run publishes it again")
+		If events.%Size() = 2 Do $$$AssertEquals(events.%Get(1).payload.%ToJSON(), "{""condition"":""telegramPaused"",""active"":false}", "inactive, with no slots")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Telegram().%Size(), 2, "and then nothing more")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no exception")
+	}
+	Do ##class(OcuTalon.Data.StatusMark).Record("telegramPaused", saved)
 }
 
 /// A publish that is refused leaves the run returning OK with a warning and the change unremembered, so the next run publishes it.
@@ -262,6 +314,134 @@ Method TestProductSeams()
 	Do $$$AssertEquals($Get(budget) '= "" && (budget.%ToJSON() = expectedBudget.%ToJSON()), 1, "and the budget is Budget.State(), as Status.Readings gives it")
 }
 
+/// A session whose allowance window opens gets one status event, allowance, active, with the limit and the end of the window, on its
+/// own stream at the next run; the same window again publishes nothing; once it has ended the next run publishes the clear (active
+/// false, no slots) once and nothing after; the instance stream (the private stream here) gets no allowance event. Another session
+/// that has no window gets nothing.
+Method TestAllowancePublishesOnTheSessionsStream()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set mine = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"mine", .sc)
+	Set other = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"other", .sc)
+	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "mine")
+	Set otherOut = ..Divert(probe, other.Ref, "other")
+	Set probe.KeysReading = ..Keys(1)
+	Set probe.BudgetReading = ..Budget(0, 0, "")
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "the first run publishes nothing")
+
+	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Set mine.AllowanceUntil = until
+	Do $$$AssertStatusOK(mine.%Save(), "the session's window opens")
+	Set probe.HeldReading = $ListBuild(mine.Ref)
+	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
+	Set events = ..SessionEvents(mineOut)
+	Do $$$AssertEquals(events.%Size(), 1, "one event is published on the session's stream")
+	Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).stream, "status|session", "a status event")
+	Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""allowance"",""active"":true,""slots"":{""limit"":"_##class(OcuTalon.Core.Allowance).Limit()_",""time"":"""_until_"""}}", "the full view: active, with the limit and the end of the window")
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 1, "the same window again: nothing more")
+	Do $$$AssertEquals(..SessionEvents(otherOut).%Size(), 0, "another session gets nothing")
+	Do $$$AssertEquals(..Events().%Size(), 0, "and the instance stream gets no allowance event")
+
+	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
+	Do $$$AssertStatusOK(mine.%Save(), "the window ends")
+	Set probe.HeldReading = ""
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set events = ..SessionEvents(mineOut)
+	Do $$$AssertEquals(events.%Size(), 2, "the next run publishes the clear")
+	Do $$$AssertEquals(events.%Get(1).payload.%ToJSON(), "{""condition"":""allowance"",""active"":false}", "active false and no slots")
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 2, "and nothing after it")
+
+	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do mine.%Save()
+	Set probe.HeldReading = $ListBuild(mine.Ref)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 3, "a window that opens again is published again")
+}
+
+/// The first run publishes nothing for a window that is already open, it only remembers, so that the run after the window ends
+/// publishes the clear.
+Method TestAllowanceFirstRunOnlyRemembers()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set mine = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"first", .sc)
+	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do $$$AssertStatusOK(mine.%Save(), "the session's window is open")
+	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "first")
+	Set probe.KeysReading = ..Keys(1)
+	Set probe.BudgetReading = ..Budget(0, 0, "")
+	Set probe.HeldReading = $ListBuild(mine.Ref)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "the first run, and a second run with the same window, publish nothing")
+	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -1)
+	Do mine.%Save()
+	Set probe.HeldReading = ""
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set events = ..SessionEvents(mineOut)
+	Do $$$AssertEquals(events.%Size(), 1, "the run after the window ended publishes one event")
+	Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""allowance"",""active"":false}", "the clear")
+}
+
+/// With the flag off the monitor reads and publishes no allowance status, whatever the sessions hold; a failed read of the held
+/// sessions is one warning and remembers nothing, so the run that reads again publishes the change.
+Method TestAllowanceOnlyOnTheOnlineDemoAndFailedReadRemembersNothing()
+{
+	Set mine = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_"flag", .sc)
+	Set probe = ..Probe()
+	Set mineOut = ..Divert(probe, mine.Ref, "flag")
+	Set probe.KeysReading = ..Keys(1)
+	Set probe.BudgetReading = ..Budget(0, 0, "")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set mine.AllowanceUntil = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do $$$AssertStatusOK(mine.%Save(), "the session has an open window")
+	Set probe.HeldReading = $ListBuild(mine.Ref)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "with the flag off nothing is published")
+	Do $$$AssertEquals(probe.HeldReads, 0, "and the held sessions are not read at all: a local install does no extra read per run (QA)")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set probe.FailHeld = 1
+	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "a failed read of the held sessions: the run returns OK")
+	Do $$$AssertEquals(probe.HeldReads, 1, "with the flag set the run reads the held sessions once (QA)")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "AllowanceTick", ##class(OcuTalon.Core.StatusMonitor).#LOGALLOWANCE)
+	Do $$$AssertEquals(count, 1, "one warning says that the allowance status could not be published: "_text)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "AllowanceTick", ##class(OcuTalon.Core.StatusMonitor).#LOGALLOWANCE)
+	Do $$$AssertEquals(..SessionEvents(mineOut).%Size(), 0, "and nothing is published")
+	Set probe.FailHeld = 0
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set events = ..SessionEvents(mineOut)
+	Do $$$AssertEquals(events.%Size(), 1, "the run that reads again publishes the window")
+	Do $$$AssertEquals(events.%Get(0).payload.active, 1, "as active")
+}
+
+/// The status events of a session's own stream, as the page's envelopes.
+Method SessionEvents(ref As %String) As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set events = ##class(OcuTalon.Live.Event).Since(ref, 0, 200, "session")
+	For i = 0:1:events.%Size() - 1 {
+		If events.%Get(i).type = "status" Do found.%Push(events.%Get(i))
+	}
+	Quit found
+}
+
+/// Gives the probe a private stream for the allowance status of the session: the stream of a fixture session of its own, which no
+/// StatusMonitor of a running production publishes on. Returns that stream's Ref; Clean removes its events and its row.
+Method Divert(probe As OcuTalon.Test.Core.StatusMonitorProbe, sessionRef As %String, name As %String) As %String [ Private ]
+{
+	Set stream = ##class(OcuTalon.Data.Session).ForUser("zzstatmon"_..Number_name_"out", .sc).Ref
+	Do $$$AssertStatusOK(sc, "the private stream of "_name_" is made")
+	Set probe.SessionStreams(sessionRef) = stream
+	Quit stream
+}
+
 /// A shadow instance of the probe, with the private stream.
 Method Probe() As OcuTalon.Test.Core.StatusMonitorProbe [ Private ]
 {
@@ -289,6 +469,17 @@ ClassMethod Budget(capped As %Boolean, cap As %Numeric, resetsAt As %String) As 
 Method Events() As %DynamicArray [ Private ]
 {
 	Quit ##class(OcuTalon.Live.Event).Since(..Stream, 0, 200, "session")
+}
+
+/// The telegramPaused events of the private stream, as the page's envelopes.
+Method Telegram() As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set events = ..Events()
+	For i = 0:1:events.%Size() - 1 {
+		If events.%Get(i).payload.condition = "telegramPaused" Do found.%Push(events.%Get(i))
+	}
+	Quit found
 }
 
 /// Removes the events and the counter of the private stream.

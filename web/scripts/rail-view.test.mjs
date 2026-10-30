@@ -100,6 +100,7 @@ describe('the fixed strings', () => {
         headingSpoken: '{label}, {n}',
         emptyApprovals: 'None waiting.',
         emptyChecks: 'Ask OcuTalon to watch a production.',
+        emptyChecksDemo: 'Nothing yet. Step 1 of the guide sets up a watch.',
         emptyReminders: 'None pending.',
         emptyDecisions: 'No decisions yet.',
         hintChecks: 'To stop, ask: "Stop watching Orders."',
@@ -107,6 +108,7 @@ describe('the fixed strings', () => {
         repair: 'Repair and resend',
         repairCount: 'Repair and resend {n} {noun}',
         runTool: 'Run {toolName}',
+        showInChat: 'Show in the chat: {action}',
         raised: 'Raised {when}',
         expires: 'expires {when}',
         checkTitle: '{name} production',
@@ -167,6 +169,18 @@ describe('the sections', () => {
       assert.equal(one.count, 0, id);
       assert.deepEqual([one.heading, one.spoken, one.empty, one.hint], [heading, spoken, empty, hint], id);
       assert.deepEqual(one.rows, [], id);
+    }
+  });
+
+  it('show the demo mode\'s text for no checks, and only that text, when the demo flag is set (Story 4.4)', () => {
+    const store = fromSnapshot(snapshot({}, TELEGRAM_OFF));
+    const demo = railView(store, format(NOW), true);
+    assert.equal(section(demo, 'checks').empty, 'Nothing yet. Step 1 of the guide sets up a watch.');
+    assert.equal(section(demo, 'checks').hint, 'To stop, ask: "Stop watching Orders."');
+    assert.equal(section(railView(store, format(NOW), false), 'checks').empty, 'Ask OcuTalon to watch a production.');
+    assert.equal(section(railView(store, format(NOW)), 'checks').empty, 'Ask OcuTalon to watch a production.', 'the default is the text outside the demo');
+    for (const id of ['approvals', 'reminders', 'decisions']) {
+      assert.equal(section(demo, id).empty, section(viewOf(), id).empty, id);
     }
   });
 
@@ -237,6 +251,26 @@ describe('approval requests', () => {
     assert.equal(row.meta.join(CHAT_TEXTS.separator), 'Raised 14:13 \u00B7 expires tomorrow at 14:13');
     assert.equal(row.detail, undefined);
     assert.equal(row.kind, 'approval');
+  });
+
+  it('gives the row of an incident\'s request a jump to its card, named with the action, and no other row one', () => {
+    const view = viewOf({
+      approvals: [
+        approval('a1'),
+        approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } }, raisedAt: '2026-10-22T14:13:10Z' }),
+        approval('t1', { kind: 'tool_call', toolName: 'zz_tool', incidentRef: undefined, dryRun: undefined, raisedAt: '2026-10-22T14:13:20Z' }),
+        approval('n1', { incidentRef: '', raisedAt: '2026-10-22T14:13:30Z' }),
+      ],
+    });
+    const rows = section(view, 'approvals').rows;
+    assert.deepEqual(rows.map((row) => row.jump), ['a1', 'a2', undefined, undefined]);
+    assert.deepEqual(rows.map((row) => row.jumpName), ['Show in the chat: Repair and resend 50 orders', 'Show in the chat: Repair and resend 1 order', undefined, undefined]);
+    for (const row of rows.slice(0, 2)) {
+      assert.ok(row.jumpName.includes(row.lead), 'the name contains the visible text verbatim, with its case and words (WCAG 2.5.3)');
+      assert.equal(row.lead, row.title, 'the visible text of the button is the row\'s title');
+    }
+    assert.equal(rows[0].title, 'Repair and resend 50 orders', 'the visible title is unchanged');
+    assert.equal(Object.hasOwn(rows[2], 'jump'), false, 'a tool call\'s row has no jump key');
   });
 
   it('keeps a part out of the meta line when its time is missing', () => {
@@ -311,6 +345,25 @@ describe('background checks', () => {
     assert.deepEqual(meta(on), [['Last run 14:13 (late)', '50 new failures'], []], 'the late mark, and no meta line for a check that has not run');
     const off = applyEvents(on, { epoch: 'e1', events: [{ type: 'status', stream: 'instance', seq: 2, ts: '', payload: { condition: 'heartbeatStalled', active: false } }] }).store;
     assert.deepEqual(meta(off), [['Last run 14:13', '50 new failures'], []], 'cleared again');
+  });
+
+  it('drops a check whose payload has stopped true, from the list and from the heading\'s count, and keeps one with stopped false or none', () => {
+    const noFlag = check('c3');
+    delete noFlag.stopped;
+    const view = viewOf({ checks: [check('c1'), check('c2', { stopped: true }), noFlag] });
+    assert.deepEqual(keys(section(view, 'checks')), ['checks:c1', 'checks:c3']);
+    assert.equal(section(view, 'checks').heading, 'Background checks (2)');
+  });
+
+  it('shows a new watch at once and drops it at the stop event, applied in the order served', () => {
+    const start = { type: 'check', stream: 'session', seq: 6, ts: '', payload: check('c9', { lastRunAt: '', result: '', finding: '' }) };
+    const stop = { type: 'check', stream: 'session', seq: 7, ts: '', payload: { ref: 'c9', kind: 'production', namespace: 'ZZNS', production: 'Zz.Orders', displayName: 'Orders', stopped: true } };
+    const started = applyEvents(fromSnapshot(snapshot()), { epoch: 'e1', events: [start] });
+    assert.deepEqual(keys(section(railView(started.store, format()), 'checks')), ['checks:c9']);
+    const stopped = applyEvents(started.store, { epoch: 'e1', events: [stop] });
+    const one = section(railView(stopped.store, format()), 'checks');
+    assert.deepEqual(keys(one), []);
+    assert.equal(one.heading, 'Background checks (0)');
   });
 
   it('has no meta line before the first run', () => {

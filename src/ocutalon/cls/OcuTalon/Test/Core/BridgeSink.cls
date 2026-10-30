@@ -21,10 +21,18 @@
 ///     demo's approval step needs, and an instance request still is not;
 ///   - TestApprovalNeverWaitsMoreThanASecond: an approval event waits about a second for a busy stream, as every event does; of
 ///     two watchers of an instance request, the one whose stream is free still gets its event;
-///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem: turn.step carries the running
-///     turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the item the bridge context is for;
+///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem, TestTurnStepOfARetry (DW-128):
+///     turn.step carries the running turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the
+///     item the bridge context is for, or for the SessionBroken retry of that turn (Conversation.RetryItemId of its ItemId);
 ///   - TestNeverWaitsMoreThanASecond: a stream whose lock another job holds drops the event after about a second;
-///   - TestNeverFailsItsCaller: OnEvent returns OK for every type, owner and payload, and for a handler that throws.
+///   - TestNeverFailsItsCaller: OnEvent returns OK for every type, owner and payload, and for a handler that throws;
+///   - TestBudgetCappedSendsToEachActiveSessionOnce, TestDailyCapFallbackSendsToThatSessionOnce, TestDailyCapSendsNothingWithTheFlagOff,
+///     TestDailyCapWaitsAtMostASecondForABusyRow, TestFailedDailyCapSendIsRetried, TestBudgetCappedBadInputsSendNothing (Story 16.9,
+///     AD-20, AD-31): budget.capped and a session's daily_cap fallback in decision.recorded send the daily-cap Notification to the open
+///     sessions with activity, once a day each, never with the flag off; they run on Test.Core.BridgeSinkNoticeProbe, which records the
+///     notices instead of sending them.
+/// DW-300: the check rows that the approval tests seed are due a day ahead (the Check helper asserts it), and Events counts only the type
+/// that a caller names, so that a heartbeat tick cannot run a row or add a check event in the middle of a test.
 /// Every row comes from Test.Data.Fixture, and each test removes its own rows by Ref. The events are read from the fixture
 /// session's own stream, or, for the owners that have no stream here, searched by the decision's Ref in every event's payload,
 /// so that a concurrent event of another test cannot disturb the result. The warnings that BridgeSink logs are removed.
@@ -46,6 +54,7 @@ Property SavedOnline As %String;
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
+	Kill ^OcuTalonTest("BridgeSinkNotice")
 	Set ..Number = $Increment(^OcuTalonTest("BridgeSink", "n"))
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Quit $SYSTEM.Status.OK()
@@ -53,6 +62,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnBeforeOneTest() As %Status
 {
+	Kill ^OcuTalonTest("BridgeSinkNotice")
 	Set ..Refs = ""
 	Set ..LogMark = ..LastLog()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
@@ -65,7 +75,7 @@ Method OnAfterOneTest() As %Status
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?)", ..LogMark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?, ?)", ..LogMark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe", "OcuTalon.Test.Core.BridgeSinkNoticeProbe")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -73,6 +83,7 @@ Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("BridgeSink", "hold")
+	Kill ^OcuTalonTest("BridgeSinkNotice")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -289,9 +300,9 @@ Method TestInstanceApprovalReachesEveryWatcher()
 	Set b = ..Session("watchb")
 	Set c = ..Session("watchc")
 	Set production = "Zz.Sink"_..Number_".Watched"
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", production)
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(c, "ZZNS", "Zz.Sink"_..Number_".Other")
+	Set ..Refs = ..Refs_","_..Check(a, "ZZNS", production)
+	Set ..Refs = ..Refs_","_..Check(b, "ZZNS", production)
+	Set ..Refs = ..Refs_","_..Check(c, "ZZNS", "Zz.Sink"_..Number_".Other")
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production, {"TraceHeaderId": 777})
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
 	Set unnoticed = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", "", "ZZNS", production)
@@ -300,20 +311,20 @@ Method TestInstanceApprovalReachesEveryWatcher()
 
 	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (request)}), "approval.raised: OnEvent returns OK")
 	For session = a, b {
-		Set events = ..Events(session)
+		Set events = ..Events(session, "approval")
 		Do $$$AssertEquals(events.%Size(), 1, "a watching session gets one event")
 		If events.%Size() = 0 Continue
 		Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.ref_"|"_events.%Get(0).payload.incidentRef, "approval|"_request_"|"_incident, "an approval event for the request and its incident")
 		Do $$$AssertEquals(events.%Get(0).payload.traceHeaderId_"|"_events.%Get(0).payload.traceNamespace, "777|"_$Namespace, "which carries the incident's trace target for that recipient")
 	}
-	Do $$$AssertEquals(..Events(c).%Size(), 0, "a session that watches another production gets none")
+	Do $$$AssertEquals(..Events(c, "approval").%Size(), 0, "a session that watches another production gets none")
 	Do $$$AssertEquals(..Holding(request), 2, "two events hold the request")
 	Do $$$AssertStatusOK(..Sink("approval.expired", "instance", {"ref": (request)}), "approval.expired: OnEvent returns OK")
-	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size()_"|"_..Events(c).%Size(), "2|2|0", "each watching session gets the next event too")
+	Do $$$AssertEquals(..Events(a, "approval").%Size()_"|"_..Events(b, "approval").%Size()_"|"_..Events(c, "approval").%Size(), "2|2|0", "each watching session gets the next event too")
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (request)}), "with onlineDemo on: OnEvent returns OK")
-	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size()_"|"_..Events(c).%Size(), "2|2|0", "nobody receives it")
+	Do $$$AssertEquals(..Events(a, "approval").%Size()_"|"_..Events(b, "approval").%Size()_"|"_..Events(c, "approval").%Size(), "2|2|0", "nobody receives it")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 
 	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (unnoticedRequest)}), "an unnoticed incident's request: OnEvent returns OK")
@@ -327,7 +338,7 @@ Method TestFailedWatcherReadIsLoud()
 {
 	Set a = ..Session("loud")
 	Set production = "Zz.Sink"_..Number_".Loud"
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)
+	Set ..Refs = ..Refs_","_..Check(a, "ZZNS", production)
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
 	Set lonelyIncident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", "Zz.Sink"_..Number_".Nobody")
@@ -341,7 +352,7 @@ Method TestFailedWatcherReadIsLoud()
 	Do $$$AssertTrue($Find(text, "approval.raised") && $Find(text, request) && $Find(text, incident) && $Find(text, "zz the watchers could not be read"), "naming the event, the request, the incident and the status: "_text)
 	Do $$$AssertEquals(..Warnings(mark), 1, "and no other warning")
 	Do $$$AssertEquals(..Holding(request), 0, "no event holds the request")
-	Do $$$AssertEquals(..Events(a).%Size(), 0, "and the watching session's stream is empty")
+	Do $$$AssertEquals(..Events(a, "approval").%Size(), 0, "and the watching session's stream is empty")
 
 	Set mark = ..LastLog()
 	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (lonelyRequest)}), "an incident that nobody watches: OnEvent returns OK")
@@ -374,7 +385,7 @@ Method TestOnlineDemoStillPublishesASessionsOwnRequest()
 {
 	Set session = ..Session("demo")
 	Set production = "Zz.Sink"_..Number_".Demo"
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(session, "ZZNS", production)
+	Set ..Refs = ..Refs_","_..Check(session, "ZZNS", production)
 	Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(session)
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
 	Set instance = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
@@ -382,12 +393,12 @@ Method TestOnlineDemoStillPublishesASessionsOwnRequest()
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do $$$AssertStatusOK(..Sink("approval.raised", session, {"ref": (own)}), "the session's own request: OnEvent returns OK")
-	Set events = ..Events(session)
+	Set events = ..Events(session, "approval")
 	Do $$$AssertEquals(events.%Size(), 1, "it is published to the session")
 	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, "approval|"_own_"|pending", "as an approval event for the request")
 	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (instance)}), "an instance request of the watched production: OnEvent returns OK")
 	Do $$$AssertEquals(..Holding(instance), 0, "no event holds it")
-	Do $$$AssertEquals(..Events(session).%Size(), 1, "and the session's stream gained nothing")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 1, "and the session's stream gained nothing")
 	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
 }
 
@@ -400,7 +411,7 @@ Method TestApprovalNeverWaitsMoreThanASecond()
 	Set a = ..Session("lockeda")
 	Set b = ..Session("lockedb")
 	Set production = "Zz.Sink"_..Number_".Locked"
-	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)_","_##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", production)
+	Set ..Refs = ..Refs_","_..Check(a, "ZZNS", production)_","_..Check(b, "ZZNS", production)
 	Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(solo)
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
@@ -418,7 +429,7 @@ Method TestApprovalNeverWaitsMoreThanASecond()
 	Do $$$AssertEquals(..Holding(own), 0, "nothing was published while the stream was held")
 	Do ..ReleaseStream(solo)
 	Do $$$AssertStatusOK(..Sink("approval.raised", solo, {"ref": (own)}), "the same event, once the lock is free: OnEvent returns OK")
-	Do $$$AssertEquals(..Events(solo).%Size(), 1, "publishes")
+	Do $$$AssertEquals(..Events(solo, "approval").%Size(), 1, "publishes")
 
 	Do ..HoldStream(a)
 	Set mark = ..LastLog()
@@ -427,8 +438,8 @@ Method TestApprovalNeverWaitsMoreThanASecond()
 	Set elapsed = $ZHorolog - start
 	Do $$$AssertStatusOK(sc, "an instance request with one watcher's stream held: OnEvent returns OK")
 	Do $$$AssertTrue((elapsed >= 0.9) && (elapsed <= 4), "it waited about a second for that one stream, not five: "_$FNumber(elapsed, "", 2)_" s")
-	Do $$$AssertEquals(..Events(a).%Size(), 0, "the watcher whose stream is held drops the event")
-	Do $$$AssertEquals(..Events(b).%Size(), 1, "the other watcher still gets its event")
+	Do $$$AssertEquals(..Events(a, "approval").%Size(), 0, "the watcher whose stream is held drops the event")
+	Do $$$AssertEquals(..Events(b, "approval").%Size(), 1, "the other watcher still gets its event")
 	Do $$$AssertEquals(..Warnings(mark), 1, "and one warning is logged")
 	Do ..ReleaseStream(a)
 }
@@ -500,6 +511,27 @@ Method TestTurnStepOfAnotherItem()
 	Do $$$AssertEquals(..Events(session).%Size(), 2, "and with no context the running turn alone decides")
 }
 
+/// With a bridge context active for the SessionBroken retry of the running turn (the ItemId that Conversation.RetryItemId gives),
+/// a step publishes one turn.step with the turn's Ref; a context for the retry of another item publishes nothing.
+Method TestTurnStepOfARetry()
+{
+	Set session = ..Session("retry")
+	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:01Z", "running")
+	Set ..Refs = ..Refs_","_turn
+	Set itemId = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn).ItemId
+	Set payload = {"decisionRef": "ZzSinkDecision", "label": "Reading the failed message"}
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(..Request(##class(OcuTalon.Core.Conversation).RetryItemId("ZzSinkOtherItem"_..Number))), "a context for the retry of another item begins")
+	Do $$$AssertStatusOK(..Sink("turn.step", session, payload), "OnEvent returns OK")
+	Do $$$AssertEquals(..Events(session).%Size(), 0, "a step of another item's retry publishes nothing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(..Request(##class(OcuTalon.Core.Conversation).RetryItemId(itemId))), "a context for the turn's retry begins")
+	Do $$$AssertStatusOK(..Sink("turn.step", session, payload), "OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), 1, "a step of the turn's retry publishes one event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.turnRef, turn, "with the running turn's Ref")
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
 /// A stream whose lock another job holds does not hold OnEvent up: it returns OK after about a second, which tells the
 /// sink's own wait from Publish's five seconds, publishes nothing and logs a warning. Once the job releases the lock the
 /// same event publishes.
@@ -568,6 +600,209 @@ Method TestNeverFailsItsCaller()
 	Do $$$AssertEquals(..Events(session).%Size(), before, "with nothing published")
 }
 
+/// budget.capped {day} from owner instance (Story 16.9, matrix row 13): with the flag set, every open session with activity gets the
+/// daily-cap Notification once, whatever its kind of activity (a Turn, a refused one included, a Break the feed run or an answered
+/// request), with the end of the day as its time and the install link, and its DailyCapDay becomes the day. A session with no activity
+/// and an ended one (no ResumeHash) get nothing. The same event again sends nothing, and the next day sends again. The sessions the
+/// event goes to are the test's own: the real read of the active sessions, cut down to the test's fixtures, so that no other session of
+/// the instance is written.
+Method TestBudgetCappedSendsToEachActiveSessionOnce()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set day = "2030-06-15"
+	Set resets = ##class(OcuTalon.Bridge.Time).DayEndUtc(day)
+	Set withTurn = ..Visitor("capturn")
+	Set withRun = ..Visitor("caprun")
+	Set withAnswer = ..Visitor("capanswer")
+	Set idle = ..Visitor("capidle")
+	Set ended = ..Session("capended")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(withTurn, , "refused", "zz refused")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).BreakFeedRun(withRun)
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Approval(withAnswer, "", "approved", ##class(OcuTalon.Data.Time).NowUtc(), {"AnsweredAt": (##class(OcuTalon.Data.Time).NowUtc()), "AnsweredAction": "approve"})
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(ended, , "done", "zz it ended")
+	Do $$$AssertEquals(..Notices(idle), 0, "nothing was sent to begin with")
+	Set found = ##class(OcuTalon.Data.Ownership).ActiveVisitors(.visitorsSc)
+	Do $$$AssertStatusOK(visitorsSc, "the read of the active sessions works")
+	Set ours = $ListBuild(withTurn, withRun, withAnswer, idle, ended), active = "", position = 0
+	While $ListNext(found, position, ref) {
+		If $ListFind(ours, ref) Set active = active_$ListBuild(ref)
+	}
+	Do $$$AssertEquals($ListLength(active), 3, "the read finds the three sessions with activity")
+	Do $$$AssertEquals($ListFind(active, idle) + $ListFind(active, ended), 0, "and neither the idle session nor the ended one")
+	Set ^OcuTalonTest("BridgeSinkNotice", "visitors") = active
+	Set before = ..Events(withTurn).%Size() + ..Events(withRun).%Size() + ..Events(withAnswer).%Size()
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": (day)}), "OnEvent returns OK")
+	Do $$$AssertEquals(..Events(withTurn).%Size() + ..Events(withRun).%Size() + ..Events(withAnswer).%Size(), before, "budget.capped publishes no event on their streams: the message goes through the Notice seam only")
+	For session = withTurn, withRun, withAnswer {
+		Do $$$AssertEquals(..Notices(session), 1, "a session with activity gets one notice")
+		Set n = ..NoticeOf(session)
+		Do $$$AssertEquals(..NoticeCall(n, "kind")_"|"_..NoticeCall(n, "catalogKey"), "allowance|conversation.dailyCap", "of kind allowance with the daily-cap key")
+		Set slots = {}.%FromJSON(..NoticeCall(n, "slots"))
+		Do $$$AssertEquals(slots.time_"|"_slots.readmeLink_"|"_slots.%Size(), resets_"|"_##class(OcuTalon.Core.Allowance).#INSTALLLINK_"|2", "with the end of the day and the install link")
+		Do $$$AssertEquals(..DayOf(session), day, "and its DailyCapDay is the day")
+	}
+	Do $$$AssertEquals(..Notices(idle)_"|"_..DayOf(idle), "0|", "a session with no activity gets nothing")
+	Do $$$AssertEquals(..Notices(ended)_"|"_..DayOf(ended), "0|", "and neither does an ended session")
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": (day)}), "the same event again: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(withTurn)_..Notices(withRun)_..Notices(withAnswer), "111", "it sends nothing more: once a day")
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": "2030-06-16"}), "the next day's event: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(withTurn)_..Notices(withRun)_..Notices(withAnswer), "222", "it sends again")
+	Do $$$AssertEquals(..DayOf(withTurn), "2030-06-16", "and moves the day")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// decision.recorded for a session's daily_cap fallback (matrix rows 13 to 15): the decision event is published as before, and an
+/// open session that has not had the message that day gets it, with the end of the local day of the decision; a second fallback of
+/// the day sends nothing, a fallback of the next day sends again, and a decision that is no daily_cap fallback or belongs to an ended
+/// session sends nothing.
+Method TestDailyCapFallbackSendsToThatSessionOnce()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set session = ..Visitor("fallback")
+	Set ended = ..Session("fallbackended")
+	Set recorded = "2030-06-15T12:00:00Z"
+	Set day = ##class(OcuTalon.Bridge.Time).LocalDate(recorded)
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", recorded, {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "turn", recorded, {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set timeout = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", recorded, {"Fallback": 1, "FallbackReason": "timeout"})
+	Set plain = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", recorded)
+	Set theirs = ##class(OcuTalon.Test.Data.Fixture).Decision(ended, "decide", recorded, {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set nextDay = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-06-16T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set ..Refs = ..Refs_","_first_","_second_","_timeout_","_plain_","_theirs_","_nextDay
+	For ref = timeout, plain {
+		Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (ref)}), "a decision that is no daily_cap fallback: OnEvent returns OK")
+	}
+	Do $$$AssertEquals(..Notices(session), 0, "it sends no notice")
+	Do $$$AssertEquals(..Events(session, "decision").%Size(), 2, "and publishes the decision events as before")
+
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (first)}), "a daily_cap fallback: OnEvent returns OK")
+	Do $$$AssertEquals(..Holding(first), 1, "its decision event is published")
+	Do $$$AssertEquals(..Notices(session), 1, "and the session gets the daily-cap notice")
+	Set slots = {}.%FromJSON(..NoticeCall(..NoticeOf(session), "slots"))
+	Do $$$AssertEquals(slots.time, ##class(OcuTalon.Bridge.Time).DayEndUtc(day), "with the end of the decision's local day")
+	Do $$$AssertEquals(..DayOf(session), day, "and its DailyCapDay is that day")
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (second)}), "a second fallback that day: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session), 1, "sends nothing more")
+	Do $$$AssertEquals(..Holding(second), 1, "though its decision event is published")
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (nextDay)}), "a fallback of the next day: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session), 2, "sends again")
+
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", ended, {"ref": (theirs)}), "an ended session's fallback: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(ended)_"|"_..DayOf(ended), "0|", "it sends nothing and records no day")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// AC 6: with the flag off a capped day shows the local banner only. budget.capped and a daily_cap fallback send nothing, record no
+/// day and log nothing.
+Method TestDailyCapSendsNothingWithTheFlagOff()
+{
+	Set session = ..Visitor("flagoff")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(session)
+	Set fallback = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-06-15T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set ..Refs = ..Refs_","_fallback
+	For flag = "", 0 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+		Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": "2030-06-15"}), "flag '"_flag_"', budget.capped: OnEvent returns OK")
+		Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (fallback)}), "flag '"_flag_"', the fallback: OnEvent returns OK")
+	}
+	Do $$$AssertEquals(..Notices(session)_"|"_..DayOf(session), "0|", "no notice is sent and no day is recorded")
+	Do $$$AssertEquals(..Holding(fallback), 2, "the decision events are published as before")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
+}
+
+/// A session row whose lock another job holds does not hold OnEvent up: it gives up after about a second (LOCKWAIT) with one warning
+/// and sends nothing; the next fallback, once the lock is free, sends the message.
+Method TestDailyCapWaitsAtMostASecondForABusyRow()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set session = ..Visitor("busyrow")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-06-15T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "turn", "2030-06-15T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set ..Refs = ..Refs_","_first_","_second
+	Kill ^OcuTalonTest("Allowance", "job", "sinkhold")
+	Job ##class(OcuTalon.Test.Core.Allowance).Hold(id, "sinkhold")
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "sinkhold", "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Allowance", "job", "sinkhold", "ready")), 1, "another job holds the session row's lock")
+	Set mark = ..LastLog()
+	Set start = $ZHorolog
+	Set sc = ..NoticeSink("decision.recorded", session, {"ref": (first)})
+	Set elapsed = $ZHorolog - start
+	Do $$$AssertStatusOK(sc, "OnEvent returns OK")
+	Do $$$AssertTrue((elapsed >= 0.9) && (elapsed <= 4), "it waited about a second, not five: "_$FNumber(elapsed, "", 2)_" s")
+	Do $$$AssertEquals(..Warnings(mark), 1, "one warning is logged")
+	Do $$$AssertEquals(..Notices(session)_"|"_..DayOf(session), "0|", "nothing was sent and no day was recorded")
+	Set ^OcuTalonTest("Allowance", "job", "sinkhold", "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("Allowance", "job", "sinkhold", "done")), 60)
+	Kill ^OcuTalonTest("Allowance", "job", "sinkhold")
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (second)}), "the next fallback, with the lock free: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session), 1, "sends the message")
+}
+
+/// A notice that cannot be sent (it answers an error or throws) is one warning that names the failure; DailyCapDay is taken back, so
+/// that the next fallback of the day tries again and sends it.
+Method TestFailedDailyCapSendIsRetried()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set session = ..Visitor("failsend")
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-06-15T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "turn", "2030-06-15T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set ..Refs = ..Refs_","_first_","_second
+	Set ^OcuTalonTest("BridgeSinkNotice", "failNotice") = 1
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (first)}), "a notice that fails: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session), 1, "the send was tried")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "DailyCap", ##class(OcuTalon.Core.BridgeSink).#ERRORDAILYCAP)
+	Do $$$AssertEquals(count, 1, "one warning says that the daily-cap message could not be sent: "_text)
+	Do $$$AssertTrue($Find(text, "zz the probe's notice fails") > 0, "and why")
+	Do $$$AssertEquals(..DayOf(session), "", "the day was taken back")
+	Kill ^OcuTalonTest("BridgeSinkNotice", "failNotice")
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (second)}), "the next fallback: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session), 2, "tries again and sends it")
+	Do $$$AssertEquals(..DayOf(session), ##class(OcuTalon.Bridge.Time).LocalDate("2030-06-15T12:00:00Z"), "and records the day")
+
+	Set third = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "turn", "2030-06-16T12:00:00Z", {"Fallback": 1, "FallbackReason": "daily_cap"})
+	Set ..Refs = ..Refs_","_third
+	Set ^OcuTalonTest("BridgeSinkNotice", "throwNotice") = 1
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (third)}), "a notice that throws: OnEvent returns OK")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "DailyCap", ##class(OcuTalon.Core.BridgeSink).#ERRORDAILYCAP)
+	Do $$$AssertEquals(count, 1, "one warning says that the daily-cap message could not be sent: "_text)
+	Do $$$AssertEquals(..DayOf(session), ##class(OcuTalon.Bridge.Time).LocalDate("2030-06-15T12:00:00Z"), "and the day is taken back to the one before")
+}
+
+/// budget.capped with a day that is not YYYY-MM-DD, a missing day, a payload that is not an object, or an owner that is a session
+/// sends nothing; a day of that form that is no date is one warning and sends nothing; a failed read of the sessions is one warning
+/// that names the event, and sends nothing.
+Method TestBudgetCappedBadInputsSendNothing()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set session = ..Visitor("capbad")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(session)
+	Set ^OcuTalonTest("BridgeSinkNotice", "visitors") = $ListBuild(session)
+	Set mark = ..LastLog()
+	For payload = {"day": "2030-6-1"}, {"day": ""}, {"day": 20300615}, {}, [], "text", "" {
+		Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", payload), "budget.capped with "_$Select($IsObject(payload): payload.%ToJSON(), 1: "'"_payload_"'")_": OnEvent returns OK")
+	}
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", session, {"day": "2030-06-15"}), "from a session's owner: OnEvent returns OK")
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "eval", {"day": "2030-06-15"}), "from eval: OnEvent returns OK")
+	Do $$$AssertEquals(..Notices(session)_"|"_..DayOf(session), "0|", "none of them sends a notice")
+	Do $$$AssertEquals(..Warnings(mark), 0, "and none of them reaches the daily-cap message: a day of another form logs nothing")
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": "2030-13-45"}), "a day of the right form that is no date: OnEvent returns OK")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "DailyCap", ##class(OcuTalon.Core.BridgeSink).#ERRORDAILYCAP)
+	Do $$$AssertEquals(count, 1, "one warning says that the day is no date: "_text)
+	Do $$$AssertEquals(..Notices(session)_"|"_..DayOf(session), "0|", "and nothing is sent")
+	Set mark = ..LastLog()
+	Kill ^OcuTalonTest("BridgeSinkNotice", "visitors")
+	Set ^OcuTalonTest("BridgeSinkNotice", "failVisitors") = 1
+	Do $$$AssertStatusOK(..NoticeSink("budget.capped", "instance", {"day": "2030-06-15"}), "a failed read of the sessions: OnEvent returns OK")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Capped", ##class(OcuTalon.Core.BridgeSink).#ERRORVISITORS)
+	Do $$$AssertEquals(count, 1, "one warning says what could not be read: "_text)
+	Do $$$AssertTrue($Find(text, "budget.capped") > 0, "and it names the event")
+	Do $$$AssertEquals(..Notices(session), 0, "and nothing is sent")
+}
+
 /// --- helpers ---
 /// A fixture session, recorded for the clean-up.
 Method Session(name As %String) As %String [ Private ]
@@ -577,16 +812,89 @@ Method Session(name As %String) As %String [ Private ]
 	Quit ref
 }
 
+/// A fixture session that is open (it has a resume hash) and so can be sent the daily-cap message; recorded for the clean-up.
+Method Visitor(name As %String) As %String [ Private ]
+{
+	Set ref = ..Session(name)
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash("zzsink"_..Number_name)
+	Do $$$AssertStatusOK(row.%Save(), "the session "_name_" is open")
+	Quit ref
+}
+
+/// OnEvent of the sink that records its notices (Test.Core.BridgeSinkNoticeProbe).
+Method NoticeSink(type As %String, owner As %String, payload As %RegisteredObject) As %Status [ Private ]
+{
+	Quit $ClassMethod("OcuTalon.Test.Core.BridgeSinkNoticeProbe", "OnEvent", type, owner, payload)
+}
+
+/// The number of notices that the probe recorded for the session.
+Method Notices(session As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	Set n = ""
+	For {
+		Set n = $Order(^OcuTalonTest("BridgeSinkNotice", "calls", n))
+		Quit:n=""
+		If ^OcuTalonTest("BridgeSinkNotice", "calls", n, "sessionRef") = session Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of the newest notice that the probe recorded for the session, "" for none.
+Method NoticeOf(session As %String) As %Integer [ Private ]
+{
+	Set found = ""
+	Set n = ""
+	For {
+		Set n = $Order(^OcuTalonTest("BridgeSinkNotice", "calls", n))
+		Quit:n=""
+		If ^OcuTalonTest("BridgeSinkNotice", "calls", n, "sessionRef") = session Set found = n
+	}
+	Quit found
+}
+
+/// One field of one recorded notice.
+Method NoticeCall(n As %Integer, field As %String) As %String [ Private ]
+{
+	Quit $Get(^OcuTalonTest("BridgeSinkNotice", "calls", n, field))
+}
+
+/// The session's DailyCapDay, read from disk.
+Method DayOf(session As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do row.%Reload()
+	Quit row.DailyCapDay
+}
+
 /// OnEvent of the real sink.
 Method Sink(type As %String, owner As %String, payload As %RegisteredObject) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.BridgeSink).OnEvent(type, owner, payload)
 }
 
-/// The events of the session's stream, in order, as an array of envelopes.
-Method Events(session As %String) As %DynamicArray [ Private ]
+/// The events of the session's stream, in order, as an array of envelopes; with a type, only the events of that type, so that a
+/// heartbeat tick that publishes a check event in the middle of a test cannot change a count (DW-300).
+Method Events(session As %String, type As %String = "") As %DynamicArray [ Private ]
 {
-	Quit ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
+	Set events = ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
+	If type = "" Quit events
+	Set found = []
+	For i = 0:1:events.%Size() - 1 {
+		If events.%Get(i).type = type Do found.%Push(events.%Get(i))
+	}
+	Quit found
+}
+
+/// A production check of the session that no heartbeat tick can run: it is due a day ahead (DW-300), and the row's NextDueAt is
+/// asserted to be more than 23 hours from now. Returns the row's Ref.
+Method Check(session As %String, namespace As %String, production As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(session, namespace, production, {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
+	Set due = ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref).NextDueAt)
+	Do $$$AssertTrue(due > (##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()) + (23 * 3600)), "the check row of "_production_" is due more than 23 hours from now, so no heartbeat tick runs it")
+	Quit ref
 }
 
 /// The number of events of any stream whose payload holds the text.
@@ -652,7 +960,7 @@ Method LastLog() As %Integer [ Private ]
 Method Warnings(mark As %Integer = "") As %Integer [ Private ]
 {
 	If mark = "" Set mark = ..LogMark
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?)", mark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?, ?)", mark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe", "OcuTalon.Test.Core.BridgeSinkNoticeProbe")
 	Do result.%Next()
 	Quit +result.%GetData(1)
 }

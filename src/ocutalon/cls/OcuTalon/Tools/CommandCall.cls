@@ -1,6 +1,10 @@
 Include Ensemble
 
-/// The one way a tool submits a command (AD-1, AD-4, AD-6, AD-18), and the shaping of the owner's answer for the model.
+/// The one way a tool submits a command (AD-1, AD-4, AD-6, AD-18), and the shaping of the owner's answer for the model. The reminder tools
+/// and the watch tools share it.
+///   - Session says whether the call is a session's turn: "" when it is, otherwise the NOSESSION answer. Run starts with it, and a tool that
+///     reads something before it submits (the watch tools look up a production first) asks it first, so that a call with no session does
+///     nothing at all.
 ///   - Run fills the common fields of the command from the bridge context of the call: SessionRef is the context's OwnerRef, and
 ///     IdempotencyKey is the context's ItemId, a colon and the command's position in the call (the context's CommandCount plus 1, written
 ///     back, so that a call that runs again numbers its commands from 1 again). It sends the command through
@@ -16,10 +20,10 @@ Class OcuTalon.Tools.CommandCall
 {
 
 /// The answer when the call is not a session's turn.
-Parameter NOSESSION = "Reminders belong to the conversation of a signed-in session, and this call has none, so nothing was done.";
+Parameter NOSESSION = "This call is not part of the conversation of a signed-in session, so nothing was done.";
 
 /// The answer when the command could not be submitted or its answer is not a CommandResult.
-Parameter NOTSENT = "The reminder service did not answer, so nothing was done.";
+Parameter NOTSENT = "The service for this request did not answer, so nothing was done.";
 
 /// The answer when the list that the owner gave cannot be read.
 Parameter NOTREAD = "The reminder list could not be read, so it is not known which reminders are pending.";
@@ -32,9 +36,8 @@ Parameter NOTREAD = "The reminder list could not be read, so it is not known whi
 ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	Set result = ""
-	If '##class(OcuTalon.Bridge.Context).Active() Quit ..Refusal(..#NOSESSION)
-	Set context = ##class(OcuTalon.Bridge.Context).Current()
-	If '$IsObject(context) || '..IsSessionRef(context.OwnerRef) || (context.ItemId = "") Quit ..Refusal(..#NOSESSION)
+	Set refusal = ..Session(.context)
+	If $IsObject(refusal) Quit refusal
 	Set position = +context.CommandCount + 1
 	Do ##class(OcuTalon.Bridge.Context).Put("CommandCount", position)
 	Set command.SessionRef = context.OwnerRef
@@ -51,10 +54,21 @@ ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.C
 		Set sc = $SYSTEM.Status.Error(5001, "The answer is not an OcuTalon.Msg.CommandResult")
 	}
 	If $$$ISERR(sc) {
-		$$$LOGWARNING("A reminder tool could not submit "_$ClassName(command)_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		$$$LOGWARNING("A tool could not submit "_$ClassName(command)_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		Quit ..Refusal(..#NOTSENT)
 	}
 	Set result = answered
+	Quit ""
+}
+
+/// "" when the call is a session's turn (a context is active, its owner is a session's Ref and it has an ItemId), with the context in context.
+/// Otherwise the NOSESSION answer, and nothing may be submitted.
+ClassMethod Session(Output context As OcuTalon.Bridge.Context) As %DynamicObject
+{
+	Set context = ""
+	If '##class(OcuTalon.Bridge.Context).Active() Quit ..Refusal(..#NOSESSION)
+	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	If '$IsObject(context) || '..IsSessionRef(context.OwnerRef) || (context.ItemId = "") Quit ..Refusal(..#NOSESSION)
 	Quit ""
 }
 

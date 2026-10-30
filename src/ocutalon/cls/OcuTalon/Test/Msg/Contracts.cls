@@ -312,7 +312,8 @@ XData Contracts [ MimeType = application/json ]
    "Origin": "%String(MAXLEN=32)",
    "IdempotencyKey": "%String(MAXLEN=128)",
    "SessionRef": "%String(MAXLEN=22)",
-   "DemoMode": "%Boolean"
+   "DemoMode": "%Boolean",
+   "ActingUser": "%String(MAXLEN=160)"
   }
  },
  "OcuTalon.Msg.Command.Pair": {

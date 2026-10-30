@@ -17,7 +17,8 @@
 # and installs a cleanup trap that removes the project with its volume and images, releases the throwaway lock and removes
 # the temporary directory.
 # The project receives no keys (the decoy key file is dropped by the override) and publishes no host port,
-# unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
+# unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819. The only bot token
+# in the container is the dummy of ci/compose.ci.yml, which is no key (live_key_count, check_no_key).
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
@@ -643,13 +644,32 @@ CHK|scanned|1" \
     'Halt'
 }
 
-# check_no_key <label>: the iris container's environment holds no model key and no bot token. A start that succeeds in it is
-# a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a count is printed.
+# live_ci_bot_token: the dummy bot token that ci/compose.ci.yml gives the iris service, read from that file (the one place that holds it),
+# or nothing when the file sets none.
+live_ci_bot_token() {
+  awk '/^      TELEGRAM_BOT_TOKEN:/ { print $2; exit }' "$root/ci/compose.ci.yml" 2>/dev/null
+}
+
+# live_key_count: how many key variables the iris container's environment holds: ANTHROPIC_API_KEY, and TELEGRAM_BOT_TOKEN unless it is
+# exactly the CI dummy (live_ci_bot_token), which the CI override sets so that the Telegram service can call the mock. The dummy is
+# compared inside the container, and only the count is printed.
+live_key_count() {
+  # shellcheck disable=SC2016 # the script is the container shell's, which expands its own variables
+  dc exec -T iris env CHECK_DUMMY="$(live_ci_bot_token)" sh -c 'n=0
+    if [ -n "${ANTHROPIC_API_KEY+x}" ]; then n=$((n + 1)); fi
+    if [ -n "${TELEGRAM_BOT_TOKEN+x}" ]; then
+      if [ -z "$CHECK_DUMMY" ] || [ "$TELEGRAM_BOT_TOKEN" != "$CHECK_DUMMY" ]; then n=$((n + 1)); fi
+    fi
+    echo "$n"' 2>/dev/null | tr -d '\r'
+}
+
+# check_no_key <label>: the iris container's environment holds no model key and no bot token but the CI dummy. A start that succeeds in
+# it is a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a count is printed.
 check_no_key() {
   local n
-  n=$(dc exec -T iris sh -c 'env | grep -c "^ANTHROPIC_API_KEY=\|^TELEGRAM_BOT_TOKEN="' 2>/dev/null | tr -d '\r')
+  n=$(live_key_count)
   if [ "$n" = 0 ]; then
-    pass "$1: the container holds no model key and no bot token"
+    pass "$1: the container holds no model key and no bot token but the CI dummy"
   else
     fail "$1: the container holds '$n' key variable(s), so a start in it is not a start with no key"
   fi

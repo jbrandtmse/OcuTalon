@@ -7,5 +7,6 @@ src/module.xml text eol=lf
 src/** text=auto eol=lf
 .dockerignore text eol=lf
 .env.example text eol=lf
+install.sh text eol=lf
 web/** text=auto eol=lf
 _bmad/scripts/*.sh text eol=lf

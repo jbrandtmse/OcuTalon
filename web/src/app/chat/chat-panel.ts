@@ -14,9 +14,13 @@ import {
 } from '@angular/core';
 
 import { Icon } from '../icon/icon';
+import { IncidentCard, incidentContext } from '../incidents/incident-card';
+import { Dismissals } from '../incidents/dismissals';
+import { announcementOf, bandTexts, incidentView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
-import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { type FocusRule, keepFocus, type LostFocus } from '../shared/focus-rule';
+import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
@@ -30,18 +34,18 @@ import { OcutalonReply, replyFallbackText } from './ocutalon-reply';
 import { parseReply, plainText } from './reply-text';
 import { UserMessage } from './user-message';
 
-/** How far from the bottom (px) the list still counts as at the bottom. */
-const BOTTOM_SLACK_PX = 24;
-
-/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, or a notice card. */
+/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, a notice card or an incident card. */
 interface Target {
   key: string;
-  part: 'user' | 'reply' | 'notice';
+  part: 'user' | 'reply' | 'notice' | 'incident';
 }
 
-/** The attributes that mark an item of the list (a user message, a reply or a notice card) with its part and its key. */
+/** The attributes that mark an item of the list (a user message, a reply, a notice card or an incident card) with its part and its key. */
 const PART = 'data-part';
 const KEY = 'data-key';
+
+/** The user's own input in the list that lets go of the newest incident card's headline: the wheel, a touch scroll and a press (on the scrollbar too). */
+const RELEASE_EVENTS = ['wheel', 'touchmove', 'pointerdown'] as const;
 
 /**
  * Where focus goes when an update removes the element that holds it inside the list (UX-DR131): an item that is still there takes
@@ -50,10 +54,27 @@ const KEY = 'data-key';
 const FOCUS_RULE: FocusRule = {
   item: `[${PART}][${KEY}]`,
   keyOf: (item) => `${item.getAttribute(PART) ?? ''}:${item.getAttribute(KEY) ?? ''}`,
+  whenGone: (lost) => incidentHeadline(lost),
 };
 
-/** The texts of the chat's announcements and the reads of a reply, from the real modules. */
-const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
+/** The prefix of the key of a Dismiss: its part, then the incident card's view key. */
+const DISMISS_PREFIX = 'dismiss:';
+
+/**
+ * The headline of the incident card whose Dismiss held focus when the update removed it (the card compacts in place when the
+ * incident is closed, and its Dismiss goes): the item `dismiss:<view key>` gives the card `[data-part="incident"][data-key="<view
+ * key>"]` and its headline (tabindex -1). Any other lost item gives null, which leaves the focus to the main region.
+ */
+function incidentHeadline(lost: LostFocus): HTMLElement | null {
+  if (!lost.key.startsWith(DISMISS_PREFIX)) {
+    return null;
+  }
+  const key = lost.key.slice(DISMISS_PREFIX.length);
+  return lost.host.querySelector<HTMLElement>(`[${PART}="incident"][${KEY}="${CSS.escape(key)}"] .headline`);
+}
+
+/** The texts of the chat's announcements and the reads of a reply, from the real modules; the incident card's text, its result bands and the dismissed set need the page's times and stores, so the panel adds them. */
+const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | 'dismissed'> = {
   announceReplied: CHAT_TEXTS.announceReplied,
   announceTellNow: CHAT_TEXTS.announceTellNow,
   replyText: (replyText) => plainText(parseReply(replyText)),
@@ -62,14 +83,20 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
 
 /**
  * The chat panel (UX-DR58, UX-DR67, UX-DR126), inside the page's main landmark once the snapshot has loaded. The list shows the
- * live store's chat.message entries and its tell-now and reminder notice cards in store order and then this page's own messages
+ * live store's chat.message entries, its incident cards (one per incident Ref, updated in place) and its tell-now and reminder notice cards in store order and then this page's own messages
  * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region.
  * From 1024px wide the panel fills main and the list takes the height that is left. Below it (the stacked column, Story 2.15) the list is
  * as tall as its content up to 70vh and scrolls on its own beyond that, with the composer under it.
  *
+ * An incident that this page closed with its own Dismiss (Dismissals, set by the 200 of the dismiss route) shows as closed at once, before
+ * the owner's incident event agrees; its change to closed is not announced, also when that event comes before the 200 (Dismissals.owns
+ * holds from the press on), and the page's focus rule puts focus on the compacted card's headline when the update removes the Dismiss
+ * that held it.
+ *
  * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
  * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
- * "Tell now:" and its first sentence, and a new reminder card is its text. The user's messages, Deciding and Working, the
+ * "Tell now:" and its first sentence, a new reminder card is its text, a new incident card is "Incident: {headline}. Approval needed."
+ * (or "No fix proposed.", or its state) and a known one says its state when that changes and then each result band text that is new or changed (once). The user's messages, Deciding and Working, the
  * seconds and a card updated in place are silent.
  *
  * The list is a tab stop (DW-89, Story 2.16): a region named by the hidden "Chat" heading of the main page, with its ring inside its own edge, so
@@ -79,7 +106,11 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
  * element that holds it inside the list: an item that is still there takes it (the message of Retry sending), else the main region.
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
- * the bottom, new content keeps it there (a ResizeObserver on the list and its content). It leaves the bottom only when it is
+ * the bottom, new content keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
+ * incident card taller than the view that is left, following stops at the card's headline, so that its headline, cause, dry-run
+ * count and Approve and Reject stay in view (Story 6.2); a later entry follows to the bottom as before, and so does the card while
+ * focus is inside it (a press on Show details shows the panel it opens) and once the user's own wheel, touch scroll or press in the
+ * list has let go of it (a reader who scrolled on is not pulled back to the headline). It leaves the bottom only when it is
  * scrolled up (its scrollTop falls), so content that grows between the panel's own scroll to the bottom and that scroll's
  * event does not stop it following. When it is scrolled up, content from
  * elsewhere (a new entry, a notice card or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
@@ -92,7 +123,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
  */
 @Component({
   selector: 'app-chat-panel',
-  imports: [Composer, EmptyChat, Icon, NoticeCard, OcutalonReply, UserMessage],
+  imports: [Composer, EmptyChat, Icon, IncidentCard, NoticeCard, OcutalonReply, UserMessage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -106,7 +137,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
     >
       <div class="content" #content>
         @if (fresh()) {
-          <app-empty-chat />
+          <app-empty-chat [demo]="demo()" />
         } @else {
           <div class="entries">
             @for (entry of entries(); track entry.key) {
@@ -115,6 +146,15 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
                   <app-user-message [turn]="entry" (retry)="outbox.retry(entry.key)" />
                   <app-ocutalon-reply [turn]="entry" />
                 </div>
+              } @else if (entry.entry === 'incident') {
+                <app-incident-card
+                  [incident]="entry.incident"
+                  [decisions]="decisions()"
+                  [instanceZone]="instanceZone()"
+                  [onlineDemo]="onlineDemo()"
+                  [approvals]="live.store()?.approvals"
+                  [user]="user()"
+                />
               } @else {
                 <app-notice-card [notice]="entry" [instanceZone]="instanceZone()" />
               }
@@ -213,6 +253,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
 export class ChatPanel {
   protected readonly live = inject(LiveState);
   protected readonly outbox = inject(ChatOutbox);
+  protected readonly dismissals = inject(Dismissals);
   protected readonly texts = CHAT_TEXTS;
   private readonly injector = inject(Injector);
   private readonly announcer = inject(Announcer);
@@ -229,12 +270,17 @@ export class ChatPanel {
   private atBottom = true;
   /** The list's scrollTop at its last scroll event, or where the panel last put it: a scroll event below it is a scroll up. */
   private lastTop = 0;
+  /** The key of the incident card whose headline the user's own input in the list let go of ('' for none): it follows to the bottom. */
+  private released = '';
   /** Whether each turn's reply has landed, as of the last look. */
   private readonly landedBefore = new Map<string, boolean>();
   /** The entries as of the last look of the announcing effect; undefined until its first run. */
   private heard: ChatHeard | undefined;
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
+
+  /** True in demo mode: the empty chat points at the demo guide. */
+  protected readonly demo = computed(() => this.live.snapshot()?.demoMode === true);
 
   /** True while the empty chat panel shows. */
   protected readonly fresh = computed(() => isFreshChat(this.live.store()?.chat ?? [], this.outbox.entries()));
@@ -247,7 +293,16 @@ export class ChatPanel {
   /** The instance's time zone, from the snapshot; the notice cards' times name the browser's zone when its offset differs. */
   protected readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');
 
-  /** The entries to render: turns and notice cards in the store's order, then the page's own messages. */
+  /** True on the online demo: an incident card's headline time ends " ET". */
+  protected readonly onlineDemo = computed(() => this.live.snapshot()?.onlineDemo === true);
+
+  /** The signed-in user, from the snapshot: an incident card's request cards name another user's answer on a local install. */
+  protected readonly user = computed(() => this.live.snapshot()?.user ?? '');
+
+  /** The live store's decisions, among which an incident card's footer decision is looked for. */
+  protected readonly decisions = computed(() => this.live.store()?.decisions ?? []);
+
+  /** The entries to render: turns, incident cards and notice cards in the store's order, then the page's own messages. */
   protected readonly entries = computed(() => {
     const chat = this.live.store()?.chat ?? [];
     this.clock();
@@ -260,7 +315,12 @@ export class ChatPanel {
         }
       }
     }
-    return chatView(chat, this.outbox.entries(), this.since, now, this.live.store()?.turnSteps);
+    const dismissed = this.dismissals.refs();
+    return chatView(chat, this.outbox.entries(), this.since, now, this.live.store()?.turnSteps).map((entry) =>
+      entry.entry === 'incident' && dismissed.has(entry.incident.ref ?? '') && entry.incident.state !== 'closed'
+        ? { ...entry, incident: { ...entry.incident, state: 'closed' } }
+        : entry,
+    );
   });
 
   /** True while the New messages button shows. */
@@ -294,20 +354,37 @@ export class ChatPanel {
     });
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
+      const list = this.list().nativeElement;
       const observer = new ResizeObserver(() => {
         if (this.atBottom) {
           this.scrollToBottom();
         }
       });
-      observer.observe(this.list().nativeElement);
+      observer.observe(list);
       observer.observe(this.content().nativeElement);
-      destroyRef.onDestroy(() => observer.disconnect());
+      const release = (): void => this.release(list);
+      for (const type of RELEASE_EVENTS) {
+        list.addEventListener(type, release, { passive: true });
+      }
+      destroyRef.onDestroy(() => {
+        observer.disconnect();
+        for (const type of RELEASE_EVENTS) {
+          list.removeEventListener(type, release);
+        }
+      });
     });
   }
 
   /** Announces what the entries show that the last look did not (chat-announcements.ts); the first look only records them. */
   private announce(entries: readonly ChatEntryView[]): void {
-    const { texts, heard } = chatAnnouncements(this.heard, entries, ANNOUNCE_FORMAT);
+    const context = incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo());
+    const format: ChatAnnounceFormat = {
+      ...ANNOUNCE_FORMAT,
+      incidentText: (previousState, incident) => announcementOf(previousState, incident, incidentView(incident, context).headline),
+      bandTexts: (incident) => bandTexts(incident, context),
+      dismissed: (ref) => this.dismissals.owns(ref),
+    };
+    const { texts, heard } = chatAnnouncements(this.heard, entries, format);
     this.heard = heard;
     for (const text of texts) {
       this.announcer.announce(text);
@@ -325,7 +402,7 @@ export class ChatPanel {
     const top = list.scrollTop;
     const up = top < this.lastTop;
     this.lastTop = top;
-    if (list.scrollHeight - top - list.clientHeight <= BOTTOM_SLACK_PX) {
+    if (atBottom(list, BOTTOM_SLACK_PX)) {
       this.atBottom = true;
       this.seenAll();
     } else if (up) {
@@ -361,7 +438,7 @@ export class ChatPanel {
       const before = this.landedBefore.get(entry.key);
       const now = landed(entry);
       if (first === undefined && before === undefined) {
-        first = { key: entry.key, part: entry.entry === 'notice' ? 'notice' : 'user' };
+        first = { key: entry.key, part: entry.entry === 'turn' ? 'user' : entry.entry };
       } else if (first === undefined && !before && now) {
         first = { key: entry.key, part: 'reply' };
       }
@@ -378,9 +455,44 @@ export class ChatPanel {
     this.unseen.set(false);
   }
 
+  /**
+   * Puts the list at the bottom, except when the newest entry is an incident card taller than the view that is left: then the card's
+   * headline is put at the list's top (below its scroll padding), so that the headline, the cause, the dry-run count and the answer
+   * buttons stay in view (UX-DR20); the chip row above the headline is what scrolls out. The list still counts as at the bottom, and
+   * a later entry follows to the bottom as before, as does the card itself while focus is inside it and once the user let go of it.
+   */
   private scrollToBottom(): void {
     const list = this.list().nativeElement;
-    list.scrollTop = list.scrollHeight;
+    const bottom = list.scrollHeight - list.clientHeight;
+    list.scrollTop = Math.min(bottom, this.headlineTop(list) ?? bottom);
     this.lastTop = list.scrollTop;
+  }
+
+  /**
+   * Where the headline of the newest entry sits in the list's scroll range when that entry is an incident card, else undefined; also
+   * undefined while focus is inside the card and once the user's own input let go of it.
+   */
+  private headlineTop(list: HTMLElement): number | undefined {
+    const card = this.newestEntry(list);
+    if (card === undefined || card.getAttribute(PART) !== 'incident' || card.getAttribute(KEY) === this.released || card.contains(document.activeElement)) {
+      return undefined;
+    }
+    const gutter = Number.parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+    const headline = card.querySelector<HTMLElement>('.headline') ?? card;
+    return Math.max(0, headline.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - gutter);
+  }
+
+  /** The user's own wheel, touch scroll or press in the list lets go of the newest incident card's headline, which then follows to the bottom. */
+  private release(list: HTMLElement): void {
+    const card = this.newestEntry(list);
+    if (card !== undefined && card.getAttribute(PART) === 'incident') {
+      this.released = card.getAttribute(KEY) ?? '';
+    }
+  }
+
+  /** The newest item of the list that is not inside another item (a message, a reply, a notice card or an incident card), or undefined. */
+  private newestEntry(list: HTMLElement): HTMLElement | undefined {
+    const items = Array.from(list.querySelectorAll<HTMLElement>(`[${PART}][${KEY}]`)).filter((item) => item.parentElement?.closest(`[${PART}][${KEY}]`) === null);
+    return items[items.length - 1];
   }
 }

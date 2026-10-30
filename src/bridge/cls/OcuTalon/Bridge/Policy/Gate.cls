@@ -228,9 +228,16 @@ ClassMethod Denial(sentence As %String) As %Status
 ClassMethod MissingPrivilege(source As %String, name As %String) As %String [ Private ]
 {
 	If ..IsMcp(source) Quit ""
-	Set value = ##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(source, name, "RESOURCES")
+	Quit ..MissingOf(##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(source, name, "RESOURCES"), source_" "_name)
+}
+
+/// The first resource:letter pair of a RESOURCES value (resource:permission[,resource:permission...]; see Resources) that the ServiceUser setting of Decide
+/// does not hold, one permission letter per CheckUserPermission call, or "" when it holds them all or the value is empty. where names the caller in the
+/// status that Resources throws for a value that is not well formed. An unreadable ServiceUser setting throws its status.
+ClassMethod MissingOf(value As %String, where As %String) As %String
+{
 	If value = "" Quit ""
-	Set pairs = ..Resources(value, source_" "_name)
+	Set pairs = ..Resources(value, where)
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	Set missing = ""

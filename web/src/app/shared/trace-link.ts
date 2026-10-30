@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ViewContainerRef,
+  computed,
   inject,
   input,
   output,
@@ -12,9 +13,14 @@ import {
 } from '@angular/core';
 
 import { Icon } from '../icon/icon';
+import { DemoBusyState } from '../live/demo-busy-state';
+import { LiveState } from '../live/live-state';
 import { Popovers, type PopoverRef } from './popover';
 import { TraceHelp } from './trace-help';
-import { TRACE_TEXTS } from './trace-view';
+import { signInNameOf, TRACE_TEXTS } from './trace-view';
+
+/** How a trace link looks: the underlined "Trace" link with the icon, a primary button with the icon, or an underlined link with a hidden arrow. */
+export type TraceLinkAppearance = 'link' | 'button' | 'arrow';
 
 /** The last id handed to a help block's heading. */
 let lastHeading = 0;
@@ -87,10 +93,15 @@ export class TraceHelpBlock {
 
 /**
  * A Visual Trace link (UX-DR42, UX-DR61, UX-DR57): an underlined "Trace" with the external-link icon, opening the payload's
- * `url` exactly as served in a new tab. It sits beside a row's button and never inside one, and its owner renders it only
+ * `url` exactly as served in a new tab. `text` and `appearance` (Story 4.7) give the guide's links: the Open the trace button (the
+ * text, then the icon, in the primary button style) and the finish's links (the text, then a hidden arrow, underlined); the default
+ * markup is unchanged. `opened` emits after a press that opens the tab, and after the popover's Open Visual Trace. It sits beside a row's button and never inside one, and its owner renders it only
  * when the payload has a `traceUrl`.
  * - Its name is "Trace (opens in a new tab)": the visible text and a visually hidden suffix.
- * - While the sign-in help is needed (TraceHelp) its name is "Open in Visual Trace (shows sign-in help first)" with
+ * - On the online demo a press that opens the tab is taken over (Story 16.5): the page checks the public status first and opens the
+ *   tab only when the demo is not busy (DemoBusyState.openTrace); a busy answer shows the "Demo busy" banner and opens nothing.
+ * - While the sign-in help is needed (TraceHelp) its name is "Open in Visual Trace (shows sign-in help first)" (for another text,
+ *   "{text} (shows sign-in help first)") with
  *   aria-haspopup="dialog", and a press opens no tab: it shows the help popover with the link as its trigger and records that
  *   the help was seen. The popover's "Open Visual Trace" opens the link's target and closes the popover.
  */
@@ -101,18 +112,20 @@ export class TraceHelpBlock {
   template: `
     <a
       #anchor
-      class="trace-link"
+      [class]="anchorClass()"
+      [attr.data-guide-focus]="guideFocus()"
       [href]="url()"
       target="_blank"
       rel="noopener noreferrer"
-      [attr.aria-label]="help.needed() ? texts.signInName : null"
+      [attr.aria-label]="help.needed() ? signInName() : null"
       [attr.aria-haspopup]="help.needed() ? 'dialog' : null"
       (click)="press($event)"
-      ><span>{{ texts.trace }}</span><app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ texts.opensInNewTab }}</span></a
+      ><span>{{ text() }}</span
+      >@if (appearance() === 'arrow') {<span aria-hidden="true"> {{ texts.arrow }}</span>} @else {<app-icon name="external-link" [size]="appearance() === 'button' ? 14 : 12" />}<span class="visually-hidden"> {{ texts.opensInNewTab }}</span></a
     >
     <ng-template #panel>
       <app-trace-help [headingId]="headingId" [heading]="texts.signInHeading" (dismissed)="close()">
-        <a class="button button-primary" [href]="url()" target="_blank" rel="noopener noreferrer" (click)="close()"
+        <a class="button button-primary" [href]="url()" target="_blank" rel="noopener noreferrer" (click)="open()"
           >{{ texts.openVisualTrace }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
             {{ texts.opensInNewTab }}</span
           ></a
@@ -147,8 +160,25 @@ export class TraceLink {
   /** The payload's traceUrl, as served. */
   readonly url = input.required<string>();
 
+  /** The visible text of the link. */
+  readonly text = input<string>(TRACE_TEXTS.trace);
+
+  /** How the link looks. */
+  readonly appearance = input<TraceLinkAppearance>('link');
+
+  /** The demo guide's focus key (`data-guide-focus`) of the link, so that the guide's focus rule finds the link itself; none by default. */
+  readonly guideFocus = input<string | null>(null);
+
+  /** Emits after a press that opens the tab (the help not needed), and after the popover's Open Visual Trace. */
+  readonly opened = output<void>();
+
+  protected readonly anchorClass = computed(() => ({ link: 'trace-link', button: 'button button-primary', arrow: 'link' })[this.appearance()]);
+  protected readonly signInName = computed(() => signInNameOf(this.text()));
+
   protected readonly help = inject(TraceHelp);
   protected readonly texts = TRACE_TEXTS;
+  private readonly live = inject(LiveState);
+  private readonly demoBusy = inject(DemoBusyState);
   protected readonly headingId = newTraceHeadingId();
   private readonly popovers = inject(Popovers);
   private readonly container = inject(ViewContainerRef);
@@ -164,6 +194,11 @@ export class TraceLink {
   protected press(event: MouseEvent): void {
     if (!this.help.needed()) {
       this.popover?.close();
+      if (this.live.snapshot()?.onlineDemo === true) {
+        event.preventDefault();
+        void this.demoBusy.openTrace(this.url());
+      }
+      this.opened.emit();
       return;
     }
     event.preventDefault();
@@ -178,5 +213,11 @@ export class TraceLink {
 
   protected close(): void {
     this.popover?.close();
+  }
+
+  /** The popover's Open Visual Trace: the tab opens, and the help closes. */
+  protected open(): void {
+    this.close();
+    this.opened.emit();
   }
 }

@@ -6,6 +6,8 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'checks.allPassed': 'Everything I checked passed.',
   'checks.everythingElsePassed': 'Everything else I checked passed.',
   'checks.nothingWatched': "I'm not watching any productions yet, so I can't say. Ask me to watch one.",
+  'checks.notEverything': 'Not everything: {whatFailed}.',
+  'checks.notEverythingRestPassed': 'Not everything: {whatFailed}. Everything else I checked passed.',
   'banner.allowance': "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.",
   'banner.dailyCap': "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   'banner.unreachable': "Can't reach OcuTalon. Retrying every 10 seconds.",
@@ -15,9 +17,27 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'banner.telegramPaused': 'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot.',
   'banner.resetSoon': 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.',
   'banner.reconnecting': 'Reconnecting\u2026 New messages may be delayed.',
+  'banner.demoBusy': 'The demo is busy right now. Try again in a few minutes, or install it yourself.',
   'bannerAction.installYourself': 'Install it yourself',
   'bannerAction.howToSetKey': 'How to set a key',
   'bannerAction.setUpBot': 'Set up a bot',
+  'answered.approved': 'Approved from {channel} at {time}',
+  'answered.approvedBy': 'Approved by {user} from {channel} at {time}',
+  'answered.rejected': 'Rejected from {channel} at {time}. Nothing was changed.',
+  'answered.rejectedBy': 'Rejected by {user} from {channel} at {time}. Nothing was changed.',
+  'answered.expired': 'Expired at {time}. Nothing was changed.',
+  'answered.alreadyApproved': 'Already answered: approved from {channel} at {time}.',
+  'answered.alreadyRejected': 'Already answered: rejected from {channel} at {time}.',
+  'answered.alreadyApprovedBy': 'Already answered: approved by {user} from {channel} at {time}.',
+  'answered.alreadyRejectedBy': 'Already answered: rejected by {user} from {channel} at {time}.',
+  'result.allThrough': 'All {count} {itemNoun} went through.',
+  'result.failedAgain': "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}). I won't retry them without a new approval.",
+  'result.skipped': '{completed} of {count} {itemNoun} went through. {skipped} had changed since the dry run, so I skipped them; they need a new approval.',
+  'result.failedAndSkipped': "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and {skipped} had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.",
+  'result.stillResending': "Still resending: {completed} of {count} {itemNoun} have gone through so far. I'll tell you when it's done.",
+  'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
+  'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
+  'audit.recorded': 'Recorded in the IRIS audit log.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -31,12 +51,20 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'fallbackReason.generic': "the model's reply couldn't be used",
 };
 
-/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */
+/** The text form of each listed key that has a web form: the wording of a message, which the phone shows. */
+export const MESSAGE_TEXTS: Readonly<Record<string, string>> = {
+  'answered.approved': 'Approved from {channel} at {time}.',
+  'answered.approvedBy': 'Approved by {user} from {channel} at {time}.',
+};
+
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, channel the channel's name, noun the form that the count slot chooses, the others (time, count, cost and text) take the formatted string the caller passes. */
 export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
   'checks.allPassed': {},
   'checks.everythingElsePassed': {},
   'checks.nothingWatched': {},
+  'checks.notEverything': { 'whatFailed': 'text' },
+  'checks.notEverythingRestPassed': { 'whatFailed': 'text' },
   'banner.allowance': { 'limit': 'count', 'time': 'time' },
   'banner.dailyCap': { 'time': 'time' },
   'banner.unreachable': {},
@@ -46,9 +74,37 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'banner.telegramPaused': { 'time': 'time' },
   'banner.resetSoon': {},
   'banner.reconnecting': {},
+  'banner.demoBusy': {},
   'bannerAction.installYourself': {},
   'bannerAction.howToSetKey': {},
   'bannerAction.setUpBot': {},
+  'answered.approved': { 'channel': 'channel', 'time': 'time' },
+  'answered.approvedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.rejected': { 'channel': 'channel', 'time': 'time' },
+  'answered.rejectedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.expired': { 'time': 'time' },
+  'answered.alreadyApproved': { 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyRejected': { 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyApprovedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'answered.alreadyRejectedBy': { 'user': 'text', 'channel': 'channel', 'time': 'time' },
+  'result.allThrough': { 'count': 'count', 'itemNoun': 'noun' },
+  'result.failedAgain': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'failedAgain': 'count', 'failReason': 'text' },
+  'result.skipped': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'skipped': 'count' },
+  'result.failedAndSkipped': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'failedAgain': 'count', 'failReason': 'text', 'skipped': 'count' },
+  'result.stillResending': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count' },
+  'result.interrupted': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'remaining': 'count' },
+  'result.couldNotStart': { 'reason': 'text' },
+  'audit.recorded': {},
+};
+
+/** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */
+export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; readonly text: string }>> = {
+  'result.allThrough': { slot: 'count', text: 'The {itemNoun} went through.' },
+  'result.failedAgain': { slot: 'failedAgain', text: "{completed} of {count} {itemNoun} went through. 1 failed again ({failReason}). I won't retry it without a new approval." },
+  'result.skipped': { slot: 'skipped', text: '{completed} of {count} {itemNoun} went through. 1 had changed since the dry run, so I skipped it; it needs a new approval.' },
+  'result.failedAndSkipped': { slot: 'skipped', text: "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval." },
+  'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
+  'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */
@@ -67,6 +123,13 @@ export const REASON_KEYS: Readonly<Record<string, string>> = {
   'unusable': 'generic',
 };
 
+/** Each channel code with its name in message text. */
+export const CHANNEL_NAMES: Readonly<Record<string, string>> = {
+  'web': 'the web chat',
+  'phone': 'the simulated phone',
+  'telegram': 'Telegram',
+};
+
 /** The slots of a page text, by name. */
 export type PageSlots = Readonly<Record<string, unknown>>;
 
@@ -81,6 +144,12 @@ function cleanSlot(value: unknown): string {
     .trim();
 }
 
+/** The name of a channel code in message text ("the web chat"), or the cleaned value itself when it is none of CHANNEL_NAMES. */
+function channelName(value: unknown): string {
+  const code = cleanSlot(value);
+  return Object.hasOwn(CHANNEL_NAMES, code) ? CHANNEL_NAMES[code] : code;
+}
+
 /** The text of a fallback reason value, or the generic reason's when the value is none of REASON_KEYS. */
 function reasonText(value: unknown): string {
   const reason = cleanSlot(value);
@@ -88,18 +157,63 @@ function reasonText(value: unknown): string {
   return PAGE_TEXTS['fallbackReason.' + suffix] ?? '';
 }
 
+/** The form of a noun slot ({ one, other }) that the slots' count chooses: the one form for a count of "1", else the other. */
+function nounText(value: unknown, slots: PageSlots): string {
+  const forms = value !== null && typeof value === 'object' ? (value as Readonly<Record<string, unknown>>) : {};
+  return cleanSlot(cleanSlot(Object.hasOwn(slots, 'count') ? slots['count'] : undefined) === '1' ? forms['one'] : forms['other']);
+}
+
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, the others the cleaned string. */
+function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
+  const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
+  const type = Object.hasOwn(types, name) ? types[name] : '';
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
+}
+
+/** The text of a key in page form: its count-of-one form when it has one and the form's count slot is "1", else its PAGE_TEXTS text. */
+function pageTemplate(key: string, slots: PageSlots): string | undefined {
+  const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  const one = Object.hasOwn(PAGE_ONE_FORMS, key) ? PAGE_ONE_FORMS[key] : undefined;
+  if (template === undefined || one === undefined) return template;
+  return cleanSlot(Object.hasOwn(slots, one.slot) ? slots[one.slot] : undefined) === '1' ? one.text : template;
+}
+
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
- * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. A channel slot takes a channel code and gives its name; a code that is none of CHANNEL_NAMES gives
+ * itself. A noun slot takes { one, other } and gives the form that the count slot ("1" or not) chooses. A key with a one form uses
+ * its text when the form's count slot is "1". Every other slot takes the string the caller formatted (a time, a cost, a count or a
+ * text, such as the whatFailed sentence part that the page built from the check rows), cleaned like any string slot, and an
+ * absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
-  const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
+  const template = pageTemplate(key, slots);
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
   const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
-  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => {
-    const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
-    return Object.hasOwn(types, name) && types[name] === 'fallbackReason' ? reasonText(value) : cleanSlot(value);
-  });
+  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => slotText(types, name, slots));
+}
+
+/**
+ * The text of a catalog key in message form, the wording of a message that the phone shows: MESSAGE_TEXTS[key] where the key has
+ * one, else PAGE_TEXTS[key], with its slots filled as renderPageText fills them. Where a time slot's value, less a trailing " ET",
+ * is not NN:NN (a dated time such as "Thursday at 14:12"), an "at " just before it becomes "on ", as the server's renderer does.
+ * A key that is in neither throws.
+ */
+export function renderMessageText(key: string, slots: PageSlots = {}): string {
+  const template = Object.hasOwn(MESSAGE_TEXTS, key) ? MESSAGE_TEXTS[key] : pageTemplate(key, slots);
+  if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
+  const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
+  let out = '';
+  let position = 0;
+  for (const match of template.matchAll(/\{([^{}]*)\}/g)) {
+    const name = match[1] ?? '';
+    const piece = slotText(types, name, slots);
+    out += template.slice(position, match.index);
+    const dated = types[name] === 'time' && !/^\d\d:\d\d$/.test(piece.replace(/ ET$/, ''));
+    if (dated && /(^| )at $/.test(out)) out = out.slice(0, -3) + 'on ';
+    out += piece;
+    position = (match.index ?? 0) + match[0].length;
+  }
+  return out + template.slice(position);
 }

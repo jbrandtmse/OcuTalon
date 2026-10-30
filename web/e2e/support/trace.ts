@@ -1,16 +1,71 @@
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 
 import { MESSAGES, STATE, post, sessionEvents } from './api';
-import { fixtureUser, type FixtureKind } from './iris';
+import { chk, fixtureUser, irisScript, type FixtureKind } from './iris';
 
 /**
  * What the specs that open Visual Trace share (Stories 2.9 and 2.13): the turn as /state and the live stream carry it, the newest turn of a
  * user's chat, a message posted and waited for until its turn is done, Visual Trace opened as a fixture user, and a reading of the
- * messages that the opened page draws. trace.spec.ts and links.spec.ts use them against the real Visual Trace pages.
+ * messages that the opened page draws. trace.spec.ts and links.spec.ts use them against the real Visual Trace pages. A case that only
+ * checks which address a link opens gives its tabs a stand-in page (stubTraces), and a case can mark the sign-in help seen (helpSeen).
  */
 
 /** The page of Visual Trace in the trace application of OCUTALON, up to the session parameter. */
 export const TRACE_PAGE = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=';
+
+/** The sessionStorage key that says the sign-in help was seen in a tab, written out here as the specs' own oracle. */
+const TRACE_HELP_SEEN = 'ocutalon.traceHelp.seen';
+
+/** Gives every trace application page of the context a stand-in answer: the tabs it opens keep the address they were opened at and hold no licence connection. */
+export async function stubTraces(context: BrowserContext): Promise<void> {
+  await context.route('**/ocutalon/trace/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Visual Trace</title>' }));
+}
+
+/** Marks the sign-in help as seen in the page's tab session before any script of the page runs. */
+export async function helpSeen(page: Page): Promise<void> {
+  await page.addInitScript((key) => {
+    try {
+      window.sessionStorage.setItem(key, '1');
+    } catch {
+      /* The page copes with a storage that fails. */
+    }
+  }, TRACE_HELP_SEEN);
+}
+
+/** The sign-out address of the trace application: ends the whole sign-in group of the cookies that reach it (AD-13). */
+const TRACE_SIGN_OUT = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?IRISLogout=end';
+
+/**
+ * Signs the trace application out for the context behind `api` (the context's own cookies: `page.request`, or a request context that
+ * made the trace requests). A trace-application page holds one licence connection for its user and client address until its session
+ * ends (measured in Story 4.7, DW-146), and the stack has 8, so a case that opened one signs it out when it ends. IRISLogout=end ends the
+ * context's whole sign-in group, the page's own session included: call it when the case is over.
+ */
+export async function signOutTrace(api: APIRequestContext): Promise<void> {
+  const response = await api.get(TRACE_SIGN_OUT);
+  expect(response.status(), 'the trace sign-out answers').toBeLessThan(500);
+}
+
+/**
+ * The number of CSP connections that the licence counts for the IRIS user (%SYSTEM.License:UserList, column CSPCon, summed over the
+ * user's rows, whatever the case of the name), 0 when the user has none. It reads through irisScript, which a licence-exhausted stack
+ * refuses (no terminal), and says so.
+ */
+export async function traceSessions(user: string): Promise<number> {
+  if (!/^[A-Za-z0-9_]+$/.test(user)) throw new Error('a fixture user name is letters, digits and underscore');
+  const lines = await irisScript(
+    [
+      'Set rs=##class(%ResultSet).%New("%SYSTEM.License:UserList")',
+      'Do rs.Execute()',
+      'Set n=0',
+      `While rs.Next() { If $ZConvert($Piece(rs.Get("UserId"),"@",1),"U")=$ZConvert("${user}","U") Set n=n+rs.Get("CSPCon") }`,
+      'Write !,"CHK|csp|",n',
+    ].join('\n'),
+  );
+  const count = chk(lines, 'csp');
+  if (count === undefined) throw new Error('the licence is exhausted: irisScript was refused');
+  return Number(count);
+}
 
 /** A chat turn as /state and the live stream carry it. */
 export interface Turn {

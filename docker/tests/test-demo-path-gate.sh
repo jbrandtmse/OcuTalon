@@ -81,7 +81,7 @@ dc() { :; }
 start_log() { :; }
 EOF
 
-for unit in sign-in bundle-folder floor; do
+for unit in sign-in bundle-folder floor answers; do
   printf '#!/usr/bin/env bash\necho "ran %s" >> "$GATE_LOG/sequence"\nexit "${GATE_UNIT_RC:-0}"\n' "$unit" > "$tree/docker/tests/test-$unit.sh"
 done
 
@@ -103,7 +103,7 @@ if [ -n "${GATE_NPM_OUT:-}" ]; then echo "$GATE_NPM_OUT"; fi
 if [ -n "${GATE_REPORT:-}" ]; then cp "$GATE_REPORT" "$OCUTALON_E2E_JSON"; fi
 exit "${GATE_NPM_RC:-0}"
 EOF
-chmod +x "$tree/bin/docker" "$tree/bin/npx" "$tree/bin/npm" "$tree/docker/tests/test-sign-in.sh" "$tree/docker/tests/test-bundle-folder.sh" "$tree/docker/tests/test-floor.sh"
+chmod +x "$tree/bin/docker" "$tree/bin/npx" "$tree/bin/npm" "$tree/docker/tests/test-sign-in.sh" "$tree/docker/tests/test-bundle-folder.sh" "$tree/docker/tests/test-floor.sh" "$tree/docker/tests/test-answers.sh"
 
 # The reports have the shape of Playwright 1.64.1's JSON report: a skip's text in annotations, a tag without its @, one top-level
 # suite per spec file, and the file of a declaration in not-built.ts for every unbuilt part.
@@ -347,11 +347,11 @@ if [ ! -e "$log/npm.calls" ]; then pass "unit: no spec runs when too little of t
 
 run_group green 0
 order=$(grep '^---- UNIT' "$out" | awk '{ printf "%s ", $3 }')
-expect "group: browser passes when its two units pass" 0 \
-  "UNIT live:demo-path passed" "UNIT live:sign-in passed" "GROUP browser passed"
+expect "group: browser passes when its three units pass" 0 \
+  "UNIT live:demo-path passed" "UNIT live:sign-in passed" "UNIT live:answers passed" "GROUP browser passed"
 absent "group: browser no longer runs live:bundle-folder" "live:bundle-folder"
-if [ "$order" = "live:demo-path live:sign-in " ]; then
-  pass "group: browser runs live:demo-path and live:sign-in, in that order"
+if [ "$order" = "live:demo-path live:sign-in live:answers " ]; then
+  pass "group: browser runs live:demo-path, live:sign-in and live:answers, in that order"
 else
   fail "group: the units ran in the order '$order'"
 fi
@@ -359,15 +359,15 @@ chromium='npx --prefix web playwright install chromium'
 # The demo path's Playwright call as the npm stub records it, assembled so that this file never matches test-ci-config.sh's
 # rule for the scripts that run Playwright (this one only stubs it).
 npm_run='npm --prefix web run'
-if [ "$(sequence)" = "$chromium|$npm_run e2e:demo-path|$chromium|ran sign-in|" ]; then
-  pass "group: Chromium is installed before the script of each browser unit, demo-path and sign-in, and before no other"
+if [ "$(sequence)" = "$chromium|$npm_run e2e:demo-path|$chromium|ran sign-in|$chromium|ran answers|" ]; then
+  pass "group: Chromium is installed before the script of each browser unit, demo-path, sign-in and answers, and before no other"
 else
   fail "group: the calls ran as '$(sequence)'"
 fi
 
 run_group floor-failed 1
 expect "group: a failed demo path makes the browser group exit 1 and names the unit" 1 \
-  "UNIT live:demo-path failed" "UNIT live:sign-in passed" "GROUP browser failed: live:demo-path"
+  "UNIT live:demo-path failed" "UNIT live:sign-in passed" "UNIT live:answers passed" "GROUP browser failed: live:demo-path ("
 absent "group: a red demo path draws no GROUP passed line" "GROUP browser passed"
 
 run_group floor-skipped 0
@@ -376,7 +376,7 @@ expect "group: a skipped floor test makes the browser group exit 1 although Play
 
 run_group green 0 GATE_UNIT_RC=1
 expect "group: a red unit other than the demo path makes the group exit 1 and names it" 1 \
-  "UNIT live:demo-path passed" "UNIT live:sign-in failed" "GROUP browser failed: live:sign-in"
+  "UNIT live:demo-path passed" "UNIT live:sign-in failed" "UNIT live:answers failed" "GROUP browser failed: live:sign-in live:answers ("
 
 # --- the live units: which browsers are installed before the script ---
 

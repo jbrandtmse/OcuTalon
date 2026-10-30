@@ -27,18 +27,21 @@ XData ProductionDefinition
   </Item>
   <Item Name="DiagnosisAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Diagnosis</Setting>
+    <Setting Target="Host" Name="ReplyClass">OcuTalon.Watch.Msg.DiagnosisPayload</Setting>
   </Item>
   <Item Name="ChatAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Chat</Setting>
   </Item>
   <Item Name="AgentSteps" ClassName="OcuTalon.Bridge.Operation.Steps" PoolSize="1" Enabled="true"/>
   <Item Name="OcuTalonApprovals" ClassName="EnsLib.Workflow.Operation" PoolSize="1" Enabled="true"/>
-  <Item Name="FailurePoller" ClassName="OcuTalon.Watch.FailurePoller" PoolSize="0" Enabled="true"/>
+  <Item Name="FailurePoller" ClassName="OcuTalon.Watch.FailurePoller" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="CallInterval">3</Setting>
+  </Item>
   <Item Name="IncidentManager" ClassName="OcuTalon.Watch.IncidentManager" PoolSize="1" Enabled="true"/>
   <Item Name="WatchOps" ClassName="OcuTalon.Watch.Ops" PoolSize="1" Enabled="true"/>
   <Item Name="EvalIn" ClassName="OcuTalon.Eval.In" PoolSize="0" Enabled="false"/>
   <Item Name="EvalSink" ClassName="OcuTalon.Eval.Sink" PoolSize="1" Enabled="true"/>
-  <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="1" Enabled="true"/>
+  <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="2" Enabled="true"/>
   <Item Name="Checks" ClassName="OcuTalon.Checks.Process" PoolSize="1" Enabled="true"/>
   <Item Name="DigestStore" ClassName="OcuTalon.Digest.Store" PoolSize="1" Enabled="true"/>
   <!-- lane A: end -->
@@ -49,6 +52,7 @@ XData ProductionDefinition
   <Item Name="SimMailboxOut" ClassName="OcuTalon.Channel.SimMailbox.Out" PoolSize="1" Enabled="true"/>
   <Item Name="SimPhoneOut" ClassName="OcuTalon.Channel.SimPhone.Out" PoolSize="1" Enabled="true"/>
   <Item Name="AnswersIn" ClassName="OcuTalon.Core.AnswersIn" PoolSize="0" Enabled="true"/>
+  <Item Name="AnswerOps" ClassName="OcuTalon.Core.AnswerOps" PoolSize="1" Enabled="true"/>
   <Item Name="CommandsIn" ClassName="OcuTalon.Core.CommandsIn" PoolSize="0" Enabled="true"/>
   <Item Name="NoticesIn" ClassName="OcuTalon.Core.NoticesIn" PoolSize="0" Enabled="true"/>
   <Item Name="StatusMonitor" ClassName="OcuTalon.Core.StatusMonitor" PoolSize="1" Enabled="true">

@@ -1,10 +1,29 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 
-import type { EventsResponse, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
+import type { GuideStatePayload } from '../live/payloads';
+import type {
+  AnswerBody,
+  AnswerChannel,
+  BreakFeedSent,
+  DismissBody,
+  EventsResponse,
+  GuideMarker,
+  MailboxAccepted,
+  MailboxEmail,
+  MessageAccepted,
+  MessagePost,
+  PairingCode,
+  PublicStatus,
+  StateSnapshot,
+  UnpairDone,
+} from './api-types';
 
 const BASE = '/ocutalon/api/v1';
+
+/** The address of the online demo's public status, which needs no session (Story 16.5). */
+const PUBLIC_STATUS = '/ocutalon/public/status';
 
 /** The typed client of the REST API: one method per call that the page makes. */
 @Injectable({ providedIn: 'root' })
@@ -30,6 +49,84 @@ export class ApiClient {
       map((response) => {
         if (response.status !== 202 || response.body === null) {
           throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/messages` });
+        }
+        return response.body;
+      }),
+    );
+  }
+
+  /** Simulates an incoming email in the simulated mailbox (demo mode only). Only the answer 202 is a success. */
+  postMailboxIncoming(email: MailboxEmail): Observable<MailboxAccepted> {
+    return this.accepted<MailboxAccepted>(`${BASE}/mailbox/incoming`, email);
+  }
+
+  /** Delivers one of the sample emails (newsletter, partner-notice, suspicious-request) into the simulated mailbox (demo mode only). Only the answer 202 is a success. */
+  postMailboxSample(name: string): Observable<MailboxAccepted> {
+    return this.accepted<MailboxAccepted>(`${BASE}/mailbox/samples/${encodeURIComponent(name)}`, {});
+  }
+
+  /** Writes one of the guide's UI markers (demo mode only); the answer is the guide view that /state carries, with its trace URL. */
+  postGuideMarker(marker: GuideMarker): Observable<GuideStatePayload> {
+    return this.http.post<GuideStatePayload>(`${BASE}/guide/markers`, { marker });
+  }
+
+  /**
+   * Answers an approval request: a POST of {action, channel} (the session is the caller's, never in the body); the channel is 'web'
+   * for the chat's request card and 'phone' for the simulated phone's message.
+   * The whole response is observed: 200 is the answered request (AnswerBody); a 4xx or 5xx fails as an HttpErrorResponse whose
+   * `error` is the body, which for a 409 also holds the request's payload (AnswerError).
+   */
+  answerApproval(ref: string, action: 'approve' | 'reject', channel: AnswerChannel = 'web'): Observable<HttpResponse<AnswerBody>> {
+    return this.http.post<AnswerBody>(`${BASE}/approvals/${encodeURIComponent(ref)}/answer`, { action, channel }, { observe: 'response' });
+  }
+
+  /**
+   * Dismisses an incident: a POST of {} (the incident is in the path and the session is the caller's, never in the body). The whole
+   * response is observed: 200 is {result: 'done'}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
+    return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
+  }
+
+  /**
+   * Presses Break the feed (demo mode only): a POST of {} (the session is the caller's, never in the body). The answer is the run's `startedAt`.
+   * A 409 fails as an HttpErrorResponse whose `error` is the body `{"error":{"code","message"}}`, with the code `not_watching` or
+   * `incident_in_progress` (break-feed-view.ts's conflictOf reads it); any other failure is passed on as it is.
+   */
+  breakFeed(): Observable<BreakFeedSent> {
+    return this.http.post<BreakFeedSent>(`${BASE}/demo/break-feed`, {});
+  }
+
+  /**
+   * Asks for a Telegram pairing code (Telegram included only): a POST of {} (the session is the caller's). The answer is the code and its
+   * expiry; the code is shown once and stored only as a hash. A 409 `not_available` fails as an HttpErrorResponse whose `error` is the body.
+   */
+  pairingCode(): Observable<PairingCode> {
+    return this.http.post<PairingCode>(`${BASE}/pairing/code`, {});
+  }
+
+  /**
+   * Unpairs the session's Telegram chat (Telegram included only): a DELETE with the body {}, which the envelope interceptor completes with
+   * its headers. The answer is {result: 'done'}, also when nothing was paired.
+   */
+  unpair(): Observable<UnpairDone> {
+    return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
+  }
+
+  /**
+   * The online demo's public status (Story 16.5; AD-13, AD-25): a GET of /ocutalon/public/status, which needs no session, with a unique
+   * query so that no cache answers. DemoBusyState's trace check and its quiet re-check read it.
+   */
+  publicStatus(): Observable<PublicStatus> {
+    return this.http.get<PublicStatus>(`${PUBLIC_STATUS}?t=${Date.now()}`);
+  }
+
+  /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */
+  private accepted<T>(url: string, body: object): Observable<T> {
+    return this.http.post<T>(url, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? url });
         }
         return response.body;
       }),
