@@ -2441,6 +2441,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: eval/run.sh checks the key (:164) and then stack_start -> live_start -> ensure_web_bundle (docker/tests/lib-live.sh:88, :160-189) runs npm --prefix web ci and run build when web/node_modules or src/ocutalon/csp/index.html is missing, with the script's whole environment.
 - 2026-10-30T14:35:15Z status=decision-pending owner=burndown by=cr note=veto window (secret handling): recommend building the bundle in a subshell with the key unset before stack_start
+- 2026-10-30T15:43:03Z status=routed owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=owner note=decided by the owner's delegate in U-166 (at=2026-10-30T12:43:19Z#503), applied through the orchestrator's ruling: fold into Story 9.10 (build the web bundle with the key unset before stack_start); no longer for the decision sheet
 
 ### DW-435: Eval.Gate.SampleFields repeats DiagnosisPayload.CheckFix's sample-field loop (the keys of EvidencePack.FromInput(...).sample.body, 6 lines) instead of one shared EvidencePack helper
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: out-of-footprint

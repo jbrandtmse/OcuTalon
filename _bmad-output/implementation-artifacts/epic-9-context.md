@@ -16,7 +16,8 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
 - Story 9.4: Ten incidents are recorded from real failures (done)
 - Story 9.9: The other nine incidents come from real failures in a test feed (done; split from 9.4)
 - Story 9.6: Incident cases are diagnosed through IncidentManager and reach nobody (done; split from 9.1)
-- Story 9.5: Release candidates pass the evaluation and the demo incident gate (next, last)
+- Story 9.5: Release candidates pass the evaluation and the demo incident gate (done)
+- Story 9.10: The release-candidate run proves the key leaks nowhere and gates the maximum decision cost (next, last; split from 9.5 to apply the owner's U-166 conditions)
 
 ## Requirements & Constraints
 
@@ -182,7 +183,8 @@ Measure OcuTalon's quality instead of assuming it. A recorded evaluation set in 
   - Epic 2: `Intake` sends evaluation decisions to `EvalSink`.
   - Epic 5: `IncidentManager`, `EvidencePack`, `WatchOps`, `Checks`, `Checks.Render`, `check_status` and `ReplyGuard`.
   - Epic 7: the dry run, approval and fix path in `IncidentManager`, and Story 7.1's repair-and-resend validation. This branch has already brought Epic 7's merge forward.
-- **Order:** Story 9.6 done; Story 9.5 next, then the epic closes. This is the critical path to Epic 11.
+- **Order:** Stories 9.6 and 9.5 done; Story 9.10 next, then the epic closes.
+- **Story 9.10 (lead patch 2026-10-30), the owner's U-166 conditions on 9.5's veto item:** (a) NFR-4 is gated on the maximum item-decision cost (any `decide` decision at or over $0.001 fails it, whatever the mean), and the report text and `release-candidate.json` name `maxUSD` as the gated figure with the mean for information only; 9.5's `Eval.Gate` cost target may already fail on any decision at or over the flag, in which case a pinning test (mean under, one decision over) and the wording are what is missing. (b) A fake-key proof run: a key built from fragments at run time (no committed file holds it, as `Test/Bridge/Redact.cls` builds its samples), exported as `ANTHROPIC_API_KEY` for a `--release-candidate --on-mock` run that goes through the real key path (`eval/compose.release-candidate.yml` interpolation into the throwaway's `iris` environment); the whole string must appear in no file under `eval/`, the run's output or logs, the throwaway's container logs, the trace, or a scan of its globals before teardown; then its containers and volumes are gone. (c) After a release-candidate run writes `eval/release-candidate.json` and `.md`, `eval/run.sh` scans both with the same key-like patterns as `docker/tests/test-boundaries.sh` (one shared definition, not a copy) and fails non-zero, telling the author not to commit them. DW-434 is folded in: build the web bundle with the key unset before `stack_start`. `Bridge.Redact` is not touched (DW-386 stays on the decision sheet). This is the critical path to Epic 11.
 - **Story 9.6** builds the incident path through `IncidentManager`, extends the isolation test, and adds the incident cases to the mock job. It carries:
   - **DW-353**, the `RunRef` + `SourceItemId` match described above;
   - **DW-385** (routed; an acceptance bullet in 9.6's block): `Test.Eval.Record`'s `FixtureSettings` and `DefinedSettings` near-copy `Test.Watch.Evidence`'s private helpers. Now that Epic 7 has merged, make the Orders-definition fixture one public helper that both classes call.

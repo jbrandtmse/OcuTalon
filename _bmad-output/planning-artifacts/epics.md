@@ -3504,6 +3504,8 @@ So that the cause scores measure the product's diagnosis and an incident case ca
 
 ### Story 9.5: Release candidates pass the evaluation and the demo incident gate
 
+[AMENDED 2026-10-30, Epic 9 close (runner B), orchestrator ruling (a split, decide), applying the owner's veto answer U-166 ("keep all three, with conditions"): Story 9.5 was done and committed when the answer arrived, so its three conditions, and DW-434, are Story 9.10's criteria; this story's criteria are unchanged.]
+
 As the author,
 I want each release candidate scored on Claude Haiku 5.5, with the demo incident run 10 times,
 So that no release ships with the demo incident or decision quality below target.
@@ -3527,6 +3529,34 @@ So that no release ships with the demo incident or decision quality below target
 **When** its results are kept
 **Then** the report is saved with the release candidate and gives, in that result file, the summary the release notes use (Story 11.4's generator reads it): the scores, the held-out scores, the mean and maximum decision cost and the largest request (FR-62, REL-8)
 **And** the same run executes the bridge's live smoke test of thinking history: three turns across jobs, a compaction through the guarded path and a tool change, with the rule forced (AD-20) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the smoke test arrives with the compaction in Story 30.1, so a candidate cut before it merges runs without it]
+
+
+### Story 9.10: The release-candidate run proves the key leaks nowhere and gates the maximum decision cost
+
+[AMENDED 2026-10-30, Epic 9 close (runner B), orchestrator ruling (a split, decide): split from Story 9.5, whose veto item U-166 the owner's delegate answered "keep all three, with conditions"; the conditions are this story's criteria, with DW-434 folded in. Planned after Story 9.5, as the epic's last story.]
+
+As the author,
+I want the release-candidate gate to judge cost on the worst item decision and to prove that the model key reaches no file, log, output, trace or global,
+So that a release candidate can never pass on an average that hides an expensive decision, and the key never leaks from a release-candidate run.
+
+**Acceptance Criteria:**
+
+**Given** a release-candidate attempt
+**When** its NFR-4 target is evaluated
+**Then** NFR-4 ("every attention decision costs under $0.001") fails when any item decision (Decision kind `decide`) costs $0.001 or more, even when the mean is under it, and the report text and `release-candidate.json` name the maximum item-decision cost as the gated figure, with the mean shown for information only (NFR-4, REL-5; owner condition U-166 (a))
+
+**Given** a fake model key built at run time from fragments, so that no committed file holds the whole string, exported as `ANTHROPIC_API_KEY`
+**When** `eval/run.sh --release-candidate --on-mock` runs with it through the real key path (the committed override's interpolation into the throwaway's `iris` environment)
+**Then** the whole string appears in no file under `eval/`, not in the run's captured output or its logs, the throwaway's container logs, the trace, or a scan of the throwaway's globals taken before teardown, and after the run the throwaway's containers and volumes are gone (AD-19; owner condition U-166 (b))
+
+**Given** a release-candidate run in a checkout without the built web bundle
+**When** the run builds the bundle before its stack starts
+**Then** `npm ci` and the web build run with the model key unset, and only the stack's start sees it (AD-19)
+- DW-434: eval/run.sh --release-candidate keeps ANTHROPIC_API_KEY in the environment of lib-live's ensure_web_bundle, so in a checkout without the web bundle npm ci's install scripts and the web build run with the real key (ledger; routed by owner decision U-166 2026-10-30)
+
+**Given** `eval/run.sh --release-candidate` has written `eval/release-candidate.json` and `.md`
+**When** it checks them before the author commits them
+**Then** it scans both with the same key-like patterns that `docker/tests/test-boundaries.sh` uses (one shared definition, not a copy), and on any match it exits non-zero with a message telling the author not to commit the files (owner condition U-166 (c))
 
 ## Epic 10: Install in one command, with a README that gets a judge running
 
