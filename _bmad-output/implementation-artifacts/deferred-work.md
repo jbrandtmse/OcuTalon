@@ -1343,6 +1343,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
 - 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
 - 2026-10-31T07:31:51Z owner=11-0-epic-10-deferred-cleanup by=x0 note=Pairing.HashCode (Data/Pairing.cls:68) still repeats Session.Hash's SHA-256 base64url line; trivial and low fix-risk, so default-included in Story 11.0
+- 2026-10-31T08:34:17Z status=resolved-by:11-0-epic-10-deferred-cleanup by=adjudication note=Pairing.HashCode keeps its empty-code guard and quits ##class(OcuTalon.Data.Session).Hash(code) (build e5eceafe + review patch); TestHashCodeIsSessionHash pins the whole body, TestHashCodeVectors unchanged and green
 
 ### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
@@ -2486,3 +2487,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
+
+### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
+- source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Session.cls:120-121 reads 'the form in which the resume reference and a client address are stored'; since Story 11.0 Pairing.HashCode quits Session.Hash(code)
+- 2026-10-31T08:21:19Z status=by-design owner=11-0-epic-10-deferred-cleanup by=cr note=spec Never list forbids changing Session or its doc comment; TestHashCodeVectors goes red on any change of the form
+
+### DW-479: Thirteen test classes read a method's source with their own copy of the Implementation.Rewind / Read(30000) / AtEnd loop; no shared helper exists
+- source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: grep -rl 'Implementation.Rewind' src/ lists 13 Test classes (WebChatMessages, PairingRows, Bridge.Approval, Core.Intake, ...); Story 11.0 added PairingRows' copy
+- 2026-10-31T08:21:23Z status=wontfix-accepted owner=11-0-epic-10-deferred-cleanup by=cr note=reopen_if=grep -rl Implementation.Rewind src/ocutalon/cls/OcuTalon/Test lists over 13 files, or one copy gets a fix the rest lack

@@ -64,7 +64,7 @@ Index CodeSessionRefIndex On CodeSessionRef [ Unique ];
 Index CodeHashIndex On CodeHash [ Unique ];
 
 /// The hash of a pairing code: OcuTalon.Data.Session.Hash of it (SHA-256 of the code's UTF-8 bytes, base64url, 43 characters, no padding).
-/// Empty for an empty code, where Session.Hash would answer the hash of the empty string.
+/// Empty for an empty or missing code, where Session.Hash would answer the hash of the empty string.
 /// Both lanes hash through this method, and only the hash is ever stored or sent (AD-4).
 ClassMethod HashCode(code As %String) As %String
 {

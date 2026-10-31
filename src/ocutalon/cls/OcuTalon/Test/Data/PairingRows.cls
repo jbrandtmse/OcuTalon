@@ -4,7 +4,7 @@
 /// recorded with Test.Data.Fixture and removed with Fixture.Clean, and the telegramState mark is put back.
 ///   - TestHashCodeVectors: the SHA-256 base64url form of three codes, 43 characters, and "" for "";
 ///   - TestHashCodeIsSessionHash: HashCode equals Session.Hash for the sample codes, answers "" for "" and for no argument (where Session.Hash
-///     of "" is not ""), and its source calls Session.Hash and holds no hashing expression of its own;
+///     of "" is not ""), and its source is the empty-code guard and Session.Hash of the code, and nothing else;
 ///   - TestRecordChatNewAndKnown: a new chat row (Ref, ChatId, name, no session, CreatedAt = SeenAt), then the same chat id gives the same
 ///     Ref and a new name and SeenAt; the name is stripped of control characters, trimmed and cut to 128; a negative id is a chat id;
 ///   - TestRecordChatRefusesABadId: "", letters and 21 digits give "" and an error status that never holds the value, and no row;
@@ -67,7 +67,8 @@ Method TestHashCodeVectors()
 }
 
 /// HashCode is Session.Hash of the code: equal for the sample codes, and "" (not the hash of the empty string) for "" and for no
-/// argument. Equal outputs cannot tell a delegate from a copy, so the source of the method is read: it calls Session.Hash and holds no SHAHash.
+/// argument. Equal outputs cannot tell a delegate from a copy, so the source of the method is read: it is the empty-code guard and
+/// Session.Hash of the code, and nothing else (no SHAHash, no other statement, no changed argument).
 Method TestHashCodeIsSessionHash()
 {
 	Set pairing = "OcuTalon.Data.Pairing"
@@ -88,8 +89,7 @@ Method TestHashCodeIsSessionHash()
 	While 'method.Implementation.AtEnd {
 		Set code = code_method.Implementation.Read(30000)
 	}
-	Do $$$AssertTrue($Find($ZStrip(code, "*WC"), "##class(OcuTalon.Data.Session).Hash(") > 0, "HashCode calls Session.Hash")
-	Do $$$AssertTrue($Find($ZConvert(code, "U"), "SHAHASH") = 0, "HashCode holds no hashing expression of its own")
+	Do $$$AssertEquals($ZStrip(code, "*WC"), "If$Get(code)=""""Quit""""Quit##class(OcuTalon.Data.Session).Hash(code)", "HashCode is the empty-code guard and Session.Hash of the code, with no hashing of its own")
 }
 
 /// A new chat id gets a chat row with a 22-character Ref, the chat id, the name, no session and CreatedAt = SeenAt = now; the same chat
