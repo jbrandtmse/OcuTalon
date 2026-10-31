@@ -2,7 +2,7 @@
 title: 'Story 11.8: The chat cancels several reminders in one call and says it can set them'
 type: 'feature'
 created: '2026-10-31'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '09cf79b712e2d7727abcfb4c1a61558a70e1307c'
 baseline_commit: '09cf79b712e2d7727abcfb4c1a61558a70e1307c'
 review_loop_iteration: 0
@@ -228,7 +228,11 @@ Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verifica
 - `low` A ref given twice makes the top `ok` false (edge-case-hunter) -- by-design (Design Notes: no dedupe; the second entry is the owner's `no_reminder`).
 - `low` `StepProblems` stops polling at 1 + 2n steps, so a later extra step can be missed (edge-case-hunter) -- the old copies read at once; an extra step present at read time is flagged; a settle wait would add time to every caller.
 
+- [ ] [CI] iris (shards-2), shard lane-a@rest: `OcuTalon.Test.Bridge.Conversation` `TestPrecheckCountsHistory` failed "Decide's estimate, 5876, is within 29 percent of it, 4538" — https://github.com/jbrandtmse/OcuTalon/actions/runs/41217490277 — Story 11.8's reminder block grew Chat's INSTRUCTIONS, so the system-prompt gap the test's BANDPERCENT (29) was measured for (901 + 328 = 1,229 characters, Story 1.9) is now larger. Re-measure the gap with the new instructions, and fix the test so it stays a real bound (for example derive the band from `RequestSize.AgentChars` of Chat rather than a fixed 29, or re-measure and restate the constant and its doc comment); do not weaken what it pins (the estimate counts the agent part, the stored history and the input). Run `OcuTalon.Test.Bridge.Conversation` on a fresh stack, then the lane-a@rest shard in parts on a warm stack, and record a `mutation:` line for the changed assertion.
+
 ## Spec Change Log
+
+- 2026-10-31: rework iteration 1 (trigger ci): CI run 41217490277 red on Test.Bridge.Conversation TestPrecheckCountsHistory; one [CI] item under Tasks & Acceptance.
 
 ## Review Triage Log
 
