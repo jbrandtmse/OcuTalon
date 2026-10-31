@@ -17,6 +17,10 @@ Include Ensemble
 ///   - WaitMonitor, InstanceSeq, Events, WaitEvent and WaitClear read the telegramPaused status events that the production's own
 ///     StatusMonitor publishes on the instance stream (the pattern of OcuTalon.Test.Schedule.Stalled): the monitor's silent first run must be
 ///     over, and a test that caused a pause waits for its clear, so that no event of it lands in a later test's window.
+///   - The helpers that keep no state of the test are public class methods (BaseReason, WaitJobs, CallsOf, WaitCalls, WaitState, WaitMark,
+///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow), and so are Enable, Disable, Marks and
+///     PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
+///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
 Class OcuTalon.Test.Channel.LiveCase Extends %UnitTest.TestCase [ Abstract ]
 {
 
@@ -98,31 +102,36 @@ Method StartItems(items As %String) As %Status [ Private ]
 	Set sc = $$$OK
 	For i = 1:1:$Length(items, ",") {
 		Set item = $Piece(items, ",", i)
-		Set reason = ..BaseReason(item)
-		If reason '= "" {
-			Set sc = $SYSTEM.Status.Error(5001, reason)
-			Quit
-		}
 		Set rows = ..RowsFound
-		Do $ClassMethod(..#FIXTURE, "RememberDefault", .rows, item, "Enabled")
+		Set sc = ..Enable(item, .rows)
 		Set ..RowsFound = rows
-		If '$List($ClassMethod(..#FIXTURE, "SnapshotDefault", item, "Enabled"), 3) {
-			Set sc = $ClassMethod(..#FIXTURE, "PutDefault", item, "Enabled", 0)
-			If $$$ISERR(sc) Quit
-		}
-		Set ..StartedItems = ..StartedItems _ $Select(..StartedItems = "": "", 1: ",") _ item
-		Set sc = ##class(Ens.Director).EnableConfigItem(item, 1, 1)
+		If ..BaseReason(item) = "" Set ..StartedItems = ..StartedItems _ $Select(..StartedItems = "": "", 1: ",") _ item
 		If $$$ISERR(sc) Quit
-		If '..WaitJobs(item, 1) {
-			Set sc = $SYSTEM.Status.Error(5001, item_" has no job "_..#WAITJOB_" s after it was enabled")
-			Quit
-		}
 	}
 	Quit sc
 }
 
+/// Enables one item on the running production and waits for a job of it. rows is the list of snapshots of the Enabled rows
+/// (RunnerFixture.RememberDefault): the item's row is added to it before anything is changed, so that Disable can put the row back
+/// even when this fails. A row missing for the item is made with 0, so that the item's own flag is never saved. The item is not enabled,
+/// and rows is left as it was, when its ApiBase row could reach the public Bot API (BaseReason).
+ClassMethod Enable(item As %String, ByRef rows As %List) As %Status
+{
+	Set reason = ..BaseReason(item)
+	If reason '= "" Quit $SYSTEM.Status.Error(5001, reason)
+	Do $ClassMethod(..#FIXTURE, "RememberDefault", .rows, item, "Enabled")
+	If '$List($ClassMethod(..#FIXTURE, "SnapshotDefault", item, "Enabled"), 3) {
+		Set sc = $ClassMethod(..#FIXTURE, "PutDefault", item, "Enabled", 0)
+		If $$$ISERR(sc) Quit sc
+	}
+	Set sc = ##class(Ens.Director).EnableConfigItem(item, 1, 1)
+	If $$$ISERR(sc) Quit sc
+	If '..WaitJobs(item, 1) Quit $SYSTEM.Status.Error(5001, item_" has no job "_..#WAITJOB_" s after it was enabled")
+	Quit $$$OK
+}
+
 /// "" when the item's ApiBase row names the CI mock's host or 127.0.0.1 over http; otherwise the reason not to enable the item.
-Method BaseReason(item As %String) As %String [ Private ]
+ClassMethod BaseReason(item As %String) As %String
 {
 	Set row = $ClassMethod(..#FIXTURE, "SnapshotDefault", item, "ApiBase")
 	If '$List(row, 3) Quit item_" has no ApiBase row, so it would call the public Bot API; it is not enabled"
@@ -137,9 +146,19 @@ Method BaseReason(item As %String) As %String [ Private ]
 /// item that is already disabled is not a failure. Safe to call when nothing was started.
 Method StopItems() As %Status [ Private ]
 {
+	Set sc = ..Disable(..StartedItems, ..RowsFound)
+	Set ..RowsFound = ""
+	Set ..StartedItems = ""
+	Quit sc
+}
+
+/// Disables the items (comma-separated), waits until each has no job, and puts back the Enabled rows of rows, as Enable collected them.
+/// The status is the first failure; an item that is already disabled is not a failure.
+ClassMethod Disable(items As %String, rows As %List) As %Status
+{
 	Set first = $$$OK
-	For i = 1:1:$Length(..StartedItems, ",") {
-		Set item = $Piece(..StartedItems, ",", i)
+	For i = 1:1:$Length(items, ",") {
+		Set item = $Piece(items, ",", i)
 		If item = "" Continue
 		Set row = $ClassMethod(..#FIXTURE, "SnapshotDefault", item, "Enabled")
 		If $List(row, 3) && ($List(row, 4) '= 0) {
@@ -148,15 +167,13 @@ Method StopItems() As %Status [ Private ]
 		}
 		If '..WaitJobs(item, 0) && $$$ISOK(first) Set first = $SYSTEM.Status.Error(5001, item_" still has a job "_..#WAITJOB_" s after it was disabled")
 	}
-	Set sc = $ClassMethod(..#FIXTURE, "RestoreDefaults", ..RowsFound)
+	Set sc = $ClassMethod(..#FIXTURE, "RestoreDefaults", $Get(rows))
 	If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
-	Set ..RowsFound = ""
-	Set ..StartedItems = ""
 	Quit first
 }
 
 /// 1 when the item has a job (running = 1) or has none (running = 0) within WAITJOB seconds.
-Method WaitJobs(item As %String, running As %Boolean) As %Boolean [ Private ]
+ClassMethod WaitJobs(item As %String, running As %Boolean) As %Boolean
 {
 	Set deadline = $ZHorolog + ..#WAITJOB
 	For {
@@ -170,18 +187,31 @@ Method WaitJobs(item As %String, running As %Boolean) As %Boolean [ Private ]
 /// Saves the two Telegram marks as found.
 Method SaveMarks() [ Private ]
 {
-	Set ..MarksFound = ""
+	Set ..MarksFound = ..Marks()
+}
+
+/// The two Telegram marks as they are now, as a list of $ListBuild(mark, value).
+ClassMethod Marks() As %List
+{
+	Set found = ""
 	For i = 1:1:$Length(..#MARKS, ",") {
 		Set mark = $Piece(..#MARKS, ",", i)
-		Set ..MarksFound = ..MarksFound _ $ListBuild($ListBuild(mark, ##class(OcuTalon.Data.StatusMark).Get(mark)))
+		Set found = found _ $ListBuild($ListBuild(mark, ##class(OcuTalon.Data.StatusMark).Get(mark)))
 	}
+	Quit found
 }
 
 /// Puts the two Telegram marks back as SaveMarks found them (a mark that had no row is deleted).
 Method RestoreMarks() [ Private ]
 {
+	Do ..PutMarks(..MarksFound)
+}
+
+/// Puts the marks of found, a list as Marks gives it, back (a mark that had no row is deleted).
+ClassMethod PutMarks(found As %List)
+{
 	Set position = 0
-	While $ListNext(..MarksFound, position, one) {
+	While $ListNext($Get(found), position, one) {
 		Do ##class(OcuTalon.Data.StatusMark).Record($List(one, 1), $List(one, 2))
 	}
 }
@@ -258,7 +288,7 @@ Method Cleanup() [ Private ]
 }
 
 /// The calls of the mock with that method, in order, as a dynamic array.
-Method CallsOf(method As %String) As %DynamicArray [ Private ]
+ClassMethod CallsOf(method As %String) As %DynamicArray
 {
 	Set found = []
 	Set iterator = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
@@ -269,7 +299,7 @@ Method CallsOf(method As %String) As %DynamicArray [ Private ]
 }
 
 /// The calls with that method, once there are count of them or after seconds (whichever is first).
-Method WaitCalls(method As %String, count As %Integer, seconds As %Numeric = 20) As %DynamicArray [ Private ]
+ClassMethod WaitCalls(method As %String, count As %Integer, seconds As %Numeric = 20) As %DynamicArray
 {
 	Set deadline = $ZHorolog + seconds
 	For {
@@ -293,7 +323,7 @@ Method WaitOffset(want As %String, seconds As %Numeric = 20) As %Boolean [ Priva
 }
 
 /// 1 when the Telegram state becomes want (off, on or rejected) within the seconds.
-Method WaitState(want As %String, seconds As %Numeric = 20) As %Boolean [ Private ]
+ClassMethod WaitState(want As %String, seconds As %Numeric = 20) As %Boolean
 {
 	Set deadline = $ZHorolog + seconds
 	For {
@@ -305,7 +335,7 @@ Method WaitState(want As %String, seconds As %Numeric = 20) As %Boolean [ Privat
 }
 
 /// 1 when the mark has a value (present = 1) or has none (present = 0) within the seconds.
-Method WaitMark(mark As %String, present As %Boolean, seconds As %Numeric = 20) As %Boolean [ Private ]
+ClassMethod WaitMark(mark As %String, present As %Boolean, seconds As %Numeric = 20) As %Boolean
 {
 	Set deadline = $ZHorolog + seconds
 	For {
@@ -329,7 +359,7 @@ Parameter WAITMONITOR = 60;
 Parameter WAITEVENT = 30;
 
 /// Waits until StatusMonitor's job has run past its silent first run; 1 when it has.
-Method WaitMonitor() As %Boolean [ Private ]
+ClassMethod WaitMonitor() As %Boolean
 {
 	Set deadline = $ZHorolog + ..#WAITMONITOR
 	While ('..MonitorSettled()) && ($ZHorolog < deadline) {
@@ -338,7 +368,7 @@ Method WaitMonitor() As %Boolean [ Private ]
 	Quit ..MonitorSettled()
 }
 
-Method MonitorSettled() As %Boolean [ Private ]
+ClassMethod MonitorSettled() As %Boolean
 {
 	Set age = ..MonitorAge()
 	Quit (age '= "") && (age >= ..#SETTLED)
@@ -346,7 +376,7 @@ Method MonitorSettled() As %Boolean [ Private ]
 
 /// The whole seconds since the newest job of the StatusMonitor item was registered, or "" when there is none (see
 /// OcuTalon.Test.Schedule.StallFixture, whose private helper this follows).
-ClassMethod MonitorAge() As %Numeric [ Private ]
+ClassMethod MonitorAge() As %Numeric
 {
 	Set newest = ""
 	Set job = ""
@@ -363,13 +393,13 @@ ClassMethod MonitorAge() As %Numeric [ Private ]
 }
 
 /// The Seq of the last event on the instance stream.
-ClassMethod InstanceSeq() As %Integer [ Private ]
+ClassMethod InstanceSeq() As %Integer
 {
 	Quit ##class(OcuTalon.Live.Publish).LastSeq(##class(OcuTalon.Live.Publish).#INSTANCE)
 }
 
 /// The telegramPaused status events of the instance stream after a Seq, in order.
-ClassMethod Events(after As %Integer) As %DynamicArray [ Private ]
+ClassMethod Events(after As %Integer) As %DynamicArray
 {
 	Set found = []
 	Set events = ##class(OcuTalon.Live.Event).Since(##class(OcuTalon.Live.Publish).#INSTANCE, after, 200, "instance")
@@ -381,7 +411,7 @@ ClassMethod Events(after As %Integer) As %DynamicArray [ Private ]
 }
 
 /// The Seq of the first telegramPaused event after a Seq with that active, polled every 0.5 s for up to seconds; 0 when there is none.
-ClassMethod WaitEvent(after As %Integer, active As %Boolean, seconds As %Numeric = {..#WAITEVENT}) As %Integer [ Private ]
+ClassMethod WaitEvent(after As %Integer, active As %Boolean, seconds As %Numeric = {..#WAITEVENT}) As %Integer
 {
 	Set deadline = $ZHorolog + seconds
 	For {
@@ -398,7 +428,7 @@ ClassMethod WaitEvent(after As %Integer, active As %Boolean, seconds As %Numeric
 
 /// 1 when the last telegramPaused event after a Seq is a clear, or there is none; it waits for the clear up to WAITEVENT seconds more than
 /// a call interval of the monitor.
-ClassMethod WaitClear(after As %Integer) As %Boolean [ Private ]
+ClassMethod WaitClear(after As %Integer) As %Boolean
 {
 	Set deadline = $ZHorolog + ..#WAITEVENT + 15
 	For {
@@ -419,7 +449,7 @@ ClassMethod Epoch(stamp As %String) As %Numeric [ Private ]
 }
 
 /// The current time in the scale of Epoch, to the millisecond.
-ClassMethod EpochNow() As %Numeric [ Private ]
+ClassMethod EpochNow() As %Numeric
 {
 	Set now = $ZTimeStamp
 	Quit ($Piece(now, ",", 1) * 86400) + $Piece(now, ",", 2)

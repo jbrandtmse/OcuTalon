@@ -2,13 +2,21 @@
 title: 'Story 12.8: The page shows when Telegram is paused, and when it will try again'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ef5319ff6e07e043c0fa83af32d9da3765ae382b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-12, AD-13, AD-14, AD-18, AD-19, AD-22, AD-29, AD-32 and AD-33)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The card's view module telegram-card-view.ts has no Node unit test, so its branches (a missing status, a missing or non-string time slot, state on) are pinned only by browser tests that need a stack.
+    evidence: |-
+      Sibling view modules (banner-view, rail-view) have a web/scripts/*-view.test.mjs. This story's intent forbids Lane B web/ changes beyond three named entries (a new file under web/scripts/ is Lane B's), and Design Notes decided item 8 chose no Node test. T1 and T2 cover paused, off, rejected and not paused; a throwing or blank view for an undefined store or an odd time slot has no pin outside CI's browser run.
+    location: >-
+      web/src/app/rail/telegram-card/telegram-card-view.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -207,6 +215,26 @@ The browser runs in Asia/Kolkata with the en-GB locale. The time oracle is the m
 
 ## Review Triage Log
 
+### 2026-10-31 - Review pass
+- verdicts: 20 findings reported, 16 rows (findings that make the same claim share a row) - high 0, medium 1, low 12, false 3, maybe-false 0 (the intent-alignment layer reported a description and no finding)
+- findings:
+  - `[low]` `[defer]` (blind-hunter, verification-gap) no Node unit test of `telegram-card-view.ts` - real but low; the fix is a new Lane B file under `web/scripts/`, which the intent's Never list excludes (Design Notes decided 8); recorded in `deferred:`.
+  - `[low]` `[reject]` (blind-hunter) `StartItems` calls `BaseReason` twice and appends the item in a different order - harmless: `Disable` of an item that was never enabled is not a failure; Design Notes decided 14 records the order; the fix adds a return value to `Enable`.
+  - `[low]` `[reject]` (blind-hunter) `Finish` is skipped when `Start`'s IRIS script itself fails - `Start` sets `saved` before enabling anything and `irisScript` re-runs a session that printed nothing; the case needs a docker failure, and the fix is a new fallback branch.
+  - `[low]` `[patch]` (blind-hunter, edge-case-hunter) `setTelegramIncluded(was)` is skipped when the `Finish` call throws - T1's `finally` now nests the two (`try`/`finally`), so the seam is restored even if `Finish` throws; the stack is a throwaway, hence low.
+  - `[low]` `[reject]` (blind-hunter, edge-case-hunter) reasons built from `GetErrorText` are not run through `Safe` - no status text of `Enable`, `Reset` or `Record` quotes the token (the token occurs only in the Bot API URL, which `Api.Safe` cuts); the fix is a new helper on every return.
+  - `[low]` `[reject]` (blind-hunter, verification-gap) the token scan swallows body read errors (`.catch(() => '')`) - positive controls need the mark's time and the bot's user name in some body, and a body disposed by the reload is a response the page has already shown; counting empties would fail on legitimate disposals.
+  - `[low]` `[reject]` (blind-hunter) `api-client-sources.test.mjs` checks only that `test(` exists in the page file - `@floor` on both tests is enforced by `demo-path-summary.test.mjs` (no-stack run), which fails without it and passed in `npm --prefix web test`.
+  - `[low]` `[reject]` (edge-case-hunter) `Start` has no guard for an existing `telegramPaused` mark - throwaway stacks start with none, `Start` saves the marks and `Finish` restores them, and a leftover would fail the baseline loudly.
+  - `[false]` `[reject]` (edge-case-hunter) `WaitCalls("getUpdates", 1, ...)` may count a poll that has returned - it is the order of `TelegramPause.StartAndConflict` (12.2), `TelegramIn` re-polls at once, and a queued 409 answers the next poll; T1 and `TelegramPause` are green.
+  - `[false]` `[reject]` (edge-case-hunter) `AddSeconds` may return "" and `Record` then deletes the mark - `NowUtc()` always gives a readable UTC time, so `AddSeconds` cannot return "" here.
+  - `[low]` `[reject]` (edge-case-hunter) `Promise.all(bodies)` may hang on a response that never completes - the live channel is a poll of completed responses; measured T1 at about 30 s; the fix adds a race and a timeout.
+  - `[low]` `[reject]` (edge-case-hunter, claim) `StartItems` adds the item when `PutDefault` failed - same as the `BaseReason` row above: `Disable` is idempotent.
+  - `[low]` `[reject]` (edge-case-hunter, claim) "no reason holds the token" - duplicate of the `GetErrorText` row above.
+  - `[medium]` `[patch]` (edge-case-hunter, verification-gap) the scan of the HTML after the clear had no positive control, and the HTML scans had no mutation - added `clearedHtml.includes('app-telegram-card')` to T1 and a `mutation:` line (the token as `botUserName` rendered by the card) seen red at "the HTML at the pause holds no bot token".
+  - `[false]` `[reject]` (verification-gap, other) T1's time oracle is wrong for Kolkata hours below 10, because en-GB pads - measured: Chromium (Playwright's, with the test's zone and locale) and Node 26 both write `5:30`, `6:30` and `4:30` for the UTC hours 0, 1 and 23.
+  - `[low]` `[reject]` (verification-gap, other) `Finish` and the `Start` refusal paths have no executed test - not an acceptance criterion; `Finish` runs on T1's every path and `Start`'s guards are 12.2's.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -260,6 +288,12 @@ If the gate refuses any of the three, the plan cannot hold: (1) and (2) become a
 11. **The seam and Release 1.0.0.** `Included()` stays 0 until 12.7, so the card stays hidden on the page.
     - T1 shows it through `^OcuTalonTest("TelegramIncluded")`, which is `setTelegramIncluded`, as R11 does.
     - T2 uses `included: true` in the changed snapshot.
+
+12. **Both browser tests are tagged `@floor`** (implement stage). `web/scripts/demo-path-summary.test.mjs` runs every demo-path spec with `--grep-invert '@floor|@fixtures'` and no stack or browser, and expects it to pass. A test of this file that needs a browser would fail that Lane B test, which is outside the footprint. `@floor` is the tag step 1's tests carry; it also makes a failure of either test fail the unit (`floor 9 of 9`).
+13. **`TelegramCardView` is one flat shape** (`kind`, `retry`), because Angular templates do not narrow a union. `retry` is "" unless the card is paused.
+14. **`LiveCase.StartItems` appends the item to `StartedItems` whenever `BaseReason` passes**, even when `Enable` failed part way (the original appended after the row was written). `StopItems` is then always at least as thorough; nothing else changed.
+15. **`Finish` disables `TelegramIn` only when `Start` got as far as remembering its Enabled row** (`rows` not empty), so a `Start` refused by a guard never touches a `TelegramIn` that is not the fixture's.
+16. **The token search covers the bodies in order**: the negative scan of the bodies comes before the positive controls, so a leak is reported as a leak.
 
 **Extend, don't copy (Rule 2):**
 - The banner is reused unchanged.
@@ -340,7 +374,44 @@ How to run:
 | AC2 | `applyEvent` ignores a `status` event whose `active` is false (`live-store.ts`) | T1 (clear: banner and card remain 1 s after the clear's Seq) |
 | AC3 | `TelegramIn` records `RecordTelegram("on", token)` | T1 (a `/state` body holds the token) |
 
+Applied in the implement stage (each applied, seen red, reverted byte for byte with `cmp`; a web mutation was followed by `ci/iris.sh build`; each ran `live demo-path`; none points at the public API):
+- mutation: AC1, the card: `holds(status, PAUSED_CONDITION) && Number('0') === 1` in `telegram-card-view.ts` -> T1 and T2 red ("the card is paused": expected 1, received 0).
+- mutation: AC1, the banner from a real pause: `BANNERS`' `telegramPaused` row names condition `telegramPausedX` (`banner-view.ts`) -> T1 and T2 red ("the paused banner shows": expected 1, received 0).
+- mutation: paused over off and rejected: `&& telegram.state === 'on'` -> T2 red (off); T1 stays green.
+- mutation: no link or QR while paused: the not-set-up link also renders in the paused block -> T1 and T2 red ("Telegram paused Trying again at 17:30 How to set it up").
+- mutation: not paused (contrast): `holds` ignores `active` -> T2 red (the not-paused case: not set up expected, received 0) and T1 red (the card stays paused after the clear).
+- mutation: the time: `iso.slice(11, 16)` -> T1 and T2 red (12:00 against 17:30).
+- mutation: the icon: `name="clock"` -> T1 and T2 red ("with the left bar": expected 1, received 0).
+- mutation: AC2: `applyEvent` returns the store for a `status` event with `active` false (`live-store.ts`) -> T1 red ("the banner leaves within one live update": expected 0, received 1); T2 stays green.
+- mutation: AC3: `TelegramIn.Start` writes the `telegramState` mark with the token as `botUserName` (`RecordTelegram` would refuse the token, so the mark is written with `Record`) -> T1 red ("no response holds the bot token": expected false, received true).
+- mutation: AC3, the page's HTML: `TelegramIn.Start` writes the `telegramState` mark with the token as `botUserName` (via `Record`) and the card template renders `<span hidden>{{ telegram().botUserName }}</span>` -> T1 red at "the HTML at the pause holds no bot token" (expected false, received true), before the bodies scan. Both files reverted with `cmp` against a backup; `ci/iris.sh build` after the revert.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Telegram card has a paused state: `circle-pause`, "Telegram paused" and "Trying again at {time}", shown exactly while the store holds `telegramPaused` as active (the banner's own reading), ahead of off and rejected, with no link, QR code or code. Two browser tests in `telegram-page.spec.ts`: T1 drives the real `TelegramIn` against the CI mock (409, banner and card, reload, resume and clear, token search) and T2 checks off, rejected and not-paused cards from a changed snapshot. The IRIS side is the new `TelegramPageFixture`, built on `LiveCase`'s helpers, which are now public class methods.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls`: stateless helpers become public class methods; new `Enable`, `Disable`, `Marks`, `PutMarks`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls` (new): `Start`, `Conflict`, `Resume`, `Finish`, `Token`.
+- `web/src/app/rail/telegram-card/telegram-card-view.ts` (new) and `telegram-card.ts`: the view and the paused block with `data-state`.
+- `web/e2e/demo-path/telegram-page.spec.ts`: T1 and T2 (both `@floor`); `notBuilt(..., '12.4')` kept.
+- Lane B entries, one each (orchestrator ruling): `web/src/app/icon/icon.ts` (`circle-pause`), `web/scripts/ux-strings.test.mjs` (one `IMPORTED` row, two strings), `web/scripts/api-client-sources.test.mjs` (the telegram-page row requires its own test).
+
+**Review.** Patches applied: 2 (T1's `finally` nests the seam restore; the cleared-HTML positive control and the HTML mutation line). Deferred: 1 (no Node unit test of the view module, low). Rejected: 13 rows (reasons in the triage log). Verdicts by row: medium 1 (patched), low 12 (one patched, one deferred, ten rejected), false 3. Follow-up review recommended: false (one medium patched, no high).
+
+**Verification.**
+- `npm --prefix web test` 1127 passed; `npm --prefix web run lint` clean.
+- Warm class runs on `e12s8iw`, one per call: TelegramPause, TelegramIn, TelegramOut, TelegramNoToken, TelegramMock, TelegramSwitch, TelegramApi, all passed; warm stack torn down.
+- `ci/iris.sh live demo-path` on `e12s8i`: 0 failed, floor 9 of 9, `STEP 1 page: partly skipped, 8 passed, 1 skipped` (12.4's part); the same with T1 and T2 swapped (spec restored, `cmp` identical).
+- `test-ci-config.sh`, `test-boundaries.sh`, `ci/checks.sh` passed; the protected-paths `git status` printed nothing; `e12s8i` torn down.
+- The implement subagent ran, on the same class sources, `shard lane-a@Channel` forward and `--reverse` and `live sign-in` parts 1/2 and 2/2; all passed. They were not repeated after the two test-side patches (neither touches IRIS classes or `web/src`).
+- Mutations: the nine in this section plus the HTML one, each seen red and reverted byte for byte.
+- `ci/changes.sh` without an event selects every group (install-fresh, install-upgrade, production, browser, shards, shards-2, image); the real selection is CI's.
+
+**Residual risks.**
+- Left to CI (Rule 23): `browser` (`demo-path` with T1 and T2, `sign-in`, `answers`) and `production` (`shard:lane-a@Channel`). To record from CI: `iris (browser)` minutes and `live:demo-path` seconds. Locally `live demo-path` took about 3.6 minutes, T1 about 30 s.
+- If T1 reaches its 240 s timeout its `finally` may not run, and the next stack's `Start` guard then refuses; not seen.
+- The implement subagent issued two class-test calls (`TelegramIn`, `TelegramOut`) in one message; both passed, and the classes were re-run one per call in the verification pass.
