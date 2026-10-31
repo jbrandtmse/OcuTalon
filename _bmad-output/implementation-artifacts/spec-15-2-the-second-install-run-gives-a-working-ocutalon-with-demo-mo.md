@@ -2,7 +2,8 @@
 title: 'Story 15.2: The second install run gives a working OcuTalon with demo mode off'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7fd58499ccc20305a6be8ccd49febdb9ff8e1e71'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -238,6 +239,33 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-30 — Review pass
+- verdicts: 23 findings — high 0, medium 3, low 19, false 0, maybe-false 1 (blind hunter 9, edge-case hunter 11, verification-gap 5 plus 4 others after merging duplicates across layers; intent alignment reported descriptively, no findings)
+- findings:
+  - `[low]` `[patch]` path B guard in `release/ipm-install.sh` reads the cumulative `$fails`, so a failed path A check aborts path B with the wrong message (blind, edge) - fixed: the guard compares `$fails` with its value before the IPM load.
+  - `[medium]` `[patch]` `TestAutoStart` kills `^Ens.AutoStart` with its subnodes and leaves `LastProduction` (blind, edge, gap) - fixed: the subtree and `LastProduction` are saved with `Merge` into process-private globals and put back in `OnAfterOneTest`.
+  - `[low]` `[reject]` a failed reconcile is never retried (blind, edge) - by design: the spec says a failed reconcile is one `$$$LOGERROR` row, and a retry every poll would log one per 5 s; the class doc now says it is not repeated until the item starts again.
+  - `[low]` `[patch]` `ReconcileIn` queries `NotRunning()` on every poll even when it will skip (blind) - fixed: asked only while neither `ByStep` nor `Done`.
+  - `[medium]` `[patch]` `Registry.Ipm` non-image branch (commit loop, reopened levels, failure) has no unit test (blind, gap) - fixed: `Test.Install.Registry.TestIpmRunsTheSteps` on the probe registry, with two mutation lines.
+  - `[low]` `[reject]` `Run` leaves `^||OcuTalonStepCaller` set if a step throws (blind, edge) - `RunStep` catches every exception, so nothing escapes the loop; `Ipm`'s own Catch kills it for the rest.
+  - `[low]` `[patch]` `docs/install-ipm.md` names "the test instance of the repository's install check" (blind) - fixed: "a new instance". The node name in the captured output stays, because the output is copied unchanged.
+  - `[low]` `[reject]` the document has no removal or troubleshooting section (blind) - beyond the spec's list of points, and removal is not measured.
+  - `[low]` `[reject]` the `${cspdir}` mutation proves less than its label (blind) - already recorded in "Measured in implement" and replaced by a mutation that does go red.
+  - `[maybe-false]` `[reject]` `ReconcileIn.OnInit` could see the lock free if an item is Alive before its `OnInit` runs (edge) - "Start by the step" passed in every run (no extra row); a double reconcile is idempotent (AD-5), so at most low.
+  - `[low]` `[reject]` `Done` resets when the `ReconcileIn` job restarts alone (edge) - a restart of the item is a start of that item; the areas' `Reconcile()` are idempotent (AD-5).
+  - `[low]` `[reject]` `Ipm` should commit levels a step left open (edge) - no step opens a transaction; theoretical.
+  - `[low]` `[patch]` the document says the first command can be run again "in any namespace" (edge) - fixed: USER or %SYS, and in OCUTALON it is the second run.
+  - `[low]` `[reject]` the document says nothing of a kept foreign OCUORDERS under Demo mode (edge) - the effect of `SetDemoMode` on it is not measured; a claim would be unmeasured text.
+  - `[low]` `[reject]` the chat poll loop does not stop on a non-202 (edge) - costs 90 s on a red run only.
+  - `[low]` `[reject]` rule 8 accepts the Invoke inside an XML comment (edge) - theoretical; the manifest has no comments.
+  - `[medium]` `[patch]` the `Run` to `Caller()` to `AutoStart` handoff is not asserted in a unit test (gap) - fixed: `TestIpmRunsTheSteps` records `Caller()` in a fixture step for "ipm" and "after-start" and asserts none is left.
+  - `[low]` `[reject]` `ReconcileIn.Reconcile` wiring (id restore, warnings) is pinned only by an Info-row count (gap) - Task 0 measured the in-job reconcile; a unit test needs a stubbed step; no failure shown.
+  - `[low]` `[patch]` the chat check accepts a done turn with no decision (gap) - fixed: `n/a` now fails; the run shows the mock turn carries a decision.
+  - `[low]` `[patch]` ACs without a mutation line from a non-Lane-B change (gap) - fixed: install checks, autostart and package, and path B each have a demonstrated mutation. "Demo switch" and the `/state`, `break-feed` and chat parts of "Web and REST" can only be mutated in Lane B classes (U-177) and stay without a line.
+  - `[low]` `[patch]` `TestIpmOnTheImage` and the Task text claim no unit test calls `Run` (gap, other) - fixed in the test's doc; `TestIpmRunsTheSteps` now calls it over fixture steps.
+  - `[low]` `[reject]` `TestIpmOnTheImage` assumes `$TLevel` 0 at its start (gap, other) - the unit-test manager opens no transaction; `TestIpmRunsTheSteps` uses a base level.
+  - `[low]` `[reject]` the Demo-switch comparison excludes names that start with `OCUORDERS` (gap, other) - recorded in "Measured in implement"; path B's `foreign_orders` covers a foreign one.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -273,6 +301,16 @@ No AC contradicts an AD.
     - `$ZTimeZone=300`;
     - `ResolvePath("/etc/localtime")` gives `/usr/share/zoneinfo/America/New_York`.
   - The base image's `/etc/localtime` points at `Etc/UTC`.
+
+**Measured in implement** (2026-10-31, developer machine, ARM, lane B; throwaway tag `e15s2i`, torn down; `release/ipm-install.sh a` passed with 42 checks, `b` with 30).
+- `TIME` lines of `a`: ready 12 s, first run 31 s, repeat in USER 2 s, in %SYS 3 s, Shell() 4 s, second run 34 s, demo on 1 s, demo off 5 s, stop and start 0 s, Registry.Run("ipm") 1 s. `b`: ready 12 s, first run 36 s, ready (second stack) 15 s, merge 31 s, enable 1 s, second run 33 s. The two together stay well under 8 minutes, so `lane-a.yml` is unchanged.
+- Task 0 confirmed: `/ocutalon/` is served on the published port; `irisowner` (OS login, `%All`) may call `SetDemoMode`; `keys_point` and `keys_restore` work on this stack (the chat turn is done with no `fallbackReason`); `ReconcileIn` reconciles inside its production job with the session ids restored (one Info row after a session's start, no second one after three more polls), so the fallback of a `JOB` process was not needed.
+- The second run's output has `Activate START` before `Configure START`, and `Activate SUCCESS` after `Configure SUCCESS`; the 15 `STEP` lines sit between `Configure START` and `Configure SUCCESS`.
+- USER and %SYS hold no OcuTalon class, routine, module record or `^OcuTalon` global after the second run: no step writes such an item there by design, so the check excludes none.
+- `Config.Namespaces` lists the databases `OCUORDERS_CODE` and `OCUORDERS_DATA` as namespaces while they exist, so the demo-switch check of "the instance's other namespaces" leaves out every name that starts with `OCUORDERS`.
+- IPM's `%IPM.Storage.Module` table name is a reserved word in SQL; the package check reads the table name from the compiled class (`SqlQualifiedNameQ`).
+- Path B needs IPM loaded on the fresh instance before `zpm "enable -map -ns OCUTALON"`, so the script loads `zpm-0.10.10.xml` first and takes the services baseline after it.
+- `${cspdir}` and `${dataDir}csp/` are the same folder (`/usr/irissys/csp/`) in this image, so the planned mutation "FileCopy target `${cspdir}`" stays green here; the bundle-path mutation uses another target folder name instead.
 
 **Not measured, so inference:**
 - x64 time: `a` plus `b` will take about 6 minutes locally and about 15 to 17 minutes on the runner, inside the job's 30 minutes.
@@ -407,6 +445,25 @@ Every `[L]` command uses only fresh throwaways. The `class` and `shard` calls ar
 | `Public.RunLocal` writes `onlineDemo` 1 | `ipm-install.sh a` ("Web and REST") | not the online demo |
 | The Demo step's create skips the public mappings | `ipm-install.sh a` ("Demo switch") | demo on |
 
+Mutation results (applied one at a time, red observed, reverted; `git status --short` and the `git diff` hash equal before and after each):
+- mutation: `Ipm()` without the commit loop (`While 0`) -> red: `ipm-install.sh a` shows `STEP Production FAILED ... ErrCanNotAcquireRuntimeLock` and fails the second run, install, web and package checks.
+- mutation: `Ipm()` returns OK at once -> red: `ipm-install.sh a` has no `STEP` line (14 checks fail, from "second run").
+- mutation: `Ipm()` ignores the version file -> red: `Test.Install.Registry.TestIpmOnTheImage` ("the node is gone: Ipm committed nothing").
+- mutation: delete the Configure Invoke line -> red: `test-cpf.sh` rule 8. (`ipm-install.sh a` was not run with this one: with no Invoke no step runs, which the "returns OK at once" run shows.)
+- mutation: `AutoStart` marks for every caller -> red: `Test.Install.Production.TestAutoStart` (three asserts). `live production` row 13 was not run (parent's list).
+- mutation: `AutoStart` never marks -> red: `ipm-install.sh a`, the second-run session check (the `autostart` value).
+- mutation: `Start` takes no lock -> red: `ipm-install.sh a` "start by the step" (ReconcileIn's Info rows went 2 -> 3).
+- mutation: `ReconcileIn` never reaches the run branch -> red: `ipm-install.sh a` "start outside the step" (rows 0 -> 0).
+- mutation: `Next` ignores the missing items (`If 1 Quit "run"`) -> red: `Test.Install.ReconcileIn.TestNext` (six asserts).
+- mutation: the `ReconcileIn` item removed from `Production.cls` -> red: `Test.Install.Production.TestDefinition` (the oracle: item count and item 19).
+- mutation: `Unguard` also deletes the routine of a foreign setting -> red: `Test.Install.Users.TestForeignGuardIsRefused` ("and the foreign routine still exists"). `ipm-install.sh b` was not run with it.
+- mutation: FileCopy target `${dataDir}csp/ocutalon-bundle/` (the planned `${cspdir}` is the same folder here) -> red: `ipm-install.sh a` (bundle, sign-in page, sign-in).
+- mutation: `Ipm()` skips the reopening of the levels (`While 0` for the `TStart` loop) -> red: `Test.Install.Registry.TestIpmRunsTheSteps` ("and opens the level again", "and opens both levels again", the node written after the call).
+- mutation: `Step.Caller()` always returns "ipm" -> red: `Test.Install.Registry.TestIpmRunsTheSteps` ("and the steps ran with the caller after-start", "no caller is left after the run").
+- mutation: `src/cpf/ocutalon.cpf` without the `OcuTalonPublic` global mapping, and `AutoStart` marking `OcuTalon.BridgeExample.Production`, in one run -> red: `ipm-install.sh a` "install checks: the public package and global ...", "second run: ... is the autostart production", "package: ... not the autostart production", the sign-in page, and the first run's mappings.
+- mutation: `Unguard` also deletes the routine of a foreign setting, on path B -> red: `ipm-install.sh b` "path B: the foreign password-validation setting and routine are unchanged" and "every STEP line ... OK".
+- Not run: "`Public.RunLocal` writes `onlineDemo` 1" and "the Demo step's create skips the public mappings": both are Lane B classes (U-177), which this stage does not edit, not even to mutate.
+
 **Shared surfaces:**
 - **The production's item list,** now with `ReconcileIn`. Read by:
   - the `Test.Install.Production` oracle and lib-live's reader of it (every live unit's "every item runs" check);
@@ -428,5 +485,36 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The second install command now gives a working OcuTalon. `Registry.Ipm()` (Configure, After) commits IPM's open transaction, runs `Run("ipm")` and reopens the levels; on the image it does nothing. The `Production` step marks the production autostart for the caller `ipm` only, and holds a start lock. The new `ReconcileIn` item reconciles every start that the step did not make. `release/ipm-install.sh a|b` proves both install paths, and `docs/install-ipm.md` documents them from captured output.
+
+**Files changed.**
+- `src/module.xml`: the Configure, After Invoke of `Registry.Ipm`.
+- `src/ocutalon/cls/OcuTalon/Install/Registry.cls`: `Ipm()`, and `Run` records the caller.
+- `src/ocutalon/cls/OcuTalon/Install/Step.cls`: `Caller()`.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Production.cls`: start lock, `Starting()`, `AutoStart(caller)`.
+- `src/ocutalon/cls/OcuTalon/Install/ReconcileIn.cls` (new): the item.
+- `src/ocutalon/cls/OcuTalon/Production.cls`: the item in Lane A's region.
+- `docker/tests/test-cpf.sh`: rule 8.
+- `src/ocutalon/cls/OcuTalon/Test/Install/{Registry,Production,ProductionRules,Users}.cls` and the new `Test/Install/ReconcileIn.cls`: `TestIpmOnTheImage`, `TestIpmRunsTheSteps`, `TestAutoStart`, the oracle row, the name entry, `TestNext`, and the DW-212 asserts.
+- `release/ipm-install.sh`: the argument, the second run and path B.
+- `docs/install-ipm.md` (new): the install document.
+
+**Review findings.** 23 findings; 10 patched (medium 3, low 7), none deferred, 13 rejected with their reasons in the triage log.
+
+**Follow-up review recommended:** false. No high was patched and the three medium patches (test hermeticity, a unit test of `Ipm`, the caller handoff test) added tests only.
+
+**Verification performed.**
+- Static: `test-cpf.sh` (rules 1-8), `test-pinned-sources.sh`, `test-boundaries.sh` and `ci/checks.sh` pass.
+- Classes on fresh throwaways: `Test.Install.Registry`, `Production`, `ProductionRules`, `ReconcileIn`, `Users` pass.
+- `release/ipm-install.sh a`, `b` and the full run pass (path A 42 checks, path B 30).
+- Every `(once)` unit passed on the first pass, among them the live units, the shard pieces and `standalone-bridge.sh`. After the review patches (which changed `ReconcileIn`'s skip path, tests, the script and the document) the units that run the production or the installer were run again and passed: the full `ipm-install.sh`, `ci/checks.sh`, `live production`, `live production-restart`, `live reminder-restart`, `live install-start` and `shard lane-a@Checks,Install,Watch`. The other units do not depend on the patched code and were not repeated.
+- Mutations: every mutation of the spec's table that edits a Lane A file went red and was reverted with the diff hash unchanged; the two that edit Lane B classes were not run (U-177).
+- Teardown of tag `e15s2i` removed nothing left over.
+
+**Residual risks.**
+- `ReconcileIn.OnInit` reads the start lock once; a start that lets the item run before its `OnInit` could be reconciled twice (idempotent; never observed).
+- The "Demo switch" and `/state` parts of "Web and REST" have no demonstrated mutation, because their classes are Lane B (U-177).
+- A failed reconcile of `ReconcileIn` is not repeated until the item starts again.

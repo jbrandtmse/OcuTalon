@@ -39,12 +39,14 @@ ClassMethod Areas() As %List
 /// STEP <name> OK <seconds>s, or STEP <name> FAILED <text> for the first step that fails, which stops the run.
 /// A step's warnings (Install.Step Warn) are discarded before it runs and written after its line, one line each:
 /// WARN <name> <text>.
-/// caller names the entry point ("after-start", "ipm") in the refusal of another namespace.
+/// caller names the entry point ("after-start", "ipm") in the refusal of another namespace and, for the length of the run, to the steps
+/// (OcuTalon.Install.Step Caller).
 ClassMethod Run(caller As %String = "") As %Status
 {
 	If $Namespace '= "OCUTALON" {
 		Quit $SYSTEM.Status.Error(5001, "The installer steps run only in namespace OCUTALON, not in "_$Namespace_" (called by "_caller_")")
 	}
+	Set ^||OcuTalonStepCaller = caller
 	Set order = ..Order()
 	Set position = 0
 	Set sc = $SYSTEM.Status.OK()
@@ -63,6 +65,32 @@ ClassMethod Run(caller As %String = "") As %Status
 			Write !, "WARN ", name, " ", line
 		}
 		If $$$ISERR(sc) Quit
+	}
+	Kill ^||OcuTalonStepCaller
+	Quit sc
+}
+
+/// The IPM entry point (AD-23), the Configure, After Invoke of the package. On the Docker image, where the version file exists, it does
+/// nothing and returns OK: the after-start script runs the steps there. Elsewhere it runs the steps once, with Run("ipm"). The steps
+/// cannot run inside IPM's open transaction (the production cannot start there: ErrCanNotAcquireRuntimeLock), so it commits that
+/// transaction to level 0, runs the steps, and opens the same number of levels again on every path, so that IPM's own commit follows.
+/// A Reload, Validate or Compile failure is still IPM's rollback, because Configure runs after Compile and after the bundle copy; a failed
+/// step leaves the installed code in place and the same install command runs the steps again. Returns the status of Run.
+ClassMethod Ipm(versionFile As %String = {##class(OcuTalon.Install.Step.Demo).#VERSIONFILE}) As %Status
+{
+	If ##class(%File).Exists(versionFile) Quit $SYSTEM.Status.OK()
+	Set level = $TLevel
+	While $TLevel > 0 {
+		TCommit
+	}
+	Try {
+		Set sc = ..Run("ipm")
+	} Catch exception {
+		Set sc = exception.AsStatus()
+		Kill ^||OcuTalonStepCaller
+	}
+	While $TLevel < level {
+		TStart
 	}
 	Quit sc
 }

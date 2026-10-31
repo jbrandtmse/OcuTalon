@@ -13,6 +13,7 @@
       <Resource Name="OcuTalon.Install.Ipm.CLS" Directory="cls" Preload="true"/>
       <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
       <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
+      <Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>
     </Module>
   </Document>
 </Export>

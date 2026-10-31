@@ -13,6 +13,8 @@
 #   6. .github/workflows/lane-a.yml defines job ipm-install, and the job runs release/ipm-install.sh;
 #   7. the job is wired the way the script needs: the base image in IRIS_IMAGE, a run tag that ends in -ipm, the web bundle built
 #      before the script runs, and a live deadline that ends before the job's timeout.
+#   8. src/module.xml declares the IPM entry point once: the exact Configure, After Invoke of OcuTalon.Install.Registry Ipm, on a line
+#      of its own after the MapAndStop Invoke;
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -129,6 +131,18 @@ ipm_job_wired() {
     END { exit (image && tag && ordered && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
 }
 
+# 8. The Configure Invoke of the IPM entry point: exactly one Invoke at Configure, the exact one, after the MapAndStop line.
+IPM_ELEMENT='<Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>'
+ipm_entry_declared() {
+  awk -v inv="$INVOKE_ELEMENT" -v ipm="$IPM_ELEMENT" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == inv { if (!seen) seen = NR }
+    line == ipm { nipm++; if (!seen) before = 1 }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Configure/ && line != ipm { bad = 1 }
+    line ~ /Registry/ && line ~ /Method="Ipm"/ && line != ipm { bad = 1 }
+    END { exit (nipm == 1 && !before && !bad) ? 0 : 1 }' "$1"
+}
+
 # --- the rules on samples ---
 
 wanted_lines > "$tmp/good.cpf"
@@ -223,6 +237,26 @@ else
   fail "rule 5 on samples: the checker accepts a manifest without the exact preload resource and Invoke, or rejects the right one"
 fi
 
+cat > "$tmp/manifest.ipm" <<EOM
+<Module>
+  $CPF_ELEMENT
+  $PRELOAD_ELEMENT
+  $INVOKE_ELEMENT
+  $IPM_ELEMENT
+</Module>
+EOM
+grep -v 'Method="Ipm"' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-none"
+{ cat "$tmp/manifest.ipm"; echo "  $IPM_ELEMENT"; } > "$tmp/manifest.ipm-twice"
+awk -v ipm="  $IPM_ELEMENT" -v inv="  $INVOKE_ELEMENT" '$0 == inv { held = $0; next } $0 == ipm { print; print held; next } { print }' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-first"
+sed 's/Phase="Configure"/Phase="Activate"/' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-phase"
+{ cat "$tmp/manifest.ipm"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Configure" When="After"/>'; } > "$tmp/manifest.ipm-other"
+if ipm_entry_declared "$tmp/manifest.ipm" && ! ipm_entry_declared "$tmp/manifest.ipm-none" && ! ipm_entry_declared "$tmp/manifest.ipm-twice" \
+  && ! ipm_entry_declared "$tmp/manifest.ipm-first" && ! ipm_entry_declared "$tmp/manifest.ipm-phase" && ! ipm_entry_declared "$tmp/manifest.ipm-other"; then
+  pass "rule 8 on samples: the Configure Invoke of Ipm after MapAndStop passes; none, two, one before MapAndStop, another phase or another Invoke at Configure fails"
+else
+  fail "rule 8 on samples: the checker accepts a manifest without the exact Configure Invoke of Ipm after MapAndStop, or rejects the right one"
+fi
+
 cat > "$tmp/lane.good" <<'EOL'
 jobs:
   standalone-bridge:
@@ -286,6 +320,7 @@ check "rule 4: $manifest has the one CPF element, first" cpf_is_first "$manifest
 check "rule 5: $manifest declares the preload resource and invokes MapAndStop once, at Initialize, After, and nothing else at Initialize" early_step_declared "$manifest"
 check "rule 6: .github/workflows/lane-a.yml defines job ipm-install, which runs release/ipm-install.sh" ipm_job_runs_script .github/workflows/lane-a.yml
 check "rule 7: job ipm-install has the base image, the -ipm tag, the bundle build before the script and a deadline inside the timeout" ipm_job_wired .github/workflows/lane-a.yml
+check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configure, After, after MapAndStop" ipm_entry_declared "$manifest"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

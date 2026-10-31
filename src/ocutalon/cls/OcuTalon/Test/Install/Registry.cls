@@ -243,6 +243,88 @@ Method TestReconcileStep()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", ..Number, "reconcile")), 3, "the other areas still ran")
 }
 
+/// On the Docker image, where the version file exists, Ipm() runs no step and returns OK, and leaves the transaction level as it
+/// found it: a node written inside the open transaction is rolled back afterwards, so Ipm() committed nothing.
+Method TestIpmOnTheImage()
+{
+	Set file = ##class(%File).TempFilename("txt")
+	Do $$$AssertTrue(##class(%File).Exists(file), "the stand-in for the version file exists")
+	TStart
+	Set ^OcuTalonTest("Registry", ..Number, "ipm") = 1
+	Set sc = ##class(OcuTalon.Install.Registry).Ipm(file)
+	Do $$$AssertStatusOK(sc, "Ipm returns OK on the image")
+	Do $$$AssertEquals($TLevel, 1, "and leaves the transaction level as it found it")
+	TRollback
+	Do ##class(%File).Delete(file)
+	Do $$$AssertEquals($Data(^OcuTalonTest("Registry", ..Number, "ipm")), 0, "the node is gone: Ipm committed nothing, so it ran no step")
+}
+
+/// Off the image (no version file), Ipm() commits the open transaction, runs the steps with the caller "ipm" and opens the same number
+/// of levels again, whether the run succeeds or a step fails: a node written before the call survives the rollback of the reopened
+/// level, a node written after it does not, and the steps see the caller during the run and none after it (Run for the Docker path gives
+/// the caller after-start). Run on the probe registry, whose order is the fixture steps.
+Method TestIpmRunsTheSteps()
+{
+	Set number = ..Number
+	Set seen = "ZzIpmSeen"_number
+	Set fail = "ZzIpmFail"_number
+	Set prefix = "OcuTalon.Install.Step."
+	Set key = "ipmlevel"
+	Set sc = ..Create("FixtureRunStep", prefix_seen, number, , , "Set ^OcuTalonTest(""Registry"", "_number_", ""caller"") = ##class(OcuTalon.Install.Step).Caller() Quit $SYSTEM.Status.OK()")
+	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_fail, number, , , "Quit $SYSTEM.Status.Error(5001, ""Step failed on purpose"")")
+	If $$$ISOK(sc) Set sc = ..Create("FixtureProbe", ..Probe, number)
+	Do $$$AssertStatusOK(sc, "the fixture steps and the probe compile")
+	If $$$ISERR(sc) Quit
+
+	Set missing = ##class(%File).TempFilename("none")
+	Do ##class(%File).Delete(missing)
+	Do $$$AssertNotTrue(##class(%File).Exists(missing), "the stand-in for the version file does not exist")
+
+	Set base = $TLevel
+	Kill ^OcuTalonTest("Registry", number, "caller"), ^OcuTalonTest("Registry", number, key)
+	Set ^OcuTalonTest("Registry", number, "order") = $ListBuild(seen)
+	TStart
+	Set ^OcuTalonTest("Registry", number, key, "before") = 1
+	Set sc = $ClassMethod(..Probe, "Ipm", missing)
+	Set level = $TLevel
+	Set ^OcuTalonTest("Registry", number, key, "after") = 1
+	TRollback
+	Do $$$AssertStatusOK(sc, "Ipm returns the status of a successful run")
+	Do $$$AssertEquals(level, base + 1, "and opens the level again")
+	Do $$$AssertEquals($TLevel, base, "the test's own rollback closes it")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "caller")), "ipm", "the steps ran with the caller ipm")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).Caller(), "", "and no caller is left after the run")
+	Do $$$AssertEquals($Data(^OcuTalonTest("Registry", number, key, "before")), 1, "the node written before the call was committed")
+	Do $$$AssertEquals($Data(^OcuTalonTest("Registry", number, key, "after")), 0, "the node written after it was inside the reopened level")
+
+	Kill ^OcuTalonTest("Registry", number, "caller")
+	Set sc = $ClassMethod(..Probe, "Run", "after-start")
+	Do $$$AssertStatusOK(sc, "Run for the Docker path succeeds")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "caller")), "after-start", "and the steps ran with the caller after-start")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).Caller(), "", "and no caller is left after it")
+
+	Kill ^OcuTalonTest("Registry", number, key)
+	Set ^OcuTalonTest("Registry", number, "order") = $ListBuild(seen, fail)
+	TStart
+	TStart
+	Set sc = $ClassMethod(..Probe, "Ipm", missing)
+	Set level = $TLevel
+	While $TLevel > base {
+		TRollback
+	}
+	Do $$$AssertStatusNotOK(sc, "a failing step fails Ipm")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Step failed on purpose", "with the step's failure")
+	Do $$$AssertEquals(level, base + 2, "and opens both levels again")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).Caller(), "", "and no caller is left after the failed run")
+
+	Kill ^OcuTalonTest("Registry", number, "caller"), ^OcuTalonTest("Registry", number, key)
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do ..Delete(..Probe)
+	For name = seen, fail {
+		Do ..Delete(prefix_name)
+	}
+}
+
 /// Purge calls the Purge of every area with the number of days, and combines the failures by area.
 Method TestPurge()
 {

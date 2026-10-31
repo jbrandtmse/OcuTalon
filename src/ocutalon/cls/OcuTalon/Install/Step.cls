@@ -54,6 +54,14 @@ ClassMethod Warn(text As %String)
 	Set ^||OcuTalonStepWarnings($Increment(^||OcuTalonStepWarnings)) = $Translate(text, $Char(13, 10), "  ")
 }
 
+/// The entry point that is running the steps ("after-start", "ipm"), as OcuTalon.Install.Registry.Run recorded it for the run, in a
+/// process-private global; "" when no run is under way. Registry.Run sets it before the first step and kills it before it returns, so a step
+/// that depends on how it was reached reads it here and no step's Run() signature carries it.
+ClassMethod Caller() As %String
+{
+	Quit $Get(^||OcuTalonStepCaller)
+}
+
 /// The recorded warning lines in the order they were recorded, as a list ("" when there are none), and clears them.
 ClassMethod TakeWarnings() As %List
 {

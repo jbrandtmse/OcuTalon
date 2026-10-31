@@ -770,11 +770,13 @@ Method TestForeignGuardIsRefused()
 	Do $$$AssertEquals(..Account(..Ro), "<none>", "and no read-only account")
 	Do $$$AssertEquals($ClassMethod(guard, "Setting"), foreign, "the setting is unchanged")
 	Do $$$AssertNotTrue($ListGet($ClassMethod(guard, "State"), 2), "and no guard routine is written")
+	Do $$$AssertTrue($ClassMethod(guard, "RoutineExists", "ZzForeign"), "and the foreign routine still exists")
 
 	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
 	Do $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
 	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts with the flag off runs")
 	Do $$$AssertEquals($ClassMethod(guard, "Setting"), foreign, "the setting is unchanged")
+	Do $$$AssertTrue($ClassMethod(guard, "RoutineExists", "ZzForeign"), "and the foreign routine still exists")
 	Do $$$AssertEquals(..Warned("ZzForeign,"_$Parameter(..#STEP, "GUARDROUTINE")), 0, "and nothing is warned of either routine")
 }
 
