@@ -2,15 +2,22 @@
 title: 'Story 11.8: The chat cancels several reminders in one call and says it can set them'
 type: 'feature'
 created: '2026-10-31'
-status: 'in-progress'
-baseline_revision: '09cf79b712e2d7727abcfb4c1a61558a70e1307c'
+status: 'done'
+baseline_revision: '497c85e7ef67a448264ef269ca1a46a4629ca35d'
 baseline_commit: '09cf79b712e2d7727abcfb4c1a61558a70e1307c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Records that name the retired BANDPERCENT in a reopen condition need rewording by the lead.
+    evidence: |-
+      `deferred-work.md` (the Story 1.9 entry, reopen_if "BANDPERCENT has to grow above 29") and `spec-1-9-no-model-request-goes-over-100-000-tokens.md` carry a reopen_if that names a parameter the test no longer has; the bound now follows the agent's system prompt (ENVELOPECHARS).
+    location: >-
+      _bmad-output/implementation-artifacts/deferred-work.md
+    severity: low
 ---
 
 <intent-contract>
@@ -228,7 +235,7 @@ Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verifica
 - `low` A ref given twice makes the top `ok` false (edge-case-hunter) -- by-design (Design Notes: no dedupe; the second entry is the owner's `no_reminder`).
 - `low` `StepProblems` stops polling at 1 + 2n steps, so a later extra step can be missed (edge-case-hunter) -- the old copies read at once; an extra step present at read time is flagged; a settle wait would add time to every caller.
 
-- [ ] [CI] iris (shards-2), shard lane-a@rest: `OcuTalon.Test.Bridge.Conversation` `TestPrecheckCountsHistory` failed "Decide's estimate, 5876, is within 29 percent of it, 4538" — https://github.com/jbrandtmse/OcuTalon/actions/runs/41217490277 — Story 11.8's reminder block grew Chat's INSTRUCTIONS, so the system-prompt gap the test's BANDPERCENT (29) was measured for (901 + 328 = 1,229 characters, Story 1.9) is now larger. Re-measure the gap with the new instructions, and fix the test so it stays a real bound (for example derive the band from `RequestSize.AgentChars` of Chat rather than a fixed 29, or re-measure and restate the constant and its doc comment); do not weaken what it pins (the estimate counts the agent part, the stored history and the input). Run `OcuTalon.Test.Bridge.Conversation` on a fresh stack, then the lane-a@rest shard in parts on a warm stack, and record a `mutation:` line for the changed assertion.
+- [x] [CI] iris (shards-2), shard lane-a@rest: `OcuTalon.Test.Bridge.Conversation` `TestPrecheckCountsHistory` failed "Decide's estimate, 5876, is within 29 percent of it, 4538" — https://github.com/jbrandtmse/OcuTalon/actions/runs/41217490277 — Story 11.8's reminder block grew Chat's INSTRUCTIONS, so the system-prompt gap the test's BANDPERCENT (29) was measured for (901 + 328 = 1,229 characters, Story 1.9) is now larger. Re-measure the gap with the new instructions, and fix the test so it stays a real bound (for example derive the band from `RequestSize.AgentChars` of Chat rather than a fixed 29, or re-measure and restate the constant and its doc comment); do not weaken what it pins (the estimate counts the agent part, the stored history and the input). Run `OcuTalon.Test.Bridge.Conversation` on a fresh stack, then the lane-a@rest shard in parts on a warm stack, and record a `mutation:` line for the changed assertion.
 
 ## Spec Change Log
 
@@ -253,6 +260,23 @@ Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verifica
   - `[low]` `[reject]` B's ref is never named in the cancel-all scenario, so cross-session isolation of the several-ref path is not seen (Verification Gap) -- the tool reads no table and `ReminderOps` decides; single-ref isolation is pinned by `TestCancelThroughChat` (no realistic failure)
   - `[low]` `[reject]` AC3's NOSESSION-before-refs order, and the several-ref refusal and duplicate paths against the real owner (Verification Gap, Other findings) -- the order is pinned by the bad-call-without-session assertion; the paths are pinned against the double
   - `[low]` `[reject]` intent audit: the model-side behaviour is pinned on the mock only (Intent Alignment) -- descriptive; the intent assigns the live check to Story 38.1
+
+### 2026-10-31 — Review pass (CI rework 1)
+- verdicts: 13 findings — high 0, medium 1, low 7, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` The lower bound "not below the runner's" lets a history cut by less than the prompt pass (blind-hunter, edge-case-hunter) — patched: the bound is now "above the runner's by at least Tokens(prompt) - Tokens(ENVELOPECHARS)"; a half-history mutation went red.
+  - `[low]` `[patch]` Doc comment says "nothing large is counted twice" while the prompt is counted twice by design, and two doc lines run long (blind-hunter) — patched: the doc comment and header reworded and rewrapped.
+  - `[low]` `[defer]` `deferred-work.md` and the Story 1.9 spec carry a `reopen_if` naming the retired BANDPERCENT (blind-hunter, edge-case-hunter) — the ledger is the lead's; recorded under `deferred:`.
+  - `[false]` `[reject]` ENVELOPECHARS (500) has no recorded envelope measurement (blind-hunter) — the measured gap is in the report and Auto Run Result: prompt 5,163, gap about 5,349 characters, so about 186 beyond the prompt.
+  - `[false]` `[reject]` The prompt is read live, not from the stored session (blind-hunter) — turn 1 and turn 2 run on the same host and agent class in one method; no prompt change can sit between them.
+  - `[low]` `[reject]` No "Changed by Story 11.8" header note (blind-hunter) — comments state the contract, never the history (Rule 14).
+  - `[low]` `[reject]` Absolute bound does not scale with a longer history, and only a 4,000-character first exchange is exercised (blind-hunter) — the gap is the prompt whatever the history; a longer history adds nothing to what the bound pins.
+  - `[low]` `[reject]` The prompt is JSON-escaped in the stored history, so the bound uses the wrong length (edge-case-hunter) — the measured gap (about 186 characters beyond the raw prompt, escapes included) is far inside the 500-character allowance.
+  - `[low]` `[reject]` Derive the tool-catalog term instead of a flat 500 (edge-case-hunter) — the catalog is the same in both estimates; MCP tools (AD-21) are in neither, and a difference that grew would fail loudly.
+  - `[low]` `[reject]` The [x] item reads as verified with no green runs recorded (edge-case-hunter) — the runs are now recorded under `## Verification`.
+  - `[false]` `[reject]` Intent auditor: readings R2 (re-tune) and R3 (production over-count) — the item says to fix the test; R1 is the stated option and the production over-count is by design (Story 30.1).
+  - `[false]` `[reject]` Intent auditor: no mutation in the diff — the mutation lines are in `## Verification`, as Rule 19 places them.
+  - `[false]` `[reject]` Verification-gap layer — no gaps found.
 
 ## Design Notes
 
@@ -412,6 +436,12 @@ Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verifica
 - mutation: `Checks.Turns.AssertToolStep` expects the label plus "x" -- red in `TestFailingOrdersInTheChat`, `TestAllClearOnlyFromCode`, `TestNothingWatchedInTheChat` (restored, tree byte-identical, green again)
 - observed: `StepProblems`' in-session header query made invalid -- `<METHOD DOES NOT EXIST>` on `%GetData` in `TestCancel`, `TestCancelRefused`, `TestList`, `TestSetRelative` (a broken query fails loudly; restored, green again)
 
+**CI rework 1 (2026-10-31, `stage=implement`, warm tag `e11s8r1w`, fresh tag `e11s8r1`).**
+- mutation: `Decide.EstimateTokens` drops the stored history (`chars + 0`) -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the lower-bound assertion, 3466 against 4538; the old 29 percent band would have passed it)
+- mutation: `Decide.EstimateTokens` counts half the stored history (`HistoryChars \ 2`) -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the lower-bound assertion: 133 tokens above the runner's against at least 1166; the old 29 percent band would have passed 4671 against 4538)
+- mutation: `Decide.EstimateTokens` doubles the agent part -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the upper-bound assertion, 4783 tokens over the runner's against 1416 allowed)
+- runs: `Bridge.Conversation` green on a fresh stack (tag `e11s8r1`, 96 s) and on the warm stack (`e11s8r1w`); the three mutations restored, tree byte-identical (`git status --short`, `git diff --stat`, `git diff` checksum). The `lane-a@rest` shard ran green in six parts on the warm stack (72 classes) before the lower bound was tightened; the tightening changes one assertion of `Bridge.Conversation` alone.
+
 ## Auto Run Result
 
 Status: done
@@ -435,3 +465,10 @@ Blocking condition: none
 **Verification.** Slot A build 154U: classes loaded and compiled; Task 0 schema read and decoding recorded above. Warm runs passed: `Tools.Reminders`, `Schedule.ReminderChat`, `Agent.Instructions`, `Watch.Turns`, `Bridge.Gate`, `Bridge.CodeRules`, `Agent.Runners`, `Install.Tools`, `Contract.Ac`. Fresh-stack runs passed for the four changed classes. `test-mock.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `ci/iris.sh live sign-in --part 3/3` (56 passed, holds `reminder/chat.spec.ts`) passed. Warm and fresh stacks torn down; no lane-a lock left.
 
 **Residual risks.** The live model's behaviour on Haiku 5.5 (batching refs, not refusing a reminder) is Story 38.1's check; a "cancel all" with nothing pending relies on the model reading an empty list.
+
+**CI rework 1 (2026-10-31).** `Test.Bridge.Conversation` `TestPrecheckCountsHistory` no longer uses the fixed 29 percent band. Measured on the slot for turn 2: system prompt 5,163 characters, tool catalog 8,786, stored history 9,638, exported messages the runner counts 4,301; Decide's estimate 5,876 tokens against the runner's 4,538, a gap of about 5,349 characters, which is the prompt (held in the stored history, not in the exported messages) plus about 186. The bound now follows Chat's own prompt: the estimate is above the runner's by at least `Tokens(prompt) - Tokens(ENVELOPECHARS)` and by at most `Tokens(prompt + ENVELOPECHARS)` (`ENVELOPECHARS` = 500 replaces `BANDPERCENT`); every equality assertion is unchanged.
+- Files changed: `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` only.
+- Review: 13 findings from four layers; 2 patched (the lower bound tightened to follow the prompt, the doc wording), 1 deferred (stale `reopen_if` text naming `BANDPERCENT` in `deferred-work.md` and the Story 1.9 spec, for the lead), 10 rejected with reasons in the triage log.
+- Follow-up review recommended: false (the patches are test-side; no high was patched).
+- Verification: see `## Verification`, "CI rework 1": three mutations red and restored; `Bridge.Conversation` green on a fresh and a warm stack; `lane-a@rest` green in six parts before the final tightening of one assertion in the same class.
+

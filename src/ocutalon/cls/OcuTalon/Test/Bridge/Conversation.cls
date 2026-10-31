@@ -44,7 +44,8 @@
 /// Added by Story 1.9 (AD-6, AD-20):
 ///   - TestPrecheckCountsHistory: the estimate that Decide works out before it sends a turn (EstimateTokens) is the agent part, the stored history of
 ///     the owner's session and the input that Chat gets; it is the agent part and the input alone for the owner's first turn, for an untrusted turn and
-///     for a fresh turn; and for a turn that continues it is within BANDPERCENT of the runner's own estimate of the same turn.
+///     for a fresh turn; and for a turn that continues it is above the runner's own estimate of the same turn by the agent's system prompt, give or take
+///     ENVELOPECHARS (the bound follows the agent's own prompt, so it holds as the prompt changes).
 /// Added by Story 3.3 (AD-6, AD-10 3a):
 ///   - TestQuarantineAfterTaint: on the gate's agent (ZzGateAgent), a user's turn whose tool result is not trusted output (gate-read) comes back
 ///     Tainted and leaves the link and the saved session as they were; the next turn, fresh with a code-written recap, rotates the link and its first request
@@ -73,11 +74,12 @@ Parameter GATEAGENT = "OcuTalon.Test.Bridge.ZzGateAgent";
 /// The cap of the composed session config, in tokens.
 Parameter CAP = 8000;
 
-/// How far Decide's estimate of a turn that continues may be from the runner's own estimate of its first model step, in percent of the runner's: the stored
-/// history holds the system prompt that the agent part counts too, so the estimate is the larger (measured in Story 1.9: 24 percent for a first exchange of
-/// 4,000 characters, and the band is that and 5 points more). The gap is the agent's system prompt and the envelope of the stored value, 901 + 328 = 1,229
-/// characters (about 310 tokens) for Chat, the same whatever the conversation, so it shrinks as the history grows.
-Parameter BANDPERCENT = 29;
+/// How many characters, besides the agent's system prompt, Decide's estimate of a turn that continues may count above the runner's own estimate of its
+/// first model step. The stored history holds the agent's system prompt, which the runner counts once, in the agent part, and not again in the exported
+/// messages that it reads from the session; so Decide's estimate (agent part, stored history and input) is above the runner's by that prompt, whatever
+/// the conversation, and by the envelope of the stored value and the small difference between the two readings of the tool catalog. This is the allowance
+/// for those two, about two and a half times what Chat shows.
+Parameter ENVELOPECHARS = 500;
 
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
@@ -507,8 +509,11 @@ Method TestFirstStepCountsHistory()
 
 /// Decide's estimate of a turn counts the stored history of the conversation (Story 1.9; AD-6, AD-20). Turn 1 of an owner, with 4,000 characters of input, is
 /// answered and saved. The estimate of turn 2, worked out before it is sent, is the agent part (RequestSize.AgentChars), the stored size of the saved session
-/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets, and it is within BANDPERCENT of the runner's own estimate of
-/// turn 2's first model step. An untrusted turn and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
+/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets. Against the runner's own estimate of turn 2's first model
+/// step it is above it by the system prompt of the agent that the stored history holds (which the runner reads from the agent and not again from the
+/// exported messages), give or take ENVELOPECHARS, in tokens: a lower bound that fails when the history is dropped or cut, and an upper bound that fails
+/// when anything larger than the prompt is counted twice. An untrusted turn and a fresh turn of the same owner count no history, and turn 1, which has no
+/// link yet, counts none either.
 Method TestPrecheckCountsHistory()
 {
 	If ..Guard() Quit
@@ -542,7 +547,12 @@ Method TestPrecheckCountsHistory()
 	Do $$$AssertStatusOK(..Send(host, two, .next), "turn 2 is answered")
 	Set runner = ..FirstEstimate(next)
 	Do $$$AssertTrue(runner > 0, "the runner's own estimate of turn 2's first model step is read: "_runner)
-	Do $$$AssertTrue($ZAbs(estimate - runner) * 100 '> (..#BANDPERCENT * runner), "Decide's estimate, "_estimate_", is within "_..#BANDPERCENT_" percent of it, "_runner)
+	Set prompt = $Length(host.Adapter.Agent.SystemPrompt)
+	Do $$$AssertTrue(prompt > 0, "the system prompt of the agent that the stored history holds is read: "_prompt_" characters")
+	Set allowed = ..Tokens(prompt + ..#ENVELOPECHARS)
+	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS)
+	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope, "_least_" tokens, so the history is counted: "_(estimate - runner))
+	Do $$$AssertTrue(estimate - runner '> allowed, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by no more than the system prompt and the envelope, "_allowed_" tokens: "_(estimate - runner))
 }
 
 /// A user's turn with an empty OwnerRef has no conversation to link: the runner refuses it with an error that names OwnerRef, sends nothing to the
