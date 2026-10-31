@@ -295,3 +295,4 @@
 2026-10-31T12:24:08Z	Epic 5	ledger_load	total=447 open=0 routed=58 escalated=0 decision_pending=0 terminal=389 owner_unknown=0 burndown=0 reowned_none=0
 2026-10-31T12:24:47Z	Epic 5	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check(headless)_for_the_reopen;in_sync=true
 2026-10-31T12:24:47Z	Epic 5	retro_review_skipped	reason=no_x0_input(reopen_for_one_hotfix;ledger_has_no_burndown_none_or_epic-5_owned_entries) by=orchestrator_dispatch
+2026-10-31T12:28:00Z	Epic 5	epic_context_compiled	sha=pending_this_commit reason=planning_artifact_newer(story_5.12_block_and_second_fixture) model=claude-opus-5-5 spawn_at=2026-10-31T12:25:00Z
