@@ -2390,3 +2390,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Rule 2: src/bridge/cls/OcuTalon/Bridge/Replay.cls ActionEntry and src/ocutalon/cls/OcuTalon/Fix/Executor.cls ActionEntry share four identical lines; unifying them changes Fix.Executor, which this story does not touch
 - 2026-10-30T23:56:43Z status=wontfix-accepted owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=reopen_if=a third approval Action-entry builder appears, or the identity fields of the two builders diverge
+
+### DW-462: flake: OcuTalon.Test.Bridge.Approval TestAnswerBeforeTheTaskExists (row 13) went red once in CI: the task appeared but was not 'completed with Approve by OcuTalonWorkflow', the hold did not end and no single outcome was sent; green on the unchanged rerun
+- source: CI run 41150628107 attempt 1 (578d253, Story 30.3), iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: shard:lane-a@rest 1 of 57 classes failed (Approval 166.75s); 30.3 reworked the hold's delivery (re-arm, retry, Reconcile pass 3); passed locally fresh forward and reversed and warm; attempt 2 green
+- 2026-10-31T01:39:09Z status=routed owner=burndown by=ci note=flake: first occurrence; priority for Epic 30's burn-down (the hold timing on the x64 runner under 30.3's re-arm/retry)
