@@ -75,6 +75,26 @@ deferred: []
 - AC 2: Given the catalog, when `Test.Web.PublicTexts` and `Test.Msg.Catalog` run, then `LIMITLINECHAT` equals `splash.limitLineChat`, the key renders "Each session can send 50 messages an hour in the chat." on every channel, and `splash.telegramLine` and `splash.limitLine` still render their current texts word for word.
 - AC 3: Given the splash, public-text and catalog test classes, when run on a fresh stack in either order, then every one passes, and the flag-off sign-in page tests (`Test.Web.SignIn`, `Test.Web.Splash.TestShowFollowsTheFlag`) pass unchanged (matrix row 3).
 
+### Review Findings
+
+Code review, 2026-10-31: four layers at full tier (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor); 20 findings, 8 entries after grouping, 5 rejected. Every patch is applied and checked; the mutation lines are under `## Verification`.
+
+- [x] [Review][Patch] AC 1's "in that order" did not pin the reset line first: moving its write below the shell line stayed green in `TestPage` and S2. The order assertion now starts at the reset line's end [src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls:151] (medium; all four layers)
+- [x] [Review][Patch] Five more `[` assertions in `Test.Web.Splash` had an unparenthesised concatenation on their right, so ObjectScript's left-to-right order tested only the first fragment; the reset-soon notice's text check could never fail (`"0"_next` is a nonzero number). Parenthesised at :134, :139, :155, :582, :588 [src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls:139] (medium; verification-gap)
+- [x] [Review][Patch] S2 did not pin the list's order in a real browser, which AC 1 states; one `toHaveText` over the region's four items added [web/e2e-online/splash.spec.ts:219] (low; blind-hunter, acceptance-auditor)
+- [x] [Review][Patch] The QA stage's spec write left a stray second-level heading (the tail of the lead's restoration note, which quoted the result section's heading) over the implement stage's superseded mutation lines, which contradicted the corrected ones; removed from `## Verification`, after the QA file list [_bmad-output/implementation-artifacts/spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md:188] (low; all four layers)
+- [x] [Review][Patch] AC 3's flag-off half (matrix row 3) had pinning tests but no `mutation:` line; demonstrated and written [_bmad-output/implementation-artifacts/spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md:186] (low; verification-gap)
+- [x] [Review][Defer] The same precedence defect outside this epic: `Test.Agent.KeyScan:123` can never fail, and no check rejects the form [src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls:123] -- deferred: DW-505, routed owner=burndown (medium, Lane A, out-of-footprint; found by the reviewer's sweep of the root cause)
+- [x] [Review][Defer] `banner.resetSoon` says "Your session and Telegram pairing will be cleared." on the 0.1.0 online demo [src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:315] -- deferred: DW-506, routed to Story 12.7 beside DW-501 (the intent's "no other wording change", ruling U-197) (low; verification-gap)
+- [x] [Review][Defer] `live:online-demo` prints "jar.busy.s3.g: No such file or directory" on every run: row 5's refused sign-in writes no redirect-GET headers file, and the check passes [docker/tests/test-online-demo.sh:555] -- deferred: DW-507, wontfix-accepted (`docker/tests` is contended by Epics 13 and 15) (low; blind-hunter)
+
+**Rejected:**
+- `low` (blind-hunter): the triage-log row "a finding about the spec's Auto Run Result section" can no longer be checked. The fix would edit the spec's Review Triage Log, outside `## Verification`.
+- `false` (blind-hunter): the sprint change proposal of 2026-10-31 and the UX mockups still show the Telegram gate. The proposal is a dated record; `epics.md` and `EXPERIENCE.md` carry the ruling with their [AMENDED] markers, and the mockups show the Telegram-included state that EXPERIENCE.md:118-119 makes conditional.
+- `false` (blind-hunter): the "Telegram included" case has no home in Story 12.7. Story 12.7's acceptance criteria on `OCT-epic12` carry it (both splash lines and the `telegramIncluded` key question), and DW-501's trailer names it.
+- `low` (edge-case-hunter): a `messageAllowance` that is not a whole number of 1 or more is shown raw while `Allowance.Limit()` enforces 50. This story did not change that (the old limit line did the same), the demo's allowance is the owner-fixed 50, and the fix adds a guard.
+- `low` (edge-case-hunter): an allowance of 1 reads "1 messages". The same applies: unchanged behaviour, the owner-fixed 50, and a count-of-one form adds a key and a branch.
+
 ## Spec Change Log
 
 - 2026-10-31, lead (runner B), re-plan after plan round 1 (blocked: AD-3 bars the splash from `Channel.Telegram.In`; a `telegramIncluded` public key would amend AD-19). The orchestrator ruled option (C) (veto U-197): no gate; the splash drops the Telegram line and shows the chat-only allowance line unconditionally, from its own catalog key; touch no Lane A file and do not call `Included()`; the "Telegram included" case moves to Story 12.7 (the orchestrator routes it). The intent block was rewritten to that ruling; the round-1 design below (the public key, the Public step, the Lane A tests) is superseded and must not be built. The deferred allowance-banner item was filed by the lead as DW-501, routed to Story 12.7.
@@ -163,17 +183,16 @@ deferred: []
 - mutation: change the new key's text in `Msg/Catalog/Core.cls` ("chat." to "chats.") -> `Test.Web.PublicTexts.TestCopiesEqualTheCatalog` and `Test.Msg.Catalog` (`TestEveryKeyOnEveryChannel`, `TestLocalInstallEveryKey`) red (AC 2, the text comes from the catalog; QA run).
 - mutation: change one word of `splash.limitLine` ("Telegram" to "Signal") and, separately, of `splash.telegramLine` ("your own phone" to "your phone") -> `Test.Msg.Catalog.TestEveryKeyOnEveryChannel` and `TestLocalInstallEveryKey` red for each (AC 2, the kept keys unchanged; QA run).
 - mutation: drop the `If limit '= ""` guard in `Splash.cls` -> `Test.Web.Splash.TestEdgeValues` red ("no allowance: no limit line" and "the Before you start list holds three lines"), `TestPage` stays green (matrix row 2; QA run).
-- AC 3 is a run condition (fresh stack, either order, flag-off tests unchanged), not a behaviour a source mutation can break; it is checked by the lead's `shard lane-b` forward and `--reverse` runs. After all mutations were restored, QA ran `Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Msg.Catalog` and `Test.Web.SignIn` warm, each passed.
+- AC 3's fresh-stack, either-order half is a run condition, checked by the lead's `shard lane-b` forward and `--reverse` runs; its flag-off half (matrix row 3) has its mutation under the review mutation lines below. After all mutations were restored, QA ran `Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Msg.Catalog` and `Test.Web.SignIn` warm, each passed.
 
 **QA file list:** (QA) no test file created or changed: every AC and matrix row already had a pinning assertion in the existing classes (`Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Msg.Catalog`, `web/e2e-online/splash.spec.ts`). Only this section was edited.
 
-## Auto Run Result` heading; the two sections above are the plan's text, and these lines record the mutations the implement stage ran, per its Review Triage Log and its report. QA demonstrates one mutation per AC again and corrects these lines):
-- mutation: write a `<li>Have Telegram? ...</li>` item before the allowance item in `Splash.cls` -> `Test.Web.Splash.TestPage` red (AC 1).
-- mutation: swap the shell line above the allowance line -> `Test.Web.Splash.TestPage` red, once its "in that order" assertion was parenthesised (AC 1, list order).
-- mutation: the same Telegram item -> `ci/iris.sh live online-demo` red on `web/e2e-online/splash.spec.ts` S2 only (AC 1, browser).
-- mutation: change the new key's text in `Msg/Catalog/Core.cls` -> `Test.Web.PublicTexts` and `Test.Msg.Catalog` red (AC 2, chat-only text from the catalog).
-- mutation: change one word of `splash.telegramLine` -> `Test.Msg.Catalog` red (AC 2, the kept keys unchanged).
-- mutation: drop the `If limit '= ""` guard -> `Test.Web.Splash.TestEdgeValues` red (matrix row 2; planned, not recorded as run: QA demonstrates it).
+**Review mutation lines** (code review, 2026-10-31, on a warm lane-B stack, tag `e16s11rw`, and a throwaway, tag `e16s11r`; each mutation applied, observed red, restored from a backup, `git status --short` unchanged; both stacks torn down):
+- mutation: move `Write ..ResetLine(), !` below the shell line's write in `Splash.cls` -> `Test.Web.Splash.TestPage` red on "the reset line, the own line, the chat-only allowance line and the shell line, in that order" only (AC 1, the reset line first).
+- mutation: move the shell line's write above the allowance line's in `Splash.cls` -> `ci/iris.sh live online-demo` red on `web/e2e-online/splash.spec.ts` S2 only, at "the reset, own, chat-only limit and shell lines, in that order" (49 passed, 1 failed); the clean run passed, 50 specs (AC 1, the order in a real browser).
+- mutation: in `Splash.cls`, drop the line feed after the warning notice and after `</main>`, append " x" to the copy buttons' `aria-label`, put a space inside the reset-soon notice's `<time>` and write its hidden attribute as `hidden="hidden"` -> `Test.Web.Splash` red on each assertion the review parenthesised: `TestPage` "the copy button" (four), "the warning is the element just before the button", "the footer is outside main, with the note"; `TestResetSoonNotice` "the text carries one 'in'", "3600 s ahead: the same element, hidden" (earlier stories' assertions, which only now can fail).
+- mutation: `Login.UseSplash` as `Get("onlineDemo") '= "0"` -> `Test.Web.Splash.TestShowFollowsTheFlag` red on "Show with the flag '' writes the local page byte for byte" and "and the local policy" (AC 3, the flag-off page, matrix row 3; `TestLocalNeverShowsBusy` red too).
+- After the restores, `Test.Web.Splash` passed on the same warm stack.
 
 ## Auto Run Result
 

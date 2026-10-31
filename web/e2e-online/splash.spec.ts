@@ -20,7 +20,7 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S1: the head and the sign-in card: the texts, the prefilled text inputs with their 88px labels, the four copy buttons, the session
  *   line, the warning notice just before the full-width button, no show/hide toggle.
  * - S2: the Before you start card with the reset line (the browser's zone and clock, the countdown at 1 h 42 min, 9 min and 23 s, then
- *   rolled forward), the chat-only limit line and no Telegram line, the Visual Trace card and the footer.
+ *   rolled forward), its four lines in order with the chat-only limit line and no Telegram line, the Visual Trace card and the footer.
  * - S3: the four copy buttons write the exact value, show "Copied" for about 2 seconds and announce it once.
  * - S4: a rejected write, then no clipboard at all: the failure text under that card's rows, announced once, the value selected, the line
  *   gone after the next successful copy in that card.
@@ -216,6 +216,7 @@ test.describe('S1 to S2, the page', () => {
       await expect(page.getByText(OWN_LINE, { exact: true })).toBeVisible();
       const before = page.getByRole('region', { name: 'Before you start', exact: true });
       await expect(before.locator('li'), 'the list holds the reset, own, limit and shell lines').toHaveCount(4);
+      await expect(before.locator('li'), 'the reset, own, chat-only limit and shell lines, in that order').toHaveText([/^The demo resets every 4 hours\. Next reset: /, OWN_LINE, LIMIT_LINE, SHELL_LINE]);
       await expect(before, 'no Telegram line').not.toContainText('Telegram');
       await expect(before, 'no QR code line').not.toContainText('QR');
       await expect(page.getByText(LIMIT_LINE, { exact: true }), 'the limit line reads the allowance of the start values').toBeVisible();
