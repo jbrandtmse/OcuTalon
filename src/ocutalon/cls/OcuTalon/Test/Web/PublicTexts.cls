@@ -36,7 +36,7 @@ Method TestCopiesEqualTheCatalog()
 			Do $$$AssertEquals(decoded, text, class_"."_name_" equals the catalog key "_key)
 		}
 	}
-	Do $$$AssertEquals(count, 41, "41 parameters are compared with the catalog")
+	Do $$$AssertEquals(count, 40, "40 parameters are compared with the catalog")
 }
 
 /// Every own parameter of every class of both public packages is in exactly one list, and no list names a parameter that the
@@ -79,7 +79,7 @@ Method TestEveryParameterIsClassified()
 			}
 		}
 	}
-	Do $$$AssertEquals(counts("compared"), 41, "41 parameters are compared")
+	Do $$$AssertEquals(counts("compared"), 40, "40 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 2, "2 parameters are not in the UX")
 	Do $$$AssertEquals(counts("notText"), 32, "32 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
@@ -155,8 +155,7 @@ XData Classified [ MimeType = application/json ]
    "BEFOREHEADING": "splash.beforeHeading",
    "RESETLINE": "splash.resetLine",
    "OWNLINE": "splash.ownLine",
-   "TELEGRAMLINE": "splash.telegramLine",
-   "LIMITLINE": "splash.limitLine",
+   "LIMITLINECHAT": "splash.limitLineChat",
    "TOOMANY": "splash.tooManySessions",
    "PLACEFREED": "splash.placeFreed",
    "RESETNOTICE": "splash.resetNotice",

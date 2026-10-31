@@ -2345,6 +2345,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+- 2026-10-31T20:50:43Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=delivered by Story 16.4's commit 70350415: web/src/app/about/about-dialog.ts:26 reads 'An AI assistant for InterSystems IRIS.', pinned by web/e2e/frame/frame.spec.ts:253,263 and web/scripts/ux-strings.test.mjs:282; the entry was never adjudicated
 
 ### DW-399: Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss
 - source: _bmad-output/implementation-artifacts/spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-story
@@ -2392,6 +2393,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
 - 2026-10-31T04:11:24Z occurrence=29-8-the-author-s-load-run-measures-the-demo-s-capacity note=CI run 41165190685 attempt 1 (OCT-epic29 61bb996d, iris shards, live:floor): keyboard.spec.ts K2 page.goto net::ERR_NETWORK_CHANGED at sign-in/helpers.ts:44; no assertion failed
 - 2026-10-31T04:11:25Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=runner note=reopen_if fired (ERR_NETWORK_CHANGED again in an iris job log); the fix site is the shared sign-in helper, which Story 29.9's boundaries exclude; routed to the CI e2e flake owner beside DW-349 (a retry of page.goto on net::ERR_NETWORK_CHANGED only, or a Chromium launch option, is the candidate)
+- 2026-10-31T20:23:20Z occurrence=16-11-the-splash-promises-telegram-only-when-the-release-includes note=CI run 41236053364 attempt 1 (OCT-epic16 29835de9, iris shards, live:online-session): e2e-online/session/leave.spec.ts:104 L2 page.goto net::ERR_NETWORK_CHANGED; rerun of the failed job requested
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
@@ -2784,3 +2786,65 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
+
+### DW-483: Decide falls back on the first invalid reply; one retry on an invalid reply (with the check's own error text in the retry) could recover a correct-but-malformed diagnosis, within NFR-7's diagnosis budget
+- source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
+- 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
+
+### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestDiagnosisLengths builds its expected sentence from the compiled MAXLENs, so narrowing a whole group (ElementAtFault, FixParameters.Field, ItemNoun.One/Other) together with the prompt stays green; Evidence alone is pinned by TestPayloadAccepted's 128 boundary and TestHostReplies
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a FILTERED property of a reply class gets MAXLEN<=32 (git log -S MAXLEN on Watch/Msg or Bridge/Msg)
+
+### DW-493: Test.Watch.Diagnose.DecideWarnings near-copies Test.Core.Observe.Warnings (the same count-and-newest-text loop) with a SessionId filter that Observe.Warnings cannot take
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Diagnose.cls DecideWarnings filters SessionId, SourceClass and SourceMethod; Observe.cls Warnings filters mark, method and text start; the loop is the same; extending Observe (Test/Core) is outside Epic 5's footprint
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a second test counts Type 3 warnings by SessionId (grep 'WHERE SessionId = ? AND Type = 3' under src/ocutalon/cls/OcuTalon/Test)
+- 2026-10-31T11:56:37Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-191_kept(#576):measure_the_invalid_rate_per_reply_kind_after_5.12(host_Decision_rows+Story_9.5's_real-key_run);build_the_retry_in_30.1_only_if_diagnose_still_falls_back_on_invalid_in_more_than_about_1_in_50,and_only_within_NFR-7's_20_s_diagnosis_budget
+
+### DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks
+- source: Contest Planner: demo host walk on fe1d81e2, 2026-10-31T12:01Z | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the model writes the time into its reply text; catalog times carry the zone label (U-180's format), agent-written ones do not
+- 2026-10-31T12:02:51Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=route_agent-written_times_through_the_catalog's_zone-labelled_format(Data.Time.ForMessage),or_have_the_chat_agent's_prompt_label_the_zone;1.0.0_if_cheap,else_defer(Planner)
+
+### DW-485: release/demo-host-check.sh has no allow-hyperevent check, so run 1 passed while the host's S17 filter refused every Visual Trace hyperevent (WARGC, WEVENT, WARG_<n> to /ocutalon/trace/<app>/%25CSP.Broker.cls answered 400 'unexpected form field'), which broke demo step 5's message clicks; add a check that a hyperevent-shaped POST with dummy WARGC, WEVENT and WARG_1 to each trace application's %CSP.Broker.cls gets neither the block status nor the block mark
+- source: Contest Planner: demo host pass on fe1d81e2, 2026-10-31 (host filter fixed host-side: on a decoded route ending in /%csp.broker.cls it also admits ^W(ARGC|EVENT|ARG_[0-9]{1,3})$) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Visual Trace drew but every message click showed IRIS's 'error while loading this page' with empty Header, Body and Contents; after the host fix run 1 is 110/110 and the Header pane fills at a full house of six
+- 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
+
+### DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun
+- source: ci run 41215425837 attempt 1 (OCT-epic5 d103aec0, Story 5.12) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
+- 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
+- 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
+
+### DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content), which U-193's condition forbids: the warning must name the failing property and the limit (for example 'Evidence element 6: 42 > 32') and quote none of the reply
+- source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Decide.Judge sets problem = $SYSTEM.Status.GetErrorText(checked), and 'After the reply filter ran: ' plus its first 400 characters; IRIS's MAXLEN error #7201 quotes the datatype value
+- 2026-10-31T17:19:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=U-193_condition:build_the_warning_from_the_status's_code+property+limit(and_the_measured_length),never_its_value_text;a_test_pins_that_no_reply_content_appears;do_it_first_at_Epic_30's_re-dispatch
+
+### DW-500: When the item is the user's own command (for example 'Watch the Orders production…'), Triage's reasons describe its own tool limits ('I have no tools to read the production, so I cannot check whether anything there needs the user') and the outcome is overridden to Tell now at confidence 0.30; it reads oddly on the page, in Recent decisions and in the reply. Triage's reasons should describe the request instead (for example 'A request to start a watch; the user is answered directly')
+- source: Contest Planner: demo host walk on 14de8018, 2026-10-31 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Triage's decision on a user command, as recorded on the demo host; the Tell-now override is code (AD-28), only the reasons' wording reads oddly
+- 2026-10-31T17:45:03Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=Triage's_prompt(Lane_A_Agent):for_the_user's_own_command,the_reasons_say_what_was_asked;1.0.0_if_cheap,or_Epic_30's_burn-down_story
+### DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo: 'You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram).' Story 16.11 changes the splash only
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
+- 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
+
+### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AssertTrueViaMacro takes ''value, so (text [ "agent steps ")_stepId is "0"_id, a nonzero number, when Find misses the step; 16.11's review found six in Test.Web.Splash (one could never fail) and parenthesised them
+- 2026-10-31T19:24:43Z status=routed owner=burndown by=cr note=parenthesise KeyScan:123; a class-rules check for a top-level _ right of [ or ] in an assertion's first argument
+- 2026-10-31T20:50:43Z owner=30-1-long-conversations-are-compacted-under-the-limit by=burndown note=overflow from Epic 16's burn-down (one entry, under the cap, no charter): Lane A's Test.Agent.KeyScan:123 needs the parenthesised form, and a class-rules check could reject x [ "a"_y; Epic 30 is Lane A's hardening epic and its agent and bridge tests sit beside KeyScan
+
+### DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram on the online demo: 'Your session and Telegram pairing will be cleared.' while the release has no Telegram; a sibling of DW-501
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
+- 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
+
+### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: test-online-demo.sh:555: the input redirect fails before tr's 2>/dev/null applies; online_signin writes <jar>.g only after a 3xx; row 5 passes and its cookie-get check is moot at status 200
+- 2026-10-31T19:24:43Z status=wontfix-accepted owner=16-11-the-splash-promises-telegram-only-when-the-release-includes by=cr note=reopen_if=a stage reports the line as a failure again, or row 5 checks a refusal that redirects (docker/tests contended)

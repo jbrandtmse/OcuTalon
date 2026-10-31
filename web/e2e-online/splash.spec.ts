@@ -20,7 +20,7 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S1: the head and the sign-in card: the texts, the prefilled text inputs with their 88px labels, the four copy buttons, the session
  *   line, the warning notice just before the full-width button, no show/hide toggle.
  * - S2: the Before you start card with the reset line (the browser's zone and clock, the countdown at 1 h 42 min, 9 min and 23 s, then
- *   rolled forward), the limit, the Visual Trace card and the footer.
+ *   rolled forward), its four lines in order with the chat-only limit line and no Telegram line, the Visual Trace card and the footer.
  * - S3: the four copy buttons write the exact value, show "Copied" for about 2 seconds and announce it once.
  * - S4: a rejected write, then no clipboard at all: the failure text under that card's rows, announced once, the value selected, the line
  *   gone after the next successful copy in that card.
@@ -49,8 +49,7 @@ const WRONG = "That user name and password didn't work.";
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
 const COPY_FAILED = "Couldn't copy. Select the text and copy it yourself.";
 const OWN_LINE = 'Your chat, phone, mailbox and orders are yours alone.';
-const TELEGRAM_LINE = 'Have Telegram? You can scan a QR code inside to get the notices on your own phone.';
-const LIMIT_LINE = 'Each session can send 50 messages an hour in the chat or Telegram.';
+const LIMIT_LINE = 'Each session can send 50 messages an hour in the chat.';
 const SHELL_LINE = "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.";
 const TRACE_HEADING = 'Read-only Visual Trace account,';
 const TRACE_PARAGRAPH = 'for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step.';
@@ -215,7 +214,11 @@ test.describe('S1 to S2, the page', () => {
       expect((await shown.textContent()) ?? '', 'the countdown counts to the rolled reset').toMatch(/^in 3 h (5\d|4\d) min$/);
 
       await expect(page.getByText(OWN_LINE, { exact: true })).toBeVisible();
-      await expect(page.getByText(TELEGRAM_LINE, { exact: true })).toBeVisible();
+      const before = page.getByRole('region', { name: 'Before you start', exact: true });
+      await expect(before.locator('li'), 'the list holds the reset, own, limit and shell lines').toHaveCount(4);
+      await expect(before.locator('li'), 'the reset, own, chat-only limit and shell lines, in that order').toHaveText([/^The demo resets every 4 hours\. Next reset: /, OWN_LINE, LIMIT_LINE, SHELL_LINE]);
+      await expect(before, 'no Telegram line').not.toContainText('Telegram');
+      await expect(before, 'no QR code line').not.toContainText('QR');
       await expect(page.getByText(LIMIT_LINE, { exact: true }), 'the limit line reads the allowance of the start values').toBeVisible();
       await expect(page.getByText(SHELL_LINE, { exact: true })).toBeVisible();
 
