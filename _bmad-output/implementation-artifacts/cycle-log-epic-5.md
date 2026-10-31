@@ -307,3 +307,6 @@
 2026-10-31T12:59:51Z	Story 5.12	ci_resolved	story=none sha=8b8fd952 runs=41198731084,41198731039 result=success failed=none via=none resolved_at=next_plan note=the_reopened_branch_base;no_earlier_story_in_this_reopen
 2026-10-31T12:59:51Z	Epic 5	epic_status_reopened	from=done to=in-progress by=SC-5(epic_branch_reopened) story=5.12
 2026-10-31T12:59:52Z	Story 5.12	stage_spawned	stage=implement spawn_at=2026-10-31T12:59:52Z model=claude-sonnet-5-5 agent_name=5-12-implement-1 cycle_iteration=1 story_base=312eb249
+2026-10-31T14:19:26Z	Story 5.12	dev_complete	spawn_at=2026-10-31T12:59:52Z model=claude-sonnet-5-5 build_sha=3682d6b6 baseline_revision=77c9f8f3 story_base=312eb249 review_loop_iteration=0 followup_review_recommended=false deferred=0 loc_added=232 13 6 loc_removed= files= nfr_tripwires=0 adr_violations_surfaced=0 self_review=23_rows(0_high,0_med;9_patched,14_rejected) mutations=11 cycle_iteration=1
+2026-10-31T14:19:26Z	Story 5.12	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_a_tool_stack_for_these_ACs(no_UI;unit_and_production_tests_on_the_mock) model=claude-opus-5-5
+2026-10-31T14:19:34Z	Story 5.12	stage_spawned	stage=qa spawn_at=2026-10-31T14:19:34Z model=claude-sonnet-5-5 agent_name=5-12-qa-1 cycle_iteration=1
