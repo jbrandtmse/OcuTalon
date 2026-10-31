@@ -6,6 +6,8 @@
 /// (AD-3). The registry runs this step before Production, so the start reads the rows.
 /// When the step leaves the items disabled it records the Telegram state off through OcuTalon.Data.StatusMark (AD-14). When it
 /// enables them it leaves the mark alone: it belongs to TelegramIn.
+/// It also writes the structural ApiBase row of both items at every start (Base): the value of OCUTALON_TELEGRAM_API_BASE, or the
+/// public Bot API when the variable is empty, so that removing the override restores the default (AD-19).
 /// The step reads only whether the token is present. It never stores, returns, logs or writes the token to a row, a description or a
 /// status text (AD-14, AD-19). It prints no warning.
 Class OcuTalon.Install.Step.Telegram Extends OcuTalon.Install.Step
@@ -20,10 +22,28 @@ Parameter ITEMS = "TelegramIn,TelegramOut";
 /// The environment variable that holds the bot token.
 Parameter TOKENVAR = "TELEGRAM_BOT_TOKEN";
 
-/// Switches the Telegram items from Included() and the environment: see the class. The first failure is the status.
+/// Switches the Telegram items from Included() and the environment, and writes their ApiBase rows from the environment: see the class.
+/// The first failure is the status.
 ClassMethod Run() As %Status
 {
-	Quit ..Apply(##class(OcuTalon.Channel.Telegram.In).Included(), ..TokenSet())
+	Set sc = ..Apply(##class(OcuTalon.Channel.Telegram.In).Included(), ..TokenSet())
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit ..Base($SYSTEM.Util.GetEnviron(##class(OcuTalon.Channel.Telegram.Api).#BASEVAR))
+}
+
+/// Writes the ApiBase row of both items: the value, or the public Bot API when it is empty. The rows are structural (AD-19): the step
+/// writes them at every start. The first failure is the status.
+ClassMethod Base(value As %String) As %Status
+{
+	Set value = $Get(value)
+	Set base = $Select(value = "": ##class(OcuTalon.Channel.Telegram.Api).#PUBLICBASE, 1: value)
+	Set description = "Written by the Telegram install step at every start from "_##class(OcuTalon.Channel.Telegram.Api).#BASEVAR_" (the public Bot API when it is empty); do not edit."
+	Set sc = $$$OK
+	For i = 1:1:$Length(..#ITEMS, ",") {
+		Set sc = ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, $Piece(..#ITEMS, ",", i), "ApiBase", base, description)
+		If $SYSTEM.Status.IsError(sc) Quit
+	}
+	Quit sc
 }
 
 /// 1 when TELEGRAM_BOT_TOKEN in the environment is not empty, and 0 otherwise. Nothing else is returned.

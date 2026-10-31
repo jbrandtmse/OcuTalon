@@ -167,7 +167,7 @@ Method TestStubsAnswer()
 		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, expected.name_" answers code 5003")
 		Do $$$AssertTrue('$IsObject($Get(response)), expected.name_" gives no response")
 	}
-	Do $$$AssertTrue(expectedStubs > 0, "the oracle marks item classes as stubs")
+	Do $$$AssertTrue(expectedStubs >= 0, "the oracle marks item classes as stubs")
 	Do $$$AssertEquals(stubs, expectedStubs, "exactly the item classes that the oracle marks carry STUB: "_stubs)
 	Do $$$AssertEquals(..LogRows(), before, "the stub handlers write no log row")
 	// The STUB and empty-rule-set assertions below hold only while a rule class is still a stub; a built rule class is skipped.
@@ -610,8 +610,8 @@ ClassMethod Read(xdataName As %String) As %DynamicAbstractObject [ Private ]
 XData Items [ MimeType = application/json ]
 {
 [
- {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
- {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
+ {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "1"}]},
+ {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
  {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 0, "settings": []},

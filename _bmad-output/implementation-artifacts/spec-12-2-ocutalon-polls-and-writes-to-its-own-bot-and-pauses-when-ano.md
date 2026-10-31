@@ -2,14 +2,21 @@
 title: 'Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it'
 type: 'feature'
 created: '2026-10-30'
-status: 'in-review'
+status: 'done'
 baseline_revision: 'ac6c8021785b8cb7533a2b7d49faaa714f787122'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, AD-4, AD-5, AD-12, AD-14, AD-18, AD-19, AD-22, AD-23, AD-29, AD-32 and AD-33)'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      Pairing.RecordChat(chatId, "") overwrites a known chat's DisplayName with an empty string, so TelegramIn's call for every private update would erase a name that Story 12.4 stores.
+    evidence: |-
+      Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally. This story's spec fixes the call as RecordChat(chatId, ""), and no story stores a name yet, so nothing is lost today. Pairing.cls is contended (Epic 11).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Pairing.cls RecordChat; src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls HandleUpdate
+    severity: medium
 ---
 
 <intent-contract>
@@ -282,6 +289,53 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-31 — Review pass
+- verdicts: 43 findings — high 0, medium 5, low 32, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: `TestStubsAnswer` guard `expectedStubs >= 0` cannot fail — orchestrator ruling of 2026-10-31 (spec Design Notes); the exact-count assertion on the next line still pins the test (the `Out.cls` STUB mutation turns it red); DW-482 carries the rest to Story 15.3
+  - `[false]` `[reject]` Blind: Ens retry resends the whole message from part 1 after a partial failure — default ReplyCodeActions is E=F and `Retry` is never set (the client is `%Net.HttpRequest`, not the HTTP outbound adapter), so an error status fails the message and moves on; no resend
+  - `[low]` `[reject]` Blind: no distinct handling of 403 or 400 from sendMessage — the status is an error with a safe text and the message is not retried; per-kind delivery handling belongs to Stories 12.6 and 12.7; reopen_if=a 403 is seen to loop
+  - `[low]` `[reject]` Blind: `Out` sleeps the uncapped `retry_after` — the spec says to wait `retry_after` and resend; a stop is still bounded by the platform's item stop; reopen_if=a flood wait over 30 s is seen on a real bot
+  - `[low]` `[reject]` Blind: empty text is dropped with OK and no warning — nothing exists to send; no user-reachable harm
+  - `[low]` `[reject]` Blind: a whitespace-only part would get a 400 — only a text of more than 4,096 line feeds; theoretical
+  - `[low]` `[reject]` Blind: `Endpoint` rejects an underscore in a host name — an underscore is not valid in a host name; the owner-fixed base is `http://mock:8080` or the public API
+  - `[low]` `[reject]` Blind: any 404 is a rejection, and a 409 may mean a webhook — spec-bound: the matrix and the third acceptance criterion define 401 or 404 as a rejection and 409 as another process
+  - `[false]` `[reject]` Blind: the pause mark is written on every successful poll — `StatusMark.Record(mark, "")` with no row only reads the index and writes nothing
+  - `[low]` `[patch]` Blind: `TestCAFileInImage` has no `Guard()` — added `If '..Guard() Quit`, as the other tests of the fresh-only class; TelegramSettings fresh: passed
+  - `[low]` `[reject]` Blind: `TestBadCertificateRefused` needs `openssl` and a free random port — the shipped image has openssl (measured in the implement pass) and a collision on a loopback port in 10,000 is rare
+  - `[low]` `[reject]` Blind: the `ci/units.sh` timing comment is stale — the new sentence records the move and its reason; the older figures are labelled estimates
+  - `[false]` `[reject]` Blind: `Out` carries two unused parameters — the spec requires `Out` to set both `LOG...` parameters (Operation's contract, used by Stories 12.6 and 12.7)
+  - `[medium]` `[patch]` Blind: failure paths of `TelegramIn` (5xx, not JSON, ok false) have no test — added `TelegramIn.TestStartFailureRetries` (a 500 for getMe: not rejected, one warning, getMe again after 5 s, then on); the 'not JSON' and 'ok false' branches share the same `Failed` line
+  - `[low]` `[reject]` Edge: `Out` sleeps the uncapped `retry_after` — carried: same as the Blind row
+  - `[low]` `[reject]` Edge: with a pause mark in the future at start, `Run()` skips getMe and the state stays off — spec-bound: Always section and the plan's step 1 put the pause check before getMe
+  - `[low]` `[reject]` Edge: `AddSeconds` returning empty would delete the mark — theoretical: `NowUtc` always gives a valid time
+  - `[low]` `[reject]` Edge: a 404 on getUpdates sets rejected — carried: spec-bound, same as the Blind row
+  - `[low]` `[reject]` Edge: an update with no integer `update_id` is never confirmed — theoretical: Telegram always sets an integer `update_id`
+  - `[low]` `[reject]` Edge: a kept offset survives a token change — DW-422 and the spec keep the offset in the node alone; reopen_if=Story 12.7's hands-on pass changes the bot of an installed instance
+  - `[medium]` `[defer]` Edge: `RecordChat(chatId, "")` overwrites a known chat's DisplayName with an empty name — verified in `Data/Pairing.cls` (`Set row.DisplayName = name`); no name is stored by any story yet, so nothing is lost today; contended file (Epic 11); deferred to Story 12.4, which stores names
+  - `[low]` `[reject]` Edge: the status of the pause-mark delete is ignored — a failed delete is retried by the next 200 poll
+  - `[low]` `[reject]` Edge: empty text sends nothing — carried: same as the Blind row
+  - `[low]` `[reject]` Edge: whitespace-only part — carried: same as the Blind row
+  - `[low]` `[reject]` Edge: `Base` writes an unchecked value — spec-bound: the client returns the error that names the setting
+  - `[low]` `[reject]` Edge: control characters in a base path — owner-set environment value; no user-reachable path
+  - `[low]` `[reject]` Edge: the SSL step's Modify leaves other properties as found — the matrix names Type, Enabled, VerifyPeer and CAFile as structural; a hand-edit of other properties is an administrator's act; reopen_if=Story 12.7 asks for a full reset
+  - `[low]` `[reject]` Edge: `TestStubsAnswer` guard relaxed — carried: orchestrator ruling
+  - `[low]` `[reject]` Gap: `TestStubsAnswer` guard cannot fail — carried: orchestrator ruling
+  - `[low]` `[patch]` Gap: `TestBadCertificateRefused` has no mutation line — mutation run (VerifyPeer 0 in the SSL step, fresh): the refusal and 'no HTTP answer' assertions went red; the line is written below; the test now also asserts that OcuTalonClient exists with VerifyPeer 1 before the refusal
+  - `[medium]` `[patch]` Gap: `TestPlainHttpIgnoresSSLConfig` passes with no assertion when the mock is absent — the guard branch now fails with the reason (as Ready and Guard do) and the class doc says so; TelegramApi: passed
+  - `[medium]` `[patch]` Gap: non-401 getMe and getUpdates failures are not pinned — carried: patched with `TestStartFailureRetries`; mutation `Rejection` treats any status over 399 as a rejection: red (state never on, no second getMe, no warning)
+  - `[low]` `[reject]` Gap: matrix rows without their own mutation line (TRIES, retry_after, surrogate, Notification, No chat) — Rule 19 asks one demonstrated mutation per acceptance criterion; each of these AC groups has its line (429 retry, no repeat, split)
+  - `[low]` `[reject]` Gap: `NO_WEB_BUNDLE_UNITS` for a shard unit is not mechanically guarded — shown bundle-free by a recorded grep; `test-ci-config.sh` guards live units only; reopen_if=a Test.Channel class reads a file of the bundle
+  - `[low]` `[reject]` Gap: settings tests rely on the install start's state — the class is fresh-only and guarded; the start always runs the SSL and Telegram steps
+  - `[false]` `[reject]` Gap: `TestRejected` readiness signal is weak — the later assertions (exactly one getMe, one warning row after the log mark) cannot be satisfied by a stale mark
+  - `[false]` `[reject]` Gap: `TestPrivateOnly` zero counts have no positive control — the same test asserts that the two private chats get a row
+  - `[medium]` `[defer]` Gap: `RecordChat` clears the name — carried: deferred with the Edge row
+  - `[false]` `[reject]` Gap: an unconditional mark write on every poll — carried: no write happens
+  - `[low]` `[reject]` Gap: the https half of the plain-HTTP test targets a plain-HTTP mock — the first half pins the AC; the second only shows that a missing configuration is refused for https
+  - `[low]` `[reject]` Intent: untested branches (429 without `retry_after`, a `RecordChat` failure) — small branches with a fixed default; the 5xx start branch is now pinned
+  - `[low]` `[reject]` Intent: a 401 or 404 on a later getUpdates also sets rejected — carried: spec-bound
+  - `[low]` `[reject]` Intent: pause before start — carried: spec-bound
+
 ## Design Notes
 
 **The owner's U-164 answer (2026-10-30T09:39:29Z, applied by the runner before implementation).** Keep the one general client configuration `OcuTalonClient`, with three conditions; conditions (1) and (2) are this story's acceptance criteria above, and (3) is Story 12.7's (its hands-on pass records a verified handshake with `api.telegram.org`).
@@ -512,13 +566,29 @@ Mutations (Rule 19), each applied with the warm stack's reload, run, and reverte
 - mutation: `Out.cls` keeps `STUB` -> `Test.Install.Production` TestStubsAnswer (TelegramOut carries STUB, answers 5003, and the stub count differs); the baseline fails on the guard above, so this red was shown with the guard relaxed
 - mutation: `Api` sets `Https` for an `http://` base (U-164 condition 2) -> `TelegramApi` TestPlainHttpIgnoresSSLConfig
 - mutation: the CA-file check pointed at a missing file (U-164 condition 1) -> `TelegramSettings` TestCAFileInImage
-- not mutated: `OcuTalonClient` with `VerifyPeer` 0 against the bad certificate (the SSL step's mutation above turned the SSL row red, and its configuration was put back with the reverted step).
+- mutation: the VerifyPeer of the SSL step set to 0 (U-164 condition 1, fresh stack) -> `TelegramSettings` TestBadCertificateRefused (OcuTalonClient no longer refuses the self-signed certificate, and an HTTP answer is read), TestSSLConfiguration and TestCAFileInImage
+- mutation: `Rejection` treats any status over 399 as a rejection (a 500 for getMe) -> `TelegramIn` TestStartFailureRetries (the state never becomes on, no second getMe, no warning); the class passes again after the revert
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` (contended: Epics 15 and 13) must change one line outside the spec's Tasks: `TestStubsAnswer` asserts `expectedStubs > 0`, which no longer holds. The spec says it "still holds through EvalIn and EvalSink", but both are `"stub": 0` since Story 9.1, so after this story's two rows go to `"stub": 0` the oracle marks no item as a stub. Recommended ruling: allow the one-line relaxation of line 170 to `expectedStubs >= 0` (measured: with it `Test.Install.Production` passes, and keeping `STUB` on `Out.cls` still turns `TestStubsAnswer` red on the next line's exact-count assertion). An appended block cannot fix it, because the failing assertion sits inside `TestStubsAnswer`.
+Status: done
+Blocking condition: none
 
-Implementation state: the full implementation was done, verified and mutation-checked (22 table mutations plus two U-164 extras, all recorded in `## Verification`), then reverted from the tree. It is saved as `_bmad-output/implementation-artifacts/spec-12-2-implementation-attempt.patch` (`git apply` on the clean tree at `ac6c8021`; covers `ci/` and `src/`, new files included). It does not contain the line-170 relaxation. The patch passed: all 7 `Test.Channel` classes, Install.Registry, Web.Api, Web.PairingApi, Contract.Mock, Live.Status and Core.StatusMonitor (warm); `live production-restart`; `shard lane-a@Channel` forward and reverse (fresh); test-mock, test-ci-config, test-ci-changes, test-readme, test-boundaries, `ci/changes.sh`, `ci/checks.sh`. Review layers and finalize were not run.
+Summary: `TelegramIn` (short long poller: getMe, then getUpdates every 5 s, kept offset in Story 12.1's node, private chats only, 5-minute pause on a 409 through the `telegramPaused` mark) and `TelegramOut` (plain text, split at 4,096, retry after a 429) are built on one new Bot API client (`Api`). The Telegram step writes the `ApiBase` rows at every start, the SSL step makes `OcuTalonClient`, and the Channel test classes sit in their own unit `shard:lane-a@Channel` in `production`.
 
-Also for the lead: `shard:lane-a@Channel` was added to `production` and `NO_WEB_BUNDLE_UNITS` (shown bundle-free, see `## Verification`); footprint extensions are `Install/Step/Telegram.cls`, `Install/Step/SSL.cls` and `Test/Install/Production.cls` (two oracle rows, the `CallInterval` setting, the class doc). Risk for Story 12.4: `RecordChat(chatId, "")` overwrites a known chat's `DisplayName` with an empty string.
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/{Api,In,Out}.cls`: the client and the two items.
+- `src/ocutalon/cls/OcuTalon/Install/Step/{Telegram,SSL}.cls`: the `ApiBase` rows and `OcuTalonClient` (file-level extensions).
+- `src/ocutalon/cls/OcuTalon/Production.cls`: `CallInterval` 1 on `TelegramIn`.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: the two Telegram oracle rows and line 170, by the orchestrator's ruling.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/*`: `LiveCase`, `TelegramApi`, `TelegramIn`, `TelegramPause`, `TelegramOut`, `TelegramNoToken`, `TelegramSettings` (new), `TelegramMock` and `TelegramSwitch` (changed).
+- `ci/mock/scenarios/A/telegram-{getme-rejected,updates-busy,sent-then-limited}.json`: three new scenarios.
+- `ci/units.sh`: `shard:lane-a@Channel` in `production` and `NO_WEB_BUNDLE_UNITS`.
+
+Review (43 findings from four layers): patches applied 4 (`TelegramIn.TestStartFailureRetries` added for the 5xx-start branch; `TestPlainHttpIgnoresSSLConfig` fails with its reason instead of passing with no assertion; `TestCAFileInImage` gets the `Guard()`; `TestBadCertificateRefused` asserts the configuration first and now has its mutation line); deferred 1 (RecordChat clears a stored name, for Story 12.4); every other finding is rejected with its reason in the triage log (false 6, spec-bound or theoretical lows, the orchestrator-ruled `>= 0` guard).
+
+Follow-up review recommended: false. Patched counts by verdict: medium 3 (one root cause counted twice in the log), low 2; no high; the patches touch only test classes and were each run.
+
+Verification: the implement pass's full verification list and 22 table mutations (recorded above) were green before the halt; the lead's fresh run of `Test.Install.Production` passed after the ruling. This pass re-ran the classes its patches touch: `TelegramIn` (warm) passed with the new test, red under its mutation and green after the revert; `TelegramApi` (warm) passed; `TelegramSettings` (fresh) passed, and red in `TestBadCertificateRefused` under the `VerifyPeer` 0 mutation. Warm stack `e12s2rw` torn down; `e12s2r` leaves nothing.
+
+Residual risks: `%OSCertificateStore` resolving to the image's CA file on Linux stays inference until Story 12.7's hands-on pass; the deferred RecordChat name overwrite for Story 12.4; footprint extensions to report: `Install/Step/Telegram.cls`, `Install/Step/SSL.cls`, `Test/Install/Production.cls` (the two oracle rows and line 170).

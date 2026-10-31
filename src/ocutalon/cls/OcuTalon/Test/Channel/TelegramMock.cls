@@ -3,7 +3,8 @@
 /// sets a dummy TELEGRAM_BOT_TOKEN. Every test first asks OcuTalon.Test.Contract.Mock.TelegramMissingReason and
 /// OcuTalon.Test.Channel.BotApi.PollerReason (no live TelegramIn job, because a reset or a call would take its updates). When either
 /// gives a reason, the test fails with it and sends nothing. Every test starts and ends with BotApi.Reset(), which leaves the mock's Bot
-/// API side empty and no kept offset. No test writes the token to a log, an assertion text or a status.
+/// API side empty and no kept offset. No test writes the token to a log, an assertion text or a status. The guard (Ready, Finish and Safe)
+/// is OcuTalon.Test.Channel.LiveCase's.
 ///   - TestUpdateScenarios: telegram-private-update, telegram-group-update and telegram-button-update, each queued as replies through
 ///     the control endpoint, answer getUpdates with their one update;
 ///   - TestReplyScenarios: telegram-conflict answers getUpdates 409, and telegram-rate-limited answers the first sendMessage 429 with
@@ -13,40 +14,8 @@
 ///   - TestResetClearsKeptOffset: after a reset through the helper, a new update with id 1 comes back from getUpdates;
 ///   - TestPollerCheck: PollerReason names an item that has a live job, and Reset refuses for that item, clearing and sending nothing
 ///     (that it is empty for TelegramIn is every test's precondition, which Ready() asserts).
-Class OcuTalon.Test.Channel.TelegramMock Extends %UnitTest.TestCase
+Class OcuTalon.Test.Channel.TelegramMock Extends OcuTalon.Test.Channel.LiveCase
 {
-
-/// The Bot API token of this stack (the CI dummy); never written anywhere.
-Property Token As %String [ Private ];
-
-/// 1 when the test may send: the stack is a throwaway, no poller has a live job, and the reset worked.
-Method Ready() As %Boolean [ Private ]
-{
-	Set ..Token = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR)
-	Set reason = ##class(OcuTalon.Test.Contract.Mock).TelegramMissingReason($SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMBASEVAR), ..Token)
-	If reason = "" Set reason = ##class(OcuTalon.Test.Channel.BotApi).PollerReason()
-	If reason '= "" {
-		Do $$$AssertTrue(0, reason)
-		Quit 0
-	}
-	Set status = ##class(OcuTalon.Test.Channel.BotApi).Reset()
-	Do $$$AssertStatusOK(status, "the mock's Bot API side is reset before the test")
-	Quit $$$ISOK(status)
-}
-
-/// Ends a test: the reset again, whatever happened.
-Method Finish() [ Private ]
-{
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Channel.BotApi).Reset(), "the mock's Bot API side is reset after the test")
-}
-
-/// The text of an exception with the token cut out.
-Method Safe(ex As %Exception.AbstractException) As %String [ Private ]
-{
-	Set text = $Translate(ex.DisplayString(), $Char(13, 10), "  ")
-	If ..Token '= "" Set text = $Replace(text, ..Token, "[token]")
-	Quit text
-}
 
 /// Each update scenario, queued as replies, answers getUpdates with its one update.
 Method TestUpdateScenarios()

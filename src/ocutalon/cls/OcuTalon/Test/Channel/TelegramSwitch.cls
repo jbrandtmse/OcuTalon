@@ -9,14 +9,15 @@
 ///   - TestRowDescription: each row's description says that the step writes it at every start, from the release and the token variable;
 ///   - TestPrintsNothing: Apply() and Run() write nothing to the current device (no WARN line, no user-facing text); a probe shows
 ///     that the capture sees output.
-/// The two rows, the Telegram mark and the seam ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
+/// The two Enabled rows, the two ApiBase rows (Run() writes them from Story 12.2 on), the Telegram mark and the seam
+/// ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
 Class OcuTalon.Test.Channel.TelegramSwitch Extends %UnitTest.TestCase
 {
 
 /// The production and the items that the step switches.
 Parameter PRODUCTION = "OcuTalon.Production";
 
-/// The rows as found: for each item a list of (existed, value, description).
+/// The rows as found: for each item and setting (Enabled, ApiBase) a list of (existed, value, description).
 Property Found As %String [ MultiDimensional ];
 
 /// The mark as found, "" when it had no row.
@@ -30,12 +31,14 @@ Property SeamValue As %String;
 Method OnBeforeAllTests() As %Status
 {
 	For item = "TelegramIn", "TelegramOut" {
-		Set id = ..RowId(item)
-		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
-			Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
-			Set ..Found(item) = $ListBuild(1, row.SettingValue, row.Description)
-		} Else {
-			Set ..Found(item) = $ListBuild(0, "", "")
+		For setting = "Enabled", "ApiBase" {
+			Set id = ..RowId(item, setting)
+			If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+				Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+				Set ..Found(item, setting) = $ListBuild(1, row.SettingValue, row.Description)
+			} Else {
+				Set ..Found(item, setting) = $ListBuild(0, "", "")
+			}
 		}
 	}
 	Set ..MarkFound = ##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Data.StatusMark).#TELEGRAMMARK)
@@ -47,11 +50,13 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	For item = "TelegramIn", "TelegramOut" {
-		Set found = ..Found(item)
-		If $List(found, 1) {
-			Do ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, item, "Enabled", $List(found, 2), $List(found, 3))
-		} ElseIf ##class(Ens.Config.DefaultSettings).%ExistsId(..RowId(item)) {
-			Do ##class(Ens.Config.DefaultSettings).%DeleteId(..RowId(item))
+		For setting = "Enabled", "ApiBase" {
+			Set found = ..Found(item, setting)
+			If $List(found, 1) {
+				Do ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, item, setting, $List(found, 2), $List(found, 3))
+			} ElseIf ##class(Ens.Config.DefaultSettings).%ExistsId(..RowId(item, setting)) {
+				Do ##class(Ens.Config.DefaultSettings).%DeleteId(..RowId(item, setting))
+			}
 		}
 	}
 	Do ##class(OcuTalon.Data.StatusMark).Record(##class(OcuTalon.Data.StatusMark).#TELEGRAMMARK, ..MarkFound)
@@ -187,10 +192,10 @@ ClassMethod Printed(code As %String) As %String [ Private ]
 	Quit text
 }
 
-/// The id of an item's Enabled row.
-ClassMethod RowId(item As %String) As %String [ Private ]
+/// The id of an item's row of the setting (Enabled by default).
+ClassMethod RowId(item As %String, setting As %String = "Enabled") As %String [ Private ]
 {
-	Quit ..#PRODUCTION_"||"_item_"||*||Enabled"
+	Quit ..#PRODUCTION_"||"_item_"||*||"_setting
 }
 
 /// The Enabled value that a start resolves for the item, as OcuTalon.Install.Step.Production.Runners() reads it, or "-" when no row exists.

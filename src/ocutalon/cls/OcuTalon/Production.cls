@@ -13,7 +13,9 @@ XData ProductionDefinition
 <Production Name="OcuTalon.Production" TestingEnabled="false" LogGeneralTraceEvents="false">
   <ActorPoolSize>2</ActorPoolSize>
   <!-- lane A: begin -->
-  <Item Name="TelegramIn" ClassName="OcuTalon.Channel.Telegram.In" PoolSize="1" Enabled="false"/>
+  <Item Name="TelegramIn" ClassName="OcuTalon.Channel.Telegram.In" PoolSize="1" Enabled="false">
+    <Setting Target="Adapter" Name="CallInterval">1</Setting>
+  </Item>
   <Item Name="TelegramOut" ClassName="OcuTalon.Channel.Telegram.Out" PoolSize="1" Enabled="false"/>
   <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide" PoolSize="1" Enabled="true">
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
