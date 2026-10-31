@@ -522,6 +522,8 @@ This is test-only work in Core, Web, Schedule and the CI checks, apart from the 
 - mutation: AC7 a `notBuilt(..., '11.1')` appended to 06 -> the live unit FAIL "06-trace.spec.ts ... skipped, but every web step runs since Story 11.1"; the node test's red cases (`demo-path-summary.test.mjs`, "--only-telegram-skips") and the gate's `numbered-skip` run pin it.
 - mutation: AC8 `ChatItems` attaches no decision (`If 0 {`) -> `TestStateIncidentDecision` red ("carries it"); `fromSnapshot` ignoring chat decisions -> `live-store.test.mjs` red; and 05 red on the footer ("the footer finds the incident's diagnosis decision after the load").
 - mutation: AC9 `Fixture.Check` without the `CHECKAHEAD` default line -> `TestCheckIsNotDue` red ("is -5864354445" seconds ahead).
+- mutation: AC4 (QA, the Fixing clause the lead moved to the session stream, U-192) `Watch/IncidentManager.cls` `Move` publishes no incident event when `to` is fixing -> 05 red on "the incident went through Fixing to Resolved" (the page steps before it passed); reverted from QA's own backup, `git status --short` and `git diff --stat` unchanged (clean), and the unmutated `live demo-path` run is green (232 s, 6 of 6 steps ran, floor 7 of 7, six audit PASS lines).
+- (QA) Re-checked, no test added or changed: every other `mutation:` line above names a test that still exists (02, 03, 04, 05, 06 titles; `TestStateIncidentDecision`, `TestCheckIsNotDue`, `live-store.test.mjs`, `demo-path-summary.test.mjs`, the gate's runs); `npm --prefix web test` 1134 passed and `test-demo-path-gate.sh` all checks passed on the QA tree. AC10 is a measurement (147 s to 230 s, above), not a test. QA test files created or changed: (none).
 
 ## Auto Run Result
 

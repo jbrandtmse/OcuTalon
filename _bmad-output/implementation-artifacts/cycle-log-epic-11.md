@@ -52,3 +52,5 @@
 2026-10-31T12:19:57Z	Story 11.1	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=AD-26_trace_link_and_AD-17_audit_read_pinned_by_the_unit_itself model=claude-opus-5-5
 2026-10-31T12:19:57Z	Epic 11	ci_resolved	story=none(integrate_forward+bookkeeping) sha=ddeb069e runs=41188987273,41188987272 result=success failed=none via=none resolved_at=next_qa
 2026-10-31T12:19:57Z	Story 11.1	stage_spawned	stage=qa spawn_at=2026-10-31T12:19:57Z model=claude-sonnet agent_name=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test-qa-1 cycle_iteration=1
+2026-10-31T12:29:50Z	Story 11.1	qa_complete	spawn_at=2026-10-31T12:19:57Z model=claude-sonnet tests_added=0 mutations_demonstrated=1(AC4_fixing_stream)+13_existing first_run_failures=0 clarifications=0 closing_sections_present=true live_demo_path=232s subagent_tokens=90964
+2026-10-31T12:29:50Z	Story 11.1	stage_spawned	stage=code-review spawn_at=2026-10-31T12:29:50Z model=claude-opus agent_name=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test-code-review-1 cycle_iteration=1
