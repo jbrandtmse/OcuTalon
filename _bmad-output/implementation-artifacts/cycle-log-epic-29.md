@@ -169,3 +169,5 @@
 2026-10-31T03:39:19Z	Epic 29	ledger_burndown_complete	open_before=11 resolved=0 terminal=0 chartered=1 chartered_size=3(DW-333,DW-429,DW-432) overflow=3 reowned=3(DW-416:31-3,DW-417:11-6,DW-433:11-1) to_decision_sheet=5(DW-226,DW-423,DW-446,DW-447,DW-464) open_after=8 cap=8 story_max=12 filed_this_epic=51 closed_this_epic=54 drain_ratio=1.06 note=charter_because_DW-333_has_6_occurrences;29.8_CI_pending_at_the_gate(resolved_before_epic_done)
 2026-10-31T03:39:19Z	Story 29.9	ledger_routed_planned	story=29-9-epic-29-burn-down entries=3 excess=0 by=burndown
 2026-10-31T03:39:19Z	Epic 29	amendment	file=_bmad-output/planning-artifacts/epics.md what=Story_29.9_Epic_29_burn-down_chartered(DW-333,DW-429,DW-432) tier=bookkeeping(burndown_inserted)
+2026-10-31T03:41:16Z	Epic 29	epic_context_compiled	reason=burndown_inserted(29.9) model=claude-opus-5-5 words=1493
+2026-10-31T03:41:16Z	Story 29.9	stage_spawned	stage=plan spawn_at=2026-10-31T03:41:16Z model=claude-opus-5-5 agent_name=29-9-plan-1 cycle_iteration=1 note=plan_during_29.8_CI(Rule_23)
