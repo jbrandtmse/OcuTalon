@@ -133,3 +133,6 @@
 2026-10-31T09:06:00Z	Epic 10	ci_resolved	story=branch_base sha=145b4018 runs=41176985646,41176985559 result=success failed=none via=none resolved_at=next_plan
 2026-10-31T09:06:00Z	Epic 10	epic_status_reopened	epic-10=done->in-progress reason=SC-5_reopen(epic_branch_reopened) story=10.4
 2026-10-31T09:06:01Z	Story 10.4	stage_spawned	stage=implement spawn_at=2026-10-31T09:06:26Z model=claude-sonnet agent_name=10-4-readme-opens-implement-1 cycle_iteration=1 story_base=dca43cef
+2026-10-31T09:28:00Z	Story 10.4	dev_complete	spawn_at=2026-10-31T09:06:26Z model=claude-sonnet build_sha=ca596ae7 baseline_revision=095c5234 story_base=dca43cef review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-480) files=4 loc_added=234 loc_removed=81 nfr_tripwires=0 adr_violations_surfaced=0 self_review=19_rows,4_patched,14_rejected cycle_iteration=1
+2026-10-31T09:28:00Z	Story 10.4	adr_verifications_complete	tool=none acs= result=none_required evidence= mutations=none note=no_AD-tooled_AC(README+hermetic_shell_test) model=claude-opus-5-5
+2026-10-31T09:28:12Z	Story 10.4	stage_spawned	stage=qa spawn_at=2026-10-31T09:28:32Z model=claude-sonnet agent_name=10-4-readme-opens-qa-1 cycle_iteration=1

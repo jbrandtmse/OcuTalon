@@ -2294,3 +2294,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-480: README opening (owner text) 'Every decision is in Visual Trace with its reasons and cost' may read as an overclaim for a fixed-rules decision, which keeps only its fallback reason (Reasons empty, FallbackReason set)
+- source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
+- 2026-10-31T09:28:00Z status=open owner=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=harvest note=owner's word-for-word text: never edited by this story; adjudicated at ledger_adjudicated

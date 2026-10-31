@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-31'
 status: 'done'
 baseline_revision: '095c523433cac9e1285745aca38b7d8f16efe7c5'
+baseline_commit: '095c523433cac9e1285745aca38b7d8f16efe7c5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
