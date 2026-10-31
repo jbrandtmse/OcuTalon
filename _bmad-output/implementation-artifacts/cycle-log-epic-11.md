@@ -21,3 +21,6 @@
 2026-10-31T07:43:59Z	Story 11.0	spec_validated	service_introducing=false integration_ac=n/a(refactor) adr_constrained_acs=AD-4,AD-5,AD-29,AD-22 adr_tooled_acs=none decision_dependency=none sections_created=none owned_ledger=DW-237 addressed=1 declined=0 mutates_shared_runtime=false(warm+fresh_throwaways_lane-a) model=claude-opus-5-5
 2026-10-31T07:44:11Z	Epic 11	ci_resolved	story=none(epic_base) sha=c9f1288c runs=41180217607,41180217671 result=success failed=none via=none resolved_at=next_implement
 2026-10-31T07:44:12Z	Story 11.0	stage_spawned	stage=implement spawn_at=2026-10-31T07:44:12Z model=claude-sonnet agent_name=11-0-epic-10-deferred-cleanup-implement-1 cycle_iteration=1 story_base=b9c072e3
+2026-10-31T08:06:58Z	Story 11.0	dev_complete	spawn_at=2026-10-31T07:44:12Z model=claude-sonnet build_sha=e5eceafe baseline_revision=43379f12 story_base=b9c072e3 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=3 loc_added=78 loc_removed=5 nfr_tripwires=0 adr_violations_surfaced=0 subagent_tokens=149449 cycle_iteration=1
+2026-10-31T08:06:58Z	Story 11.0	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
+2026-10-31T08:07:04Z	Story 11.0	stage_spawned	stage=qa spawn_at=2026-10-31T08:07:04Z model=claude-sonnet agent_name=11-0-epic-10-deferred-cleanup-qa-1 cycle_iteration=1

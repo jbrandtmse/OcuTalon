@@ -4,6 +4,7 @@ type: 'refactor'
 created: '2026-10-31'
 status: 'done'
 baseline_revision: '43379f1271aa66112da301117aa60521c9db7107'
+baseline_commit: '43379f1271aa66112da301117aa60521c9db7107'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
