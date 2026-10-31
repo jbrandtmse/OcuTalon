@@ -1031,3 +1031,5 @@
 2026-10-31T06:30:27Z	Epic 10	planning_amended	story=10.4(inserted,backlog) epics.md=Story_10.4_block+Epic_List_marker sprint_status=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model:backlog
 2026-10-31T06:30:27Z	Epic 1-37	deps_approved	hash=5de1cffb12b1 by=Contest_Planner(owner_decision_relay) change=Story_10.4_reopens_Epic_10(SC-5);no_edge_change
 2026-10-31T06:30:27Z	Epic 10	dispatch_planned	vehicle=Story_10.4,Epic_10_reopened_under_SC-5(precedent_Story_32.4) runner=first_free_of_B(Epic_15)_or_C(Epic_29);A_goes_to_Epic_11_after_Epic_9_merges reason=fill_ahead_any_10;no_unmerged_deps;README.md+test-readme.sh_uncontended deadline=2026-10-31T19:00Z(Sat_midday_PDT) then=C_takes_Epic_31
+2026-10-31T06:32:07Z	Epic 10	worktree_provisioned	worktree=.worktrees/epic-10 branch=OCT-epic10 from=145b4018 submodules=none reason=SC-5_reopen_for_story_10.4 pushed=yes
+2026-10-31T06:32:07Z	Epic 10	worktree_bootstrapped	epic=10 result=ok check=ok status=clean
