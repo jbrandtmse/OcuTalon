@@ -674,7 +674,7 @@ Method TestWatchEveryField()
 		Set record = ..WatchRow(..N(tag))
 		Do records.%Push(record)
 		Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(record.watch.Ref)
-		Set value = $Case(field, "Ref": ##class(OcuTalon.Bridge.Ids).NewRef(), "SessionRef": "zz-moved", "Kind": "zz-kind", "Namespace": "ZZNS2", "Production": "Zz.Production2", "DisplayName": "Zz renamed", "AskedBy": "zz-other-user", "CreatedAt": "2000-01-01T00:00:00Z", "NextDueAt": "9999-12-30T00:00:00Z", "LastRunAt": "2090-06-01T00:00:30Z", "Result": "passed", "Finding": "found something", "LastRunHeaderId": 7, : "")
+		Set value = $Case(field, "Ref": ##class(OcuTalon.Bridge.Ids).NewRef(), "SessionRef": "zz-moved", "Kind": "zz-kind", "Namespace": "ZZNS2", "Production": "Zz.Production2", "DisplayName": "Zz renamed", "AskedBy": "zz-other-user", "CreatedAt": "2000-01-01T00:00:00Z", "NextDueAt": "9999-12-30T00:00:00Z", "LastRunAt": "2090-06-01T00:00:30Z", "Result": "passed", "Finding": "found something", "LastRunHeaderId": 7, "Reported": "{""stopped"":1,""disabled"":[]}", : "")
 		Do $$$AssertNotEquals(value, "", field_": the test has a changed value for the field")
 		Set $Property(row, field) = value
 		Do $$$AssertStatusOK(row.%Save(), field_": the row is saved with the field changed")

@@ -48,7 +48,7 @@ Parameter MESSAGENOTEVAL = "WatchOps removes only the watch of an evaluation run
 Parameter EVALNEXTDUE = "9999-12-31T23:59:59Z";
 
 /// The stored properties of OcuTalon.Data.BackgroundCheck, comma-separated: the fields that Fields reports, in this order.
-Parameter FIELDS = "Ref,SessionRef,Kind,Namespace,Production,DisplayName,AskedBy,CreatedAt,NextDueAt,LastRunAt,Result,Finding,LastRunHeaderId";
+Parameter FIELDS = "Ref,SessionRef,Kind,Namespace,Production,DisplayName,AskedBy,CreatedAt,NextDueAt,LastRunAt,Result,Finding,LastRunHeaderId,Reported";
 
 /// The configuration item that publishes the change of a check (AD-33).
 Parameter CHECKS = "Checks";
