@@ -3764,6 +3764,20 @@ So that I see the value before I install it.
 
 The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the Contest Planner's hands-on pass; the release checklist covers naming, licence notices and public text.
 
+### Story 11.0: Epic 10 Deferred Cleanup
+
+As a maintainer,
+I want the one ledger item left over from the earlier epics closed before the release-1 work starts,
+So that the release candidate carries one pairing-code hash helper, not two copies that could drift apart.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Data.Pairing.HashCode`, which today repeats `OcuTalon.Data.Session.Hash`'s SHA-256 base64url code instead of calling it
+**When** the story is done
+**Then** `HashCode(code)` quits `##class(OcuTalon.Data.Session).Hash(code)` (an empty code still answers ""), every stored code hash keeps its value byte for byte, and the existing Pairing and pairing-API tests stay green (AD-4, Rule 2)
+
+- DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper (ledger; retro review by=x0 2026-10-31; source: Epic 10 ledger)
+
 ### Story 11.1: The web demo path passes end to end in the REL-2 test
 
 As a judge,
