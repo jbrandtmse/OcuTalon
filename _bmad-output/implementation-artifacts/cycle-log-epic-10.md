@@ -149,3 +149,5 @@
 2026-10-31T10:07:48Z	Epic 10	epic_status_done	stories=4 reopened_story=10.4
 2026-10-31T10:07:48Z	Epic 10	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=2(10.4:med=2) unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=2 result=hold applied=false policy=record_only scope=reopen_run(10.4)
 2026-10-31T10:07:48Z	Epic 10	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-31T10:17:28Z	Epic 10	integrated_forward	feature=366a79ab head=1eb683f5 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(last_updated_only;kept_ours,regenerated,validate=valid) kind=final(skeleton_item_9) code_diff_vs_feature=README.md,docker/tests/test-readme.sh checks=test-readme_21_PASS;ci/checks.sh_all_scripts_passed;render_smoke_PASS
+2026-10-31T10:17:28Z	Epic 10	epic_runner_complete	stories_completed=1 run_stories=10.4(reopen) inbox=none applied=none decisions_for_user=none
