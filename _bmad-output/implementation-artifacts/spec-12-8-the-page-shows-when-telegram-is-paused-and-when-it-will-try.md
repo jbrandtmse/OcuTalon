@@ -203,6 +203,8 @@ The browser runs in Asia/Kolkata with the en-GB locale. The time oracle is the m
 
 ## Spec Change Log
 
+- 2026-10-31, spec gate (runner, orchestrator ruling, decide): the three Lane B web entries are allowed as file-level extensions, one entry each (Design Notes, "Orchestrator ruling of 2026-10-31"). No other change to the plan.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -279,6 +281,10 @@ If the gate refuses any of the three, the plan cannot hold: (1) and (2) become a
 - 12.7 turns the card on for the release.
 
 **Owned ledger:** none (the inbox is empty).
+
+### Orchestrator ruling of 2026-10-31: the three Lane B web entries
+
+Ruling (orchestrator, decide), at the spec gate: the three Lane B entries this plan names are allowed as file-level extensions, shared by entry as `ci/units.sh` is, each limited to its one entry and nothing else in the file, and reported under `footprint_extensions:`: `web/src/app/icon/icon.ts` (the `circle-pause` icon), `web/scripts/ux-strings.test.mjs` (the one `IMPORTED` row for the card's text module and its two strings), and `web/scripts/api-client-sources.test.mjs` (the `telegram-page.spec.ts` row now requires this story's own test; Story 12.4 may change the same row later). No open epic branch changed any of the three files when this was ruled.
 
 ## Verification
 
