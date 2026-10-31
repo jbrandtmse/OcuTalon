@@ -2299,3 +2299,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
 - 2026-10-31T09:28:00Z status=open owner=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=harvest note=owner's word-for-word text: never edited by this story; adjudicated at ledger_adjudicated
+- 2026-10-31T10:00:28Z status=by-design by=adjudication note=spec-bound_owner_text(Story_10.4_word_for_word,never_edited). Build check: a fixed-rules decision's Result still carries Fallback, FallbackReason (its reason) and the usage and CostUSD fields in its Visual Trace XML (Bridge/Msg/Result.cls, Decide.cls RecordFallback), so 'with its reasons and cost' reads as the fallback reason and the turn's cost; CR found no contradiction. The Story 10.2 line is README.md:36 (not :34). Reported to the orchestrator for the Contest Planner in the contract notes
+
+### DW-481: Story 10.2's Given line ('right after Try it in two minutes') and first criterion ('it starts with Try it in two minutes') predate Story 10.4's opening and teaser above that heading
+- source: spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: epics.md:3540 Given 'the top of the README, right after Try it' vs :3545 teaser 'above Try it'; :3523 'it starts with Try it'; text per Design Note 3
+- 2026-10-31T09:58:52Z status=by-design owner=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=cr note=spec-bound: Design Note 3 text and decided-in-stage (e); the lead may add a marker at its gate

@@ -5,7 +5,7 @@
 # What it pins, one rule each:
 #   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then at most the teaser line,
 #                  then the H2 sections "Try it in two minutes", "What's interesting" and "What you can use it for" in this order;
-#                  the other H2 sections are there; no "Contest task" heading and no row of that table
+#                  the other H2 sections are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
 #                  beside it and the splash screen; the local path is four numbered steps
 #   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
@@ -20,8 +20,8 @@
 #                  has no `docker compose restart`, `docker-compose restart`, `docker restart`, "install.sh again", "the install
 #                  script again", "rerun" or "re-run"
 #   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence of "Set a model key", the
-#                  model paragraph and three-row table of "What OcuTalon does", the README account and "Sign in to Visual Trace";
-#                  no "No key, still works." bullet; no key-shaped example
+#                  model paragraph and three-row table at the end of "What OcuTalon does", with an empty line above, the README
+#                  account and "Sign in to Visual Trace"; no "No key, still works." bullet; no key-shaped example
 #   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps (DW-3)
 #   sign-in-address  the README's ready block is the one install.sh prints, with the compose file's default web port, and "Try it
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
@@ -51,7 +51,8 @@
 #
 # Each rule first runs on copies of its input that are broken for that rule, each of which it must flag (a rule that can no
 # longer flag anything fails), and only then on the real files. With no README.md every rule fails closed, which is checked first
-# (a FAIL no-readme line names a rule that does not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
+# (a FAIL no-readme line names a rule that does not), and so is that every rule_* function is in RULES (a FAIL rules line names
+# one that is not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
 # wrong (a README line number or a missing text); exits 0 only when no rule fails.
 # shellcheck disable=SC2016
 set -u
@@ -483,6 +484,12 @@ chk_key_account() {
   chk_block key-account "$sec" "$MODEL_BLOCK"
   rows=$(grep -c '^|' "$sec")
   if [ "$rows" -ne 5 ]; then echo "key-account: What OcuTalon does has $rows table lines, not the 5 of the model table"; fi
+  awk -v para="$MODEL_PARA" -v last="$T_ROW3" '
+    $0 == para && prev != "" { print "key-account: What OcuTalon does: the line above the model paragraph is not empty" }
+    { prev = $0 }
+    /[^ \t]/ { tail = $0 }
+    END { if (tail != last) print "key-account: What OcuTalon does: the model table is not the end of the section" }
+  ' "$sec"
   grep -nF 'No key, still works.' "$1" | cut -d: -f1 | sed 's|^|key-account: README.md:|; s|$|: the bullet "No key, still works." is back|'
   grep -n 'ANTHROPIC_API_KEY=' "$1" | grep -v 'ANTHROPIC_API_KEY=<your key>' | cut -d: -f1 | sed 's|^|key-account: README.md:|; s|$|: a key-shaped example|'
 }
@@ -747,8 +754,9 @@ rule_top() {
   st 'the opening paragraph removed' 1 "$README" '!/^Your integrations already/' chk_top
   st 'the opening paragraph twice' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print o } /^Your integrations already/ { o = $0 }' chk_top
   st 'the opening and the teaser swapped' 1 "$README" '/^Your integrations already/ { o = $0; next } /^Watch the 35-second teaser: / { print; print ""; print o; next } { print }' chk_top
-  st 'the use cases section moved down' 1 "$README" '/^## What you can use it for$/ { print "## Zz What you can use it for"; next } { print }' chk_top
+  st 'the use cases section moved down' 1 "$README" '/^## What you can use it for$/ { print "## What OcuTalon does"; next } /^## What OcuTalon does$/ { print "## What you can use it for"; next } { print }' chk_top
   st 'the use cases section renamed' 1 "$README" '/^## What you can use it for$/ { print "## What you can do with it"; next } { print }' chk_top
+  st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
   st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
   st 'the Contest task section back' 1 "$README" '{ print } END { print ""; print "## Contest task"; print "" }' chk_top
   st 'the Contest task table header back' 1 "$README" '{ print } /^## What OcuTalon does$/ { print ""; print "| Contest task or criterion | x | y |" }' chk_top
@@ -884,6 +892,9 @@ rule_key_account() {
   st 'a row of the model table removed' 1 "$README" '!/^\| 50 orders fail \|/' chk_key_account
   st 'a fourth row added to the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print "| Cost | Costs you nothing extra | Free |" }' chk_key_account
   st 'the empty line above the table removed' 1 "$README" '{ line[NR] = $0 } END { for (i = 1; i <= NR; i++) if (!(line[i] == "" && line[i + 1] ~ /^\| \| With a model/)) print line[i] }' chk_key_account
+  st 'the empty line above the model paragraph removed' 1 "$README" '{ line[NR] = $0 } END { for (i = 1; i <= NR; i++) if (!(line[i] == "" && index(line[i + 1], "**With a model, and without one.**") == 1)) print line[i] }' chk_key_account
+  st 'a line without a bar right under the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print "Cost | Costs you nothing extra | Free" }' chk_key_account
+  st 'a bullet after the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print ""; print "- **Extra.** More." }' chk_key_account
   st_move 'the model table moved out of its section' 'What OcuTalon does' '|' chk_key_account
   st_move 'the fixed-rules sentence moved out of its section' 'Set a model key' 'Without a key, OcuTalon still starts.' chk_key_account
   st_append 'the bullet back' '- **No key, still works.** Without a model key, OcuTalon starts and every decision uses fixed rules. The page says so.' chk_key_account
@@ -1109,6 +1120,24 @@ rule_must_scan() {
 }
 
 RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
+
+# unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
+unlisted() {
+  declare -F | sed -n 's/^declare -f rule_//p' | while IFS= read -r r; do
+    case " $1 " in *" $r "*) ;; *) if [ "$r" != begin ]; then echo "$r"; fi ;; esac
+  done
+}
+
+# Every rule the script defines runs: a rule_* function missing from RULES never runs, so CI would not see it. The check first
+# proves it flags a list without its last rule.
+if [ -z "$(unlisted "${RULES% *}")" ]; then
+  echo "FAIL rules: a rule left out of RULES is not found"
+  fails=$((fails + 1))
+fi
+for r in $(unlisted "$RULES"); do
+  echo "FAIL rules: rule_$r is not in RULES"
+  fails=$((fails + 1))
+done
 
 # With no README.md every rule fails closed: each one, run as if the file were absent, must print a FAIL line that says so.
 for r in $RULES; do

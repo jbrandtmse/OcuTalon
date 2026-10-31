@@ -92,6 +92,29 @@ deferred:
 - AC6: Given epics.md, when a reader reads Story 10.2's top-of-the-README criterion, then it describes the new top and carries an `[AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; ...]` marker that quotes its table line and its teaser line as they read before.
 - AC7: Given the story's diff, when it is reviewed, then it touches only the footprint, holds no local absolute path, and adds no screenshot, diagram, badge or 0.1.0 line (the `teaser` rule's embed scan refuses any image).
 
+### Review Findings
+
+Code review 2026-10-31 (bmad-code-review, tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 26 rows, 6 entries after grouping: high 0, medium 2, low 4. Each entry gives severity / fix-risk / footprint / spec-status (Rule 15).
+
+- [x] [Review][Patch] G1 (medium / low: test-only, self-tests prove each branch / in-story / clear): `key-account` pins the model block anywhere in "What OcuTalon does" and does not check the lines around it. With the empty line above the paragraph removed, GitHub renders the paragraph inside the Reminders bullet as a lazy continuation. A pipe-less line right under the last row renders as a fourth row. The block can also move up the section, out of the bullet's place (AC3, Always). In each case all 21 rules stay green. Sources: verification-gap+edge-case-hunter+acceptance-auditor. [docker/tests/test-readme.sh:483]
+- [x] [Review][Patch] G3 (medium / low: a check of the same kind as the no-readme loop / in-story / clear): CI does not see a rule dropped from `RULES` (AC5's pin is a spec command that CI does not run). With `use_cases` dropped, the script prints 20 PASS lines and exits 0. Sources: verification-gap+blind-hunter. [docker/tests/test-readme.sh:1111]
+- [x] [Review][Patch] G2 (low / low / in-story / clear): `chk_top`'s branch for a stray line under the title (the only guard for a line between the teaser and the first H2, such as the banned 0.1.0 line) has no self-test that only it catches. Source: verification-gap. [docker/tests/test-readme.sh:302]
+- [x] [Review][Patch] G4 (low / low / in-story / clear): the header says `top` refuses "no row of that table", but `chk_top` refuses only the heading and the header row. Sources: blind-hunter+edge-case-hunter. [docker/tests/test-readme.sh:8]
+- [x] [Review][Patch] G5 (low / low / in-story / clear): the self-test 'the use cases section moved down' renames the heading instead of moving it, so it repeats 'renamed'. Sources: blind-hunter+verification-gap. [docker/tests/test-readme.sh:750]
+- [x] [Review][Defer] G7 (low / low / in-story / spec-bound): Story 10.2's Given line still reads "right after 'Try it in two minutes'", and its first criterion "it starts with 'Try it in two minutes'", while its amended Then puts the teaser above that heading. Design Note 3 prescribes the text and decided-in-stage (e) leaves the first criterion, so it is closed `by-design` as DW-481; the lead may add a marker at its gate. Source: acceptance-auditor. [_bmad-output/planning-artifacts/epics.md:3540] — deferred: spec-bound (Design Note 3, decided-in-stage (e))
+
+Rejected:
+- `low` Blind 1: the QA block says `top` has "nine self-tests" (it had 12). The fix edits QA's record in the spec; the review's verification line below records the current count.
+- `low` Blind 2 + Acceptance 4 + Edge 8: DW-480 and the spec's `deferred` location cite README.md:34. The line "Each decision shows its reasons, its confidence and its cost." is README.md:36. The fix edits the spec's frontmatter and a write-once ledger body. It is reported to the lead for DW-480's adjudication.
+- `low` Blind 6: the `rows -ne 5` count would also flag an unrelated table in "What OcuTalon does". The Always rule says nothing else in that section changes, so the count is right, and its message is clear enough.
+- `false` Blind 7: the README repeats the use cases in "What OcuTalon does". The opening and use cases summarise the detail below by the owner's design, the text is the owner's word for word (Never), and no harm is named.
+- `low` Edge 3: no self-test reaches only `chk_teaser`'s "below the first H2" branch. In the only README state that reaches it (opening and teaser both under the first H2), `top`'s `chk_block` also fails, so the gap is theoretical.
+- `low` Edge 7: `top` passes with the opening in a code fence lower down and only the teaser at the top. This is not a realistic edit, and `teaser` fails on it (the teaser is not two lines below the opening).
+- `low` Acceptance 1: no check pins the empty line between the teaser and `## Try it in two minutes`. An ATX heading ends a paragraph, so the page renders the same either way, and the fix would add a guard with no user-visible effect.
+- `false` Acceptance 3: the manual footprint record names four files, while the diff also holds the cycle log, sprint-status and ledger. Those are the lead's bookkeeping commit `73e3807a`, inside the footprint, so AC7 holds.
+- `low` Acceptance 5: AC4 says every claim agrees while DW-480 is open. Checked: `Result` carries `FallbackReason` and `CostUSD` (`src/bridge/cls/OcuTalon/Bridge/Msg/Result.cls:12,42`), so the build does not contradict the opening. DW-480 is already on the ledger, and the lead adjudicates it.
+- `low` Acceptance 7: the `top` FAIL for a removed or swapped opening names the missing line's text, not its number. That is cosmetic, because the text names the line.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -283,6 +306,51 @@ Mutations (Rule 19; each on the scratch tree, reverted and compared byte for byt
 - mutation: review patches (on the scratch tree, reverted from a backup and compared byte for byte): the `elif` branch of `chk_teaser` deleted -> `FAIL teaser`; the `rows=` count lines of `chk_key_account` deleted -> `FAIL key-account: a broken copy was not flagged`; the opening-once line of `chk_top` deleted -> `FAIL top: a broken copy was not flagged`.
 
 Review-pass re-run (after the three test patches, base `095c523433cac9e1285745aca38b7d8f16efe7c5`): `test-readme.sh` 21 PASS and `SKIP #telegram`, shellcheck clean; (once) `bash ci/checks.sh` -> `checks: all scripts passed`; (once) GNU tools in `ubuntu:24.04` -> the same 21 PASS and `test-readme: all rules passed`.
+
+### QA stage (QA)
+
+No test file is added: every AC has a pinning check that goes red, and the implement stage's mutation lines above all hold (re-run on a fresh scratch tree built from the worktree, each file reset with `cp` and compared with `cmp` afterwards; `git status --short` in the worktree stayed empty).
+
+Pinning check per AC:
+- AC1: `test-readme.sh` rule `top` (`chk_top` with `chk_block`, nine self-tests).
+- AC2: rule `use-cases`.
+- AC3: rule `key-account` (`chk_block` on the model paragraph and table, the `No key, still works.` refusal, the "Set a model key" sentence).
+- AC4: no test, by design. The pinning check is the spec's byte check (it prints `checked 9`, and `NOT ONCE` names a drifted line) plus `git diff --stat <baseline> -- src web ci`, which is empty.
+- AC5: the PASS-name command (21 names). The script cannot see a rule dropped from `RULES`, so the command is the pin.
+- AC6: the amendment command (prints 1 on the real tree).
+- AC7: rule `teaser` (embed scan) and `readme-links`; `test-boundaries.sh` refuses a local path; the footprint is `git diff --stat <baseline>`.
+
+QA mutations (Rule 19; one per AC, plus the ones the implement stage wrote):
+- mutation: AC1: "fifty" changed to "fifteen" in the opening paragraph -> `FAIL top` (and `FAIL teaser`), exit 1; also a `## Contest task` heading back -> `FAIL top`; also `: top` in place of `chk_block top` in `chk_top` -> `FAIL top: a broken copy was not flagged` (self-tests 'the opening paragraph removed' and 'the opening and the teaser swapped' not flagged).
+- mutation: AC2: "never gives" changed to "rarely gives" in item 2 -> `FAIL use-cases`, exit 1.
+- mutation: AC3: "with no cause and no fix" changed to "with a cause and no fix" -> `FAIL key-account`, exit 1; also the `- No key, still works.` bullet back -> `FAIL key-account`.
+- mutation: AC4: the byte check run on a tree whose opening has "fifty" changed to "fifteen" -> `NOT ONCE: Your integrations already tell you ...` and `checked 9`; on the real tree it prints `checked 9` only. `git diff --stat <baseline> -- src web ci` is empty.
+- mutation: AC5: `use_cases` dropped from `RULES` -> the PASS-name command prints 20 names, without `use-cases`, which differs from the expected list (the script itself stays green).
+- mutation: AC6: the `[AMENDED 2026-10-31, owner decision` line removed from the tree's epics.md -> the amendment command prints 0 (1 on the real file).
+- mutation: AC7: `![badge](x.svg)` appended -> `FAIL teaser` and `FAIL readme-links`, exit 1.
+- mutations_demonstrated=7 (one per AC; AC4's red is the byte check, AC5's and AC6's are the spec's commands, which are recorded checks and not part of the CI run).
+
+### Code review stage (review patches G1-G5)
+
+Results after the patches (base `095c523433cac9e1285745aca38b7d8f16efe7c5`):
+- `test-readme.sh` on the real tree (bash 3.2, BSD tools): the 21 PASS names of the PASS-name command in order, `SKIP #telegram`, exit 0.
+- `rule_top` now has 13 self-tests, and `rule_key_account` has 3 more.
+- shellcheck 0.9.0.6: no findings. The file holds no byte above 0x7F.
+- (once) GNU tools in `ubuntu:24.04`, with the scratch tree mounted read-only and a `git ls-files` stand-in: 21 PASS and `test-readme: all rules passed`.
+- (once) `bash ci/checks.sh`: `checks: all scripts passed`.
+- Byte check: `checked 9` and no `NOT ONCE` line. The teaser count is 1 in README.md and 1 at the baseline.
+
+Mutations (Rule 19). Each was applied on a scratch copy of the tree, then reset with `cp` and compared with `cmp`. The worktree's `git status --short` and `git diff --stat` were unchanged afterwards.
+- mutation: AC3 (G1): the `prev != ""` line of `chk_key_account`'s new awk check removed -> `FAIL key-account: a broken copy was not flagged` (self-test 'the empty line above the model paragraph removed').
+- mutation: AC3 (G1): its `END` tail line removed -> `FAIL key-account: a broken copy was not flagged` (self-tests 'a line without a bar right under the model table' and 'a bullet after the model table').
+- mutation: AC3 (G1): on README.md, three edits, one at a time, each -> `FAIL key-account`, exit 1:
+  - the empty line above "**With a model, and without one.**" deleted;
+  - `Cost | Costs you nothing extra | Free` put right under the last row;
+  - a bullet put after the table.
+- mutation: AC5 (G3): `use_cases` dropped from `RULES` -> `FAIL rules: rule_use_cases is not in RULES`, exit 1. The same red appears under GNU tools. Before the patch, the script printed 20 PASS lines and exited 0.
+- mutation: AC5 (G3): `unlisted "${RULES% *}"` replaced by `unlisted "$RULES"` -> `FAIL rules: a rule left out of RULES is not found`.
+- mutation: AC1 (G2): `chk_top`'s stray-line test made `if (0)` -> `FAIL top: a broken copy was not flagged` (self-test 'a line between the teaser and the first H2 section').
+- mutation: AC1 (G5): `chk_top`'s first-three-H2 comparison made `if false && ...` -> `FAIL top: a broken copy was not flagged` (self-tests 'the first two sections swapped', 'the use cases section moved down' and 'the use cases section renamed').
 
 ## Auto Run Result
 
