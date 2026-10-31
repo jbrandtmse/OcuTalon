@@ -7291,6 +7291,10 @@ So that what the automated tests can't see is found and fixed before the first r
 **When** it is resumed after the recorded pass and it finishes
 **Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
 
+**Given** the candidate under the real key
+**When** the pass reaches the demo path's step 2
+**Then** step 2 is driven through the guide's own Send, as a judge drives it, never through the CI mock's marker route that Story 11.1 uses on the mock (REL-2, REL-7) [ADDED 2026-10-31, U-190, decided by the Contest Planner under the owner's delegation]
+
 - DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
@@ -7331,3 +7335,7 @@ So that the release works for a judge and the timing bounds are measured, not as
 **Given** the rehearsal runs on both a clean macOS host and a clean Linux host, each with Docker and outbound network access limited to the configured model provider (and the Telegram API when a token is set), which the author provides before this story starts
 **When** the install script and the 20 runs of the whole web demo path run on each
 **Then** both pass with no other destination contacted, and the release notes record both hosts (FR-55, NFR-18, NFR-22)
+
+**Given** the 20 timed runs on each clean host under the real key
+**When** a run reaches the demo path's step 2
+**Then** step 2 is driven through the guide's own Send, as a judge drives it, never through the CI mock's marker route that Story 11.1 uses on the mock (REL-2, REL-6) [ADDED 2026-10-31, U-190, decided by the Contest Planner under the owner's delegation]
