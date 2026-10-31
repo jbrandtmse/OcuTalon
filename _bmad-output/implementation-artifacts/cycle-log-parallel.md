@@ -1182,3 +1182,5 @@
 2026-10-31T23:08:22Z	Epic 5	worktree_provisioned	worktree=.worktrees/epic-5 branch=OCT-epic5 from=8b11e411 reason=SC-5_reopen_for_story_5.13(launch-blocking) bootstrap=ok
 2026-10-31T23:08:22Z	Epic 30	runner_message	agent=aa6524bf74a22de41 note=yield_runner_B_now_for_Story_5.13(launch-blocking);end_waiting_on_5
 2026-10-31T23:09:06Z	Epic 5	dispatch_planned	runner=B(after_Epic_30_yields) story=5.13(launch-blocking) base=8b11e411 prompt=scratchpad/dispatch-epic-5-513.md eta_feature=~Sun_Nov_1_04-08Z
+2026-10-31T23:16:49Z	Epic 1-37	hold_ordered	reason=owner:account_switch(hold_#9),quota_95%,relayed_by_the_Contest_Planner quote="BTW,_we're_at_95%_of_the_quota,_please_order_the_hold_so_I_can_switch_accounts." HOLD_written_by=Planner(unattended-inbox.sh_hold) runners_live=A(11),B(30,yielding),C(12) not_dispatched=5.13(dispatch_first_at_the_resume) policy_edits_during_hold=hold9-apply.py+hold10-apply.py(expected_blob_ff1bd1a60299)
+2026-10-31T23:17:14Z	Epic 1-37	runners_messaged	to=A(11),B(30),C(12) note=hold_9:end_at_next_stage_boundary_reason_hold;no_new_dispatch_while_HOLD
