@@ -1960,6 +1960,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T20:37:14Z status=routed owner=29-7-demo-busy-counts-the-live-visitors by=lead occurrence=29-6-the-probe-alerts-when-every-turn-falls-back note=reopen_if met: CI run 41116344208 (OCT-epic29 9b7a936b, iris browser, live:demo-path) web/e2e/demo-path/01-page.spec.ts:92 'shows the status rail' failed waiting 10 s for main.main data-snapshot right after signInReadme; same root cause; residual: give the demo-path specs' sign-in (signInReadme) the loadedAfter wait, and the reset/resume/splash/session specs too; routed to Story 29.7 (Epic 29 owns web/e2e/demo-path/**)
 - 2026-10-30T23:44:15Z status=resolved-by:29-7-demo-busy-counts-the-live-visitors by=adjudication note=signInReadme and the remaining online sign-ins (demo-path, reset, resume, splash, session) wait through loadedAfter; live demo-path 12 passed and live online-session passed after the change; R9 keeps the plain sign-in by design (it waits only for the resetting view)
 - 2026-10-31T00:50:24Z status=routed owner=burndown by=lead occurrence=29-7-demo-busy-counts-the-live-visitors note=reopened: CI run 41149604870 (OCT-epic29 3f5b3cbe, iris browser, live:sign-in) web/e2e/chat/chat.spec.ts C7 open() waited 10 s for main.main data-snapshot after signIn (the same pattern, outside Story 29.7's sign-ins); 1 of 223; residual: every remaining spec that signs in then waits 10 s (chat.spec open() and its siblings) gets loadedAfter
+- 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -2326,11 +2327,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: med | footprint: in-epic
 - evidence: the Planner's API POSTs through the gated proxy got 403 wrong_origin until the host mapped the origin; a foreign or missing Origin still gets 403 with the workaround
 - 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=repository option the Planner prefers: trust X-Forwarded-Proto only from the trusted proxy address (the one trusted for X-Forwarded-For), or a configured public origin; a veto-window change to the origin check (security posture); not needed for the launch while the host workaround stands; runner C ruling 2026-10-30: no repository change in Story 29.3
+- 2026-10-31T03:39:09Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow: Lane B hardening on the launched demo; the host workaround (exact-origin mapping) stands until then; trusting X-Forwarded-Proto from the trusted proxy is a veto-window change for that story
 
 ### DW-417: Times the model writes itself on the online demo carry no ET (for example 'due at 23:39'), against UX-DR108 and UX-DR123; the catalog's message times do carry it
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: the Planner saw a bare model-written time in a reply on the gated host; the agent's input preamble names the zone (Agent/Input.cls) but no instruction asks for the ET suffix on the online demo
 - 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=raised from the Planner's LOW: every judge reads model-written times on the online demo; the likely fix is one online-demo instruction line (Agent/Chat.cls or Agent/Input.cls, Lane A files outside Epic 29's footprint); runner C ruling 2026-10-30: not Story 29.3's goal, decided at Epic 29's burn-down gate
+- 2026-10-31T03:39:09Z owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=burndown note=overflow: model-written times are real-model behaviour that Story 11.6's hands-on pass with real keys finds and fixes (an online-demo instruction line in Lane A's agent classes)
 
 ### DW-418: An online-demo start whose OCUTALON_CONNECTION_RESERVE is not below OCUTALON_CONNECTION_CAP leaves IRIS never ready without a clear start-up error
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2371,16 +2374,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41027546659 (OCT-epic29 468654f, iris install-fresh) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: attempt 1 red (expectPlaceFreed: since parsed NaN after landedOn matched ?since=), attempt 2 green on the same sha; Story 29.3 changed no web or product code
 - 2026-10-30T10:02:36Z status=routed owner=burndown by=runner note=flake class: one rerun; priority for the burn-down (Epic 29 owns web/e2e-online/**); likely a clock-install race in the URL read (inference)
+- 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 
 ### DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 29.4 QA run: D1 red at S1's banner after cappedMarked(day) passed, unchanged rerun 10/10; Budget.State counts Usage rows only in a privileged process; StatusMonitor publishes on change only
 - 2026-10-30T13:09:59Z status=routed owner=burndown by=cr note=pre-existing, not 29.4's D1 edits (cappedMarked(day) passed first); fix: align the counts or sign S1 in before the seed
+- 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 29.4 implement: the guide press got a text reply, no check row, and Break the feed answered 409; the second visitor sends [[mock:watch-start-orders]] instead (Decided in-stage 0)
 - 2026-10-30T13:10:06Z status=routed owner=burndown by=cr note=for UJ-1 step 2 under the mock (11.1's 02-watch and the online run's step 2); re-own to 11.1 at the burn-down
+- 2026-10-31T03:39:09Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=overflow: the mock's guide-watch reply starting no watch blocks UJ-1 step 2 under the mock; Story 11.1 turns the demo path's steps 2-5 on
 
 ### DW-441: The address key and every counter row's hash are also written to the private database's journal while the instance runs
 - source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: high | footprint: in-story

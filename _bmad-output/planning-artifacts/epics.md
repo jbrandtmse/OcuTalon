@@ -6370,6 +6370,23 @@ So that the demo's capacity and its response under load are measured before the 
 
 **Release check (the Contest Planner, on the gated demo host before the public flip):** **Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path **Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28) [AMENDED 2026-10-30, owner decision (planner_demo_first), relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public this weekend ahead of 1.0.0, so this story closes on throwaway evidence and the real-proxy load case below is a release check the Contest Planner runs on the gated demo host before the public flip, within the owner decision of 2026-10-30 (epic29_brief): no model calls, or a brief bounded run under the $20 daily cost cap, within 8 licence units]
 
+### Story 29.9: Epic 29 burn-down
+
+[AMENDED 2026-10-31, chartered by runner C at Epic 29's burn-down gate (Rule 17): the story-closable ledger entries left after Stories 29.3 to 29.8 that are not overflowed to a later epic; DW-333 has six occurrences, so a burn-down story is required. Small and bounded: it changes tests only, no product behaviour.]
+
+As the author,
+I want the online demo's browser tests to stop failing on timing,
+So that a red CI run on the launch's path means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** the CI runs of Epic 29's stories
+**When** the flaky cases below run on a fresh stack in CI
+**Then** each passes on its own merits without an unchanged rerun: every remaining spec that signs in and then waits for the page waits for the state answer first, the 600 s idle case reads the freed page's time robustly, and the daily-cap banner case no longer races the status monitor's first tick (FR-15, AD-22)
+- DW-333: flake: specs that sign in and then wait 10 s for `data-snapshot` (web/e2e/chat/chat.spec.ts C7 open() and its siblings outside Story 29.7's sign-ins) still go red in CI; give them the `loadedAfter` wait (ledger; routed by burndown 2026-10-31)
+- DW-429: flake: live:online-session web/e2e-online/session/leave.spec.ts L2 (600 s idle frees the place) went red once in CI with since=NaN in the freed page's URL (ledger; routed by burndown 2026-10-31)
+- DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor can publish dailyCap before S1's /state, which a web process computes from the day's mark alone (ledger; routed by burndown 2026-10-31)
+
 ## Epic 30: Lane A post-demo hardening
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane A's demo-path stories moved after the demo path.] Long conversations are compacted before they reach the request-size limit, old messages and records are purged on schedule, an approved tool call is replayed exactly once with no model, a stopped production or a disabled item is reported once, and a mixed or still-running resend says how far it got. Each part lands before 1.0.0.
