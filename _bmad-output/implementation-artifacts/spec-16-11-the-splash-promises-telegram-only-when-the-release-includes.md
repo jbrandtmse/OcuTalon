@@ -147,7 +147,7 @@ That leaves `^OcuTalonPublic`, and its keys are written by Lane A's Public step.
 ## Verification
 
 **Targets and variables:**
-- Run every command from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-16`, in the foreground, with `timeout: 600000`, one per call. Never put two test-runner calls in one message.
+- Run every command from the Epic 16 worktree root (`git rev-parse --show-toplevel`), in the foreground, with `timeout: 600000`, one per call. Never put two test-runner calls in one message.
 - Lane B: every `ci/iris.sh` and `ci/warm.sh` call is prefixed with `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=16 stage=<stage>'`, written below as `LANE_B`.
 - Tags: implement `e16s11i`/`e16s11iw`; QA `e16s11q`/`e16s11qw`; review `e16s11r`/`e16s11rw`. Each stage tears down only its own tags.
 - MCP calls, if any: `server: ocutalon-slot-b`, `namespace: OCUTALON`, after `iris_server_info` confirms build 154 and port 1991. `Test.Install.Public` runs only in throwaways, never on the slot.
