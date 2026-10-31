@@ -3001,6 +3001,42 @@ The second fixture is the reply the host recorded at 12:01:54Z, kind diagnose, C
 
 Not in this story: one retry on an `invalid` reply before the fallback. It would add a model call inside NFR-7's diagnosis budget, so it is a measured follow-up for the bridge's owner (Epic 30), decided by the Contest Planner.
 
+### Story 5.13: Ask OcuTalon what happened earlier, and it tells you from its own records
+
+[ADDED 2026-10-31, launch-blocking, owner decision relayed by the Contest Planner; the owner: "Add it to 1.0.0" and, on going live, "Wait for the fix". Epic 5 is re-opened for it under SC-5. In the owner's walk-through of the online demo (10b38707), the visitor asked OcuTalon about the earlier failure and it couldn't recall it. The incident card is an IncidentManager notice, not a chat turn, so it never enters Chat's AI session; Chat's toolsets (Reminders, Watching) can't read past incidents; and `check_status` gives only the latest check, which reads "passed" after the fix. The online demo stays gated until this merges.]
+
+As a user who just watched an incident get fixed,
+I want to ask OcuTalon in the chat what happened earlier,
+So that it tells me what failed, what I approved and how the fix went.
+
+**Acceptance Criteria:**
+
+**Given** the chat agent's Watching toolset
+**When** this story merges
+**Then** it has one new read-only tool, `recent_activity`. It lives in its own class in `OcuTalon.Tools`, is declared `TrustedOutput` (built by code from OcuTalon's own records, AD-10 step 3), and is classified read-only, so calling it never taints the turn or starts a fresh session. Its description tells Chat to call it when the user asks about earlier failures, incidents, approvals or fixes, or about what happened (AD-10, AD-20)
+
+**Given** a session with incidents in the last 24 hours
+**When** Chat calls `recent_activity`
+**Then** it returns the session owner's own recent incidents, at most 5, newest first, each with code-built fields only:
+- the production and the item, the failed-message count, and the first and last failure times, in the instance's zone with its zone label (as the catalog's times are, DW-484's direction);
+- the element at fault, the cause category and the fix kind;
+- the approval's answer (approved, rejected or expired), with its channel and time;
+- the fix result's counts (resent, went through, failed), and the incident's state (open, awaiting approval, fixing, resolved or dismissed)
+
+**And** it never returns the model-written cause sentence or any message body or header text, so its output stays trusted (AD-10 step 3)
+**And** on the online demo it returns the session's own incidents only, never another visitor's (AD-4, AD-13)
+**And** with no incident in the last 24 hours it says so plainly, and makes no claim that everything is fine (AD-28)
+
+**Given** a resolved incident in the session (the demo path: Break the feed, the incident notice, Approve, the result)
+**When** the user then asks "What was that failure earlier?"
+**Then** the reply names the failed count, the element at fault, the approval and the fix result, and contains no all-clear; the AD-28 guard still applies to the reply (FR-1, AD-28)
+**And** a gate test checks that `recent_activity` is classified read-only and `TrustedOutput`, and a test checks that its output never holds the cause sentence or a message body
+
+**Given** the change
+**When** this story merges
+**Then** CI is green on every workflow, the evaluation set on the mock passes, and the story touches only the new tool class, the Watching toolset's tool list, the gate's tool classification entry, and their tests and mock scenarios
+- Optional, if it costs nothing extra: reminders fired today (trusted), in the same tool's output.
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
