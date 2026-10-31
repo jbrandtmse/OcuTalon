@@ -115,3 +115,16 @@
 2026-10-29T01:15:11Z	Epic 10	epic_runner_complete	stories_completed=3 run_stories=10.2,10.3(10.1_in_the_earlier_run) inbox=U-136,U-137,U-138(veto,kept_and_resolved) applied=none decisions_for_user=DW-360,DW-361
 2026-10-29T01:47:57Z	Epic 10	ci_red_classified	run=40799281663 workflow=.github/workflows/ci.yml class=flake test=web/e2e/banners/banners.spec.ts:B2(live:sign-in,iris_browser) sha=5076f54 ledger=DW-349(occurrence) action=gh_run_rerun_--failed(attempt_2) note=code_identical_to_ecee507(green);the_seeded_check_row_was_run_by_a_real_heartbeat_tick
 2026-10-29T02:13:11Z	Epic 10	ci_resolved	story=integrate_forward_final sha=5076f54 runs=40799281663(attempt_2),40799281487 result=success failed=none via=none resolved_at=runner_complete note=attempt_1_iris_browser_flake_DW-349_rerun_green;this_commit_carries_only_the_flake_bookkeeping
+2026-10-31T08:43:40Z	Epic 10	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=reopen_for_story_10.4 lane=B slot=ocutalon-slot-b
+2026-10-31T08:43:40Z	Epic 10	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-31T08:43:40Z	Epic 10	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-31T08:43:40Z	Epic 10	launch_env	depth=default watchdog=0 bash_max_ms=default
+2026-10-31T08:43:40Z	Epic 10	telemetry_gate	pending=0 action=none
+2026-10-31T08:43:40Z	Epic 10	epic_branch_reopened	reason=story_10.4_owner_readme_change from=145b4018 by=orchestrator(SC-5)
+2026-10-31T08:43:40Z	Epic 10	epic_branch_checked_out	repos=. head=145b4018 ci_expected=ci.yml,lane-a.yml
+2026-10-31T08:43:40Z	Epic 10	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-31T08:43:46Z	Epic 10	ledger_load	total=390 open=0 routed=65 escalated=0 decision_pending=0 terminal=325 owner_unknown=0 burndown=0 reowned_none=0 epic10_owned=2(DW-200,DW-237_on_done_10-3:missed_adjudication_trailers,taken_at_burndown)
+2026-10-31T08:44:12Z	Epic 10	sprint_planning_complete	gate=PASS in_sync=true warnings=standing_headings(epics.md:19,546) model=claude-opus-5-5
+2026-10-31T08:44:12Z	Epic 10	retro_review_skipped	reason=no_x0_input(reopen_for_one_story;retro_review_assigned=skip)
+2026-10-31T08:47:19Z	Epic 10	epic_context_compiled	reason=planning_artifact_newer(story_10.4_added) lines=76 model=claude-opus-5-5
+2026-10-31T08:47:19Z	Story 10.4	stage_spawned	stage=plan spawn_at=2026-10-31T08:47:39Z model=claude-opus-5-5 agent_name=10-4-readme-opens-plan-1 cycle_iteration=1
