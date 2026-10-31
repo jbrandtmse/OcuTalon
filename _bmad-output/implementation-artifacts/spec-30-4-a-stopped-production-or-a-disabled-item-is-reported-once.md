@@ -49,7 +49,7 @@ deferred: []
 
 | # | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |---|----------|--------------|---------------------------|----------------|
-| 1 | Stopped since the last run (AC 1) | Previous: stopped 0. Read: `stopped`, with IRIS's stop time T | One Item with: `ItemId` a new Ref; `SessionRef` S; `Channel` system; `Provenance` untrusted; `Text` "The {DisplayName} production stopped."; key `watch.productionStopped`; `Slots` `{"production": DisplayName, "time": T}`. It is sent in the Tick's session with S's TraceRef as SuperSession, and the process's own SuperSession is put back. `Reported` now has stopped 1 | -- |
+| 1 | Stopped since the last run (AC 1) | Previous: stopped 0. Read: `stopped`, with IRIS's stop time T | One Item with: `ItemId` a new Ref; `SessionRef` S; `Channel` system; `Provenance` untrusted; `Text` "The {DisplayName} production stopped."; key `watch.productionStopped`; `Slots` `{"production": DisplayName, "time": T}`. It is sent in a trace session of its own (AD-26) [AMENDED 2026-10-30, lead, Rule 5 tier 1: it read "sent in the Tick's session", which contradicted AD-26] with S's TraceRef as SuperSession, and the process's own SuperSession is put back. `Reported` now has stopped 1 | -- |
 | 2 | Still stopped (AC 2) | Previous: stopped 1. Read: `stopped` | No Item | -- |
 | 3 | Restarted, then stopped again | A run reads `running` (stopped becomes 0), then a run reads `stopped` | A new Item on the second stop | -- |
 | 4 | No stop time recorded | `stopped`, and the read gives no stop time | `time` is the run time | -- |
@@ -215,7 +215,83 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `ci/` or `_b
 - Given an approved fix whose target production is not running when the run starts, when `FixExecutor` runs it, then the run ends as couldn't start: one final `FixResult` with `Resent` 0, `Skipped` 0 and the reason `NOTRUNNING`, the row closed `failed`, the incident out of `fixing`, and the notification `result.couldNotStart` ("Nothing was resent: the production isn't running. Nothing was changed."). No result claims that the orders changed (rows 14, 15; DW-368, AD-16 as amended, U-160).
 - Given `Test.Checks.Runs.TestWindow`, when its two runs fall in different clock seconds, then it passes, because it compares against the first run's own `LastRunAt` (row 16; DW-414).
 
+### Review Findings
+
+Code review 2026-10-31 (bmad-code-review, first review; full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session's model). 24 raw findings, 12 entries after grouping, 5 rejected. Fields: severity | fix-risk | footprint | spec-status.
+
+- [x] [Review][Patch] **HIGH: each finding Item now has a trace session of its own (AD-26)** [src/ocutalon/cls/OcuTalon/Checks/Process.cls:390]
+  - Fields: high | fix-risk med (the session handling of a business process; both test classes adjusted) | in-story | spec-bound wording (row 1).
+  - Defect: Record sent every finding Item in the Tick's trace session. That breaks AD-26's Rule ("Each untrusted item ... has its own trace session") and Intake's own contract ("the session of its inbound header, which is the item's own trace session").
+  - Effect: one Tick session held the Tick, every check run, and every watcher's Items with their decision chains. The rail decision row's trace link (Decision.TraceSessionId) opened that shared session, which is the case AD-26's Prevents line names.
+  - Fix: `%SessionId` is cleared for each send and put back after it, the FailurePoller pattern. The Runs assertions now check that the session is empty during the send and that `%SessionId` and SuperSession are put back.
+  - Heartbeat now finds the Items by the owner's TraceRef and a header floor. It asserts the Item's session is its own (`sessionId = headerId`, not the Tick's), and it reads the decision in that session.
+  - For the lead: matrix row 1 says "sent in the Tick's session", and Design Notes "Item fields" cite AD-26 for it. Both contradict AD-26. The code follows AD-26, so the row wording needs the lead's Rule 5 correction (apply and report).
+  - Source: acceptance-auditor.
+- [x] [Review][Patch] **MED: `disabled` now follows IRIS's effective Enabled** [src/ocutalon/cls/OcuTalon/Watch/Reader.cls:287]
+  - Fields: med | fix-risk med (inside the one switch, which every Reader caller uses) | in-story | clear.
+  - Defect: `Current` read only `Ens_Config.Item.Enabled = 0`. IRIS decides with `$S(DefaultSettings.%GetSetting(..., "Enabled", .v): v, 1: item.Enabled)` (`Ens/Director.cls:1084`, `Ens/Config/Item.cls:248`), and it runs the enabled one of several same-name items (`Ens/Config/Production.cls:747`).
+  - Effect: an item disabled from the portal while a System Default Setting `Enabled` exists was never reported, because `EnableConfigItem` then changes only the setting. A stand-by duplicate could be reported as "was disabled" while its name runs. Two disabled duplicates sent two Items.
+  - Fix: every item row is read with the setting applied. A name is disabled only when no item of that name is enabled, and each name appears once, in ID order.
+  - New `Test.Watch.Reader.TestDisabledBySystemDefaultSetting`, through `Case.SetItemDefault`, which writes the setting where `%GetSetting` reads it, so no production is flagged, and removes it after the test, also after a failure.
+  - The duplicate-name branch has no live test: it would need a second item of one name in the stored Orders definition.
+  - Source: blind-hunter+edge-case-hunter.
+- [x] [Review][Patch] **MED (Rule 2): QA's item switch copied `Case.SetItemEnabled` again** [src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls:1172]
+  - Fields: med | fix-risk low (test helpers only) | in-story | clear.
+  - Defect: QA added `Test.Watch.Reader.EnableItem`, `ExtraDisabled` and an `OnAfterOneTest` override. They copied `Case.SetItemEnabled` and `ItemDisabled` line for line, which the implement review (BH4) had just unified.
+  - Fix: `Case.SetItemEnabled(enabled, name)` takes an optional item and keeps a `DisabledItems` list, which `OnAfterOneTest` enables again (`SwitchItem`). The copy is gone, and Heartbeat and Reader no longer set flags.
+  - Source: blind-hunter+verification-gap+acceptance-auditor.
+- [x] [Review][Patch] **MED: `Routes` counted OutcomeRouter's own forward of a digest** [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:300]
+  - Fields: med | fix-risk low | in-story | clear.
+  - Defect: for a digest, `Core.Rule.Outcome` sends the same ItemDecision body on to DigestStore. The router's `send` with no transform reuses `pRequest` (`EnsLib/MsgRouter/RoutingEngine.cls:391,407`). So the QA assertion could go red on correct code, depending on timing and the mock's outcome.
+  - Fix: `Routes` lists only the hops from Checks and Intake, over the owner's trace above the floor. QA's Notify mutation is still caught (see Verification).
+  - Source: blind-hunter+edge-case-hunter.
+- [x] [Review][Patch] **MED (Rule 19): the live test did not pin `Read`'s stop-time pass-through** [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:117]
+  - Fields: med | fix-risk low | in-story | clear.
+  - Defect: the run time usually fell in the same second as `after`. Dropping `.stoppedAt` in `Checks.Process.Read` passed both Runs (probe) and Heartbeat.
+  - Fix: `Hang 1.1` before the first Tick after the stop. The mutation now goes red (run time 04:31:14Z outside 04:31:13Z).
+  - Source: verification-gap.
+- [x] [Review][Patch] **LOW (Rule 19): AC 2's live half had no observed mutation** [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:128]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Fix: mutation lines written under Verification (Heartbeat `1|1` for the stop and the item, observed red).
+  - Source: verification-gap.
+- [x] [Review][Patch] **LOW: failure descriptions did not show the actual values** [src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls:319]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Defect: `%UnitTest`'s `AssertEquals` with a description logs no value (`%UnitTest/TestCase.cls:157-159`).
+  - Fix: the values are now in the descriptions of the new Heartbeat counts, times and routes, and of the Reader states and lists, so the next CI recurrence of QA's unreproduced red can be diagnosed.
+  - `Settled` judged: it retries only on `timeout`, which the product itself treats as not read (row 8). It hides no product defect.
+  - Source: verification-gap.
+- [x] [Review][Patch] **LOW: the `StateIs` doc contradicted the code** [src/ocutalon/cls/OcuTalon/Test/Fix/ExecutorProbe.cls:8]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Fix: `none` gives "", and empty means the product's own read.
+  - Source: blind-hunter+edge-case-hunter.
+- [x] [Review][Patch] **LOW: a redundant `$Select` in `FindingItem`** [src/ocutalon/cls/OcuTalon/Checks/Process.cls:466]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Source: blind-hunter.
+- [x] [Review][Patch] **LOW: the spec gate's "cite AD-15 in tests" and the veto markers were missing** [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:362]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Fix: AD-15 is cited in the Runs tests that pin the run-time fallback. U-180 is on `TEXTSTOPPED`/`TEXTDISABLED`, and U-179 on `BackgroundCheck.Reported`.
+  - Source: acceptance-auditor.
+- [x] [Review][Patch] **LOW: the decisions and usage of the finding Items stayed on the stack** [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:281]
+  - Fields: low | fix-risk low | in-story | clear.
+  - Fix: Heartbeat's `Findings` adds each ItemId to `Case.ItemIds`, which `OnAfterOneTest` cleans.
+  - The digest rows are owned by the test's own session, and every reader of them is scoped by session.
+  - Source: edge-case-hunter.
+- [x] [Review][Defer] **MED: a stopped production whose start read gives `timeout` still reaches the re-check** [src/ocutalon/cls/OcuTalon/Fix/Executor.cls:357]
+  - Deferred: occurrence appended to DW-419 (routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got).
+  - Fields: med | fix-risk low | in-epic | spec-bound for this story.
+  - Row 15 sends `timeout` on to the re-check. When the production is in fact stopped, Resend's `stopped` skip then gives `result.skipped`, the mid-run case that Story 30.5 owns.
+  - Source: edge-case-hunter.
+
+Rejected:
+- low BH4: the live test asserts `1|0` rather than a sum. AC 1 names the next Tick, and the existing TestFailingOrders shows that the first Tick after `StopOrders` reads `stopped`. The count now shows its values.
+- maybe-false/low EH4: `timeout` reads in Heartbeat and Fix.Runs right after a stop or an update. `StopProduction` and `EnableConfigItem(..., 1)` return after the update, and the Reader tests wait one out (`Settled`).
+- low BH8: `TestEachRowRemembersItsOwnReport` narrows `..Checks`. Only an exception between two lines could leave one log line on a throwaway.
+- low BH9: the record calls `Test.Web.GuideApi.TestRunAgain` a new flake. Fixing that edits the spec under review, and the ledger already holds DW-453's occurrence.
+- false VG4: `text [ ref` is redundant, not a defect: Warnings counts only Ref-prefixed lines, so the count pins the Ref. The baseline "sends no Item" controls can fail on any spurious send.
+
 ## Spec Change Log
+
+- 2026-10-30 (lead, after code review; Rule 5 tier 1, intent kept): matrix row 1, the AD-26 Design Notes line and "Item fields" said the finding Item is sent in the Tick's session, which contradicted AD-26 (every untrusted item gets its own trace session); the code review fixed the code to AD-26 and the lead corrected the three lines. "Disabled" now also covers a System Default Setting `Enabled` override and a name with an enabled copy, as the review's patch implements.
 
 ## Review Triage Log
 
@@ -257,7 +333,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `ci/` or `_b
 - AD-15: a final `FixResult` while `fixing` resolves the incident.
 - AD-3: the reads stay in `Watch.Reader`'s one switch.
 - AD-5: append-only storage, and "new" kept in rows.
-- AD-26: the Item goes in the Tick's session, with the owner's TraceRef.
+- AD-26: the Item goes in a trace session of its own, with the owner's TraceRef [AMENDED 2026-10-30, lead, Rule 5 tier 1: it read "in the Tick's session"].
 - AD-4: each session's row gets its own Item.
 - AD-33: Lane B classes are read only.
 - AD-2: no bridge change.
@@ -303,8 +379,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `ci/` or `_b
   - The finding counts `stopped` and `suspended` (a stop that left queued messages) as stopped.
   - `troubled`, `network_stopped`, `timeout` and `unknown` are not stops.
   - The executor's "not running" is `stopped`, `suspended` and `network_stopped`, the states in which IRIS's resend refuses (`Ens.MessageHeader:461` uses `IsProductionRunning`; that `troubled` passes that check is an inference).
-- **Disabled** means `Enabled` 0 in the production's stored definition. A `TempStopConfigItem` stop is not a disable. Every newly disabled item is its own Item, with no cap, in ID order.
-- **Item fields.** `Channel` system, no Sender or Subject, `ItemId` from `Bridge.Ids.NewRef()`. The trace is the Tick's session with S's TraceRef, as the quiet sweep does (AD-26).
+- **Disabled** means not enabled as IRIS runs it: `Enabled` 0 in the production's stored definition or a System Default Setting `Enabled` override, and a name with any enabled copy is not disabled [AMENDED 2026-10-30, lead, Rule 5 tier 1, after the code review: it read "`Enabled` 0 in the production's stored definition"]. A `TempStopConfigItem` stop is not a disable. Every newly disabled item is its own Item, with no cap, in ID order.
+- **Item fields.** `Channel` system, no Sender or Subject, `ItemId` from `Bridge.Ids.NewRef()`. The trace is a session of its own with S's TraceRef (AD-26) [AMENDED 2026-10-30, lead, Rule 5 tier 1: it read "the Tick's session ... as the quiet sweep does"].
 - **Send after the row's update, never retried.** "Never sent again" is the guarantee. A lost send is logged, and the check row still shows the finding.
 - **The start check comes after `StartExecution` and the FixRun's save,** not before `Start` as the resources check does. A second Execute is then refused by the single gate, and the run has exactly one final `FixResult`.
 - **A stop and a restart inside one check interval are not reported.** The state at each run decides.
@@ -465,6 +541,38 @@ mutation lines (Rule 19; each applied, red observed, reverted byte-identically w
 - (once) `bash ci/checks.sh` passed (3 min 24 s); `bash docker/tests/test-mock.sh` passed (0 failures).
 - (once) `shard lane-a --part k/6` fresh: 1/6 451 s, 2/6 160 s, 3/6 261 s, 4/6 477 s, 5/6 264 s, 6/6 347 s, all passed.
 - (once) `shard lane-b`: part 1/2 266 s passed; part 2/2 first run 540 s with one red, `Test.Web.GuideApi.TestRunAgain` ("steps 3 to 5 reset; the watch still counts", not in this story's area; green alone and green on the one rerun of the part, 558 s). A new flake, to be ledgered by the lead (not on the known list).
+
+**QA stage (tags e30s4qa and e30s4qaw; both torn down).** Gap-filling tests (QA), added to existing classes; no passing test was changed except one appended assertion in Heartbeat:
+- (QA) `Test.Checks.Runs.TestAnUnreadFirstRunLeavesTheBaselineForTheFirstRead` (rows 7 and 8, AC 3): a legacy row whose first run cannot read keeps `Reported` empty; the first run that reads is the baseline; only a later change is reported.
+- (QA) `Test.Checks.Runs.TestEachRowRemembersItsOwnReport` (AC 2, AC 3, AD-18): two watches of one production, each Item to its own session and trace; a run records its own row only (the other keeps `stopped` 1 and is not re-reported).
+- (QA) `Test.Watch.Reader.TestDisabledItemsInStoredOrderAcrossAStopAndAStart` (rows 5 and 12): two disabled items in stored (ID) order, not alphabetical; a stopped Orders gives the disabled items and the stop time together; a start clears the stop time and keeps the items disabled; the extra item is enabled again by the class's `OnAfterOneTest`, also after a failure (reads wait out a `timeout` state).
+- (QA) `Test.Fix.Executor.TestNotRunningResultNeverClaimsAChange` (rows 14 and 15, DW-368, AD-16): for stopped, suspended and network_stopped the result is `result.couldNotStart`, reads "Nothing was resent: the production isn't running. Nothing was changed.", names no skip and no "changed since the dry run", and every count is 0.
+- (QA) `Test.Checks.Heartbeat.TestStoppedProductionIsReportedOnce` gained one assertion (helper `Routes`): the Item's only route is Checks to Intake and its only decision is Intake to OutcomeRouter (row 12, Integration AC; never to OutcomeRouter or Notify).
+- Test files touched (QA): `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls`, `Test/Checks/Heartbeat.cls`, `Test/Fix/Executor.cls`, `Test/Watch/Reader.cls`. No new file.
+
+mutation lines (QA; each applied, red observed, reverted byte-identically, `git status --short` and `git diff --stat` unchanged, class green again on the same stack):
+- mutation: a stop with no recorded time gets an empty time instead of the run time (`$Select(at '= "": at, 1: "")`) -> Runs TestStoppedIsReportedOnce (row 4: "whose time is a UTC stamp", "and the run time") red.
+- mutation: a run that did not read stores the default `Reported` when it was empty (`If reported = "" Set reported = ...`) -> Runs TestAnUnreadFirstRunLeavesTheBaselineForTheFirstRead red (all four assertions).
+- mutation: Record's `UPDATE` keyed by `Production` instead of `Ref` -> Runs TestEachRowRemembersItsOwnReport red.
+- mutation: `Reader` `stoppedAt` always "" -> Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart (stop time) and TestStoppedProduction (stamp, between) red.
+- mutation: `Reader` disabled items `ORDER BY Name` instead of `ORDER BY ID` -> Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart red.
+- mutation: `Executor.NOTRUNNING` = "the orders had changed since the dry run" -> Fix.Executor TestNotRunningResultNeverClaimsAChange (whole text and no-claim, three states) and TestProductionNotRunningCannotStart (reason) red.
+- mutation: `Checks.Process.SendFinding` also sends the Item to `Notify` (fresh) -> Heartbeat TestStoppedProductionIsReportedOnce (the Routes assertion) red.
+- The existing mutations of the implement stage cover every other AC and matrix row; rows 4's time, 7/8's late baseline, the per-row key, Reader's stop time and order, the couldn't-start wording and the Intake-only route had none before.
+
+QA runs: warm `Checks.Runs`, `Fix.Executor`, `Watch.Reader` passed (Reader once failed on the first run of its new test at "stopped, with the disabled items", not reproduced in 7 later runs; the reads now wait out a `timeout` state, the likely cause, unconfirmed); fresh `Checks.Heartbeat` passed (89 s with the stack).
+
+mutation lines (code review 2026-10-31; tags e30s4crw warm and e30s4cr fresh, both torn down). Each mutation was applied from a backup and restored with `cmp`; the `git diff` checksum and `--stat` matched afterwards. The warm classes were green again on the same stack after the revert, and fresh Heartbeat was green on the identical tree:
+- mutation: `Record` sends in the Tick's session (`Set ..%SessionId = session` instead of "") -> Runs TestStoppedIsReportedOnce ("sent in a trace session of its own (AD-26)", warm) and Heartbeat TestStoppedProductionIsReportedOnce ("in a trace session of its own, not the Tick's": 48 (Tick 48), fresh) red.
+- mutation: `Reader.Current` ignores the System Default Setting (`If 0 && ...%GetSetting`) -> Watch.Reader TestDisabledBySystemDefaultSetting ("running|[]", warm) red.
+- mutation: `Findings` ignores the reported stop (`If stopped Do found.%Push`) -> Heartbeat TestStoppedProductionIsReportedOnce ("1|1", fresh) red: AC 2's live half.
+- mutation: `Reported` never stores the disabled names (`[]`) -> Heartbeat TestDisabledItemIsReportedOnce ("1|1" and two web chat notifications, fresh) red: AC 2's live half.
+- mutation: `Checks.Process.Read` drops `.stoppedAt` -> Heartbeat TestStoppedProductionIsReportedOnce (time 04:31:14Z outside 04:31:13Z to 04:31:13Z, fresh) red.
+- re-demonstrated after the review changed `Routes` and `Decision` (one fresh run):
+  - `SendFinding` also sends the Item to Notify -> Routes "Item Checks>Intake|Item Checks>Notify" red;
+  - Provenance `user` on the stop Item -> "from the system channel, untrusted" and "Intake sent OutcomeRouter the ItemDecision" red;
+  - an empty `CatalogKey` on the disabled Item -> the key and the web chat card are not the itemDisabled text, red.
+- runs: warm `Checks.Runs` 1.3 s, `Watch.Reader` 1.5 s, `Fix.Executor` 29.7 s; fresh `Checks.Heartbeat` 4.9 s (stack 90 s); `bash ci/checks.sh` passed (3 min 35 s).
 
 ## Auto Run Result
 

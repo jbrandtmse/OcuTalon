@@ -12,13 +12,14 @@
 ///     run ("3 new failures"); with Orders stopped the finding of the Tick a minute later begins "Production stopped" (and, from Story 30.4, that Tick sends one
 ///     finding Item to Intake, which this test does not assert); Orders is started again and runs;
 ///   - TestStoppedProductionIsReportedOnce (Story 30.4; AC 1, AC 2; FR-33; the matrix row 12): the Tick at NextDueAt only records the baseline (running); after Orders is
-///     stopped, the Ticks a minute and two minutes later send exactly one Item from Checks to Intake for the session, across both Ticks' sessions: key watch.productionStopped,
-///     production "Orders", a time between just before the stop and just after it (IRIS's own stop time), the session's TraceRef as SuperSession. Intake sends one
-///     ItemDecision to OutcomeRouter with the same CatalogKey and Slots (Integration AC). Orders is started again;
+///     stopped, the Tick a minute later (run more than a second after the stop) sends exactly one Item from Checks to Intake for the session and the Tick two minutes
+///     later none: key watch.productionStopped, production "Orders", a time between just before the stop and just after it (IRIS's own stop time, not the run's), the
+///     session's TraceRef as SuperSession, in a trace session of its own (AD-26). Intake sends one ItemDecision to OutcomeRouter in that session with the same CatalogKey
+///     and Slots (Integration AC); (QA) the Item's only route is Checks to Intake and its only decision is Intake to OutcomeRouter (Routes). Orders is started again;
 ///   - TestDisabledItemIsReportedOnce (Story 30.4; AC 1, AC 2; the matrix row 13): the session's fixture watch has the CI mock's marker check-finding-tell-now in its display name; the
-///     baseline Tick, then OrdersToWarehouse disabled in OCUORDERS and two Ticks send exactly one watch.itemDisabled Item for it, and the session's web chat gets one tell-now
-///     notification whose text is the catalog's rendering of that key and those slots, its second line "Why now: you asked me to watch the {name} production." (Integration
-///     AC). The item is enabled again after the test, also after a failure (OnAfterOneTest);
+///     baseline Tick, then OrdersToWarehouse disabled in OCUORDERS and two Ticks: the first sends exactly one watch.itemDisabled Item for it and the second none, and the
+///     session's web chat gets one tell-now notification whose text is the catalog's rendering of that key and those slots, its second line "Why now: you asked me to
+///     watch the {name} production." (Integration AC). The item is enabled again after the test, also after a failure (Case.SetItemEnabled, OnAfterOneTest);
 ///   - TestQuietClose (AC 3): a real Tick, before the test's own, makes the real IncidentManager close a noticed resolved incident whose last failure is 16 minutes
 ///     old (closed with ClosedAt, one incident event closed). Across all sessions of Checks exactly one closeQuiet names it, and it goes in a session whose first
 ///     request is a Tick to Checks, with the owner's TraceRef as SuperSession; the test's own Tick sends none. The 14 minute incident stays resolved;
@@ -104,29 +105,38 @@ Method TestStoppedProductionIsReportedOnce()
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 	Set ref = ..Watch(session)
 	Set tickAt = ..Check(ref).NextDueAt
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
 	Set base = ..Tick(tickAt)
 	If base = "" Quit
 	Do $$$AssertEquals($Extract(..Check(ref).Reported, 1, 12), "{""stopped"":0", "the Tick at NextDueAt records the baseline: Orders runs")
-	Do $$$AssertEquals(..Findings(base, session).%Size(), 0, "and sends no Item")
+	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 0, "and sends no Item")
 	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	If '..StopOrders() Quit
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	// the run comes more than a second after the stop, so that only IRIS's own stop time lies between before and after
+	Hang 1.1
 	Set next = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, 60))
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
 	Set first = ..Tick(next)
 	If first = "" Quit
+	Set items = ..Findings(trace, session, floor)
+	Set later = ..Top("Ens.MessageHeader", $Namespace)
 	Set last = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(next, 60))
 	Set second = ..Tick(last)
 	If second = "" Quit
-	Set items = ..Findings(first, session)
-	Do $$$AssertEquals(items.%Size()_"|"_..Findings(second, session).%Size(), "1|0", "the first Tick after the stop sends one Item to Intake for the session, and the second sends none")
+	Set again = ..Findings(trace, session, later)
+	Do $$$AssertEquals(items.%Size()_"|"_again.%Size(), "1|0", "the first Tick after the stop sends one Item to Intake for the session, and the second sends none: "_items.%Size()_"|"_again.%Size())
 	If items.%Size() = 1 {
 		Set item = items.%Get(0)
 		Set slots = {}.%FromJSON(item.slots)
 		Do $$$AssertEquals(item.catalogKey_"|"_slots.production, "watch.productionStopped|Orders", "its key and production")
-		Do $$$AssertTrue('(before ] slots.time) && '(slots.time ] after), "and its time is the stop's, between just before and just after it: "_slots.time)
+		Do $$$AssertTrue('(before ] slots.time) && '(slots.time ] after), "and its time is IRIS's stop time, between just before and just after the stop (the run came later): "_before_" "_slots.time_" "_after)
 		Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.superSession, "system|untrusted|"_trace, "from the system channel, untrusted, with the session's TraceRef as SuperSession")
-		Set decision = ..Decision(first, item.itemId)
-		If $IsObject(decision) Do $$$AssertEquals(decision.catalogKey_"|"_decision.slots, item.catalogKey_"|"_item.slots, "Intake sent OutcomeRouter one ItemDecision with the same CatalogKey and Slots")
+		Do $$$AssertTrue((item.sessionId = item.headerId) && (item.sessionId '= first), "in a trace session of its own, not the Tick's (AD-26): "_item.sessionId_" (Tick "_first_")")
+		Set decision = ..Decision(item.sessionId, item.itemId)
+		If $IsObject(decision) Do $$$AssertEquals(decision.catalogKey_"|"_decision.slots, item.catalogKey_"|"_item.slots, "Intake sent OutcomeRouter one ItemDecision in the item's session with the same CatalogKey and Slots")
+		Set routes = ..Routes(trace, floor, item.itemId)
+		Do $$$AssertEquals(routes, "Item Checks>Intake|ItemDecision Intake>OutcomeRouter", "(QA) the Item goes to Intake only, once, and Intake sends the one ItemDecision to OutcomeRouter: nothing goes from Checks to OutcomeRouter or Notify: "_routes)
 	}
 	Do ..StartOrders()
 }
@@ -138,21 +148,25 @@ Method TestDisabledItemIsReportedOnce()
 	Set name = "Orders "_..#MARKER
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(session, ..#ORDERS, ..#ORDERSPRODUCTION, {"DisplayName": (name), "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc()), "NextDueAt": (..Ahead())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 	Set tickAt = ..Check(ref).NextDueAt
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
 	Set base = ..Tick(tickAt)
 	If base = "" Quit
 	Do $$$AssertEquals($Extract(..Check(ref).Reported, 1, 12), "{""stopped"":0", "the Tick at NextDueAt records the baseline")
-	Do $$$AssertEquals(..Findings(base, session).%Size(), 0, "and sends no Item")
-	Set ..ItemDisabled = 1
+	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 0, "and sends no Item")
 	Do $$$AssertStatusOK(..SetItemEnabled(0), ..#ITEMNAME_" is disabled in "_..#ORDERS)
 	Set next = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, 60))
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
 	Set first = ..Tick(next)
 	If first = "" Quit
+	Set items = ..Findings(trace, session, floor)
+	Set later = ..Top("Ens.MessageHeader", $Namespace)
 	Set last = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(next, 60))
 	Set second = ..Tick(last)
 	If second = "" Quit
-	Set items = ..Findings(first, session)
-	Do $$$AssertEquals(items.%Size()_"|"_..Findings(second, session).%Size(), "1|0", "exactly one Item goes to Intake for the disabled item, in the first Tick after it")
+	Set again = ..Findings(trace, session, later)
+	Do $$$AssertEquals(items.%Size()_"|"_again.%Size(), "1|0", "exactly one Item goes to Intake for the disabled item, in the first Tick after it: "_items.%Size()_"|"_again.%Size())
 	If items.%Size() '= 1 Quit
 	Set item = items.%Get(0)
 	Set slots = {}.%FromJSON(item.slots)
@@ -261,30 +275,53 @@ Method TestStartAndStop()
 	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(started.Ref), 0, "the row is gone")
 }
 
-/// The finding Items that Checks sent to Intake in the Tick's trace session for the owner, in order, as a dynamic array of {itemId, catalogKey, slots, channel,
-/// provenance, superSession (of the header)}.
-ClassMethod Findings(tickSession As %String, owner As %String) As %DynamicArray [ Private ]
+/// The finding Items that Checks sent to Intake for the owner, with the owner's TraceRef (trace) as SuperSession, in the headers above the floor (a header id), in
+/// order, as a dynamic array of {itemId, catalogKey, slots, channel, provenance, and of the header superSession, sessionId and headerId}. Each ItemId joins
+/// ItemIds, so that OnAfterOneTest removes the decision and the usage that it made.
+Method Findings(trace As %String, owner As %String, floor As %Integer) As %DynamicArray [ Private ]
 {
 	Set found = []
-	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(tickSession), 1, ..#CHECKS, "Intake")
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, ..#CHECKS, "Intake")
 	For i = 0:1:sent.%Size() - 1 {
-		If sent.%Get(i).bodyClass '= "OcuTalon.Msg.Item" Continue
-		Set body = ##class(OcuTalon.Msg.Item).%OpenId(sent.%Get(i).bodyId)
+		Set header = sent.%Get(i)
+		If (header.id '> floor) || (header.bodyClass '= "OcuTalon.Msg.Item") Continue
+		Set body = ##class(OcuTalon.Msg.Item).%OpenId(header.bodyId)
 		If $IsObject(body) && (body.SessionRef = owner) {
-			Do found.%Push({"itemId": (body.ItemId), "catalogKey": (body.CatalogKey), "slots": (body.Slots), "channel": (body.Channel), "provenance": (body.Provenance), "superSession": (sent.%Get(i).superSession)})
+			Do found.%Push({"itemId": (body.ItemId), "catalogKey": (body.CatalogKey), "slots": (body.Slots), "channel": (body.Channel), "provenance": (body.Provenance), "superSession": (header.superSession), "sessionId": (header.sessionId), "headerId": (header.id)})
+			If '$ListFind(..ItemIds, body.ItemId) Set ..ItemIds = ..ItemIds_$ListBuild(body.ItemId)
 		}
 	}
 	Quit found
 }
 
-/// The ItemDecision that Intake sent to OutcomeRouter for the item in the Tick's session, as {catalogKey, slots}, waiting up to WAITDIAGNOSIS seconds for it;
-/// "" with a failed assertion when there is none.
-Method Decision(tickSession As %String, itemId As %String) As %DynamicObject [ Private ]
+/// (QA) Where the item travelled in its owner's trace (trace, the TraceRef) above the floor: one entry "Item source>target" per request from Checks or Intake
+/// that carried the Item with the id, and "ItemDecision source>target" per such request that carried its decision, in order, separated by "|". OutcomeRouter's
+/// own forward of the decision (to DigestStore for a digest) is the router's routing, not the item's.
+Method Routes(trace As %String, floor As %Integer, itemId As %String) As %String [ Private ]
+{
+	Set routes = ""
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If (header.type '= 1) || (header.id '> floor) Continue
+		If (header.source '= ..#CHECKS) && (header.source '= "Intake") Continue
+		If (header.bodyClass '= "OcuTalon.Msg.Item") && (header.bodyClass '= "OcuTalon.Msg.ItemDecision") Continue
+		Set body = $ClassMethod(header.bodyClass, "%OpenId", header.bodyId)
+		If $IsObject(body) && (body.ItemId = itemId) {
+			Set routes = routes_$Select(routes = "": "", 1: "|")_$Piece(header.bodyClass, ".", 3)_" "_header.source_">"_header.target
+		}
+	}
+	Quit routes
+}
+
+/// The ItemDecision that Intake sent to OutcomeRouter for the item in the session (the item's own trace session, which Intake keeps), as {catalogKey, slots},
+/// waiting up to WAITDIAGNOSIS seconds for it; "" with a failed assertion when there is none.
+Method Decision(session As %String, itemId As %String) As %DynamicObject [ Private ]
 {
 	Set end = $ZHorolog + ..#WAITDIAGNOSIS
 	Set found = ""
 	For {
-		Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(tickSession), 1, "Intake", "OutcomeRouter")
+		Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(session), 1, "Intake", "OutcomeRouter")
 		For i = 0:1:sent.%Size() - 1 {
 			If sent.%Get(i).bodyClass '= "OcuTalon.Msg.ItemDecision" Continue
 			Set body = ##class(OcuTalon.Msg.ItemDecision).%OpenId(sent.%Get(i).bodyId)

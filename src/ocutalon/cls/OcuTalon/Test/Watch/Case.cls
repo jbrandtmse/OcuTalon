@@ -13,7 +13,8 @@ Include Ensemble
 ///   - for the tests of the failure reading (Story 5.2): Fail (failing orders in OCUORDERS through the partner), WaitFailed, LateHeader and LateError (a
 ///     header that enters the error status later), HeaderlessLog (an event-log row with no session), Since and Batches (the FailureBatch messages that
 ///     IncidentManager holds, as plain objects), WaitBatched and Ids, StopPoller and StartPoller (the item's temporary stop), StopOrders, StartOrders and
-///     OrdersRunning, SetItemEnabled (Story 30.4: ITEMNAME of Orders, enabled again by OnAfterOneTest when ItemDisabled is set), and ClearMark. Every
+///     OrdersRunning, SetItemEnabled and SetItemDefault (Story 30.4: an item of Orders, ITEMNAME by default, which OnAfterOneTest enables again, and
+///     ITEMNAME's System Default Setting Enabled, which OnAfterOneTest removes), and ClearMark. Every
 ///     message and row that they make in OCUORDERS (the headers after the first Fail, the fixture headers and log rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
 ///     stopped them.
 ///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
@@ -143,11 +144,14 @@ Parameter TICKWAIT = 60;
 /// How far ahead of now a row is due, in seconds (see Ahead).
 Parameter AHEADSECONDS = 86400;
 
-/// The Orders item that SetItemEnabled switches (Story 30.4).
+/// The Orders item that SetItemEnabled switches unless another is named, and the one of SetItemDefault (Story 30.4).
 Parameter ITEMNAME = "OrdersToWarehouse";
 
-/// 1 while a test has ITEMNAME disabled in OCUORDERS: OnAfterOneTest enables it again, also after a failure.
-Property ItemDisabled As %Boolean [ InitialExpression = 0 ];
+/// The Orders items that a test disabled through SetItemEnabled and has not enabled again: OnAfterOneTest enables each again, also after a failure.
+Property DisabledItems As %List;
+
+/// 1 while a test has ITEMNAME's System Default Setting of SetItemDefault in OCUORDERS: OnAfterOneTest removes it, also after a failure.
+Property ItemDefaultSet As %Boolean [ InitialExpression = 0 ];
 
 /// The ApprovalRole rows of Decide before ApprovalReady set them aside (RunnerFixture.RememberDefault), with ApprovalRoleSaved 1 while they are set aside.
 Property ApprovalRoleRows As %List;
@@ -237,10 +241,12 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set itemSc = $$$OK
-	If ..ItemDisabled {
-		Set ..ItemDisabled = 0
-		Set itemSc = ..SetItemEnabled(1)
+	If ..ItemDefaultSet Do ..SetItemDefault("")
+	Set position = 0
+	While $ListNext(..DisabledItems, position, name) {
+		Set itemSc = $SYSTEM.Status.AppendStatus(itemSc, ..SwitchItem(name, 1))
 	}
+	Set ..DisabledItems = ""
 	Do ..FreeRuns()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
@@ -1161,12 +1167,41 @@ ClassMethod StartOrdersNow() As %Status [ Private ]
 	Quit ##class(Ens.Director).StartProduction(..#ORDERSPRODUCTION)
 }
 
-/// Enables (1) or disables (0) ITEMNAME in OCUORDERS and updates the running production. A test that disables it sets ItemDisabled first.
-ClassMethod SetItemEnabled(enabled As %Boolean) As %Status [ Private ]
+/// Enables (1) or disables (0) an item of the Orders production in OCUORDERS, ITEMNAME unless another is named, and updates the running production. An item
+/// that is disabled joins DisabledItems before the switch, so that OnAfterOneTest enables it again also after a failure; one that is enabled again leaves it.
+Method SetItemEnabled(enabled As %Boolean, name As %String = "") As %Status [ Private ]
+{
+	If name = "" Set name = ..#ITEMNAME
+	If 'enabled && '$ListFind(..DisabledItems, name) Set ..DisabledItems = ..DisabledItems_$ListBuild(name)
+	Set sc = ..SwitchItem(name, enabled)
+	Set at = $ListFind(..DisabledItems, name)
+	If enabled && at && $$$ISOK(sc) Set ..DisabledItems = $List(..DisabledItems, 1, at - 1)_$List(..DisabledItems, at + 1, *)
+	Quit sc
+}
+
+/// Enables (1) or disables (0) the item of the Orders production in OCUORDERS and updates the running production.
+ClassMethod SwitchItem(name As %String, enabled As %Boolean) As %Status [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
-	Quit ##class(Ens.Director).EnableConfigItem(..#ITEMNAME, enabled, 1)
+	Quit ##class(Ens.Director).EnableConfigItem(name, enabled, 1)
+}
+
+/// Sets the System Default Setting Enabled (enabled 0 or 1) of ITEMNAME in the Orders production of OCUORDERS, for any class, or removes it (enabled ""). It is
+/// written where Ens.Config.DefaultSettings.%GetSetting reads it (the table's storage, ^Ens.Config.DefaultSettingsD), so that no production is changed or
+/// flagged for an update, and the running item keeps running. A setting that the test did not make is never touched: 0 when one exists already, else 1.
+Method SetItemDefault(enabled As %String) As %Boolean [ Private ]
+{
+	Set orders = ..#ORDERS
+	If enabled = "" {
+		If ..ItemDefaultSet Kill ^|orders|Ens.Config.DefaultSettingsD(..#ORDERSPRODUCTION, ..#ITEMNAME, "*", "Enabled")
+		Set ..ItemDefaultSet = 0
+		Quit 1
+	}
+	If '..ItemDefaultSet && $Data(^|orders|Ens.Config.DefaultSettingsD(..#ORDERSPRODUCTION, ..#ITEMNAME, "*", "Enabled")) Quit 0
+	Set ..ItemDefaultSet = 1
+	Set ^|orders|Ens.Config.DefaultSettingsD(..#ORDERSPRODUCTION, ..#ITEMNAME, "*", "Enabled") = $ListBuild(+enabled, "", 0)
+	Quit 1
 }
 
 /// 1 when the Orders production runs in OCUORDERS.

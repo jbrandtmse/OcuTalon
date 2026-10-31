@@ -22,6 +22,8 @@ Include Ensemble
 ///   - TestProductionNotRunningCannotStart (DW-368, AD-16; the matrix row 15): a target production that is stopped, suspended or network_stopped when the run starts ends the run as could not start:
 ///     the FixRun is saved with no copy, the request is failed, one final FixResult is Total the number of targets with every other count 0 and the reason NOTRUNNING, one Action entry is
 ///     written as failed, and the re-check is never called; a production that is troubled, running, timed out, not read or whose read throws goes on to the re-check (here a re-check that fails: NOREAD, as before);
+///   - TestNotRunningResultNeverClaimsAChange (QA, DW-368): for a stopped, suspended and network_stopped production the result is result.couldNotStart and reads "Nothing was resent: the production isn't running. Nothing was changed.",
+///     with no skip, no "changed since the dry run", and every count 0;
 ///   - TestUnreadable (V3): a re-check that gives an error status or throws, and a resend that gives an error before any copy, end like a run that cannot start with the reason
 ///     NOREAD, after the FixRun is saved, with one Type 3 warning each;
 ///   - TestRowIsTheTruth (AC 3; U-126): the kind's re-check and resend get the kind, the parameters and the targets of the request's row and the incident of its
@@ -333,6 +335,30 @@ Method TestProductionNotRunningCannotStart()
 		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOREAD, "state "_state)
 		Do $$$AssertEquals(..Calls(host), "1/0", "state "_state_": the run goes on to the re-check")
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Run", $Parameter(..#PROBE, "LOGRECHECK"))
+	}
+}
+
+/// (QA, DW-368; AD-16) The result of a run that could not start because the production is not running reads as that, in the words of the catalog, and claims no change:
+/// the key is result.couldNotStart (never the skipped result), the text is the whole sentence, and it names neither a skip nor an order that changed.
+Method TestNotRunningResultNeverClaimsAChange()
+{
+	Set owner = ..Owner("notrunningtext")
+	Set incident = ..Incident(owner)
+	For state = "stopped", "suspended", "network_stopped" {
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Set host.MissingIs = "none"
+		Set host.StateIs = state
+		Set ref = ..Request(owner, incident, "approved")
+		Do $$$AssertStatusOK(..Send(host, ref), "a fix whose production is "_state_" is handled")
+		Set last = ..LastResult(host)
+		Do $$$AssertTrue($IsObject(last), state_": a FixResult was sent")
+		If '$IsObject(last) Continue
+		Set text = ..Render(last, "failed", .key)
+		Do $$$AssertEquals(key, "result.couldNotStart", state_": the key is couldNotStart")
+		Do $$$AssertEquals(text, "Nothing was resent: the production isn't running. Nothing was changed.", state_": the whole text")
+		Do $$$AssertTrue('(text [ "changed since") && '(text [ "dry run") && '(text [ "skipped"), state_": it claims no skip and no change in the orders: "_text)
+		Do $$$AssertEquals(last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, "0|0|0|0", state_": and no count says that anything was resent or skipped")
 	}
 }
 

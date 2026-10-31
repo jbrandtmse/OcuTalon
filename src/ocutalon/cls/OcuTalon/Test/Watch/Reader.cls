@@ -32,6 +32,11 @@
 ///     WatchOps' shadow instance and is admitted (its row only records a baseline); the production is started again and the test asserts it runs;
 ///   - TestDisabledItems (Story 30.4): with OrdersToWarehouse disabled in OCUORDERS Failures gives disabled ["OrdersToWarehouse"], with the stop time "" while Orders runs, and
 ///     [] once the item is enabled again (also after a failure: OnAfterOneTest); the other outcomes give [] and "";
+///   - TestDisabledItemsInStoredOrderAcrossAStopAndAStart (QA, Story 30.4): two items disabled at once come in the stored (ID) order, not the alphabetical one; a stopped Orders gives its
+///     disabled items and its stop time together; a start clears the stop time and keeps the items disabled; both items are enabled again after the test, also after a failure
+///     (Case.SetItemEnabled, OnAfterOneTest);
+///   - TestDisabledBySystemDefaultSetting (Story 30.4): an item that a System Default Setting Enabled 0 overrides is disabled as IRIS runs it, although its own flag is set,
+///     and it leaves the list once the setting is gone (Case.SetItemDefault, removed after the test, also after a failure);
 ///   - TestFailuresState (Story 5.6): Failures also gives the production's running state: running while Orders runs, stopped while it is cleanly stopped, timeout while
 ///     another job holds ^Ens.Runtime("ConfigItem") in OCUORDERS (the runtime lock, which Ens.Director.GetProductionStatus waits for one second), and "" with the
 ///     outcomes unreadable and not_current;
@@ -43,6 +48,9 @@ Class OcuTalon.Test.Watch.Reader Extends OcuTalon.Test.Watch.Case
 {
 
 Parameter READER = "OcuTalon.Watch.Reader";
+
+/// The second Orders item that TestDisabledItemsInStoredOrderAcrossAStopAndAStart disables (QA, Story 30.4); it is stored before ITEMNAME but sorts after it.
+Parameter EXTRAITEM = "PartnerOrdersIn";
 
 Method TestOrdersIsListed()
 {
@@ -290,7 +298,7 @@ Method TestStoppedProduction()
 	Do $$$AssertEquals(rows.%Size(), 1, "the one that it made is given")
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "the state is read too")
 	Set stamp = ##class(OcuTalon.Watch.Mark).FailedAt(stoppedAt)
-	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "stopped|[]", "it is stopped, with no item disabled")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "stopped|[]", "it is stopped, with no item disabled: "_state_"|"_disabled.%ToJSON())
 	Do $$$AssertTrue(stamp '= "", "and IRIS's stop time is a stamp: "_stoppedAt)
 	Do $$$AssertTrue('(before ] stamp) && '(stamp ] after), "between just before the stop and just after it: "_stoppedAt)
 	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Watch.OpsProbe", .sc)
@@ -313,17 +321,70 @@ Method TestDisabledItems()
 	If '..Ready() Quit
 	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read")
-	Do $$$AssertEquals(state_"|"_disabled.%ToJSON()_"|"_stoppedAt, "running|[]|", "control: it runs, with no item disabled and no stop time")
-	Set ..ItemDisabled = 1
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON()_"|"_stoppedAt, "running|[]|", "control: it runs, with no item disabled and no stop time: "_state_"|"_disabled.%ToJSON()_"|"_stoppedAt)
 	Do $$$AssertStatusOK(..SetItemEnabled(0), ..#ITEMNAME_" is disabled")
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read again")
-	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "running|[""OrdersToWarehouse""]", "the disabled item is given")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "running|[""OrdersToWarehouse""]", "the disabled item is given: "_state_"|"_disabled.%ToJSON())
 	Do $$$AssertStatusOK(..SetItemEnabled(1), ..#ITEMNAME_" is enabled again")
-	Set ..ItemDisabled = 0
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read once more")
-	Do $$$AssertEquals(disabled.%ToJSON(), "[]", "and none is disabled")
+	Do $$$AssertEquals(disabled.%ToJSON(), "[]", "and none is disabled: "_disabled.%ToJSON())
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, "OcuTalon.Production", from, 10, .rows, .state, .disabled, .stoppedAt), "not_current", "a production that is not current")
 	Do $$$AssertEquals(disabled.%ToJSON()_"|"_stoppedAt, "[]|", "gives no disabled item and no stop time")
+}
+
+/// (QA, Story 30.4; rows 1, 3, 5) Two items disabled at once are given in the production's stored order (ID order, which is not the alphabetical order of their
+/// names), only the disabled ones are given, a stopped production gives its disabled items and its stop time together, and a start clears the stop time and
+/// keeps the items disabled.
+Method TestDisabledItemsInStoredOrderAcrossAStopAndAStart()
+{
+	If '..Ready() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertStatusOK(..SetItemEnabled(0), ..#ITEMNAME_" is disabled")
+	Do $$$AssertStatusOK(..SetItemEnabled(0, ..#EXTRAITEM), ..#EXTRAITEM_" is disabled")
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "Orders is read")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON()_"|"_stoppedAt, "running|[""PartnerOrdersIn"",""OrdersToWarehouse""]|", "both disabled items, in stored order, and the enabled one is left out: "_state_"|"_disabled.%ToJSON()_"|"_stoppedAt)
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	If '..StopOrders() Quit
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "the stopped Orders is read")
+	Set stamp = ##class(OcuTalon.Watch.Mark).FailedAt(stoppedAt)
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "stopped|[""PartnerOrdersIn"",""OrdersToWarehouse""]", "stopped, with the disabled items: "_state_"|"_disabled.%ToJSON())
+	Do $$$AssertTrue((stamp '= "") && '(before ] stamp) && '(stamp ] after), "and the stop time: "_stoppedAt)
+	If '..StartOrders() Quit
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "the started Orders is read")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON()_"|"_stoppedAt, "running|[""PartnerOrdersIn"",""OrdersToWarehouse""]|", "running again: the stop time is gone and the items are still disabled: "_state_"|"_disabled.%ToJSON()_"|"_stoppedAt)
+	Do $$$AssertStatusOK(..SetItemEnabled(1, ..#EXTRAITEM), ..#EXTRAITEM_" is enabled again")
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "Orders is read once more")
+	Do $$$AssertEquals(disabled.%ToJSON(), "[""OrdersToWarehouse""]", "an item enabled again leaves the list: "_disabled.%ToJSON())
+}
+
+/// Story 30.4: the disabled items are the ones IRIS runs as disabled, so a System Default Setting Enabled 0 disables an item whose own flag is set, and the item
+/// leaves the list once the setting is gone. The setting changes no production (Case.SetItemDefault); it is removed after the test, also after a failure.
+Method TestDisabledBySystemDefaultSetting()
+{
+	If '..Ready() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "Orders is read")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "running|[]", "control: it runs, with no item disabled: "_state_"|"_disabled.%ToJSON())
+	Do $$$AssertTrue(..SetItemDefault(0), "a System Default Setting Enabled 0 is set for "_..#ITEMNAME)
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "Orders is read again")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "running|[""OrdersToWarehouse""]", "the item is disabled as IRIS runs it, although its own flag is set: "_state_"|"_disabled.%ToJSON())
+	Do $$$AssertTrue(..SetItemDefault(""), "the setting is removed")
+	Do $$$AssertEquals(..Settled(from, .state, .disabled, .stoppedAt), "read", "Orders is read once more")
+	Do $$$AssertEquals(disabled.%ToJSON(), "[]", "and without it the item is not disabled: "_disabled.%ToJSON())
+}
+
+/// Failures of the Orders production in OCUORDERS, read again for up to 10 seconds while the state is timeout (the runtime lock is held by the production's own
+/// update, stop or start), so that the test acts on a state that was read; the outcome.
+Method Settled(from As %String, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
+{
+	Set end = $ZHorolog + 10
+	For {
+		Set outcome = $ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt)
+		If (state '= "timeout") || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit outcome
 }
 
 Method TestFailuresState()

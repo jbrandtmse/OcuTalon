@@ -23,6 +23,8 @@
 ///     its fields, trace and Reported; none while it stays stopped; a new one after a restart; the run time when IRIS gave none), TestSuspendedAndTroubled (row 9),
 ///     TestDisabledItemsAreReportedOnce (rows 5 and 6), TestFirstRunIsABaseline (row 7), TestNotCheckedReportsNothing (row 8, and a cut read or an unreadable incident table that still compares),
 ///     TestDeletedMeanwhileSendsNothing (row 10), TestFailedSendIsNeverRetried and TestThrownSendIsNeverRetried (row 11) and TestFindingsRender (each Item's key and slots render to the UX text);
+///   - Findings, QA (Story 30.4): TestAnUnreadFirstRunLeavesTheBaselineForTheFirstRead (rows 7 and 8: a first run that cannot read leaves Reported empty, and the first read is the baseline) and
+///     TestEachRowRemembersItsOwnReport (two watches of one production: each Item to its own session and trace, and a run records its own row only);
 ///   - TestStoppedMeanwhile ("Stopped meanwhile"): the row is deleted by the read: nothing is recorded, published or logged and the row stays deleted;
 ///   - TestQuietSweep ("Quiet close"): one closeQuiet for each unclosed incident whose last failure is more than 15 minutes old, origin timer, no session, the
 ///     owner's TraceRef as SuperSession (empty for instance), in the process's session, with its own SuperSession put back; none for a recent or a closed
@@ -357,7 +359,8 @@ Method TestFindingsRule()
 }
 
 /// Rows 1 to 4: a production found stopped since the last run is one Item to Intake, with the fields, the trace and Reported; it is not sent again while the
-/// production stays stopped; a restart makes the next stop new; the run time stands in when IRIS recorded no stop time.
+/// production stays stopped; a restart makes the next stop new; the run time stands in when IRIS recorded no stop time (AD-15: a change's time is known only to
+/// within the check interval).
 Method TestStoppedIsReportedOnce()
 {
 	Set host = ..Host()
@@ -378,9 +381,9 @@ Method TestStoppedIsReportedOnce()
 		Do $$$AssertEquals(item.sessionRef_"|"_item.channel_"|"_item.provenance_"|"_item.sender_"|"_item.subject, a_"|system|untrusted||", "the row's session as owner, channel system, provenance untrusted")
 		Do $$$AssertEquals(item.text, "The Zz "_production_" production stopped.", "the text")
 		Do $$$AssertEquals(item.catalogKey_"|"_item.slots, "watch.productionStopped|{""production"":""Zz "_production_""",""time"":""2030-06-01T12:00:30Z""}", "the key and the slots, with IRIS's own stop time")
-		Do $$$AssertEquals(item.sessionId_"|"_item.superSession, ..#SESSIONID_"|"_..TraceOf(a), "sent in the Tick's session with the owner's TraceRef as SuperSession")
+		Do $$$AssertEquals(item.sessionId_"|"_item.superSession, "|"_..TraceOf(a), "sent in a trace session of its own (AD-26: the process's session is cleared for the send) with the owner's TraceRef as SuperSession: "_item.sessionId_"|"_item.superSession)
 	}
-	Do $$$AssertEquals(host.%SuperSession, "zzown", "the process's own SuperSession is put back")
+	Do $$$AssertEquals(host.%SessionId_"|"_host.%SuperSession, ..#SESSIONID_"|zzown", "the process's own session and SuperSession are put back")
 	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":1,""disabled"":[]}", "Reported now holds stopped 1")
 	Do ..Step(host, production, 2, "stopped", [], "2030-06-01 12:00:30.456")
 	Do ..Step(host, production, 3, "stopped", [], "2030-06-01 12:00:30.456")
@@ -427,8 +430,8 @@ Method TestSuspendedAndTroubled()
 	Do $$$AssertEquals(..Items().%Size(), 2, "and the next stop is new")
 }
 
-/// Rows 5 and 6: each item newly found disabled is its own Item, in order; an item that stays disabled is not sent again; one that is enabled and
-/// disabled again is.
+/// Rows 5 and 6: each item newly found disabled is its own Item, in order, whose time is the run time (IRIS records none; AD-15); an item that stays disabled
+/// is not sent again; one that is enabled and disabled again is.
 Method TestDisabledItemsAreReportedOnce()
 {
 	Set host = ..Host()
@@ -599,6 +602,59 @@ Method TestFindingsRender()
 	Set clock = ##class(OcuTalon.Data.Time).ForMessage(..Slot(items.%Get(1).slots, "time"), now)
 	Set joiner = $Select(clock ? 2N1":"2N: " at ", 1: " on ")
 	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(1).catalogKey, items.%Get(1).slots, "web", now, 0), "The Zz.Door in the Zz "_production_" production was disabled"_joiner_clock_"."_why, "and so does the disabled item (a time on another day reads 'on {date} at {time}')")
+}
+
+/// (QA) Row 7 with row 8: a row with nothing reported whose first run did not read the production keeps Reported empty, so that its first run that does read is
+/// still the baseline (it sends nothing, even for a stopped production), and only a later change is reported.
+Method TestAnUnreadFirstRunLeavesTheBaselineForTheFirstRead()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("lateBaseline")
+	Set production = "Zz.LateBaseline"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "unreadable", "")
+	Do ..Tick(host, ..At(0))
+	Do $$$AssertEquals(..Row(ref).Result_"|"_..Row(ref).Reported_"|"_..Items().%Size(), "not_checked||0", "the first run could not read: nothing reported, nothing sent")
+	Do ..Step(host, production, 1, "stopped", ["A"])
+	Do $$$AssertEquals(..Items().%Size()_"|"_..Row(ref).Reported, "0|{""stopped"":1,""disabled"":[""A""]}", "the first run that reads is the baseline: no Item, the state recorded")
+	Do ..Step(host, production, 2, "stopped", ["A"])
+	Do $$$AssertEquals(..Items().%Size(), 0, "and a run that finds the same state sends nothing")
+	Do ..Step(host, production, 3, "stopped", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size()_"|"_..Slot(..Items().%Get(0).slots, "itemName"), "1|B", "only the change after the baseline is reported")
+}
+
+/// (QA) Reported is the row's own: a run records its row by Ref, so that a second watch on the same production, whose Tick did not run, keeps what it reported;
+/// each watch's Item goes to its own session with its own trace.
+Method TestEachRowRemembersItsOwnReport()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set one = ..Owner("rowOne")
+	Set two = ..Owner("rowTwo")
+	Set production = "Zz.OwnReport"
+	Set refOne = ..Watch(one, production)
+	Set refTwo = ..Watch(two, production)
+	Do ..Step(host, production, 0, "running")
+	Do ..Step(host, production, 1, "stopped")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 2, "both watches report the stop")
+	If items.%Size() = 2 {
+		Set owners = $ListBuild(items.%Get(0).sessionRef, items.%Get(1).sessionRef)
+		Do $$$AssertTrue($ListFind(owners, one) && $ListFind(owners, two), "each to its own session")
+		For i = 0, 1 {
+			Do $$$AssertEquals(items.%Get(i).superSession, ..TraceOf(items.%Get(i).sessionRef), "with the trace of that session")
+		}
+	}
+	// only the first watch runs while the production runs again; the second keeps its report
+	Set ..Checks = refOne
+	Do ..Step(host, production, 2, "running")
+	Do $$$AssertEquals(..Row(refOne).Reported_"|"_..Row(refTwo).Reported, "{""stopped"":0,""disabled"":[]}|{""stopped"":1,""disabled"":[]}", "the run recorded its own row only")
+	Set ..Checks = refOne_","_refTwo
+	Do ..Step(host, production, 3, "stopped")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 3, "the next stop is new for the watch that saw it end, and not for the other")
+	If items.%Size() = 3 Do $$$AssertEquals(items.%Get(2).sessionRef, one, "it goes to the first watch's session")
 }
 
 Method TestStoppedMeanwhile()

@@ -41,10 +41,10 @@
 ///     text or diagnosis text ever reaches a finding, which Story 5.7's check_status trusts.
 ///   - Record: one SQL UPDATE keyed by Ref sets LastRunAt, Result, Finding, LastRunHeaderId (this process's %SessionId, the Tick's trace session
 ///     (AD-26)), NextDueAt (the tick time plus INTERVALSECONDS) and Reported. Checks writes only these fields, and never re-creates a row: when no row is
-///     updated (the watch was stopped meanwhile) nothing more happens, and nothing is sent. Only then is each finding sent (SendFinding), in the Tick's
-///     session with the TraceRef of the row's session as SuperSession, the process's own SuperSession being put back after each send (AD-26). A send that
-///     fails or throws logs one Type 3 warning (LOGFINDING, with the check's Ref), is never retried (its finding is already in Reported), and the other
-///     findings still go.
+///     updated (the watch was stopped meanwhile) nothing more happens, and nothing is sent. Only then is each finding sent (SendFinding), each in a trace
+///     session of its own, as AD-26 gives every untrusted item (%SessionId is cleared for the send), with the TraceRef of the row's session as SuperSession;
+///     the process's own %SessionId and SuperSession are put back after each send. A send that fails or throws logs one Type 3 warning (LOGFINDING, with
+///     the check's Ref), is never retried (its finding is already in Reported), and the other findings still go.
 ///   - Event and log line: the row is opened again by Ref and published as a check event (Live.Payload.Check.FromRow) after the update's commit
 ///     (LOGPUBLISH on a failure), and one Type 4 line (LOGRAN) names the check's Ref, display name, result and finding in the Tick's session.
 /// Nothing that decides "due" or "new" lives in memory (AD-5). The only namespace switch is in Watch.Reader (AD-3). This class is the only one that
@@ -133,7 +133,7 @@ Parameter LOGRAN = "Checks ran check ";
 
 Parameter LOGFINDING = "Checks could not send a finding of check ";
 
-/// The text of a finding Item (public text; the first line becomes the item summary): {production} is the display name, {itemName} the item's name.
+/// The text of a finding Item (public text, veto U-180; the first line becomes the item summary): {production} is the display name, {itemName} the item's name.
 Parameter TEXTSTOPPED = "The {production} production stopped.";
 
 Parameter TEXTDISABLED = "The {itemName} in the {production} production was disabled.";
@@ -385,12 +385,15 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 	For i = 1:1:items.Count() {
 		Set item = items.GetAt(i)
 		Set saved = ..%SuperSession
+		Set session = ..%SessionId
 		Try {
+			Set ..%SessionId = ""
 			Set ..%SuperSession = ..TraceOf(row.sessionRef)
 			Set sc = ..SendFinding(item)
 		} Catch exception {
 			Set sc = exception.AsStatus()
 		}
+		Set ..%SessionId = session
 		Set ..%SuperSession = saved
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGFINDING_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -460,7 +463,7 @@ Method FindingItem(row As %DynamicObject, key As %String, text As %String, slots
 	Do slots.%Set("production", row.displayName, "string")
 	Do slots.%Set("time", time, "string")
 	Set item.Slots = slots.%ToJSON()
-	Set item.Text = $Replace($Replace(text, "{production}", row.displayName), "{itemName}", $Select(slots.itemName '= "": slots.itemName, 1: ""))
+	Set item.Text = $Replace($Replace(text, "{production}", row.displayName), "{itemName}", slots.itemName)
 	Quit item
 }
 
@@ -541,7 +544,7 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 	Quit ##class(OcuTalon.Watch.Reader).Failures(namespace, production, from, limit, .rows, .state, .disabled, .stoppedAt)
 }
 
-/// Sends Intake the finding Item, asynchronously, with no answer wanted, in this process's session and with its SuperSession (a seam for the tests).
+/// Sends Intake the finding Item, asynchronously, with no answer wanted, with this process's %SessionId and SuperSession as Record set them (a seam for the tests).
 Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#INTAKE, item, 0)

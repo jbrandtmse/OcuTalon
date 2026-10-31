@@ -46,7 +46,7 @@ Property Finding As %String(MAXLEN = 1000);
 /// The trace header id of the latest run.
 Property LastRunHeaderId As %Integer;
 
-/// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing.
+/// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing (veto U-179).
 Property Reported As %String(MAXLEN = "");
 
 Index RefIndex On Ref [ Unique ];
