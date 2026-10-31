@@ -99,3 +99,9 @@
 2026-10-31T06:20:31Z	Story 30.1	story_waiting	story=30-1-long-conversations-are-compacted-under-the-limit on=9 reason=its_live_smoke_runs_in_Story_9.5_release-candidate_run code=none
 2026-10-31T06:20:31Z	Story 30.4	ci_resolved	story=30.4 sha=18f516c runs=41173622465,41173622467 result=pending resolved_at=re-dispatch(orchestrator_watching) note=lane-a_green;ci_in_progress_at_epic_run_end
 2026-10-31T06:20:31Z	Epic 30	epic_runner_ended	reason=waiting waiting_on=9 stories_done=30.2,30.3,30.4 waiting=30.5,30.1 next_at_re-dispatch=integrate_forward,30.1,30.5_spec_gate(U-182,U-183,V1,V3) inbox=U-182,U-183
+2026-10-31T11:35:54Z	Epic 30	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=redispatch_after_epic_9 lane=B slot=ocutalon-slot-b runner=B web_port=52802 lock_dir=locks/lane-b
+2026-10-31T11:35:54Z	Epic 30	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-31T11:35:54Z	Epic 30	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh visibility=PUBLIC
+2026-10-31T11:35:54Z	Epic 30	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-10-31T11:35:54Z	Story 30.4	ci_resolved	story=30.4 sha=18f516c runs=41173622465,41173622467 result=success failed=none via=none resolved_at=resume
+2026-10-31T11:35:54Z	Epic 30	ci_resolved	story=30.5-rulings-bookkeeping sha=b924115 runs=41176218637,41176218538 result=success failed=none via=none resolved_at=resume note=DW-471_flake(live:online-session_leave.spec.ts_L2)_rerun_by_orchestrator_green(its_one_rerun)
