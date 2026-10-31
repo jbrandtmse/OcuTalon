@@ -1112,3 +1112,7 @@
 2026-10-31T11:53:53Z	Epic 5	worktree_bootstrapped	epic=5 result=ok
 2026-10-31T11:55:11Z	Epic 1-37	ruling	q=retry_on_invalid choice=deferred(Planner)->DW-483_routed_30-1,measured_follow-up category=veto inbox=U-191 policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
 2026-10-31T11:56:05Z	Epic 16	owner_decision	via=contest_planner decision=the_splash_promises_Telegram_only_when_the_release_includes_it(QR_line_and_'or_Telegram'_in_the_limit_line_gated_on_Channel.Telegram.In.Included()) vehicle=Story_16.11_re-opens_Epic_16(SC-5),on_runner_B_after_5.12 eta=~18:00-18:30Z(else_accepted_until_Epic_12_merges)
+2026-10-31T11:56:37Z	Epic 1-37	owner_decision	id=U-191 at=2026-10-31T11:55:47Z#576 via=inbox by=Contest_Planner answer=keep;retry_only_if_diagnose_invalid>~1/50_after_5.12_and_within_20s route=DW-483_trailer+Epic_30_redispatch
+2026-10-31T11:56:37Z	Epic 11	owner_decision	id=U-190 at=2026-10-31T11:55:47Z#577 via=inbox by=Contest_Planner answer=keep;mock-only_composer_step_2_in_11.1;condition:the_real-key_runs(38.1,38.2)_drive_step_2_through_the_guide's_own_Send route=Epic_11_runner(live)
+2026-10-31T11:56:37Z	Epic 1-37	inbox_resolved	id=U-191 by=orchestrator
+2026-10-31T11:56:37Z	Epic 16	worktree_provisioned	worktree=.worktrees/epic-16 branch=OCT-epic16 from=9ac6e499 reason=SC-5_reopen_for_story_16.11 bootstrap=ok
