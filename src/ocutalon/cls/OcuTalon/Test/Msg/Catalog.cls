@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 94 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,9 +77,9 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 94, "the expected Core list has 94 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
 	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 94 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 116 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 117 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1038,6 +1038,7 @@ XData Keys [ MimeType = application/json ]
   "splash.ownLine",
   "splash.telegramLine",
   "splash.limitLine",
+  "splash.limitLineChat",
   "splash.tooManySessions",
   "splash.shellLine",
   "splash.visualTrace",
@@ -1270,6 +1271,7 @@ XData Fixtures [ MimeType = application/json ]
  "splash.ownLine": {"slots": {}, "text": "Your chat, phone, mailbox and orders are yours alone."},
  "splash.telegramLine": {"slots": {}, "text": "Have Telegram? You can scan a QR code inside to get the notices on your own phone."},
  "splash.limitLine": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat or Telegram."},
+ "splash.limitLineChat": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat."},
  "splash.tooManySessions": {"slots": {"time": "15:20"}, "text": "Too many new sessions from your network this hour. You can start another at 15:20."},
  "splash.shellLine": {"slots": {}, "text": "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."},
  "splash.visualTrace": {"slots": {}, "text": "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step."},
