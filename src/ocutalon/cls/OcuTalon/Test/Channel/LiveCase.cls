@@ -8,7 +8,8 @@ Include Ensemble
 ///     failure holds the token.
 ///   - ReadyLive adds that the production runs, and saves the two Telegram marks. A test that enables an item calls it first.
 ///   - StartItems and StopItems enable and disable items on the running production, with the System Default Setting row of each item's
-///     Enabled snapshotted before and put back after; the job of each item is waited for.
+///     Enabled snapshotted before and put back after; the job of each item is waited for. StartItems refuses an item whose ApiBase row
+///     could reach the public Bot API.
 ///   - SaveMarks and RestoreMarks keep the marks telegramState and telegramPaused, DropChats deletes the Pairing rows of fixture chat ids,
 ///     FixtureSession and DropSessions make and remove the zztg... sessions that StateBody needs, and Cleanup does all the endings, so
 ///     that every test ends with the one call on every path.
@@ -90,11 +91,18 @@ Method ReadyLive() As %Boolean [ Private ]
 
 /// Enables each item (comma-separated) on the running production and waits for a job of it. The System Default Setting row of each
 /// item's Enabled is snapshotted first (a missing row is made with 0, so that the item's own flag is never saved), and StopItems puts it back.
+/// An item whose ApiBase row does not name the CI mock or a loopback address over http is not enabled (BaseReason), so that no live
+/// test reaches the public Bot API.
 Method StartItems(items As %String) As %Status [ Private ]
 {
 	Set sc = $$$OK
 	For i = 1:1:$Length(items, ",") {
 		Set item = $Piece(items, ",", i)
+		Set reason = ..BaseReason(item)
+		If reason '= "" {
+			Set sc = $SYSTEM.Status.Error(5001, reason)
+			Quit
+		}
 		Set rows = ..RowsFound
 		Do $ClassMethod(..#FIXTURE, "RememberDefault", .rows, item, "Enabled")
 		Set ..RowsFound = rows
@@ -111,6 +119,18 @@ Method StartItems(items As %String) As %Status [ Private ]
 		}
 	}
 	Quit sc
+}
+
+/// "" when the item's ApiBase row names the CI mock's host or 127.0.0.1 over http; otherwise the reason not to enable the item.
+Method BaseReason(item As %String) As %String [ Private ]
+{
+	Set row = $ClassMethod(..#FIXTURE, "SnapshotDefault", item, "ApiBase")
+	If '$List(row, 3) Quit item_" has no ApiBase row, so it would call the public Bot API; it is not enabled"
+	Set api = "OcuTalon.Channel.Telegram.Api"
+	Set sc = $ClassMethod(api, "Endpoint", $List(row, 4), .server, .port, .https, .prefix)
+	Do $ClassMethod(api, "Endpoint", ##class(OcuTalon.Test.Contract.Mock).#TELEGRAMBASE, .mock)
+	If $$$ISERR(sc) || https || ((server '= mock) && (server '= "127.0.0.1")) Quit item_"'s ApiBase row names neither the CI mock nor 127.0.0.1 over http; it is not enabled"
+	Quit ""
 }
 
 /// Disables the started items, waits until each has no job, and puts the Enabled rows back. The status is the first failure; an
@@ -296,9 +316,10 @@ Method WaitMark(mark As %String, present As %Boolean, seconds As %Numeric = 20) 
 	Quit (##class(OcuTalon.Data.StatusMark).Get(mark) '= "") = present
 }
 
-/// StatusMonitor's item, and its CallInterval in the production (seconds), plus a margin: its silent first run is over by then.
+/// StatusMonitor's item.
 Parameter MONITOR = "StatusMonitor";
 
+/// StatusMonitor's CallInterval in the production (seconds), plus a margin: its silent first run is over by then.
 Parameter SETTLED = 17;
 
 /// The longest, in seconds, to wait for the monitor's job to be old enough.

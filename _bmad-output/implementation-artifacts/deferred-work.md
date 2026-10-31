@@ -1664,6 +1664,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
 - 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
 
 ### DW-300: Contended tests (Test.Core.BridgeSink: four methods; Test.Web.Api.TestStateSections) make check rows due at once or count stream events, so a real HeartbeatIn Tick (once Epic 8's heartbeat ticks) can run their rows or add check events mid-test: the DW-289 root cause outside Epic 5's footprint
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2551,6 +2552,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
 - 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
 
 ### DW-421: The CI mock's Bot API side keeps one global state (updates, replies, calls, counters) for every client, so once TelegramIn polls in CI a direct-call test such as Test.Contract.Mock.TestTelegramBotApi shares its queue and call list with the live poller
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2562,6 +2564,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Test.Channel.TelegramMock.TestResetClearsKeptOffset sets, reads and clears the node through BotApi alone; TelegramIn is still the stub (12.1 build-auto deferred)
 - 2026-10-30T07:40:55Z status=routed owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=harvest note=Story 12.2's tests prove its poller's offset node is BotApi.Offset()'s node (Test.Channel.BotApi.Reset clears it with each mock reset)
+- 2026-10-31T13:36:45Z status=resolved-by:12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=adjudication note=Test.Channel.TelegramIn.TestOffsetNode (dd849271 plus review patches): the offset BotApi.SetOffset sets is carried by the first getUpdates (offset 3), only the update at it is handled, and the node moves to 4; mutation keeping the offset at EnsStaticAppData(TelegramIn,next) turns it red (spec Verification)
 
 ### DW-428: Test.Channel.TelegramMock calls Test.Contract.Mock and Test.Channel.BotApi through $ClassMethod string names in three tests (##class in the other two), so a renamed helper shows only when the class runs
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: in-story
@@ -2680,3 +2683,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally; Channel/Telegram/In.cls HandleUpdate passes an empty name (as 12.2's spec fixes it); no story stores a name yet, so nothing is lost today (dd849271)
 - 2026-10-31T12:13:11Z status=routed owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=fix on Epic 12's side if possible (TelegramIn passes the update's own name, or skips the name when it is empty); Data/Pairing.cls is Lane B's (AD-33) and contended with Epic 11, so a change there is a Lane B ask
+
+### DW-487: A Bot API call can outlast the 10-second item stop on a slow network: OpenTimeout inherits the read Timeout, and sendMessage reads 15 s
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Api.Call sets only Timeout, which %Net.HttpRequest also uses for the connect (HttpRequest.cls:1257,1664): up to 8+8 s for getUpdates, 15+15 s for sendMessage; CI's local mock never shows it
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a TelegramIn or TelegramOut stop over 10 s is logged on a real network (12.7 hands-on pass or the demo host)
+
+### DW-488: A TELEGRAM_BOT_TOKEN with surrounding white space or a CR (an env file with CRLF) counts as set and goes into the /bot<token>/ path unchanged
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Install.Step.Telegram.TokenSet only tests for an empty value and Api.Call uses GetEnviron as is; trimming is token handling (a veto area), so it was not changed in review
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=an install with a right token shows Telegram rejected or failing, and the variable holds white space or a CR
+
+### DW-489: Two names are written twice: the client SSL configuration (Api.SSLCONFIG and Install.Step.SSL.NAME) and the token variable (Api.TOKENVAR and Install.Step.Telegram.TOKENVAR)
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a rename in one class only turns TelegramSettings (SSLConfig resolves to OcuTalonClient, which exists) or TelegramSwitch and the live tests red; unifying needs a cross-class parameter in a contended Install file
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either name changes in one place, or a second client of OcuTalonClient (the email story) adds a third copy
+
+### DW-490: test-ci-config.sh scans only the live:* entries of NO_WEB_BUNDLE_UNITS for bundle markers, so shard:lane-a@Channel, the first shard unit there, has no ongoing guard
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-ci-config.sh:1045-1055 greps the bundle markers under case live:*); Story 12.2 recorded a one-time grep of Test/Channel in its Verification; the check script is not Epic 12's
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a Test.Channel class reads a file of the built bundle (a grep of Test/Channel for csp/, index.html or ensure_web_bundle hits)
+
+### DW-491: Test.Contract.Ac (TestTelegramStubHasAnAdapter) and Test.Msg.Contracts (line 136) still call TelegramIn the stub, and Ac.cls says that the Telegram epic replaces the value
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 built TelegramIn and TelegramOut, which carry no STUB; the two docs are outside Epic 12's footprint and their assertions still hold
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either class is edited, or a later plan cites TelegramIn as a stub from those docs

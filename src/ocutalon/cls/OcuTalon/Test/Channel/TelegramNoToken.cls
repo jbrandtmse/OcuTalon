@@ -7,7 +7,8 @@
 /// since the mark, the live events since the mark, and the body of /state. Every scan has a positive control, a value that its store does
 /// hold, so that a scan that cannot read its store is not read as clean:
 ///   - KeyScan.Find: the base of the mock, which the ApiBase rows hold;
-///   - the %Status texts: the method name that the closed-port error carries;
+///   - the %Status texts: the three texts are read, and the closed-port error carries its method name;
+///   - the message headers: the test's messages to TelegramOut;
 ///   - the message bodies: the test's unique text in the Outbound body;
 ///   - the audit entries: a Pairing entry that the test writes through the product's audit writer with a unique reason;
 ///   - the live events: the pause time in StatusMonitor's onset;
@@ -162,11 +163,13 @@ Method TestNoTokenAnywhere()
 			If $Find(text, token) Set holds = holds + 1
 		}
 		Do $$$AssertEquals(holds, 0, "no %Status text holds the token")
+		Do $$$AssertEquals($ListLength(texts), 3, "the status scan reads the three texts that the paths returned")
 		Do $$$AssertTrue($Find(closed, "getMe") > 0, "and the status scan reads a text that names its method")
 
 		Set headerText = ..RowsText("SELECT * FROM Ens.MessageHeader WHERE ID > ?", headers)
 		Set bodyText = ..Bodies(headers)
 		Do $$$AssertEquals($Find(headerText, token), 0, "no message header holds the token")
+		Do $$$AssertTrue($Find(headerText, "TelegramOut") > 0, "and the header scan reads the headers of the test's messages")
 		Do $$$AssertEquals($Find(bodyText, token), 0, "no message body holds the token")
 		Do $$$AssertTrue($Find(bodyText, unique) > 0, "and the body scan reads the Outbound body of the test")
 

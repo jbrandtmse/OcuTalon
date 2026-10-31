@@ -1,14 +1,17 @@
-/// Tests of the Bot API client (Story 12.2; AD-14, AD-19, NFR-11). Only TestPlainHttpIgnoresSSLConfig needs the mock
-/// and the CI dummy token (a throwaway stack or CI); without them it fails with the reason. The other tests run anywhere.
+/// Tests of the Bot API client (Story 12.2; AD-14, AD-19, NFR-11). TestPlainHttpIgnoresSSLConfig and TestNoRedirectFollowed need the
+/// mock and the CI dummy token (a throwaway stack or CI); without them they fail with the reason. The other tests run anywhere.
 ///   - TestSplitLineBreaks, TestSplitOneLongLine, TestSplitSurrogatePair, TestSplitLimits and TestSplitEmpty: Split cuts at the last line
-///     break inside the limit, else at the limit, never inside a surrogate pair, never makes an empty part, and the parts joined (with a
-///     line feed after a cut at a line break, with nothing after a cut at the limit) give the text back;
-///   - TestEndpoint: good bases give their parts, and a bad base gives an error that names the setting and not the value;
+///     break inside the limit, else at the limit, never inside a surrogate pair, never makes an empty or blank part, and the parts joined
+///     (with a line feed after a cut at a line break, with nothing after a cut at the limit) give the text back;
+///   - TestEndpoint: good bases give their parts, and a bad base (a control character in its path too) gives an error that names the
+///     setting and not the value;
 ///   - TestNoTokenInErrors: with a fake token set in the environment, a call to a closed port gives an error status that holds neither
 ///     the token nor /bot, for an http and an https base, and Safe removes the token;
-///   - TestNoToken: with no token a call is not made, and the error says so;
+///   - TestNoToken: with no token a call is not made, and the error says so; a bad base is refused first;
 ///   - TestPlainHttpIgnoresSSLConfig (U-164 condition 2): an http:// base makes a plain request, so a missing SSL configuration changes
-///     nothing, while an https:// base with a missing configuration is refused.
+///     nothing, while the same host over https:// gets no answer (TelegramSettings pins the https path against a TLS server);
+///   - TestNoRedirectFollowed (QA): a redirect answer (307 with a Location) is returned as it is and not followed, so the token in the
+///     path is never sent to the place the Location names. It needs the mock like TestPlainHttpIgnoresSSLConfig.
 /// The process environment is put back as found after each test.
 Class OcuTalon.Test.Channel.TelegramApi Extends %UnitTest.TestCase
 {
@@ -134,7 +137,8 @@ Method TestSplitSurrogatePair()
 	Do $$$AssertEquals($Length($List(parts, 1)), 4095, "the first part is one unit short of the limit, so that the pair stays whole")
 }
 
-/// A text of exactly the limit is one part, one unit more is two, and a text of line feeds only makes no empty part.
+/// A text of exactly the limit is one part, one unit more is two, a text of line feeds only has no part, a cut never leaves a blank
+/// part, and a line feed at the start of the window is no cut.
 Method TestSplitLimits()
 {
 	Set exact = $TRanslate($J("", 4096), " ", "a")
@@ -151,7 +155,16 @@ Method TestSplitLimits()
 		If part = "" Set empty = empty + 1
 	}
 	Do $$$AssertEquals(empty, 0, "a text of line feeds makes no empty part")
-	Do $$$AssertTrue(..Longest(parts) <= 4096, "and each part is within the limit")
+	Do $$$AssertEquals($ListLength(parts), 0, "and no blank part: a text of line feeds only has nothing to send")
+	Set parts = $ClassMethod(..#API, "Split", exact_$Char(10), 4096)
+	Do $$$AssertEquals($ListLength(parts)_"|"_($ListGet(parts, 1) = exact), "1|1", "a line feed left after a cut at the limit is no part of its own")
+	Set nearly = $TRanslate($J("", 4095), " ", "a")
+	Set parts = $ClassMethod(..#API, "Split", nearly_$Char(10, 10), 4096)
+	Do $$$AssertEquals($ListLength(parts)_"|"_($ListGet(parts, 1) = nearly), "1|1", "nor is a line feed left after a cut at a line break")
+	Set lead = $Char(10)_$TRanslate($J("", 5000), " ", "a")
+	Set parts = $ClassMethod(..#API, "Split", lead, 4096)
+	Do $$$AssertEquals($ListLength(parts)_"|"_$Length($ListGet(parts, 1)), "2|4096", "a line feed at the start of the window is no cut")
+	Do $$$AssertEquals(..Joined(parts, ""), lead, "and the parts joined with nothing are the text")
 	Set short = "a*b_c [x](y) `z` <b>&amp; 1.5! #t"
 	Do $$$AssertEquals($List($ClassMethod(..#API, "Split", short), 1), short, "a short text is one part, byte for byte, with the default limit")
 }
@@ -181,6 +194,10 @@ Method TestEndpoint()
 		Set sc = $ClassMethod(..#API, "Endpoint", bad, .server, .port, .https, .prefix)
 		Do $$$AssertStatusNotOK(sc, "'"_bad_"' is refused")
 		Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "ApiBase") > 0, "'"_bad_"': the error names the setting")
+	}
+	For bad = "http://h/p"_$Char(13, 10)_"X:y", "http://h/p"_$Char(9)_"q", "http://h/p"_$Char(0) {
+		Set sc = $ClassMethod(..#API, "Endpoint", bad, .server, .port, .https, .prefix)
+		Do $$$AssertStatusNotOK(sc, "a path with a control character ("_$Ascii($Extract(bad, 11))_") is refused")
 	}
 	Set sc = $ClassMethod(..#API, "Endpoint", "http://zz-secret-host:99999/zz-secret-path", .server, .port, .https, .prefix)
 	Do $$$AssertEquals($Find($SYSTEM.Status.GetErrorText(sc), "zz-secret"), 0, "the error holds neither the host nor the path of the base")
@@ -219,10 +236,11 @@ Method TestNoToken()
 	Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "no bot token") > 0, "which says that no token is set")
 	Set answer = $ClassMethod(..#API, "Call", "ftp://x", "", "getMe", {}, 2, .code, .sc)
 	Do $$$AssertStatusNotOK(sc, "a bad base is an error even with no token")
+	Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "ApiBase") > 0, "and the error names the setting: the base is checked first")
 }
 
 /// U-164 condition 2: an http:// base is a plain request. The SSL configuration named does not exist, and the call works against the mock
-/// (when this stack is a throwaway with the mock and the CI dummy token); the same missing configuration on an https:// base is refused.
+/// (when this stack is a throwaway with the mock and the CI dummy token); the same host over https:// gets no answer.
 Method TestPlainHttpIgnoresSSLConfig()
 {
 	Set mock = "OcuTalon.Test.Contract.Mock"
@@ -233,6 +251,7 @@ Method TestPlainHttpIgnoresSSLConfig()
 		Do $$$AssertTrue(0, reason)
 		Quit
 	}
+	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Channel.BotApi", "Reset"), "the mock's Bot API side is reset before the test")
 	Set answer = $ClassMethod(..#API, "Call", base, "ZzNoSuchSSLConfig", "getMe", {}, 5, .code, .sc)
 	Do $$$AssertStatusOK(sc, "a call to the mock's http base works with a configuration that does not exist")
 	Do $$$AssertEquals(code, 200, "answered 200")
@@ -248,6 +267,36 @@ Method TestPlainHttpIgnoresSSLConfig()
 	Set answer = $ClassMethod(..#API, "Call", secure, "ZzNoSuchSSLConfig", "getMe", {}, 5, .code, .sc)
 	Do $$$AssertEquals(answer, "", "the same host over https with that configuration gets no answer")
 	Do $$$AssertStatusNotOK(sc, "it is an error status")
+	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Channel.BotApi", "Reset"), "the mock's Bot API side is reset after the test")
+}
+
+/// The call is not redirected: a 307 whose Location names a closed port comes back as the answer of the call, with its status, and the
+/// mock sees the one request. A client that followed it would fail to connect, and would send the token's path to the Location.
+Method TestNoRedirectFollowed()
+{
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set base = $SYSTEM.Util.GetEnviron($Parameter(mock, "TELEGRAMBASEVAR"))
+	Set reason = $ClassMethod(mock, "TelegramMissingReason", base, $SYSTEM.Util.GetEnviron($Parameter(mock, "TELEGRAMTOKENVAR")))
+	If reason = "" Set reason = $ClassMethod("OcuTalon.Test.Channel.BotApi", "PollerReason")
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Try {
+		Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Channel.BotApi", "Reset"), "the mock's Bot API side is reset before the test")
+		Set redirect = {"status": 307, "headers": {"Location": "http://127.0.0.1:1/zz-redirect-target"}, "body": {"ok": true, "result": {"username": "zz_redirect_bot"}}}
+		Do $$$AssertTrue($ClassMethod(mock, "Control", "replies", {"method": "getMe", "replies": [(redirect)]}), "a 307 with a Location is queued for getMe")
+		Set answer = $ClassMethod(..#API, "Call", base, "", "getMe", {}, 5, .code, .sc)
+		Do $$$AssertStatusOK(sc, "the call is not an error: the redirect was not followed")
+		Do $$$AssertEquals(code, 307, "its status is the redirect's")
+		Set name = ""
+		If $IsObject(answer) && $IsObject(answer.result) Set name = answer.result.username
+		Do $$$AssertEquals(name, "zz_redirect_bot", "and its answer is the mock's body")
+		Set calls = $ClassMethod(mock, "Calls")
+		Do $$$AssertEquals(calls.%Size(), 1, "the mock saw one request")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the redirect test failed: "_ex.DisplayString())
+	}
 	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Channel.BotApi", "Reset"), "the mock's Bot API side is reset after the test")
 }
 

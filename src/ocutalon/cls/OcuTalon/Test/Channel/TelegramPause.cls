@@ -7,7 +7,9 @@
 ///     StateBody holds telegramPaused active with that time, and StatusMonitor publishes the onset;
 ///   - TestResumeSucceeds: no poll before the mark's time, the first 200 deletes the mark, StateBody holds no telegramPaused, and StatusMonitor
 ///     publishes the clear with no telegramPaused event between the onset and the clear;
-///   - TestResumeMeetsAnother409: the first poll after the mark gets a queued 409, and the mark is 300 s ahead again.
+///   - TestResumeMeetsAnother409: the first poll after the mark gets a queued 409, and the mark is 300 s ahead again;
+///   - TestRestartHonoursPause (QA): an item started while the mark is still ahead makes no call at all, not even getMe, until the
+///     mark's time, and then starts and deletes the mark with the first 200.
 Class OcuTalon.Test.Channel.TelegramPause Extends OcuTalon.Test.Channel.LiveCase
 {
 
@@ -84,9 +86,9 @@ Method TestPause409()
 		Set rows = ##class(OcuTalon.Test.Agent.RunnerFixture).EventRows(log, "TelegramIn")
 		Set told = 0, position = 0
 		While $ListNext(rows, position, row) {
-			If ($Extract(row, 1, 2) = "3:") && ($Find(row, "pauses until "_mark) > 0) Set told = told + 1
+			If ($Extract(row, 1, 2) = "3:") && ($Find(row, "pauses until "_mark) > 0) && ($Find(row, "terminated by other getUpdates request") > 0) Set told = told + 1
 		}
-		Do $$$AssertEquals(told, 1, "one warning names the pause and its time")
+		Do $$$AssertEquals(told, 1, "one warning names the pause, its time and Telegram's description of the conflict")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(log, ..Token), 0, "no log row holds the token")
 		Set members = ..Members(session)
 		Do $$$AssertEquals(members.%Size(), 1, "StateBody holds one telegramPaused member")
@@ -167,6 +169,34 @@ Method TestResumeMeetsAnother409()
 		Do $$$AssertEquals(..CallsOf("getUpdates").%Size(), polls + 1, "and no poll follows")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the re-pause test failed: "_..Safe(ex))
+	}
+	Do ..Ending(since)
+}
+
+/// FR-22: a restart honours the pause. The mark is ahead when the item starts, so it makes no call, getMe included, before the mark's time.
+Method TestRestartHonoursPause()
+{
+	If '..ReadyLive() Quit
+	Set since = ..InstanceSeq()
+	Try {
+		Do $$$AssertTrue(..WaitMonitor(), "StatusMonitor's job is past its silent first run")
+		Set since = ..InstanceSeq()
+		Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 8)
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record(..#MARK, until), "the mark is 8 seconds ahead before the item starts")
+		Do $$$AssertStatusOK(..StartItems("TelegramIn"), "TelegramIn is enabled")
+		Hang 3
+		Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls().%Size(), 0, "3 seconds after the start the mock has seen no call at all")
+		Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).TelegramState(.bot)_"|"_bot, "off|", "and the state is still off")
+		Do $$$AssertTrue(..WaitState("on", 20), "after the mark's time the state becomes on")
+		Set first = ##class(OcuTalon.Test.Contract.Mock).Calls()
+		Do $$$AssertTrue(first.%Size() > 0, "the mock has seen calls")
+		If first.%Size() > 0 {
+			Do $$$AssertEquals(first.%Get(0).method, "getMe", "the first is getMe")
+			Do $$$AssertTrue(..Epoch(first.%Get(0).ts) >= (##class(OcuTalon.Data.Time).Seconds(until) - 0.05), "and not before the mark's time")
+		}
+		Do $$$AssertTrue(..WaitMark(..#MARK, 0, 15), "the first 200 deletes the mark")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the restart-pause test failed: "_..Safe(ex))
 	}
 	Do ..Ending(since)
 }

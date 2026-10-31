@@ -8,7 +8,7 @@
 ///   - The base (the ApiBase host setting) is http(s)://host[:port][/path]. Only an https base gets Https and the SSL configuration
 ///     (the SSLConfig host setting); an http base makes a plain request whatever the configuration names (AD-19, AD-22).
 ///   - Split cuts a text into parts of at most LIMIT UTF-16 units, as Telegram counts, at the last line break inside the limit, else at
-///     the limit, and never inside a surrogate pair.
+///     the limit, and never inside a surrogate pair. It drops a blank part, which Telegram would refuse.
 Class OcuTalon.Channel.Telegram.Api Extends %RegisteredObject
 {
 
@@ -110,7 +110,7 @@ ClassMethod Endpoint(base As %String, Output server As %String, Output port As %
 	Set authority = $Piece(rest, "/", 1)
 	Set path = $Select($Length(rest, "/") > 1: "/"_$Piece(rest, "/", 2, *), 1: "")
 	If '$Match(authority, "^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$") Quit bad
-	If '$Match(path, "^(/[^ ?#]*)?$") Quit bad
+	If '$Match(path, "^(/[^\s\p{Cc}?#]*)?$") Quit bad
 	Set server = $Piece(authority, ":", 1)
 	Set port = $Select($Length(authority, ":") > 1: +$Piece(authority, ":", 2), scheme = "https": 443, 1: 80)
 	If (port < 1) || (port > 65535) Quit bad
@@ -123,8 +123,9 @@ ClassMethod Endpoint(base As %String, Output server As %String, Output port As %
 }
 
 /// The text cut into parts of at most limit UTF-16 units, as a list. A text longer than the limit is cut after the last line break
-/// inside the limit (the line feed is dropped, so that the parts joined with a line feed give the text back when no cut was empty),
-/// else at the limit; a cut never separates a surrogate pair, and a part is never empty.
+/// inside the limit (the line feed is dropped, so that the parts joined with a line feed give the text back when no part was blank),
+/// else at the limit; a cut never separates a surrogate pair. A part that is empty or holds only white space and control characters
+/// is dropped, because Telegram refuses a blank text: a blank text has no part.
 ClassMethod Split(text As %String, limit As %Integer = {..#LIMIT}) As %List
 {
 	Set parts = ""
@@ -149,9 +150,9 @@ ClassMethod Split(text As %String, limit As %Integer = {..#LIMIT}) As %List
 			Set part = $Extract(text, 1, size)
 			Set text = $Extract(text, size + 1, *)
 		}
-		If part '= "" Set parts = parts _ $ListBuild(part)
+		If $ZStrip(part, "*WC") '= "" Set parts = parts _ $ListBuild(part)
 	}
-	If text '= "" Set parts = parts _ $ListBuild(text)
+	If $ZStrip(text, "*WC") '= "" Set parts = parts _ $ListBuild(text)
 	Quit parts
 }
 

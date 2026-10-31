@@ -10,8 +10,11 @@
 ///   - TestRateLimited: a 429 is retried after its retry_after, and after five 429s for one part the status is an error with a safe text
 ///     while the parts already sent stay sent;
 ///   - TestSentThenLimited: part 1 is sent once, part 2 is limited and sent again;
-///   - TestNotification: a Notification for a chat sends the catalog rendering, and a render error sends nothing;
-///   - TestNoChat: a ChatRef with no chat row, or none, sends nothing, logs one warning that names neither, and is OK.
+///   - TestOtherFailure: a failure other than a 429 (a 403) is an error status with a safe text, and the part is not sent again;
+///   - TestNotification: a Notification for a chat sends the catalog rendering, and a render error sends nothing; an Outbound with a
+///     catalog key and no text sends the catalog rendering too;
+///   - TestNoChat: a ChatRef with no chat row, or none, sends nothing, logs one warning that names neither, and is OK. It first sends one
+///     message of its own and waits for it, so that messages queued before the test have been handled before it counts.
 Class OcuTalon.Test.Channel.TelegramOut Extends OcuTalon.Test.Channel.LiveCase
 {
 
@@ -236,7 +239,29 @@ Method TestSentThenLimited()
 	Do ..Cleanup()
 }
 
-/// AD-32: a Notification for a chat is rendered from its catalog key; a render error sends nothing.
+/// A failure other than a 429 is not retried: one call, and an error status with a safe text that names the status.
+Method TestOtherFailure()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set ref = ..MakeChat(8510)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set blocked = {"status": 403, "body": {"ok": false, "error_code": 403, "description": "Forbidden: bot was blocked by the user"}}
+		Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "sendMessage", "replies": [(blocked)]}), "a 403 is queued")
+		Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", ..Outbound(ref, "zz blocked"), .response)
+		Do $$$AssertStatusNotOK(sc, "the status is an error")
+		Set message = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertEquals($Find(message, ..Token), 0, "whose text holds no token")
+		Do $$$AssertTrue($Find(message, "403") > 0, "and says what Telegram answered")
+		Do $$$AssertEquals(..SentTo(8510).%Size(), 1, "the part was sent once, not again")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the other-failure test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AD-32: a Notification for a chat is rendered from its catalog key; a render error sends nothing. An Outbound with a catalog key and no
+/// text is rendered the same way.
 Method TestNotification()
 {
 	If '..ReadyLive() Quit
@@ -259,6 +284,12 @@ Method TestNotification()
 		Set bad.CatalogKey = "zz.noSuchKey"
 		Do $$$AssertStatusNotOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", bad, .response), "a key that cannot be rendered is an error status")
 		Do $$$AssertEquals(..SentTo(8508).%Size(), 1, "and nothing more is sent")
+		Set reply = ..Outbound(ref, "")
+		Set reply.CatalogKey = "pairing.paired"
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", reply, .response), "an Outbound with a catalog key and no text is sent")
+		Set calls = ..SentTo(8508)
+		Do $$$AssertEquals(calls.%Size(), 2, "as one more sendMessage")
+		If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(1).params.text, expected, "with the catalog text for Telegram")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the notification test failed: "_..Safe(ex))
 	}
@@ -270,7 +301,10 @@ Method TestNoChat()
 {
 	If '..ReadyLive() Quit
 	Try {
+		Set probe = ..MakeChat(8511)
 		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", ..Outbound(probe, "zz drain"), .response), "a message of the test is sent first, so that any queued before it are handled")
+		Do $$$AssertEquals(..SentTo(8511).%Size(), 1, "and it reached the Bot API")
 		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set unknown = "zznochat1234567"

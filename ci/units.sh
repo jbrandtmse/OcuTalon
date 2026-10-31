@@ -39,8 +39,9 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # 1,037, and live:audit, 267, which reads no web bundle), browser about 1,580 s, shards about 1,710 s (lane-a's Checks, Install
 # and Watch 654, floor 621, online-session 439), shards-2 about 1,810 s (lane-a's other areas, Eval included, 1,334, and
 # demo-switch 473) and image about 1,660 s. shard:lane-b cannot go to production, whose units read no web bundle, because its Web
-# classes check the built bundle. Story 12.2 (2026-10-31, a runner ruling) moved lane-a's Channel area out of shards-2, which ran 31
-# minutes, into production, 25 minutes; its classes read no file of the bundle, so the unit is in NO_WEB_BUNDLE_UNITS.
+# classes check the built bundle. Story 12.2 (2026-10-31, a runner ruling) made lane-a's Channel area a third piece of lane-a,
+# shard:lane-a@Channel, in production: before the move, on af47ff3c (ci run 41188445340), shards-2 took 31 minutes and production
+# 25. Its classes read no file of the bundle, so the unit is in NO_WEB_BUNDLE_UNITS.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:online-demo-path" ;;

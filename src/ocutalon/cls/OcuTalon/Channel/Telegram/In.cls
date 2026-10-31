@@ -17,7 +17,8 @@ Include Ensemble
 ///   - Only an update of a private chat, a message or a button press, is handled, and handling it records the chat through
 ///     Pairing.RecordChat with no name. Everything else is confirmed and ignored; the from name of an update is not stored.
 ///   - A 409 pauses the item PAUSESECONDS: the time is written to StatusMark.Record("telegramPaused", until), which is the one truth of
-///     the pause and is read before every poll, so a restart honours it. A getUpdates answered 200 deletes the mark. A 429 waits
+///     the pause and is read before every poll, so a restart honours it. Its warning carries Telegram's description, which says whether
+///     another process polls the bot or a webhook is set. A getUpdates answered 200 deletes the mark. A 429 waits
 ///     retry_after seconds, or RETRYSECONDS. Every other answer is a warning and another try after RETRYSECONDS.
 ///   - OnProcessInput always returns OK and logs only warnings. No text it logs holds the token, a chat id or a name (AD-14).
 Class OcuTalon.Channel.Telegram.In Extends Ens.BusinessService
@@ -56,13 +57,11 @@ Parameter LOGRECORD = "TelegramIn could not record its state: ";
 
 Parameter LOGBUSY = "Telegram asked TelegramIn to wait before polling again; it waits ";
 
-Parameter LOGPAUSE = "Another process polls the same bot, so TelegramIn pauses until ";
+Parameter LOGPAUSE = "Telegram refused getUpdates with a conflict (another process polls the bot, or a webhook is set), so TelegramIn pauses until ";
 
 Parameter LOGCHAT = "TelegramIn could not record a chat: ";
 
 Parameter LOGUPDATE = "TelegramIn could not handle an update, and confirmed it: ";
-
-Parameter LOGOFFSET = "TelegramIn could not keep its offset: ";
 
 /// 1 once getMe has answered and the state on is recorded.
 Property Started As %Boolean [ InitialExpression = 0 ];
@@ -182,7 +181,7 @@ Method Poll() [ Private ]
 		Quit
 	}
 	If httpStatus = 409 {
-		Do ..Pause()
+		Do ..Pause(answer)
 		Quit
 	}
 	If httpStatus = 429 {
@@ -214,8 +213,8 @@ Method Failed(text As %String) [ Private ]
 	Set ..RetryAt = $ZHorolog + ..#RETRYSECONDS
 }
 
-/// A 409: the pause mark is set PAUSESECONDS ahead.
-Method Pause() [ Private ]
+/// A 409: the pause mark is set PAUSESECONDS ahead, and the warning carries Telegram's description of the conflict.
+Method Pause(answer As %DynamicObject) [ Private ]
 {
 	Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), ..#PAUSESECONDS)
 	Set recorded = ##class(OcuTalon.Data.StatusMark).Record(..#PAUSEMARK, until)
@@ -224,7 +223,7 @@ Method Pause() [ Private ]
 		Set ..RetryAt = $ZHorolog + ..#PAUSESECONDS
 		Quit
 	}
-	$$$LOGWARNING(..#LOGPAUSE_until_" (UTC), because Telegram answered that another process polls the bot.")
+	$$$LOGWARNING(..#LOGPAUSE_until_" (UTC). "_##class(OcuTalon.Channel.Telegram.Api).Failure("getUpdates", 409, answer))
 }
 
 /// Handles the updates of an answer in order: one below the kept offset is skipped, the others are handled, and each handled update

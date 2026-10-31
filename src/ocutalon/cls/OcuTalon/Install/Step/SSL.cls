@@ -1,9 +1,10 @@
 /// The SSL step (AD-23, AD-19): makes the one general client SSL configuration of OcuTalon's outbound HTTPS, OcuTalonClient, in %SYS.
-/// It is structural: at every start the step creates it when it is absent and otherwise modifies it, so a value changed by hand does
-/// not last. The configuration is a client configuration (Type 0), enabled, that verifies the server (VerifyPeer 1) against the
-/// operating system's trusted CA store (CAFile %OSCertificateStore), with the TLS versions that IRIS defaults to. It holds no secret:
-/// no private key, no certificate, no password and no credential of any kind. Every outbound HTTPS client of OcuTalon names it by
-/// its host setting (Telegram's SSLConfig), and a request to an http:// base never uses it. The first failure is the status.
+/// At every start the step creates it when it is absent and otherwise modifies it, writing five structural properties, so a change
+/// by hand to any of them does not last: Type 0 (a client configuration), Enabled 1, VerifyPeer 1 (the server is verified), CAFile
+/// %OSCertificateStore (the operating system's trusted CAs; on Linux, OpenSSL's default verify paths) and the Description. It writes
+/// no other property: a new configuration has the TLS versions and ciphers that IRIS defaults to, and the step never writes a private
+/// key, a certificate, a password or a credential of any kind. Every outbound HTTPS client of OcuTalon names it by its host setting
+/// (Telegram's SSLConfig), and a request to an http:// base never uses it. The first failure is the status.
 Class OcuTalon.Install.Step.SSL Extends OcuTalon.Install.Step
 {
 

@@ -274,6 +274,39 @@ deferred:
   - the mock code and `Test.Contract.Mock` are unchanged (AD-22, AD-23, AD-29).
 - Given the CI groups measured on the integrate-forward head af47ff3c (`ci` run 41188445340: install-fresh 34, install-upgrade 32, shards-2 31, shards 30, image 28, browser 26, production 25 minutes) and the dispatch's rule "never add a unit to a group over 30 minutes without moving another out", when this story adds its `Test.Channel` classes, then they no longer run inside `shard:lane-a@rest` (`shards-2`): `ci/units.sh` gains the unit `shard:lane-a@Channel` in the `production` group (so `@rest` loses `Channel` by `shard_unit_areas`), and `shard:lane-a@Channel` joins `NO_WEB_BUNDLE_UNITS` only if the unit is shown not to read the web bundle (record how it was shown under `## Verification`); if it cannot be shown, the unit goes into `browser` instead and `NO_WEB_BUNDLE_UNITS` is unchanged. `docker/tests/test-ci-config.sh` (every class of every shard runs once) and `test-ci-changes.sh` pass, and the change touches only Epic 12's own entries of `ci/units.sh` (the `Channel` piece and its group placement) (runner ruling, decide, 2026-10-31).
 
+### Review Findings
+
+Code review of 2026-10-31 (bmad-code-review; four layers, full tier; 65 rows, 43 root-cause entries; no high). Each patch was run green on lane C and red under its mutation (`## Verification`, "Code review").
+
+- [x] [Review][Patch] (med) U-164 condition 1: nothing showed that `%OSCertificateStore` reads the image's CA file (InterSystems documents it for Windows and macOS only) [Test/Channel/TelegramSettings.cls TestBadCertificateRefused] — measured, then pinned: with `SSL_CERT_FILE` naming the test's certificate `OcuTalonClient` trusts it, so its store is OpenSSL's default verify paths, whose file is `TestCAFileInImage`'s bundle
+- [x] [Review][Patch] (med) `Api.Call`'s SSL configuration over https was never used against a TLS server that answers [Test/Channel/TelegramSettings.cls TestBadCertificateRefused] — through `OcuTalonClient` the handshake succeeds, through a missing configuration it fails with 6085
+- [x] [Review][Patch] (med) the items' own `ApiBase` row was not pinned (the variable could stand in for it) [Test/Channel/TelegramIn.cls TestUsesItsApiBase]
+- [x] [Review][Patch] (med) a 404, and a rejection on `getUpdates` once polling, were untested [Test/Channel/TelegramIn.cls TestRejectedWhilePolling]
+- [x] [Review][Patch] (med) `TestRejected` counted calls after 4 s, inside `RETRYSECONDS`, so "stays off for that start" could not fail [Test/Channel/TelegramIn.cls:210]
+- [x] [Review][Patch] (med) an `Outbound` with a catalog key and no text was untested [Test/Channel/TelegramOut.cls TestNotification]
+- [x] [Review][Patch] (med) hermeticity: `TestNoChat` counted every call and warning, not its own [Test/Channel/TelegramOut.cls TestNoChat] — it now sends and waits for a message of its own first
+- [x] [Review][Patch] (med) hermeticity: `TestPlainHttpIgnoresSSLConfig` called the mock without a reset first [Test/Channel/TelegramApi.cls:238]
+- [x] [Review][Patch] (med) hermeticity: `TestRecordChatFailure` asserted the absence of 8331 rows it never cleared [Test/Channel/TelegramIn.cls TestRecordChatFailure]
+- [x] [Review][Patch] (med) Rule 2: `TestRejected`, `TestStartFailureRetries` and `TestUpdatesBusy` copied the `Warnings` and `NextPollAfter` helpers of the same class inline [Test/Channel/TelegramIn.cls] — they call the helpers
+- [x] [Review][Patch] (low) `Split` could leave a blank part (4,096 units and a trailing line feed), which Telegram refuses after part 1 went out [Channel/Telegram/Api.cls:152-154] — blank parts are dropped
+- [x] [Review][Patch] (low) the all-line-feed input never reached the empty-cut path [Test/Channel/TelegramApi.cls TestSplitLimits] — a line feed at the start of the window is now tested
+- [x] [Review][Patch] (low) every 409 was logged as another poller, without Telegram's description (a webhook also answers 409) [Channel/Telegram/In.cls Pause] — the warning carries `Api.Failure`
+- [x] [Review][Patch] (low) `Endpoint` let control characters into the request path [Channel/Telegram/Api.cls:113]
+- [x] [Review][Patch] (low) a 403 for `sendMessage` was untested [Test/Channel/TelegramOut.cls TestOtherFailure]
+- [x] [Review][Patch] (low) the SSL step's doc promised a reset of every hand change and "holds no secret" [Install/Step/SSL.cls:1-7] — it names the five properties written
+- [x] [Review][Patch] (low) live tests could enable an item whose `ApiBase` row reaches the public Bot API [Test/Channel/LiveCase.cls StartItems] — `BaseReason` refuses it
+- [x] [Review][Patch] (low) TelegramNoToken's header and status scans had no positive control; `TestNoToken`'s `ftp://x` assertion could not fail [Test/Channel/TelegramNoToken.cls, TelegramApi.cls TestNoToken]
+- [x] [Review][Patch] (low) unused `LOGOFFSET` [Channel/Telegram/In.cls:65]; stale docs (TelegramApi class doc, LiveCase `MONITOR`, `TelegramBlock`, `BUNDLE`); Epic 12's `ci/units.sh` sentence (third piece, before-the-move minutes)
+- [x] [Review][Patch] (low) two acceptance criteria had no `mutation:` line ("this story merged", the CI groups) — both shown red and recorded
+- [x] [Review][Defer] (med) `TelegramOut` renders no `CheckKey`/`CheckRows` of an `Outbound` [Channel/Telegram/Out.cls OnOutbound] — deferred: occurrence on DW-295 (routed to 12.6)
+- [x] [Review][Defer] (low) AD-22's as-built CI record has no third lane-a piece [spine AD-22] — deferred: occurrence on DW-420 (escalated; the orchestrator writes it at the merge gate)
+- [x] [Review][Defer] (low) wontfix-accepted with `reopen_if`: DW-487 (a call can outlast the 10-second stop on a slow network), DW-488 (token with white space or CR), DW-489 (two names written twice), DW-490 (no ongoing bundle guard for a shard unit), DW-491 (Ac.cls and Contracts.cls docs still say stub)
+
+Rejected:
+- by-design: `TelegramOut` sleeps an uncapped `retry_after` (spec: wait `retry_after`, at most five tries; Decided 9); `TestStubsAnswer` `>= 0` (orchestrator ruling); `Base` writes an unchecked value (the client's error names the setting); a lasting failure warns every 5 s (the matrix's retry)
+- wontfix-theoretical: `TelegramSettings` not refusing a warm stack (only that throwaway is hurt, and `StartItems` now refuses a public base); an exception inside `HandleUpdate` (no Telegram update shape throws there); an `Outbound` with no text and no key (no producer sends one to TelegramOut yet; real from 12.6); an update without an integer `update_id` (Telegram always sends one); a killed job leaving the state on (real only after a forced stop; `OnInit` records off); a pool size above 1 (the production class pins it, AD-5); a failing offset write (a global set)
+- false: the vacuous `paused` control in TelegramNoToken (the mark is asserted set just before); `ci/units.sh` outside the footprint (Epic 12's entries are in it by the runner ruling); a line break just past the limit (the matrix cuts at the limit, and those parts join with nothing)
+
 ## Spec Change Log
 
 - 2026-10-30, before implementation (runner): the owner's U-164 answer added two acceptance criteria (the CA file in the shipped image and a refused bad certificate; plain HTTP on an `http://` override) and a Design Notes block saying how they are tested. Story 12.7 carries condition (3).
@@ -569,6 +602,33 @@ Mutations (Rule 19), each applied with the warm stack's reload, run, and reverte
 - mutation: the CA-file check pointed at a missing file (U-164 condition 1) -> `TelegramSettings` TestCAFileInImage
 - mutation: the VerifyPeer of the SSL step set to 0 (U-164 condition 1, fresh stack) -> `TelegramSettings` TestBadCertificateRefused (OcuTalonClient no longer refuses the self-signed certificate, and an HTTP answer is read), TestSSLConfiguration and TestCAFileInImage
 - mutation: `Rejection` treats any status over 399 as a rejection (a 500 for getMe) -> `TelegramIn` TestStartFailureRetries (the state never becomes on, no second getMe, no warning); the class passes again after the revert
+
+**QA stage (runner C, 2026-10-31): gaps found and pinned (QA).** Five matrix rows or boundaries had no pinning test; each got one test in an existing Epic 12 class (so the default `shard:lane-a@Channel` run picks them up). Test files touched (QA): `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramIn.cls` (`TestUpdatesBusyNoRetryAfter`, `TestUpdatesFailureRetries`, `TestRecordChatFailure`), `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPause.cls` (`TestRestartHonoursPause`), `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramApi.cls` (`TestNoRedirectFollowed`). No new file. Each was run on the warm stack `e12s2qaw` (green), then under its mutation (red), then reverted (`cmp` against my own backup, `git status` shows only the three test files):
+
+- mutation: `getUpdates` 429 with no `retry_after` waits 0 instead of `RETRYSECONDS` (`Set wait = 0`) -> `TelegramIn` TestUpdatesBusyNoRetryAfter (gap 1.01 s, and the warning no longer says 5 seconds)
+- mutation: the last line of `Poll` (other getUpdates failure) does not call `Failed` -> `TelegramIn` TestUpdatesFailureRetries (gap 1.01 s, no warning)
+- mutation: the `RecordChat` failure warning appends `chat.id` -> `TelegramIn` TestRecordChatFailure (a log row holds the id)
+- mutation: `Paused()` returns 0 until the item has started (a restart ignores the mark) -> `TelegramPause` TestRestartHonoursPause (getMe at once, state on before the mark's time)
+- mutation: `Api.Call` sets `FollowRedirect = 1` (the 307 goes to `127.0.0.1:1`, nothing, never the public API) -> `TelegramApi` TestNoRedirectFollowed (error 6059, no status 307, no body)
+
+Runs: `TelegramApi`, `TelegramIn` and `TelegramPause` passed on the warm stack after every revert; `test-ci-config.sh` passes. Warm stack `e12s2qaw` torn down.
+
+**Code review (runner C, 2026-10-31).** Measured on the review's own warm throwaway (`e12s2crw`, build 154U, aarch64), read only except a temporary folder: the IRIS processes map the image's `/usr/lib/aarch64-linux-gnu/libssl.so.3`, whose `OPENSSLDIR` is `/usr/lib/ssl` (`cert.pem` links to `/etc/ssl/certs/ca-certificates.crt`). Against a self-signed loopback `openssl s_server`, a `%Net.HttpRequest` through `OcuTalonClient` is refused (6085, certificate verify failed), answers HTTP 200 once `SSL_CERT_FILE` names the server's certificate in the same process, and is refused again after the variable is removed (no caching). So on Linux `%OSCertificateStore` is OpenSSL's default verify paths, which without the variable read `OPENSSLDIR/cert.pem`, the image's bundle: U-164 condition 1 is shown, no longer inference. `Api.Call` over https to that server ends 5922 (past the handshake) through `OcuTalonClient`, 6085 through a configuration that does not exist, and 6159 with none. Every class below was run green after its patch (warm `e12s2crw`: `TelegramApi`, `TelegramIn`, `TelegramOut`, `TelegramPause`, `TelegramNoToken`, `TelegramMock`, `TelegramSwitch`; fresh `e12s2cr`: `TelegramSettings`), then red under each mutation, then reverted (`cmp` against the review's backup; `git status --short` and `git diff --stat` identical). `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh` and `test-readme.sh` pass. Both stacks torn down.
+
+- mutation: `Split` keeps a blank part (`If part '= ""`) -> `Test.Channel.TelegramApi` TestSplitLimits (a lone trailing line feed becomes a part)
+- mutation: `Split`'s cut search reaches position 1 -> `TelegramApi` TestSplitLimits (the parts joined with nothing lose the leading line feed)
+- mutation: `Endpoint`'s path pattern back to `[^ ?#]` -> `TelegramApi` TestEndpoint (CR LF, tab and NUL paths accepted)
+- mutation: `Endpoint` accepts `ftp` -> `TelegramApi` TestNoToken (the error no longer names ApiBase) and TestEndpoint
+- mutation: `Rejection` sets a retry time instead of `Rejected` (the AC "stays off for that start") -> `Test.Channel.TelegramIn` TestRejected (a second call past the retry time; the state turns on) and TestRejectedWhilePolling
+- mutation: `Poll` no longer calls `Rejection` -> `TelegramIn` TestRejectedWhilePolling (the 404 is a retry; the state stays on)
+- mutation: `In.Call` uses `OCUTALON_TELEGRAM_API_BASE` instead of its `ApiBase` row (the AC "through its ApiBase and SSLConfig host settings") -> `TelegramIn` TestUsesItsApiBase (the mock sees the call; the state turns on)
+- mutation: `OnOutbound` drops the catalog-key branch -> `Test.Channel.TelegramOut` TestNotification (no second sendMessage)
+- mutation: every failure is retried like a 429 -> `TelegramOut` TestOtherFailure (the 403 is sent again and ends OK)
+- mutation: the pause warning leaves out Telegram's description -> `Test.Channel.TelegramPause` TestPause409
+- mutation: the SSL step names the bundle as an explicit `CAFile` instead of `%OSCertificateStore` (U-164 condition 1, fresh) -> `Test.Channel.TelegramSettings` TestBadCertificateRefused (the `SSL_CERT_FILE` override is not trusted), TestSSLConfiguration and TestCAFileInImage
+- mutation: `Api.Call` uses `OcuTalonClient` whatever configuration it is given (fresh) -> `TelegramSettings` TestBadCertificateRefused (the missing configuration gets past the handshake)
+- mutation: `Install.Step.Telegram.Run` ignores `Included()` (`Apply(1, TokenSet())`; the AC "no start enables a Telegram item") -> `Test.Channel.TelegramSwitch` TestRun and TestStructural
+- mutation: `shard:lane-a@Channel` also listed in `shards-2` (the CI-groups AC) -> `docker/tests/test-ci-config.sh` ("the shard units of the groups do not run every test class exactly once", and the units rule)
 
 ## Auto Run Result
 

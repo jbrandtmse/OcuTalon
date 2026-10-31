@@ -8,7 +8,9 @@
 ///     the SSL step puts back a value changed by hand (VerifyPeer), and creates it when it is absent;
 ///   - TestCAFileInImage (U-164 condition 1): the CA bundle that the OS store stands for exists in this image and holds certificates;
 ///   - TestBadCertificateRefused (U-164 condition 1): a disposable TLS server with a self-signed certificate, started by the test in its
-///     own container on a loopback port, answers a client configuration that trusts its certificate and is refused by OcuTalonClient.
+///     own container on a loopback port, answers a client configuration that trusts its certificate and is refused by OcuTalonClient;
+///     OcuTalonClient's OS store follows OpenSSL's default verify paths (SSL_CERT_FILE), so on Linux it reads TestCAFileInImage's
+///     bundle; and Api.Call over https uses the SSL configuration it is given.
 Class OcuTalon.Test.Channel.TelegramSettings Extends %UnitTest.TestCase
 {
 
@@ -172,11 +174,15 @@ Method TestSSLConfiguration()
 	If ..Client() '= "0|1|1|%OSCertificateStore" Do $ClassMethod(..#SSLSTEP, "Run")
 }
 
-/// The CA bundles an Ubuntu image keeps for the OS store, the first that exists.
+/// The CA bundle of the image (Ubuntu's ca-certificates).
 Parameter BUNDLE = "/etc/ssl/certs/ca-certificates.crt";
 
-/// OpenSSL's default bundle, which the OS store stands for on Linux.
+/// OpenSSL's default CA file (OPENSSLDIR/cert.pem of the image's libssl, which IRIS loads), which the OS store reads on Linux
+/// (TestBadCertificateRefused shows that it follows OpenSSL's default verify paths).
 Parameter DEFAULTBUNDLE = "/usr/lib/ssl/cert.pem";
+
+/// OpenSSL's variable that names the default CA file in place of DEFAULTBUNDLE.
+Parameter CERTFILEVAR = "SSL_CERT_FILE";
 
 /// The number of certificates in a PEM file, or -1 when the file cannot be read.
 ClassMethod Certificates(file As %String) As %Integer [ Private ]
@@ -261,11 +267,18 @@ ClassMethod Trust(file As %String) As %Status [ Private ]
 
 /// U-164 condition 1: a request through OcuTalonClient to a TLS server with a bad certificate (self-signed, started here, in this
 /// container, on a loopback port) is refused. The control: the same server answers a client configuration that trusts its certificate,
-/// so the refusal is the verification, not a broken server.
+/// so the refusal is the verification, not a broken server. Then the OS store is shown to be OpenSSL's default verify paths: with
+/// SSL_CERT_FILE naming the server's certificate in this process, OcuTalonClient trusts it, so without the variable it trusts OpenSSL's
+/// default CA file, the image's bundle (TestCAFileInImage). Last, Api.Call over https uses the configuration it is given: through
+/// OcuTalonClient the handshake succeeds, and through a configuration that does not exist it fails (error 6085). The variable is put
+/// back as found on every path.
 Method TestBadCertificateRefused()
 {
 	If '..Guard() Quit
 	Set dir = ""
+	Set env = "OcuTalon.Test.Agent.KeyScan"
+	Set hadVar = $ClassMethod(env, "HasEnv", ..#CERTFILEVAR)
+	Set varFound = $SYSTEM.Util.GetEnviron(..#CERTFILEVAR)
 	Try {
 		Do $$$AssertTrue(..StartServer(.dir, .port, .cert), "the disposable TLS server is started on a loopback port")
 		Do $$$AssertEquals(..Client(), "0|1|1|%OSCertificateStore", "OcuTalonClient exists: client, enabled, VerifyPeer 1, the OS store")
@@ -281,8 +294,23 @@ Method TestBadCertificateRefused()
 		Set sc = ..Get(port, "OcuTalonClient", .code)
 		Do $$$AssertStatusNotOK(sc, "OcuTalonClient refuses the server's self-signed certificate")
 		Do $$$AssertEquals(code, "", "and no HTTP answer was read")
+		Do $ClassMethod(env, "SetEnv", ..#CERTFILEVAR, cert)
+		Set sc = ..Get(port, "OcuTalonClient", .code)
+		Do $$$AssertStatusOK(sc, "with SSL_CERT_FILE naming the certificate, OcuTalonClient trusts it: its OS store is OpenSSL's default verify paths")
+		Do $$$AssertEquals(code, 200, "with HTTP 200")
+		Set base = "https://127.0.0.1:"_port
+		Set answer = $ClassMethod(..#API, "Call", base, "OcuTalonClient", "getMe", {}, 2, .status, .sc)
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertTrue(($Find(text, "(error 6085)") = 0) && ($Find(text, "(error 6159)") = 0), "Api.Call over https through OcuTalonClient gets past the handshake: "_text)
+		Set answer = $ClassMethod(..#API, "Call", base, "ZzNoSuchSSLConfig", "getMe", {}, 2, .status, .sc)
+		Do $$$AssertTrue($Find($SYSTEM.Status.GetErrorText(sc), "(error 6085)") > 0, "and through a configuration that does not exist it fails at the handshake")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the bad-certificate test failed: "_$Translate(ex.DisplayString(), $Char(13, 10), "  "))
+	}
+	If hadVar {
+		Do $ClassMethod(env, "SetEnv", ..#CERTFILEVAR, varFound)
+	} Else {
+		Do $ClassMethod(env, "UnsetEnv", ..#CERTFILEVAR)
 	}
 	Do ..StopServer(dir)
 	Do $$$AssertStatusOK(..Trust(""), "the test's client configuration is deleted")
