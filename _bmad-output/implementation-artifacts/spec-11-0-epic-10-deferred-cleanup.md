@@ -2,7 +2,8 @@
 title: 'Story 11.0: Epic 10 Deferred Cleanup'
 type: 'refactor'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '43379f1271aa66112da301117aa60521c9db7107'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -73,6 +74,26 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-31 -- Review pass
+- verdicts: 14 findings -- high 0, medium 0, low 10, false 4, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the spec's Auto Run Result still says `ready-for-dev` -- the section is rewritten at finalize with this pass's result.
+  - `[low]` `[reject]` Blind: the Observed mutation lines carry no green-run totals, and the AC1 row names only `TestHashCodeVectors` -- the fix edits this build's spec; the green runs are recorded under Auto Run Result.
+  - `[low]` `[reject]` Blind: the delegation check pins the spelling `##class(OcuTalon.Data.Session).Hash(` -- the spec names exactly that form (Tasks & Acceptance, AC1); a `$ClassMethod` rewrite would turn the test red loudly and be a deliberate change.
+  - `[low]` `[reject]` Blind: no sample above code point 255 -- `HashCode` no longer converts to UTF-8, `Session.Hash` does, and the equality assertion covers whatever it does; a wide sample cannot go red from a `HashCode` change that the existing samples miss.
+  - `[low]` `[reject]` Blind: `Session.Hash`'s comment does not name `HashCode` as a dependent -- the intent forbids touching `Session`; the fixed vectors of `TestHashCodeVectors` are the pin that catches a change of its form.
+  - `[low]` `[reject]` Edge: a comment or dead branch holding the call text satisfies the source check -- no user-reachable path; the vectors and the `SHAHASH` absence still fail a live copy.
+  - `[low]` `[reject]` Edge: another digest call (SHA3, HMAC) passes the no-`SHAHASH` check -- theoretical; the fixed vectors fail any other digest.
+  - `[low]` `[reject]` Edge: an empty `Implementation` (deployed class) fails both source assertions with messages that blame the delegation -- the test classes are never deployed, and the failure is loud.
+  - `[low]` `[reject]` Edge: no wide-character sample -- same as the Blind row above.
+  - `[false]` `[reject]` Edge: a later edit to `Session.Hash` silently changes every stored pairing hash -- `TestHashCodeVectors` pins the three fixed vectors, so the change goes red.
+  - `[low]` `[reject]` Edge: the no-own-hashing claim is pinned only against `SHAHash` -- the same residual as the SHA3/HMAC row.
+  - `[low]` `[patch]` Verification-gap: AC3 has no `mutation:` line -- fixed: the parameter of `HashCode` renamed, `Test.Contract.Ac` and `Test.Web.PairingApi` went red, reverted byte-identical, green again; recorded under `## Verification`.
+  - `[false]` `[reject]` Verification-gap, other: the Auto Run Result contradicts the frontmatter -- same as the first row; rewritten at finalize.
+  - `[false]` `[reject]` Verification-gap, other: the spec records no outcome for the verification commands -- the outcomes are recorded under Auto Run Result at finalize.
+
+The Intent Alignment Auditor found readings A (behaviour-preserving delegation) and B (one source of truth) both implemented, with no divergence: the new test exercises both the runtime surface (outputs) and the source surface (delegation).
+
 ## Design Notes
 
 - **Architecture decisions:**
@@ -123,9 +144,32 @@ deferred: []
 | AC1/AC2 | drop the `If $Get(code) = "" Quit ""` guard | `TestHashCodeVectors` ("an empty code has an empty hash") and `TestHashCodeIsSessionHash` |
 | AC2 | delegate as `Session.Hash($ZConvert(code, "L"))` | `TestHashCodeVectors` (the 24-character vector, and case sensitivity) |
 
+Observed (implement stage, warm stack e11s0iw; each reverted from a backup of this stage, `git status --short` and `git diff --stat` byte-identical, then green again):
+
+- mutation: `HashCode`'s `Quit` goes back to the inline `$Translate(...SHAHash(256, ...))` copy -> `TestHashCodeIsSessionHash` red on "HashCode calls Session.Hash" and "HashCode holds no hashing expression of its own".
+- mutation: dropped the `If $Get(code) = "" Quit ""` guard -> `TestHashCodeVectors` red on "an empty code has an empty hash", and `TestHashCodeIsSessionHash` red on "an empty code has an empty hash" (plus an `<UNDEFINED>` error for the no-argument call).
+- mutation: delegated as `Session.Hash($ZConvert(code, "L"))` -> `TestHashCodeVectors` red on "a 24-character code" and "the hash is case-sensitive", and `TestHashCodeIsSessionHash` red on "HashCode equals Session.Hash of 24 characters".
+- mutation (AC3, review stage, warm stack e11s0iw, reverted from a backup of this stage, `git status --short` and `git diff --stat` byte-identical, then `PairingApi` and `Contract.Ac` green again): the parameter of `HashCode` renamed `code` to `text`, so the body hashes an undefined `code` and answers `""` -> `Test.Contract.Ac` red on `TestCrossLaneSignatures` ("HashCode takes (code) in that order"), and `Test.Web.PairingApi` red on `TestCodeRoute` ("the session's code row holds the hash of the code") and `TestPageUnpair` ("A pairing code is stored as its hash: the hash is empty"). `PairingApi` and `SessionOps` compare `HashCode` with itself, so they pin the plumbing (a hash is stored, and a Pair with it pairs the chat); the hash value is pinned by `PairingRows`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (the dispatch said "Halt after planning."). Plan-stage measurements on slot A (`ocutalon-slot-a`, namespace `OCUTALON`, build 154U), read-only: `Session.Hash("abc")` and `Session.Hash("Zz-ChatCode_0123456789AB")` equal `PairingRows`' `VECTORABC` and `VECTORCODE`, as does `Pairing.HashCode` of the 24-character code. `Session.Hash("")` is `47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU`, so the empty-code guard stays in `HashCode`. Ledger inbox: DW-237 addressed (AC1).
+**Summary.** `OcuTalon.Data.Pairing.HashCode` keeps its signature and its empty-code guard and now quits `##class(OcuTalon.Data.Session).Hash(code)`; the copied SHA-256 base64url expression is gone (DW-237, Rule 2). Every stored code hash keeps its value; no storage, `Session` or caller change.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Pairing.cls` -- `HashCode` delegates to `Session.Hash`; doc comment states the contract.
+- `src/ocutalon/cls/OcuTalon/Test/Data/PairingRows.cls` -- new `TestHashCodeIsSessionHash` (equality with `Session.Hash` for three codes, `""` for `""` and no argument, source reads `Session.Hash` and holds no `SHAHash`) and its header bullet; `TestHashCodeVectors` unchanged.
+- This spec -- status, baseline, `mutation:` lines, triage log.
+
+**Review.** 14 findings from four layers: patches applied 1 (AC3 mutation evidence, recorded under `## Verification`), deferred 0, rejected 13 with their reasons in the triage log. Follow-up review recommended: false (no high, one low patch).
+
+**Verification.**
+- Slot A (`ocutalon-slot-a`, `OCUTALON`, build 154U): both classes loaded and compiled; no test run there.
+- Lane A warm throwaway `e11s0iw`: `Test.Data.PairingRows`, `Test.Web.PairingApi`, `Test.Core.SessionOps` and `Test.Contract.Ac` pass (implement stage, then again at review); `PairingRows` passed on a fresh stack `e11s0i`.
+- Four mutations observed red and reverted byte-identical, then green again (see `## Verification`).
+- `bash ci/checks.sh`: all scripts passed.
+- Warm stack taken down and fresh tag torn down; the lane-a lock folder is empty.
+
+**Residual risks.** None found. The delegation pin reads the method source, so a deliberate rewrite of the call spelling would need the test updated.

@@ -63,12 +63,13 @@ Index CodeSessionRefIndex On CodeSessionRef [ Unique ];
 
 Index CodeHashIndex On CodeHash [ Unique ];
 
-/// The hash of a pairing code: SHA-256 of the code's UTF-8 bytes, base64url, 43 characters, no padding. Empty for an empty code.
+/// The hash of a pairing code: OcuTalon.Data.Session.Hash of it (SHA-256 of the code's UTF-8 bytes, base64url, 43 characters, no padding).
+/// Empty for an empty code, where Session.Hash would answer the hash of the empty string.
 /// Both lanes hash through this method, and only the hash is ever stored or sent (AD-4).
 ClassMethod HashCode(code As %String) As %String
 {
 	If $Get(code) = "" Quit ""
-	Quit $Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, $ZConvert(code, "O", "UTF8")), 1), "+/=", "-_")
+	Quit ##class(OcuTalon.Data.Session).Hash(code)
 }
 
 /// Records that a chat was seen: the Ref of the chat row of this chat id, made when there is none. The chat id is a whole number of

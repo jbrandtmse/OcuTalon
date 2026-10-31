@@ -3,6 +3,8 @@
 /// ^OcuTalonTest("PairingRows","n") (never reset), so that a rerun never meets a row of an earlier run; every row the tests make is
 /// recorded with Test.Data.Fixture and removed with Fixture.Clean, and the telegramState mark is put back.
 ///   - TestHashCodeVectors: the SHA-256 base64url form of three codes, 43 characters, and "" for "";
+///   - TestHashCodeIsSessionHash: HashCode equals Session.Hash for the sample codes, answers "" for "" and for no argument (where Session.Hash
+///     of "" is not ""), and its source calls Session.Hash and holds no hashing expression of its own;
 ///   - TestRecordChatNewAndKnown: a new chat row (Ref, ChatId, name, no session, CreatedAt = SeenAt), then the same chat id gives the same
 ///     Ref and a new name and SeenAt; the name is stripped of control characters, trimmed and cut to 128; a negative id is a chat id;
 ///   - TestRecordChatRefusesABadId: "", letters and 21 digits give "" and an error status that never holds the value, and no row;
@@ -62,6 +64,32 @@ Method TestHashCodeVectors()
 	Set bytes = $Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, "caf"_$Char(195, 169)), 1), "+/=", "-_")
 	Do $$$AssertEquals($ClassMethod(pairing, "HashCode", "caf"_$Char(233)), bytes, "a code with a non-ASCII character hashes its UTF-8 bytes")
 	Do $$$AssertTrue($ClassMethod(pairing, "HashCode", "abc") '= $ClassMethod(pairing, "HashCode", "ABC"), "the hash is case-sensitive")
+}
+
+/// HashCode is Session.Hash of the code: equal for the sample codes, and "" (not the hash of the empty string) for "" and for no
+/// argument. Equal outputs cannot tell a delegate from a copy, so the source of the method is read: it calls Session.Hash and holds no SHAHash.
+Method TestHashCodeIsSessionHash()
+{
+	Set pairing = "OcuTalon.Data.Pairing"
+	Set session = "OcuTalon.Data.Session"
+	For text = "abc", "Zz-ChatCode_0123456789AB", "caf"_$Char(233) {
+		Do $$$AssertEquals($ClassMethod(pairing, "HashCode", text), $ClassMethod(session, "Hash", text), "HashCode equals Session.Hash of "_$Length(text)_" characters")
+	}
+	Do $$$AssertEquals($ClassMethod(pairing, "HashCode", ""), "", "an empty code has an empty hash")
+	Do $$$AssertEquals($ClassMethod(pairing, "HashCode"), "", "no code has an empty hash")
+	Do $$$AssertTrue($ClassMethod(session, "Hash", "") '= "", "Session.Hash of the empty string is not empty, so the guard belongs to HashCode")
+	Set method = ##class(%Dictionary.MethodDefinition).%OpenId(pairing_"||HashCode")
+	If '$IsObject(method) {
+		Do $$$AssertTrue(0, "Pairing has the method HashCode")
+		Quit
+	}
+	Set code = ""
+	Do method.Implementation.Rewind()
+	While 'method.Implementation.AtEnd {
+		Set code = code_method.Implementation.Read(30000)
+	}
+	Do $$$AssertTrue($Find($ZStrip(code, "*WC"), "##class(OcuTalon.Data.Session).Hash(") > 0, "HashCode calls Session.Hash")
+	Do $$$AssertTrue($Find($ZConvert(code, "U"), "SHAHASH") = 0, "HashCode holds no hashing expression of its own")
 }
 
 /// A new chat id gets a chat row with a 22-character Ref, the chat id, the name, no session and CreatedAt = SeenAt = now; the same chat
