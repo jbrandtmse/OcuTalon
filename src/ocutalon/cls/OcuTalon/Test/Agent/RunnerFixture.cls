@@ -871,10 +871,10 @@ ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObje
 ClassMethod StepProblems(decisionRef As %String, sessionId As %Integer, labels As %List, tools As %List, runner As %String = "", seconds As %Integer = 10) As %String
 {
 	Set count = $ListLength(labels)
-	Set end = $ZHorolog + seconds
-	For {
+	Set polls = seconds * 4
+	For poll = 0:1:polls {
 		Set steps = ..StepsOf(decisionRef)
-		If (steps.%Size() >= (1 + (2 * count))) || ($ZHorolog > end) Quit
+		If (steps.%Size() >= (1 + (2 * count))) || (poll = polls) Quit
 		Hang 0.25
 	}
 	Set problems = ""

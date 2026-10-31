@@ -20,8 +20,9 @@
 /// earlier set tool call of the session, so the tool_results of a later request start with it.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("ReminderChat","n")), Send, WaitDone and the clean-up are those of
 /// Test.Core.InProduction; any turn of the run's sessions still there at the end is adopted for its Clean. OnAfterOneTest removes the
-/// reminders of the run's sessions with everything the product made for them (ReminderFixture.RemoveAll), the fixed Ref, the turns with
-/// their Decision, AgentStep and Usage rows (ReminderFixture.RemoveTurns) and the AI sessions the turns saved.
+/// reminders of the run's sessions with everything the product made for them (ReminderFixture.RemoveAll), the fixed Refs (FIXEDREF and the
+/// three of ALLREFS, which TestCancelAllThroughChat also removes before it starts), the turns with their Decision, AgentStep and Usage rows
+/// (ReminderFixture.RemoveTurns) and the AI sessions the turns saved.
 Class OcuTalon.Test.Schedule.ReminderChat Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -398,15 +399,15 @@ Method TestCancelAllThroughChat()
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Chat).%New().MaxIterations, 4, "Chat's ceiling is still 4 (AD-20)")
 	If ..AssertChat(chat, 3, "marker") {
 		Set second = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(chat.%Get(1))
-		Do $$$AssertTrue($ListLength(second) > 0, "request 2 carries the list")
-		If $ListLength(second) > 0 {
-			Set listed = ..ListedRefs($List(second, $ListLength(second)))
-			Do $$$AssertEquals(..Sorted(listed), ..Sorted(refs), "the list names A's three reminders only, not B's")
+		Do $$$AssertEquals($ListLength(second), 4, "request 2 carries the history's answers to the three sets and the list")
+		If $ListLength(second) = 4 {
+			Set listed = ..ListedRefs($List(second, 4))
+			Do $$$AssertEquals(..Sorted(listed)_"|"_$Length(listed, ","), ..Sorted(refs)_"|3", "the list names A's three reminders only, each once, not B's")
 		}
 		Set third = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(chat.%Get(2))
-		Do $$$AssertTrue($ListLength(third) > 0, "request 3 carries the answer to the cancel")
-		If $ListLength(third) > 0 {
-			Set answer = ..Parsed($List(third, $ListLength(third)))
+		Do $$$AssertEquals($ListLength(third), 5, "request 3 carries the history's answers to the three sets, the list and the answer to the cancel")
+		If $ListLength(third) = 5 {
+			Set answer = ..Parsed($List(third, 5))
 			Do $$$AssertTrue($IsObject(answer), "the answer to the cancel is a JSON object")
 			If $IsObject(answer) {
 				Do $$$AssertEquals(answer.%GetTypeOf("ok")_"|"_answer.ok, "boolean|1", "the answer is ok")

@@ -199,6 +199,35 @@ deferred: []
 - **AC6 (DW-316).** Given the three step-checking tests, when they check a turn's steps, then each calls `RunnerFixture.StepProblems` and holds no copy of its loops. `Tools.Reminders`, `ReminderChat` and `Watch.Turns` pass.
 - **AC7.** Given the renamed input in `A/reminder-cancel.json` and `B/reminder-cancel-chat.json`, when `TestCancel`, `TestCancelThroughChat` and `web/e2e/reminder/chat.spec.ts` C2 run, then they pass with their assertions unchanged.
 
+### Review Findings
+
+Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; no model override). 22 rows: high 0, medium 2, low 17, false 3. Every finding below carries severity / fix-risk / footprint / spec-status and its Rule 15 disposition.
+
+- [x] [Review][Patch] ReminderTools' class doc misstated the cancel contract: "each tool submits one of Epic 0's reminder commands", and "refs that are not one or more strings answer BADREFS" while a top-level non-empty value is taken as one ref [src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls:2] -- low / low (doc only) / in-story / clear; patched (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] ReminderChat's header named only "the fixed Ref" in the clean-up; the spec asks for the three Refs there too [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:23] -- low / low / in-story / clear; patched (blind-hunter)
+- [x] [Review][Patch] `TestCancelAllThroughChat`'s `$ListLength(second) > 0` and `$ListLength(third) > 0` guards could not fail (A's history already holds three set results); they now pin 4 and 5, as `TestCancelThroughChat` pins 2 and 3 [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:402] -- low / low / in-story / clear; patched (verification-gap)
+- [x] [Review][Patch] `TestCancelAllThroughChat` compared the listed Refs as a set, so a Ref listed twice passed "exactly A's three"; it now also counts 3 [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:405] -- low / low / in-story / clear; patched (edge-case-hunter)
+- [x] [Review][Patch] `StepProblems` stopped polling on `$ZHorolog > end`, which never comes when the clock wraps at midnight, so a turn whose steps never arrive hung the test instead of failing it; it now polls a counted number of times [src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:874] -- low / low / in-story / clear; patched (verification-gap)
+- [x] [Review][Patch] `TestCancelSeveral` checked class, origin, session, key and `ReminderRef` only in the three-ref case, though the task says each case does (the failed-submit case never showed which ref was submitted); one private `AssertCancels` now checks every record of every case [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:1071] -- low / low / in-story / clear; patched (acceptance-auditor)
+- [x] [Review][Patch] `Test.Checks.Turns.AssertToolStep` was a fourth private step checker (read at once with no wait, no kinds, no trace-session check); it now calls `RunnerFixture.StepProblems` with the turn's trace session, as ReminderChat does for a WebChatIn turn (DW-316's one checker) [src/ocutalon/cls/OcuTalon/Test/Checks/Turns.cls:166] -- low / low (green warm and fresh; mutation red) / in-epic (Epic 11, not contended) / clear; patched (verification-gap)
+- [x] [Review][Defer] `Test.Bridge.Gate`'s untrusted-turn row still calls `cancel_reminder` with `{"reminderRef":"x"}`; the tool now answers BADREFS before `CommandCall.Run`, so the row's "its method did not run" half (`CommandCount '= 0`) can no longer fail for cancel_reminder (a shared surface left in its old shape) [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:1764] -- deferred: med / low (one argument) / out-of-footprint (Epic 30's contended file, which the spec forbids editing) / clear; ledger DW-495 `escalated owner=burndown` (verification-gap)
+- [x] [Review][Defer] AD-1's Rule says a tool command's key is the turn's ItemId plus "the tool call's position", while the build keys each command at its command position (`CommandCall.Run`, since Story 1.10) and U-118 gives one several-ref call the keys `:2`, `:3`, `:4`; the code follows the owner's U-118 and AD-1's Prevents (a re-sent turn rebuilds the same keys), so the residue is the AD's wording [_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md AD-1] -- deferred: med / low (an as-built parenthetical) / out-of-footprint (the spine; an AD amendment is the lead's veto item, Rule 20) / clear; ledger DW-496 `escalated owner=burndown` (acceptance-auditor)
+
+**Rejected:**
+- `false` A failed header COUNT(*) query passes both header checks of `StepProblems` silently (edge-case-hunter) -- measured: a mutation that broke the in-session query made `%GetData` raise `<METHOD DOES NOT EXIST>` in four `Tools.Reminders` tests, so a broken query fails loudly; the `+` coercion tried first was reverted.
+- `false` `Test.Schedule.Reminders`' real-owner callers of `CancelReminder(<string>)` were not run (blind-hunter) -- run warm in this review: passed (86 s), so the scalar path keeps the confirmed answer, the key `<item>:1` and `no_reminder` against the real ReminderOps.
+- `false` The spec says `done` while the story is in review (acceptance-auditor) -- `status: done` is bmad-build-auto's contract; the tracker is sprint-status.yaml.
+- `low` A scalar holding several refs (a JSON-encoded array, a delimited list) or a ref over 22 characters goes to the owner as one ref, and the message's MAXLEN 22 save makes the answer MESSAGEFAILED (blind-hunter+edge-case-hunter) -- pre-existing for one ref; the spec reads any non-empty scalar as one ref; nothing is cancelled and nothing claims it was; wontfix-theoretical, real if DW-358's live run in Story 38.1 shows `reminderRefs` arriving as a string that holds a list.
+- `low` `[""]` is submitted while `""` answers BADREFS (blind-hunter) -- by-design (Design Notes, implement: an empty JSON string is a string), pinned by `TestCancelThroughTheToolManager`.
+- `low` The reminder block has no line for a refused or empty answer (blind-hunter) -- by-design: the spec fixes the block "exactly", "from the answer" covers a refusal, and the live phrasings are Story 38.1's (DW-142's live half).
+- `low` `agent.noCommands`' list of abilities leaves out reminders (blind-hunter) -- by-design: the Never list keeps that catalog sentence and its line byte-identical.
+- `low` DW-142's live half is not under Story 38.1's block, and DW-142's owner is this story (blind-hunter) -- not code: handed to the lead's `ledger_adjudicated` gate (re-own the live half to `38-1-...`, never `resolved-by` whole).
+- `low` Story 38.3's moved block keeps "this story" (blind-hunter) -- not this story's change: the orchestrator's verbatim move in `45ca0116`; noted for the lead.
+- `low` An owner that hangs makes the loop wait n times CommandsIn's timeout (edge-case-hunter) -- by-design ("does not stop at a refusal"); one ref already outlasts the turn's timer on a hang; wontfix-theoretical, real if CommandsIn hangs in practice.
+- `low` A turn re-run after a partial several-ref cancel shifts refs onto used keys and gets `reused_key` (edge-case-hunter) -- CommandCall's key rule is pre-existing and fixed by the spec; AD-8 re-sends only when no tool ran; wontfix-theoretical.
+- `low` A ref given twice makes the top `ok` false (edge-case-hunter) -- by-design (Design Notes: no dedupe; the second entry is the owner's `no_reminder`).
+- `low` `StepProblems` stops polling at 1 + 2n steps, so a later extra step can be missed (edge-case-hunter) -- the old copies read at once; an extra step present at read time is flagged; a settle wait would add time to every caller.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -373,6 +402,11 @@ deferred: []
 - mutation: AC1 the loop stops at the first refusal (the tool "does not stop at a refusal") -- red in `TestCancelSeveral` (one refused, failed submit)
 - mutation: AC3 the session check runs after the refs are read (NOSESSION must win over BADREFS) -- red in `TestCancelThroughTheToolManager`
 - mutation: AC3 a non-string entry (`5`, `{}`) accepted as a ref -- red in `TestCancelThroughTheToolManager`
+
+**Code review stage (2026-10-31, `stage=code-review`, warm tag `e11s8cw`, fresh tag `e11s8c`, slot-free).**
+- After the review patches, warm runs green: `Tools.Reminders`, `Schedule.ReminderChat`, `Checks.Turns`, `Watch.Turns`, `Schedule.Reminders` (86 s), `Bridge.CodeRules`. Fresh-stack runs green: `Schedule.ReminderChat`, `Checks.Turns`. `test-class-rules.sh` and `test-boundaries.sh` pass. Warm and fresh stacks torn down; no lane-a lock left.
+- mutation: `Checks.Turns.AssertToolStep` expects the label plus "x" -- red in `TestFailingOrdersInTheChat`, `TestAllClearOnlyFromCode`, `TestNothingWatchedInTheChat` (restored, tree byte-identical, green again)
+- observed: `StepProblems`' in-session header query made invalid -- `<METHOD DOES NOT EXIST>` on `%GetData` in `TestCancel`, `TestCancelRefused`, `TestList`, `TestSetRelative` (a broken query fails loudly; restored, green again)
 
 ## Auto Run Result
 

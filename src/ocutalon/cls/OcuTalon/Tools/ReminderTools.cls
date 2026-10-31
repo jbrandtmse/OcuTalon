@@ -1,13 +1,15 @@
 /// The methods behind OcuTalon.Tools.Reminders (AD-1, AD-4, AD-7, AD-9, AD-10, AD-18): the three reminder tools of the Chat agent, set_reminder,
-/// list_reminders and cancel_reminder. Each tool submits one of Epic 0's reminder commands through OcuTalon.Tools.CommandCall and returns the
-/// owner's answer, so the tools never read or write a reminder themselves: ReminderOps owns the reminders and every check of a request
-/// (empty text, a time that is past, not exactly one due form, a due time that cannot be read, a reminder that is not the session's).
+/// list_reminders and cancel_reminder. Each tool submits Epic 0's reminder command of its kind (cancel_reminder one for each ref) through
+/// OcuTalon.Tools.CommandCall and returns the owner's answer, so the tools never read or write a reminder themselves: ReminderOps owns the
+/// reminders and every check of a request (empty text, a time that is past, not exactly one due form, a due time that cannot be read, a
+/// reminder that is not the session's).
 /// The session comes from the bridge context of the call, never from an argument.
 /// cancel_reminder takes one or more refs and submits one CancelReminder for each, in order, inside the one tool call (the tool does not
 /// dedupe and does not stop at a refusal). Each command takes the next command position of the call, so each has its own IdempotencyKey.
 /// With one ref the answer is the owner's flat answer. With several it is {"ok": every one cancelled, "results": [one answer per ref, each
-/// with its ref]}. A call that is not a session's turn answers NOSESSION before the refs are read, and refs that are not one or more
-/// strings answer BADREFS with nothing submitted. Every helper is Private, because a public method of a tool class becomes a tool.
+/// with its ref]}. A call that is not a session's turn answers NOSESSION before the refs are read. An argument that is neither a non-empty
+/// list of JSON strings nor one non-empty value (taken as one ref) answers BADREFS with nothing submitted. Every helper is Private, because a
+/// public method of a tool class becomes a tool.
 /// Each tool declares, by one naming rule (the tool's name in upper case with _ and - removed), its step label (STEPLABEL<NAME>, AD-9) and its
 /// classification for the gate (CLASSIFICATION<NAME>: safe or risky; READONLY<NAME> and TRUSTEDOUTPUT<NAME>: 1 or 0, AD-10).
 /// All three are safe and trusted output: their answers are built in code from the owner's CommandResult (CommandCall.Answer and Listed),

@@ -410,38 +410,26 @@ Method TestCancelSeveral()
 	Set r3 = ..RefOf("Sev3")
 	Set done = "The CI double cancelled the reminder."
 	Set verb = "OcuTalon.Msg.Command.CancelReminder"
-	Set names = "IdempotencyKey,Origin,ReminderRef,SessionRef"
 
 	Set itemId = ..Fresh(owner)
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2), (r3)])
-	Set calls = ..Calls()
-	Do $$$AssertEquals(calls.%Size(), 3, "three refs: the double recorded three commands")
-	If calls.%Size() = 3 {
-		For i = 0:1:2 {
-			Do ..AssertCall(calls.%Get(i), verb, owner, itemId_":"_(i + 1), names, "cancel "_(i + 1))
-			Do $$$AssertEquals(calls.%Get(i).fields.ReminderRef, $Case(i, 0: r1, 1: r2, :r3), "cancel "_(i + 1)_" names ref "_(i + 1)_", in the order given")
-		}
-	}
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1, r2, r3), "three refs")
 	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": true, "message": (done), "ref": (r2)}, {"ok": true, "message": (done), "ref": (r3)}], "three refs")
 
 	Set itemId = ..Fresh(owner)
 	Set ^OcuTalonTest("CommandsDouble", "refuseRef", r2) = "That reminder has already fired."
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2), (r3)])
-	Set calls = ..Calls()
-	Do $$$AssertEquals(calls.%Size(), 3, "one refused: R1 and R3 are still submitted, three commands")
-	If calls.%Size() = 3 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key_"|"_calls.%Get(2).key, itemId_":1|"_itemId_":2|"_itemId_":3", "with the keys of their positions")
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1, r2, r3), "one refused: R1 and R3 are still submitted")
 	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": false, "message": "That reminder has already fired.", "ref": (r2)}, {"ok": true, "message": (done), "ref": (r3)}], "one refused")
 	Do $$$AssertEquals(answer.ok, 0, "and the top ok is false")
 
 	Set itemId = ..Fresh(owner)
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1)])
-	Set calls = ..Calls()
-	Do $$$AssertEquals(calls.%Size(), 1, "one ref in a list: one command")
-	If calls.%Size() = 1 Do ..AssertCall(calls.%Get(0), verb, owner, itemId_":1", names, "cancel")
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1), "one ref in a list")
 	Do ..AssertObject(answer, {"ok": true, "message": (done), "ref": (r1)}, "one ref in a list answers the flat answer")
 	Set itemId = ..Fresh(owner)
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder(r1)
-	Do $$$AssertEquals(..Calls().%Size(), 1, "one ref as a string: one command")
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1), "one ref as a string")
 	Do ..AssertObject(answer, {"ok": true, "message": (done), "ref": (r1)}, "and the flat answer")
 	Set itemId = ..Fresh(owner)
 	Set ^OcuTalonTest("CommandsDouble", "refuseRef", r1) = "That reminder has already fired."
@@ -450,18 +438,14 @@ Method TestCancelSeveral()
 
 	Set itemId = ..Fresh(owner)
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r1)])
-	Set calls = ..Calls()
-	Do $$$AssertEquals(calls.%Size(), 2, "a ref given twice: the tool submits it twice")
-	If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "each with its own key")
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1, r1), "a ref given twice: the tool submits it twice, each with its own key")
 	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": true, "message": (done), "ref": (r1)}], "a ref given twice")
 
 	Set itemId = ..Fresh(owner)
 	Set ^OcuTalonTest("CommandsDouble", "fail") = 1
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2)])
-	Set calls = ..Calls()
-	Do $$$AssertEquals(calls.%Size(), 2, "failed submit: the double recorded both commands")
-	If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "with the keys :1 and :2")
+	Do ..AssertCancels(owner, itemId, $ListBuild(r1, r2), "failed submit: the double recorded both commands")
 	Set notsent = $Parameter(..#CALL, "NOTSENT")
 	Do ..AssertResults(answer, [{"ok": false, "message": (notsent), "ref": (r1)}, {"ok": false, "message": (notsent), "ref": (r2)}], "a failed submit")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#CALL, "Run", $ListBuild(verb, "The CI double was set to fail")), 2, "with one warning of Run for each ref")
@@ -1080,6 +1064,19 @@ Method AssertCall(call As %DynamicObject, class As %String, owner As %String, ke
 	Do $$$AssertEquals(call.sessionRef, owner, verb_": its SessionRef is the OwnerRef of the turn")
 	Do $$$AssertEquals(call.key, key, verb_": its key is "_key)
 	Do $$$AssertEquals(..SortedKeys(call.fields), names, verb_": it sets "_names_" and no other field")
+}
+
+/// Asserts that the double recorded one CancelReminder for each ref of refs, in order: each with origin tool, the owner's session, the key
+/// <itemId>:<its position>, the fields of a cancel and no other, and that ref.
+Method AssertCancels(owner As %String, itemId As %String, refs As %List, label As %String) [ Private ]
+{
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), $ListLength(refs), label_": the double recorded "_$ListLength(refs)_" commands")
+	If calls.%Size() '= $ListLength(refs) Quit
+	For i = 1:1:$ListLength(refs) {
+		Do ..AssertCall(calls.%Get(i - 1), "OcuTalon.Msg.Command.CancelReminder", owner, itemId_":"_i, "IdempotencyKey,Origin,ReminderRef,SessionRef", label_", cancel "_i)
+		Do $$$AssertEquals(calls.%Get(i - 1).fields.ReminderRef, $List(refs, i), label_", cancel "_i_" names "_$List(refs, i)_", in the order given")
+	}
 }
 
 /// A fresh start of a case for the tests of several refs: the double's records and modes are cleared, the context ends, and a context of a new turn of the owner
