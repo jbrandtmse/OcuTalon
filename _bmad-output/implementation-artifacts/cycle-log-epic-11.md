@@ -97,3 +97,5 @@
 2026-10-31T17:16:24Z	Story 11.8	ci_resolved	story=11.8 sha=05913a5b runs=41217490277,41217490305 result=failure failed=.github/workflows/ci.yml(iris_shards-2:shard_lane-a@rest) via=none resolved_at=next_implement
 2026-10-31T17:16:25Z	Story 11.8	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:Test.Bridge.Conversation.TestPrecheckCountsHistory scope_baseline=1527b1df
 2026-10-31T17:16:25Z	Story 11.8	stage_spawned	stage=implement spawn_at=2026-10-31T17:16:25Z model=claude-sonnet agent_name=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c-implement-2 cycle_iteration=2
+2026-10-31T17:47:58Z	Story 11.8	dev_complete	spawn_at=2026-10-31T17:16:25Z model=claude-sonnet build_sha=837f77f3 baseline_revision=497c85e7 review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-132_occurrence) files=1(Test/Bridge/Conversation.cls) subagent_tokens=133362 cycle_iteration=2
+2026-10-31T17:47:58Z	Story 11.8	stage_spawned	stage=code-review spawn_at=2026-10-31T17:47:58Z model=claude-opus agent_name=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c-code-review-2 cycle_iteration=2 scope=497c85e7..HEAD
