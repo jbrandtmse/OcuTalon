@@ -120,3 +120,6 @@
 2026-10-31T21:38:57Z	Story 11.7	ledger_adjudicated	owned=3 resolved=3 reowned=0 terminal=0 entries=DW-221,DW-307,DW-433:resolved-by new_this_story=DW-509(wontfix-accepted),DW-510(by-design) model=claude-opus-5-5
 2026-10-31T21:50:25Z	Story 11.7	smoke_complete	method=cli(ci/iris.sh_live_demo-path,fresh,guide's_own_Send_on_mock) result=pass iterations=1 defects_caught=0 evidence=6_of_6_steps(2_partly_skipped_Telegram),floor_7/7,6_audit_PASS,5m23s model=claude-opus-5-5
 2026-10-31T21:50:25Z	Story 11.7	fresh_check	env=recipe(ci/warm.sh_up_fresh_e11s7fcw;node_--test_ci/mock/test) tests=2_IRIS_classes(GuidePrompts,ReminderChat)+mock_node_tests+demo-path_unit(smoke) result=pass order=forward,reverse(G,R,G)
+2026-10-31T21:51:08Z	Story 11.7	committed	sha=800a3ef9 submodules= ci=pending runs=41245449953,41245449940 amendments=epics.md:11.10_split,spine:AD-22(U-194) pushed=verified_on_origin
+2026-10-31T21:51:08Z	Story 11.7	story_cycle	plan_to_commit_min=350 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-31T21:51:09Z	Story 11.10	stage_spawned	stage=plan spawn_at=2026-10-31T21:51:09Z model=claude-opus agent_name=11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the-plan-1 cycle_iteration=1 ledger_inbox=none note=planned_while_11.7_CI_runs(Rule_23)
