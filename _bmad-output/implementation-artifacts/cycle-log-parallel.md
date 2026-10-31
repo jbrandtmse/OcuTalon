@@ -1169,3 +1169,7 @@
 2026-10-31T17:45:03Z	Epic 5	host_confirmed	head=14de8018(deployed_17:27Z) case1=7/7(notices_18-31s,all_resolved) run1=110/110 browser_walk=clean;5.12_confirmed_on_real_Haiku new_low=DW-500(Triage_reasons_on_a_user_command)->30.5
 2026-10-31T21:02:31Z	Epic 16	runner_complete	agent=af4a0f6f7daaef78f head=d6ee42a0 ci=success(41240841639,41240841640) story=16.11 routed=DW-501,DW-506->12.7;DW-505->30.1 ci_groups=install-fresh_31,shards-2_31,shards_29,install-upgrade_29,image_28,browser_26,production_22
 2026-10-31T21:02:31Z	Epic 16	epic_merge_started	branch=OCT-epic16 head=d6ee42a0
+2026-10-31T21:02:43Z	Epic 16	epic_merged_to_feature	merge=10b38707 head=d6ee42a0 conflicts=none tracker=valid lint=baseline verified_on_origin=yes
+2026-10-31T21:03:03Z	Epic 1-37	inbox_resolved	id=U-197 by=orchestrator note=16.11_applied(10b38707)
+2026-10-31T21:03:03Z	Epic 1-37	inbox_resolved	id=U-196 by=orchestrator note=16.11_applied(10b38707)
+2026-10-31T21:03:03Z	Epic 16	decision_sheet_recorded	decided=0 routed=DW-501,DW-506->12.7(bullets_by_Epic_12's_live_runner);DW-505->30.1(full;ledger-only;in_Epic_30's_prompt) closed=DW-378 inbox_snapshot=copied deps_hash=rerecorded
