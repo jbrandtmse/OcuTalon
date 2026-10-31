@@ -258,3 +258,16 @@
 2026-10-30T02:55:36Z	Epic 16	report_error	fault=runner field=model_tier_checkpoint.review_med,high_med_avg reported=36,4.50 actual=34,4.25 impact=none(result_hold_unchanged;the_threshold_reads_unresolved_high_med_avg=1.00)
 2026-10-30T03:02:56Z	Epic 16	integrated_forward	feature=7f94610 head=af82477 conflicts_resolved=_bmad-output/implementation-artifacts/unattended-inbox-snapshot.md(bookkeeping:took_the_feature_side,the_orchestrators_later_snapshot) merged_in=bookkeeping_only(cycle-log-parallel.md,epics.md_prose,epic-dependencies.yaml_hash) src_identical_to=0990fbe(CI_green_every_workflow) merged_tree_checks=bootstrap_check_ok,smoke_live_online-allowance_pass(9_specs,237s,tag_e16ifsmk),ci/checks.sh_all_passed,npm_web_test_1125,lint teardown=clean
 2026-10-30T03:02:56Z	Epic 16	epic_runner_complete	stories_completed=8 ready_for_merge=true retro=skipped(policy) applied=none decisions_for_user=DW-233,DW-236,DW-260,DW-389 overflow=DW-252,DW-413,DW-333(29-4),DW-396(11-1),DW-414(30-4)
+2026-10-31T17:22:50Z	Epic 16	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=reopen_for_story_16.11_launch_text slot=ocutalon-slot-b lane=B runner=B
+2026-10-31T17:22:50Z	Epic 16	epic_branch_reopened	reason=story_16.11_launch_text from=9ac6e499 by=orchestrator(SC-5) epic_status=done->in-progress
+2026-10-31T17:22:50Z	Epic 16	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-31T17:22:50Z	Epic 16	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=pass
+2026-10-31T17:22:50Z	Epic 16	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-31T17:22:50Z	Epic 16	ruling	question=when_to_integrate_forward choice=fast_forward_at_epic_start(epic_branch_had_no_own_commits) rejected=only_at_epic_end why=one_fewer_CI_cycle_before_the_19:00-19:30Z_target;the_story_CI_then_covers_Story_5.12_code;the_end-of-epic_integrate-forward_still_runs category=decide policy=6df0676
+2026-10-31T17:22:50Z	Epic 16	integrated_forward	feature=191ce305 head=191ce305 conflicts_resolved=none mode=fast_forward at=epic_start note=end-of-epic_integrate-forward_still_runs
+2026-10-31T17:22:50Z	Epic 16	epic_branch_checked_out	repos=. head=191ce305 ci_expected=ci.yml,lane-a.yml
+2026-10-31T17:22:50Z	Epic 16	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-31T17:22:50Z	Epic 16	ledger_load	total=453 open=0 routed=62 escalated=0 decision_pending=0 terminal=391 owner_unknown=0 burndown=0 reowned_none=0 owner_16_4=1(DW-378_routed_to_a_done_story;adjudicated_at_burndown)
+2026-10-31T17:24:12Z	Epic 16	sprint_planning_complete	gate=CONCERNS scope=epic_16(story_16.11) findings=2(EXPERIENCE.md:118-119_stale_unconditional_Telegram_lines;16.11_cited_UX-DR28_not_UX-DR24) inbox=U-196(veto) amendments=epics.md:5019(UX-DR28->UX-DR24,tier-1) model=claude-opus-5-5
+2026-10-31T17:24:12Z	Epic 16	ruling	question=readiness_CONCERNS_on_re-open choice=continue_with_veto_item rejected=stop_epic why=the_AC_records_the_gate_and_both_texts_verbatim;only_the_UX_spec_is_stale category=veto reversal=amend_EXPERIENCE.md_lines_118-119 inbox=U-196 policy=6df0676
+2026-10-31T17:24:12Z	Epic 16	retro_review_skipped	reason=no_x0_input(re-open_for_one_launch-text_story;assignment_skip_by_dispatch)

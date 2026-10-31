@@ -5016,7 +5016,7 @@ So that I don't look for a Telegram QR code that isn't there.
 
 **Given** a release in which Telegram is not included (`OcuTalon.Channel.Telegram.In.Included()` returns 0, the same switch the README's `no-telegram` rule and `/state` use)
 **When** the splash renders its "Before you start" list
-**Then** it shows no Telegram line, and the allowance line reads "Each session can send {limit} messages an hour in the chat." (FR-58, UX-DR28)
+**Then** it shows no Telegram line, and the allowance line reads "Each session can send {limit} messages an hour in the chat." (FR-58, UX-DR24) [AMENDED 2026-10-31, Story 16.11 readiness re-check, runner B, Rule 5 tier-1: it cited UX-DR28, the About dialog; the splash's content is UX-DR24]
 
 **Given** a release in which Telegram is included (`Included()` returns 1, from Story 12.7)
 **When** the splash renders
