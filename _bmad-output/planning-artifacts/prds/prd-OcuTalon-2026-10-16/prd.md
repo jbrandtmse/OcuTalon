@@ -16,8 +16,9 @@ This PRD defines what OcuTalon must do and how we will know it works. It is writ
 How to read it:
 
 - **Vocabulary.** §3 (Glossary) defines every domain term once. The rest of the document uses those terms exactly.
-- **Requirements.** §4 groups features. Each holds numbered functional requirements (FR-1 to FR-62) with testable acceptance criteria. §5 holds cross-cutting non-functional requirements (NFR-1 to NFR-26), §6 holds constraints (CON-1 to CON-5), and §7.3 holds release requirements (REL-1 to REL-11). §2.3 holds the user journeys (UJ-1, UJ-2), and §10 the success metrics (SM-1 to SM-10) and counter-metrics (SM-C1 to SM-C5). IDs are stable; later edits add numbers rather than renumber.
-- **Build steps.** Every FR heading names what delivers it: a build step, for example **[Step 1]**, or **[1.0.0 kit]** or **[Every release]** for work outside the steps; a **Delivery** line under the heading notes any part that arrives in another step. §7.1 gives each step's priority (Must, Should or Could), and the build order is the cut line. Step 1 ships as release 1 (0.1.0, the floor), targeting October 30, and 0.1.1 with Telegram right after it; §7.2 defines the floor and §7.4 gives the dates.
+- **Requirements.** §4 groups features. Each holds numbered functional requirements (FR-1 to FR-74 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195): FR-63 to FR-74 and NFR-27 and NFR-28 added for the personality track, §4.15; it read "FR-1 to FR-62" and "NFR-1 to NFR-26"]) with testable acceptance criteria. §5 holds cross-cutting non-functional requirements (NFR-1 to NFR-28), §6 holds constraints (CON-1 to CON-5), and §7.3 holds release requirements (REL-1 to REL-11). §2.3 holds the user journeys (UJ-1, UJ-2), and §10 the success metrics (SM-1 to SM-10) and counter-metrics (SM-C1 to SM-C5). IDs are stable; later edits add numbers rather than renumber.
+- **Build steps.** Every FR heading names what delivers it: a build step, for example **[Step 1]**, or **[1.0.0 kit]** or **[Every release]** for work outside the steps; a **Delivery** line under the heading notes any part that arrives in another step. §7.1 gives each step's priority (Must, Should or Could), and the build order is the cut line. Step 1 ships as release 1 (0.1.0, the floor), targeting October 30, and 0.1.1 with Telegram right after it; §7.2 defines the floor and §7.4 gives the dates. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)] **[Personality]** marks the personality track, three epics built after 1.0.0 beside steps 2 to 6 and outside their order (§7.1). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)]
+- **Release names (October 31).** 1.0.0 is the first release; 0.1.0 and 0.1.1 are not cut, and Telegram ships in 1.0.0 (§7.2's note). Wherever this PRD names release 1, 0.1.0 or 0.1.1 as a release, a candidate, a gate or a date, read 1.0.0; the 0.1.x wording is kept as history. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 - **Non-negotiables.** N1 to N15 are mapped to the requirements that cover them in §8.3, the only place that maps them.
 - **Inferences.** Anything the author has not confirmed is tagged `[ASSUMPTION]` inline and collected in §13.
 - **Implementation notes.** Platform facts, class names, mechanisms and the options considered live in `addendum.md` beside this file, not here.
@@ -142,7 +143,7 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **Action.** Anything OcuTalon does beyond replying: a tool call that changes something or sends something.
 - **Safe action.** An action OcuTalon may take without approval (FR-7).
 - **Risky action.** An action that waits for an approved approval request (FR-7).
-- **Approval request.** An IRIS Workflow task asking a person to approve or reject one risky action on a fixed set of targets, showing its dry run, or the exact call when the tool can't preview its effect.
+- **Approval request.** An IRIS Workflow task asking a person to approve or reject one risky action on a fixed set of targets, showing its dry run, or the exact call when the tool can't preview its effect, or a change a person must approve, such as a persona OcuTalon proposes (FR-70). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)]
 - **Approver.** A person allowed to answer an approval request (FR-8, FR-11).
 - **Dry run.** A preview of what a fix would change, produced without changing anything.
 - **Fix.** A remediation from a fixed set: repair and resend (step 1); reroute messages, suspend or resume a production item, or roll back a setting (step 5); a drafted transform change (step 7).
@@ -151,6 +152,8 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **Watched production.** A production a user has asked OcuTalon to watch. It may be in any namespace on the instance.
 - **Background check.** A check that runs on a schedule and reports only when it finds something new. Types: production watch (step 1); source poll (step 4); queue backlog and SQL query watch (step 5). A production watch also reacts to new failures as they happen (FR-23).
 - **Heartbeat.** The once-a-minute tick that runs due background checks.
+- **Agent heartbeat (beat).** A person's scheduled check-in on their checklist: one attention decision per beat, at most once per interval (FR-64). It isn't the **heartbeat**, which stays the once-a-minute tick and never calls the model (FR-32). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)]
+- **Heartbeat checklist.** The short plain-text list a person writes for their agent heartbeat to look at (FR-63). [ADDED 2026-10-31, as above]
 - **Reminder.** A message the user asked OcuTalon to send at a given time.
 - **Daily digest.** The once-a-day summary message (step 2).
 - **Vital signs.** The fixed set of instance health checks in every daily digest (FR-36).
@@ -178,10 +181,16 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **Admin.** A person with the OcuTalon admin role (FR-11).
 - **Budget.** A limit on model use: tokens per attention decision, cost per day and, on the online demo, turns per session.
 - **Evaluation set.** The recorded items and incidents used to measure OcuTalon (FR-62).
-- **Build step.** One of the seven ordered increments in §7.1. Their order is the cut line.
+- **Persona.** How OcuTalon words a person's chat replies and decision reasons: a preset, another language or, on a local install, the person's own words. It never changes what OcuTalon may do (FR-67 to FR-70). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)]
+- **Preset.** One of the fixed personas: Professional (the default), Starship computer, Pirate, Kind friend and Another language (FR-67). [ADDED 2026-10-31, as above]
+- **Told memory, learned memory.** A memory the person asked OcuTalon to keep is told; one OcuTalon saved on its own, in the person's own turn, is learned (FR-73). [ADDED 2026-10-31, as above]
+- **Core memory.** The few memories a person pins, read at the start of each conversation session, under a hard cap (FR-74). [ADDED 2026-10-31, as above]
+- **Daily note.** A person's factual record of one day, built by code with no model call (FR-71). [ADDED 2026-10-31, as above]
+- **Precedent.** A person's own answer (a "This was noise" mark, or approving or rejecting a request) that later attention decisions on similar items see as an example, never a rule (FR-72). [ADDED 2026-10-31, as above]
+- **Build step.** One of the seven ordered increments in §7.1. Their order is the cut line. Step 7 comes after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
 - **1.0.0 kit.** The items every release from 1.0.0 must include: the IPM package, the documented bridge with its example production, the online demo and the security overview. They are built on a parallel track and never cut (§7.1).
-- **Release.** A tagged, installable version of OcuTalon. **Release 1** is the first one, 0.1.0.
-- **Floor.** The part of step 1 that must ship whatever happens, as release 1 (0.1.0): the web demo path and everything it depends on (§7.2).
+- **Release.** A tagged, installable version of OcuTalon. **Release 1** is the first one, 0.1.0. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]
+- **Floor.** The part of step 1 that must ship whatever happens, as release 1 (0.1.0): the web demo path and everything it depends on (§7.2). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]
 - **The author.** The author and maintainer of OcuTalon, who decides scope and when to cut releases.
 
 ## 4. Features
@@ -285,7 +294,7 @@ A production developer can add the bridge to their own production and get attent
 A session's conversation continues after IRIS or its container restarts.
 
 **Acceptance criteria:**
-- After a restart, the session's history, background checks, pending reminders, pending approval requests and (from 0.1.1, once Telegram ships) paired chat are all intact.
+- After a restart, the session's history, background checks, pending reminders, pending approval requests and (from 0.1.1 (read 1.0.0, §0), once Telegram ships) paired chat are all intact.
 - The next turn after a restart uses the earlier conversation as context. A test asks something that can only be answered from before the restart.
 
 ### 4.2 Approvals, risk and audit
@@ -305,7 +314,8 @@ Every action is classified as safe or risky before it runs.
   - saving to memory or for the digest;
   - messages to the user;
   - starting or stopping a background check the user asked for;
-  - from step 5, paging the configured on-call list.
+  - from step 5, paging the configured on-call list;
+  - from the personality track, proposing a change to the person's own persona, which only raises an approval request for that person (FR-70) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)].
 - **Risky, so an approved approval request is needed:**
   - any change to a production, its items, its settings or its messages, including resend, reroute, suspend, resume and roll back;
   - anything sent to someone other than the user or the configured on-call list, such as partner warnings or email to others;
@@ -485,7 +495,7 @@ An admin can view and change OcuTalon's settings in the web app.
 
 **Description.** Telegram puts the demo on a real phone. A judge scans the QR code on the page, and the bot links the judge's Telegram private chat to their session. Notifications, reminders and approval requests then arrive in Telegram too, with Approve and Reject buttons.
 
-The bot can't message anyone first, so pairing always starts from the user. Pairing has three cases: a valid code; an unknown, expired or used code; and a bare `/start`. Only a valid code links a chat. Telegram is optional: without a bot token, OcuTalon runs with Telegram off and the web demo path is unchanged. Telegram ships in 0.1.1, built right after release 1's web demo path (§7.2). Realizes UJ-1, UJ-2.
+The bot can't message anyone first, so pairing always starts from the user. Pairing has three cases: a valid code; an unknown, expired or used code; and a bare `/start`. Only a valid code links a chat. Telegram is optional: without a bot token, OcuTalon runs with Telegram off and the web demo path is unchanged. Telegram ships in 0.1.1 (read 1.0.0, §0), built right after release 1's web demo path (§7.2). Realizes UJ-1, UJ-2.
 
 #### FR-18: Pairing by QR code [Step 1]
 
@@ -665,7 +675,9 @@ When an incident closes, OcuTalon writes up what happened.
 - The summary covers the timeline, cause, evidence, fix, approvals (who and when), messages affected, and the incident's model cost.
 - It is stored with the incident and can be sent to the user's channels. From step 6 it is listed in the history.
 
-#### FR-31: Drafted transform change [Step 7, Could]
+#### FR-31: Drafted transform change [Step 7, Could; after the contest]
+
+**Delivery:** after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics; it read "[Step 7, Could]"]
 
 OcuTalon drafts a transform change for a developer to review.
 
@@ -863,7 +875,9 @@ A user adds documents, and OcuTalon answers from them with citations. Realizes U
 - On a local install, documents are shared by every user of the install; on the online demo, each session's documents are its own.
 - At most 5 passages are retrieved per model request, so requests stay within the size limit (NFR-3).
 
-#### FR-43: Fading and consolidating old memories [Step 7, Could]
+#### FR-43: Fading and consolidating old memories [Step 7, Could; after the contest]
+
+**Delivery:** after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics; it read "[Step 7, Could]"]
 
 Old memories fade and duplicates merge.
 
@@ -895,7 +909,9 @@ Any system can send OcuTalon an event over HTTP.
 - The endpoint answers 202 within 1 second and decides afterwards.
 - The event and its attention decision appear in Visual Trace.
 
-#### FR-46: Slack [Step 7, Could]
+#### FR-46: Slack [Step 7, Could; after the contest]
+
+**Delivery:** after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics; it read "[Step 7, Could]"]
 
 Slack works as a channel through its webhook route only.
 
@@ -952,7 +968,9 @@ A read-only MCP tool can be polled as a source. Realizes UJ-2.
 - Each source is an entry on the daily digest's coverage list. When the poll fails, the source is not checked (FR-36).
 - A documented, worked example connects a Jira MCP server for its tools and as a source.
 
-#### FR-51: OcuTalon as an MCP server [Step 7, Could]
+#### FR-51: OcuTalon as an MCP server [Step 7, Could; after the contest]
+
+**Delivery:** after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics; it read "[Step 7, Could]"]
 
 Other MCP clients can use OcuTalon's tools.
 
@@ -1080,7 +1098,7 @@ Anyone with the link can try OcuTalon with no install and no API key. Realizes U
 
 #### FR-60: Upgrade in place [Every release]
 
-**Delivery:** Every release from 0.1.1.
+**Delivery:** Every release from 0.1.1. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]
 
 Each release installs over the previous one and keeps the user's data and settings.
 
@@ -1090,7 +1108,7 @@ Each release installs over the previous one and keeps the user's data and settin
   2. Create a conversation, a pending reminder, a pending approval request, a watched production and a settings change; a pairing once the previous release includes Telegram (so from the upgrade to 0.1.2); and, from step 3, a memory and a document.
   3. Upgrade to the new release.
 - After the upgrade, all of them are present and work: the reminder fires, and the approval request can still be answered.
-- The restart check (FR-6) includes a pairing from 0.1.1, the first release with Telegram.
+- The restart check (FR-6) includes a pairing from 0.1.1, the first release with Telegram (read 1.0.0, §0).
 
 #### FR-61: Security overview [1.0.0 kit]
 
@@ -1135,6 +1153,212 @@ A recorded set of items and incidents measures decisions, causes, cost and reque
   The results are kept with the release candidate and summarised in the release notes.
 - **The demo incident gate:** on each release candidate, the demo's incident runs 10 times on Claude Haiku 5.5, and every run must give the right cause and propose repair and resend.
 - **New cases:** cases come from real use as well, and a few are held back from prompt work (SM-C4). Targets are stated as shares of the set, so they hold as it grows.
+
+### 4.15 Personality: heartbeat, persona and memory
+
+[ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they can ship quickly."]
+
+**Description.** A person can give OcuTalon a short checklist to look at on a schedule. They can choose how it words its replies. It keeps a factual daily note, learns from the person's own answers, and keeps the facts that matter at hand. None of it changes what OcuTalon may do: the rules for classification and approvals, and for arriving content, stay outside the model. Realizes UJ-2.
+
+#### FR-63: Heartbeat checklist and schedule [Personality]
+
+*Source: Epic A, "Configuration" (checklist, interval with a 30-minute default, active hours, on/off, per user, with the settings); the owner's approval (U-195): "It should only be called every 30 minutes and when a decision needs to be made."*
+
+A person keeps a short checklist that OcuTalon looks at on a schedule.
+
+**Acceptance criteria:**
+- **Each person has their own heartbeat:**
+  - on or off;
+  - a checklist in plain text, at most 1,000 characters;
+  - an interval: 30 min (the default), 1 h, 2 h, 4 h, 8 h or 24 h. No interval under 30 minutes can be set, on any install;
+  - active hours, by default 08:00 to 20:00 in the instance's time zone, or all day.
+- **Who owns it:** on a local install, the IRIS user; on the online demo, the session. A demo session's heartbeat is cleared at sign-out and at the reset.
+- **Changing it:** on the Heartbeat checklist card. A change applies within a minute and is recorded in the audit log. A value containing `{{` or `@{` is refused.
+- **Defaults:**
+  - A new person's heartbeat is on with an empty checklist, so it makes no model call until they write one.
+  - On the online demo it is off until the visitor turns it on, and the card offers a sample checklist.
+
+#### FR-64: One beat, one attention decision [Personality]
+
+*Source: Epic A, "The beat itself" and "Safety"; "Evaluation"; the owner's approval (U-195): "I want to make sure that the model isn't being called every minute, It should only be called every 30 minutes and when a decision needs to be made."*
+
+**Acceptance criteria:**
+- **When a beat runs:** the minute heartbeat (FR-32) only finds the beats that are due, and never calls the model itself. A person's beat falls due once per interval, inside their active hours, and calls the model at most once. There is no other scheduler.
+- **What it holds:** a due beat becomes one item, made of the checklist and a status snapshot built by code:
+  - open incidents;
+  - watches, with their latest check result;
+  - approval requests waiting for the person;
+  - reminders due before the next beat;
+  - the decisions since the last beat.
+
+  The snapshot is at most 4,000 characters and never holds text the model wrote.
+- **It counts as arriving content (NFR-14),** because the snapshot can quote outside content.
+- **What each outcome does:** the item gets exactly one attention decision (FR-1).
+  - **Ignore** sends nothing.
+  - **Digest, Tell now and Act** work as for any arriving item. Act can lead only to read-only checks and offers, so anything risky still needs the person's own request and an approved approval request (FR-7, FR-8).
+- **No model call is made** when the heartbeat is off, or when a due beat finds any of these:
+  - the checklist is empty;
+  - the time is outside active hours;
+  - the day's cost cap is reached, or no model key is set;
+  - the 4-hour back-off after a fallback (below) hasn't ended;
+  - the status snapshot is unchanged since the last beat whose outcome was Ignore.
+
+  The card says why the beat was skipped.
+- **Restarts and failures:**
+  - A beat missed during a restart runs once.
+  - After a beat whose decision took the fallback route (FR-4), the fallback notifies the person as usual, and the person's next beat waits at least 4 hours.
+- **Tests:** a tick that isn't a due beat makes no model request, and neither does a due beat whose snapshot is unchanged since the last Ignore.
+- **Evaluation cases (FR-62):**
+  - "nothing changed, stay quiet": ignore, and nothing is sent;
+  - "an incident is still open, tell now";
+  - an injection inside the snapshot: no action is taken, no request is answered, and no all-clear is given.
+
+#### FR-65: A beat never gives an all-clear, and every beat can be seen [Personality]
+
+*Source: Epic A, "It never claims an all-clear (AD-28)", "Every beat is in Visual Trace with its cost".*
+
+**Acceptance criteria:**
+- **Not a background check:** a beat adds no coverage entry or check result, and never makes or allows an all-clear (FR-37). Its reasons pass the all-clear guard, and status answers in the chat still come from the check results.
+- **Visible:**
+  - Every beat's decision is in Visual Trace with its reasons, tokens and cost (FR-2, FR-3).
+  - The card shows the last beat's time, outcome, cost and trace link, and today's heartbeat cost.
+- **Cost:** each beat's attention decision costs under $0.001 on Claude Haiku 5.5 (NFR-4).
+
+#### FR-66: Run the heartbeat now [Personality]
+
+*Source: Epic A, "Visibility and the demo"; U-195: "Run-now on the demo stays: an explicit request, at most every 2 min, inside the daily cap."*
+
+**Acceptance criteria:**
+- **The control:** "Run the heartbeat now" runs one beat at once, as the person's explicit request. Active hours and an unchanged snapshot don't hold it back; FR-64's other skip rules do.
+- **Limit:** at most one run every 2 minutes per person. Until then, the button says when it can run again.
+- **On the online demo** it works per session and inside the daily cost cap. Once the cap is reached, the button is unavailable and says why.
+
+#### FR-67: Persona presets and the language field [Personality]
+
+*Source: Epic B, "Ownership", "Presets", and the ~14:40Z addition on the language field and the online demo.*
+
+**Acceptance criteria:**
+- **The choices:** a person picks one preset:
+  - Professional, the default, which keeps today's voice unchanged;
+  - Starship computer;
+  - Pirate;
+  - Kind friend;
+  - Another language.
+- **The language field:** Another language has a field for the language's name. It accepts at most 40 characters of letters, spaces, hyphens and parentheses. Anything else, `{{` and `@{` included, is refused with a plain message.
+- **Preset texts** are OcuTalon's own (CON-2), and name no real person, character or franchise.
+- **Who owns it:** on a local install, the IRIS user; on the online demo, the session. Each new visitor starts with Professional, and so does every session after a reset. The online demo offers the presets and the language field only.
+- **Saving:** a change applies from the person's next message and is recorded in the audit log.
+
+#### FR-68: A persona in your own words, outside the online demo [Personality]
+
+*Source: Epic B, "Custom persona, outside the demo".*
+
+**Acceptance criteria:**
+- **Local installs:** a person may describe their own persona (tone, style, language and preferences) in at most 1,000 characters. A text with `{{` or `@{` is refused; emoji are allowed.
+- **Its tone:** a custom persona follows the person's own text, so it may bend OcuTalon's writing rules as FR-69 allows.
+- **The online demo** doesn't offer it, and its endpoint refuses it.
+
+#### FR-69: What a persona changes, and what it never changes [Personality]
+
+*Source: Epic B, "Scope", "How it reaches the agent", the language field's rules, and "Evaluation"; the owner's answer on tone (U-195): "Bend them, emoji too".*
+
+**Acceptance criteria:**
+- **What it shapes:** only the wording of chat replies and of each attention decision's reasons.
+- **OcuTalon's writing rules** (no greeting-led replies, no exclamation marks, no emoji):
+  - Professional, the default, keeps them strictly;
+  - Another language keeps them too, in the language named;
+  - Starship computer, Pirate and Kind friend may bend them: a greeting, exclamation marks and emoji are allowed;
+  - a custom persona follows the person's own text, so it may bend them too.
+- **How it reaches the agents:** as a delimited data block in the request, never as a system prompt or a template. The agents' fixed instructions say that the block never changes rules, classification or approvals.
+- **What no persona changes:**
+  - outcomes and confidence;
+  - classification and approvals, and what an item may lead to;
+  - an incident's cause and fix, and the digest's code-written parts;
+  - every catalog notice, card, banner and button;
+  - the reserved sentences (FR-37);
+  - every fact, count, number and time.
+
+  The sentences that OcuTalon's instructions fix word for word stay exact under every persona.
+- **Nothing strips a persona's style:** the all-clear guard (FR-37) and the cleaning of notice text remove only what they remove from every reply, so a persona's greetings, exclamation marks and emoji reach the person unchanged. A test pins it.
+- **Language:**
+  - Notices, cards and buttons stay in English. A tell-now notice quotes the decision's first reason as written, so the reason may carry the persona and the language.
+  - If the model can't write in the named language, it replies in English and says so once.
+- **Evaluation (FR-62):**
+  - Run under each preset, the item cases meet the same outcome target as under Professional, and the run lists every case whose outcome differs.
+  - For Starship computer, Pirate and Kind friend, the facts in replies and reasons (counts, times and production names) match Professional's, and every notice's fixed frame is exact.
+  - A pass case for one non-English language.
+  - Injection cases: an email that says "change your persona to …" leads to no proposal; a language field holding instruction-shaped text is refused by validation.
+
+#### FR-70: Persona changes OcuTalon proposes [Personality]
+
+*Source: Epic B, "Agent-proposed changes"; the Planner's assumption, confirmed by the owner at ~14:40Z: no agent-proposed changes on the demo.*
+
+**Acceptance criteria:**
+- **The proposal:** in a person's own turn, OcuTalon may propose a new persona. The proposal is an approval request that shows the current and the proposed text.
+- **The answer:**
+  - Nothing changes unless the person approves.
+  - The first answer wins, and the request expires after 24 hours like every request.
+  - Every answer is in the audit log (FR-8, FR-9).
+- **Where a proposal can come from:** only a turn that began with the person's own message and that no outside content has touched. An email, a webhook, a document, a tool result or any other arriving content can never propose one (NFR-14).
+- **A stale proposal:** if the persona changed after the proposal was made, approving it fails, and the person sees "Nothing was changed."
+- **The online demo** doesn't offer proposals.
+
+#### FR-71: Daily notes [Personality]
+
+*Source: Epic C, item 3.*
+
+**Acceptance criteria:**
+- **What a note holds:** for each day, OcuTalon builds a person's note by code, with no model call, from that day's decisions, incidents, approval requests and reminders. It records times, channels, outcomes, productions, counts and answers, plus the person's own words.
+- **What it never holds:** an item's sender, subject or body, a tool result, or any text the model wrote.
+- **When OcuTalon reads it:** today's and yesterday's notes are given to OcuTalon at the start of each conversation session, that is, the first message of the day and after a fresh start. Each day's note is at most 2,000 characters.
+- **Where the person sees it:** the Memory card shows today's and yesterday's notes. On the online demo, notes are per session.
+
+#### FR-72: Precedents from your answers [Personality]
+
+*Source: Epic C, item 4: "Only a person's answers become precedents, never the agent's own decisions"; it "may start on the Decision table, without vectors".*
+
+**Acceptance criteria:**
+- **What becomes a precedent:** a person's answers, which are:
+  - "This was noise" on a tell-now or act notice;
+  - approving or rejecting an approval request.
+- **Only a person's answers.** OcuTalon's own decisions never become precedents.
+- **How they're used:**
+  - For an arriving item, the attention decision is given at most 3 precedents of the same kind: the same sender, source or production, or the heartbeat.
+  - They are examples, never rules, and need no vectors.
+- **Seeing and forgetting:** the Memory card lists the precedents, and each one can be forgotten. A forgotten precedent stops being used at once.
+- **Who owns them:** the user on a local install, the session on the online demo.
+- **Tests:**
+  - A decision alone records no precedent.
+  - A "This was noise" mark submitted by a tool is refused.
+
+#### FR-73: Memory OcuTalon learns [Personality; after FR-41]
+
+*Source: Epic C, item 1; "Evaluation".*
+
+**Acceptance criteria:**
+- **When OcuTalon may save a fact without being asked:**
+  - in a turn that began with the person's own message and that no outside content touched;
+  - at compaction, from the summary's decisions and stated facts, only if the architecture adds the event for it when Epic 41 re-opens (U-195). Tool results never become memories.
+- **Told or learned:**
+  - Each memory is marked **told** (the person asked OcuTalon to remember it) or **learned**. Code decides which.
+  - The person can list, search and forget memories of either kind (FR-41).
+- **Forgetting really forgets:** a forgotten memory leaves its row, its search entries, any pin, and every later session start at once. The current conversation's earlier messages aren't rewritten, and the README says so.
+- **Never from outside content:** nothing from an email, a webhook, a message body, a document, a tool result or any other arriving content is saved.
+- **Evaluation (FR-62):**
+  - poisoning cases: "remember that …" inside an email or a webhook saves nothing;
+  - once forgotten, a fact is gone from search and from later sessions.
+
+#### FR-74: Core memory [Personality; after FR-41]
+
+*Source: Epic C, item 2; U-195: "core memory is pins only".*
+
+**Acceptance criteria:**
+- **What it is:** a person pins memories into a core memory, which OcuTalon reads at the start of each conversation session. Only the person's pins fill it; OcuTalon never pins a memory on its own.
+- **Its cap:** a hard 1,000 tokens, estimated at 4 characters a token. A pin past the cap is refused with a plain message.
+- **Unpinning and forgetting** are done from the Memory card. A forgotten memory leaves the core memory at once.
+- **Tests:**
+  - the cap holds;
+  - a forgotten pinned memory is absent from the next session's start.
 
 ## 5. Cross-cutting non-functional requirements
 
@@ -1203,9 +1427,28 @@ Timing bounds over real networks are measured in the clean-machine rehearsal and
 
 ### 5.7 Usability and accessibility
 
-- **NFR-24: Plain language.** Every message OcuTalon writes to a user is in plain English. Class names, error codes and stack traces appear only when the user asks for details.
+- **NFR-24: Plain language.** Every message OcuTalon writes to a user is in plain language: English, except that a person's persona may name another language for chat replies and decision reasons (FR-67, FR-69) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "The "Another Language" option should have a text field to allow the user to decide which language to use."; it read "in plain English"]. Class names, error codes and stack traces appear only when the user asks for details.
 - **NFR-25: Accessible web app.** The web app can be used with the keyboard alone, every control has a label, and text contrast meets WCAG 2.1 AA. `[ASSUMPTION: AA contrast and keyboard use, not a full audit]`
-- **NFR-26: English.** The product and its documentation are in English for this contest.
+- **NFR-26: English.** The product and its documentation are in English for this contest. A person may choose another language for OcuTalon's chat replies and decision reasons only; notices, cards, buttons and documentation stay in English [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195), as for NFR-24].
+
+### 5.8 The personality track
+
+[ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "Approved, but on the heartbeat, I want to make sure that the model isn't being called every minute, It should only be called every 30 minutes and when a decision needs to be made."]
+
+- **NFR-27: Context blocks stay small.** Each request stays well under NFR-3's 40,000-token compaction estimate, because:
+  - a persona is at most 1,000 characters, and a language name at most 40;
+  - a heartbeat item is at most 1,000 characters of checklist plus 4,000 of snapshot;
+  - each day's note is at most 2,000 characters;
+  - core memory is at most 1,000 tokens (estimated);
+  - a request carries at most 3 precedents, in at most 600 characters.
+
+  *Test:* a request built at every cap still passes the size precheck, and every request in the evaluation set is recorded under 100,000 tokens. *Source: Epic C, "about 1,000 tokens with a hard cap"; the caps above that the owner didn't set are the plan's (inference).*
+- **NFR-28: The heartbeat's cost.**
+  - The one-minute tick never calls the model. A tick that isn't a due beat makes no model request, and neither does a skipped beat (FR-64).
+  - A beat makes at most one Triage decision, plus one read-only turn on act, and a person's beats call the model at most once per interval (30 minutes at the shortest).
+  - A default day costs under $0.03 on Claude Haiku 5.5. That day is at most 24 beats (30 minutes, 08:00 to 20:00), and fewer when the snapshot hasn't changed since a quiet beat; the figure is measured from the heartbeat cases' mean cost.
+
+  *Test:* the CI mock's request log shows no model request on ticks that aren't due beats, nor on a due beat whose snapshot is unchanged since the last Ignore. *Source: the analysis's "about 48 calls a day, a few cents", and the owner's approval above; the figure is an estimate (inference).*
 
 ## 6. Constraints and guardrails
 
@@ -1239,22 +1482,23 @@ The full product is defined now and built in this order. **The build order is th
 
 | Step | Priority | Contents | Requirements |
 | --- | --- | --- | --- |
-| **1 (release 1, then 0.1.1)** | Must | The two-minute demo plus Telegram, in this order: the bridge, attention decision, cost, fallback route, approvals, audit and roles; the web app and demo mode; IRIS watch with repair and resend; the heartbeat, production watch and reminders; the install script, namespace, README, evaluation set and CI; then Telegram last | FR-1 to FR-10, FR-11 (admin and user roles), FR-12, FR-13, FR-14 (local sign-in), FR-16, FR-18 to FR-25, FR-32 to FR-34, FR-37 (chat rule), FR-38, FR-55, FR-56, FR-58, FR-62 |
+| **1 (release 1, then 0.1.1; read 1.0.0, §0)** | Must | The two-minute demo plus Telegram, in this order: the bridge, attention decision, cost, fallback route, approvals, audit and roles; the web app and demo mode; IRIS watch with repair and resend; the heartbeat, production watch and reminders; the install script, namespace, README, evaluation set and CI; then Telegram last | FR-1 to FR-10, FR-11 (admin and user roles), FR-12, FR-13, FR-14 (local sign-in), FR-16, FR-18 to FR-25, FR-32 to FR-34, FR-37 (chat rule), FR-38, FR-55, FR-56, FR-58, FR-62 |
 | **1.0.0 kit** (parallel track, from release 1) | Must, never cut | The IPM package; the bridge guide and example production; the online demo with its splash screen, isolation, caps and read-only account; the security overview | FR-5 (guide and example), FR-14 (online demo), FR-15, FR-40 (demo caps), FR-57, FR-59, FR-61 |
 | **2** | Should | The daily digest, choosing the model in settings, and budgets | FR-17, FR-35 to FR-37, FR-39, FR-40 |
 | **3** | Should | Memory and documents, PDF and Word files included | FR-41, FR-42, FR-54 (reading PDF and Word files) [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "Memory and documents" and "FR-41, FR-42"] |
 | **4** | Should | Email, webhooks, and extension through MCP | FR-44, FR-45, FR-47 to FR-50 |
 | **5** | Should; queue backlog and SQL query watch Could | Deeper IRIS watch | FR-26 to FR-30, FR-33 (step 5 checks) |
 | **6** | Should | Usage and cost views, history, approver and viewer roles, files and photos | FR-11 (approver and viewer roles), FR-52, FR-53, FR-54 (files and photos sent from the web app or Telegram) [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "FR-52 to FR-54"] |
-| **7** (if time allows) | Could | Slack (webhook only), drafted transform changes, memory fading, OcuTalon as an MCP server | FR-31, FR-43, FR-46, FR-51 |
+| **Personality** (after 1.0.0, beside steps 2 to 6) | Should | The agent heartbeat, the persona, and memory that learns: daily notes, precedents, learned and core memory [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)] | FR-63 to FR-74 |
+| **7** (after the contest) | Could | Slack (webhook only), drafted transform changes, memory fading, OcuTalon as an MCP server [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics; it read "**7** (if time allows)"] | FR-31, FR-43, FR-46, FR-51 |
 
-- **Every release at or after 1.0.0 includes the 1.0.0 kit,** whatever step the build has reached. In-place upgrades (FR-60) apply to every release from 0.1.1 on.
+- **Every release at or after 1.0.0 includes the 1.0.0 kit,** whatever step the build has reached. In-place upgrades (FR-60) apply to every release from 0.1.1 on. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]
 - **Never traded away:** a Must, a non-negotiable, or the 1.0.0 kit.
 - **When non-negotiables bind:** see the note under the table in §8.3.
 
 ### 7.2 Release 1 and its floor
 
-Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real components, shipped as two releases: release 1 (0.1.0, the floor) and 0.1.1 (Telegram). Nothing is faked except the labelled simulated phone and mailbox. Release 1 targets **October 30** and ships **no later than November 1**.
+Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real components, shipped as two releases: release 1 (0.1.0, the floor) and 0.1.1 (Telegram) (read 1.0.0: see the October 31 note below). Nothing is faked except the labelled simulated phone and mailbox. Release 1 targets **October 30** and ships **no later than November 1**.
 
 **Superseded on October 31** [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]: 1.0.0 is the first release; 0.1.0 and 0.1.1 are not cut. Telegram ships in 1.0.0, and one full candidate check (the Contest Planner's real-key pass, the timed runs on one clean Linux droplet, and the owner's Telegram pass) runs on the 1.0.0 candidate. Step work merges only after the 1.0.0 candidate branch exists. The split below is kept as history.
 
@@ -1269,10 +1513,10 @@ Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real c
   - conversations that survive restarts;
   - the install script, the namespace and the README;
   - the evaluation set and CI with tests against a live IRIS instance.
-- **Order inside step 1:** the web demo path comes first (0.1.0), and Telegram (FR-18 to FR-22) comes last (0.1.1). That way the floor never waits on a bot token or the gateway's Telegram route.
+- **Order inside step 1:** the web demo path comes first (0.1.0), and Telegram (FR-18 to FR-22) comes last (0.1.1) (read 1.0.0, §0). That way the floor never waits on a bot token or the gateway's Telegram route.
 - **Telegram after the floor** (the author's decision on October 16, which refines the brief's floor, taken by plan on October 17):
   - release 1 ships the floor;
-  - Telegram goes out as the very next release (0.1.1), before any step 2 work merges in either build lane [AMENDED 2026-10-31, decided by the Contest Planner under the owner's delegation; the owner: "I agree with your recommendations.": step 2 work may start once 0.1.0 is tagged and the Telegram epic has merged, and merges only after 0.1.1; it read "before any step 2 work in either build lane"], and before the online demo goes public [AMENDED 2026-10-30, as above: the demo goes public first, without Telegram, which reaches the demo host with the 1.0.0 update].
+  - Telegram goes out as the very next release (0.1.1), before any step 2 work merges in either build lane [AMENDED 2026-10-31, decided by the Contest Planner under the owner's delegation; the owner: "I agree with your recommendations.": step 2 work may start once 0.1.0 is tagged and the Telegram epic has merged, and merges only after 0.1.1; it read "before any step 2 work in either build lane"] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": the marker before this one is superseded by the note "Superseded on October 31" above: 0.1.0 and 0.1.1 are not cut, and step work merges only once the 1.0.0 candidate branch (release/1.0.0-rc1) exists], and before the online demo goes public [AMENDED 2026-10-30, as above: the demo goes public first, without Telegram, which reaches the demo host with the 1.0.0 update].
 - **Telegram's dependencies:** the author's bot tokens (one per running instance), and a Telegram route on the online demo's gateway. Both must be ready before the stories that need them.
 - **Sizing:** size the stories at sprint planning, and keep release 1 green. Two pieces of work need stories of their own, because both are bigger than they look:
   - recording the 10 incidents for the evaluation set (FR-62);
@@ -1280,13 +1524,13 @@ Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real c
 
 ### 7.3 Release requirements
 
-From release 1 on, the author can cut a release on demand or daily. That cadence rests on these requirements:
+From release 1 on, the author can cut a release on demand or daily; after 1.0.0, a release goes out daily with whatever has merged [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."; it read "From release 1 on, the author can cut a release on demand or daily."]. That cadence rests on these requirements:
 
 - **REL-1: `main` is always releasable.**
   - `main` moves only through a release pull request with every check green.
   - Unfinished features are kept off the demo path.
   - A release branch is never changed after its cut.
-- **REL-2: The demo path never breaks.** An automated test of the demo path's web route (with the mocked model and, from 0.1.1, mocked Telegram) runs on every pull request and every push to `main`. A failure blocks the release.
+- **REL-2: The demo path never breaks.** An automated test of the demo path's web route (with the mocked model and, from 0.1.1, mocked Telegram [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]) runs on every pull request and every push to `main`. A failure blocks the release.
 - **REL-3: Scripted releases.**
   - One scripted sequence covers the version bump, the built web bundle (committed on the release branch, so a Docker install needs no Node.js), the clean-machine rehearsal, the online demo update and the draft release notes.
   - The author's hands-on time for a release is at most 15 minutes, not counting CI or the REL-7 hands-on pass. `[ASSUMPTION: 15 minutes]`
@@ -1300,12 +1544,13 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
   - **On each release candidate,** the evaluation set and the demo incident gate (FR-62) run on Claude Haiku 5.5 itself. The targets are SM-1, SM-2, NFR-3 and NFR-4.
   - **A candidate below target** is run twice more and passes if two of the three runs meet target. Otherwise the release is blocked, unless the author overrides it with the reason given in the release notes.
 - **REL-6: Every release is rehearsed.** Each release passes the demo path, an install on a clean machine, and an in-place upgrade from the previous release (FR-60).
-- **REL-7: Hands-on pass.** Each build step ends with a hands-on pass using real keys, and with fixes for what that pass finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram (P29). Later passes include Telegram. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Yeah, we're not going to do a hands on pass by me at release, I want you to do that instead."] The Contest Planner runs every hands-on pass on the author's behalf: it installs the candidate from the README with Docker and real keys, drives the web app in a browser and Telegram through Telegram Web (logged in once by the author), and records each finding with its fix or its own decision, under the author's delegation, to defer it. When convenient, the author may look at one notice and one approval on a phone; that look never blocks a release, and the record notes it when it was skipped.
+- **REL-7: Hands-on pass.** Each build step ends with a hands-on pass using real keys, and with fixes for what that pass finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram (P29). Later passes include Telegram. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": step 1's two passes became one full candidate check at 1.0.0 (Epic 38); read 1.0.0 (§0)] After 1.0.0, each feature's hands-on pass runs on the first daily release candidate that ships it, instead of once per step. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Yeah, we're not going to do a hands on pass by me at release, I want you to do that instead."] The Contest Planner runs every hands-on pass on the author's behalf: it installs the candidate from the README with Docker and real keys, drives the web app in a browser and Telegram through Telegram Web (logged in once by the author), and records each finding with its fix or its own decision, under the author's delegation, to defer it. When convenient, the author may look at one notice and one approval on a phone; that look never blocks a release, and the record notes it when it was skipped.
 - **REL-8: Release notes.** Each release has plain-language notes grouped by area, which the author publishes.
 - **REL-9: Version numbers.**
-  - Every release before the first public release on Open Exchange is numbered 0.1.x, with release 1 as 0.1.0.
+  - Every release before the first public release on Open Exchange is numbered 0.1.x, with release 1 as 0.1.0. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]
   - 1.0.0 is the first public Open Exchange release. The author picks its date, no later than the contest submission.
   - 1.0.0 and every later release include the 1.0.0 kit.
+  - After 1.0.0, a daily release that adds a feature is the next minor version (1.1.0, 1.2.0, …), and one with only fixes the next patch (1.0.1, …). Each release is still cut on the author's word (REL-11). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."; the version rule approved by the Contest Planner under the owner's delegation]
 - **REL-10: The online demo follows releases.** Once the demo host exists (November 1 at the latest), the online demo is updated with every release, with access restricted until the author launches it; a release cut before then is installed by the host's first deploy (P31).
 - **REL-11: Outward actions are the author's.** Release cuts, pushes, publishing on Open Exchange, launching the online demo, posts and bonus claims happen only on the author's word.
 
@@ -1314,14 +1559,15 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
 | Date | What |
 | --- | --- |
 | After sprint planning and the author's review of the planning documents | Build starts (the author sets the date; October 21 was the original plan) |
-| October 30 (no later than November 1) | Release 1 (0.1.0, the floor); by November 1 the online demo runs with access restricted, on the latest release |
-| Right after 0.1.0 | 0.1.1 with Telegram (§7.2); it reaches the demo host with the 1.0.0 update [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan."; it read "Right after 0.1.0, before the online demo goes public"] |
+| October 30 (no later than November 1) | Release 1 (0.1.0, the floor) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]; by November 1 the online demo runs with access restricted, on the latest release |
+| Right after 0.1.0 | 0.1.1 with Telegram (§7.2) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]; it reaches the demo host with the 1.0.0 update [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan."; it read "Right after 0.1.0, before the online demo goes public"] |
 | About November 1 (Sat October 31 evening at the earliest) | The online demo goes public on its own; the repository, the judges' README, the Open Exchange listing and the contest entry wait for 1.0.0 (about November 3) [AMENDED 2026-10-30, owner decision planner_demo_first, relayed by the Contest Planner; the owner: "Yes, that should be our plan."; it read "November 2-4 | The online demo goes public; the judges' README"] |
+| From the day after 1.0.0 | A release each day with whatever has merged: the personality epics and the step epics as they finish (§7.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."] |
 | November 5 | Last feature merge for the submission release; the hands-on pass and rehearsal follow |
 | Before November 7 | The voting-week polish list is written |
 | November 7 (planned) | Contest submission |
 | November 8, 23:59 EST | Entries close |
-| November 9-15 | Voting week: releases continue on demand or daily, and the last release is cut well before November 15, 23:59 EST |
+| November 9-15 | Voting week: releases continue daily [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "After 1.0.0 we'll move to daily releases of whatever features are complete."; it read "releases continue on demand or daily"], and the last release is cut well before November 15, 23:59 EST |
 
 ## 8. Contest fit
 
@@ -1401,7 +1647,7 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 - **SM-5: Cheap enough to leave on.** Every attention decision in the evaluation set costs less than $0.001 on Claude Haiku 5.5. Validates NFR-4.
 - **SM-6: Requests stay small.** Zero model requests over 100,000 input tokens in the evaluation set and the demo path. Validates NFR-3.
 - **SM-7: Releases are healthy.** Target: every release (100%) passes the demo path, a clean install and an in-place upgrade. Validates REL-2, REL-6.
-- **SM-8: On schedule.** Release 1 by October 30 (no later than November 1); the online demo public by November 4; the contest submission on November 7. Validates §7.
+- **SM-8: On schedule.** Release 1 by October 30 (no later than November 1) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": 0.1.0 and 0.1.1 are not cut; read 1.0.0 (§0)]; the online demo public by November 4; the contest submission on November 7. Validates §7.
 - **SM-9: Placement.** The minimum target is a top-three place in the Experts nomination; the goal is first place.
 - **SM-10: Used after the contest.**
   - The author runs OcuTalon every day for the 30 days after voting ends.
@@ -1427,9 +1673,9 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 | A way for CI to mock the shipped Anthropic provider path | Step 1 (REL-4, NFR-1, NFR-5) | Done: checked on October 17; CI sets up the mock in Epic 0 |
 | The platform's settings store | Step 2 (FR-39) | Done: checked on October 17 |
 | The platform's MCP client, and whether its policies cover remote tools | Step 4 (FR-47 to FR-50) | Done: checked on October 17. OcuTalon enforces FR-49 itself either way |
-| The platform's MCP server | Step 7 (FR-51) | Done: checked on October 17 |
+| The platform's MCP server | Step 7 (FR-51), after the contest [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] | Done: checked on October 17 |
 | The IRIS (non-Health) AI Hub build 154 image | 1.0.0 (NFR-21) | Done: checked on October 17, and treated as equivalent to IRIS for Health (NFR-21) |
-| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | 0.1.1 (Telegram); the online demo | Development bots exist. The demo bot's token moves to the demo server by November 1, when the demo host is ready |
+| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | 0.1.1 (Telegram; read 1.0.0, §0); the online demo | Development bots exist. The demo bot's token moves to the demo server by November 1, when the demo host is ready |
 | A Telegram route on the online demo's gateway | The online demo with Telegram | Due by November 1, when the demo host is ready |
 | The online demo host, with access restricted | The online demo (REL-10) | Ready by November 1; public by November 4 |
 | A dedicated CI runner that holds the image privately | REL-4 | Ready before the first story merges |
@@ -1438,7 +1684,7 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 
 | Risk | Mitigation |
 | --- | --- |
-| **Scope against time,** the main risk | Build steps in order, as the cut line; stories sized at sprint planning; release 1 kept green; the floor ships first and Telegram follows as 0.1.1 (§7.2); feature work for the submission release ends November 5 |
+| **Scope against time,** the main risk | Build steps in order, as the cut line; stories sized at sprint planning; release 1 kept green; the floor ships first and Telegram follows as 0.1.1 (§7.2; read 1.0.0, §0); feature work for the submission release ends November 5 |
 | **Diagnosis quality on a small, cheap model** | Build the evaluation set early in step 1 (FR-62). If Haiku falls short on causes, switch the diagnosis model to Claude Sonnet 5.5 through the bridge's settings, from step 1 (FR-5) |
 | **The demo incident goes wrong in front of a judge** | The 10-run gate for the demo incident on every release candidate (FR-62); the settle rule (FR-24); a fallback notice that never proposes a fix (FR-4) |
 | **Untested parts of an early-access platform** | Test each one before the stories that depend on it (§11.1); treat an unusable reply as a failure and take the fallback route (FR-4) |
