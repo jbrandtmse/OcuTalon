@@ -155,7 +155,19 @@ deferred: []
 - Matrix row 2: `Test.Web.Splash.TestEdgeValues`. Mutation: drop the `If limit '= ""` guard; it must go red.
 - AC 2: `Test.Web.PublicTexts.TestCopiesEqualTheCatalog`. Mutation: drop the final "." of `LIMITLINECHAT`; it must go red. The kept keys are pinned by `Test.Msg.Catalog.TestEveryKeyOnEveryChannel`. Mutation: change one word of `splash.limitLine`; it must go red.
 
-**Mutation lines** (restored by the lead on 2026-10-31: the implement stage's final spec write consumed `## Design Notes`, `## Verification` and the `## Auto Run Result` heading; the two sections above are the plan's text, and these lines record the mutations the implement stage ran, per its Review Triage Log and its report. QA demonstrates one mutation per AC again and corrects these lines):
+**Mutation lines** (the implement stage's lines, restored by the lead on 2026-10-31 after a spec write lost them; QA re-ran every line marked "QA run" on 2026-10-31 on a warm lane-B stack, tag `e16s11qw`, observed red, restored from a backup and confirmed `git status --short` empty each time):
+- mutation: write a `<li>Have Telegram? ...</li>` item after the own line in `Splash.cls` -> `Test.Web.Splash.TestPage` red (four lines, no Telegram, no QR, order) and `TestEdgeValues` red (AC 1; QA run).
+- mutation: move the shell line above the allowance line in `Splash.cls` -> `Test.Web.Splash.TestPage` red on "in that order" only (AC 1, list order; QA run).
+- mutation: the same Telegram item -> `ci/iris.sh live online-demo` red on `web/e2e-online/splash.spec.ts` S2 only (AC 1, browser; implement stage's run, not re-run by QA: the spec file is unchanged).
+- mutation: drop the final "." of `LIMITLINECHAT` in `Splash.cls` -> `Test.Web.PublicTexts.TestCopiesEqualTheCatalog` red (AC 2; QA run).
+- mutation: change the new key's text in `Msg/Catalog/Core.cls` ("chat." to "chats.") -> `Test.Web.PublicTexts.TestCopiesEqualTheCatalog` and `Test.Msg.Catalog` (`TestEveryKeyOnEveryChannel`, `TestLocalInstallEveryKey`) red (AC 2, the text comes from the catalog; QA run).
+- mutation: change one word of `splash.limitLine` ("Telegram" to "Signal") and, separately, of `splash.telegramLine` ("your own phone" to "your phone") -> `Test.Msg.Catalog.TestEveryKeyOnEveryChannel` and `TestLocalInstallEveryKey` red for each (AC 2, the kept keys unchanged; QA run).
+- mutation: drop the `If limit '= ""` guard in `Splash.cls` -> `Test.Web.Splash.TestEdgeValues` red ("no allowance: no limit line" and "the Before you start list holds three lines"), `TestPage` stays green (matrix row 2; QA run).
+- AC 3 is a run condition (fresh stack, either order, flag-off tests unchanged), not a behaviour a source mutation can break; it is checked by the lead's `shard lane-b` forward and `--reverse` runs. After all mutations were restored, QA ran `Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Msg.Catalog` and `Test.Web.SignIn` warm, each passed.
+
+**QA file list:** (QA) no test file created or changed: every AC and matrix row already had a pinning assertion in the existing classes (`Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Msg.Catalog`, `web/e2e-online/splash.spec.ts`). Only this section was edited.
+
+## Auto Run Result` heading; the two sections above are the plan's text, and these lines record the mutations the implement stage ran, per its Review Triage Log and its report. QA demonstrates one mutation per AC again and corrects these lines):
 - mutation: write a `<li>Have Telegram? ...</li>` item before the allowance item in `Splash.cls` -> `Test.Web.Splash.TestPage` red (AC 1).
 - mutation: swap the shell line above the allowance line -> `Test.Web.Splash.TestPage` red, once its "in that order" assertion was parenthesised (AC 1, list order).
 - mutation: the same Telegram item -> `ci/iris.sh live online-demo` red on `web/e2e-online/splash.spec.ts` S2 only (AC 1, browser).
