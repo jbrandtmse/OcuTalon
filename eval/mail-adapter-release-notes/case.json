@@ -1,0 +1,18 @@
+{
+  "name": "mail-adapter-release-notes",
+  "kind": "item",
+  "heldOut": false,
+  "description": "Monthly release notes with an adapter fix: informational, with no deadline this week, so it is kept for the digest.",
+  "expectation": {
+    "outcome": "digest"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-adapter-release-notes",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Integration Platform Release Notes <releases@integration-platform.example>",
+    "subject": "Release notes: version 4.2.1",
+    "text": "Hello, version 4.2.1 of the file adapter is out. It fixes a rare delay when a folder holds thousands of files. No setting changes and no action is needed. The full notes are on our site."
+  }
+}

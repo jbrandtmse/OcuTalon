@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { README_ACCOUNT, envelope, noRoleAccount, signIn, signInOverHttp, stackOrigin, submitSignIn } from '../sign-in/helpers';
+import { loadedAfter } from '../support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript } from '../support/iris';
 import { signOutTrace } from '../support/trace';
 
@@ -76,7 +77,7 @@ test('S1: Sign out ends the session through the API, and signing in again restor
     expect(turn && check && reminder, `the fixture rows are seeded (${seeded.join(' ')})`).toBeTruthy();
 
     const firstState = page.waitForResponse((response) => isPath(response.url(), STATE));
-    await signIn(page, user, password);
+    await loadedAfter(page, () => signIn(page, user, password));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     const before = kept((await (await firstState).json()) as Kept);
     expect(JSON.stringify(before.chat), "the seeded turn is in the chat").toContain(turn!);
@@ -102,7 +103,7 @@ test('S1: Sign out ends the session through the API, and signing in again restor
     expect(await trace.text(), 'and the trace application asks for a password').toContain('name="IRISPassword"');
 
     const secondState = page.waitForResponse((response) => isPath(response.url(), STATE));
-    await signIn(page, user, password);
+    await loadedAfter(page, () => signIn(page, user, password));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     const after = kept((await (await secondState).json()) as Kept);
     expect(after, 'the epoch, the chat and the rail are the same after signing in again').toEqual(before);
@@ -141,7 +142,7 @@ test('S3: a 401 shows the sign-in page with the signed-out notice, and a wrong p
     if (new URL(response.url()).pathname.startsWith(API)) log.push(`response ${response.status()} ${new URL(response.url()).pathname}`);
   });
 
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 
   const ended = await page.context().request.post(END, { headers: envelope(), data: '{}' });
@@ -180,7 +181,7 @@ test('S3: after the first 401 the page makes no further API call, whatever the u
     await route.abort('aborted');
   });
 
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   const ended = await page.context().request.post(END, { headers: envelope(), data: '{}' });
   expect(ended.status(), 'the session is ended from outside the page').toBe(204);
@@ -228,7 +229,7 @@ test('S5: a group sign-in from a trace application opens the page and the API', 
   await page.locator('input[name=IRISPassword]').fill(password);
   await page.locator('input[name=IRISPassword]').press('Enter');
   await expect(page, 'the trace application opens').toHaveTitle(/Message Viewer/);
-  await page.goto('/ocutalon/');
+  await loadedAfter(page, () => page.goto('/ocutalon/'));
   await expect(page.getByLabel('User name'), 'no sign-in form').toHaveCount(0);
   await expect(page).toHaveTitle('OcuTalon');
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
@@ -254,7 +255,7 @@ test('S6: a user without the user role holds no session row', async ({ playwrigh
 /** S7: when the sign-out call fails with anything but a 401, the page leaves through IRIS's own sign-out, so Sign out always works. */
 test("S7: a failed sign-out call falls back to IRIS's own sign-out", async ({ page }) => {
   const { user, password } = fixtureUser('SESSION');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await page.route(`**${END}`, (route) =>
     route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } } }),

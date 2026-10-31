@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { signIn } from '../sign-in/helpers';
 import { pointKeys, restoreKeys } from '../support/devices';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
-import { composerOf, railOf, replyOf } from '../support/floor';
+import { composerOf, railOf, replyOf, loadedAfter } from '../support/floor';
 
 /**
  * Story 8.6, reminders set and cancelled through the chat, in a real browser against a real stack with the CI mock. The rail user types
@@ -105,7 +105,7 @@ async function send(page: Page, text: string): Promise<string> {
 /** Signs the rail user in and waits for the loaded page. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser('RAIL');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 }
 

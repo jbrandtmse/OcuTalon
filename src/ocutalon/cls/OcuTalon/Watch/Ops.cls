@@ -13,6 +13,10 @@
 ///     failed send logs one Type 3 warning (LOGCHANGED), and the answer stays as it was.
 ///   - A command for an unknown session answers no_session, and a StartWatch for a production that the reader does not list answers
 ///     unknown_production (only_orders on the online demo), with Ok 0 and no row.
+///   - The watch of an evaluation run (EvalWatch, RemoveEvalWatch and Fields, class methods that Eval.In calls for a case that declares a watch): a
+///     row of owner eval, which has no Session row, for an entry of OcuTalon.Watch.Reader. It is never due (NextDueAt is EVALNEXTDUE), is never
+///     polled (FailurePoller skips the owner eval) and sends no CheckChanged and no message. OnStop refuses it for want of a Session row, so
+///     only RemoveEvalWatch removes it, and only a row of owner eval, when the run ends.
 /// The messages are plain sentences for the model and the caller, never rendered from the catalog (AD-32).
 Class OcuTalon.Watch.Ops Extends Ens.BusinessOperation
 {
@@ -36,6 +40,15 @@ Parameter MESSAGEONLYORDERS = "On the online demo only the Orders production can
 
 /// The answer when the session's watches are busy (another command holds them) or the row cannot be saved or removed.
 Parameter MESSAGEFAILED = "The watch could not be changed just now, so nothing was done.";
+
+/// The answer when RemoveEvalWatch is given the Ref of a row that is not an evaluation run's.
+Parameter MESSAGENOTEVAL = "WatchOps removes only the watch of an evaluation run, so nothing was removed.";
+
+/// The NextDueAt of an evaluation run's watch: it sorts after the limit of every tick (Checks compares the two as strings), so the row is never due.
+Parameter EVALNEXTDUE = "9999-12-31T23:59:59Z";
+
+/// The stored properties of OcuTalon.Data.BackgroundCheck, comma-separated: the fields that Fields reports, in this order.
+Parameter FIELDS = "Ref,SessionRef,Kind,Namespace,Production,DisplayName,AskedBy,CreatedAt,NextDueAt,LastRunAt,Result,Finding,LastRunHeaderId";
 
 /// The configuration item that publishes the change of a check (AD-33).
 Parameter CHECKS = "Checks";
@@ -132,6 +145,73 @@ Method OnStop(request As OcuTalon.Msg.Command.StopWatch, Output response As OcuT
 	}
 	Lock -^OcuTalon.Watch(request.SessionRef)
 	Quit sc
+}
+
+/// Writes the watch of an evaluation run for the production, and returns its stored fields in fields (Fields). The production must be an entry
+/// of OcuTalon.Watch.Reader; otherwise the status is error 5001 with MESSAGEUNKNOWN and no row is written. Every call writes its own row. The
+/// row's owner is eval, its AskedBy the current user, its CreatedAt now and its NextDueAt EVALNEXTDUE, and its run fields are empty. Nothing is
+/// sent, to Checks or anywhere else.
+ClassMethod EvalWatch(namespace As %String, production As %String, Output fields As %DynamicObject) As %Status
+{
+	Set fields = ""
+	Set sc = $$$OK
+	Try {
+		If '##class(OcuTalon.Watch.Reader).Admits(namespace, production, .displayName) {
+			Set sc = $SYSTEM.Status.Error(5001, ..#MESSAGEUNKNOWN)
+		} Else {
+			Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
+			Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set row.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL
+			Set row.Kind = ..#KIND
+			Set row.Namespace = namespace
+			Set row.Production = production
+			Set row.DisplayName = displayName
+			Set row.AskedBy = $Username
+			Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+			Set row.NextDueAt = ..#EVALNEXTDUE
+			Set sc = row.%Save()
+			If $$$ISOK(sc) Set fields = ..Fields(row)
+		}
+	} Catch exception {
+		Set fields = ""
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Removes the watch row of that Ref when it is an evaluation run's (owner eval); removed is 1 when a row was deleted. No row of that Ref is OK
+/// with removed 0. A row of another owner stays, and the status is error 5001 with MESSAGENOTEVAL. Nothing is sent.
+ClassMethod RemoveEvalWatch(ref As %String, Output removed As %Boolean) As %Status
+{
+	Set removed = 0
+	Set sc = $$$OK
+	Try {
+		Set row = $Select($Get(ref) = "": "", 1: ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref))
+		If $IsObject(row) {
+			If row.SessionRef '= ##class(OcuTalon.Data.Ownership).#EVAL {
+				Set sc = $SYSTEM.Status.Error(5001, ..#MESSAGENOTEVAL)
+			} Else {
+				Set sc = ##class(OcuTalon.Data.BackgroundCheck).%DeleteId(row.%Id())
+				Set removed = $$$ISOK(sc)
+			}
+		}
+	} Catch exception {
+		Set removed = 0
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The stored values of the watch row as a dynamic object: one member for each name of FIELDS, in that order.
+ClassMethod Fields(row As OcuTalon.Data.BackgroundCheck) As %DynamicObject
+{
+	Set fields = {}
+	Set list = $ListFromString(..#FIELDS)
+	Set position = 0
+	While $ListNext(list, position, name) {
+		Do fields.%Set(name, $Property(row, name))
+	}
+	Quit fields
 }
 
 /// Tells the Checks item that a watch was started (stopped 0) or stopped (stopped 1), through SendChanged. A failed send, or an exception, logs one

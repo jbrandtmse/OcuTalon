@@ -1,0 +1,18 @@
+{
+  "name": "tellnow-ignored",
+  "kind": "item",
+  "heldOut": false,
+  "description": "Test-only: an urgent partner notice that the CI mock's scenario eval-tellnow-ignored answers with Ignore, so the evaluation job proves that a wrong answer is scored wrong. It is not part of the set and never runs on a real model.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation job's wrong-answer check (Story 9.2)",
+  "item": {
+    "itemId": "mock-wrong-tellnow-ignored",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Partner Support <support@partner.example>",
+    "subject": "Our side rejects every message you send",
+    "text": "[[mock:eval-tellnow-ignored]] Since this morning our interface rejects every message your production sends. Please check your outbound interface."
+  }
+}

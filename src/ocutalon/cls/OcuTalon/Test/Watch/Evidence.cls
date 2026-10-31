@@ -27,7 +27,7 @@
 ///   - TestToolsReadTheIncident (rows Tools in scope and out of scope): in the context of the incident and its owner the three tools give at most five failed
 ///     messages with their ids, sentence and body, the sessions' log rows and the item's settings; with no context, another ItemId or another owner each gives
 ///     {"items":[]}.
-Class OcuTalon.Test.Watch.Evidence Extends OcuTalon.Test.Watch.Case
+Class OcuTalon.Test.Watch.Evidence Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
 Parameter PACK = "OcuTalon.Watch.EvidencePack";
@@ -36,8 +36,8 @@ Parameter SNAPSHOT = "/opt/ocutalon/eval/orders-date-format/snapshot.json";
 
 Parameter TOOLS = "OcuTalon.Tools.WatchReads";
 
-/// The settings that TestReaderDropsCredentialSettings adds to the failing item's definition: four credential names and one that is not.
-Parameter FIXTURESETTINGS = "Credentials,SMTPPassword,BotToken,ApiKey,ZzFixtureNote";
+/// The plain fixture setting that TestReaderDropsCredentialSettings adds, beside the four credential settings of OrdersDefinition, to the failing item's definition.
+Parameter NOTE = {##class(OcuTalon.Test.Watch.OrdersDefinition).#NOTE};
 
 /// The value of every fixture setting.
 Parameter FIXTUREVALUE = "fixture-value-9d31";
@@ -50,64 +50,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set sc = ##super(testname)
 	If ..SettingsAdded {
 		Set ..SettingsAdded = 0
-		Set sc = $SYSTEM.Status.AppendStatus(sc, ..FixtureSettings(0))
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0))
 	}
 	Quit sc
-}
-
-/// Puts the fixture settings into (on) or takes them out of (off) the failing item of the Orders definition in OCUORDERS, and saves the definition. It
-/// first takes out any of them that are there, so that it can be called twice. It calls only Ens classes while it is in OCUORDERS and does not update the running production.
-ClassMethod FixtureSettings(on As %Boolean) As %Status [ Private ]
-{
-	New $NAMESPACE
-	Set $NAMESPACE = ..#ORDERS
-	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
-	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no definition of "_..#ORDERSPRODUCTION)
-	Set found = 0
-	For i = 1:1:production.Items.Count() {
-		Set item = production.Items.GetAt(i)
-		If item.Name '= "OrdersFromPartner" Continue
-		Set found = 1
-		For j = item.Settings.Count():-1:1 {
-			If $ListFind($ListFromString(..#FIXTURESETTINGS), item.Settings.GetAt(j).Name) Do item.Settings.RemoveAt(j)
-		}
-		If on {
-			For j = 1:1:$Length(..#FIXTURESETTINGS, ",") {
-				Set setting = ##class(Ens.Config.Setting).%New()
-				Set setting.Target = "Host"
-				Set setting.Name = $Piece(..#FIXTURESETTINGS, ",", j)
-				Set setting.Value = ..#FIXTUREVALUE
-				Do item.Settings.Insert(setting)
-			}
-		}
-		Quit
-	}
-	If 'found Quit $SYSTEM.Status.Error(5001, "The definition has no item OrdersFromPartner")
-	Quit production.%Save()
-}
-
-/// The names of the settings of the failing item in the Orders definition of OCUORDERS, comma-separated and sorted, read from the definition itself.
-ClassMethod DefinedSettings() As %String [ Private ]
-{
-	New $NAMESPACE
-	Set $NAMESPACE = ..#ORDERS
-	Set production = ##class(Ens.Config.Production).%OpenId(..#ORDERSPRODUCTION)
-	If '$IsObject(production) Quit "<no definition>"
-	Kill names
-	For i = 1:1:production.Items.Count() {
-		Set item = production.Items.GetAt(i)
-		If item.Name '= "OrdersFromPartner" Continue
-		For j = 1:1:item.Settings.Count() Set names(item.Settings.GetAt(j).Name) = ""
-		Quit
-	}
-	Set list = ""
-	Set name = ""
-	For {
-		Set name = $Order(names(name))
-		Quit:name=""
-		Set list = list _ $Select(list = "": "", 1: ",") _ name
-	}
-	Quit list
 }
 
 /// The snapshot in a dynamic object, or "" with the failure reported.
@@ -347,19 +292,19 @@ Method TestEventLogCapped()
 Method TestReaderDropsCredentialSettings()
 {
 	If '..Ready() Quit
-	Set before = ..DefinedSettings()
+	Set before = ##class(OcuTalon.Test.Watch.OrdersDefinition).Defined()
 	Do $$$AssertTrue(before '[ "Credentials", "the definition holds no fixture setting before the test: "_before)
 	Set ..SettingsAdded = 1
-	Do $$$AssertStatusOK(..FixtureSettings(1), "the fixture settings are added to the definition of OrdersFromPartner")
-	Set held = ..DefinedSettings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.OrdersDefinition).Put(1, ..#FIXTUREVALUE, ..#FIXTUREVALUE), "the fixture settings are added to the definition of OrdersFromPartner")
+	Set held = ##class(OcuTalon.Test.Watch.OrdersDefinition).Defined()
 	Do $$$AssertTrue((held [ "Credentials") && (held [ "SMTPPassword") && (held [ "BotToken") && (held [ "ApiKey") && (held [ "ZzFixtureNote"), "the definition holds all five, so that the reader has something to leave out: "_held)
 	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "OrdersFromPartner", "", .snapshot)
 	Do $$$AssertEquals(outcome, "read", "Evidence reads the Orders production")
 	Do $$$AssertEquals(snapshot.items.%Size(), 1, "its items hold the named item")
 	If snapshot.items.%Size() = 1 {
 		Set settings = snapshot.items.%Get(0).settings
-		Do $$$AssertEquals(..SortedKeys(settings), "TargetConfigName,ZzFixtureNote", "only the settings that are no credentials leave Reader.Evidence")
-		Do $$$AssertEquals(settings.ZzFixtureNote, ..#FIXTUREVALUE, "and keep their values")
+		Do $$$AssertEquals(..SortedKeys(settings), "TargetConfigName,"_..#NOTE, "only the settings that are no credentials leave Reader.Evidence")
+		Do $$$AssertEquals(settings.%Get(..#NOTE), ..#FIXTUREVALUE, "and keep their values")
 	}
 	Set text = snapshot.%ToJSON()
 	Set leaked = 0
@@ -368,8 +313,8 @@ Method TestReaderDropsCredentialSettings()
 	}
 	Do $$$AssertEquals(leaked, 0, "no credential name is anywhere in the snapshot")
 	Set ..SettingsAdded = 0
-	Do $$$AssertStatusOK(..FixtureSettings(0), "the fixture settings are taken out again")
-	Do $$$AssertEquals(..DefinedSettings(), before, "the definition holds the settings it held before")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0), "the fixture settings are taken out again")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.OrdersDefinition).Defined(), before, "the definition holds the settings it held before")
 }
 
 Method TestTraceCapped()

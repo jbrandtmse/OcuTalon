@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm probe install-script readme"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm probe install-script readme eval-set online-host online-load"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -14,7 +14,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
@@ -27,19 +27,27 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 # A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
 # one piece, so every test class runs once. lane-a runs in two pieces (DW-337): Checks, Install and Watch beside live:floor in
-# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. live:cards runs in
-# install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
-# Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
-# run times (DW-220; the expected times are in the spec of Story 16.9). shard:lane-b cannot go to production, whose units read no web
-# bundle, because its Web classes check the built bundle.
+# shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later. The CI rebalance of 2026-10-30
+# (an owner decision, taken by the Contest Planner under the owner's delegation, carried by Story 9.6) moved live:cards out of
+# install-fresh and live:audit out of install-upgrade, the two longest groups. Each unit runs in its own project and needs no state
+# of its group's install, so a unit can sit in any group whose job builds what it reads. At Epic 29's integrate-forward of Epic 9
+# (2026-10-31; the Contest Planner's rule: rebalance the combined layout to about 32-33 min a group, production only for units in
+# NO_WEB_BUNDLE_UNITS, an eighth group only if seven cannot fit) the groups were packed again from the unit seconds measured on CI
+# runs 41175908969 (OCT-epic29) and 41177721874 (OCT-epic9), the larger of the two for each unit: install-fresh about 1,850 s
+# (install-start 676, bundle-folder 245, online-demo 593, online-demo-path 334 with Story 29.8's load phase), install-upgrade about
+# 1,820 s (install-upgrade 653, cards 392, online-allowance 391, online-visitors 383), production about 1,300 s (its three units,
+# 1,037, and live:audit, 267, which reads no web bundle), browser about 1,580 s, shards about 1,710 s (lane-a's Checks, Install
+# and Watch 654, floor 621, online-session 439), shards-2 about 1,810 s (lane-a's other areas, Eval included, 1,334, and
+# demo-switch 473) and image about 1,660 s. shard:lane-b cannot go to production, whose units read no web bundle, because its Web
+# classes check the built bundle.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-session live:online-allowance live:cards" ;;
-    install-upgrade) echo "live:install-upgrade live:audit live:online-demo live:demo-switch" ;;
-    production) echo "live:production live:production-restart live:reminder-restart" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:online-demo-path" ;;
+    install-upgrade) echo "live:install-upgrade live:cards live:online-allowance live:online-visitors" ;;
+    production) echo "live:production live:production-restart live:reminder-restart live:audit" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch live:floor" ;;
-    shards-2) echo "shard:lane-a@rest" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch live:floor live:online-session" ;;
+    shards-2) echo "shard:lane-a@rest live:demo-switch" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
     *) return 1 ;;
   esac
@@ -92,7 +100,7 @@ shard_unit_areas() {
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance"
+BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"
@@ -113,10 +121,11 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
 # its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
-# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, the eval folder, the CI recipe,
+# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, release/demo-load.sh (which the load phase
+# of live:online-demo-path runs), the eval folder, the CI recipe,
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
-IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
 WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'

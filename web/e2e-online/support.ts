@@ -1,17 +1,19 @@
 import { createHash } from 'node:crypto';
 
-import { expect, type APIRequestContext, type BrowserContext, type Cookie, type Locator, type Page, type PlaywrightWorkerArgs, type Response } from '@playwright/test';
+import { expect, type APIRequestContext, type Browser, type BrowserContext, type Cookie, type Locator, type Page, type PlaywrightWorkerArgs, type Response } from '@playwright/test';
 
 import { STATE } from '../e2e/support/api';
 import { pageNow, runUntil } from '../e2e/support/clock';
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
-import { TRACE_PAGE } from '../e2e/support/trace';
+import { loadedAfter } from '../e2e/support/floor';
+import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
 /**
- * What the specs of the online-demo project share (Story 16.1). The project runs on the throwaway that docker/tests/test-online-demo.sh
- * starts with the online-demo flag on and the test start values; the unit gives the two public accounts' names and passwords as
- * OCUTALON_DEMOACCOUNT_* and OCUTALON_READONLYACCOUNT_* (fixtureUser reads them).
+ * What the specs of web/e2e-online/ share: the online-demo, online-session, online-allowance, online-demo-path and online-visitors projects
+ * (Stories 16.1, 16.4, 16.9, 29.4 and 29.7). Each project runs on the throwaway that its unit (docker/tests/test-online-demo.sh,
+ * test-online-session.sh, test-online-allowance.sh, test-online-demo-path.sh or test-online-visitors.sh) starts with the online-demo flag on and the test start values; the unit gives the
+ * two public accounts' names and passwords as OCUTALON_DEMOACCOUNT_* and OCUTALON_READONLYACCOUNT_* (fixtureUser reads them).
  */
 
 /** The group-wide sign-out of the sign-in group: it ends the CSP session of /ocutalon, /ocutalon/api and the trace applications. */
@@ -87,10 +89,9 @@ export async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
   return ((await response.json()) as { epoch: string }).epoch;
 }
 
-/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot. */
+/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot (loadedAfter: the answer of /state first, DW-333). */
 export async function openSession(page: Page): Promise<string> {
-  await signInFromSplash(page);
-  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page));
   return epochOf(page);
 }
 
@@ -155,7 +156,7 @@ export async function resumeCookie(context: BrowserContext): Promise<Cookie | un
   return (await context.cookies()).find((cookie) => cookie.name === RESUME_COOKIE);
 }
 
-/** The SHA-256 of the text, base64url without padding: the form in which OcuTalon.Data.Session.Hash stores a reference or an address. */
+/** The SHA-256 of the text, base64url without padding: the form in which OcuTalon.Data.Session.Hash stores a resume reference (a client address is stored as an HMAC instead, AddressCounter.AddressHash). */
 export function sha256url(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('base64url');
 }
@@ -210,6 +211,49 @@ export async function removeSession(epoch: string): Promise<void> {
   );
 }
 
+/** A visitor of the online demo: its own browser context, signed in at the splash, and its session's identity. */
+export interface Visitor {
+  context: BrowserContext;
+  page: Page;
+  epoch: string;
+  /** The session's Ref and its TraceRef (the tag of its production messages). */
+  ref: string;
+  trace: string;
+}
+
+/**
+ * Opens a new browser context on the stack, signs the demo account in from the splash and waits for the page's snapshot (loadedAfter), and
+ * returns the visitor with its session row's Ref and TraceRef. With an address, every request of the context carries it as X-Forwarded-For,
+ * so that a proxied stack counts the visitor under it (Story 29.7). A visitor that cannot be opened is signed out and closed before the
+ * error goes on. The caller ends it with leaveVisitor.
+ */
+export async function openVisitor(browser: Browser, address?: string): Promise<Visitor> {
+  const context = await browser.newContext({
+    baseURL: process.env['OCUTALON_URL'],
+    ...(address === undefined ? {} : { extraHTTPHeaders: { 'X-Forwarded-For': address } }),
+  });
+  try {
+    const page = await context.newPage();
+    await loadedAfter(page, () => signInFromSplash(page));
+    const epoch = await epochOf(page);
+    const row = await sessionRow(epoch);
+    if (row === undefined) throw new Error(`the session of epoch ${epoch} has no row`);
+    return { context, page, epoch, ref: row.ref, trace: row.traceRef };
+  } catch (error) {
+    await signOutGroup(context);
+    await context.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Signs a visitor out of the sign-in group, removes its session and closes its context; a visitor that was never opened is skipped. */
+export async function leaveVisitor(visitor: Visitor | undefined): Promise<void> {
+  if (visitor === undefined) return;
+  await signOutGroup(visitor.context);
+  await removeSession(visitor.epoch);
+  await visitor.context.close();
+}
+
 /**
  * Signs the demo account in over HTTP from a client that the proxy would see as the address: an API context whose requests carry
  * X-Forwarded-For, at the splash with a fresh probe. It returns the context (the caller signs it out with SIGN_OUT and disposes it)
@@ -251,19 +295,75 @@ export interface StatusReading {
   code: number;
 }
 
-/** GET /ocutalon/public/status with a query that no other request of the run used, so that no cache answers; the request carries no session. */
-export async function readStatus(api: APIRequestContext): Promise<StatusReading> {
+/**
+ * GET /ocutalon/public/status, in its trace form (`for=trace`) when form is 'trace', with a query that no other request of the run used,
+ * so that no cache answers; the request carries no session.
+ */
+export async function readStatus(api: APIRequestContext, form?: 'trace'): Promise<StatusReading> {
   publicProbes += 1;
-  const response = await api.get(`/ocutalon/public/status?probe=${Date.now()}${publicProbes}`);
+  const response = await api.get(`/ocutalon/public/status?${form === 'trace' ? 'for=trace&' : ''}probe=${Date.now()}${publicProbes}`);
   const body = (await response.json()) as { busy: boolean };
   return { busy: body.busy, header: response.headers()[BUSY_HEADER], code: response.status() };
 }
 
+/** What GET /ocutalon/public/status answered to a query: its status code, the parsed body's keys, busy, the marker header and whether it set a cookie. */
+export interface StatusAnswer {
+  code: number;
+  keys: string[];
+  busy: boolean | undefined;
+  header: string | undefined;
+  setCookie: boolean;
+}
+
+/** GET /ocutalon/public/status with the query as given (it carries the probe the run needs: pass it in the query), and the answer's parts. */
+export async function statusAnswer(api: APIRequestContext, query: string): Promise<StatusAnswer> {
+  const response = await api.get(`/ocutalon/public/status?${query}`);
+  const body = (await response.json()) as Record<string, unknown>;
+  return {
+    code: response.status(),
+    keys: Object.keys(body),
+    busy: typeof body['busy'] === 'boolean' ? body['busy'] : undefined,
+    header: response.headers()[BUSY_HEADER],
+    setCookie: response.headers()['set-cookie'] !== undefined,
+  };
+}
+
+/** The AddressCounter rows of an address (the table holds its hash). */
+export async function counterRows(address: string): Promise<number> {
+  const lines = await irisScript(
+    `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)})) Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)`,
+  );
+  return Number(chk(lines, 'rows') ?? '-1');
+}
+
+/** Removes the AddressCounter rows of an address, so that a case's sign-ins leave no trace on the address limit. */
+export async function removeCounterRows(address: string): Promise<void> {
+  await irisScript(
+    `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)}))\nWrite !,"CHK|dropped|1"`,
+  );
+}
+
+/** The number of Session rows; a count that cannot be read throws, so that two failed reads never compare equal. */
+export async function sessionRowCount(): Promise<number> {
+  const lines = await irisScript('Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)');
+  const rows = chk(lines, 'rows') ?? '';
+  if (!/^[0-9]+$/.test(rows)) throw new Error(`the Session rows could not be counted (read '${rows}')`);
+  return Number(rows);
+}
+
+/** The page's trace check asks the status with exactly the keys for (trace) and t (a time in milliseconds, so that no cache answers). */
+export function expectTraceQuery(check: URL, label: string): void {
+  expect([...check.searchParams.keys()], `${label}: the query holds exactly for and t`).toEqual(['for', 't']);
+  expect(check.searchParams.get('for'), `${label}: for is trace`).toBe('trace');
+  expect(check.searchParams.get('t'), `${label}: t is a time in milliseconds`).toMatch(/^\d{13}$/);
+}
+
 /**
- * The HTTP view of the instance's licence connections: what /ocutalon/public/status counts, which is one less than the count that an
- * iris_script reads (its own process holds one). It is found by the flip of Task 0 (a): with r the script's count, the cap is set to
- * r plus the reserve, and a busy status means the view is r, otherwise it is r - 1 (checked with the cap at r - 1 plus the reserve). The
- * cap is put back to what it was and read back, on every path. `api` must carry no session.
+ * The HTTP view of the instance's licence connections: what the connection check of /ocutalon/public/status counts, which is one less than
+ * the count that an iris_script reads (its own process holds one). It is found by the flip of Task 0 (a) on the status's trace form, whose
+ * busy comes from the connection check alone (so live visitors never move it): with r the script's count, the cap is set to r plus the
+ * reserve, and a busy status means the view is r, otherwise it is r - 1 (checked with the cap at r - 1 plus the reserve). The cap is put
+ * back to what it was and read back, on every path. `api` must carry no session.
  */
 export async function httpConnections(api: APIRequestContext): Promise<number> {
   const savedCap = await publicValue('connectionCap');
@@ -274,9 +374,9 @@ export async function httpConnections(api: APIRequestContext): Promise<number> {
   if (!Number.isInteger(r)) throw new Error(`InstanceConnections() read '${count ?? '<nothing>'}'`);
   try {
     await setPublic('connectionCap', String(r + reserve));
-    if ((await readStatus(api)).busy) return r;
+    if ((await readStatus(api, 'trace')).busy) return r;
     await setPublic('connectionCap', String(r - 1 + reserve));
-    if (!(await readStatus(api)).busy) throw new Error(`the HTTP view of the connections is neither ${r} nor ${r - 1}`);
+    if (!(await readStatus(api, 'trace')).busy) throw new Error(`the HTTP view of the connections is neither ${r} nor ${r - 1}`);
     return r - 1;
   } finally {
     await setPublic('connectionCap', savedCap);
@@ -336,26 +436,71 @@ export interface Populated {
   pairing: string;
 }
 
+/** What populate() makes besides the reminder: the watch (default true), the pending approval request (default true) and the fixture pairing (a display name; default "Dana"; false for none). */
+export interface PopulateOptions {
+  watch?: boolean;
+  approval?: boolean;
+  pairing?: string | false;
+}
+
 /**
- * Gives the session (a Ref) a real reminder due in an hour (ReminderFixture), a real watch of the Orders production (a StartWatch through
- * Commands.Submit, as the page's chat tool does), a pending approval request that the demo account may answer and a fixture pairing, and
- * returns their Refs. A case calls cleanPopulated for it in `finally`.
+ * Gives the session (a Ref) a real reminder due in an hour (ReminderFixture) and, unless the options leave them out, a real watch of the
+ * Orders production (a StartWatch through Commands.Submit, as the page's chat tool does), a pending approval request that the demo account
+ * may answer and a fixture pairing, and returns their Refs ('' for what was left out). A case calls cleanPopulated for it in `finally`.
  */
-export async function populate(session: string): Promise<Populated> {
+export async function populate(session: string, options: PopulateOptions = {}): Promise<Populated> {
+  const { watch = true, approval: withApproval = true, pairing: withPairing = 'Dana' } = options;
   const lines = await irisScript(
     [
       `Set ref=${quoted(session)}`,
       'Set made=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(ref,"zz sign out",3600)',
-      'Set start=##class(OcuTalon.Msg.Command.StartWatch).%New() Set start.SessionRef=ref,start.Namespace=##class(OcuTalon.Install.Step.Demo).#NAMESPACE,start.Production=##class(OcuTalon.Install.Step.Demo).#PRODUCTION,start.DisplayName="Orders"',
-      'Set sc=##class(OcuTalon.Core.Commands).Submit(start,"web_user",.started)',
-      'Set approval=##class(OcuTalon.Test.Data.Fixture).Approval(ref,"","pending",,{"RequiredRole":"OcuTalonUser"})',
-      'Set pair=##class(OcuTalon.Test.Data.Fixture).Pairing(ref,"Dana")',
-      'Write !,"CHK|reminder|",made.ref,"|",made.ok,!,"CHK|watch|",$Select($IsObject($Get(started)):started.Ok_"|"_started.Outcome,1:"none"),!,"CHK|approval|",approval,!,"CHK|pairing|",pair',
+      'Write !,"CHK|reminder|",made.ref,"|",made.ok',
+      ...(watch
+        ? [
+            'Set start=##class(OcuTalon.Msg.Command.StartWatch).%New() Set start.SessionRef=ref,start.Namespace=##class(OcuTalon.Install.Step.Demo).#NAMESPACE,start.Production=##class(OcuTalon.Install.Step.Demo).#PRODUCTION,start.DisplayName="Orders"',
+            'Set sc=##class(OcuTalon.Core.Commands).Submit(start,"web_user",.started)',
+            'Write !,"CHK|watch|",$Select($IsObject($Get(started)):started.Ok_"|"_started.Outcome,1:"none")',
+          ]
+        : []),
+      ...(withApproval ? ['Write !,"CHK|approval|",##class(OcuTalon.Test.Data.Fixture).Approval(ref,"","pending",,{"RequiredRole":"OcuTalonUser"})'] : []),
+      ...(withPairing !== false ? [`Write !,"CHK|pairing|",##class(OcuTalon.Test.Data.Fixture).Pairing(ref,${quoted(withPairing)})`] : []),
     ].join('\n'),
   );
   const reminder = (chk(lines, 'reminder') ?? '').split('|');
-  if (reminder[1] !== '1' || chk(lines, 'watch') !== '1|started') throw new Error(`the session's reminder and watch could not be made: ${lines.join(' ')}`);
+  if (reminder[1] !== '1' || (watch && chk(lines, 'watch') !== '1|started')) throw new Error(`the session's reminder and watch could not be made: ${lines.join(' ')}`);
   return { session, reminder: reminder[0] ?? '', approval: chk(lines, 'approval') ?? '', pairing: chk(lines, 'pairing') ?? '' };
+}
+
+/** The failed orders that Break the feed sent under a TraceRef: the messages that reached OrdersFromPartner in a failed state of the Orders production (OCUORDERS). */
+export async function ordersOf(trace: string): Promise<number> {
+  const lines = await irisScript(`Write !,"CHK|orders|",##class(OcuTalon.Test.Demo.Production).Count(${quoted(trace)},"OrdersFromPartner",8)`);
+  return Number(chk(lines, 'orders') ?? '-1');
+}
+
+/** The tab that the action opens, with the answers of every trace document recorded: a sign-in field in any of them is a failure. */
+export async function opensTabStrict(context: BrowserContext, action: () => Promise<unknown>): Promise<{ popup: Page; signInPages: string[] }> {
+  const signInPages: string[] = [];
+  const watch = async (response: Response): Promise<void> => {
+    if (response.request().resourceType() !== 'document' || !response.url().includes('/ocutalon/trace/')) return;
+    const body = await response.text().catch(() => '');
+    if (/name=["']?IRISPassword/.test(body)) signInPages.push(response.url());
+  };
+  context.on('response', (response) => void watch(response));
+  const [popup] = await Promise.all([context.waitForEvent('page'), action()]);
+  await popup.waitForLoadState('domcontentloaded');
+  return { popup, signInPages };
+}
+
+/** The tab is at the link's traceUrl (its path and session), shows no sign-in field and draws the turn. */
+export async function expectOpenedDirectly(opened: { popup: Page; signInPages: string[] }, turn: Turn, label: string): Promise<void> {
+  const { popup, signInPages } = opened;
+  const want = new URL(turn.traceUrl, 'http://stack.invalid');
+  await expect.poll(() => new URL(popup.url()).pathname, { message: `${label}: the tab is at the link's page`, timeout: 30_000 }).toBe(want.pathname);
+  expect(new URL(popup.url()).searchParams.get('SESSIONID'), `${label}: and at the link's session`).toBe(want.searchParams.get('SESSIONID'));
+  const drawn = await drawnMessages(popup);
+  expect(drawn.ids, `${label}: Visual Trace draws the turn`).toContain(String(turn.traceHeaderId));
+  await expect(popup.locator('input[name=IRISPassword]'), `${label}: no sign-in field`).toHaveCount(0);
+  expect(signInPages, `${label}: no document of the tab was a sign-in page`).toEqual([]);
 }
 
 /** What a session's populated rows read now. */
@@ -559,26 +704,58 @@ export async function dailyCapSettled(): Promise<boolean> {
   return chk(lines, 'settled') === '1';
 }
 
-/** The local date of today in the instance zone, as the bridge keys the day's cap and a session records its daily-cap day. */
-export async function localToday(): Promise<string> {
-  return chk(await irisScript('Write !,"CHK|day|",##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())'), 'day') ?? '';
+/**
+ * The instance's local date (as the bridge keys the day's cap and a session records its daily-cap day) and the whole seconds left of it.
+ * The day comes from one NowUtc and the seconds from the clock read just after it, so a midnight between the two reads gives a negative
+ * count, which clearOfMidnight treats as too few seconds left.
+ */
+export interface InstanceDay {
+  day: string;
+  secondsLeft: number;
 }
 
-/** Whether today's capped mark of the bridge is set (^OcuTalonBP.UsageCapped(day)). */
-export async function cappedMarked(): Promise<boolean> {
-  return chk(await irisScript('Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))'), 'mark') !== '0';
-}
-
-/** Kills today's capped mark of the bridge and returns whether it is gone. */
-export async function unmarkCapped(): Promise<boolean> {
-  return (
-    chk(
-      await irisScript(
-        'Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())) Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))',
-      ),
-      'mark',
-    ) === '0'
+/** Reads the instance's day and the seconds left before it ends (Bridge.Time: LocalDate of NowUtc, then SecondsUntil its DayEndUtc). */
+export async function instanceDay(): Promise<InstanceDay> {
+  const lines = await irisScript(
+    [
+      'Set now=##class(OcuTalon.Bridge.Time).NowUtc() Set day=##class(OcuTalon.Bridge.Time).LocalDate(now)',
+      'Write !,"CHK|day|",day,"|",##class(OcuTalon.Bridge.Time).SecondsUntil(##class(OcuTalon.Bridge.Time).DayEndUtc(day))',
+    ].join('\n'),
   );
+  const [day = '', left = ''] = (chk(lines, 'day') ?? '').split('|');
+  const secondsLeft = Number(left);
+  if (day === '' || left === '' || !Number.isFinite(secondsLeft)) throw new Error(`the instance day could not be read (${lines.join(' ')})`);
+  return { day, secondsLeft };
+}
+
+/**
+ * Returns the instance's day once at least budgetS seconds of it are left (DW-413). A case of the daily cap marks, checks and cleans up by
+ * one day, so it must not start so near instance midnight that the day turns inside it: when fewer than budgetS seconds are left, this
+ * waits past midnight (secondsLeft plus 2 s, through `sleep`) and reads again. `read` and `sleep` are injectable for the browserless
+ * case that pins the guard.
+ */
+export async function clearOfMidnight(
+  budgetS: number,
+  read: () => Promise<InstanceDay> = instanceDay,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<string> {
+  const reading = await read();
+  if (reading.secondsLeft >= budgetS) return reading.day;
+  await sleep((reading.secondsLeft + 2) * 1000);
+  return (await read()).day;
+}
+
+/** The key of a day's capped mark of the bridge, as an ObjectScript reference. */
+const cappedKey = (day: string): string => `^OcuTalonBP.UsageCapped(${quoted(day)})`;
+
+/** Whether the capped mark of the day (a date from instanceDay or clearOfMidnight) is set (^OcuTalonBP.UsageCapped(day)). */
+export async function cappedMarked(day: string): Promise<boolean> {
+  return chk(await irisScript(`Write !,"CHK|mark|",$Data(${cappedKey(day)})`), 'mark') !== '0';
+}
+
+/** Kills the capped mark of the day and returns whether it is gone. */
+export async function unmarkCapped(day: string): Promise<boolean> {
+  return chk(await irisScript(`Kill ${cappedKey(day)} Write !,"CHK|mark|",$Data(${cappedKey(day)})`), 'mark') === '0';
 }
 
 /**

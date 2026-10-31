@@ -12,7 +12,7 @@
 /// A setting whose name Reader.CredentialName gives is left out, and every string taken from the watched production goes through
 /// OcuTalon.Bridge.Redact.Text; a body, the settings and a trace entry go through it as one JSON object, so that its key rule applies. An error text is ErrorText.Text(raw), as FailurePoller makes it. A sample or failed
 /// message that is an event-log row has no log row id: it carries logRef, the row's 1-based position in the event log of the read that made the answer. Read is what the pack and the
-/// read tools of the Diagnosis agent (OcuTalon.Tools.WatchReads) share; the tools take the incident of the bridge context (Scope). A tool method runs
+/// read tools of the Diagnosis agent (OcuTalon.Tools.WatchReads) share; the tools take the incident of the bridge context (Scope) or, for an evaluation incident of owner eval, the snapshot that its OcuTalon.Eval.Msg.IncidentCase holds (EvalSnapshot), and the three answers are shaped alike from either source. A tool method runs
 /// inside AI Hub's callback, so this class makes no AI Hub call and no Python call, and writes nothing (AD-6).
 Class OcuTalon.Watch.EvidencePack
 {
@@ -300,42 +300,48 @@ ClassMethod Load(file As %String, Output snapshot As %DynamicObject) As %Status
 	Quit sc
 }
 
-/// The answer of read_failed_messages for the incident: {count, items} with at most MAXMESSAGES failed messages, each {headerId | logRef, item, at,
-/// bodyClass, body, error}. The items are empty when the read is not "read" or fails.
-ClassMethod FailedMessages(incident As OcuTalon.Data.Incident) As %DynamicObject
+/// The recorded snapshot of an evaluation incident for the read tools (AD-22): the snapshot text of the newest OcuTalon.Eval.Msg.IncidentCase whose IncidentRef is
+/// the bridge context's ItemId, parsed, when the context's OwnerRef is exactly eval and the snapshot is of the format SNAPSHOTFORMAT. "" for another owner, no
+/// context, no ItemId, no such case, a snapshot that is not a JSON object of that format, or a table that cannot be read. It reads by SQL, writes nothing and never throws.
+ClassMethod EvalSnapshot() As %DynamicObject
 {
-	Set answer = {"count": (+$Select(incident.NoticeCount '= "": incident.NoticeCount, 1: incident.Count)), "items": []}
+	Set snapshot = ""
 	Try {
-		If ..Read(incident, ..#MAXMESSAGES, .snapshot) = "read" {
-			Set iterator = snapshot.failures.%GetIterator()
-			While iterator.%GetNext(, .failure) {
-				Do answer.items.%Push(..Message(failure, 1))
-			}
-			If snapshot.failures.%Size() = 0 {
-				Set iterator = snapshot.eventLog.%GetIterator()
-				While iterator.%GetNext(.index, .row) {
-					Do answer.items.%Push(..LogMessage(row, 1, index + 1))
+		If ##class(OcuTalon.Bridge.Context).Active() {
+			Set context = ##class(OcuTalon.Bridge.Context).Current()
+			If $IsObject(context) && (context.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL) && (context.ItemId '= "") {
+				Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Snapshot FROM OcuTalon_Eval_Msg.IncidentCase WHERE IncidentRef = ? ORDER BY ID DESC", context.ItemId)
+				If (result.%SQLCODE '< 0) && result.%Next() {
+					Set parsed = ##class(%DynamicAbstractObject).%FromJSON(result.%Get("Snapshot"))
+					If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") && (parsed.format = ..#SNAPSHOTFORMAT) Set snapshot = parsed
 				}
 			}
 		}
-	} Catch {
-		Set answer.items = []
+	} Catch exception {
+		Set snapshot = ""
 	}
-	Quit answer
+	Quit snapshot
 }
 
-/// The answer of read_event_log for the incident: {items} with at most MAXLOG rows of the event log of the sample sessions, each {logRef, at, type,
-/// item, text}, redacted.
-ClassMethod EventLog(incident As OcuTalon.Data.Incident) As %DynamicObject
+/// 1 when the source is a recorded reader snapshot (a dynamic object), 0 for an incident or anything else.
+ClassMethod Recording(source) As %Boolean [ Private ]
 {
-	Set answer = {"items": []}
+	Quit $IsObject(source) && source.%IsA("%Library.DynamicObject")
+}
+
+/// The answer of read_failed_messages for the source, an incident (live) or a recorded snapshot: {count, items} with at most MAXMESSAGES failed messages, each
+/// {headerId | logRef, item, at, bodyClass, body, error}. The count is the incident's NoticeCount (Count before it settles) or the snapshot's number of
+/// failures. The items are empty when a live read is not "read" or fails, and for a source that is neither.
+ClassMethod FailedMessages(source) As %DynamicObject
+{
+	Set answer = {"count": 0, "items": []}
 	Try {
-		If ..Read(incident, ..#MAXMESSAGES, .snapshot) = "read" {
-			Set iterator = snapshot.eventLog.%GetIterator()
-			While iterator.%GetNext(.index, .row) {
-				If answer.items.%Size() '< ..#MAXLOG Quit
-				Do answer.items.%Push({"logRef": (index + 1), "at": (row.timeLogged), "type": (row.type), "item": (..Clean(row.configName)), "text": (..Clean(row.text))})
-			}
+		If ..Recording(source) {
+			Set answer.count = source.failures.%Size()
+			Do ..PushMessages(answer, source)
+		} ElseIf $IsObject(source) && source.%IsA("OcuTalon.Data.Incident") {
+			Set answer.count = +$Select(source.NoticeCount '= "": source.NoticeCount, 1: source.Count)
+			If ..Read(source, ..#MAXMESSAGES, .snapshot) = "read" Do ..PushMessages(answer, snapshot)
 		}
 	} Catch {
 		Set answer.items = []
@@ -343,15 +349,68 @@ ClassMethod EventLog(incident As OcuTalon.Data.Incident) As %DynamicObject
 	Quit answer
 }
 
-/// The answer of read_item_settings for the incident: {item, settings} of the failing item, without the credential names, redacted.
-ClassMethod ItemSettings(incident As OcuTalon.Data.Incident) As %DynamicObject
+/// Pushes the first MAXMESSAGES failed messages of the snapshot on the answer's items: its failures, else its event-log rows.
+ClassMethod PushMessages(answer As %DynamicObject, snapshot As %DynamicObject) [ Private ]
+{
+	If snapshot.failures.%Size() > 0 {
+		Set iterator = snapshot.failures.%GetIterator()
+		While iterator.%GetNext(, .failure) {
+			If answer.items.%Size() '< ..#MAXMESSAGES Quit
+			Do answer.items.%Push(..Message(failure, 1))
+		}
+	} Else {
+		Set iterator = snapshot.eventLog.%GetIterator()
+		While iterator.%GetNext(.index, .row) {
+			If answer.items.%Size() '< ..#MAXMESSAGES Quit
+			Do answer.items.%Push(..LogMessage(row, 1, index + 1))
+		}
+	}
+}
+
+/// The answer of read_event_log for the source, an incident (live) or a recorded snapshot: {items} with at most MAXLOG rows of the event log, each {logRef, at,
+/// type, item, text}, redacted.
+ClassMethod EventLog(source) As %DynamicObject
+{
+	Set answer = {"items": []}
+	Try {
+		If ..Recording(source) {
+			Do ..PushLog(answer, source)
+		} ElseIf $IsObject(source) && source.%IsA("OcuTalon.Data.Incident") {
+			If ..Read(source, ..#MAXMESSAGES, .snapshot) = "read" Do ..PushLog(answer, snapshot)
+		}
+	} Catch {
+		Set answer.items = []
+	}
+	Quit answer
+}
+
+/// Pushes the first MAXLOG event-log rows of the snapshot on the answer's items.
+ClassMethod PushLog(answer As %DynamicObject, snapshot As %DynamicObject) [ Private ]
+{
+	Set iterator = snapshot.eventLog.%GetIterator()
+	While iterator.%GetNext(.index, .row) {
+		If answer.items.%Size() '< ..#MAXLOG Quit
+		Do answer.items.%Push({"logRef": (index + 1), "at": (row.timeLogged), "type": (row.type), "item": (..Clean(row.configName)), "text": (..Clean(row.text))})
+	}
+}
+
+/// The answer of read_item_settings for the source, an incident (live) or a recorded snapshot: {item, settings} of the failing item, without the credential
+/// names, redacted. The item of a snapshot is its first failure's target.
+ClassMethod ItemSettings(source) As %DynamicObject
 {
 	Set answer = {"item": "", "settings": {}}
 	Try {
-		Set group = ..Group(incident.Ref)
-		If $IsObject(group) {
-			Set answer.item = ..Clean(group.ItemName)
-			If ..Read(incident, 1, .snapshot) = "read" Set answer.settings = ..Settings(snapshot, answer.item)
+		If ..Recording(source) {
+			If source.failures.%Size() > 0 {
+				Set answer.item = ..Clean(source.failures.%Get(0).targetConfigName)
+				Set answer.settings = ..Settings(source, answer.item)
+			}
+		} ElseIf $IsObject(source) && source.%IsA("OcuTalon.Data.Incident") {
+			Set group = ..Group(source.Ref)
+			If $IsObject(group) {
+				Set answer.item = ..Clean(group.ItemName)
+				If ..Read(source, 1, .snapshot) = "read" Set answer.settings = ..Settings(snapshot, answer.item)
+			}
 		}
 	} Catch {
 		Set answer.settings = {}

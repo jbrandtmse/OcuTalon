@@ -1,0 +1,13 @@
+{
+  "name": "carrier-host-not-found",
+  "kind": "incident",
+  "heldOut": true,
+  "description": "Three shipments from the test feed sent to the carrier booking service at carrier.example, a host that does not exist; the booking operation cannot connect.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "connection_failure",
+    "elementAtFault": "CarrierBookingOut",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

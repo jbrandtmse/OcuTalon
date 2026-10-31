@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
+import { README_ACCOUNT } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 import { pointKeys, restoreKeys } from '../support/devices';
 import { chk, irisScript, quoted } from '../support/iris';
 
@@ -28,7 +29,7 @@ test.describe('Story 8.6: step 2 of the guide sets a reminder through the chat',
     test.setTimeout(120_000);
     const prompt = 'Remind me in 1 minute to stretch.';
 
-    await signInReadme(page);
+    await signInReadmeLoaded(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
     const guide = page.getByRole('region', { name: 'Demo guide' });
