@@ -1173,3 +1173,8 @@
 2026-10-31T21:03:03Z	Epic 1-37	inbox_resolved	id=U-197 by=orchestrator note=16.11_applied(10b38707)
 2026-10-31T21:03:03Z	Epic 1-37	inbox_resolved	id=U-196 by=orchestrator note=16.11_applied(10b38707)
 2026-10-31T21:03:03Z	Epic 16	decision_sheet_recorded	decided=0 routed=DW-501,DW-506->12.7(bullets_by_Epic_12's_live_runner);DW-505->30.1(full;ledger-only;in_Epic_30's_prompt) closed=DW-378 inbox_snapshot=copied deps_hash=rerecorded
+2026-10-31T21:03:09Z	Epic 16	worktree_removed	worktree=.worktrees/epic-16 branch=OCT-epic16_deleted
+2026-10-31T21:04:01Z	Epic 30	ci_red_found	head=d4793d2d run=41200695365 job=iris(shards-2) test=Test.Eval.Watch.TestFields('every_stored_property_of_BackgroundCheck_is_in_FIELDS') cause=integration(Epic_9's_Eval.Watch_x_30.4's_BackgroundCheck.Reported) action=fix-forward_first_at_re-dispatch
+2026-10-31T21:04:01Z	Epic 30	dispatch_planned	runner=B slot=ocutalon-slot-b reason=16.11_merged(10b38707)->Epic_30_resumes base=d4793d2d feature=c936e908 first=fix_d4793d2d's_red,then_DW-498 prompt=scratchpad/dispatch-epic-30-redispatch.md
+2026-10-31T21:04:01Z	Epic 1-37	owner_decision	via=contest_planner items=DW-501,DW-506 decision=leave_both_until_12.7;no_catalog_story_now host=10b38707_deploying_21:03Z(owner_walk_then_public)
+2026-10-31T21:04:29Z	Epic 30	runner_dispatched	agent=aa6524bf74a22de41 model=opus runner=B slot=ocutalon-slot-b previous_runner=ae4f43202b0e3ca11 mode=redispatch(2nd) base=d4793d2d prompt=scratchpad/dispatch-epic-30-redispatch.md
