@@ -36,6 +36,7 @@ test.describe('Story 11.1: step 5 of the guide opens the incident trace', () => 
       await expect(guide.getByRole('button', { name: 'Step 5, Open the trace, current', exact: true }), 'the guide is at step 5').toHaveCount(1, { timeout: CARD_MS });
       const link = guide.locator('.prompt app-trace-link a');
       await expect(link, "its address is the incident's diagnosis session").toHaveAttribute('href', `${TRACE_PAGE}${header}`);
+      await expect(link, 'on a local install it is named for the sign-in help it shows first').toHaveAccessibleName('Open the trace (shows sign-in help first)');
       await link.click();
       const dialog = page.getByRole('dialog', { name: 'Sign in to Visual Trace', exact: true });
       await expect(dialog, 'the sign-in help shows first').toBeVisible();

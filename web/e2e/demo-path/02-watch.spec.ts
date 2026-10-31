@@ -70,6 +70,7 @@ test.describe('Story 11.1: step 1 of the guide watches the Orders production thr
     await expect(strip.locator('app-fallback-flag'), 'with no Fallback flag').toHaveCount(0);
     await expect(strip.locator('.reason').first(), 'it shows its reason').toHaveText('The CI mock acts on the request to watch the Orders production.');
     await expect(strip.locator('app-trace-link a'), 'and one trace link').toHaveCount(1);
+    await expect(reply.locator('.text'), "above it the turn's own text: the mock's reply 2").toContainText("I'll watch the Orders production and stay quiet unless something needs you.");
 
     await expect(checkRow(page), 'the "Orders production" check row shows').toHaveCount(1, { timeout: 60_000 });
     await expect(breakFeedButton(page), 'Break the feed is active').not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });

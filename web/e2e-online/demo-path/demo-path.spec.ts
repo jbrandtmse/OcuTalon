@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, post, type LiveEvent } from '../../e2e/support/api';
-import { approvalCard, approvalCount, approvalRows, breakFeedButton, checkRow, composer, doneTurn, guideSend, incidentCard, phoneNotes, readState, WATCH_PROMPT, type Snapshot } from '../../e2e/support/demo-path';
+import { BREAK_FEED, approvalCard, approvalCount, approvalRows, breakFeedButton, checkRow, composer, doneTurn, guideSend, incidentCard, phoneNotes, readState, WATCH_PROMPT, type Snapshot } from '../../e2e/support/demo-path';
 import { loadedAfter } from '../../e2e/support/floor';
 import { fixtureUser, readApproval } from '../../e2e/support/iris';
 import { drawnMessages, type Turn } from '../../e2e/support/trace';
@@ -45,7 +45,6 @@ import {
 /** The message that starts a watch of the Orders production through the page's chat: the guide's watch prompt behind the mock's start_watch marker. */
 const WATCH_MESSAGE = `[[mock:watch-start-orders]] ${WATCH_PROMPT}`;
 
-const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
 const APPROVALS = '/ocutalon/api/v1/approvals';
 const FIFTY = 50;
 

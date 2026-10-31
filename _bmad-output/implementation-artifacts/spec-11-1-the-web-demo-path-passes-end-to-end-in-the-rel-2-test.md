@@ -243,6 +243,100 @@ Epic 29 merged into the feature branch at `fe1d81e2`. The implement stage integr
 - **AC9 (DW-349).** Given `Fixture.Check` with no `NextDueAt` field, when a test seeds a row, then the row is due an hour ahead, `TestCheckIsNotDue` passes, and every caller class still passes (shards lane-b and lane-a, in parts).
 - **AC10 (REL-4).** Given the changed demo path, when `live:demo-path` runs locally on a fresh stack, then it passes within its 540 s default deadline, and the baseline and final seconds are recorded under Verification. If the CI estimate (browser 26.6 min plus twice the local increase) passes 30 minutes, the implement stage adds a `deferred:` item for the orchestrator's rebalance (Clarification Needed 2) and changes no `ci/units.sh`.
 
+### Review Findings
+
+Code review, 2026-10-31. Full mode, with all four layers (Blind, Edge, Gap, Auditor). There is no `_bmad/custom/model-overrides.yaml`, so the tier is full-opus with no model override.
+
+**Totals.** 24 findings after normalization: 0 decision-needed, 10 patch (all applied), 0 defer, 14 rejected. After verification: 0 high, 0 medium, 20 low, 4 false. No ledger entry was filed.
+
+Each finding below gives its severity, its fix-risk, its footprint and its disposition (Rule 15).
+
+**Patch (applied):**
+- [x] [Review][Patch] The gate's check that a skipped step is never read as passed could not fail [docker/tests/test-demo-path-gate.sh:389]
+  - Why: no gate report still had a step whose parts all skip.
+  - Grading: low; fix-risk low (hermetic gate only); in-story.
+  - Fix: the numbered-skip report's step 6 now holds only a skipped part. The run pins "STEP 6 trace: skipped, 0 passed, 1 skipped" and checks that the step is not read as passed. The green run's check now says what it actually checks.
+- [x] [Review][Patch] `TestStateIncidentDecision` seeded a decide decision, and its doc named checks that the test did not make [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:574]
+  - Why: DW-294's own evidence names decide-kind fixtures as what hid the bug, and the doc promised a rail check and an exact entry shape.
+  - Grading: low; fix-risk low; in-story.
+  - Fix: the test seeds diagnose decisions. It asserts that the rail's decisions stay empty and that the other two entries are exactly {type, payload}. The doc now names only what the test pins.
+- [x] [Review][Patch] `TestStateIncidentDecision` left its rows behind when an assertion threw [same method]
+  - Grading: low; fix-risk low; in-story.
+  - Fix: the test runs inside Try/Catch, and Clean always runs.
+- [x] [Review][Patch] 02 never asserted the watch turn's own text, the mock's reply 2 [web/e2e/demo-path/02-watch.spec.ts:39]
+  - Grading: low; fix-risk low; in-story.
+  - Fix: the test checks that the reply's `.text` contains the scenario's sentence.
+- [x] [Review][Patch] The online spec kept its own `BREAK_FEED` beside the shared one, and the shared module's header said that every text is in the specs (Rule 2) [web/e2e-online/demo-path/demo-path.spec.ts:48, web/e2e/support/demo-path.ts:11]
+  - Grading: low; fix-risk low; in-epic (Epic 29's merged file, which Epic 11 may change under AD-29).
+  - Fix: the spec imports the shared constant, and the header is corrected.
+- [x] [Review][Patch] 04's `@floor` press waited for a POST that an inactive button never sends, so a missing watch showed up as a timeout [web/e2e/demo-path/04-incident.spec.ts:21]
+  - Why: the earlier triage assumed a 409 would be printed, but `server-button` sends nothing while it is inactive.
+  - Grading: low; fix-risk low; in-story.
+  - Fix: before the press, the test asserts that Break the feed is active and says why.
+- [x] [Review][Patch] `ReminderFixture.CancelPending` had no caller once 03's `afterAll` was removed, and the class header still named 03 [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls:145]
+  - Grading: low; fix-risk low (a test helper with no caller); in-epic.
+  - Fix: the method is deleted and the header corrected. The lane-b shard is green.
+- [x] [Review][Patch] The unit skipped the audit read after a red demo path, which the Tasks do not say [docker/tests/test-demo-path.sh:91]
+  - Why: the Tasks read "after the summary, poll ... then write one PASS or FAIL line per check", with no condition.
+  - Grading: low; fix-risk low (the unit is red either way); in-story.
+  - Fix: the audit is now read after every summary. The gate's floor-skipped run pins this.
+- [x] [Review][Patch] 06 never checked the accessible name of the guide's link [web/e2e/demo-path/06-trace.spec.ts:24]
+  - Why: the text-oracle rule; the precedent is `web/e2e/floor/guide.spec.ts:520`.
+  - Grading: low; fix-risk low; in-story.
+  - Fix: `toHaveAccessibleName('Open the trace (shows sign-in help first)')`.
+- [x] [Review][Patch] AC6's shape branch and key-like branch had never been seen to fail live (Rule 19, stale mutation line) [docker/tests/test-demo-path.sh:88]
+  - Why: the recorded shape mutation changed the writer and the checker together, so it went red on the found lines, not the shape line. Its note "no live mutation can store an extra member" was wrong.
+  - Grading: low; fix-risk low (no code change); in-story.
+  - Fix: closed in this pass with two live mutations, recorded under Verification. A finding from them: `Bridge.Audit.Write` redacts the data (`Redact.Text`), so the unit's key-like check is a backstop behind the writer.
+
+**Rejected:**
+- AC4 and the matrix rows for steps 2 and 5 still read as they did before the in-stage decisions, and the Spec Change Log is empty (Blind, Auditor).
+  - Grading: low; spec-bound, by-design.
+  - Why rejected: AC4 follows the lead's ruling U-192, and the Last-run suffix is Decided in-stage. The fix would edit the spec under review.
+- AC10's final time is 230 s under Verification, 219 s in the Auto Run Result, and 211 s and 232 s elsewhere (Blind, Edge, Gap, Auditor).
+  - Grading: low.
+  - Why rejected: the inconsistency is in the spec's text only. Every figure is within the 540 s deadline, and the CI estimate stays under 30 min (29.4 min from 230 s, 29.5 min from 232 s). The fix would edit the spec.
+- The new prose writes · as an escape (Blind).
+  - Grading: low.
+  - Why rejected: Rule 14 exempts prose, and the fix would edit the spec.
+- The audit script prints the session line but never checks it (Blind, Edge).
+  - Grading: low; wontfix-theoretical.
+  - Why rejected: it can only happen after a green browser run of that same session, and the unit is red either way.
+  - Real if: a live run prints the audit FAIL lines with an empty session line.
+- The two warm-stack failures in lane-b part 3 were not shown to be independent of DW-349 (Blind, Auditor).
+  - Grading: false.
+  - Evidence: this review ran lane-b parts 1/3, 2/3 and 3/3 in CI order on one fresh warm stack of the patched tree. All 86 classes passed, `Test.Web.GuideApi` and `Test.Web.DismissApi` included. Their assertions read watch rows and instance incidents, not `NextDueAt`.
+- No test shows that a decision on a non-incident chat entry stays out of the store (Blind).
+  - Grading: low; wontfix-theoretical.
+  - Why rejected: `ChatItems` sets `decision` only inside its incident loop.
+  - Real if: another kind of chat entry gains a `decision` member.
+- On a local install, an instance incident's diagnose decision is dropped after a reload (Edge).
+  - Grading: false.
+  - Evidence: BridgeSink publishes `decision.recorded` only for a session owner, and `Ownership.Rows` refuses an instance owner. So the page never showed that decision live either, and the snapshot now matches the live path, as the spec's AD-4 constraint requires.
+- A non-integer `OCUTALON_AUDIT_POLL` breaks the poll's arithmetic (Edge).
+  - Grading: low; wontfix-theoretical.
+  - Why rejected: only the gate sets the variable, to 0.
+  - Real if: a CI or developer configuration sets a non-integer value.
+- An empty `approval-data` line would let `key_like` pass (Gap).
+  - Grading: low; wontfix-theoretical.
+  - Why rejected: the line holds the found entry's own `%ToJSON()`, which is never empty when an entry is found.
+  - Real if: the unit's own script changes.
+- On the page, AC4's "in that order" is checked by separate auto-waiting expects (Gap).
+  - Grading: low; spec-bound, by-design.
+  - Why rejected: lead ruling U-192. The page draws Fixing and Resolved in one update, so the order is asserted on the session stream.
+- AC1's refusal clause has no `mutation:` line, and the earlier triage called its test `@floor`, which it is not (Gap, Auditor).
+  - Grading: low.
+  - Why rejected: Rule 19 asks for one mutation per AC, and AC1 has two demonstrated mutations. The clause's strict `toEqual({status: 409, code, message})` fails on any other answer.
+- AC10 has no test (Gap).
+  - Grading: false.
+  - Evidence: AC10 is a measurement, and it is recorded under Verification as the AC requires.
+- 03 to 06 depend on the steps before them, and 04 waits on the clock for the reminder (Gap).
+  - Grading: low; by-design.
+  - Why rejected: Decided in-stage. The demo path is one ordered journey, proven on fresh stacks: twice by implement, once by QA and twice more in this review.
+- The flag-order test reads `every-step.json`, which the previous test wrote (Gap).
+  - Grading: false.
+  - Evidence: the argument-count check returns 2 before any file is read.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -518,11 +612,21 @@ This is test-only work in Core, Web, Schedule and the CI checks, apart from the 
 - mutation: AC4 `approval-view.ts` result text "went through" to "went thru" -> 05 red on the band "All 50 orders went through.".
 - mutation: AC5 `Demo/Guide.cls:128` trace target from the newest turn instead of the incident -> 06 red on the link's SESSIONID (49 expected, 23 received).
 - mutation: AC6 gate: no Action entry in the canned log -> FAIL "no Action entry that names the approval request" (`test-demo-path-gate.sh`); live: the mark one hour ahead -> FAIL "no answered Approval entry ..." and FAIL "no Action entry ..." from the live unit.
-- mutation: AC6 (shape) `Bridge/Audit.cls` `SHAPEAPPROVAL` without `ownerRef`, run live on a fresh stack -> FAIL "no answered Approval entry ..." and FAIL "no Action entry ..." (the writer, `Audit.Record`, refuses any entry of another shape, so no live mutation can store an extra member; the unit's extra-member branch is pinned by the gate's `extra-approval` run). Reverted from the stage's own backup, tree byte-identical; the unmutated run is green.
+- mutation: AC6, the shape and key-like checks (code review, live, each on a fresh stack).
+  - Run 1: `Bridge/Audit.cls` `Record` sets an extra member `zz`, holding a key-like value built from two literals, on the copy it writes, after the shape check. Result: FAIL "the Approval entry does not hold exactly Bridge.Audit.Shape(Approval) ..." and FAIL "the Action entry does not hold exactly Bridge.Audit.Shape(Action) ...". The two key-like checks stayed green, because `Write` passes the data through `Redact.Text`, so the log holds no key-like text.
+  - Run 2: as run 1, and `Write` also skips `Redact.Text`. Result: FAIL "the Approval entry holds key-like text" and FAIL "the Action entry holds key-like text" as well. The value is not in the unit's output.
+  - Both runs: browser 14 passed, 6 of 6 steps, floor 7 of 7, in 237 s and 260 s. Reverted from the stage's own backup, and the tree is byte-identical.
+  - The implement stage's earlier `SHAPEAPPROVAL` mutation changed the writer and the checker together, so it went red on the found lines, not on the shape line.
 - mutation: AC7 a `notBuilt(..., '11.1')` appended to 06 -> the live unit FAIL "06-trace.spec.ts ... skipped, but every web step runs since Story 11.1"; the node test's red cases (`demo-path-summary.test.mjs`, "--only-telegram-skips") and the gate's `numbered-skip` run pin it.
-- mutation: AC8 `ChatItems` attaches no decision (`If 0 {`) -> `TestStateIncidentDecision` red ("carries it"); `fromSnapshot` ignoring chat decisions -> `live-store.test.mjs` red; and 05 red on the footer ("the footer finds the incident's diagnosis decision after the load").
+- mutation: AC8 `ChatItems` attaches no decision (`If 0 {`) -> `TestStateIncidentDecision` red ("carries it"); re-run by code review after the test moved to diagnose decisions: red on the warm stack, green again on the same stack after the revert, tree byte-identical. `fromSnapshot` ignoring chat decisions -> `live-store.test.mjs` red; and 05 red on the footer ("the footer finds the incident's diagnosis decision after the load").
+- mutation: AC7, the gate's numbered-skip run (code review, changed so that step 6 holds only a skipped part): `demo-path-summary.mjs` `verdictOf` reads a step with no passed test as passed -> the gate red on the missing "STEP 6 trace: skipped, 0 passed, 1 skipped" and on "a step whose parts all skipped is never read as passed"; reverted, tree byte-identical, gate green.
 - mutation: AC9 `Fixture.Check` without the `CHECKAHEAD` default line -> `TestCheckIsNotDue` red ("is -5864354445" seconds ahead).
 - mutation: AC4 (QA, the Fixing clause the lead moved to the session stream, U-192) `Watch/IncidentManager.cls` `Move` publishes no incident event when `to` is fixing -> 05 red on "the incident went through Fixing to Resolved" (the page steps before it passed); reverted from QA's own backup, `git status --short` and `git diff --stat` unchanged (clean), and the unmutated `live demo-path` run is green (232 s, 6 of 6 steps ran, floor 7 of 7, six audit PASS lines).
+- (Code review, lane A, tags `e11s1c` and `e11s1cw`, slot A not used) What this review ran on the patched tree:
+  - One fresh warm stack, with lane-b parts 1/3, 2/3 and 3/3 in CI order: all 86 classes passed, `Test.Web.Api`, `Test.Web.DismissApi`, `Test.Web.GuideApi`, `Test.Data.FixtureDefaults` and `Test.Schedule.*` among them.
+  - `ci/iris.sh build`, then two `live demo-path` runs, each with the AC6 mutations above: browser green in both, 14 passed, 6 of 6 steps, floor 7 of 7.
+  - The hermetic checks: `test-demo-path-gate.sh` (all checks passed), `npm --prefix web run lint` (exit 0), `npm --prefix web test` (1134 passed) and `bash ci/checks.sh` (all scripts passed; it ran for longer than 10 minutes).
+  - Nothing was left behind: no lock in the lane-a folder, and no project of either tag.
 - (QA) Re-checked, no test added or changed: every other `mutation:` line above names a test that still exists (02, 03, 04, 05, 06 titles; `TestStateIncidentDecision`, `TestCheckIsNotDue`, `live-store.test.mjs`, `demo-path-summary.test.mjs`, the gate's runs); `npm --prefix web test` 1134 passed and `test-demo-path-gate.sh` all checks passed on the QA tree. AC10 is a measurement (147 s to 230 s, above), not a test. QA test files created or changed: (none).
 
 ## Auto Run Result

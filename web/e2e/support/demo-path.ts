@@ -8,7 +8,8 @@ import type { Turn } from './trace';
 /**
  * What the UJ-1 runs share (Story 11.1): the page's locators, the parts of /state that they read, and the newest done turn. The web
  * run (e2e/demo-path/02-watch.spec.ts to 06-trace.spec.ts) and the online run (e2e-online/demo-path/demo-path.spec.ts) import them.
- * The texts are written out in the specs, as the independent oracle of the page's own.
+ * The page's texts are written out in the specs, as the independent oracle of the page's own; the guide's watch prompt, which both
+ * runs send, is written out here (WATCH_PROMPT).
  */
 
 export const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');

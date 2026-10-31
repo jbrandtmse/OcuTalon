@@ -26,6 +26,7 @@ test("Break the feed sends the session's 50 orders, which fail for real in the O
   const cursor = ((await snapshot.json()) as { streams: { session: number } }).streams.session;
   const session = await readmeSession();
 
+  await expect(breakFeedButton(page), 'Break the feed is active: step 2 set up the watch').not.toHaveAttribute('aria-disabled', 'true', { timeout: CARD_MS });
   const sentAnswer = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === BREAK_FEED);
   await breakFeedButton(page).click();
   const sent = await sentAnswer;

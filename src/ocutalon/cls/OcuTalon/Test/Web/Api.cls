@@ -548,32 +548,44 @@ Method TestStateChatDecision()
 }
 
 /// DW-294: the snapshot's chat entry for an incident carries the member decision, the Decision payload of the incident's
-/// DecisionRef, when that is a decision of the session's own, so that the card's footer finds it after a load. An incident whose
-/// DecisionRef is empty, or a decision of another session, or of no row, has no decision member, and the entry is then exactly
-/// {type, payload}. The rail's decisions are not changed by it.
+/// DecisionRef (its diagnose decision), when that is a decision of the session's own, so that the card's footer finds it after a
+/// load. An incident whose DecisionRef is empty, or a decision of another session, has no decision member, and the entry is then
+/// exactly {type, payload}. The rail's decisions, of kind decide only, do not gain it. The rows are removed after a failure too.
 Method TestStateIncidentDecision()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
 	Set mine = $ClassMethod(fixture, "Session", "zzapiincdec"_..Number)
 	Set theirs = $ClassMethod(fixture, "Session", "zzapiincdecother"_..Number)
-	Set own = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz one"})
-	Set foreign = $ClassMethod(fixture, "Decision", theirs, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act"})
-	Set withOwn = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:01:00Z", , , {"DecisionRef": (own)})
-	Set bare = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:02:00Z")
-	Set withForeign = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:03:00Z", , , {"DecisionRef": (foreign)})
-	Set refs = mine_","_theirs_","_own_","_foreign_","_withOwn_","_bare_","_withForeign
-	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
-	Do $$$AssertEquals(..Items(body.chat), "incident:"_withOwn_",incident:"_bare_",incident:"_withForeign, "the chat holds the three incidents")
-	Set first = body.chat.%Get(0)
-	Do $$$AssertEquals(first.%IsDefined("decision"), 1, "the incident whose DecisionRef is the session's own decision carries it")
-	If first.%IsDefined("decision") {
-		Do $$$AssertEquals(first.decision.ref_"|"_first.decision.kind_"|"_first.decision.outcome, own_"|decide|act", "it is that decision's payload")
-		Do $$$AssertEquals(first.payload.decisionRef, own, "beside the incident's own payload, which keeps its decisionRef")
+	Set refs = mine_","_theirs
+	Try {
+		Set own = $ClassMethod(fixture, "Decision", mine, "diagnose", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz one"})
+		Set refs = refs_","_own
+		Set foreign = $ClassMethod(fixture, "Decision", theirs, "diagnose", "2030-01-01T10:00:00Z", {"Outcome": "act"})
+		Set refs = refs_","_foreign
+		Set withOwn = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:01:00Z", , , {"DecisionRef": (own)})
+		Set refs = refs_","_withOwn
+		Set bare = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:02:00Z")
+		Set refs = refs_","_bare
+		Set withForeign = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:03:00Z", , , {"DecisionRef": (foreign)})
+		Set refs = refs_","_withForeign
+		Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+		Do $$$AssertEquals(..Items(body.chat), "incident:"_withOwn_",incident:"_bare_",incident:"_withForeign, "the chat holds the three incidents")
+		Set first = body.chat.%Get(0)
+		Do $$$AssertEquals(first.%IsDefined("decision"), 1, "the incident whose DecisionRef is the session's own decision carries it")
+		If first.%IsDefined("decision") {
+			Do $$$AssertEquals(first.decision.ref_"|"_first.decision.kind_"|"_first.decision.outcome, own_"|diagnose|act", "it is that diagnose decision's payload")
+			Do $$$AssertEquals(first.payload.decisionRef, own, "beside the incident's own payload, which keeps its decisionRef")
+		}
+		Do $$$AssertEquals(body.rail.decisions.%Size(), 0, "the rail's decisions, of kind decide only, do not gain it")
+		Do $$$AssertEquals(body.chat.%Get(1).%IsDefined("decision"), 0, "an incident with an empty DecisionRef carries none")
+		Do $$$AssertEquals(body.chat.%Get(1).%Size(), 2, "its entry is exactly {type, payload}")
+		Do $$$AssertEquals(body.chat.%Get(2).%IsDefined("decision"), 0, "so does one whose DecisionRef is another session's decision")
+		Do $$$AssertEquals(body.chat.%Get(2).%Size(), 2, "whose entry is exactly {type, payload} too")
+		Do $$$AssertEquals(body.chat.%Get(2).payload.decisionRef, foreign, "and its payload keeps the Ref")
+		Do $$$AssertTrue('$Find(body.chat.%Get(2).%ToJSON(), """decision"":{"), "nothing of the other session's decision is in the entry")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the snapshot of the incidents is read: "_exception.DisplayString())
 	}
-	Do $$$AssertEquals(body.chat.%Get(1).%IsDefined("decision"), 0, "an incident with an empty DecisionRef carries none")
-	Do $$$AssertEquals(body.chat.%Get(2).%IsDefined("decision"), 0, "so does one whose DecisionRef is another session's decision")
-	Do $$$AssertEquals(body.chat.%Get(2).payload.decisionRef, foreign, "and its payload keeps the Ref")
-	Do $$$AssertTrue('$Find(body.chat.%Get(2).%ToJSON(), """decision"":{"), "nothing of the other session's decision is in the entry")
 	Do $ClassMethod(fixture, "Clean", refs)
 }
 

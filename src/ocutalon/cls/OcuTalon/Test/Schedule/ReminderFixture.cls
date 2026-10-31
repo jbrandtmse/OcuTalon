@@ -1,6 +1,6 @@
 /// The one helper of the reminder tests that sets, cancels and removes a product-made reminder, for the unit tests of
-/// OcuTalon.Test.Schedule (Reminders, ReminderChat) and for the browser specs that run it through irisScript (web/e2e/reminder/*.spec.ts
-/// and web/e2e/demo-path/03-reminder.spec.ts). It has no Test methods and the product never refers to it.
+/// OcuTalon.Test.Schedule (Reminders, ReminderChat) and for the browser specs that run it through irisScript (web/e2e/reminder/*.spec.ts).
+/// It has no Test methods and the product never refers to it.
 ///   - Begin starts the bridge context of a session as a chat tool call has it (OwnerRef the session, ItemId, SuperSession its TraceRef);
 ///     the caller ends it with Bridge.Context.End;
 ///   - Submit sends a command through Commands.Submit under such a context and ends it;
@@ -8,7 +8,6 @@
 ///   - Cancel submits a CancelReminder for a session and returns the answer;
 ///   - Remove cancels the reminder if it is pending, waits for its waiter to end, and deletes the reminder and everything the product
 ///     made for it;
-///   - CancelPending cancels each pending reminder of a session through Cancel and answers how many were cancelled;
 ///   - RemoveAll removes every reminder of a session, whatever its state, through Remove;
 ///   - RemoveTurns removes every chat turn of a session with the Decision, AgentStep and Usage rows the product made for it;
 ///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting, and WaitingCount how many of its waiters are;
@@ -138,25 +137,6 @@ ClassMethod Remove(ref As %String)
 		Do ##class(OcuTalon.Schedule.ReminderTimer).%DeleteId(at)
 	}
 	Do ##class(OcuTalon.Data.Reminder).%DeleteId(id)
-}
-
-/// Cancels each pending reminder of the session through Cancel, which ends its waiter, and answers how many were answered cancelled.
-/// The rows are read first and let go before the first cancel, which locks its row.
-ClassMethod CancelPending(sessionRef As %String) As %Integer
-{
-	Set pending = ##class(OcuTalon.Data.Ownership).Reminders(sessionRef)
-	Set refs = ""
-	For i = 1:1:pending.Count() {
-		Set refs = refs _ $ListBuild(pending.GetAt(i).Ref)
-	}
-	Set pending = ""
-	Set cancelled = 0
-	Set position = 0
-	While $ListNext(refs, position, ref) {
-		Set answer = ..Cancel(sessionRef, ref)
-		If answer.ok_"|"_answer.outcome = "1|cancelled" Set cancelled = cancelled + 1
-	}
-	Quit cancelled
 }
 
 /// Removes every reminder of the session, whatever its state, through Remove.

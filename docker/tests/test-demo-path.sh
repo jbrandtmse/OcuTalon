@@ -104,9 +104,7 @@ audit_entries_found() {
   audit_has approval-found && audit_has action-found
 }
 
-if [ "$e2e_status" -ne 0 ] || [ "$summary_status" -ne 0 ]; then
-  echo "INFO audit: not read, the demo path did not pass"
-elif [ -n "$audit_mark" ]; then
+if [ -n "$audit_mark" ]; then
   poll=${OCUTALON_AUDIT_POLL:-60}
   left=$((deadline - SECONDS))
   if [ "$poll" -gt "$left" ]; then poll=$left; fi

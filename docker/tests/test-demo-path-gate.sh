@@ -15,8 +15,8 @@
 #     test of a numbered step file (only the Telegram parts may skip), a skip that names no story, a spec file that maps to no
 #     step, a missing step spec, a Playwright exit 1 beside a green report, and a missing report;
 #   - the unit exits 1 with one FAIL line for each audit entry that is missing (the answered Approval entry, the resend's Action
-#     entry), that holds more or fewer members than its shape, or that holds key-like text; it reads no audit log after a red demo
-#     path;
+#     entry), that holds more or fewer members than its shape, or that holds key-like text; it reads the audit log after a red
+#     demo path too;
 #   - a first start over 12 minutes warns and the specs still run, a first start that never ends ready fails the unit before any
 #     spec runs, and a deadline with under 100 s left fails it before the browser starts;
 #   - `ci/iris.sh group browser` runs live:demo-path and live:sign-in in that order, installs Chromium before
@@ -174,6 +174,7 @@ write('floor-failed', suites(floor('failed')));
 {
   const list = suites();
   list[3].specs.push(unbuilt('a part that nobody turned on', '11.1'));
+  list[5].specs = [unbuilt('the trace link opens Visual Trace', '11.1')];
   write('numbered-skip', list);
 }
 {
@@ -315,10 +316,10 @@ if [ "$(cat "$log/first.max" 2> /dev/null)" = 900 ]; then
 else
   fail "unit: the first start waits '$(cat "$log/first.max" 2> /dev/null)' s, not 900"
 fi
-if ! grep -qE '^STEP [0-9] [a-z]+: passed, 0 passed' "$out" && grep -qE '^STEP 1 page: partly skipped' "$out"; then
-  pass "unit: no step with no passed test is read as passed, and a step with a skipped part is not read as passed"
+if grep -qE '^STEP 1 page: partly skipped' "$out" && grep -qE '^STEP 5 approval: partly skipped' "$out"; then
+  pass "unit: a step with a skipped Telegram part reads partly skipped, not passed"
 else
-  fail "unit: a skipped step is read as passed"
+  fail "unit: a step with a skipped part is read as passed"
 fi
 first=$(line_of "FIRST-START engine=x86_64 build=2s ready=150s")
 step=$(line_of "STEP 1 page")
@@ -344,13 +345,14 @@ expect "unit: a skipped floor test fails the unit although Playwright exits 0" 1
   'FAIL floor test "signs in with the README account and loads the page snapshot" (01-page.spec.ts) was skipped' \
   'FAIL 01-page.spec.ts "signs in with the README account and loads the page snapshot": skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip' \
   "FAIL the demo path: Playwright exit 0, the step summary exit 1" \
-  "INFO audit: not read, the demo path did not pass" \
+  "PASS audit: the answered Approval entry (approved, from the phone) of the README session is in the log" \
+  "PASS audit: the resend's Action entry that names the approval request is in the log" \
   "test-demo-path: 1 check(s) failed"
 absent "unit: a skipped floor test draws no PASS for the demo path" "PASS the demo path"
-if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm " ]; then
-  pass "unit: a red demo path reads no audit log"
+if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
+  pass "unit: a red demo path still reads the audit log after the step summary"
 else
-  fail "unit: a red demo path read the audit log ('$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)')"
+  fail "unit: the audit calls of a red demo path ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)', not 'read npm read'"
 fi
 
 run_unit floor-failed 1
@@ -367,8 +369,11 @@ expect "unit: a Telegram part whose skip names no story fails the unit although 
 run_unit numbered-skip 0
 expect "unit: a skipped test of a numbered step file fails the unit although Playwright exits 0 and the skip names its story" 1 \
   '04-incident.spec.ts "a part that nobody turned on": skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip' \
+  '06-trace.spec.ts "the trace link opens Visual Trace": skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip' \
   "STEP 4 incident: partly skipped, 1 passed, 1 skipped" \
+  "STEP 6 trace: skipped, 0 passed, 1 skipped" \
   "FAIL the demo path: Playwright exit 0, the step summary exit 1"
+absent "unit: a step whose parts all skipped is never read as passed" "STEP 6 trace: passed"
 
 run_unit unknown-file 0
 expect "unit: a spec file that maps to no step fails the unit" 1 \
