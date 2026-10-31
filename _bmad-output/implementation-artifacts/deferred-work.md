@@ -2768,3 +2768,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8; no guide, rail or watch change), iris shards, live:floor M4; attempt 2 green; live:floor passed locally 105/105 on a fresh lane-C stack
 - 2026-10-31T19:42:02Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; guide.spec.ts and the Status region are Lane B's (Epic 4/8 area); possibly a real tick or watch.progress ordering under CI load (inference)
+
+### DW-512: A browser clock ahead of the server's by ten minutes or more makes the Telegram card replace its pairing code every 10 s, captioned 'New code in 1 min'
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: telegram-card-view.ts dueTime compares the server's expiresAt with the browser clock; the 10 s spacing bounds the requests (Boundaries 'The spacing', Decided 4; matrix row 2 expects '1 min' for a past expiry)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: the spacing rule is the specified guard; a server-relative lifetime would change the Boundaries' due-time formula
+
+### DW-513: A 409 that the code route gives only briefly (TelegramIn restarting) keeps the Telegram card on 'Telegram not set up' until /state's Telegram values or the pause change
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts records refusedAt under the asking key and never re-asks for that key; no live event carries the server's state (Decided 2)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: Decided 2 (a stale page never polls a refusing route); a reload shows the real state
+
+### DW-514: Two tabs of one session each show an unpaired Telegram card, and each code request replaces the session's one code (AD-4), so the other tab's QR code is dead until its own refresh
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Pairing.StoreCode keeps one code row per session (CodeSessionRefIndex unique) and each card asks on its own; scanning the older tab's code gets Story 12.5's 'That code didn't work'
+- 2026-10-31T23:27:33Z status=decision-pending owner=burndown by=cr note=product call: accept (AD-4, the code never leaves the card), only the visible tab asks, or another rule; a cross-tab share breaches the spec's 'sends it nowhere'
+
+### DW-515: The Telegram card's long-timer and refusal-reset rules are pinned by no test: the 30 s retry after a non-409 failure, the 409 stop beyond T4's 3 s window (the 10 s spacing makes that window unable to fail), and the refusal forgotten when a pause starts and ends
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts ask()/later() and the askKey effect; pinning needs a 31 s wait or a live-event route on a refused page, and page.clock is excluded (Decided 9) while the browser group runs about 25 min
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=a card asks after a 409, never retries after a 5xx, or stays not set up after a pause clears, in CI or on a page; or Lane A gains a web unit-test host
+
+### DW-516: TelegramPageFixture.Finish keeps a code row that existed at Start, so when an earlier Finish failed and left the README session's code row, the page's codes overwrite that row and it stays with the test's last code hash
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Pairing.StoreCode reuses the session's row (CodeSessionRefIndexOpen), and DropCodes keeps every Ref Start saved; mutation M5 showed it (T1's leftover row survived T3's Finish)
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=Start finds a code row of the test's own session, or a later test reads the README session's code row

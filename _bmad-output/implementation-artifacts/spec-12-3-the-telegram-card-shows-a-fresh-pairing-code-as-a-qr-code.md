@@ -279,6 +279,55 @@ These rows assume:
 - Given the code expires while the page is open, when "New code in {n} min" runs out, then the page fetches a new code and replaces the QR code and the link in place without losing input, and moves focus to the new link if the old one had it (FR-18, UX-DR55, UX-DR131, UX-DR135). Rows "The code runs out while the user types" and "A past expiry, with focus on the link".
 - Given codes issued during a test run, when a test searches the production messages, headers, event log, live events and audit entries, then no code appears in any of them, and each scan finds a value that its store does hold (FR-18, AD-4). Row "No code anywhere else".
 
+### Review Findings
+
+Code review of 2026-10-31 (`bmad-code-review`, tier full-opus: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, with no model override). Results: 0 decision-needed, 12 patch (all applied), 5 defer (ledgered DW-512 to DW-516) and 18 rejected.
+- Rule 3: T1, T3 and T4 run on the real stack in `live demo-path`.
+- Rule 6: every governing AD matches its Rule, so there is no HIGH.
+- Rule 2: the one copy found is patched below; the others carry their stated reasons or are ledgered (DW-502).
+- Patch verification:
+  - `live demo-path` green forward (16 passed, 1.9 min; T4 11.5 s) and with the four tests reversed (16 passed, 2.2 min);
+  - `npm --prefix web test` 1127 passed and `npm --prefix web run lint` clean;
+  - the new pins' mutations are under `## Verification`.
+
+- [x] [Review][Patch] (med; fix-risk low: the reference point only) T3 timed the third code request from the second answer, but the card spaces requests from the previous request. A code route slower than 1 s would therefore fail T3 on a correct card. It is now measured from the second request, the Boundaries' spacing rule, with the matrix's 9, 8.5 and 16 s kept [web/e2e/demo-path/telegram-page.spec.ts:488]
+- [x] [Review][Patch] (med; fix-risk low) No test sent a non-409 failure, so a card that showed "Telegram not set up" for every failure (Decided 3) passed every test. T4 now answers the request with a made-up 500 and expects no state of the card's own, after one request [web/e2e/demo-path/telegram-page.spec.ts:613]
+- [x] [Review][Patch] (med; fix-risk low) Nothing pinned the countdown's one-second tick, so a frozen "New code in 9 min" passed T3, which reads only the clamped 1 and a fresh 9. T4 now answers with an expiry 122 s out and expects "2 min", then "1 min" within 5 s [web/e2e/demo-path/telegram-page.spec.ts:618]
+- [x] [Review][Patch] (low; fix-risk low) The page-side ten-minute cap in `dueTime` (Boundaries, FR-18) was pinned by nothing. T4 now answers with an expiry an hour out and expects "New code in 9 min" [web/e2e/demo-path/telegram-page.spec.ts:622]
+- [x] [Review][Patch] (low; fix-risk low) `CodeRow`'s scan of the `Pairing` columns named 11 columns by hand, passed silently on an SQL error, and had no positive control. It is now `LiveCase.RowsText` over `SELECT *` of every row, which must find the last code's hash first. This also drops the copy of Lane B's `ColumnsHold` [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:197]
+- [x] [Review][Patch] (low; fix-risk low) `Finish` did not read the code rows back after removing them, so a `DropCodes` that deleted nothing left T1 and T3 green (Rule 19 hermeticity). `DropCodes` now reads them back, and also returns a reason when its SELECT fails [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:322]
+- [x] [Review][Patch] (low; fix-risk low) `CodeSearch` swallowed every cleanup error, and a throw in one step skipped the others. The three removals are now separate steps, and a probe that is not removed is the reason when the search found nothing else [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:229]
+- [x] [Review][Patch] (low; fix-risk low) Nothing tested the page half of "the code lives only in the card": no console line, browser storage, URL, title or announcement. T3 now checks all of them for every code [web/e2e/demo-path/telegram-page.spec.ts:507]
+- [x] [Review][Patch] (low; fix-risk low) T4 relied on the server's Telegram state being off without checking it, so an earlier test's leftover would have failed T4 with a misleading 409 expectation. T4 now first asserts the real snapshot's not-set-up card and that no code was requested [web/e2e/demo-path/telegram-page.spec.ts:554]
+- [x] [Review][Patch] (low; fix-risk low) `LiveCase`'s class doc named the wrong users of the scan helpers: `HeadersFrom` is `TelegramIn`'s, and `TelegramNoToken` calls the other four. The users are now named correctly (Task 1) [src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls:24]
+- [x] [Review][Patch] (low; fix-risk low; Rule 2) T1's inline code-request listener repeated the 12.3 describe's `recordRequests` in the same file. `Sent` and `recordRequests` moved to the top level, and T1, T3 and T4 use them [web/e2e/demo-path/telegram-page.spec.ts:159]
+- [x] [Review][Patch] (low; fix-risk low) The card's doc said a fast browser clock "cannot make a loop", though the card then asks every 10 s. It now says the card asks at most once every ten seconds (Rule 14) [web/src/app/rail/telegram-card/telegram-card.ts:39]
+- [x] [Review][Defer] A browser clock ahead of the server's by ten minutes or more replaces the code every 10 s, captioned "1 min" [web/src/app/rail/telegram-card/telegram-card-view.ts:103] — deferred: DW-512, `by-design` (Boundaries "The spacing", Decided 4, matrix row 2)
+- [x] [Review][Defer] A 409 the server gives only briefly keeps the not-set-up view until /state's values or the pause change [web/src/app/rail/telegram-card/telegram-card.ts:232] — deferred: DW-513, `by-design` (Decided 2)
+- [x] [Review][Defer] Two tabs of one session each ask for a code, and each request replaces the session's one code (AD-4), so the other tab's QR code is dead until its own refresh [web/src/app/rail/telegram-card/telegram-card.ts:222] — deferred: DW-514, `decision-pending owner=burndown` (med; a product call, because sharing the code across tabs would breach "the page sends it nowhere")
+- [x] [Review][Defer] The card's long-timer and refusal-reset rules have no pin: the 30 s retry, the 409 stop beyond T4's 3 s window (which the 10 s spacing makes unable to fail), and the refusal forgotten across a pause [web/src/app/rail/telegram-card/telegram-card.ts:190] — deferred: DW-515, `wontfix-accepted` (each needs a 31 s wait or live-event routing, and page.clock is excluded by Decided 9)
+- [x] [Review][Defer] `Finish` keeps a code row that existed at Start and that the page then overwrote. This happens only after an earlier `Finish` failed [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:328] — deferred: DW-516, `wontfix-accepted`
+
+Rejected:
+- `low` T1's no-request window ends at the resume call, not when the page applies the clear (BH, ECH). The page may legitimately ask once it has applied the clear, before the test notices. A pause-blind card already fails at the onset.
+- `false` `Bodies` skips bodies that are not `%XML.Adaptor` (BH, VG). Every production body extends `Ens.MessageBody`, which extends `%XML.Adaptor` (`irislib/Ens/MessageBody.cls:9`), and the method moved verbatim.
+- `false` The header control looks for "SessionOps" rather than the probe itself (BH, ECH, VG). The control proves that the scan reads headers after the mark, and a `SELECT * ... WHERE ID > ?` cannot skip one header while reading another.
+- `low` `KeyScan.Find`'s control proves the settings store only (BH). Decided 10 names the probes, and KeyScan's own test (Lane B) covers each store; the event log has its own probe through `LogRowsHolding`.
+- `false` The live-event scan reads only `Payload` (BH). The other columns hold a stream Ref, a sequence, a time and a type, never a code.
+- `false` The QR oracle repeats the implementation (BH). The matrix defines `S(link)` as the library's calls in the stated grammar, and the mutation "the symbol encodes the code alone" went red; decoding a screenshot would need a new dependency, which is a veto item.
+- `false` `telegramCardView`'s new parameter leaves stale callers (BH). It has no other caller, and the missing Node test is DW-499.
+- `false` A 200 without a body would stop the refresh (ECH). Lane B's `PairingCode` always writes `{code, expiresAt}` with its 200 (`Web/Api.cls:697-698`).
+- `false` A failed `CodeRefs` SELECT would make `DropCodes` delete every code row (ECH). `DropCodes` runs the same SELECT on the same table, and it now also returns a reason when that SELECT fails.
+- `low` T3's route handler throws on an answer that is not JSON (ECH). T3 requires 200 JSON answers and fails either way; only the message would differ.
+- `false` The commit message says "shows the off or paused state otherwise" (ECH). It summarises the 409 and pause rules in pushed history, which is not rewritten.
+- `false` "Exactly one code row" and "an earlier hash still finds a row" can never fail (VG). Both fail if `StoreCode` inserted a row per code (with the Unique index dropped). The `LogRowsHolding` check is the matrix's "event-log row since the mark".
+- `low` AC3's draft assertion has never been seen red (VG). AC3 has its recorded mutations (refresh, focus and spacing), and the card cannot reach the composer's value.
+- `false` The unreadable-expiry branch of `dueTime` is not pinned (VG). The server always sends a UTC expiry from `Data.Time.AddSeconds` (`Web/Api.cls:694`).
+- `low` AC1's 409 half does not read the `Pairing` table back, and the paused 409 is never hit (AA). The matrix gives the paused row to the card, and Lane B's `PairingApi` pins the endpoint's off, rejected and paused 409s.
+- `false` Task 3's wording of `saved`'s fourth element (AA). Fixing it would edit the spec, and the `Pack` and `Finish` docs state the shape.
+- `low` T4's refused case does not check the not-set-up link's `href` (AA). T2 pins that block, which this story leaves unchanged.
+- `low` A capped code (expiry ten minutes or more out) reads "New code in 10 min" for up to 1 s after it arrives (reviewer). This is the Boundaries' formula at the instant of receipt, and the first tick reads 9.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -500,6 +549,14 @@ Mutation results (each applied, `live demo-path` run, seen red, reverted byte fo
 - mutation: AC3 without losing input: the refresh moves focus to the link -> T3 red (`the composer still has focus`: expected focused, received inactive). The other half of this row, a refresh that reloads the snapshot, was not applied: it needs a `LiveState` call, and the card does not inject `LiveState`'s reload.
 - mutation: AC3 the spacing: no 10 s spacing -> T3 red (a loop of requests: `the route kept the second answer` saw 3 answers, expected 2)
 - mutation: AC4: `Web/Api.cls` `PairingCode` writes the code to the event log -> T3 red (`Codes`: `the settings, item settings, event log or sessions hold code 1`)
+
+Mutations of the pins that code review added (2026-10-31). Each was applied, `ci/iris.sh build` was run after each web change, `live demo-path` was run on a fresh `e12s3cr` throwaway, and the red was seen. Each was then reverted byte for byte (`cmp` against the reviewer's backup; `git status --short` and `git diff --stat` unchanged), and the bundle was rebuilt. Two mutations aimed at different tests shared each run:
+- mutation: Boundaries "any other failure" (Decided 3): every failure counts as a refusal (`if (true)` for the 409 test in `ask()`) -> T4 red (`failed: the card shows nothing, not the off card`: expected 0, received 1)
+- mutation: Boundaries "the countdown" (never more than 1 s stale): no one-second tick (the `setInterval` removed) -> T4 red (`ticking: and the countdown counts down while the page is open`: expected `New code in 1 min`, received `New code in 2 min`)
+- mutation: Boundaries "the code's lifetime" (FR-18's ten-minute cap): `dueTime` returns the expiry uncapped -> T4 red (`capped: an expiry an hour out is held ten minutes at most`: expected `New code in 9 min`, received `New code in 59 min`)
+- mutation: Boundaries "the code lives only in the card": the card writes the code to the console (`console.log(answer.code)`) -> T3 red (`no console line holds code 1`: expected false, received true)
+- mutation: AC1 "stores only its hash" (the `Pairing` column scan): `Web/Api.cls` `PairingCode` also writes the code into its row's `DisplayName` (a temporary Lane B edit) -> T3 red (`Codes`: `a column of a Pairing row holds code 3`)
+- mutation: Rule 19, `Finish` removes the code rows: `DropCodes` deletes no row (`Continue` for every row) -> T1 red, the first of T1 and T3 to run (`the fixture puts everything back`: received `a code row that Start did not find is still there`); T3 then kept T1's leftover row, which is DW-516's case
 
 ## Auto Run Result
 
