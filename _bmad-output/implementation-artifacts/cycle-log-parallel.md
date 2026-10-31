@@ -1152,3 +1152,8 @@
 2026-10-31T17:18:08Z	Epic 5	runner_complete	agent=a4831f2327c86bba0 head=29d16db6 ci=success(41221079306,41221079183) story=5.12(launch_hotfix) inbox=U-193(veto,keep) flake=DW-497(live:cards_A7,->31.2) ci_groups=install-fresh_31.4,shards-2_30.6,install-upgrade_29.3,shards_28.3,image_27.5,browser_26.2
 2026-10-31T17:18:08Z	Epic 5	merge_enqueued	position=1(LAUNCH_RISK)
 2026-10-31T17:18:08Z	Epic 5	epic_merge_started	branch=OCT-epic5 head=29d16db6
+2026-10-31T17:18:19Z	Epic 5	epic_merged_to_feature	merge=14de8018 head=29d16db6 conflicts=none tracker=valid lint=baseline verified_on_origin=yes source_identical_to_green_head=yes
+2026-10-31T17:18:38Z	Epic 16	dispatch_planned	runner=B slot=ocutalon-slot-b reason=5.12_merged(14de8018)->16.11_next(launch_text) base=9ac6e499 prompt=scratchpad/dispatch-epic-16-hotfix.md target=feature_by_~19:00-19:30Z
+2026-10-31T17:19:00Z	Epic 16	runner_dispatched	agent=af4a0f6f7daaef78f model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,Story_16.11) base=9ac6e499 prompt=scratchpad/dispatch-epic-16-hotfix.md
+2026-10-31T17:19:00Z	Epic 5	decision_sheet_recorded	decided=0 notes=U-193(veto,keep)_open;DW-497(flake)->31.2 inbox_snapshot=copied deps_hash=rerecorded(rule5_amendment:5.12_second_fixture)
+2026-10-31T17:19:18Z	Epic 5	ledger_routed_planned	entries=DW-483->30.1,DW-484->30.5,DW-497->31.2 by=orchestrator

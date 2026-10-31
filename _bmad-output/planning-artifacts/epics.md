@@ -6777,6 +6777,7 @@ So that long conversations keep working at the cheaper price tier.
 - DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured) (ledger; routed by merge_gate 2026-10-24)
 - DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node, so a key inside a zstd-compressed %Stream.Global* chunk, a 16-bit $List element or split across stream chunks reads as clean (ledger; routed by merge_gate 2026-10-31)
 - DW-386: The product redactor OcuTalon.Bridge.Redact does not replace two key shapes that docker/tests/test-boundaries.sh key_like flags: DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY) (ledger; routed by merge_gate 2026-10-31)
+- DW-483: Decide falls back on the first invalid reply; one retry on an invalid reply (with the check's own error text in the retry) could recover a correct-but-malformed diagnosis, within NFR-7's diagnosis budget (ledger; routed by orchestrator 2026-10-31)
 
 ### Story 30.2: Old messages and records are purged on schedule
 
@@ -6873,6 +6874,7 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
 - DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
+- DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
 
 ## Epic 31: Lane B post-demo hardening
 
@@ -6915,6 +6917,7 @@ So that a tool call is answered the same way as a fix.
 **When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
 **Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
 **And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+- DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun (ledger; routed by orchestrator 2026-10-31)
 
 ### Story 31.3: The README leads to the demo, and the launched demo is measured
 
