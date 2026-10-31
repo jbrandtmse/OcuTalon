@@ -83,3 +83,6 @@
 2026-10-31T15:56:03Z	Story 11.8	ledger_routed_planned	story=38-1 entries=1(DW-142) excess=0 by=adjudication note=other_epic_story:bullet_by_orchestrator_post-merge
 2026-10-31T15:59:51Z	Story 11.8	smoke_complete	method=other(integration_test_TestCancelAllThroughChat:WebChatIn->Chat->cancel_reminder_on_real_production+CI_mock,warm_throwaway) result=pass iterations=1 defects_caught=0 evidence=ReminderChat_passed_12.9s model=claude-opus-5-5
 2026-10-31T15:59:51Z	Story 11.8	fresh_check	env=recipe(ci/warm.sh_up_fresh_e11s8fcw) tests=5(ReminderChat,Tools.Reminders,Agent.Instructions,Checks.Turns,Watch.Turns) result=pass order=forward,reverse
+2026-10-31T16:00:25Z	Story 11.8	committed	sha=05913a5b submodules= ci=pending runs=41217490277,41217490305 amendments=epics.md:38.3_read_line,spine:AD-22(U-194) pushed=verified_on_origin
+2026-10-31T16:00:25Z	Story 11.8	story_cycle	plan_to_commit_min=129 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-31T16:00:32Z	Story 11.7	stage_spawned	stage=plan spawn_at=2026-10-31T16:00:32Z model=claude-opus agent_name=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run-plan-1 cycle_iteration=1 ledger_inbox=DW-307,DW-221,DW-433
