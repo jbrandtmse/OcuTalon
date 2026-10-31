@@ -72,7 +72,11 @@ test('row 16: each agent MOCKKEY has exactly one mockkey scenario, and each mock
   assert.deepEqual(problems, []);
   for (const key of ['chat', 'diagnosis', 'triage']) assert.ok(agents.some((a) => a.key === key), `the agent classes of Story 0.6 include the MOCKKEY ${key}`);
   assert.equal(new Set(agents.map((a) => a.key)).size, agents.length, 'the MOCKKEY values of the agent classes are distinct');
-  const scenarioKeys = scenarios.all.filter((s) => Object.hasOwn(s.match, 'mockkey')).map((s) => s.match.mockkey);
+  // A keyed prompt (a B/ guide prompt that names one agent) is not a default script: only a match whose single key is mockkey counts.
+  const scenarioKeys = scenarios.all.filter((s) => Object.keys(s.match).length === 1 && Object.hasOwn(s.match, 'mockkey')).map((s) => s.match.mockkey);
+  const keyedPrompts = scenarios.all.filter((s) => Object.hasOwn(s.match, 'prompt') && Object.hasOwn(s.match, 'mockkey'));
+  assert.ok(keyedPrompts.length >= 4, 'the four guide prompt scenarios are keyed');
+  for (const s of keyedPrompts) assert.ok(agents.some((a) => a.key === s.match.mockkey), `${s.file}: its mockkey ${s.match.mockkey} names no agent`);
   for (const agent of agents) {
     assert.equal(scenarioKeys.filter((k) => k === agent.key).length, 1, `${agent.file}: MOCKKEY ${agent.key}`);
   }
@@ -84,7 +88,7 @@ test('row 16: the tool names of the default scripts and of the summary are value
   assert.ok(toolNames.length >= 11, `OcuTalon.Tools.Names holds ${toolNames.length} tool names`);
   assert.equal(new Set(toolNames).size, toolNames.length, 'the tool names are distinct');
   let used = 0;
-  for (const s of scenarios.all.filter((x) => Object.hasOwn(x.match, 'mockkey'))) {
+  for (const s of scenarios.all.filter((x) => Object.keys(x.match).length === 1 && Object.hasOwn(x.match, 'mockkey'))) {
     for (const name of toolUseNames(s)) {
       used += 1;
       assert.ok(toolNames.includes(name), `${s.file}: ${name}`);

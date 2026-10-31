@@ -6,18 +6,22 @@
 #   - the model keys of the three runners are pointed at the CI mock (keys_point of lib-online.sh): without them every decision is the no_key
 #     fallback, and no incident would raise an approval request;
 #   - the browser step: the project online-demo-path of web/playwright.config.ts (web/e2e-online/demo-path/) as the demo account:
-#       step 1 (the splash and the sign-in), step 6 (the trace link opens Visual Trace at the turn, signed in, with its agent steps and the
-#       cost), and "second visitor" (A and B each watch Orders and A presses Break the feed: A's incident, notice and approval request reach
-#       only A, B's page, /state and /events get nothing, B's answer to A's request is refused, and A answers on its simulated phone);
-#   - the report check (with no arguments): the JSON report holds exactly three passed cases (step 1, step 6, the second visitor) and seven
-#     skipped ones, each with its own skip text: steps 2 to 5 wait for Story 11.1 and the paired chat and message search cases for Story
-#     31.4. A case that is skipped without its text, or one that is missing or extra, fails the unit. With arguments (a mutation run:
-#     -g <title>) only those cases run and the set check is skipped;
+#       step 1 (the splash and the sign-in), steps 2 to 5 (one visitor's journey through the step functions of web/e2e/support/demo-path.ts,
+#       which the web run's 02 to 05 call too: the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting
+#       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
+#       agent steps and the cost), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
+#       A's incident, notice and approval request reach only A, B's page, /state and /events get nothing, B's answer to A's request is
+#       refused, and A answers on its simulated phone);
+#   - the report check (with no arguments): the JSON report holds exactly seven passed cases (steps 1 to 6 and the second visitor) and
+#     three skipped ones, the paired chat and message search cases of Story 31.4, each with its skip text. A case that is skipped without
+#     its text, or one that is missing or extra, fails the unit. With arguments (a mutation run: -g <title>) only those cases run and the
+#     set check is skipped;
 #   - the load phase (Story 29.8; rows L1 and L2 of its spec), which runs the author's release/demo-load.sh against this throwaway with the
 #     keys at the mock: the proxy address is set to the address that IRIS sees for this host's requests (host_address, set_proxy of
 #     lib-online.sh), each visitor sends its own X-Forwarded-For, and the address is put back to its start value after the phase. It needs
 #     150 s of the deadline left, else it fails saying so, and it waits up to 150 s for the licence units to come back to the reading the
-#     unit took after the start. L1: 6 visitors with 10 turns (5 drive the demo path, one only signs in; the one more visitor is refused as
+#     unit took after the start. The visitors send the guide's own watch prompt, which the mock answers for the Chat and Triage agents
+#     alike (AD-22, U-194). L1: 6 visitors with 10 turns (5 drive the demo path, one only signs in; the one more visitor is refused as
 #     busy, by the visitor count): IRIS gains 5 Turn rows and 5 resolved Incident rows, each visitor address has one counter row and the one
 #     more visitor's has none, and afterwards the status is not busy and the units are at the reading of the start. L2 (DW-286): 3 visitors
 #     with Visual Trace open, with a units command that reads $SYSTEM.License.InstanceConnections() and LUConsumed(): each sign-in reads
@@ -96,8 +100,8 @@ run_e2e() {
 }
 
 # report_check <report>: the cases of the JSON report by their ends. It prints one FAIL line for each defect and nothing when the report
-# holds exactly the three passed cases and the seven skipped ones (four of Story 11.1, three of Story 31.4), each skipped case with its
-# "Story <id> turns this on" text.
+# holds exactly the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each skipped case
+# with its "Story <id> turns this on" text.
 report_check() {
   node -e '
     const fs = require("node:fs");
@@ -120,21 +124,20 @@ report_check() {
     for (const suite of report.suites ?? []) walk(suite);
     for (const error of report.errors ?? []) problems.push("Playwright reported an error: " + String(error.message ?? error).split("\n")[0]);
     const passed = cases.filter((c) => c.status === "passed").map((c) => c.title);
-    const wanted = [/^step 1:/, /^step 6:/, /^second visitor:/];
+    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^second visitor:/];
     for (const re of wanted) {
       const hits = passed.filter((t) => re.test(t));
       if (hits.length !== 1) problems.push("wanted exactly one passed case matching " + re + ", found " + hits.length);
     }
     if (passed.length !== wanted.length) problems.push("wanted " + wanted.length + " passed cases, found " + passed.length + ": " + passed.join(" | "));
     const skipped = cases.filter((c) => c.status === "skipped");
-    const bystory = { "11.1": 0, "31.4": 0 };
+    const bystory = { "31.4": 0 };
     for (const c of skipped) {
       const text = c.notes.find((n) => /^Story \d+\.\d+ turns this on$/.test(n)) ?? "";
       const story = (/^Story (\d+\.\d+)/.exec(text) ?? [])[1];
-      if (story === undefined || !(story in bystory)) problems.push("the skipped case \"" + c.title + "\" has no \"Story <id> turns this on\" text of 11.1 or 31.4 (" + c.notes.join("; ") + ")");
+      if (story === undefined || !(story in bystory)) problems.push("the skipped case \"" + c.title + "\" has no \"Story <id> turns this on\" text of 31.4 (" + c.notes.join("; ") + ")");
       else bystory[story] += 1;
     }
-    if (bystory["11.1"] !== 4) problems.push("wanted 4 skipped cases of Story 11.1, found " + bystory["11.1"]);
     if (bystory["31.4"] !== 3) problems.push("wanted 3 skipped cases of Story 31.4, found " + bystory["31.4"]);
     for (const c of cases.filter((x) => x.status !== "passed" && x.status !== "skipped")) problems.push("the case \"" + c.title + "\" ended " + c.status);
     if (cases.length !== 10) problems.push("wanted 10 cases in all, found " + cases.length);
@@ -163,10 +166,10 @@ else
   if [ "$#" -eq 0 ] && [ "$e2e_status" -eq 0 ]; then
     problems=$(report_check "$e2e_json") || problems="the report check could not run"
     if [ -z "$problems" ]; then
-      pass "the report holds the three passed cases and the seven skipped ones, four of Story 11.1 and three of Story 31.4, each with its skip text"
+      pass "the report holds the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each with its skip text"
     else
       printf '%s\n' "$problems" | redact | sed 's/^/  /'
-      fail "the report does not hold exactly the three passed and the seven skipped cases"
+      fail "the report does not hold exactly the seven passed and the three skipped cases"
     fi
   fi
 fi
@@ -184,8 +187,8 @@ Halt
 OS
 }
 
-# load_script <forwarded addresses> <units command or ""> <argument>...: runs release/demo-load.sh against this stack, with the
-# watch message that the mock answers (its watch-start-orders marker before the guide's prompt); standard output to $tmp/load.out and
+# load_script <forwarded addresses> <units command or ""> <argument>...: runs release/demo-load.sh against this stack, which sends the
+# guide's own watch prompt (the mock answers it for both the Chat and the Triage agent, U-194); standard output to $tmp/load.out and
 # standard error to $tmp/load.err, the exit code in load_rc.
 load_script() {
   local fwd=$1 units=$2
@@ -193,7 +196,6 @@ load_script() {
   (
     unset OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD OCUTALON_LOAD_INTERFACES OCUTALON_LOAD_UNITS_COMMAND
     export OCUTALON_LOAD_FORWARDED_FOR="$fwd"
-    export OCUTALON_LOAD_WATCH_TEXT='[[mock:watch-start-orders]] Watch the Orders production and only tell me if something needs me.'
     if [ -n "$units" ]; then export OCUTALON_LOAD_UNITS_COMMAND="$units"; fi
     bash "$root/release/demo-load.sh" "$base" "$@" > "$tmp/load.out" 2> "$tmp/load.err" < /dev/null
   )

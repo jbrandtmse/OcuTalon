@@ -1,0 +1,13 @@
+{
+  "name": "guide-watch-triage",
+  "match": {
+    "prompt": "Watch the Orders production and only tell me if something needs me.",
+    "mockkey": "triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock acts on the request to watch the Orders production.\"],\"confidence\":0.92}"
+    }
+  ]
+}

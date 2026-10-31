@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { STATE } from '../support/api';
+import { ON_MOCK } from '../support/demo-path';
 import { restoreKeys } from '../support/devices';
 import { CARD_MS, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript } from '../support/iris';
@@ -15,8 +16,8 @@ const DONE =
  * presses Open the trace in the guide: the dialog "Sign in to Visual Trace" shows first, and its link "Open Visual Trace (opens in a new
  * tab)" opens a tab at the trace page with the SESSIONID of the incident's diagnosis header, which Visual Trace draws; the tab is already
  * signed in with the README account. The guide then shows its finish line with the run total: the decisions, tokens and cost of the run on
- * the model the mock stands in for. The runners' keys, pointed at the CI mock by 02, are put back after the test and the runners record
- * the restored keys.
+ * the model the mock stands in for. On the CI mock the runners' keys, pointed at the mock by 02, are put back after the test and the runners
+ * record the restored keys; on the real model (OCUTALON_DEMO_PATH_MODEL=real) the specs never touched them and do nothing here.
  * It needs the first-start stack (OCUTALON_URL): without it the group skips as it is declared, before any hook starts.
  */
 test.describe('Story 11.1: step 5 of the guide opens the incident trace', () => {
@@ -61,6 +62,7 @@ test.describe('Story 11.1: step 5 of the guide opens the incident trace', () => 
 
   test.afterAll(async () => {
     test.setTimeout(240_000);
+    if (!ON_MOCK) return;
     try {
       await restoreKeys();
     } finally {

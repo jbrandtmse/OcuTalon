@@ -40,15 +40,21 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # and Watch 654, floor 621, online-session 439), shards-2 about 1,810 s (lane-a's other areas, Eval included, 1,334, and
 # demo-switch 473) and image about 1,660 s. shard:lane-b cannot go to production, whose units read no web bundle, because its Web
 # classes check the built bundle.
+# Story 11.7 swapped live:online-demo-path and live:install-script-live: the online unit grows by its steps 2 to 5 (the guide's watch
+# and reminder, Break the feed and the approval, one visitor's journey), so it moved from install-fresh to image, and the shorter
+# live:install-script-live moved the other way. From the unit seconds of CI run 41206732188 (Story 11.1's head): install-fresh is
+# 2,007 - 358 + 270 = 1,919 s (install-start 739, bundle-folder 264, online-demo 646, install-script-live 270) and image is
+# 1,692 - 270 + 358 + 5 = 1,785 s plus the growth of the online unit (storage-roundtrip 312, build-inputs 9, compose-start 201, lane-b
+# 905, online-demo-path 358 + the growth).
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:online-demo-path" ;;
+    install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:cards live:online-allowance live:online-visitors" ;;
     production) echo "live:production live:production-restart live:reminder-restart live:audit" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:floor live:online-session" ;;
     shards-2) echo "shard:lane-a@rest live:demo-switch" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:install-script-live" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:online-demo-path" ;;
     *) return 1 ;;
   esac
 }

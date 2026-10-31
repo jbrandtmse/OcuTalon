@@ -1,11 +1,9 @@
-import { randomBytes } from 'node:crypto';
-
 import { expect, test } from '@playwright/test';
 
 import { post } from '../support/api';
-import { armCountdown, pointKeys } from '../support/devices';
-import { BREAK_FEED, breakFeedLeft, breakFeedButton, checkRow, composer, doneTurn, readmeSession, refusal, watchMessage } from '../support/demo-path';
-import { replyOf, signInReadmeLoaded } from '../support/floor';
+import { pointKeys } from '../support/devices';
+import { BREAK_FEED, ON_MOCK, breakFeedButton, breakFeedLeft, checkRow, readmeSession, refusal, watchThroughGuide } from '../support/demo-path';
+import { signInReadmeLoaded } from '../support/floor';
 
 // The times of the page's texts are the instance's (UTC on a stack) and the browser's, which the case sets to the same zone and a 24-hour clock.
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -14,13 +12,14 @@ test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
 
 /**
- * UJ-1 step 2 (REL-2, Story 11.1): the watch, on the first-start stack with the model keys pointed at the CI mock (they stay pointed
- * through step 5; 06 puts them back). It runs after 01 and leaves the README session watching the Orders production for 03 to 06.
+ * UJ-1 step 2 (REL-2, Stories 11.1 and 11.7): the watch, on the first-start stack. On the CI mock the model keys are pointed at the mock
+ * (they stay pointed through step 5; 06 puts them back); on the real model (OCUTALON_DEMO_PATH_MODEL=real) the specs leave the keys alone.
+ * It runs after 01 and leaves the README session watching the Orders production for 03 to 06.
  *   - Before the watch: Break the feed is inactive with its hint and Do step 1, a press is refused 409 not_watching, and a refused press
  *     sends nothing (no run, no header, no failed order).
- *   - The watch: the guide's watch prompt is sent through the composer behind the marker of the CI mock scenario watch-act-orders, whose
- *     countdown is armed with 1 (AD-22): the Triage request gets reply 0 (Act), the turn replies 1 (start_watch) and 2 (its text). The
- *     reply's strip shows the chip Act with its reason and one trace link, and no Fallback flag. The "Orders production" check row shows,
+ *   - The watch: the guide's own Send at step 1 sends the watch prompt (support/demo-path.ts watchThroughGuide). The reply's strip passes
+ *     expectDecision; on the mock it shows the chip Act with its reason (the mock's guide-watch-triage scenario, selected by the prompt
+ *     and the Triage mock key, AD-22), and the turn's text follows the mock's start_watch call. The "Orders production" check row shows,
  *     Break the feed is active, and the guide reads step 1 done and step 2 current.
  *   - The real last run (DW-202): the watch row's first heartbeat run gives its row "Last run ... \u00B7 Passed" within 120 s, followed
  *     by the run's own Trace link.
@@ -34,7 +33,7 @@ test.describe('Story 11.1: step 1 of the guide watches the Orders production thr
 
   test.beforeAll(async () => {
     test.setTimeout(240_000);
-    await pointKeys();
+    if (ON_MOCK) await pointKeys();
   });
 
   test('before the watch, Break the feed is inactive with its hint, and a press is refused and sends nothing', async ({ page }) => {
@@ -53,30 +52,10 @@ test.describe('Story 11.1: step 1 of the guide watches the Orders production thr
     expect(await breakFeedLeft(session), 'a refused press sends nothing: no run, no header, no failed order').toEqual({ runs: '0:', headers: '0', failed: '0' });
   });
 
-  test('the watch prompt gets its Act reply with its reason and trace link, the check row shows, and Break the feed becomes active', async ({ page }) => {
+  test("the guide's Send for step 1 gets a decision with its reason and trace link (Act on the CI mock), the check row shows, and Break the feed becomes active", async ({ page }) => {
     test.setTimeout(180_000);
-    const key = randomBytes(6).toString('hex');
     await signInReadmeLoaded(page);
-    await armCountdown(`watch-act-orders:${key}`, 1);
-
-    await composer(page).fill(watchMessage(key));
-    await composer(page).press('Enter');
-
-    const turn = await doneTurn(page);
-    const reply = replyOf(page, turn.clientId);
-    const strip = reply.locator('app-decision-strip');
-    await expect(strip, "the reply's decision strip shows").toHaveCount(1, { timeout: 30_000 });
-    await expect(strip.locator('app-outcome-chip .chip'), 'its chip is Act: the mock answered the Triage request with reply 0').toHaveText('Act');
-    await expect(strip.locator('app-fallback-flag'), 'with no Fallback flag').toHaveCount(0);
-    await expect(strip.locator('.reason').first(), 'it shows its reason').toHaveText('The CI mock acts on the request to watch the Orders production.');
-    await expect(strip.locator('app-trace-link a'), 'and one trace link').toHaveCount(1);
-    await expect(reply.locator('.text'), "above it the turn's own text: the mock's reply 2").toContainText("I'll watch the Orders production and stay quiet unless something needs you.");
-
-    await expect(checkRow(page), 'the "Orders production" check row shows').toHaveCount(1, { timeout: 60_000 });
-    await expect(breakFeedButton(page), 'Break the feed is active').not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });
-    const guide = page.getByRole('region', { name: 'Demo guide' });
-    await expect(guide.getByRole('button', { name: 'Step 1, Watch, done', exact: true }), 'the guide marks step 1 done').toHaveCount(1);
-    await expect(guide.getByRole('button', { name: 'Step 2, Reminder, current', exact: true }), 'and step 2 current').toHaveCount(1);
+    await watchThroughGuide(page);
   });
 
   test('the "Orders production" check row shows a real last run from the heartbeat', async ({ page }) => {

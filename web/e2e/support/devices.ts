@@ -173,28 +173,24 @@ export function turnRows(user: string): Promise<number> {
   return sessionCount(user, 'SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?', 'turns');
 }
 
+/** The demo-path specs never point or restore the runners' keys on the real model (OCUTALON_DEMO_PATH_MODEL=real): a real key must not be touched. */
+function refuseOnRealModel(what: string): void {
+  if (process.env['OCUTALON_DEMO_PATH_MODEL'] === 'real') throw new Error(`the specs never ${what} the runners' keys on the real model`);
+}
+
 /**
  * Points the Config Store entry of each runner at the CI mock key variable and restarts the runners, so that Decide answers from the CI
  * mock (Test.Agent.RunnerFixture.PointKeys, as Test.Demo.GuidePrompts does). Throws unless the call reports success.
  */
 export async function pointKeys(): Promise<void> {
+  refuseOnRealModel('point');
   const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()', 'Write !,"CHK|keys|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
   if (chk(lines, 'keys') !== '1') throw new Error(`the runners could not be pointed at the CI mock (${lines.join(' ')})`);
 }
 
 /** Puts the Config Store entries of the runners back to the placeholder of the Provider step (RunnerFixture.RestoreKeys). Throws unless the call reports success. */
 export async function restoreKeys(): Promise<void> {
+  refuseOnRealModel('restore');
   const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()', 'Write !,"CHK|keys|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
   if (chk(lines, 'keys') !== '1') throw new Error(`the runners' keys could not be restored (${lines.join(' ')})`);
-}
-
-/**
- * Arms the CI mock's countdown of a marker (`<name>[:<key>]`, without brackets) so that its next `remaining` requests get the scenario's
- * first reply (Test.Contract.Mock.Arm). Throws unless the call reports success.
- */
-export async function armCountdown(marker: string, remaining: number): Promise<void> {
-  if (!/^[a-z0-9-]+(:[a-z0-9]+)?$/.test(marker)) throw new Error('a marker is a scenario name and, optionally, a lower-case key');
-  if (!Number.isInteger(remaining) || remaining < 0) throw new Error('remaining is a whole number of requests');
-  const lines = await irisScript([`Set sc=##class(OcuTalon.Test.Contract.Mock).Arm(${quoted(marker)},${remaining})`, 'Write !,"CHK|armed|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
-  if (chk(lines, 'armed') !== '1') throw new Error(`the mock's countdown of ${marker} could not be armed (${lines.join(' ')})`);
 }

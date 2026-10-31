@@ -4,8 +4,9 @@
 /// surface's own entry, to the real Conversation, Chat, Story 1.10's tools, Commands.Submit, CommandsIn and ReminderOps; the CI mock scripts
 /// the model. The runners' keys point at the mock for the whole class and are put back at its end, as are the ReminderOps item's class
 /// (Test.Schedule.ReminderOpsFixedRef hands out a fixed Ref once) and the stored values of the swap.
-///   - TestGuidePromptSetsReminder (DW-232): "Remind me in 1 minute to stretch." (B/guide-reminder.json, selected by its prompt) makes
-///     Chat call set_reminder: one pending row, due 60 seconds after the message with the key <ItemId>:1, a live waiter, one created
+///   - TestGuidePromptSetsReminder (DW-232): "Remind me in 1 minute to stretch." (B/guide-reminder.json, selected by its prompt and the Chat
+///     mock key) makes Chat call set_reminder, after the turn's triage decision (B/guide-reminder-triage.json) is outcome act with no fallback:
+///     one pending row, due 60 seconds after the message with the key <ItemId>:1, a live waiter, one created
 ///     event, the row in the rail with guide step 2 done, the scenario's reply, and an ok tool step in the turn's trace session;
 ///   - TestThursdaySetsLocalReminder: "Thursday at 10" with the marker reminder-thursday sets a pending row due at
 ///     Data.Time.FromLocal("2030-11-07T10:00:00") with a live waiter, the scenario's reply and the row in the rail;
@@ -256,8 +257,9 @@ Method AssertToolSteps(row As OcuTalon.Data.Turn, tools As %List, labels As %Lis
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).StepProblems(row.TurnDecisionRef, header.SessionId, labels, tools), "", "the steps of the turn are right, in the turn's trace session")
 }
 
-/// "Remind me in 1 minute to stretch." (DW-232): the guide's prompt is answered by B/guide-reminder.json, selected by the prompt. Chat calls
-/// set_reminder and the turn ends with the scenario's reply and no fallback. The session has one row: stretch, pending, key <ItemId>:1,
+/// "Remind me in 1 minute to stretch." (DW-232): the guide's prompt is answered by B/guide-reminder.json, selected by the prompt. The turn's triage
+/// decision is outcome act with no fallback (B/guide-reminder-triage.json, DW-307). Chat calls set_reminder and the turn ends with the scenario's reply
+/// and no fallback. The session has one row: stretch, pending, key <ItemId>:1,
 /// due between 60 seconds after the send and 60 seconds after the turn; its waiter is waiting, its events are created, the rail lists it
 /// and guide step 2 is done. The tool step is ok in the turn's trace session.
 Method TestGuidePromptSetsReminder()
@@ -269,6 +271,12 @@ Method TestGuidePromptSetsReminder()
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertEquals(row.ReplyText_"|"_row.FallbackReason, "The CI mock set the reminder.|", "the reply is the scenario's and the turn is no fallback")
 	Do ..AssertChat(chat, 2, "prompt", "guide-reminder")
+	Set triage = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(row.TriageDecisionRef)
+	If $IsObject(triage) {
+		Do $$$AssertEquals(triage.Kind_"|"_triage.Outcome_"|"_triage.Fallback, "decide|act|0", "the turn's triage decision is act, and not a fallback")
+	} Else {
+		Do $$$AssertTrue(0, "the turn's triage decision "_row.TriageDecisionRef_" exists")
+	}
 	Set refs = ..ReminderRefs(session)
 	Do $$$AssertEquals($ListLength(refs), 1, "the session has one reminder")
 	If $ListLength(refs) '= 1 Quit

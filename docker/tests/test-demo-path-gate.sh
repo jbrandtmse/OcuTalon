@@ -11,6 +11,9 @@
 #     line before the STEP lines and the Playwright log indented, never reads a skipped step as passed, waits 900 s for the first
 #     start (so a start ready after 720 s can still warn), and gives the run the deadline's remaining seconds less 80, the stack's
 #     URL and the report path; it takes the audit mark before Playwright and reads the log after it;
+#   - with OCUTALON_DEMO_PATH_MODEL=real (Story 11.7) the unit prints `MODEL real: a dry run on the CI mock` and points the runners' keys
+#     (the stub logs it as `point`) before the audit mark and before Playwright, and fails with no spec run when that does not answer OK;
+#     the default and `mock` point nothing and print no MODEL line, and any other value goes through to Playwright untouched;
 #   - the unit exits 1, with the reason on a line, for a skipped or failed @floor test (Playwright exits 0 for a skip), a skipped
 #     test of a numbered step file (only the Telegram parts may skip), a skip that names no story, a spec file that maps to no
 #     step, a missing step spec, a Playwright exit 1 beside a green report, and a missing report;
@@ -84,9 +87,18 @@ live_first_start() {
 }
 dc() {
   if [ "${1:-}" = exec ]; then
-    cat > /dev/null
-    echo "read" >> "$GATE_LOG/audit.order"
-    if [ -n "${GATE_AUDIT:-}" ]; then cat "$GATE_AUDIT"; fi
+    local script
+    script=$(cat)
+    case "$script" in
+      *PointKeys*)
+        echo "point" >> "$GATE_LOG/audit.order"
+        echo "CHK|keys|${GATE_POINT:-1}"
+        ;;
+      *)
+        echo "read" >> "$GATE_LOG/audit.order"
+        if [ -n "${GATE_AUDIT:-}" ]; then cat "$GATE_AUDIT"; fi
+        ;;
+    esac
   fi
 }
 start_log() { :; }
@@ -335,6 +347,45 @@ if [ "$(grep -c . "$log/npm.calls" 2> /dev/null)" = 1 ] && [ ! -e "$log/npm.unex
   pass "unit: Playwright runs once, with the stack's URL, a report path, and the deadline's remaining time less 80 s"
 else
   fail "unit: the Playwright call is wrong ($(tr '\n' ' ' < "$log/npm.env" 2> /dev/null); calls $(cat "$log/npm.calls" 2> /dev/null | wc -l | tr -d ' '))"
+fi
+
+# --- the unit: the real-model switch (Story 11.7) ---
+
+run_unit green 0 OCUTALON_DEMO_PATH_MODEL=real
+expect "unit: the real-model dry run prints its MODEL line, and the same steps and audit checks pass" 0 \
+  "MODEL real: a dry run on the CI mock" \
+  "PASS the demo path: Playwright and the step summary both passed" \
+  "PASS audit: the answered Approval entry (approved, from the phone) of the README session is in the log" \
+  "test-demo-path: all checks passed"
+if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "point read npm read " ]; then
+  pass "unit: the real-model dry run points the keys first, then takes the audit mark, then runs Playwright (point before npm)"
+else
+  fail "unit: the calls of the real-model dry run ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)', not 'point read npm read'"
+fi
+
+run_unit green 0 OCUTALON_DEMO_PATH_MODEL=real GATE_POINT=0
+expect "unit: keys that cannot be pointed fail the real-model dry run before any mark or spec" 1 \
+  "MODEL real: a dry run on the CI mock" \
+  "FAIL MODEL real: the runners' keys could not be pointed at the CI mock"
+if [ ! -e "$log/npm.calls" ] && [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "point " ]; then
+  pass "unit: no mark is taken and no spec runs after keys that could not be pointed"
+else
+  fail "unit: Playwright or the audit mark ran after keys that could not be pointed ($(tr '\n' ' ' < "$log/audit.order" 2> /dev/null))"
+fi
+
+run_unit green 0
+absent "unit: the default model prints no MODEL line and points no keys" "MODEL real"
+run_unit green 0 OCUTALON_DEMO_PATH_MODEL=mock
+if [ "$rc" -eq 0 ] && [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
+  pass "unit: the mock model points no keys: the specs do"
+else
+  fail "unit: the mock model's calls ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)' (exit $rc)"
+fi
+run_unit green 0 OCUTALON_DEMO_PATH_MODEL=zz
+if [ "$rc" -eq 0 ] && [ -e "$log/npm.calls" ] && ! grep -q '^MODEL' "$out" && [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
+  pass "unit: another value goes through to the specs, which refuse it before their first step"
+else
+  fail "unit: another model value was not passed through untouched (exit $rc)"
 fi
 
 # --- the unit: a red demo path ---

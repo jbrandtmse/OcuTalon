@@ -443,4 +443,25 @@ describe('the real specs, run without their floor test', () => {
     }
     assert.match(lines[2], /^STEP 3 reminder: skipped, 0 passed, 1 skipped \(Story 8\.6: /);
   });
+
+  // OCUTALON_DEMO_PATH_MODEL (Story 11.7) is parsed when support/demo-path.ts loads, so a value that is neither mock nor real fails the run before any step.
+  const withModel = (model) =>
+    spawnSync(process.execPath, [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, `model-${model}-results`)], {
+      cwd: webDir,
+      env: { ...playwrightEnv(), OCUTALON_DEMO_PATH_MODEL: model },
+      encoding: 'utf8',
+    });
+
+  it('fail before any step on a model value that is neither mock nor real, and name the value', () => {
+    const run = withModel('zz');
+    assert.notEqual(run.status, 0, run.stdout.slice(0, 500));
+    assert.match(run.stdout + run.stderr, /OCUTALON_DEMO_PATH_MODEL is mock or real, not "zz"/);
+  });
+
+  it('take the real and the mock model as they are: the parts that need the stack still skip', () => {
+    for (const model of ['real', 'mock']) {
+      const run = withModel(model);
+      assert.equal(run.status, 0, `${model}: ${run.stdout.slice(0, 500)}${run.stderr.slice(0, 1500)}`);
+    }
+  });
 });

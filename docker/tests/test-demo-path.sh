@@ -5,7 +5,12 @@
 #     WARN when it is ready after more than 12 minutes (a decision for the author, AD-23, not a failure);
 #   - takes the audit mark, then runs the Playwright project demo-path in a real browser: the six step specs
 #     web/e2e/demo-path/0<n>-<id>.spec.ts, one ordered journey of the README account on the real components (Story 11.1): the
-#     watch, the reminder, Break the feed, Approve on the simulated phone and the trace, with the model keys pointed at the CI mock.
+#     watch, the reminder, Break the feed, Approve on the simulated phone and the trace, with the model keys pointed at the CI mock
+#     (by the specs themselves). OCUTALON_DEMO_PATH_MODEL (Story 11.7) picks the model the specs check against: `mock` (also when
+#     unset) checks the outcomes and the mock's texts; `real` checks each decision by its shape only and makes the specs leave the
+#     keys alone, so a dry run of it on this stack prints `MODEL real: a dry run on the CI mock` and points the keys here first,
+#     through RunnerFixture.PointKeys, before the audit mark (FAIL and stop when that does not answer OK); any other value goes to
+#     the specs, which fail before their first step;
 #     Step 1's @floor test signs in with the README account and waits for the page to load its snapshot. Only the Telegram parts
 #     (web/e2e/demo-path/telegram-*.spec.ts) are declared skipped, and each skip names the story that turns it on;
 #   - prints the step summary of web/scripts/demo-path-summary.mjs --only-telegram-skips: one STEP line per step (passed, partly
@@ -42,6 +47,16 @@ fi
 pass "the first start ended ready"
 
 # --- the demo path: the step specs, then the step summary ---
+
+# A dry run of the real-model switch on the CI mock: the specs of `real` never point the runners' keys (a real install has no test
+# classes), so this unit does, once, before anything is marked or run.
+if [ "${OCUTALON_DEMO_PATH_MODEL:-mock}" = real ]; then
+  echo "MODEL real: a dry run on the CI mock"
+  keys_ok=$(printf '%s\n' 'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()' 'Write !,"CHK|keys|",$System.Status.IsOK(sc)' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|keys|//p' | head -n 1)
+  if [ "$keys_ok" != 1 ]; then
+    die "MODEL real: the runners' keys could not be pointed at the CI mock"
+  fi
+fi
 
 # The audit mark: the UTC time just before the browser steps, in the format of the audit log's UTCTimeStamp.
 audit_mark=$(printf '%s\n' 'Write !,"CHK|mark|",##class(OcuTalon.Test.Bridge.AuditLog).Now()' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|mark|//p' | head -n 1)

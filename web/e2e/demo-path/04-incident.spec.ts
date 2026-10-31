@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { STATE, post, sessionEvents } from '../support/api';
-import { BREAK_FEED, approvalCount, approvalRows, breakFeedButton, breakFeedLeft, incidentCard, phoneNotes, readmeSession, refusal } from '../support/demo-path';
+import { BREAK_FEED, ON_MOCK, breakFeedButton, breakFeedLeft, expectIncidentAwaitingApproval, phoneNotes, readmeSession, refusal } from '../support/demo-path';
 import { CARD_MS, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript } from '../support/iris';
 
@@ -73,42 +73,22 @@ test.describe('Story 11.1: step 3 of the guide breaks the feed and the incident 
 
   /**
    * The incident card and the phone's notice from the real chain (Story 6.3, REL-2; FR-16, FR-24, FR-34): the failures that Break the feed
-   * made become one incident, whose card awaits approval in the chat and on the simulated phone. Within 90 s of the press the chat shows
-   * the card with its chip, headline, cause, evidence line, dry run and its two buttons, the phone the incident notice with the same two
-   * buttons, the rail "Approval requests (1)" with one row, and the guide step 4 current. The step-3 reminder lands by the end of this
-   * step: the chat shows "Reminder: stretch." and the phone a stretch message.
+   * made become one incident, whose card awaits approval in the chat and on the simulated phone (support/demo-path.ts
+   * expectIncidentAwaitingApproval: within 90 s of the press the chat shows the card with its chip, headline, cause, evidence line, dry
+   * run and its two buttons, the phone the incident notice with the same two buttons, the rail "Approval requests (1)" with one row, and
+   * the guide step 4 current; the diagnosis's own words are exact on the CI mock and matched by shape on the real model). The step-3
+   * reminder lands by the end of this step: the chat shows "Reminder: stretch." and the phone a stretch message (on the real model,
+   * "Reminder: " followed by the model's text in the chat, and a phone message without buttons).
    */
   test('the incident card, the request, the phone notice and the rail show the real incident, and the reminder lands', async ({ page }) => {
     test.setTimeout(180_000);
     await signInReadmeLoaded(page);
+    await expectIncidentAwaitingApproval(page);
 
-    const card = incidentCard(page);
-    await expect(card, 'one incident card shows').toHaveCount(1, { timeout: 90_000 });
-    await expect(card.locator('.chip-row .chip'), 'its chip says Awaiting approval').toHaveText('Awaiting approval');
-    await expect(card.getByRole('heading', { level: 3 }), 'the headline counts the 50 failed orders').toHaveText(/^50 orders failed since \d{1,2}:\d{2}/);
-    await expect(card.locator('p.cause'), 'the cause is the model diagnosis').toHaveText('The partner now sends the order date as month, day and year with slashes, and the production expects year, month and day with dashes.');
-    await expect(card.locator('p.evidence-line'), 'the evidence line groups the failures').toHaveText('Data format change \u00B7 OrderDate \u00B7 50 failures grouped into this incident');
-
-    const request = card.locator('[data-part="approval"]');
-    await expect(request, 'with its approval request').toHaveCount(1, { timeout: CARD_MS });
-    await expect(request.locator('.dry-label'), 'the dry run').toHaveText('Dry run');
-    await expect(request.locator('.dry-count'), 'counts the orders').toHaveText('50 orders affected');
-    await expect(request.locator('.dry-note'), 'and says nothing has changed').toHaveText('Nothing has changed yet.');
-    await expect(request.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }), 'Approve').toHaveCount(1);
-    await expect(request.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'and Reject').toHaveCount(1);
-    const key = (await request.getAttribute('data-key')) ?? '';
-    expect(key, "the request's Ref").toMatch(/^[A-Za-z0-9_-]{22}$/);
-
-    const notice = phoneNotes(page).filter({ has: page.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }) });
-    await expect(notice, 'the simulated phone has the incident notice').toHaveCount(1, { timeout: CARD_MS });
-    await expect(notice.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'with its own Reject').toHaveCount(1);
-
-    await expect(approvalCount(page), 'the rail counts the request (spoken)').toHaveText('Approval requests, 1');
-    await expect(page.locator('app-status-rail [data-section="approvals"] h3'), 'as "Approval requests (1)"').toContainText('Approval requests (1)');
-    await expect(approvalRows(page), 'and lists one row').toHaveCount(1);
-    await expect(page.getByRole('region', { name: 'Demo guide' }).getByRole('button', { name: 'Step 4, Approve, current', exact: true }), 'the guide is at step 4').toHaveCount(1);
-
-    await expect(page.locator('main app-notice-card').filter({ hasText: 'Reminder: stretch.' }), 'the reminder of step 3 landed in the chat').toHaveCount(1, { timeout: 90_000 });
-    await expect(phoneNotes(page).filter({ hasText: 'stretch' }), 'and on the phone').toHaveCount(1, { timeout: CARD_MS });
+    const landed = page.locator('main app-notice-card').filter({ hasText: ON_MOCK ? 'Reminder: stretch.' : /Reminder: \S/ });
+    await expect(landed, 'the reminder of step 3 landed in the chat').toHaveCount(1, { timeout: 90_000 });
+    const onPhone = ON_MOCK ? phoneNotes(page).filter({ hasText: 'stretch' }) : phoneNotes(page).filter({ hasNot: page.getByRole('button') });
+    await expect(onPhone, 'and on the phone').toHaveCount(1, { timeout: CARD_MS });
+    if (!ON_MOCK) await expect(onPhone, 'as a message with text').toHaveText(/\S/);
   });
 });

@@ -224,12 +224,14 @@ export interface Visitor {
 /**
  * Opens a new browser context on the stack, signs the demo account in from the splash and waits for the page's snapshot (loadedAfter), and
  * returns the visitor with its session row's Ref and TraceRef. With an address, every request of the context carries it as X-Forwarded-For,
- * so that a proxied stack counts the visitor under it (Story 29.7). A visitor that cannot be opened is signed out and closed before the
+ * so that a proxied stack counts the visitor under it (Story 29.7). With pageOptions the context takes that time zone and locale, which
+ * the page writes its times in (the steps 2 to 5 of the online run use UTC and en-GB, as the web run does). A visitor that cannot be opened is signed out and closed before the
  * error goes on. The caller ends it with leaveVisitor.
  */
-export async function openVisitor(browser: Browser, address?: string): Promise<Visitor> {
+export async function openVisitor(browser: Browser, address?: string, pageOptions: { timezoneId?: string; locale?: string } = {}): Promise<Visitor> {
   const context = await browser.newContext({
     baseURL: process.env['OCUTALON_URL'],
+    ...pageOptions,
     ...(address === undefined ? {} : { extraHTTPHeaders: { 'X-Forwarded-For': address } }),
   });
   try {

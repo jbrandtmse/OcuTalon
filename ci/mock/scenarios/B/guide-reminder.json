@@ -1,7 +1,8 @@
 {
   "name": "guide-reminder",
   "match": {
-    "prompt": "Remind me in 1 minute to stretch."
+    "prompt": "Remind me in 1 minute to stretch.",
+    "mockkey": "chat"
   },
   "replies": [
     {

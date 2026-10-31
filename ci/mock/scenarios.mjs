@@ -7,9 +7,13 @@
 //   all       every valid scenario, in folder and file order
 //   byName    name -> scenario
 //   byMockKey mock key -> scenario (the match type mockkey)
-//   prompts   [{prompt, scenario}] (the match type prompt, which is allowed only under B/)
+//   prompts   [{prompt, scenario}] or [{prompt, mockkey, scenario}] (the match type prompt, which is allowed only under B/; a
+//             keyed prompt is never in byMockKey)
 // A scenario is {name, match, replies, file, folder}. The format:
 //   {"name": "<kebab-case, the file's name>", "match": {"marker"|"prompt"|"mockkey": "<value>"}, "replies": [<reply>, ...]}
+//   A prompt scenario under B/ may also name the mock key of the one agent it answers: "match": {"prompt": "<text>", "mockkey": "<key>"}
+//   (U-194). It then answers only a request whose x-ocutalon-mockkey header equals the key; no other pair of match keys is allowed.
+//   A prompt text may appear in several scenarios only when each of them names a mock key of its own; a keyless prompt text is unique.
 //   reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "stopReason": "<API value>",
 //           and exactly one of "text": "<string>", "toolUse": {"name", "input"} or a list of them, "body": {...} | [...] | "<string>"}
 //   A string body is served as written (a plain-text gateway error, say), with the reply's headers, Content-Type included
@@ -184,10 +188,22 @@ function checkScenario(rel, folder, base, data, bad) {
     bad(`${rel}: name "${data.name}" differs from the file name "${base}"`);
   }
   const match = data.match;
-  if (!isObject(match) || Object.keys(match).length !== 1) {
-    bad(`${rel}: match must have exactly one key of marker, prompt and mockkey`);
+  const keys = isObject(match) ? Object.keys(match) : [];
+  const keyedPrompt = keys.length === 2 && keys.includes('prompt') && keys.includes('mockkey');
+  if (!isObject(match) || (keys.length !== 1 && !keyedPrompt)) {
+    bad(`${rel}: match must have exactly one key of marker, prompt and mockkey, or a prompt with a mockkey`);
+  } else if (keyedPrompt) {
+    if (typeof match.prompt !== 'string' || match.prompt === '') {
+      bad(`${rel}: match prompt is not a non-empty string`);
+    } else if (typeof match.mockkey !== 'string' || match.mockkey.trim() === '') {
+      bad(`${rel}: match mockkey is not a non-empty string`);
+    } else if (/\s/.test(match.mockkey)) {
+      bad(`${rel}: the mock key holds white space`);
+    } else if (folder !== 'B') {
+      bad(`${rel}: a prompt scenario belongs under B/`);
+    }
   } else {
-    const type = Object.keys(match)[0];
+    const type = keys[0];
     const value = match[type];
     if (!MATCH_TYPES.includes(type)) {
       bad(`${rel}: match has the unknown key "${type}"`);
@@ -208,7 +224,7 @@ function checkScenario(rel, folder, base, data, bad) {
   if (!Array.isArray(data.replies) || data.replies.length === 0) {
     bad(`${rel}: replies must be a non-empty list`);
   } else {
-    const telegram = isObject(match) && Object.keys(match).length === 1 && Object.hasOwn(match, 'telegram');
+    const telegram = isObject(match) && keys.length === 1 && Object.hasOwn(match, 'telegram');
     data.replies.forEach((reply, i) => checkReply(reply, `${rel} reply ${i + 1}`, bad, telegram));
   }
 }
@@ -276,7 +292,8 @@ export function loadScenarios(dir) {
       bad(`${f.rel}: the name "${scenario.name}" repeats the one of ${seenNames.get(scenario.name)}`);
       continue;
     }
-    if (Object.hasOwn(scenario.match, 'mockkey')) {
+    const keyed = Object.hasOwn(scenario.match, 'prompt') && Object.hasOwn(scenario.match, 'mockkey');
+    if (Object.hasOwn(scenario.match, 'mockkey') && !keyed) {
       const key = scenario.match.mockkey;
       if (seenKeys.has(key)) {
         bad(`${f.rel}: the mock key "${key}" repeats the one of ${seenKeys.get(key)}`);
@@ -286,13 +303,16 @@ export function loadScenarios(dir) {
       scenarios.byMockKey.set(key, scenario);
     }
     if (Object.hasOwn(scenario.match, 'prompt')) {
-      const prompt = scenario.match.prompt;
-      if (seenPrompts.has(prompt)) {
-        bad(`${f.rel}: the prompt repeats the one of ${seenPrompts.get(prompt)}`);
+      const { prompt, mockkey } = scenario.match;
+      const same = seenPrompts.get(prompt) || [];
+      const clash = same.find((o) => o.mockkey === undefined || mockkey === undefined || o.mockkey === mockkey);
+      if (clash) {
+        bad(`${f.rel}: the prompt repeats the one of ${clash.rel}${keyed && clash.mockkey === mockkey ? ' under the same mock key' : ''}`);
         continue;
       }
-      seenPrompts.set(prompt, f.rel);
-      scenarios.prompts.push({ prompt, scenario });
+      same.push({ rel: f.rel, mockkey });
+      seenPrompts.set(prompt, same);
+      scenarios.prompts.push(keyed ? { prompt, mockkey, scenario } : { prompt, scenario });
     }
     seenNames.set(scenario.name, f.rel);
     scenarios.byName.set(scenario.name, scenario);
@@ -300,7 +320,7 @@ export function loadScenarios(dir) {
   }
   for (const a of scenarios.prompts) {
     for (const b of scenarios.prompts) {
-      if (a !== b && a.prompt.includes(b.prompt)) {
+      if (a !== b && a.prompt !== b.prompt && a.prompt.includes(b.prompt)) {
         problems.push(`${a.scenario.file}: its prompt contains the prompt of ${b.scenario.file}`);
       }
     }

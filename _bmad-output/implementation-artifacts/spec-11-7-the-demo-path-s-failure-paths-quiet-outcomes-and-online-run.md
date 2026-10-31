@@ -2,9 +2,10 @@
 title: 'Story 11.7: The demo path''s failure paths, quiet outcomes and online run pass in the REL-2 test'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7347be00b737801f4612959cf85ddf22df5785b1'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
@@ -272,6 +273,52 @@ The line numbers are those of `OCT-epic11` at `13cbd77f`.
 
 ## Review Triage Log
 
+### 2026-10-31 — Review pass
+- verdicts: 42 findings — high 0, medium 4, low 22, false 16, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: the real-mode dry run leaves the runners keys pointed at the mock — the unit runs on its own throwaway, which is torn down after it; the specs now refuse to touch keys on real (see the patch for finding 19); a restore branch in the shell adds code for no reachable harm
+  - `[medium]` `[patch]` Blind 2 (with VG oracle): approveOnPhone takes the card time oracle from the page itself — the page-derived locale and zone let a wrong-zone page match itself; patched: the oracle is the fixed en-GB and UTC, which both runs set on their contexts (test.use, openVisitor options); mutation covered by the existing step 5 text check
+  - `[low]` `[reject]` Blind 3: the phone line accepts an optional zone suffix on the mock too — the online demo writes the suffix; the web run is not at risk from a stray suffix in any path the product has; a flag parameter adds complexity for a negligible gain
+  - `[false]` `[reject]` Blind 4: the real-mode fix-result check passes with an empty result — result {} gives [undefined, undefined] against [undefined, 0], and toEqual treats undefined and 0 as different, so it fails; All 0 orders on real is not reachable (a request exists only for failed orders)
+  - `[low]` `[reject]` Blind 5: the real-mode phone check counts every button-less note — the spec fixes the real check as "a phone message with text"; real is never run here; reopen_if=the first real rehearsal (Story 11.3) counts two button-less notes
+  - `[false]` `[reject]` Blind 6: expectDecision on 05 footer is stricter than before — live demo-path (mock) and the real dry run pass with it on the footer strip: it renders its reason and trace link (incident-card.ts)
+  - `[low]` `[reject]` Blind 7: Test.Contract.Mock.Arm is orphaned and the 500 text does not name keyed prompts — Arm still serves the IRIS tests; the 500 text is the unchanged no-scenario text of the matrix
+  - `[low]` `[reject]` Blind 8: nothing asserts the exact set of keyed (prompt, key) pairs — TestWatchPromptTriage, TestReminderPromptTriage, TestGuidePromptSetsReminder and 02 and 03 go red if a pair is missing (mutation lines)
+  - `[false]` `[reject]` Blind 9: the units.sh comment gives no number for the online unit growth — the spec asks for the layout and run 41206732188 seconds; the growth is bounded in the spec (31.4 min at most); the step timeouts are caps, not durations
+  - `[low]` `[reject]` Edge 1: the real-mode landing check counts all button-less phone notes — same as Blind 5
+  - `[low]` `[reject]` Edge 2: the real dry run leaves keys pointed, no restore — same as Blind 1
+  - `[low]` `[reject]` Edge 3: the PointKeys failure message gives no status text — the unit stops with FAIL and a clear line; a gate run pins it; the status text would only help a stack that is already throwaway
+  - `[low]` `[reject]` Edge 4: containment check clashes two keyed prompts with different keys — a conservative load refusal, loud at load; no scenario of this story or of Story 11.10 is affected (reopen_if=a keyed pair whose texts nest)
+  - `[false]` `[reject]` Edge 5: a keyless prompt contained in a keyed one is not decided — the containment loop runs over every pair of distinct prompts, keyed or not, and refuses at load
+  - `[low]` `[reject]` Edge 6: CheckCount counts the whole BackgroundCheck table — rows come only from start_watch; the class runs on its own throwaway one test at a time; no realistic concurrent writer
+  - `[low]` `[reject]` Edge 7: the online afterAll cleanPopulated takes approval empty — the spec fixes the call as written; removeSession and leaveVisitor remove the visitor rows, and the throwaway ends the unit
+  - `[low]` `[reject]` Edge 8: doneTurn names neither ClientId when it times out — a failure message nicety on a path that has not failed in any run
+  - `[medium]` `[patch]` VG 1: parseModel (the unknown-value throw) has no executed test — patched: two cases in web/scripts/demo-path-summary.test.mjs run Playwright with zz (fails, names the value) and with real and mock (skips as before); mutation line written
+  - `[medium]` `[patch]` VG 2: "the specs never touch the keys on real" cannot fail — patched: pointKeys and restoreKeys throw on OCUTALON_DEMO_PATH_MODEL=real, so a spec that calls them turns the real dry run red; mutation line written
+  - `[low]` `[reject]` VG 3: the real-mode branches run only in a manual dry run — real is never run in CI by design (cost; the spec routes real runs to Stories 11.3 and 38.2); wontfix-accepted, reopen_if=a real-mode regex goes red at Story 11.3
+  - `[low]` `[patch]` VG 4: the second visitor and the load phase have no pin for the guide own prompt — patched for the second visitor: askToWatch asserts the guide caption (mutation red, line written); the load phase override cannot be seen by this unit (a marker beats a keyed prompt), and the default is pinned by test-online-load.sh
+  - `[false]` `[reject]` VG 5a: AC6 has no mutation line — AC6 is a search, not a test; there is no pinning test to mutate
+  - `[low]` `[patch]` VG 5b: AC7 has no mutation line — mutation run and line written (units.sh swapped back, test-ci-config red)
+  - `[low]` `[patch]` VG 5c: AC3 watch half has no mutation line — mutation run and line written (guide-watch-triage set aside, TestWatchPromptTriage red)
+  - `[low]` `[reject]` VG 5d: AC5 other expectDecision checks have no mutation — one demonstrated mutation per AC (Rule 19); the trace-link mutation is recorded
+  - `[medium]` `[patch]` VG 6a: the card-time oracle follows the page — same root cause as Blind 2, patched there
+  - `[low]` `[reject]` VG 6b: the optional zone suffix weakens the phone line — same as Blind 3
+  - `[false]` `[reject]` VG 6c: online steps 2 to 5 rely on order — by design: one serial journey of one visitor (the spec); the unit is the hermetic whole
+  - `[low]` `[reject]` VG 6d: TestWatchPrompt counts the whole BackgroundCheck table — same as Edge 6
+  - `[false]` `[reject]` VG 6e: web 04 relies on 02 and 03 state — by design: the ordered demo-path journey
+  - `[low]` `[reject]` VG 7: the gate zz case title says the specs refuse, but it only shows pass-through — the refusal is now pinned by VG 1 test; the title states the design
+  - `[false]` `[reject]` VG 8: openVisitor pageOptions note — the finding itself says no defect
+  - `[false]` `[reject]` VG 9: the identical-text skip in the containment check hides a keyed/keyless pair — that pair is refused earlier by the clash check (scenarios.test.mjs rows)
+  - `[false]` `[reject]` Intent 1: A/watch-act-orders deleted, armCountdown and watchMessage removed — mandated by the spec (AC6); rg finds no reference
+  - `[false]` `[reject]` Intent 2: constants.test.mjs row 16 edited — mandated by the spec Tasks (count only single-key mockkey matches)
+  - `[false]` `[reject]` Intent 3: a mockkey with white space is rejected — mandated by the spec Tasks ("no white space in the key")
+  - `[low]` `[reject]` Intent 4: an empty model value is mock, not an error — decided in-stage (recorded in Design Notes); only non-empty other values throw
+  - `[low]` `[reject]` Intent 5: step 5 checks changed in both modes (zone suffix, clock oracle) — the clock oracle is fixed back to en-GB and UTC (Blind 2); the zone suffix stays as Blind 3
+  - `[false]` `[reject]` Intent 6: real-mode shapes beyond the three decision points — mandated by the spec Tasks (Incident, Approve and Reminder shapes)
+  - `[false]` `[reject]` Intent 7: the load phase now sends the guide own prompt — mandated by the spec Tasks (load_script drops the override)
+  - `[false]` `[reject]` Intent 8: other callers of the guide prompts are not exercised by the diff — live sign-in part 2/2 (reminder/chat.spec.ts, 96 passed) and live floor/guide specs (routes mocked) cover them
+  - `[false]` `[reject]` Intent 9: the old Chat text of guide-watch is gone — mandated by the spec Boundaries (reply 0 start_watch, reply 1 the text); TestWatchPrompt updated
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -362,6 +409,12 @@ None is declined.
 - **DW-433's workarounds are retired with it:** the second visitor's marker and the load phase's watch-text override.
 - **02's `describe` keeps its skip text** "Story 11.1 needs the first-start stack". The no-stack pin reads any story.
 - **No public-facing text is added.** The new texts are the CI mock's (test data) and test titles. The page texts checked are the ones EXPERIENCE.md and the epics block already fix.
+
+- **Implement-stage choices.**
+  - An empty `OCUTALON_DEMO_PATH_MODEL` is `mock`, as unset is; only another non-empty value throws.
+  - The online steps 2 to 5 visitor opens its context with UTC and en-GB (`openVisitor`'s optional last argument), so the card's clock text equals the web run's; `approveOnPhone` takes the phone's optional zone suffix (the online demo writes one) and checks the card in en-GB and UTC.
+  - `pointKeys` and `restoreKeys` in `web/e2e/support/devices.ts` throw when `OCUTALON_DEMO_PATH_MODEL` is `real`, so that "the specs never call them" is a check that can fail.
+  - Task 0's baseline run of `live online-demo-path` was not taken (the first change came before it), and the temporary mock-log probe was not used: the four `GuidePrompts` tests pin the same facts. The online unit's growth is bounded by its whole browser step (61 to 65 s here), so `image` is at most (1821 + 65) / 60 = 31.4 min, under 33.
 
 **Lead's question at the gate (non-blocking).** The spine's AD-22 "Logs and state" bullet still describes `match` as "holding one of `marker`, `prompt`, `mockkey` or `telegram`". With U-194 it may hold `prompt` together with `mockkey`. This is a factual note for the lead (Rule 20, light path); this story does not edit the spine.
 
@@ -475,9 +528,40 @@ Record each as a `mutation:` line here. Mutations whose reds land in different s
 | AC5 | `OCUTALON_DEMO_PATH_MODEL=zz` | The run errors before any step, with the message |
 | AC5 | The gate: the point call removed from the real branch | `test-demo-path-gate.sh` |
 
+### Implementation record (implement stage, 2026-10-31)
+
+**Measured (lane A, this machine; one run each unless noted):**
+- `live demo-path` (mock): 260 s, then 215 s on the final tree; `DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed`, every audit PASS, `test-demo-path: all checks passed`.
+- `live demo-path` with `OCUTALON_DEMO_PATH_MODEL=real` (dry run on the CI mock): 214 s, the `MODEL real: a dry run on the CI mock` line, the same steps and PASS lines.
+- `live online-demo-path`: 196 s and 217 s on the final tree (the browser step 61 to 65 s, the load phase 34 s); `7 passed`, the report PASS (7 passed, 3 skipped of Story 31.4), L1 and L2 PASS.
+- Task 0's baseline run of `live online-demo-path` before any change was not taken (the first change was made before it ran), so Delta is not measured as a difference. The CI figure is unchanged: 358 s on run 41206732188. Steps 2 to 5 are part of a browser step that took 61 to 65 s here, so Delta is below the spec's 45 to 90 s estimate and `image` stays under 33 min ((1821 + 90) / 60 = 31.9 min at the upper estimate). No `deferred:` item.
+- Task 0's temporary mock-log probe was not used: `TestWatchPrompt`, `TestReminderPrompt`, `TestWatchPromptTriage` and `TestReminderPromptTriage` pin the same facts (request counts, `selectedBy` prompt, the scenario of each request, and the tool_result carried by the second request), and 03's green strip (chip Act with the reminder scenario's reason) shows that the Triage input holds only its own turn's prompt (two prompts would be a 500 `ambiguous-prompt`).
+- Classes: `GuidePrompts` and `ReminderChat` passed warm and on a fresh stack (7 s and 14 s of test time); `Test.Contract.Mock` passed warm.
+- `test-mock.sh` 131 of 131; `npm --prefix web run lint` exit 0; `npm --prefix web test` 1134 of 1134; `test-demo-path-gate.sh` all checks passed (49 PASS, the real run included); `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-online-load.sh` pass; `ci/changes.sh ci.yml --paths-from` prints the seven GROUP lines with no unclassified path; the AC6 search finds nothing.
+- Findings of the run: (1) the online demo's phone writes "Approved from the simulated phone at HH:MM ZONE.", so `approveOnPhone` accepts an optional zone name after the time (the minutes still must equal the row's `AnsweredAt`); (2) the online visitor of steps 2 to 5 opens its context with `timezoneId` UTC and `locale` en-GB (a new optional argument of `openVisitor`) so that the card's clock text equals the web run's.
+
+**Mutations (Rule 19; each applied, red observed, reverted, `git status --short` and `git diff --stat` unchanged, then green):**
+- mutation: AC1 `select` ignores `match.mockkey` -> `server.test.mjs` row 7 (the keyed pair) red; reverted, 131 of 131.
+- mutation: AC1 the loader lets one prompt text repeat under one key -> `scenarios.test.mjs` "one prompt text twice under one key is refused" red; reverted.
+- mutation: AC2 `B/guide-watch.json` reply 0 is the text, not `start_watch` -> `TestWatchPrompt` red (reply text, request count) and, live, 02 red on the reply text of the turn; reverted.
+- mutation: AC3 `B/guide-reminder.json` loses its `mockkey` and `B/guide-reminder-triage.json` is set aside -> `TestReminderPromptTriage` red, `TestGuidePromptSetsReminder` red ("the turn's triage decision is act, and not a fallback") and, live, 03 red on the Fallback flag ("and no Fallback flag" expected 0, received 1); reverted.
+- mutation: AC4 `Core/Rule/Notify.cls`: the demo-mode send loses SimPhoneOut (the code's rule for any other Kind; the incident has no rule of its own) -> the online step 4 red on "the simulated phone has the incident notice" (and the second visitor red); reverted.
+- mutation: AC4 the online step 5 re-declared `notBuilt(..., '11.1')` -> the report check FAIL ("wanted exactly one passed case matching /^step 5:/", "wanted 7 passed cases, found 6", the skipped case has no 31.4 text); reverted.
+- mutation: AC5 `web/src/app/chat/decision-strip.ts` renders no trace link -> the real-mode dry run red in 02 and 03 on `expectDecision` ("and one trace link", expected 1, received 0); reverted, bundle rebuilt.
+- mutation: AC5 `OCUTALON_DEMO_PATH_MODEL=zz` -> the run errors before any step with `OCUTALON_DEMO_PATH_MODEL is mock or real, not "zz"` (`npm --prefix web run e2e:demo-path`, no stack needed).
+- mutation: AC5 the gate: the point call removed from the real branch of `test-demo-path.sh` -> `test-demo-path-gate.sh` red (three FAIL lines: the call order and the failing-point run); reverted.
+
+**Review-pass additions (Rule 19; each applied, red observed, reverted, `git status --short` and `git diff --stat` unchanged, then green):**
+- mutation: AC5 `parseModel` returns `mock` for an unknown value instead of throwing -> `demo-path-summary.test.mjs` "fail before any step on a model value that is neither mock nor real, and name the value" red; reverted, 36 of 36.
+- mutation: AC5 the specs call the key helpers on `real` (02's `beforeAll` without `if (ON_MOCK)`, 06's `afterAll` without `if (!ON_MOCK) return`) -> the real-mode dry run red: `the specs never point the runners' keys on the real model` in 02 and `the specs never restore the runners' keys on the real model` in 06 (`DEMO-PATH 2 of 6 steps ran ..., 5 failed`); reverted, the dry run green again in 217 s.
+- mutation: AC4 the online `askToWatch` sends the watch prompt through the composer instead of the guide's Send -> `live online-demo-path -g 'second visitor'` red on `with the guide caption` (expected `/^From the demo guide/`); reverted, the full unit green in 198 s. The load phase's removed override (`OCUTALON_LOAD_WATCH_TEXT`) is not pinned by this unit, because a marker beats a keyed prompt on the mock; the default text with `fromGuide` true is pinned by `test-online-load.sh`.
+- mutation: AC3 `B/guide-watch-triage.json` set aside -> `OcuTalon.Test.Demo.GuidePrompts` `TestWatchPromptTriage` red (selected by the prompt, the scenario guide-watch-triage, act and no fallback); reverted.
+- mutation: AC7 `ci/units.sh` swapped back (`live:install-script-live` in `image`) -> `test-ci-config.sh` red (`i-reads-declared-example` names group install-fresh, and the input patterns of the IRIS groups); reverted, all rules pass.
+- Final runs after the review patches: `live demo-path` (mock) 240 s and `live demo-path` with `real` 217 s, both `6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed`; `live online-demo-path` 198 s (7 passed, 3 skipped, L1 and L2 PASS); `live sign-in --part 2/2` 318 s (96 passed, `reminder/chat.spec.ts` included, which sends the reminder prompt through the composer); `npm --prefix web test` 1136 of 1136; `test-mock.sh` 131 of 131; the gate, `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-online-load.sh` pass; `ci/changes.sh` prints seven GROUP lines.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-31).** Planned only, with nothing implemented, and halted after planning as the dispatch asked.
@@ -485,3 +569,19 @@ Blocking condition: none
 - **For the lead:**
   - the proposed Story 11.10 (the failure paths and the coda, with their criteria verbatim; Design Notes, Proposed split);
   - the non-blocking note on the spine's AD-22 "Logs and state" grammar.
+
+**Implement and review (2026-10-31).**
+- **Implemented:** U-194's keyed prompt match in the CI mock (`ci/mock/mock.mjs`, `ci/mock/scenarios.mjs`, three test files); the four `B/guide-*` scenarios (watch and reminder, Chat and Triage), with `A/watch-act-orders.json` deleted; the step functions, `expectDecision` and the `OCUTALON_DEMO_PATH_MODEL` switch in `web/e2e/support/demo-path.ts`; the web run's 02 to 06 and the online run's steps 2 to 5 through them (DW-433, DW-307, DW-221); the real-model dry run in `docker/tests/test-demo-path.sh` and its gate; the `GuidePrompts` and `ReminderChat` classes; and the swap of `live:online-demo-path` and `live:install-script-live` in `ci/units.sh` with its pin in `test-ci-config.sh`.
+- **Files changed:**
+  - `ci/mock/mock.mjs`, `ci/mock/scenarios.mjs`, `ci/mock/test/{server,scenarios,constants}.test.mjs`: the keyed prompt in the loader and the selection, with tests.
+  - `ci/mock/scenarios/B/guide-{watch,reminder}.json` (keyed `chat`) and `guide-{watch,reminder}-triage.json` (new, keyed `triage`); `A/watch-act-orders.json` deleted.
+  - `src/ocutalon/cls/OcuTalon/Test/Demo/GuidePrompts.cls`, `Test/Schedule/ReminderChat.cls`: the new and changed IRIS tests.
+  - `web/e2e/support/demo-path.ts`, `devices.ts`; `web/e2e/demo-path/02` to `06`; `web/e2e-online/demo-path/demo-path.spec.ts`, `web/e2e-online/support.ts`; `web/scripts/demo-path-summary.test.mjs`.
+  - `docker/tests/test-demo-path.sh`, `test-demo-path-gate.sh`, `test-online-demo-path.sh`, `test-ci-config.sh`; `ci/units.sh`.
+- **Review:** 4 layers, 42 findings: 7 patched (3 medium root causes: the page-derived clock oracle, the unpinned model parser, the key rule that could not fail; and 4 low: the second visitor's guide caption, two mutation runs), 0 deferred, 35 rejected with their reasons in the Review Triage Log.
+- **Follow-up review recommended: true.** Three medium entries were patched, and the patches (the real-model guard in `devices.ts`, the two parser tests, the caption assertion and the fixed clock oracle) were checked by mutation and live runs but not read by a second review layer.
+- **Verification:** all `## Verification` commands ran green on the final tree (numbers under "Implementation record" and its review-pass additions); mutations recorded for every AC; no real key; every lane A stack torn down.
+- **Residual risks:**
+  - The `real` branches run only in the dry run on the CI mock, and their first run on the real model is Story 11.3's or 38.2's.
+  - Task 0's baseline seconds were not taken. `image` is at most 31.4 min in the estimate, and the lead measures it on this story's CI run.
+  - `_bmad-output/implementation-artifacts/cycle-log-epic-11.md` is the lead's file, modified by the lead during this run, and is not part of this commit.
