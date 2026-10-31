@@ -64,6 +64,9 @@
 # all on release/1.0.0-rc1, and gates the v1.0.0 tag. The policy's owner_fixed line 14 is amended at hold #9.
 # Changed 2026-10-31 (launch-text fix, at the Contest Planner's request): Story 16.11 re-opens Epic 16 under SC-5 (the splash
 # promises Telegram only when the release includes it). Lane B's Web/Public/Splash.cls and the catalog lines only; no edge changes.
+# Changed 2026-10-31T21:4xZ (launch-blocking, owner decision via the Contest Planner: "Add it to 1.0.0", "Wait for the fix"):
+# Story 5.13 re-opens Epic 5 under SC-5: a read-only, trusted `recent_activity` chat tool (Lane A's OcuTalon.Tools). 1.0.0 scope, so
+# no merge gate; it runs ahead of other pool work. No edge changes.
 # Changed 2026-10-31, owner decisions relayed by the Contest Planner (the owner's personality decisions of 2026-10-31, inbox U-195;
 # the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they
 # can ship quickly."): three personality epics, 39 (agent heartbeat), 40 (persona) and 41 (memory that learns), join the
@@ -116,7 +119,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "ad0ac7ca7a882e04d7aaeaf4b8d2ed5bbc8cc4371f4595fa9a409a85d764d0ad"
+epics_md_hash: "67023e51cb50fc07748d93753c1b468b8349e7c46aaf410c0afaa964e3fe2d00"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
