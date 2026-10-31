@@ -106,7 +106,7 @@ development_status:
   4-7-finish-the-demo-guide: done
   epic-4-retrospective: optional
 
-  epic-5: done
+  epic-5: in-progress
   5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
   5-2-new-failures-are-picked-up-within-seconds: done
   5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
@@ -118,8 +118,7 @@ development_status:
   5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
   5-10-epic-5-burn-down: done
   5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
-  5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: 
-    ready-for-dev
+  5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: in-progress
   epic-5-retrospective: optional
 
   epic-6: done
