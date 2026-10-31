@@ -2,7 +2,8 @@
 title: 'Story 29.9: Epic 29 burn-down'
 type: 'bugfix'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7e4b70acb87116fd6fbe7e0f97bf09f06b4ebc4a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -134,6 +135,29 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-30 - Review pass
+- verdicts: 19 findings: high 0, medium 0, low 14, false 5, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the Auto Run Result still reads ready-for-dev: the section is rewritten at finalize, in this same pass.
+  - `[low]` `[reject]` Blind: the planned AC1/AC2 mutation bullets duplicate the recorded `mutation:` lines: the fix edits this build's spec, and the recorded lines are the ones Rule 19 scans.
+  - `[false]` `[reject]` Blind: AC3 evidence is missing: recorded under Auto Run Result at finalize (every unit, with seconds).
+  - `[low]` `[reject]` Blind: L7 has no red run of its own: the spec pins AC2 on L2 (Design Notes, T0-a measured the mechanism); L7 uses the same helpers and went green on the final tree; a second mutation run is optional scope.
+  - `[false]` `[reject]` Blind: nothing keeps the 3 s group sign-out premise in the suite: the product bound is pinned by L4c (unchanged), and the held 1.5 s run was the story's proof by design.
+  - `[low]` `[reject]` Blind: the dead `[]` initializer in api row 13: cosmetic; `instanceBaseline` asserts non-empty itself.
+  - `[low]` `[reject]` Blind: `loadedAfter` appended at the end of sorted import lists: cosmetic, lint is green.
+  - `[low]` `[reject]` Edge: the DW-4 303/Location assertions run after `loadedAfter`, so a bad redirect reads as a /state wait timeout: still red; the spec prescribes this wrapping and keeps the assertions as they are.
+  - `[low]` `[reject]` Edge: the row 5 303 assertion runs after the snapshot wait: same reason.
+  - `[false]` `[reject]` Edge: a paused clock would never cross the cap: `install()` leaves the clock running, L2 keeps `resume()`, and L2 and L7 were green on the final tree.
+  - `[low]` `[reject]` Edge: L2 leaves 10 s of wall clock for the "still there" check: the old jump had the same margin (the clock ran on during the checks); a larger margin is a spec change.
+  - `[low]` `[reject]` Verification gap: AC3 has no `mutation:` line: the spec states it is the standing criterion and the final runs are its evidence.
+  - `[low]` `[reject]` Verification gap: L7 has no mutation of its own (disposition defer): as for Blind's L7 row; spec pins AC2 on L2.
+  - `[low]` `[reject]` Verification gap, other: the un-prefixed `AC1:`/`AC2:` plan lines sit beside the `mutation:` lines: spec text, same as the duplicate-bullets row.
+  - `[false]` `[reject]` Intent: the late-/state and held-sign-out conditions are not committed as code: the Approach and Boundaries require the scratch cases to be removed; the proof is the recorded mutation run.
+  - `[low]` `[reject]` Intent: L7 does not assert "notice above both cards" (AC2 wording is wider): L7's assertions are unchanged by the story's constraint (no assertion added or removed); not caused by this change.
+  - `[low]` `[reject]` Intent: other raw sign-ins remain outside the list (frame, live, rail, focus, reminder, shell, links): the Code Map and Decided-in-stage 1 exclude reloads, held-state and new-tab sign-ins; the manual grep was reviewed by hand.
+  - `[low]` `[reject]` Intent: the spec file itself sits outside `web/e2e/**`: the story's own record, written by the workflow.
+  - `[low]` `[reject]` Intent: a failed sign-in now surfaces at the /state wait: duplicate of the Edge rows.
+
 ## Design Notes
 
 **Ledger inbox (Rule 17):** `owned_ledger=3`, every entry answered.
@@ -218,6 +242,8 @@ Run every call in the foreground with `timeout: 600000`, one test call per messa
 **Mutations (Rule 19), recorded as `mutation: <change> -> <test red>` when run:**
 - AC1: the old `open()` (bare 10 s wait) with `/state` held 12 s -> `zz C7 old` red; C7 with `loadedAfter` and the same hold is green.
 - AC2: the one jump `runFor(20_000)` across the cap with the group sign-out held 1.5 s -> `zz L2 old` red in `expectPlaceFreed`; L2 with the wall clock and the same hold is green.
+- mutation: the old `open()` (sign in, then the bare 10 s `data-snapshot` expect) with GET `/state` held 12 s, as the scratch case `zz C7 old` in `chat.spec.ts` -> `zz C7 old` red at `toHaveAttribute` (10000 ms, `data-snapshot` still "loading"); C7 with `loadedAfter` and the same hold green (`ci/iris.sh live sign-in --part 1/2`: 127 passed, 1 failed, the scratch case; 346 s).
+- mutation: the one jump `page.clock.runFor(20_000)` across the cap with the page's `?IRISLogout=end&t=` request held 1.5 s, as the scratch case `zz L2 old` in `leave.spec.ts` -> `zz L2 old` red in `expectPlaceFreed` (`since` NaN: "since is the time the page loaded, to the second", received NaN); L2 with the wall clock and the same hold green, and L7 green (`ci/iris.sh live online-session`: 12 passed, 1 failed, the scratch case, 1 skipped, L6; 262 s). Both scratch cases and holds removed afterwards; the tree is byte-identical to the story's change.
 - AC3: the standing criterion. The final runs above are its evidence, so no mutation applies.
 
 **Manual checks:**
@@ -227,5 +253,26 @@ Run every call in the foreground with `timeout: 600000`, one test call per messa
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Tests only. DW-333: every listed sign-in site (24 spec files under `web/e2e/**`, plus `web/e2e-online/reset.spec.ts` R2 and `splash.spec.ts` S5) is wrapped in `loadedAfter`, or uses `signInReadmeLoaded`; the 10 s `data-snapshot` expect stays after each as a re-check. DW-429: the 20 s and 25 s `page.clock.runFor` jumps are deleted from L2 and L7, so the page's clock crosses the idle cap with the wall clock and the group sign-out's 3 s bound is real time; their header lines state it. DW-432 stays declined (Design Notes).
+
+**Files changed.**
+- `web/e2e/{answers,api,cards,chat,demo-switch,floor,frame,guide,heartbeat,live,phone,reminder,session,sign-in,trace}/*.spec.ts` (22 files): sign-in actions wrapped in `loadedAfter` / `signInReadmeLoaded`, imports adjusted.
+- `web/e2e-online/reset.spec.ts`, `web/e2e-online/splash.spec.ts`: R2's click plus `await answered`, and S5's Enter, wrapped in `loadedAfter`.
+- `web/e2e-online/session/leave.spec.ts`, `web/e2e-online/session/idle-activity.spec.ts`: the clock jump removed; headers updated.
+- This spec: `mutation:` lines, triage log and result.
+
+**Review.** Four layers; 19 findings, all rejected (low or false, none high or medium); 0 patches applied, 0 deferred. Reasons are in the Review Triage Log. Follow-up review: not recommended (no patch applied).
+
+**Verification (all on lane C throwaways, tag `e29s9i`, torn down; no unchanged rerun).**
+- `npm --prefix web run lint`: exit 0.
+- AC1 mutation (`live sign-in --part 1/2` with the scratch cases): `zz C7 old` red at `toHaveAttribute` (10000 ms), C7 green, 346 s.
+- AC2 mutation (`live online-session` with the scratch cases): `zz L2 old` red in `expectPlaceFreed` (since NaN), L2 and L7 green, 262 s.
+- Final tree, measured local seconds per unit: `sign-in --part 1/2` 325 s (127 passed); `sign-in --part 2/2` 319 s (96 passed); `demo-switch` 317 s; `floor` 365 s (105 passed); `answers` 338 s (20 passed); `cards` 232 s (19 passed); `online-demo` 384 s; `online-session` 284 s (12 passed, 1 skipped by design, L6). All PASS first time, no `OCUTALON_LIVE_DEADLINE` override needed.
+- `npm --prefix web test`: 1127 pass, 6 s. `bash ci/checks.sh`: all scripts passed, 377 s.
+- Footprint `git diff --stat` over the forbidden paths: no output. Manual grep reviewed by hand: remaining hits are inside a `loadedAfter` action, `rail.spec.ts` R1, or precede a reload, new-tab or held-answer release (`resume.spec.ts` holds `/state` on purpose).
+- Matrix audit: rows 1 and 2 by the whole sign-in units (prompt and held `/state`, the latter by the C7 mutation run); rows 3 and 4 by L2/L7 and L4c in `online-session`.
+
+**Residual risks.** The late-`/state` and held-sign-out proofs are one-off runs (scratch cases removed by design), not committed tests. L7 has no red run of its own; it shares L2's mechanism. A failed sign-in inside a wrapped action now shows as a `/state` wait timeout before the later status assertion.

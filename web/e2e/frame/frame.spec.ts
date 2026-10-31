@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 import { changeSnapshot } from '../support/api';
 
 /**
@@ -60,7 +61,7 @@ function tokenColor(page: Page, token: string): Promise<string> {
 
 /** F1: the landmarks, the headings and the order of the page. */
 test('F1: landmarks, headings and order', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page).toHaveTitle('OcuTalon');
 
@@ -106,7 +107,7 @@ test('F2: demo mode off', async ({ page }) => {
     snapshot['onlineDemo'] = false;
     snapshot['nextReset'] = '2099-01-01T00:00:00Z';
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   await expect(page.locator('.context-badge')).toHaveCount(0);
@@ -123,7 +124,7 @@ test('F2: demo mode off', async ({ page }) => {
 
 /** F3: the header, left to right, on the real stack (demo mode on): the Visual Trace button sits between the badge and the theme button. */
 test('F3: the header', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   const home = page.locator('app-header a[href="#/"]');
@@ -501,7 +502,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   page.on('response', (response) => {
     if (new URL(response.url()).pathname === STATE) answered.push(response);
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
   expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);

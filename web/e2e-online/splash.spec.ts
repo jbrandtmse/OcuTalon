@@ -417,7 +417,7 @@ test.describe('S5 to S7, signing in', () => {
 
       await page.goto(splashPath());
       await expect(page).toHaveTitle('Try OcuTalon');
-      await passwordInput(page).press('Enter');
+      await loadedAfter(page, () => passwordInput(page).press('Enter'));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     } finally {
       await signOutGroup(page);

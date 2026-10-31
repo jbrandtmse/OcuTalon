@@ -3,7 +3,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { STATE, changeSnapshot, post } from '../support/api';
 import { dropMail, dropPhone, mailOutcome, mailRows, pointKeys, publishFixtureEvent, publishMailbox, restoreKeys, turnRows } from '../support/devices';
 import { announcedTexts, announcements, recordAnnouncements, tokenColor } from '../support/page';
-import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
+import { README_ACCOUNT } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 
 /**
  * The simulated mailbox follows the demo mode of the stack (Story 4.6, matrix rows 8 to 14 and 17, on a real switch). The README account
@@ -52,7 +53,7 @@ const startTime = (): string => new Date(Date.now() - 2000).toISOString().replac
 /** Signs in, waits for the snapshot and selects the mailbox tab; the result is the mailbox. */
 async function openMailbox(page: Page): Promise<Locator> {
   await recordAnnouncements(page);
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await page.getByRole('region', { name: 'Simulated devices' }).getByRole('tab', { name: MAILBOX_TAB }).click();
   const mailbox = page.locator('app-simulated-mailbox');
@@ -297,7 +298,7 @@ test('MB5: markup in From, Subject and Body is shown as text, and nothing runs',
 test('MB6: with demo mode off there is no mailbox, both routes answer 404 not_found and no row is made', async ({ page }) => {
   test.skip(stackMode() !== '0', 'demo mode off only');
   const before = await mailRows(USER);
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page.getByRole('region', { name: 'Simulated devices' }), 'no region').toHaveCount(0);
   await expect(page.locator('app-simulated-mailbox'), 'and no mailbox').toHaveCount(0);

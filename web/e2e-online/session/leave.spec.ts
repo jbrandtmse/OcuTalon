@@ -32,7 +32,9 @@ import {
  *   /session/end, and the row's CSP session still exists.
  * - L2 (row 5, AC 3): the idle cap, on the page's own clock (installed before the load, moved on in steps of five seconds so that the page
  *   polls as it does): polls do not count, a key press and a click do, and 600 s with none lands on the splash with its load time and the
- *   place-freed notice above both cards; the CSP session is gone, a trace page needs a sign-in, and signing in resumes the epoch.
+ *   place-freed notice above both cards; the CSP session is gone, a trace page needs a sign-in, and signing in resumes the epoch. The page's
+ *   clock crosses the cap with the wall clock, so that the group sign-out's 3 s bound is real time and IRIS has ended the session before the
+ *   page leaves.
  * - L3 (row 7, AC 3): a 401 (the CSP session ended out of band) takes the page to the same splash and notice, never to the sign-in page or
  *   "You were signed out.", and no request of any kind (an API call or a sign-out) follows it.
  * - L4 (row 9, AC 4): an epoch change that the answers inject is never applied: the page shows nothing of the other session, asks for no
@@ -122,11 +124,6 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     await advance(page, CAP_MS - 10_000);
     await expect(mainOf(page), 'a click on the page, then 590 s more: still there').toHaveAttribute('data-snapshot', 'loaded');
 
-    try {
-      await page.clock.runFor(20_000);
-    } catch {
-      /* The page leaves while the clock runs, which ends its execution context. */
-    }
     await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     await expectPlaceFreed(page, loadedAt);
     expect((await context.request.get(STATE)).status(), "the context's /state is 401").toBe(401);

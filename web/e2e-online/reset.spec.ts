@@ -330,8 +330,10 @@ test('R2: with a reset four minutes away /state, the public status and the ancho
       'right after the sign-in card\'s title',
     ).toBe('ocu-signin-h');
     const answered = fresh.waitForResponse((response) => response.request().method() === 'POST');
-    await fresh.getByRole('button', { name: 'Sign in and start', exact: true }).click();
-    await answered;
+    await loadedAfter(fresh, async () => {
+      await fresh.getByRole('button', { name: 'Sign in and start', exact: true }).click();
+      await answered;
+    });
     await expect(mainOf(fresh)).toHaveAttribute('data-snapshot', 'loaded');
     const second = (await (await fresh.request.get(STATE)).json()) as { epoch: string };
     epochs.push(second.epoch);
