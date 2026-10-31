@@ -2,7 +2,8 @@
 title: 'A stopped production or a disabled item is reported once'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9f0280e3de82004fdf0d7ebe7ee3ec9180a44dd0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -217,6 +218,35 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `ci/` or `_b
 
 ## Review Triage Log
 
+### 2026-10-30 -- Review pass
+- verdicts: 25 rows -- high 0, medium 1, low 19, false 5, maybe-false 0 (grouped findings share a row; by-design and spec-bound rows count as low and are rejected)
+- findings:
+  - `[low]` `[reject]` BH1/EH3 a `Reported` that is valid JSON but not an object makes `Findings` throw each Tick -- only Checks writes `Reported`, always as an object; no user path reaches it, and the fix adds a guard.
+  - `[low]` `[reject]` BH2/EH6 a failing `Ens_Config.Item` query fails the whole `Current` read -- the table is in the production's own namespace, read right after its definition; a failure there is a failed definition read as well. No guard added.
+  - `[low]` `[reject]` EH7 `Evidence` also runs the item query and the global read -- one indexed SELECT per read, negligible.
+  - `[false]` `[reject]` BH3 a failed `TestStoppedProductionIsReportedOnce` leaves Orders stopped -- `Test.Watch.Case.OnAfterOneTest` calls `PutBack`, which starts Orders again (class doc and `:231`).
+  - `[low]` `[patch]` BH4 `SetItemEnabled`/`OnAfterOneTest`/`ITEMNAME` duplicated in Heartbeat and Reader (Rule 2) -- moved into `Test.Watch.Case` (the Orders item, `ItemDisabled`, `SetItemEnabled`, the re-enable in `OnAfterOneTest`); both classes use it.
+  - `[low]` `[patch]` BH5 the `--- helpers ---` marker swallowed into `SetItemEnabled`'s doc -- the helper is gone from Heartbeat and the marker is back with `WaitStopped`.
+  - `[low]` `[reject]` BH6 `NotRunning` swallows a throw from the state read silently -- the spec says a throwing seam goes on to the re-check, whose read failure logs NOREAD.
+  - `[low]` `[reject]` BH7/EH4 `$Replace` order and a newline in a name -- a display name containing the text `{itemName}`, or an item name with a newline, is not reachable from the product (names come from the watched production's definition).
+  - `[low]` `[reject]` BH8 the disabled item's `time` is the run time -- decided and ruled (V4, veto U-180, AD-15); spec-bound.
+  - `[false]` `[reject]` EH1 two Checks jobs send one finding twice -- `Checks` has PoolSize 1 in `Production.cls`, and a due row is gated by `NextDueAt`.
+  - `[low]` `[reject]` EH2 no cap on Items per run -- spec: every newly disabled item is its own Item, with no cap (Design Notes).
+  - `[low]` `[reject]` EH5 a crash between the `UPDATE` and the send loses a finding for good -- spec: send after the row's update, never retried (Design Notes); "never sent again" is the guarantee.
+  - `[false]` `[reject]` EH8 a stale stop time -- IRIS kills the stamp at a start (`Ens/Director.cls:68-69, 294`), and the time is used only when the state is stopped/suspended.
+  - `[low]` `[reject]` EH9 a stop and restart in one interval is not reported -- decided in the spec (the state at each run decides).
+  - `[low]` `[reject]` EH10 a `timeout`/`unknown` state at the start goes on -- row 15 of the matrix; the mid-run case is Story 30.5's.
+  - `[low]` `[reject]` EH11 a FixRun save that throws ends as NOREAD, not NOTRUNNING -- the run did not start for another reason, and NOREAD is the existing behaviour for it.
+  - `[low]` `[reject]` EH12/EH13 `FailFindings` matches by the Item's Text, not the check's Ref -- `SendFinding(item)` has no Ref, and row 11 needs one of two findings of one check to fail; the doc says so.
+  - `[medium]` `[patch]` VG1 the thrown-send branch of `Record` had no test -- `Probe.FailFindings(texts, throw)` and `Runs.TestThrownSendIsNeverRetried` added; mutation line written (the `Catch` answering OK -> red, observed).
+  - `[low]` `[patch]` VG2 an incident read that fails still compares the state, but no test pinned it -- a step added to `TestNotCheckedReportsNothing`; mutation line written (`'unread` in the gate -> red, observed).
+  - `[low]` `[reject]` VG-other1 `WaitDeliveries(session, 1)` returns at the first delivery -- duplicate Items are excluded by the per-Tick Item counts; the delivery is one by construction.
+  - `[false]` `[reject]` VG-other2 `TestDisabledItems` control assertion relies on earlier state -- `Case.OnAfterOneTest` restores the item and Orders, so each test starts from them.
+  - `[false]` `[reject]` VG-other3/IA the intent-alignment auditor and the hunt for unfalsifiable assertions reported no divergence and no unfalsifiable assertion -- descriptive reports, counted as two rows with no defect (IA: rows 12-14 are live tests that ran green in this stage).
+  - `[low]` `[reject]` EH12b the claim that the spec's `FailFinding` names a Ref -- same as EH12/EH13.
+  - `[low]` `[reject]` EH-claim the Reader's `stoppedAt` is "" for a never-stopped production -- by design (time falls back to the run time, row 4).
+  - `[low]` `[reject]` BH-resid duplicates BH8.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).**
@@ -282,9 +312,21 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `ci/` or `_b
 - **The Integration AC reaches the chat** through a mock marker in the fixture watch's display name, because the mock's Triage answers `digest` by default (`ci/mock/scenarios/A/triage.json`). Row 12 asserts the `ItemDecision` at `OutcomeRouter`, which holds whatever the outcome.
 - **Not changed (Story 30.5, DW-419):** a production that stops after the start check, `Resend`'s skip code `stopped`, and `Test.Fix.Executor.TestNothingResent`'s canned all-stopped Carry.
 
+**Decided at implementation.**
+- `Probe.FailFindings` matches by the Item's Text (comma-separated fragments), not by the check's Ref: `SendFinding(item)` carries no Ref, and row 11 needs one of two findings to fail.
+- The Orders item switch (`ITEMNAME`, `ItemDisabled`, `SetItemEnabled`, the re-enable in `OnAfterOneTest`) lives in `Test.Watch.Case` (Ours, Test/Watch), shared by Heartbeat and Reader.
+- A time on another day renders as "on {date} at {time}" (`Msg.Catalog`); `TestFindingsRender` allows for it.
+
 **Measured at planning (slot A `ocutalon-slot-a`, build 154, port 52790, read-only).**
 - `%OpenId` of an already open `Ens.Config.Production` gives the same OREF with concurrency 0 and with the default.
 - Slot A has no OCUORDERS and no `^Ens.Configuration("csp","Activity")` entries, so the stop time's format is Task 0a, on a throwaway.
+
+**Measured at implementation (throwaway stacks `e30s4hw` warm and `e30s4h` fresh, build 154).**
+- Task 0a: after `StopOrders`, `^Ens.Configuration("csp","Activity","OcuTalon.Demo.Orders.Production","stopped")` in OCUORDERS is a UTC stamp `YYYY-MM-DD HH:MM:SS.sss`. `Test.Watch.Reader.TestStoppedProduction` reads it through `Failures` as `stoppedAt` and asserts that `Mark.FailedAt(stoppedAt)` lies between `NowUtc()` taken just before and just after the stop (both UTC to the second). `Test.Checks.Heartbeat.TestStoppedProductionIsReportedOnce` asserts the same for the `time` slot of the Item from the real Checks job.
+- Task 0b: the `Ens_Config.Item` rows of the production (`Production`, `Enabled`) show `Enabled` 0 after `Ens.Director.EnableConfigItem("OrdersToWarehouse", 0, 1)` in OCUORDERS, both in the test process (`Test.Watch.Reader.TestDisabledItems`: `["OrdersToWarehouse"]`, then `[]` once it is enabled again) and in the Checks job on the fresh run (`Test.Checks.Heartbeat.TestDisabledItemIsReportedOnce`: one `watch.itemDisabled` Item). `Reader.Current` therefore reads the SQL rows, not the definition's `Items`.
+- Task 0c: a `[[mock:check-finding-tell-now]]` marker that the Item's Text carries (the display name is in it) selects the scenario for `Intake`'s decide request: the tell-now decision reaches the web chat as one Delivery row (`TestDisabledItemIsReportedOnce`). Without the marker, row 12's Item still gets its `ItemDecision` at `OutcomeRouter`.
+- A time slot on another day than the catalog's `now` reads "was disabled on {date} at {time}" (`Msg.Catalog` replaces a trailing "at " with "on " for a dated time), which `TestFindingsRender` takes into account.
+- Times: warm `Test.Watch.Reader` 3 s, `Test.Checks.Runs` 1.3 s, `Test.Fix.Executor` 29 s, `Test.Data.Tables` 0.4 s; fresh `Test.Checks.Heartbeat` 3.8 s, `Test.Fix.Runs` 62 s (each fresh start took 90-155 s).
 
 **Integration ACs (Rule 1).**
 - Row 12: `Intake` (Lane B, the real item) reads the Item and sends `OutcomeRouter` an `ItemDecision` that carries its `CatalogKey` and `Slots`.
@@ -395,10 +437,47 @@ Where to run:
 | AC 5, row 16 | `Mark.Start` ignores `markAt` | TestWindow; and, once, the old re-read expectation with the `Hang 1.1` → TestWindow red on every run |
 | Storage | the Tables entry lacks `Reported` | `Test.Data.Tables` |
 
+mutation lines (Rule 19; each applied, red observed, reverted byte-identically with `cmp` against a copy):
+- mutation: `Record` does not call `SendFinding` (`Set sc = $$$OK`) -> Runs TestStoppedIsReportedOnce rows 1-4, TestDisabledItemsAreReportedOnce, TestFailedSendIsNeverRetried, TestSuspendedAndTroubled red.
+- mutation: `production` slot = `row.production` -> Runs TestStoppedIsReportedOnce (key and slots), TestDisabledItemsAreReportedOnce (slots), TestFindingsRender red.
+- mutation: the stop time ignored (`runAt` always) -> Runs TestStoppedIsReportedOnce (IRIS's stop time) and TestFindingsRender red.
+- mutation: `Findings` ignores the stop in `previous` (`If stopped Do found.%Push`) -> Runs TestFindingsRule row 2, TestFirstRunIsABaseline, TestStoppedIsReportedOnce rows 2-4 red.
+- mutation: stopped kept 1 on a run that does not read stopped -> Runs TestFindingsRule rows 3 and 9, TestStoppedIsReportedOnce row 3, TestSuspendedAndTroubled red.
+- mutation: `Reported` disabled never stored (`[]`) -> Runs TestDisabledItemsAreReportedOnce rows 5-6, TestFindingsRule rows 5-7, TestFirstRunIsABaseline, TestFailedSendIsNeverRetried red.
+- mutation: disabled kept as a union -> Runs TestFindingsRule row 6 and TestDisabledItemsAreReportedOnce row 6 (A is not sent again) red.
+- mutation: a missing `previous` treated as `{stopped 0, disabled []}` (the first run reports) -> Runs TestFindingsRule row 7, TestFirstRunIsABaseline red.
+- mutation: the state guard of `Findings` removed (it runs on a not-checked run) -> Runs TestFindingsRule row 8, TestNotCheckedReportsNothing red.
+- mutation: the sends happen when no row was updated (before the `ROWCOUNT` Quit) -> Runs TestDeletedMeanwhileSendsNothing red.
+- mutation: a failed send resets `Reported` (drops its finding) -> Runs TestFailedSendIsNeverRetried (sent again) red.
+- mutation: SuperSession not set for the send -> Runs TestStoppedIsReportedOnce (superSession) and TestDisabledItemsAreReportedOnce red.
+- mutation: Provenance `user` on the stop Item and an empty `CatalogKey` on the disabled Item (fresh, one run) -> Heartbeat TestStoppedProductionIsReportedOnce (no ItemDecision: Intake refuses) and TestDisabledItemIsReportedOnce (not the itemDisabled card) red.
+- mutation: `Reader` `disabled` always `[]` -> Test.Watch.Reader TestDisabledItems red (warm) and Heartbeat TestDisabledItemIsReportedOnce (no Item) red (fresh).
+- mutation: the start check dropped (`Set notRunning = 0`) -> Fix.Executor TestProductionNotRunningCannotStart (stopped, suspended, network_stopped) red (warm) and Fix.Runs TestStoppedProductionCannotStart red (fresh).
+- mutation: the check uses `state '= "running"` -> Fix.Executor TestProductionNotRunningCannotStart (troubled, timeout, none, throw go on to the re-check) red.
+- mutation: `Mark.Start` ignores `markAt` -> Runs TestWindow red; and the old expectation (the held `row.LastRunAt` re-read after the second Tick) with the `Hang 1.1` -> TestWindow red on the run.
+- mutation: the Tables entry lacks `Reported` -> Test.Data.Tables TestContracts red.
+- mutation: the `Catch` of `Record`'s send loop answers OK (a send that throws logs nothing) -> Runs TestThrownSendIsNeverRetried (the warning and the Ref in it) red.
+- mutation: the findings gate also requires `'unread` (an incident read that fails reports nothing) -> Runs TestNotCheckedReportsNothing (the item read as disabled) red.
+
+**Verification run (implement stage, tags e30s4i and e30s4iw; all torn down).**
+- (loop) warm: Watch.Reader 3 s, Checks.Runs 1.3 s, Fix.Executor 29 s, Data.Tables 0.2 s; fresh: Checks.Heartbeat 3.9 s (stack 105 s), Fix.Runs 60.9 s (stack 90 s). All passed, run again after the review patches.
+- (once) `bash ci/checks.sh` passed (3 min 24 s); `bash docker/tests/test-mock.sh` passed (0 failures).
+- (once) `shard lane-a --part k/6` fresh: 1/6 451 s, 2/6 160 s, 3/6 261 s, 4/6 477 s, 5/6 264 s, 6/6 347 s, all passed.
+- (once) `shard lane-b`: part 1/2 266 s passed; part 2/2 first run 540 s with one red, `Test.Web.GuideApi.TestRunAgain` ("steps 3 to 5 reset; the watch still counts", not in this story's area; green alone and green on the one rerun of the part, 558 s). A new flake, to be ledgered by the lead (not on the known list).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement stage (Story 30.4).**
+- Summary: Checks now reports a newly stopped production and each newly disabled item once, as an `untrusted` Item to `Intake`, with "new" kept in the appended `BackgroundCheck.Reported` column (written in the run's `UPDATE`; a first run is a baseline). `Watch.Reader.Failures` gained the trailing outputs `disabled` and `stoppedAt`. `FixExecutor` ends a run whose production is stopped, suspended or network_stopped as couldn't start (`NOTRUNNING`, Resent 0, Skipped 0, row `failed`) before the re-check. DW-414 fixed in `TestWindow`.
+- Files changed: `Data/BackgroundCheck.cls` (Reported, slot 15), `Watch/Reader.cls`, `Checks/Process.cls` (Findings, FindingItem, SendFinding, Record), `Fix/Executor.cls` (NOTRUNNING, NotRunning, ProductionState), new `ci/mock/scenarios/A/check-finding-tell-now.json`; tests: `Test/Checks/{Probe,Runs,Heartbeat}.cls`, `Test/Watch/{Case,Reader}.cls`, `Test/Fix/{Executor,ExecutorProbe,Runs}.cls`, `Test/Data/Tables.cls`.
+- Files outside "Ours" (footprint_extensions): `Data/BackgroundCheck.cls`, `Watch/Reader.cls`, `Test/Data/Tables.cls` (own entry), the new mock scenario. No contended file, no Lane B class, no `Install/**`, spine untouched.
+- Review: 25 triage rows. Patched 3 (VG1 thrown-send test, medium; VG2 incident-read-fails case, low; BH4/BH5 duplicated item helpers moved to `Test.Watch.Case` and the helpers marker, low). Deferred: none. Rejected with reasons: see the Review Triage Log (non-object `Reported`, Reader side-query failure, notice/newline in names, double send, caps, spec-decided cases).
+- Follow-up review recommended: false (one medium patched, a test).
+- Verification: see "Verification run" above; every mutation line demonstrated red and reverted byte-identically.
+- Residual risks: the disabled item's `{time}` is the run time (V4, up to 60 s late); the `Test.Web.GuideApi.TestRunAgain` flake seen once in `lane-b` part 2/2 (green on rerun).
 
 **Plan stage (halted after planning, as dispatched).**
 - The spec passed the READY FOR DEVELOPMENT gate on the first check, after one in-place clarification of when `Findings` runs.

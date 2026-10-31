@@ -13,8 +13,8 @@ Include Ensemble
 ///   - for the tests of the failure reading (Story 5.2): Fail (failing orders in OCUORDERS through the partner), WaitFailed, LateHeader and LateError (a
 ///     header that enters the error status later), HeaderlessLog (an event-log row with no session), Since and Batches (the FailureBatch messages that
 ///     IncidentManager holds, as plain objects), WaitBatched and Ids, StopPoller and StartPoller (the item's temporary stop), StopOrders, StartOrders and
-///     OrdersRunning, and ClearMark. Every message and row that they make in OCUORDERS (the headers after the first Fail, the fixture headers and log
-///     rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
+///     OrdersRunning, SetItemEnabled (Story 30.4: ITEMNAME of Orders, enabled again by OnAfterOneTest when ItemDisabled is set), and ClearMark. Every
+///     message and row that they make in OCUORDERS (the headers after the first Fail, the fixture headers and log rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
 ///     stopped them.
 ///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
 ///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects; Group also lists every group, Story 5.8), Stream (a session's events
@@ -143,6 +143,12 @@ Parameter TICKWAIT = 60;
 /// How far ahead of now a row is due, in seconds (see Ahead).
 Parameter AHEADSECONDS = 86400;
 
+/// The Orders item that SetItemEnabled switches (Story 30.4).
+Parameter ITEMNAME = "OrdersToWarehouse";
+
+/// 1 while a test has ITEMNAME disabled in OCUORDERS: OnAfterOneTest enables it again, also after a failure.
+Property ItemDisabled As %Boolean [ InitialExpression = 0 ];
+
 /// The ApprovalRole rows of Decide before ApprovalReady set them aside (RunnerFixture.RememberDefault), with ApprovalRoleSaved 1 while they are set aside.
 Property ApprovalRoleRows As %List;
 
@@ -230,6 +236,11 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set itemSc = $$$OK
+	If ..ItemDisabled {
+		Set ..ItemDisabled = 0
+		Set itemSc = ..SetItemEnabled(1)
+	}
 	Do ..FreeRuns()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
@@ -254,7 +265,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..DropMessages()
 	Do ..DropExecuteSessions()
 	Do ..DropDrySessions()
-	Quit sc
+	Quit $SYSTEM.Status.AppendStatus(itemSc, sc)
 }
 
 Method OnAfterAllTests() As %Status
@@ -1148,6 +1159,14 @@ ClassMethod StartOrdersNow() As %Status [ Private ]
 	Set $NAMESPACE = ..#ORDERS
 	If ##class(Ens.Director).IsProductionRunning() Quit $$$OK
 	Quit ##class(Ens.Director).StartProduction(..#ORDERSPRODUCTION)
+}
+
+/// Enables (1) or disables (0) ITEMNAME in OCUORDERS and updates the running production. A test that disables it sets ItemDisabled first.
+ClassMethod SetItemEnabled(enabled As %Boolean) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Quit ##class(Ens.Director).EnableConfigItem(..#ITEMNAME, enabled, 1)
 }
 
 /// 1 when the Orders production runs in OCUORDERS.

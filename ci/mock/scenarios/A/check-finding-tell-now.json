@@ -1,0 +1,12 @@
+{
+  "name": "check-finding-tell-now",
+  "match": {
+    "marker": "check-finding-tell-now"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock tells you about this check finding now.\"],\"confidence\":0.8}"
+    }
+  ]
+}

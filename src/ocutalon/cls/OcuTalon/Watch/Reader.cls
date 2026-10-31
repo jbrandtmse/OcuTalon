@@ -26,6 +26,8 @@ Include (EnsConstants, EnsErrors)
 ///     whatever its IsError, with the raw text of its error, or an event-log row of Type 2 (Error) or 6 (Alert) with no session; a log row with a
 ///     session is only the text of its header. Each row of the output array is {"kind" (header, error or alert), "headerId", "sessionId",
 ///     "superSession", "item", "source", "bodyClass", "at" (IRIS UTC, as stored), "logId", "errorText"}, in time and id order, at most limit.
+///     It also gives, from the same switch, the names of the production's items that are disabled in its stored definition (disabled, in ID
+///     order) and the time IRIS recorded when the production last stopped (stoppedAt, as stored, "" when none): both only with the outcome read.
 ///   - Evidence reads the evidence of the failures with the given keys (Story 5.4), inside the same switching method and under the same two
 ///     checks as Failures (readable before any switch, outcome unreadable or not_current). It gives the snapshot as the reader snapshot of
 ///     Story 0.10 (format ocutalon.readerSnapshot/1): failures (one per header key: the header's fields, its error text chosen as Failures
@@ -171,16 +173,19 @@ ClassMethod Readable(user As %String, namespace As %String) As %Boolean [ Privat
 /// nothing was entered and rows is empty) or not_current (the production is not the namespace's own, or a name is empty: nothing was read). A namespace that cannot
 /// be read for another reason is an error. state is the production's running state, read in the same switch: running, stopped, suspended, troubled or
 /// network_stopped; timeout when Ens.Director.GetProductionStatus could not take the runtime lock in LOCKSECONDS; unknown for any other error or
-/// state; and "" with the outcomes unreadable and not_current.
-ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String) As %String
+/// state; and "" with the outcomes unreadable and not_current. disabled is the dynamic array of the names of the production's disabled items and
+/// stoppedAt the production's recorded stop time, as stored (see the class description): [] and "" with every outcome but read.
+ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String
 {
 	Set rows = []
 	Set state = ""
+	Set disabled = []
+	Set stoppedAt = ""
 	If (namespace = "") || (production = "") Quit "not_current"
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	If '..Readable(user, namespace) Quit "unreadable"
-	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault, , , , .state)
+	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault, , , , .state, , .disabled, .stoppedAt)
 	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failures of "_production_" in "_namespace_" could not be read: "_fault))
 	Quit outcome
 }
@@ -241,12 +246,17 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
 /// state is the production's running state from the same GetProductionStatus call (see Failures): "" when the production is not the namespace's own or the
-/// read threw. resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0) As %String [ Private ]
+/// read threw. With the outcome read, disabled (a dynamic array) holds the names of the production's items whose Enabled is 0 in the stored definition (the
+/// Ens_Config.Item rows of the production), in ID order, and stoppedAt the stop time that Ens.Director wrote for the production
+/// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
+/// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
 {
 	Set description = ""
 	Set name = ""
 	Set rows = []
+	Set disabled = []
+	Set stoppedAt = ""
 	Set outcome = ""
 	Set fault = ""
 	Set state = ""
@@ -269,6 +279,12 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 				Set state = ""
 			} Else {
 				Set outcome = "read"
+				Set stoppedAt = $Get(^Ens.Configuration("csp", "Activity", name, "stopped"))
+				Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Ens_Config.Item WHERE Production = ? AND Enabled = 0 ORDER BY ID", name)
+				If stored.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, stored.%Message))
+				While stored.%Next() {
+					Do disabled.%Push(stored.%GetData(1))
+				}
 				Set headerIds = ""
 				Set logIds = ""
 				If evidence {
@@ -467,6 +483,8 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		Set rows = []
 		Set outcome = ""
 		Set state = ""
+		Set disabled = []
+		Set stoppedAt = ""
 		Set fault = exception.DisplayString()
 	}
 	Quit name

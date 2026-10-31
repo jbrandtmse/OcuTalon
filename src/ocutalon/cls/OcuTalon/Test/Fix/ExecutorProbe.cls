@@ -5,6 +5,8 @@
 /// of CheckIs or CarryIs when one is set, else the kind's own Recheck or Execute. A canned CheckIs is the text error (an error status), throw (an exception) or JSON
 /// {"passed": the ids, "skipped": [{"id", "reason"}]}; a canned CarryIs is error, throw or JSON {"copies": [header ids that the run registers on its FixRun, as the
 /// kind does], "skipped": [{"id", "reason"}], and an optional "fail", an error text: the copies are registered and the call then fails, as a resend that stops partway}.
+/// StateIs (Story 30.4; DW-368) is the running state that ProductionState gives (stopped, suspended, network_stopped, troubled, running, timeout or "" for a production that was not read),
+/// or throw for a read that throws; empty for the product's own read through Watch.Reader.
 /// RefusalIs none makes the refusal check pass for any row, so that a request that is not approved reaches
 /// StartExecution. StartIs, an error text, makes StartExecution fail with it (the Start seam); otherwise it is the product's. SaveFails makes the save of a run's FixRun fail: 1 for the first save only (the run's own, in Run), 2 for the second as well (the one of
 /// CouldNotStart); SavedWas holds the saved argument that CouldNotStart was given.
@@ -89,6 +91,9 @@ Property RefusalIs As %String [ Transient ];
 Property CheckIs As %String(MAXLEN = "") [ Transient ];
 
 Property CarryIs As %String(MAXLEN = "") [ Transient ];
+
+/// The state that ProductionState gives, or throw; empty for the product's own read.
+Property StateIs As %String [ Transient ];
 
 /// The calls of Check and Carry, in order, each {class, incident (its Ref), parameters (as JSON text), targets}.
 Property Checked As %DynamicArray [ Transient ];
@@ -247,6 +252,14 @@ Method Missing(class As %String) As %String [ Private ]
 	If ..MissingIs = "" Quit ##super(class)
 	If ..MissingIs = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The check threw")
 	Quit $Select(..MissingIs = "none": "", 1: ..MissingIs)
+}
+
+/// StateIs when it is set (throw makes the read throw), else the product's read.
+Method ProductionState(incident As OcuTalon.Data.Incident) As %String [ Private ]
+{
+	If ..StateIs = "" Quit ##super(incident)
+	If ..StateIs = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The state read threw")
+	Quit $Select(..StateIs = "none": "", 1: ..StateIs)
 }
 
 /// Records the call; the canned answer of CheckIs when it is set, else the kind's Recheck.

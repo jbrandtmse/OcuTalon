@@ -27,8 +27,11 @@
 ///     entered the namespace before the check would throw);
 ///   - TestFailuresNotCurrent (DW-38): a production that is not its namespace's own gives not_current and no row: another production in OCUORDERS, and the
 ///     Orders production asked for in OCUTALON, which is readable;
-///   - TestStoppedProduction (DW-222): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
-///     made, and a StartWatch reaches WatchOps' shadow instance and is admitted; the production is started again and the test asserts it runs;
+///   - TestStoppedProduction (DW-222; Story 30.4): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
+///     made, gives the state stopped, the stop time that IRIS recorded (a stamp between just before and just after the stop) and no disabled item, and a StartWatch reaches
+///     WatchOps' shadow instance and is admitted (its row only records a baseline); the production is started again and the test asserts it runs;
+///   - TestDisabledItems (Story 30.4): with OrdersToWarehouse disabled in OCUORDERS Failures gives disabled ["OrdersToWarehouse"], with the stop time "" while Orders runs, and
+///     [] once the item is enabled again (also after a failure: OnAfterOneTest); the other outcomes give [] and "";
 ///   - TestFailuresState (Story 5.6): Failures also gives the production's running state: running while Orders runs, stopped while it is cleanly stopped, timeout while
 ///     another job holds ^Ens.Runtime("ConfigItem") in OCUORDERS (the runtime lock, which Ens.Director.GetProductionStatus waits for one second), and "" with the
 ///     outcomes unreadable and not_current;
@@ -268,7 +271,9 @@ Method TestStoppedProduction()
 	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
 	If '..Fail(1, trace) Quit
 	Do ..WaitFailed(1)
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	If '..StopOrders() Quit
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertEquals(..OrdersRunning(), 0, "control: the Orders production is stopped")
 	Set count = 0
 	Set iterator = $ClassMethod(..#READER, "Productions").%GetIterator()
@@ -283,6 +288,11 @@ Method TestStoppedProduction()
 	Do $$$AssertEquals($ClassMethod(..#READER, "Admits", ..#ORDERS, ..#ORDERSPRODUCTION, .name), 1, "and Admits admits it")
 	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows), "read", "its failures are still read")
 	Do $$$AssertEquals(rows.%Size(), 1, "the one that it made is given")
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "the state is read too")
+	Set stamp = ##class(OcuTalon.Watch.Mark).FailedAt(stoppedAt)
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "stopped|[]", "it is stopped, with no item disabled")
+	Do $$$AssertTrue(stamp '= "", "and IRIS's stop time is a stamp: "_stoppedAt)
+	Do $$$AssertTrue('(before ] stamp) && '(stamp ] after), "between just before the stop and just after it: "_stoppedAt)
 	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Watch.OpsProbe", .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of WatchOps is made")
 	If $IsObject(host) {
@@ -296,6 +306,24 @@ Method TestStoppedProduction()
 		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|started", "and admits it")
 	}
 	Do ..StartOrders()
+}
+
+Method TestDisabledItems()
+{
+	If '..Ready() Quit
+	Set from = ##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON()_"|"_stoppedAt, "running|[]|", "control: it runs, with no item disabled and no stop time")
+	Set ..ItemDisabled = 1
+	Do $$$AssertStatusOK(..SetItemEnabled(0), ..#ITEMNAME_" is disabled")
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read again")
+	Do $$$AssertEquals(state_"|"_disabled.%ToJSON(), "running|[""OrdersToWarehouse""]", "the disabled item is given")
+	Do $$$AssertStatusOK(..SetItemEnabled(1), ..#ITEMNAME_" is enabled again")
+	Set ..ItemDisabled = 0
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt), "read", "Orders is read once more")
+	Do $$$AssertEquals(disabled.%ToJSON(), "[]", "and none is disabled")
+	Do $$$AssertEquals($ClassMethod(..#READER, "Failures", ..#ORDERS, "OcuTalon.Production", from, 10, .rows, .state, .disabled, .stoppedAt), "not_current", "a production that is not current")
+	Do $$$AssertEquals(disabled.%ToJSON()_"|"_stoppedAt, "[]|", "gives no disabled item and no stop time")
 }
 
 Method TestFailuresState()

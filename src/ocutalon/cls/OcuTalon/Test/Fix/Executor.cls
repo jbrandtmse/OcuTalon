@@ -19,6 +19,9 @@ Include Ensemble
 ///     throws, which also logs one Type 3 warning) gives the kind's NOTALLOWED; an unregistered kind, parameters that are not one JSON object, targets that are empty, not numbers, not whole, with a leading zero,
 ///     repeated or not ascending, an incident that is closed and one that is missing give UNUSABLE ("OcuTalon couldn't read the approved fix"); the re-check and the resend
 ///     are not called;
+///   - TestProductionNotRunningCannotStart (DW-368, AD-16; the matrix row 15): a target production that is stopped, suspended or network_stopped when the run starts ends the run as could not start:
+///     the FixRun is saved with no copy, the request is failed, one final FixResult is Total the number of targets with every other count 0 and the reason NOTRUNNING, one Action entry is
+///     written as failed, and the re-check is never called; a production that is troubled, running, timed out, not read or whose read throws goes on to the re-check (here a re-check that fails: NOREAD, as before);
 ///   - TestUnreadable (V3): a re-check that gives an error status or throws, and a resend that gives an error before any copy, end like a run that cannot start with the reason
 ///     NOREAD, after the FixRun is saved, with one Type 3 warning each;
 ///   - TestRowIsTheTruth (AC 3; U-126): the kind's re-check and resend get the kind, the parameters and the targets of the request's row and the incident of its
@@ -126,6 +129,8 @@ Parameter UNUSABLE = "OcuTalon couldn't read the approved fix";
 Parameter NOREAD = "OcuTalon couldn't read the failed messages in that production";
 
 Parameter NOSTART = "OcuTalon couldn't start the resend";
+
+Parameter NOTRUNNING = "the production isn't running";
 
 /// The error text of a failing order of the Orders demo, whose pattern is the one of the incident's group.
 Parameter ORDERDATETEXT = "The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.";
@@ -297,6 +302,37 @@ Method TestCouldNotStartRoutes()
 		Set ref = ..Request(owner, $List(case, 2), "approved", $Select($List(case, 3) = "": "", 1: {}.%FromJSON($List(case, 3))))
 		Do $$$AssertStatusOK(..Send(host, ref), label_": the Execute is handled")
 		Do ..AssertEnded(host, ref, $List(case, 2), "failed|failed|finished", $List(case, 4), ..#UNUSABLE, label)
+	}
+}
+
+Method TestProductionNotRunningCannotStart()
+{
+	Set owner = ..Owner("notrunning")
+	Set incident = ..Incident(owner)
+	For state = "stopped", "suspended", "network_stopped" {
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Set host.MissingIs = "none"
+		Set host.StateIs = state
+		Set host.CheckIs = "{""passed"":""101,102,103"",""skipped"":[]}"
+		Set ref = ..Request(owner, incident, "approved")
+		Do $$$AssertStatusOK(..Send(host, ref), "a fix whose production is "_state_" is handled")
+		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOTRUNNING, state)
+		Do $$$AssertEquals(..Calls(host), 0, state_": the re-check is never called")
+		Do $$$AssertEquals(..LastResult(host).skipped, 0, state_": no target is reported as skipped")
+	}
+	For state = "troubled", "running", "timeout", "none", "throw" {
+		Set host = ..Host()
+		If '$IsObject(host) Quit
+		Set host.MissingIs = "none"
+		Set host.StateIs = state
+		Set host.CheckIs = "error"
+		Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Set ref = ..Request(owner, incident, "approved")
+		Do $$$AssertStatusOK(..Send(host, ref), "a fix whose production state is '"_state_"' is handled")
+		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOREAD, "state "_state)
+		Do $$$AssertEquals(..Calls(host), "1/0", "state "_state_": the run goes on to the re-check")
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Run", $Parameter(..#PROBE, "LOGRECHECK"))
 	}
 }
 

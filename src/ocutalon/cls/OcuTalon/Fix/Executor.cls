@@ -19,7 +19,9 @@ Include (EnsConstants, EnsErrors)
 ///          Type 3 warning (LOGMISSING).
 ///       4. Approval.StartExecution (the Start seam) moves the request from approved to executing, atomically. An error there reads the row again: a request that
 ///          still is approved and not past its expiry ends as could not start, with the reason NOSTART (DW-380); any other row is refused as in 1.
-///       5. The run: the FixRun row is saved (the request's Ref, the incident's, the start time); the kind's Recheck reads all the targets before any copy is
+///       5. The run: the FixRun row is saved (the request's Ref, the incident's, the start time). Then the target production's running state is read through
+///          Watch.Reader (the ProductionState seam): a production that is stopped, suspended or network_stopped ends the run as could not start, with the reason
+///          NOTRUNNING (DW-368, AD-16), and the re-check is not called; a read that fails, and any other state, go on. The kind's Recheck reads all the targets before any copy is
 ///          made; the kind's Execute resends a repaired copy of each target that passed (Fix.Kind.RepairResend: through Resend, below) and registers each copy's
 ///          header id on the FixRun (Copies). A re-check that cannot read the production, or an error before any copy was made, ends like a run that cannot start,
 ///          with the reason NOREAD and one Type 3 warning (LOGRECHECK).
@@ -28,7 +30,7 @@ Include (EnsConstants, EnsErrors)
 ///     and namespace of the incident, the result, the counts, the request's Ref, the approver and the channel), and the one final FixResult (ResultOf) goes to IncidentManager
 ///     (Report), in the incident's trace session (AD-26), also when another job finishes it. A failed save (LOGRUN), close (LOGFINISH), audit write (LOGAUDIT) or send
 ///     (LOGRESULT) logs one Type 3 warning, and the rest still happens. Log text goes through Bridge.Redact.
-///       - A run that cannot start (2, 3 and 4), and one that could not read before its first copy, close the request failed: Total the number of targets,
+///       - A run that cannot start (2, 3 and 4, and a production that is not running at the start of 5), and one that could not read before its first copy, close the request failed: Total the number of targets,
 ///         every other count 0 and the plain Reason.
 ///       - A run that resent nothing (every target was skipped) closes the request done: Total and Skipped the number of targets, Resent, Completed and
 ///         FailedAgain 0, and the plain Reason of the lowest skipped target.
@@ -73,6 +75,11 @@ Parameter NOREAD = "OcuTalon couldn't read the failed messages in that productio
 /// The reason of an approved request whose StartExecution failed (public text, veto U-148). It renders as "Nothing was resent: OcuTalon couldn't start the resend.
 /// Nothing was changed."
 Parameter NOSTART = "OcuTalon couldn't start the resend";
+
+/// The reason of a run whose target production is not running when the run starts: stopped, suspended or network_stopped (public text, veto U-180, DW-368). It
+/// renders as "Nothing was resent: the production isn't running. Nothing was changed." These are the words of the per-copy skip reason of a copy that finds the
+/// production stopped (SkipReason), which is the mid-run case and stays as it is.
+Parameter NOTRUNNING = "the production isn't running";
 
 /// How long a run waits for its copies, in seconds from ResentAt (AD-16), the pause between two passes of the waiter, in seconds, and the lock that makes one job
 /// the waiter (DW-381).
@@ -297,24 +304,32 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set run = ""
 	Set failed = ""
 	Set skipped = []
+	Set notRunning = 0
 	Try {
 		Set run = ##class(OcuTalon.Data.FixRun).%New()
 		Set run.ApprovalRef = row.Ref
 		Set run.IncidentRef = row.IncidentRef
 		Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
 		$$$ThrowOnError(run.%Save())
-		$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
-		If passed '= "" {
-			$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
-			If $IsObject($Get(result)) && $IsObject(result.skipped) {
-				Set iterator = result.skipped.%GetIterator()
-				While iterator.%GetNext(, .entry) {
-					Do skipped.%Push(entry)
+		Set notRunning = ..NotRunning(incident)
+		If 'notRunning {
+			$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
+			If passed '= "" {
+				$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
+				If $IsObject($Get(result)) && $IsObject(result.skipped) {
+					Set iterator = result.skipped.%GetIterator()
+					While iterator.%GetNext(, .entry) {
+						Do skipped.%Push(entry)
+					}
 				}
 			}
 		}
 	} Catch exception {
 		Set failed = exception.AsStatus()
+	}
+	If notRunning && (failed = "") {
+		Do ..CouldNotStart(row, total, ..#NOTRUNNING, 1)
+		Quit
 	}
 	Set copies = $Select($IsObject(run): run.Copies.Count(), 1: 0)
 	If failed '= "" {
@@ -335,6 +350,27 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// 1 when the incident's production is not running: ProductionState gives stopped, suspended or network_stopped. A seam that throws, and any other state, give 0,
+/// so that the run goes on to the re-check, which ends a read failure with NOREAD.
+Method NotRunning(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Set state = ""
+	Try {
+		Set state = ..ProductionState(incident)
+	} Catch {
+		Set state = ""
+	}
+	Quit ((state = "stopped") || (state = "suspended") || (state = "network_stopped"))
+}
+
+/// The running state of the incident's production, through Watch.Reader.Failures (running, stopped, suspended, troubled, network_stopped, timeout or
+/// unknown) when the production was read, else "". A seam for the tests.
+Method ProductionState(incident As OcuTalon.Data.Incident) As %String [ Private ]
+{
+	Set outcome = ##class(OcuTalon.Watch.Reader).Failures(incident.Namespace, incident.Production, "", 0, .rows, .state)
+	Quit $Select(outcome = "read": state, 1: "")
 }
 
 /// The run's FixRun row, saved with no copies when it was not saved yet, and then the end of the run (Finish) as failed: the request closed failed

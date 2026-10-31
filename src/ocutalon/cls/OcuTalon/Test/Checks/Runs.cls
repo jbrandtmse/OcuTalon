@@ -17,7 +17,12 @@
 ///   - TestScope ("Scope"): the failures and incidents of A, of B, of instance and untagged failures, on a local install and on the online demo;
 ///   - TestNotChecked ("Not checked"): a read that throws (one redacted warning, no error text in the finding), unreadable, not_current, the state timeout and
 ///     unknown, a cut read with none of the session's failures and an incident read that fails: not_checked with the reason, never passed;
-///   - TestWindow ("Window"): the first read starts at CreatedAt, the next at LastRunAt less 2 seconds, and the limit is 500;
+///   - TestWindow ("Window"): the first read starts at CreatedAt, the next at the first run's own LastRunAt (kept as text before the second Tick, with a pause of
+///     1.1 seconds between the two Ticks, so that the two runs fall in different seconds; DW-414) less 2 seconds, and the limit is 500;
+///   - Findings (Story 30.4; AC 1-3; FR-23, AD-14, AD-18, AD-32; the matrix rows 1-11): TestFindingsRule (the pure rule), TestStoppedIsReportedOnce (rows 1-4: one Item for a stop, with
+///     its fields, trace and Reported; none while it stays stopped; a new one after a restart; the run time when IRIS gave none), TestSuspendedAndTroubled (row 9),
+///     TestDisabledItemsAreReportedOnce (rows 5 and 6), TestFirstRunIsABaseline (row 7), TestNotCheckedReportsNothing (row 8, and a cut read or an unreadable incident table that still compares),
+///     TestDeletedMeanwhileSendsNothing (row 10), TestFailedSendIsNeverRetried and TestThrownSendIsNeverRetried (row 11) and TestFindingsRender (each Item's key and slots render to the UX text);
 ///   - TestStoppedMeanwhile ("Stopped meanwhile"): the row is deleted by the read: nothing is recorded, published or logged and the row stays deleted;
 ///   - TestQuietSweep ("Quiet close"): one closeQuiet for each unclosed incident whose last failure is more than 15 minutes old, origin timer, no session, the
 ///     owner's TraceRef as SuperSession (empty for instance), in the process's session, with its own SuperSession put back; none for a recent or a closed
@@ -288,15 +293,312 @@ Method TestWindow()
 	Set ref = ..Watch(a, production, {"CreatedAt": "2020-05-01T10:00:00Z"})
 	Do ..Feed(production, "read", "running")
 	Do ..Tick(host, ..#TICK)
-	Set row = ..Row(ref)
+	Set firstRunAt = ..Row(ref).LastRunAt
+	Hang 1.1
 	Do ..Tick(host, ..#NEXT)
 	Set calls = $ClassMethod(..#PROBE, "Calls")
 	Do $$$AssertEquals(calls.%Size(), 2, "two runs read")
 	If calls.%Size() '= 2 Quit
 	Do $$$AssertEquals(calls.%Get(0).from, "2020-05-01 10:00:00.000", "the first run reads from CreatedAt")
-	Do $$$AssertEquals(calls.%Get(1).from, ##class(OcuTalon.Watch.Mark).Shift(##class(OcuTalon.Watch.Mark).Normal(row.LastRunAt), -2), "the next reads from the previous run less 2 seconds: "_calls.%Get(1).from)
+	Do $$$AssertEquals(calls.%Get(1).from, ##class(OcuTalon.Watch.Mark).Shift(##class(OcuTalon.Watch.Mark).Normal(firstRunAt), -2), "the next reads from the first run's own time less 2 seconds: "_calls.%Get(1).from)
 	Do $$$AssertEquals(calls.%Get(0).limit_"|"_calls.%Get(1).limit, "500|500", "and the limit is 500")
 	Do $$$AssertEquals(calls.%Get(0).namespace_"|"_calls.%Get(0).production, "ZZNS|"_production, "of the row's namespace and production")
+}
+
+/// The pure rule of Findings (rows 1-9 of the matrix), over previous values written as the row keeps them.
+Method TestFindingsRule()
+{
+	Set none = "{""stopped"":0,""disabled"":[]}"
+	Set stopped = "{""stopped"":1,""disabled"":[]}"
+	// 1: stopped since the last run
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "stopped", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""stopped""}]|"_stopped, "row 1: stopped since the last run is one stop finding, and stopped is now 1")
+	// 2: still stopped
+	Set found = ##class(OcuTalon.Checks.Process).Findings(stopped, "stopped", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_stopped, "row 2: still stopped reports nothing")
+	// 3: restarted, then stopped again
+	Set found = ##class(OcuTalon.Checks.Process).Findings(stopped, "running", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_none, "row 3: a run that reads running makes stopped 0")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "stopped", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""stopped""}]|"_stopped, "row 3: and the next stop is new")
+	// 5: items disabled, in the order given, after the stop
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "stopped", ["A", "B"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""stopped""},{""kind"":""disabled"",""item"":""A""},{""kind"":""disabled"",""item"":""B""}]|{""stopped"":1,""disabled"":[""A"",""B""]}", "row 5: the stop first, then each newly disabled item in order")
+	// 6: still disabled, re-enabled, disabled again
+	Set both = "{""stopped"":0,""disabled"":[""A"",""B""]}"
+	Set found = ##class(OcuTalon.Checks.Process).Findings(both, "running", ["A", "B"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_both, "row 6: still disabled reports nothing")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(both, "running", ["B"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|{""stopped"":0,""disabled"":[""B""]}", "row 6: re-enabled A is dropped from what was reported")
+	Set found = ##class(OcuTalon.Checks.Process).Findings(reported, "running", ["A", "B"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""disabled"",""item"":""A""}]|"_both, "row 6: and A disabled again is new")
+	// 7: the first run is a baseline
+	Set found = ##class(OcuTalon.Checks.Process).Findings("", "stopped", ["A"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|{""stopped"":1,""disabled"":[""A""]}", "row 7: with nothing reported, nothing is found and the state is recorded")
+	// 8: a state that was not read
+	For state = "timeout", "unknown", "" {
+		Set found = ##class(OcuTalon.Checks.Process).Findings(both, state, ["C"], .reported)
+		Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_both, "row 8: the state '"_state_"' reports nothing and leaves what was reported")
+	}
+	Set found = ##class(OcuTalon.Checks.Process).Findings("", "unknown", ["C"], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|", "row 8: and an empty Reported stays empty")
+	// 9: troubled and network_stopped are not stops, suspended is
+	For state = "troubled", "network_stopped" {
+		Set found = ##class(OcuTalon.Checks.Process).Findings(stopped, state, [], .reported)
+		Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_none, "row 9: "_state_" reports nothing and makes stopped 0")
+		Set found = ##class(OcuTalon.Checks.Process).Findings(none, state, [], .reported)
+		Do $$$AssertEquals(found.%ToJSON(), "[]", "row 9: "_state_" after a run that was not stopped is no stop")
+	}
+	Set found = ##class(OcuTalon.Checks.Process).Findings(none, "suspended", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[{""kind"":""stopped""}]|"_stopped, "row 9: suspended counts as stopped")
+	// a previous value that is not JSON is a baseline
+	Set found = ##class(OcuTalon.Checks.Process).Findings("not json", "stopped", [], .reported)
+	Do $$$AssertEquals(found.%ToJSON()_"|"_reported, "[]|"_stopped, "a Reported that cannot be read is a baseline")
+}
+
+/// Rows 1 to 4: a production found stopped since the last run is one Item to Intake, with the fields, the trace and Reported; it is not sent again while the
+/// production stays stopped; a restart makes the next stop new; the run time stands in when IRIS recorded no stop time.
+Method TestStoppedIsReportedOnce()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("stopped")
+	Set production = "Zz.Stopped"
+	Set ref = ..Watch(a, production)
+	Set host.%SuperSession = "zzown"
+	Do ..Step(host, production, 0, "running")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[]}", "the baseline run records the state")
+	Do $$$AssertEquals(..Items().%Size(), 0, "and sends nothing")
+	Do ..Step(host, production, 1, "stopped", [], "2030-06-01 12:00:30.456")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "row 1: the stop is one Item")
+	If items.%Size() = 1 {
+		Set item = items.%Get(0)
+		Do $$$AssertEquals($Length(item.itemId), 22, "a new Ref as ItemId: "_item.itemId)
+		Do $$$AssertEquals(item.sessionRef_"|"_item.channel_"|"_item.provenance_"|"_item.sender_"|"_item.subject, a_"|system|untrusted||", "the row's session as owner, channel system, provenance untrusted")
+		Do $$$AssertEquals(item.text, "The Zz "_production_" production stopped.", "the text")
+		Do $$$AssertEquals(item.catalogKey_"|"_item.slots, "watch.productionStopped|{""production"":""Zz "_production_""",""time"":""2030-06-01T12:00:30Z""}", "the key and the slots, with IRIS's own stop time")
+		Do $$$AssertEquals(item.sessionId_"|"_item.superSession, ..#SESSIONID_"|"_..TraceOf(a), "sent in the Tick's session with the owner's TraceRef as SuperSession")
+	}
+	Do $$$AssertEquals(host.%SuperSession, "zzown", "the process's own SuperSession is put back")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":1,""disabled"":[]}", "Reported now holds stopped 1")
+	Do ..Step(host, production, 2, "stopped", [], "2030-06-01 12:00:30.456")
+	Do ..Step(host, production, 3, "stopped", [], "2030-06-01 12:00:30.456")
+	Do $$$AssertEquals(..Items().%Size(), 1, "row 2: two more Ticks with the production still stopped send nothing")
+	Do ..Step(host, production, 4, "running")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[]}", "row 3: a run that reads running makes stopped 0")
+	Do ..Step(host, production, 5, "stopped", [], "2030-06-01 12:04:45.000")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 2, "row 3: and the next stop is a new Item")
+	If items.%Size() = 2 Do $$$AssertEquals(..Slot(items.%Get(1).slots, "time"), "2030-06-01T12:04:45Z", "with its own stop time")
+	Do ..Step(host, production, 6, "running")
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..Step(host, production, 7, "stopped")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 3, "row 4: a stop with no recorded time is an Item too")
+	If items.%Size() = 3 {
+		Set time = ..Slot(items.%Get(2).slots, "time")
+		Do $$$AssertTrue(time ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "whose time is a UTC stamp: "_time)
+		Do $$$AssertTrue('(before ] time) && '(time ] after), "and the run time: "_time)
+	}
+	Do $$$AssertEquals(..Warnings("Record", $Parameter(..#PROBE, "LOGFINDING"), , ..Checks), 0, "no warning was logged")
+}
+
+/// Row 9: troubled and network_stopped are not stops (and make stopped 0); suspended counts as stopped.
+Method TestSuspendedAndTroubled()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("suspended")
+	Set production = "Zz.Suspended"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Do ..Step(host, production, 1, "troubled")
+	Do ..Step(host, production, 2, "network_stopped")
+	Do $$$AssertEquals(..Items().%Size(), 0, "troubled and network_stopped send nothing")
+	Do ..Step(host, production, 3, "suspended")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "suspended is one Item")
+	If items.%Size() = 1 Do $$$AssertEquals(items.%Get(0).catalogKey, "watch.productionStopped", "a stop")
+	Do ..Step(host, production, 4, "troubled")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[]}", "troubled makes stopped 0")
+	Do ..Step(host, production, 5, "stopped")
+	Do $$$AssertEquals(..Items().%Size(), 2, "and the next stop is new")
+}
+
+/// Rows 5 and 6: each item newly found disabled is its own Item, in order; an item that stays disabled is not sent again; one that is enabled and
+/// disabled again is.
+Method TestDisabledItemsAreReportedOnce()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("disabled")
+	Set production = "Zz.Disabled"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..Step(host, production, 1, "running", ["A", "B"])
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 2, "row 5: two Items")
+	If items.%Size() = 2 {
+		Set time = ..Slot(items.%Get(0).slots, "time")
+		Do $$$AssertTrue('(before ] time) && '(time ] after), "the time is the run time: "_time)
+		For i = 0, 1 {
+			Set item = items.%Get(i)
+			Set name = $Char(65 + i)
+			Do $$$AssertEquals(item.catalogKey_"|"_item.text, "watch.itemDisabled|The "_name_" in the Zz "_production_" production was disabled.", "item "_name_": the key and the text")
+			Do $$$AssertEquals(item.slots, "{""itemName"":"""_name_""",""production"":""Zz "_production_""",""time"":"""_time_"""}", "item "_name_": the slots")
+			Do $$$AssertEquals(item.sessionRef_"|"_item.channel_"|"_item.provenance_"|"_item.superSession, a_"|system|untrusted|"_..TraceOf(a), "item "_name_": owner, channel, provenance and trace")
+		}
+	}
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A"",""B""]}", "Reported holds both")
+	Do ..Step(host, production, 2, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "row 6: still disabled sends nothing")
+	Do ..Step(host, production, 3, "running", ["B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "row 6: A enabled again sends nothing")
+	Do ..Step(host, production, 4, "running", ["A", "B"])
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 3, "row 6: and A disabled again is one Item")
+	If items.%Size() = 3 Do $$$AssertEquals(..Slot(items.%Get(2).slots, "itemName"), "A", "for A")
+}
+
+/// Row 7: the first run of a row with nothing reported only records the state.
+Method TestFirstRunIsABaseline()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("baseline")
+	Set production = "Zz.Baseline"
+	Set ref = ..Watch(a, production)
+	Do $$$AssertEquals(..Row(ref).Reported, "", "a row from before the story, or a new watch, has nothing reported")
+	Do ..Step(host, production, 0, "stopped", ["A"])
+	Do $$$AssertEquals(..Items().%Size(), 0, "the first run sends nothing")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":1,""disabled"":[""A""]}", "and records the state")
+	Do ..Step(host, production, 1, "stopped", ["A"])
+	Do $$$AssertEquals(..Items().%Size(), 0, "the next run finds nothing new")
+}
+
+/// Row 8: a run that did not read the state reports nothing and leaves Reported; a cut read, which still read the state, compares it.
+Method TestNotCheckedReportsNothing()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("unread")
+	Set production = "Zz.Unread"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Set reported = ..Row(ref).Reported
+	Set step = 0
+	For label = "unreadable", "not_current", "timeout", "unknown", "empty", "throws" {
+		Set step = step + 1
+		Set spec = {"outcome": "read", "state": "stopped", "disabled": ["A"], "stoppedAt": "2030-06-01 12:00:30.000"}
+		If label = "unreadable" Set spec.outcome = "unreadable"
+		If label = "not_current" Set spec.outcome = "not_current"
+		If label = "timeout" Set spec.state = "timeout"
+		If label = "unknown" Set spec.state = "unknown"
+		If label = "empty" Set spec.state = ""
+		If label = "throws" Set spec.throw = "ERROR #5001: refused"
+		Do $ClassMethod(..#PROBE, "Feed", production, spec)
+		Do ..Tick(host, ..At(step))
+		Do $$$AssertEquals(..Items().%Size()_"|"_..Row(ref).Reported, "0|"_reported, label_": no Item, and Reported is unchanged")
+	}
+	Do $$$AssertEquals(..Row(ref).Result, "not_checked", "the last of them is not_checked")
+	// a read cut at its limit with none of the session's failures: not_checked, but the state was read
+	Set other = ..Owner("unreadother")
+	Do ..Feed(production, "read", "stopped", ..Failures(..TraceOf(other), 500))
+	Do ..Tick(host, ..At(7))
+	Set row = ..Row(ref)
+	Do $$$AssertEquals(row.Result_"|"_row.Finding, "not_checked|"_$Parameter(..#PROBE, "REASONTOOMANY"), "a cut read is not_checked")
+	Do $$$AssertEquals(..Items().%Size()_"|"_row.Reported, "1|{""stopped"":1,""disabled"":[]}", "but it still reports the stop it read")
+	// the incidents cannot be read: not_checked, but the state was read
+	Set host.FailUnclosed = 1
+	Do ..Step(host, production, 8, "running", ["B"])
+	Set host.FailUnclosed = 0
+	Set row = ..Row(ref)
+	Do $$$AssertEquals(row.Result_"|"_row.Finding, "not_checked|"_$Parameter(..#PROBE, "REASONREAD"), "an incident read that fails is not_checked")
+	Do $$$AssertEquals(..Items().%Size()_"|"_row.Reported, "2|{""stopped"":0,""disabled"":[""B""]}", "but it still reports the item it read as disabled")
+}
+
+/// Row 10: the row is deleted during the read: no Item, and nothing recorded.
+Method TestDeletedMeanwhileSendsNothing()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("deleted")
+	Set production = "Zz.Deleted"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Do ..Feed(production, "read", "stopped", "", "", ref, ["A"])
+	Do ..Tick(host, ..At(1))
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(ref), 0, "the row stays removed")
+	Do $$$AssertEquals(..Items().%Size(), 0, "no Item is sent")
+}
+
+/// Row 11: a send that fails logs one warning that names the check, the other finding still goes, and neither is sent again.
+Method TestFailedSendIsNeverRetried()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("sendfails")
+	Set production = "Zz.SendFails"
+	Set ref = ..Watch(a, production)
+	Set host.%SuperSession = "zzown"
+	Do ..Step(host, production, 0, "running")
+	Do $ClassMethod(..#PROBE, "FailFindings", "The A in")
+	Do ..Step(host, production, 1, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "both findings are tried")
+	Do $$$AssertEquals(..Warnings("Record", $Parameter(..#PROBE, "LOGFINDING"), .text, ..Checks), 1, "one warning is logged")
+	Do $$$AssertTrue(text [ ref, "which names the check: "_text)
+	Do $$$AssertEquals(host.%SuperSession, "zzown", "the SuperSession is put back after a failed send")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A"",""B""]}", "both count as reported")
+	Do ..Step(host, production, 2, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "and the next Tick sends neither again")
+	Do $$$AssertEquals(..Warnings("Record", $Parameter(..#PROBE, "LOGFINDING"), , ..Checks), 1, "with no new warning")
+}
+
+/// Row 11: a send that throws is handled like one that fails: one warning that names the check, the other finding still goes, the SuperSession is put back.
+Method TestThrownSendIsNeverRetried()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("sendthrows")
+	Set production = "Zz.SendThrows"
+	Set ref = ..Watch(a, production)
+	Set host.%SuperSession = "zzown"
+	Do ..Step(host, production, 0, "running")
+	Do $ClassMethod(..#PROBE, "FailFindings", "The A in", 1)
+	Do ..Step(host, production, 1, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "both findings are tried, the second after the first threw")
+	Do $$$AssertEquals(..Warnings("Record", $Parameter(..#PROBE, "LOGFINDING"), .text, ..Checks), 1, "one warning is logged")
+	Do $$$AssertTrue(text [ ref, "which names the check: "_text)
+	Do $$$AssertEquals(host.%SuperSession, "zzown", "the SuperSession is put back after a send that threw")
+	Do $$$AssertEquals(..Row(ref).Reported, "{""stopped"":0,""disabled"":[""A"",""B""]}", "both count as reported")
+	Do ..Step(host, production, 2, "running", ["A", "B"])
+	Do $$$AssertEquals(..Items().%Size(), 2, "and the next Tick sends neither again")
+}
+
+/// Each Item's key and slots render, through the catalog at a fixed now, to the text of the UX.
+Method TestFindingsRender()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("render")
+	Set production = "Zz.Render"
+	Set ref = ..Watch(a, production)
+	Do ..Step(host, production, 0, "running")
+	Do ..Step(host, production, 1, "stopped", ["Zz.Door"], "2030-06-01 12:01:20.000")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 2, "a stop and a disabled item")
+	If items.%Size() '= 2 Quit
+	Set now = "2030-06-01T12:05:00Z"
+	Set clock = ##class(OcuTalon.Data.Time).ForMessage("2030-06-01T12:01:20Z", now)
+	Set why = $Char(10)_"Why now: you asked me to watch the Zz "_production_" production."
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(0).catalogKey, items.%Get(0).slots, "web", now, 0), "The Zz "_production_" production stopped at "_clock_"."_why, "the stop renders to the UX text")
+	Set clock = ##class(OcuTalon.Data.Time).ForMessage(..Slot(items.%Get(1).slots, "time"), now)
+	Set joiner = $Select(clock ? 2N1":"2N: " at ", 1: " on ")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(1).catalogKey, items.%Get(1).slots, "web", now, 0), "The Zz.Door in the Zz "_production_" production was disabled"_joiner_clock_"."_why, "and so does the disabled item (a time on another day reads 'on {date} at {time}')")
 }
 
 Method TestStoppedMeanwhile()
@@ -582,13 +884,40 @@ Method Incident(owner As %String, state As %String, production As %String, field
 	Quit ref
 }
 
-/// What Read answers for the production: the outcome, the state, the rows (a dynamic array or ""), the text of the error that it throws instead and the Ref
-/// of a row that it deletes first.
-Method Feed(production As %String, outcome As %String, state As %String, rows As %DynamicArray = "", throw As %String = "", delete As %String = "")
+/// What Read answers for the production: the outcome, the state, the rows (a dynamic array or ""), the text of the error that it throws instead, the Ref
+/// of a row that it deletes first, the names of the disabled items (a dynamic array or "") and the recorded stop time.
+Method Feed(production As %String, outcome As %String, state As %String, rows As %DynamicArray = "", throw As %String = "", delete As %String = "", disabled As %DynamicArray = "", stoppedAt As %String = "")
 {
-	Set spec = {"outcome": (outcome), "state": (state), "throw": (throw), "delete": (delete)}
+	Set spec = {"outcome": (outcome), "state": (state), "throw": (throw), "delete": (delete), "stoppedAt": (stoppedAt)}
 	If $IsObject(rows) Do spec.%Set("rows", rows)
+	If $IsObject(disabled) Do spec.%Set("disabled", disabled)
 	Do $ClassMethod(..#PROBE, "Feed", production, spec)
+}
+
+/// The Tick of step n (60 seconds each after the Tick TICK), with the read of the production answering the state, the names of the disabled items and the
+/// recorded stop time.
+Method Step(host As OcuTalon.Test.Checks.Probe, production As %String, n As %Integer, state As %String, disabled As %DynamicArray = "", stoppedAt As %String = "")
+{
+	Do ..Feed(production, "read", state, "", "", "", disabled, stoppedAt)
+	Do ..Tick(host, ..At(n))
+}
+
+/// The time of the Tick of step n: TICK plus n minutes.
+ClassMethod At(n As %Integer) As %String
+{
+	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 60 * n)
+}
+
+/// The finding Items that the probe sent, in order.
+ClassMethod Items() As %DynamicArray
+{
+	Quit $ClassMethod(..#PROBE, "FindingItems")
+}
+
+/// The slot of an Item's JSON slots.
+ClassMethod Slot(slots As %String, name As %String) As %String
+{
+	Quit ##class(%DynamicAbstractObject).%FromJSON(slots).%Get(name)
 }
 
 /// count failures of the reader, each in the SuperSession.
@@ -748,6 +1077,7 @@ Method RemoveLogs()
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGREAD")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGRUN")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Announce", $Parameter(..#PROBE, "LOGPUBLISH")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Record", $Parameter(..#PROBE, "LOGFINDING")_ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN")_ref)
 	}
 	For i = 1:1:$Length(..Incidents, ",") {
