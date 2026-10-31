@@ -302,3 +302,5 @@
 2026-10-31T20:50:57Z	Epic 16	epic_status_done	stories=9(8_earlier+16.11) model=claude-opus-5-5
 2026-10-31T20:50:57Z	Epic 16	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 scope=re-open(story_16.11) high_med_avg=3.00 unresolved_high_med_avg=1.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false(record_only)
 2026-10-31T20:50:57Z	Epic 16	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-31T20:51:18Z	Epic 16	integrated_forward	feature=191ce305 head=ff8b7a38 conflicts_resolved=none mode=no-op(feature_is_an_ancestor;fast-forwarded_at_epic_start) suite_and_smoke=not_rerun(the_tree_since_29835de9_is_bookkeeping_only;29835de9_smoked,fresh-checked,CI_green)
+2026-10-31T20:51:18Z	Epic 16	epic_runner_complete	stories_completed=1(16.11) ready_for_merge=true retro=skipped(policy) applied=none rulings=U-196,U-197(orchestrator) decisions_for_user=none overflow=DW-505(30-1) routed_to_12-7=DW-501,DW-506 amendments=epics.md(16.11),EXPERIENCE.md:118-119
