@@ -1167,3 +1167,5 @@
 2026-10-31T17:44:19Z	Epic 1-37	planner_pointer	to=Contest_Planner items=U-196(veto,Epic_16_readiness),U-197(veto,16.11_gate_ruling_C) last_pointed=U-197 eta_16.11=~20:00-20:15Z(misses_19:30Z;next_host_update)
 2026-10-31T17:45:03Z	Epic 16	owner_decision	items=U-196,U-197 via=inbox(Contest_Planner) answer=keep:comply_now;16.11_drops_the_QR_line_and_'in_the_chat'_only;the_Telegram_case_to_12.7_with_the_AD-19_public_key_at_its_spec_gate;no_AD-19_change_today resolve=when_16.11_reports_applied
 2026-10-31T17:45:03Z	Epic 5	host_confirmed	head=14de8018(deployed_17:27Z) case1=7/7(notices_18-31s,all_resolved) run1=110/110 browser_walk=clean;5.12_confirmed_on_real_Haiku new_low=DW-500(Triage_reasons_on_a_user_command)->30.5
+2026-10-31T21:02:31Z	Epic 16	runner_complete	agent=af4a0f6f7daaef78f head=d6ee42a0 ci=success(41240841639,41240841640) story=16.11 routed=DW-501,DW-506->12.7;DW-505->30.1 ci_groups=install-fresh_31,shards-2_31,shards_29,install-upgrade_29,image_28,browser_26,production_22
+2026-10-31T21:02:31Z	Epic 16	epic_merge_started	branch=OCT-epic16 head=d6ee42a0
