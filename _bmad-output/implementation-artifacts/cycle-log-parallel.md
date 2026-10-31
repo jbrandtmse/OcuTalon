@@ -1092,3 +1092,4 @@
 2026-10-31T09:07:21Z	Epic 1-37	inbox_resolved	id=U-187 by=orchestrator
 2026-10-31T09:07:21Z	Epic 1-37	inbox_resolved	id=U-188 by=orchestrator
 2026-10-31T09:07:51Z	Epic 1-37	deps_approved	by=Contest_Planner(U-189,#567) change=new_epic-38(depends_on_epic-11;holds_11.6+11.3's_real-host_timed_runs;gates_v0.1.0);Epic_11_merges_on_its_buildable_parts note=epics.md_move_done_by_Epic_11's_runner;hash_re-recorded_at_Epic_11's_merge
+2026-10-31T09:08:32Z	Epic 1-37	planner_note	to=Contest_Planner sent=Epic_38_human_inputs(hosts+driver_now;key,rc1,pass,timed_runs_from_Epic_11's_merge~Sun18Z-Mon06Z;then_cut+tag);asked_who_starts_11.5's_sequence_for_rc1(U1);U-189_routed_to_Epic_11's_runner
