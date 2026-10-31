@@ -105,3 +105,6 @@
 2026-10-31T11:35:54Z	Epic 30	launch_env	depth=4 watchdog=default bash_max_ms=default
 2026-10-31T11:35:54Z	Story 30.4	ci_resolved	story=30.4 sha=18f516c runs=41173622465,41173622467 result=success failed=none via=none resolved_at=resume
 2026-10-31T11:35:54Z	Epic 30	ci_resolved	story=30.5-rulings-bookkeeping sha=b924115 runs=41176218637,41176218538 result=success failed=none via=none resolved_at=resume note=DW-471_flake(live:online-session_leave.spec.ts_L2)_rerun_by_orchestrator_green(its_one_rerun)
+2026-10-31T11:38:13Z	Epic 30	flake_occurrence	ledger=DW-471 head=b924115 run=41176218637 test=live:online-session_leave.spec.ts_L2 rerun=green note=entry_lives_on_OCT-epic15(unmerged);not_appendable_here;orchestrator_re-owns_it_at_Epic_15_merge
+2026-10-31T11:38:13Z	Epic 30	integrated_forward	feature=86d4fe20 head=b4406c62 conflicts_resolved=sprint-status.yaml(regenerated),ARCHITECTURE-SPINE.md(Conventions_Background_checks:union_of_30.4_Reported+9.8_eval_watch) note=redispatch_start(Epics_9,29,Story_10.4_in) lint=8_low_baseline ad_ids_unique=33 web_changed=50_files(package.json_scripts_only) bootstrap_check=pass
+2026-10-31T11:38:13Z	Epic 30	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
