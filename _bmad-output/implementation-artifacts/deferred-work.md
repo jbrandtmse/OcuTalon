@@ -2664,3 +2664,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
+
+### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestDiagnosisLengths builds its expected sentence from the compiled MAXLENs, so narrowing a whole group (ElementAtFault, FixParameters.Field, ItemNoun.One/Other) together with the prompt stays green; Evidence alone is pinned by TestPayloadAccepted's 128 boundary and TestHostReplies
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a FILTERED property of a reply class gets MAXLEN<=32 (git log -S MAXLEN on Watch/Msg or Bridge/Msg)
+
+### DW-493: Test.Watch.Diagnose.DecideWarnings near-copies Test.Core.Observe.Warnings (the same count-and-newest-text loop) with a SessionId filter that Observe.Warnings cannot take
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Diagnose.cls DecideWarnings filters SessionId, SourceClass and SourceMethod; Observe.cls Warnings filters mark, method and text start; the loop is the same; extending Observe (Test/Core) is outside Epic 5's footprint
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a second test counts Type 3 warnings by SessionId (grep 'WHERE SessionId = ? AND Type = 3' under src/ocutalon/cls/OcuTalon/Test)

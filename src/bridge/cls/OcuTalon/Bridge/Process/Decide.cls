@@ -807,7 +807,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
 /// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
-/// problem is "" unless the result is 0; then it is the error text of the check that refused the reply (or "No reason is left once the reply filter has run"), which Conclude logs, redacted, as a warning in the decision's trace session when the fallback is invalid.
+/// problem is "" unless the result is 0; then it says why: CheckReply's error text, "No reason is left once the reply filter has run", or "After the reply filter ran: " and the first 400 characters of the second check's error text. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
 /// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
 /// exit, an exception included, and an exception is thrown on.
 ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]

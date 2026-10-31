@@ -16,8 +16,8 @@ Include Ensemble
 ///     the first model request holds the pack, the second the result of read_failed_messages built from the real failed orders, and the mock logged only those two requests;
 ///   - TestDiagnosisVariants (rows No fix, Unknown, Invalid / refusal): one batch of four failures whose texts hold the markers diagnosis-nofix,
 ///     diagnosis-unknown, invalid-reply and refusal gives four incidents that settle together: partner_outage without a fix and with the noun message/messages,
-///     unknown without a fix and with the diagnosis's own noun (invoice/invoices), and two fallbacks (invalid, refusal) with no cause, category, element or fix, the code noun and the fallback decision's Ref; the invalid one also has one Type 3 warning of Decide.Conclude in its trace session that starts with the decision's Ref and holds the reply check's text
-///     (the refusal has none), and the notice of the real order's fallback holds none of it (Story 5.12);
+///     unknown without a fix and with the diagnosis's own noun (invoice/invoices), and two fallbacks (invalid, refusal) with no cause, category, element or fix, the code noun and the fallback decision's Ref; the invalid one also has one Type 3 warning of Decide.Conclude in its trace session that starts with REFUSED and the decision's Ref and holds the reply
+///     check's text (the refusal has none), and the notice of the real order's fallback holds none of it; OnAfterOneTest removes those warnings (Story 5.12);
 ///     beside them, a failure of a real failed order of OCUORDERS whose text holds invalid-reply gives a fallback whose code noun is that of the sample's body
 ///     class, order/orders. Since Story 5.8 each of the five is noticed: NoticedAt is set, the state is open and the open variant is no_fix (no fix, unknown) or
 ///     fallback (invalid, refusal), and A has one Notification of the incident;
@@ -45,6 +45,19 @@ Parameter FIXSUMMARY = "rewrite the order date of the failed orders in the forma
 Parameter ORDERNOUN = "{""one"":""order"",""other"":""orders""}";
 
 Parameter MESSAGENOUN = "{""one"":""message"",""other"":""messages""}";
+
+/// The start of the warning that Decide.Conclude logs for the reply check of an invalid diagnose reply (the decision's Ref follows).
+Parameter REFUSED = "The reply check refused the reply of the decision ";
+
+/// The newest row of the event log before TestDiagnosisVariants made its warnings, or "": OnAfterOneTest removes the REFUSED warnings after it.
+Property WarningMark As %Integer;
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If ..WarningMark '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..WarningMark, "Conclude", ..#REFUSED)
+	Set ..WarningMark = ""
+	Quit ##super(testname)
+}
 
 Method TestDemoDiagnosis()
 {
@@ -220,6 +233,7 @@ ClassMethod ModelRequests(entries As %DynamicArray) As %Integer
 
 Method TestDiagnosisVariants()
 {
+	Set ..WarningMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	If '..Ready() Quit
 	If '..PointKeys() Quit
 	Set a = ..Session("variants")
@@ -270,7 +284,7 @@ Method TestDiagnosisVariants()
 			Set warnings = ..DecideWarnings(decision.TraceSessionId, .text)
 			If marker = "invalid-reply" {
 				Do $$$AssertEquals(warnings, 1, marker_": one warning of Decide.Conclude in the decision's trace session")
-				Do $$$AssertTrue(($Extract(text, 1, $Length("The reply check refused the reply of the decision "_decision.Ref)) = ("The reply check refused the reply of the decision "_decision.Ref)) && (text [ "The reply check failed"), marker_": it starts with the decision's Ref and holds the reply check's text")
+				Do $$$AssertTrue(($Extract(text, 1, $Length(..#REFUSED_decision.Ref)) = (..#REFUSED_decision.Ref)) && (text [ "The reply check failed"), marker_": it starts with REFUSED and the decision's Ref and holds the reply check's text")
 			} Else {
 				Do $$$AssertEquals(warnings, 0, marker_": no warning of Decide.Conclude in the decision's trace session")
 			}

@@ -172,6 +172,52 @@ Paths are under `src/` unless they start with `_bmad-output/`.
   - `Test.Eval.Run` passes with no Eval file changed;
   - the diff touches only the files above.
 
+### Review Findings
+
+Code review, 2026-10-31. Full tier: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor. 28 rows grouped into 7 entries: high 0, medium 1, low 6. Verdict: done.
+
+Rule checks:
+- AD-2, 6, 7, 8, 22, 26 and 31: the implementation matches each Rule.
+- Rule 3: `Test.Watch.Diagnose` runs a real production on a throwaway with the mock.
+- Rules 1 and 5: not applicable.
+- Rule 14: no non-ASCII byte in the source.
+
+Verification of the patches:
+- `Test.Watch.Diagnose` passed on a fresh stack (`e5s12r`).
+- `Test.Watch.Payload` passed on a warm stack (`e5s12rw`).
+- `bash ci/checks.sh` passed all 19 scripts.
+- Teardown done; the lane-b lock folder is empty.
+
+- [x] [Review][Patch] `TestDiagnosisVariants` left its `Decide.Conclude` warnings behind, against the Always rule ("they remove the Decision rows and warnings they make") and Rule 19 (medium; fix-risk low: test only, with the existing helper) [src/ocutalon/cls/OcuTalon/Test/Watch/Diagnose.cls:55]
+  - `Case.DropIncidentRows` deletes no event-log rows. So the task's line "`DropIncidentRows` already deletes those session rows", and the implement triage's rejection that relied on it, were wrong.
+  - Fix: the test now sets `WarningMark` first, and `OnAfterOneTest` removes the `REFUSED` warnings logged after it through `Observe.RemoveWarnings`. That covers both the `invalid-reply` warning and the real order's.
+- [x] [Review][Patch] The fixture reader kept the XData line end: `"<>W"` strips neither CR nor LF, against its own doc and the task. Now `"<>WC"` (low) [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:116]
+- [x] [Review][Patch] The test docs misdescribed the new tests (low) [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:14]
+  - Payload's class doc said the tests need "no namespace".
+  - The `TestRefusalTrace` bullet named neither filter exit nor its text.
+  - Both classes said the warning "starts with the decision's Ref". It starts with REFUSED, and the Ref follows.
+- [x] [Review][Patch] `Interpret`'s doc named only two of `problem`'s three forms. It now also names the post-filter form and its 400-character cut. This is a line the story added, outside Epic 30's hunks (low) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:810]
+- [x] [Review][Patch] AC1's clause "the answer carries the fixture's cause and fix" had never been seen red. Under the only recorded mutation (MAXLEN 32) the reply falls back, so the field loop is skipped. A mutation was applied and recorded under `## Verification` (low, Rule 19) [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:202]
+- [x] [Review][Defer] AC2's floor has no regression test. A future model-written property at MAXLEN 32 or less, or a whole length group narrowed together with the prompt, would pass CI. AC2's pinning test and its mutations hold for this change; the guard would be about 15 lines of property-path walking, more than this hotfix needs (low) [src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls:133] — deferred: closed `wontfix-accepted`, DW-492 (reopen_if in the ledger)
+- [x] [Review][Defer] Rule 2: `Diagnose.DecideWarnings` repeats the loop of `Observe.Warnings`, adding a session filter that `Observe` cannot take. Extending `Observe` (Test/Core) is outside the footprint (low) [src/ocutalon/cls/OcuTalon/Test/Watch/Diagnose.cls:312] — deferred: closed `wontfix-accepted`, DW-493 (reopen_if in the ledger)
+
+Corrections to the record (the sections above are kept as written):
+- QA's `TestOtherFallbacksLogNothing` closes the "Residual risks" line and the implement triage's two turn and `cut_off` rejections.
+- The implement stage recorded nine mutations, not eleven. The two `(QA)` lines are QA's.
+- The lead's `dev_complete` line in `cycle-log-epic-5.md` reads `loc_added=232 13 6 loc_removed= files=`; it should read `loc_added=232 loc_removed=13 files=6`.
+
+**Rejected:**
+- `[low]` The cycle log's `dev_complete` fields are malformed. Real, but the line is the lead's and this stage may not write it; handed to the lead.
+- `[low]` "Eleven mutations" against nine implement lines; the "Residual risks" line and triage rows went stale after QA; QA's record sits inside the implement blocks; triage row 20's label does not match its text. Each fix edits the spec under review; the facts are corrected above.
+- `[by-design]` The warning head says "refused" for "no reason left": the head is the spec's exact line.
+- `[by-design]` The warning is logged before `RecordFallback`, so a duplicate item and kind could name a Ref that has no row. The spec puts the line first, before `RecordFallback`, and forbids changing `RecordFallback`.
+- `[by-design]` `Redact.Text` wraps the head and the Ref, so the Ref is lost on a fail-closed `UNCHECKED`, or on a base64url Ref that starts with `sk-` (about 1 in 100,000). This is the spec's exact line, and failing closed is the redactor's contract.
+- `[by-design]` The 400-character cut runs before redaction. This is the spec's order, the same as `CheckReply`'s own cut. The trace already holds the unfiltered `Reply` body, and a key prefix shorter than the pattern is not a credential.
+- `[by-design]` `TestDemoDiagnosis` sends no reference over 32 characters: the lead's spec-gate ruling (AC1's notice is pinned at Decide's answer; no new mock scenario).
+- `[false]` A missing fixture makes `%FromJSON("")` throw before the second reply. The test is red either way, and its first assertion names the cause.
+- `[false]` `$$$LOGWARNING` writes `$$$JobSessionId`, not `traceSessionId`. In production, Conclude's caller is `OnResponse` with `..%SessionId`, and the fresh Diagnose run finds the warning in `decision.TraceSessionId`. The unit tests filter by mark.
+- `[false]` The AC2 audit leaves out `SetReminder.LocalDueAt` (MAXLEN 19). It is a fixed 19-character format, not free text, so AC2 holds; completing the table would be a spec edit.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -316,6 +362,10 @@ The rules for every run:
   - mutation: `RecordFallback`'s `Set row.Reasons = ""` → `"x"` → `TestRefusalTrace` (the row's and the answer's empty `Reasons`, all four replies) went red.
   - mutation: `FixParameters.SourceFormat` MAXLEN 64 → 63 → `TestDiagnosisLengths` (sourceFormat = targetFormat, and the stated sentence) went red.
   - mutation: `Notice.cls` L113 slot `fallbackReason` → the text "The reply check failed" → `TestDiagnosisVariants` ("and its slots hold nothing of the reply check") went red (`Test.Watch.Diagnose`, fresh).
+  - (QA) mutation: `(reason = "invalid") &&` removed from the `$$$LOGWARNING` guard in `Conclude` → `Test.Watch.Payload` `TestOtherFallbacksLogNothing` (the cut_off and refusal replies, whose text fails the check) went red. Reverted from a scratchpad copy; the tree was byte-identical.
+  - (QA) mutation: `&& (problem '= "")` removed from that guard → `TestOtherFallbacksLogNothing` (the turn that the filter empties) went red. Reverted the same way.
+  - (code review) mutation: `Set payload.FixSummary = payload.FixSummary_"!"` before `Judge`'s `%JSONExportToString`, so the reply stays usable → `Test.Watch.Payload` `TestHostReplies` ("the answer's fixSummary is the reply's", both replies) went red on the warm stack `e5s12rw` (AC1, the answer's cause and fix). Reverted from a scratchpad copy; the tree was byte-identical, and the class was green again on the same stack.
+- **(QA) Files changed.** `src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls` (QA): `TestOtherFallbacksLogNothing` (matrix row "Other fallbacks": cut_off, refusal and a turn emptied by the filter log no warning; closes the gap that the implement stage named), `NewRequest` takes an optional kind and provenance, the Conclude wrapper an optional finishReason, and the class doc. The audit of the other rows and ACs found each pinned by an assertion that can fail; nothing else was added.
 - **(once) Affected areas, each fresh, one part per call** (about 4-6 minutes each, inference). If a part nears 8 minutes, split it further with a larger n.
   - `<lane> OCUTALON_RUN_TAG=e5s12i ci/iris.sh shard lane-a@Watch --part 1/3`, then `2/3` and `3/3`;
   - `… shard lane-a@Agent`;

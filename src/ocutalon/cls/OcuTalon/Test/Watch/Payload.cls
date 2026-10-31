@@ -1,5 +1,5 @@
 /// Tests of the pure parts of Story 5.4's diagnosis: the checked payload OcuTalon.Watch.Msg.DiagnosisPayload (as Decide checks a diagnose reply with it,
-/// Decide.CheckReply) and the item noun of OcuTalon.Watch.ItemNoun. They need no production and no namespace, so they run anywhere, a slot included.
+/// Decide.CheckReply) and the item noun of OcuTalon.Watch.ItemNoun. They need no production and no namespace of their own, so they run anywhere, a slot included.
 /// Each test runs with a ReplyCheck begun (OcuTalon.Bridge.ReplyCheck, as Decide begins it) for a diagnose request whose input is an evidence pack with the sample
 /// body of an order (OrderNumber, OrderDate 10/16/2026, Sku, Quantity), so that the fix kind can check the usable reply's field and formats (Story 7.1); OnAfterOneTest ends it.
 ///   - TestPayloadAccepted (row Payload check): a usable data-format reply with its fix and noun, a usable partner_outage without a fix or a noun, an
@@ -11,9 +11,12 @@
 ///   - TestHostReplies (rows Host reply 11:45:50Z and 12:01:54Z): the two recorded replies of the online demo host, whose evidence references are longer than 32
 ///     characters (42 and 33), go through Decide.Conclude with DiagnosisPayload and the production's filter ReplyGuard and give no fallback, and the answer's payload holds
 ///     the evidence, cause, category, element, fix kind, fix parameters, fix summary and noun of the reply;
-///   - TestRefusalTrace (rows Over the limit and Key in a refused value): a diagnose reply that fails its check gives the fallback invalid, with no reasons and no payload on the
-///     row and the response, and one Type 3 warning of Decide.Conclude that starts with the decision's Ref, holds the check's text ("The reply check failed", the field evidence)
-///     and, for a key in a refused value, holds [redacted] and not the key;
+///   - TestRefusalTrace (rows Over the limit and Key in a refused value): a diagnose reply that fails its check, or that the filter leaves with no reason or makes invalid,
+///     gives the fallback invalid, with no reasons and no payload on the row and the response, and one Type 3 warning of Decide.Conclude that starts with REFUSED and the
+///     decision's Ref and holds the check's text ("The reply check failed" and the field evidence; "No reason is left once the reply filter has run"; "After the reply
+///     filter ran: ") and, for a key in a refused value, holds [redacted] and not the key;
+///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
+///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
 ///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
 ///   - TestItemNoun (row Item noun): the Orders body class gives order/orders, any other class and an empty one message/messages, as JSON text.
 /// Decide.Conclude records a Decision row for each request and logs the warnings above, and ends the test's ReplyCheck (Interpret begins and ends its own), so a test that
@@ -81,12 +84,12 @@ ClassMethod Check(reply As %DynamicObject, Output payload As %RegisteredObject) 
 	Quit $ClassMethod(..#DECIDE, "CheckReply", reply.%ToJSON(), ..#CLASS, .payload)
 }
 
-/// A diagnose request of an untrusted item whose input is the evidence pack of Pack(); its ItemId is kept for the clean-up.
-Method NewRequest() As OcuTalon.Bridge.Msg.Request [ Private ]
+/// A request (a diagnose one of an untrusted item, unless the kind and provenance say otherwise) whose input is the evidence pack of Pack(); its ItemId is kept for the clean-up.
+Method NewRequest(kind As %String = "diagnose", provenance As %String = "untrusted") As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
-	Set request.Kind = "diagnose"
-	Set request.Provenance = "untrusted"
+	Set request.Kind = kind
+	Set request.Provenance = provenance
 	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request.OwnerRef = "instance"
 	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(..Pack())
@@ -94,11 +97,12 @@ Method NewRequest() As OcuTalon.Bridge.Msg.Request [ Private ]
 	Quit request
 }
 
-/// Decide.Conclude for the reply text with DiagnosisPayload, the production's filter ReplyGuard and the host sink. Returns the decisionRef it passed; sc is the status.
-Method Conclude(request As OcuTalon.Bridge.Msg.Request, text As %String, Output response As %Persistent, Output sc As %Status) As %String [ Private ]
+/// Decide.Conclude for the reply text (with the finishReason, when given) with DiagnosisPayload, the production's filter ReplyGuard and the host sink. Returns the decisionRef it passed; sc is the status.
+Method Conclude(request As OcuTalon.Bridge.Msg.Request, text As %String, Output response As %Persistent, Output sc As %Status, finishReason As %String = "") As %String [ Private ]
 {
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 	Set reply.Text = text
+	Set reply.FinishReason = finishReason
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set sc = $ClassMethod(..#DECIDE, "Conclude", request, ref, reply, ..#CLASS, "OcuTalon.Checks.ReplyGuard", "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
 	Quit ref
@@ -109,7 +113,7 @@ ClassMethod Fixture(name As %String) As %String [ Private ]
 {
 	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||"_name)
 	If '$IsObject(xdata) Quit ""
-	Quit $ZStrip(xdata.Data.Read(1000000), "<>W")
+	Quit $ZStrip(xdata.Data.Read(1000000), "<>WC")
 }
 
 Method TestPayloadAccepted()
@@ -256,6 +260,24 @@ Method TestRefusalTrace()
 		} ElseIf label = "key in a refused value" {
 			Do $$$AssertTrue((text [ "[redacted]") && (text '[ secret), label_": it holds [redacted] and not the key")
 		}
+	}
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ..#REFUSED)
+	Set ..Mark = ""
+}
+
+/// A reply that falls back for another reason logs no warning of the reply check, even when its text fails the check (cut_off, refusal), and a turn that the filter
+/// empties, whose invalid has no check error, logs none either.
+Method TestOtherFallbacksLogNothing()
+{
+	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	For label = "cut_off", "refusal", "invalid" {
+		Set request = $Case(label, "invalid": ..NewRequest("turn", "user"), : ..NewRequest())
+		Set text = $Case(label, "cut_off": "{""outcome"":""act"",""causeCategory"":""data_for", "refusal": "I cannot help with that.", : "Everything I checked passed.")
+		Set finish = $Case(label, "cut_off": "max_tokens", "refusal": "refusal", : "")
+		Set ref = ..Conclude(request, text, .response, .sc, finish)
+		Do $$$AssertStatusOK(sc, label_": the reply is concluded")
+		Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "1|"_label, label_": the fallback is "_label_$Select(label = "invalid": " (a turn that the filter empties)", 1: " (a text that fails its check)"))
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .warning, "Conclude", ..#REFUSED_ref), 0, label_": no warning of the reply check names the decision")
 	}
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ..#REFUSED)
 	Set ..Mark = ""
