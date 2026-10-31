@@ -6382,10 +6382,9 @@ So that a red CI run on the launch's path means a real defect.
 
 **Given** the CI runs of Epic 29's stories
 **When** the flaky cases below run on a fresh stack in CI
-**Then** each passes on its own merits without an unchanged rerun: every remaining spec that signs in and then waits for the page waits for the state answer first, the 600 s idle case reads the freed page's time robustly, and the daily-cap banner case no longer races the status monitor's first tick (FR-15, AD-22)
+**Then** each passes on its own merits without an unchanged rerun: every remaining spec that signs in and then waits for the page waits for the state answer first, and the 600 s idle case reads the freed page's time robustly (FR-15, AD-22) [AMENDED 2026-10-31, runner C at this story's plan (Rule 5 tier 1): the daily-cap banner case is a product gap, not a test flake (a web process cannot read the day's Usage rows, so its /state can miss the spend StatusMonitor counts); DW-432 moved to Story 31.3 as overflow]
 - DW-333: flake: specs that sign in and then wait 10 s for `data-snapshot` (web/e2e/chat/chat.spec.ts C7 open() and its siblings outside Story 29.7's sign-ins) still go red in CI; give them the `loadedAfter` wait (ledger; routed by burndown 2026-10-31)
 - DW-429: flake: live:online-session web/e2e-online/session/leave.spec.ts L2 (600 s idle frees the place) went red once in CI with since=NaN in the freed page's URL (ledger; routed by burndown 2026-10-31)
-- DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor can publish dailyCap before S1's /state, which a web process computes from the day's mark alone (ledger; routed by burndown 2026-10-31)
 
 ## Epic 30: Lane A post-demo hardening
 

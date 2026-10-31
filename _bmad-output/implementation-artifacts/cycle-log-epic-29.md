@@ -171,3 +171,7 @@
 2026-10-31T03:39:19Z	Epic 29	amendment	file=_bmad-output/planning-artifacts/epics.md what=Story_29.9_Epic_29_burn-down_chartered(DW-333,DW-429,DW-432) tier=bookkeeping(burndown_inserted)
 2026-10-31T03:41:16Z	Epic 29	epic_context_compiled	reason=burndown_inserted(29.9) model=claude-opus-5-5 words=1493
 2026-10-31T03:41:16Z	Story 29.9	stage_spawned	stage=plan spawn_at=2026-10-31T03:41:16Z model=claude-opus-5-5 agent_name=29-9-plan-1 cycle_iteration=1 note=plan_during_29.8_CI(Rule_23)
+2026-10-31T04:03:36Z	Story 29.8	ci_red_classified	run=41165190685 workflow=.github/workflows/ci.yml job=iris(browser) unit=live:sign-in test=web/e2e/session/session.spec.ts_S1(seeded_check_row_run_by_a_real_tick) class=flake(DW-349,occurrence) action=rerun_--failed_once
+2026-10-31T04:03:36Z	Story 29.9	story_created	spawn_at=2026-10-31T03:41:16Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-29-9-epic-29-burn-down.md build_status=ready-for-dev epic_context=reused warnings=oversized,multiple-goals
+2026-10-31T04:03:36Z	Story 29.9	spec_validated	service_introducing=false integration_ac=declared-none(test-only) adr_constrained_acs=AD-22 decision_dependency=none owned_ledger=DW-333,DW-429,DW-432 addressed=2 declined=1(DW-432:a_product_gap,overflowed_to_31-3) mutates_shared_runtime=false footprint_extensions=web/e2e/**_specs_outside_demo-path(listed_in_the_spec) model=claude-opus-5-5
+2026-10-31T04:03:36Z	Epic 29	amendment	file=_bmad-output/planning-artifacts/epics.md what=Story_29.9_AC_narrowed(DW-432_moved_to_31.3_as_overflow:a_product_gap) tier=1
