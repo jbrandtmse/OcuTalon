@@ -2763,3 +2763,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 12.3 draws the pairing QR code with the vendored qrcode-generator 2.0.4 in web/src/app/rail/telegram-card/; the comment is Lane B's file
 - 2026-10-31T19:18:18Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=spec_gate note=reopen_if=Lane B next edits qr-pin.test.mjs (update the header then), or the comment misleads a reviewer
+
+### DW-508: flake: web/e2e/floor/guide.spec.ts:253 M4 ('the page holds the earlier progress event': 'zz M Orders again' not visible in the Status region within 15 s) red in CI shards live:floor, green on an unchanged rerun
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8; no guide, rail or watch change), iris shards, live:floor M4; attempt 2 green; live:floor passed locally 105/105 on a fresh lane-C stack
+- 2026-10-31T19:42:02Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; guide.spec.ts and the Status region are Lane B's (Epic 4/8 area); possibly a real tick or watch.progress ordering under CI load (inference)
