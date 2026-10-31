@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-31-2026 13:44
+last_updated: 10-31-2026 13:50
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -362,6 +362,7 @@ development_status:
   epic-38: backlog
   38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
   38-2-the-clean-machine-rehearsal-runs-on-the-author-s-hosts-and-t: backlog
+  38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
   epic-38-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
