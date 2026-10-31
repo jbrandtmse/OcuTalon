@@ -25,8 +25,8 @@ Class OcuTalon.Bridge.Replay
 {
 
 /// Replays the approved call of the request (kind tool, ItemId the Ref of the approval request) in the job of adapter, which is the runner
-/// that holds the call. reply is the Reply described above; the status is OK for every run that Run reached, and an error only for a request that
-/// is not a replay request or an agent that cannot be built before the start.
+/// that holds the call. reply is the Reply described above; the status is an error only when the ItemId of the request is not the Ref of an
+/// approval request, and OK otherwise: a refused start, an agent that cannot be built and a call that failed are told by the reply.
 ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Bridge.Msg.Request, superSession As %String = "", Output reply As OcuTalon.Bridge.Msg.Reply) As %Status
 {
 	Set reply = ""

@@ -2,7 +2,8 @@
 /// the request's Ref (AD-5): its two methods each call OcuTalon.Bridge.Approval, where the logic lives. The start sends the Workflow task and
 /// sets the expiry timer; a response, the task's or the timer's, makes the hold act only on what the row shows: the timer expires the row, an
 /// approval of a fix, a rejection or an expiry is delivered to the row's ResultTarget as an ApprovalOutcome, and the approval of a tool_call is
-/// replayed through Decide (a request of kind tool). The hold stays live while its row is pending or owes an outcome.
+/// replayed through Decide (a request of kind tool). The hold stays live while its row is pending or its outcome is still to be sent; once Decide
+/// has answered the replay of a tool_call it ends, and the next Reconcile sends a replay that did not start the run again.
 Class OcuTalon.Bridge.Process.ApprovalHold Extends Ens.BusinessProcess
 {
 

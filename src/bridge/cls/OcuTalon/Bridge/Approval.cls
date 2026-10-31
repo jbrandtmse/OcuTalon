@@ -18,9 +18,11 @@ Include Ensemble
 ///     Workflow task to the role WORKFLOWROLE and sets the 24-hour timer, and replies to the start; HoldResponse acts only on what the row
 ///     shows: on the timer it expires the row, it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix only), rejection
 ///     or expiry, and on the approval of a tool_call it sends a Msg.Request of kind tool (the Ref in ItemId) to Decide, which has the runner that
-///     held the call replay it exactly once with no model request (Replay.Run). The hold never ends while its row is pending or owes an outcome:
-///     it re-arms a pending row whose task ended without an answer, retries an expiry that failed, and Hold starts a delivery hold (a timer of one
-///     second and no task) for an approved, rejected or expired row. Hold refuses a start that arrived late (its message is older than STARTSECONDS
+///     held the call replay it exactly once with no model request (Replay.Run). The hold does not end while its row is pending or its outcome is
+///     still to be sent: it re-arms a pending row whose task ended without an answer, retries an expiry that failed, and Hold starts a delivery hold
+///     (a timer of one second and no task) for an approved, rejected or expired row. Once Decide has answered the replay of a tool_call the hold ends;
+///     a replay that did not start the run (the row is still approved) is logged, and the next Reconcile sends it again. Hold refuses a start that
+///     arrived late (its message is older than STARTSECONDS
 ///     less STARTMARGIN), because Raise has given up on it by then;
 ///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
 ///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
@@ -644,7 +646,8 @@ ClassMethod Arm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Br
 ///   4. For the key task the outcome is approved when the TaskResponse's %Action is Approve and the row is approved, and rejected when the
 ///      action is Reject and the row is rejected.
 ///   5. For the key expiry the outcome is the row's state when that is expired, approved or rejected, so that an answer whose task Answer could
-///      not complete is delivered when the timer fires at the latest.
+///      not complete is delivered when the timer fires at the latest (for a tool_call that replay comes at its ExpiresAt, which StartExecution
+///      refuses, so the runner closes the row failed).
 ///   6. An approved tool_call is replayed: a Msg.Request of kind tool, provenance user, the Ref in ItemId, the row's OwnerRef and TraceRef, the
 ///      channel of the answer (else system), the tool's name as the summary and the hold's trace session, goes to DECIDEITEM with the key replay
 ///      and a response required. Any other outcome is sent to the row's ResultTarget as an OcuTalon.Bridge.Msg.ApprovalOutcome, asynchronously

@@ -1829,26 +1829,11 @@ Method TestHeldRowNamesSourceAndRunner()
 /// and returns its Ref; a state other than executing makes a row that gets no grant.
 Method ExecutingRow(name As %String, arguments As %String, source As %String, state As %String = "executing") As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
-	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.Kind = "tool_call"
-	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.State = state
-	Set row.RequiredRole = "OcuTalonUser"
-	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
-	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, 3600)
-	Set row.AnsweredAction = "approve"
-	Set row.AnsweredChannel = "web"
-	Set row.AnsweredBy = "ocutalon"
-	Set row.AnsweredAt = now
-	Set row.ToolName = name
-	Set row.ToolArguments = arguments
-	Set row.ToolSource = source
-	Set row.Runner = "ChatAgent"
-	Do $$$AssertStatusOK(row.%Save(), "the fixture row ("_state_") is saved")
-	Set ^OcuTalonTest("Gate", "replayrows", row.Ref) = ""
-	Quit row.Ref
+	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call", name, arguments, source, "ChatAgent")
+	Set sc = ##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, state, 3600, , .ref)
+	If ref '= "" Set ^OcuTalonTest("Gate", "replayrows", ref) = ""
+	Do $$$AssertStatusOK(sc, "the fixture row ("_state_") is saved")
+	Quit ref
 }
 
 /// --- helpers ---

@@ -815,6 +815,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md:1706 (Story 2.8) says the replayed tool call's approval.result real path turns on when Story 30.3 does; Story 30.3's criteria do not turn it on, and Story 11.1's catch-all leaves Epic 30/31 clauses to that story
 - 2026-10-23T03:24:57Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=load note=Contest Planner's routing at the graph review (2026-10-23); the orchestrator adds the DW bullet to Story 30.3 after Epic 2 merges (Rule 17 (1b)); Story 31.2 waits for Epic 30 in the approved graph
+- 2026-10-31T00:00:56Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=adjudication note=the_replay's_FinishExecution_fires_approval.result_to_HostSinkClass;the_real_Core.BridgeSink_publishes_the_approval_event_done(matrix_row_2;Test.Bridge.Approval.TestApprovedToolCallReplays;a21ce90)
 
 ### DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1147,17 +1148,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
 - 2026-10-25T06:21:01Z status=escalated owner=burndown by=cr note=fix-risk high: Reconcile/Hold must deliver answered or expired rows with no hold (3.5 Never list, row 14); operator-only
 - 2026-10-25T17:27:23Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=merge_gate note=Story_30.3_reworks_the_hold's_delivery:Reconcile_or_the_hold_delivers_an_answered_or_expired_row_that_has_no_live_hold(the_expired_outcome_to_ResultTarget);veto_U-78
+- 2026-10-31T00:00:56Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=adjudication note=the_hold_re-arms/retries/delivers_and_Reconcile_delivers_answered_or_expired_rows_with_no_live_hold,incl._the_expired_outcome_to_ResultTarget(rows_11-13;Test.Bridge.Approval.TestHoldReArmsAfterATaskWithoutAnAnswer,TestExpireRetriesWhenTheLockIsHeld,TestReconcileDeliversWhatLostHoldsOwed;a21ce90)
 
 ### DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call)
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 3.6 spec Cross-epic; Epic 0's row contract (AD-33) has no Source or Runner column, and Test/Data/** is contended
 - 2026-10-25T07:09:50Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=spec_gate note=30.3 adds the two fields (a stored-data change in its own veto window) or derives them (for example from the decision's trace)
+- 2026-10-31T00:00:56Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=adjudication note=ApprovalRequest.ToolSource+Runner_appended(U-170_kept_with_its_condition);the_gate_fills_them;old_rows_close_failed(row_15,row_9;Test.Bridge.Decide.TestToolRowHeldBeforeAnUpdate;a21ce90,a51983b)
 
 ### DW-195: A hold whose start times out after STARTSECONDS can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete)
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
 - 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
 - 2026-10-25T16:29:37Z owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=burndown note=overflow;the_replay_story_reworks_the_hold's_start_and_delivery_(with_DW-194);measure_ApprovalStartIn_held_past_STARTSECONDS_and_re-check_the_row_before_the_task_is_sent
+- 2026-10-31T00:00:56Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=adjudication note=a_start_reaching_the_hold_late_is_refused_by_its_age_before_the_task_is_sent(row_14;Test.Bridge.Approval.TestLateStartIsRefusedByItsAge;a21ce90)
 
 ### DW-196: TestRaiseKeepsTheCallersJobIds' 'both ids still undefined' checks cannot fail in the unit-test process, so StartHold's re-kill of an undefined id is unpinned
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
@@ -2343,6 +2347,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: deleting the NewSession and ReleaseThrowaway calls in Replay.Run leaves every test green
 - 2026-10-30T21:56:21Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=fix in the U-170 re-dispatch: a positive pin (CodeRules: Replay.Run calls NewSession and ReleaseThrowaway, or a counter seam) with a mutation line
+- 2026-10-30T23:56:26Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=QA spy test TestReplayOpensAndReleasesTheThrowawaySession pins it; cr added the raising-call path, mutation red
 
 ### DW-453: flake: OcuTalon.Test.Web.GuideApi TestRunAgain ('steps 3 to 5 reset; the watch still counts') failed once in a local fresh shard lane-b part 2/2 and passed on the warm stack and on the rerun of the part
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2353,13 +2358,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.3 re-dispatch: the sentence is the Reasons of the bridge's fallback Decision row of kind tool (Decide.HeldBeforeUpdate); showing it on the card or a notice needs Lane B's payload and notice classes (AD-33) and a catalog text
 - 2026-10-30T22:33:52Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route with DW-443 to Story 31.2 (Lane B: the approval reaches the phone; card and notice wiring); Lane A side done in 30.3
+- 2026-10-30T23:56:26Z status=escalated owner=burndown by=cr note=correction: no web view renders a kind-tool decision (rail, mailbox filter kind decide); the person sees no reason today
 
 ### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Decide.FailUnroutable returns 0 on a refused close and OnRequest passes empty reasons; already true for an empty Runner before U-170; forcing it needs a second job holding the row lock
 - 2026-10-30T22:33:52Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=for the 30.3 code review: patch (retry the close, or no Decision row until the close succeeds) or close with a probe
+- 2026-10-30T23:56:26Z status=wontfix-theoretical owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=real if a row lock is held past LOCKSECONDS+TASKSECONDS (FinishExecution's wait); each API call holds it <= TASKSECONDS
 
 ### DW-456: TestReplayOpensTheThrowawaySession (DW-452's pin) reads the call order in Replay.Run's source text, so a release moved under a condition or a NewSession wrapped in If 0 keeps it green
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: the scan counts textual NewSession, ExecuteTool, ReleaseThrowaway lines in order; a behavioural seam (a spy adapter counting the calls in a real replay) would close the rest
 - 2026-10-30T22:33:52Z status=open owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=harvest note=for the 30.3 code review: behavioural seam or wontfix-accepted with a probe
+- 2026-10-30T23:56:26Z status=resolved-by:30-3-an-approved-tool-call-runs-exactly-once-with-no-model owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=behavioural spy test reads the real calls; If 0 and move-into-Try mutations go red where the text scan stays green
+
+### DW-459: Decide's timer on a tool request records a timeout fallback Decision row while the approval row is still approved; the queued replay then runs, so the row says done and the Decision row says timeout
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.OnResponse's timer branch calls RecordFallback for kind tool with no StillApproved check (ConcludeTool has one); the call still runs once and approval.result is right
+- 2026-10-30T23:56:43Z status=wontfix-accepted owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=reopen_if=a tool Decision row has FallbackReason timeout while its approval row is approved or done
+
+### DW-460: An approved tool_call whose Workflow task Answer could not complete is replayed only at its ExpiresAt, which StartExecution refuses, so the row closes failed and the call never runs
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CompleteHoldTask only logs a failure; the hold then acts on its expiry timer, set to ExpiresAt; StartExecution needs ExpiresAt ahead; fix requests share this design
+- 2026-10-30T23:56:43Z status=wontfix-accepted owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=reopen_if=a 'was not completed' or 'no open task' warning precedes a tool_call closed failed at its ExpiresAt
+
+### DW-461: Replay.ActionEntry repeats Fix.Executor.ActionEntry's approver, session and channel fields; the stated reason (AD-2) forbids the bridge calling Fix, not Fix calling a bridge builder
+- source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Rule 2: src/bridge/cls/OcuTalon/Bridge/Replay.cls ActionEntry and src/ocutalon/cls/OcuTalon/Fix/Executor.cls ActionEntry share four identical lines; unifying them changes Fix.Executor, which this story does not touch
+- 2026-10-30T23:56:43Z status=wontfix-accepted owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=cr note=reopen_if=a third approval Action-entry builder appears, or the identity fields of the two builders diverge

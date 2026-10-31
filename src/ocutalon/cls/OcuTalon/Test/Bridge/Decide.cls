@@ -275,8 +275,8 @@ Method TestRefusedRequests()
 ///     request limit of one token and a decision budget of one would otherwise record a fallback), no ReplyClass is read and no probe is made.
 ///   - A reply with no FailureText records one Decision row of kind tool, the outcome act, no reasons and no fallback, fires decision.recorded and
 ///     answers a Reply (DecisionRef, Outcome act, no text); the same request again is answered from the row and sends nothing.
-///   - A reply with a FailureText (also one that reads like a rate limit, which is not sent again, and one that reads like the daily cap, which does
-///     not mark the day) records a fallback with the reason error and answers a Reply with Fallback 1.
+///   - A reply with a FailureText (also one that reads like a rate limit, which is not sent again although the timer leaves time for a re-send, and
+///     one that reads like the daily cap, which does not mark the day) records a fallback with the reason error and answers a Reply with Fallback 1.
 ///   - A row with no runner: the approved row is closed failed through FinishExecution (approval.result fires), and the answer is a fallback with
 ///     the reason error, recorded like any fallback, with no send. A missing row and a fix row are answered the same way and are not changed.
 Method TestToolRequest()
@@ -325,6 +325,7 @@ Method TestToolRequest()
 		Set requestOne = ..NewToolRequest(one)
 		Kill ^||ZzDecideCalls, ^||ZzProbeSink
 		Set processOne = ..ToolRecorder()
+		Set processOne.%TimeCreated = ..Ago(3)
 		Do $$$AssertStatusOK(processOne.OnRequest(requestOne, .nothing), "(failure '"_failure_"') the request is sent")
 		Set callOne = requestOne.%ConstructClone()
 		Set callOne.DecisionRef = processOne.DecisionRef
@@ -415,6 +416,7 @@ Method TestToolRowHeldBeforeAnUpdate()
 		}
 		Do $$$AssertEquals(..ToolRowState(target), "failed|failed", label_" the row is failed")
 		Do $$$AssertTrue($IsObject(answer) && (answer.Fallback = 1) && (answer.FallbackReason = "error"), label_" the answer is a fallback with the reason error")
+		If $IsObject(answer) Do $$$AssertEquals(answer.Reasons, expected, label_" and Decide's answer, which the trace shows, carries the reason")
 		Do $$$AssertTrue($IsObject(row), label_" a Decision row of kind tool records it")
 		If '$IsObject(row) Continue
 		Set reason = row.Reasons
@@ -463,36 +465,12 @@ Method ToolRecorder() As OcuTalon.Test.Bridge.ZzDecide [ Private ]
 /// Saves an approval row in the state (a tool_call of the tool, the runner and the source, or a fix) with no hold, and tracks it for RemoveToolRows.
 Method ToolRow(name As %String, runner As %String, state As %String, kind As %String = "tool_call", source As %String = "OcuTalon.Test.Bridge.ZzReplayTool") As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
-	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.Kind = kind
-	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.State = state
-	Set row.RequiredRole = "OcuTalonUser"
-	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
-	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, 3600)
-	Set row.AnsweredAction = "approve"
-	Set row.AnsweredChannel = "web"
-	Set row.AnsweredBy = "ocutalon"
-	Set row.AnsweredAt = now
-	If kind = "tool_call" {
-		Set row.ToolName = name
-		Set row.ToolArguments = "{}"
-		Set row.ToolSource = source
-		Set row.Runner = runner
-	} Else {
-		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-		Set row.ResultTarget = "IncidentManager"
-		Set row.DryRun = "{""affected"":1}"
-		Set row.FixKind = "zz_fix"
-		Set row.FixParameters = "{}"
-		Set row.FixTargets = "1"
-	}
-	Do $$$AssertStatusOK(row.%Save(), "the fixture "_kind_" row is saved, "_state)
-	Set ^||ZzToolRows(row.Ref) = ""
-	Set ..ItemIds = ..ItemIds _ $ListBuild(row.Ref)
-	Quit row.Ref
+	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow(kind, name, "{}", source, runner)
+	Set sc = ##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, state, 3600, , .ref)
+	If ref '= "" Set ^||ZzToolRows(ref) = ""
+	Do $$$AssertStatusOK(sc, "the fixture "_kind_" row is saved, "_state)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Quit ref
 }
 
 /// "<State>|<Result>" of the approval row of the Ref.

@@ -1107,8 +1107,8 @@ ClassMethod ResponseFromId(id As %String, Output response As %Persistent) As %St
 
 /// The DecisionResponse for a recorded decide or diagnose row: its Ref as DecisionRef, outcome, reasons, confidence,
 /// fallback flag and reason, payload and totals (CarryTotals). The row of a tool request is answered with a Reply instead: DecisionRef, Outcome,
-/// Fallback, FallbackReason and the totals, and no text, steps or failure text. The row of a turn keeps no reply text, so a turn is refused with an
-/// error that names the item and the Ref.
+/// Reasons (code-written only, such as HELDBEFOREUPDATE), Fallback, FallbackReason and the totals, and no text, steps or failure text. The row of a
+/// turn keeps no reply text, so a turn is refused with an error that names the item and the Ref.
 ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output response As %Persistent) As %Status
 {
 	Set response = ""
@@ -1119,6 +1119,7 @@ ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output respons
 		Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 		Set response.DecisionRef = row.Ref
 		Set response.Outcome = row.Outcome
+		Set response.Reasons = row.Reasons
 		Set response.Fallback = row.Fallback
 		Set response.FallbackReason = row.FallbackReason
 		Do ..CarryTotals(row, response)

@@ -97,6 +97,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ..RemoveRows()
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
@@ -1102,12 +1103,78 @@ Method TestReplayThroughTheRunner()
 	For i = 0:1:entries.%Size() - 1 {
 		Set entry = entries.%Get(i)
 		If (entry.method = "POST") && (entry.path = "/v1/messages") Set others = others _ " model-request"
-		If (entry.method '= "POST") && ((entry.method '= "GET") || ($Extract(entry.path, 1, 11) '= "/v1/models/")) Set others = others _ " "_entry.method_" "_entry.path
+		If '((entry.method = "POST") && (entry.path = "/v1/messages")) && '((entry.method = "GET") && ($Extract(entry.path, 1, 11) = "/v1/models/")) Set others = others _ " "_entry.method_" "_entry.path
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Case).Posts(mark), 0, "the mock's log holds no model request (POST /v1/messages)")
 	Do $$$AssertEquals(others, "", "and nothing but AI Hub's model lookup (GET /v1/models/<model>, no tokens): "_$Extract(entries.%ToJSON(), 1, 300))
 	Do $$$AssertEquals(..LinkCount(), links, "no conversation link was made")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and no AI session was saved: the replay's throwaway session is never linked or saved")
+	Do ..RemoveRows()
+}
+
+/// AD-6 read literally (DW-452): a replay opens a throwaway AI session before the call and releases it, unlinked and unsaved, on every path. The
+/// text scan of Test.Bridge.CodeRules cannot tell a call that runs from one under `If 0`, so this runs a real replay through the runner with a
+/// spy adapter (ZzSpyAdapter) in the shadow host: NewSession came once, before the tool ran; ReleaseThrowaway came once, after it; the agent held
+/// the session until the release and held none after it; and no conversation link and no saved session came of it. A replay that fails before the
+/// call (an unreadable ToolArguments), one whose call raises (zz_replay_throw: the context is over too) and one the start refuses (the duplicate)
+/// are read the same way: whenever a session was opened it was released, and a refused start opens none.
+Method TestReplayOpensAndReleasesTheThrowawaySession()
+{
+	If ..Guard() Quit
+	Kill ^OcuTalonTest("Replay"), ^||ZzSpy
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", ..ProviderConfig())
+	Set spy = ##class(OcuTalon.Test.Bridge.ZzSpyAdapter).%New(host)
+	Set spy.AgentClass = host.Adapter.AgentClass
+	Set spy.AgentAllowList = host.Adapter.AgentAllowList
+	Set spy.Effort = host.Adapter.Effort
+	Set spy.ProviderConfig = host.Adapter.ProviderConfig
+	Set host.Adapter = spy
+	Set links = ..LinkCount()
+	Set tool = "OcuTalon.Test.Bridge.ZzReplayTool"
+
+	// a replay that runs the call
+	Set ref = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(ref), .reply)
+	Do $$$AssertStatusOK(sc, "the replay is answered")
+	Do $$$AssertEquals(..Prop(ref, "State"), "done", "the row is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "the tool ran once")
+	Do $$$AssertEquals($Get(^||ZzSpy("new")), 1, "the throwaway session was opened once (NewSession)")
+	Do $$$AssertEquals($Get(^||ZzSpy("ranAtNew")), 0, "before the tool ran")
+	Do $$$AssertEquals($Get(^||ZzSpy("heldAfterNew")), 1, "and the agent held it")
+	Do $$$AssertEquals($Get(^||ZzSpy("release")), 1, "it was released once (ReleaseThrowaway)")
+	Do $$$AssertEquals($Get(^||ZzSpy("ranAtRelease")), 1, "after the tool ran")
+	Do $$$AssertEquals($Get(^||ZzSpy("heldBefore"))_"|"_$Get(^||ZzSpy("heldAfter")), "1|0", "the agent held the session until the release and none after it")
+	Do $$$AssertEquals(..LinkCount(), links, "no conversation link names it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and it was not saved")
+
+	// a replay that fails before the call: the session that was opened is released, and the tool did not run
+	Kill ^||ZzSpy
+	Set broken = ..ApprovedRow("zz_replay_send", "this is not json", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(broken), .unrun)
+	Do $$$AssertStatusOK(sc, "(before the call) the request is answered")
+	Do $$$AssertEquals(..Prop(broken, "State"), "failed", "(before the call) the row is failed")
+	Do $$$AssertEquals($Get(^||ZzSpy("new"))_"|"_$Get(^||ZzSpy("release")), "1|1", "(before the call) the session was opened once and released once")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(before the call) the tool did not run again")
+
+	// a replay whose call raises: the session is released and the context is over all the same
+	Kill ^||ZzSpy
+	Set thrown = ..ApprovedRow("zz_replay_throw", "{}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(thrown), .raised)
+	Do $$$AssertStatusOK(sc, "(the tool raises) the request is answered")
+	Do $$$AssertEquals(..Prop(thrown, "State"), "failed", "(the tool raises) the row is failed")
+	Do $$$AssertEquals($Get(^||ZzSpy("new"))_"|"_$Get(^||ZzSpy("release")), "1|1", "(the tool raises) the session was opened once and released once")
+	Do $$$AssertEquals($Get(^||ZzSpy("heldAfter")), 0, "(the tool raises) and the agent holds none after the release")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "(the tool raises) the context is over")
+
+	// a start the row refuses opens no session
+	Kill ^||ZzSpy
+	Set again = host.OnMessage(..ToolRequest(ref), .repeat)
+	Do $$$AssertStatusOK(again, "(refused) the second request is answered")
+	Do $$$AssertEquals($Get(^||ZzSpy("new"), 0)_"|"_$Get(^||ZzSpy("release"), 0), "0|0", "(refused) a refused start opens no session and releases none")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(refused) the tool did not run again")
+	Do $$$AssertEquals(..LinkCount(), links, "no conversation link was made by any of them")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and no session was saved")
+	Kill ^||ZzSpy
 	Do ..RemoveRows()
 }
 
@@ -1128,35 +1195,11 @@ ClassMethod ToolRequest(ref As %String) As OcuTalon.Bridge.Msg.Request [ Private
 /// for RemoveRows. The row is answered by the README account over the web.
 Method ApprovedRow(name As %String, arguments As %String, source As %String, expiresIn As %Integer, kind As %String = "tool_call") As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
-	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.Kind = kind
-	Set row.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.State = "approved"
-	Set row.RequiredRole = "OcuTalonUser"
-	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
-	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, expiresIn)
-	Set row.AnsweredAction = "approve"
-	Set row.AnsweredChannel = "web"
-	Set row.AnsweredBy = "ocutalon"
-	Set row.AnsweredAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -30)
-	If kind = "tool_call" {
-		Set row.ToolName = name
-		Set row.ToolArguments = arguments
-		Set row.ToolSource = source
-		Set row.Runner = "ZzRunner"
-	} Else {
-		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-		Set row.ResultTarget = "IncidentManager"
-		Set row.DryRun = "{""affected"":1}"
-		Set row.FixKind = "zz_fix"
-		Set row.FixParameters = "{}"
-		Set row.FixTargets = "1"
-	}
-	Do $$$AssertStatusOK(row.%Save(), "the fixture row "_kind_" is saved, approved")
-	Set ^OcuTalonTest("Replay", "rows", row.Ref) = ""
-	Quit row.Ref
+	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow(kind, name, arguments, source, "ZzRunner")
+	Set sc = ##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, "approved", expiresIn, , .ref)
+	If ref '= "" Set ^OcuTalonTest("Replay", "rows", ref) = ""
+	Do $$$AssertStatusOK(sc, "the fixture row "_kind_" is saved, approved")
+	Quit ref
 }
 
 /// Deletes the fixture rows of ApprovedRow.
@@ -1175,9 +1218,7 @@ ClassMethod RemoveRows() [ Private ]
 /// The column of the approval row.
 ClassMethod Prop(ref As %String, name As %String) As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
-	If '$IsObject(row) Quit "<no row>"
-	Quit $Property(row, name)
+	Quit ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, name)
 }
 
 /// The number of Action entries since the mark that name the Ref with the result.
