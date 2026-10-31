@@ -1270,7 +1270,7 @@ Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real c
 - **Order inside step 1:** the web demo path comes first (0.1.0), and Telegram (FR-18 to FR-22) comes last (0.1.1). That way the floor never waits on a bot token or the gateway's Telegram route.
 - **Telegram after the floor** (the author's decision on October 16, which refines the brief's floor, taken by plan on October 17):
   - release 1 ships the floor;
-  - Telegram goes out as the very next release (0.1.1), before any step 2 work in either build lane, and before the online demo goes public [AMENDED 2026-10-30, as above: the demo goes public first, without Telegram, which reaches the demo host with the 1.0.0 update].
+  - Telegram goes out as the very next release (0.1.1), before any step 2 work merges in either build lane [AMENDED 2026-10-31, decided by the Contest Planner under the owner's delegation; the owner: "I agree with your recommendations.": step 2 work may start once 0.1.0 is tagged and the Telegram epic has merged, and merges only after 0.1.1; it read "before any step 2 work in either build lane"], and before the online demo goes public [AMENDED 2026-10-30, as above: the demo goes public first, without Telegram, which reaches the demo host with the 1.0.0 update].
 - **Telegram's dependencies:** the author's bot tokens (one per running instance), and a Telegram route on the online demo's gateway. Both must be ready before the stories that need them.
 - **Sizing:** size the stories at sprint planning, and keep release 1 green. Two pieces of work need stories of their own, because both are bigger than they look:
   - recording the 10 incidents for the evaluation set (FR-62);
