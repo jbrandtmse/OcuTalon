@@ -2,7 +2,8 @@
 title: 'A correct diagnosis is never refused for an over-long evidence reference'
 type: 'bugfix'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '77c9f8f3ff4f6ff6fcad26fead96bfdd5ff2e934'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -174,6 +175,33 @@ Paths are under `src/` unless they start with `_bmad-output/`.
 
 ## Review Triage Log
 
+### 2026-10-31 - Review pass
+- verdicts: 23 findings - high 0, medium 0, low 13, false 10, maybe-false 0
+- findings:
+  - `[low]` `patch` Blind Hunter: `TestHostReplies` skips the field comparison silently when the payload is empty - added an assertion that the answer holds a payload before the `Continue` (patched).
+  - `[low]` `patch` Blind Hunter / Verification Gap: `Judge`'s two later `problem` exits (no reason left; invalid after the filter) have no test - `TestRefusalTrace` gained two replies run through `ReplyGuard` (a reason "No issues." and a cause "No problems."), each asserting one warning with its text (patched; mutation recorded).
+  - `[false]` `reject` Blind Hunter: the notice check only looks for "reply check" - the spec fixes this assertion (slots hold no "reply check"); the mutation on `Notice.cls` shows it fails when the text leaks.
+  - `[false]` `reject` Blind Hunter: prompt/class agreement is pinned only for Diagnosis - the AC2 audit table shows Triage and Chat state no length; `TestDiagnosisLengths` is the spec's test.
+  - `[false]` `reject` Blind Hunter: `Diagnose` leaves its warnings - the spec's `DropIncidentRows` already deletes that session's rows.
+  - `[false]` `reject` Blind Hunter: "host sink" is mislabelled - the spec names `OcuTalon.Bridge.Ext.HostSink`; the doc says what class is passed.
+  - `[low]` `reject` Edge Case Hunter: the error text is cut to 400 characters before redaction, so a key could straddle the cut - the 400 cut is CheckReply's own and the spec's; a partial prefix shorter than the key pattern is not a credential; the fix would reorder the spec's contract.
+  - `[false]` `reject` Edge Case Hunter: other fallback reasons (cut_off, refusal) log nothing - this is the spec's decision (Design Notes, "Only an invalid fallback logs") and the matrix row "Other fallbacks".
+  - `[low]` `patch` Edge Case Hunter: a missing Decision row passes as "no fallback" - the assertion now reads "no row" when `DecisionOf` returns none (patched).
+  - `[low]` `patch` Edge Case Hunter: a duplicate of the empty-payload skip (patched with the first row).
+  - `[low]` `patch` Edge Case Hunter: an empty `TraceSessionId` would pass the "no warning" assertion for the refusal vacuously - added an assertion that the decision has a trace session (patched).
+  - `[false]` `reject` Edge Case Hunter: `RemoveWarnings` could delete a concurrent shard's warnings - every test run has its own throwaway stack and the mark scopes the removal to rows after it, the same helper the other tests use.
+  - `[false]` `reject` Edge Case Hunter: the check text can quote item values (PII) - the trace already holds the runner's unfiltered `Reply` body; the spec's Design Notes decide this.
+  - `[low]` `patch` Verification Gap: `Judge`'s later exits are untested - the same entry as the second row (patched).
+  - `[low]` `reject` Verification Gap: the guards for a turn and `cut_off` are not pinned - the matrix row "Other fallbacks" is covered by `refusal` (the `reason = "invalid"` half); the `problem` half only avoids an empty-detail line; adding turn and cut_off cases is more than a direct correction for a cosmetic outcome.
+  - `[low]` `patch` Verification Gap: AC2 equality assertions have no mutation line - mutation `FixParameters.SourceFormat` 63 recorded (red observed).
+  - `[low]` `patch` Verification Gap: AC3 negative clauses (row, answer, notice) have no mutation line - mutations on `RecordFallback`'s `Reasons` and on the notice slot recorded (red observed).
+  - `[low]` `patch` Verification Gap: the answer's `Reasons` is not asserted - added `response.Reasons` to `TestRefusalTrace` (patched).
+  - `[low]` `reject` Verification Gap: the matrix row "Other fallbacks" has one assertion - see the turn and `cut_off` row above.
+  - `[false]` `reject` Verification Gap: `TestHostReplies` silently skips - the same entry as the first row (patched).
+  - `[low]` `reject` Verification Gap: `TestHostReplies` sets no Mark, so a failure would leave a Type 3 row - only on a red run, which is a Type 3 row of no consequence and purged by retention; the Decision rows are removed in all cases.
+  - `[false]` `reject` Intent Alignment: the production-path test uses a reply that fails for reasons other than evidence length - by the spec's decision the replay at `Decide.Conclude` proves the cure and `TestDemoDiagnosis` the notice; no `ci/mock` file may change.
+  - `[false]` `reject` Intent Alignment: the trace is wider than "the check's own text" in two paths - the spec names all three exits and their texts.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -277,6 +305,16 @@ The rules for every run:
   - The `$$$LOGWARNING` line removed → `TestRefusalTrace` and Diagnose's `invalid-reply` assertion go red.
   - `Redact.Text` dropped from that line → the `[redacted]` assertion goes red.
   - The prompt says 32 again → `TestDiagnosisLengths` goes red.
+- **Mutations observed (implement stage).** Each was applied, run, reverted from a scratchpad copy, and the tree confirmed unchanged.
+  - mutation: `Evidence` MAXLEN 128 → 32 → `TestHostReplies` (both replies: no fallback, Decision row), `TestPayloadAccepted` (the 128 assertion) and `TestDiagnosisLengths` went red.
+  - mutation: `Evidence` MAXLEN 128 → 129 → `TestPayloadRefused` (the 129 assertion) and `TestRefusalTrace` (over the limit) went red.
+  - mutation: the `$$$LOGWARNING` line removed from `Conclude` → `TestRefusalTrace` (both replies) and `Test.Watch.Diagnose` `TestDiagnosisVariants` (the `invalid-reply` warning assertions) went red.
+  - mutation: `Redact.Text` dropped from that line → `TestRefusalTrace` (the `[redacted]` and not-the-key assertion) went red.
+  - mutation: the prompt's "at most 128 characters" → 32 → `TestDiagnosisLengths` (the stated-lengths assertion) went red.
+  - mutation: the two `Set problem = ...` lines of `Judge` (no reason left; after the filter) removed → `TestRefusalTrace` "no reason left after the filter" and "invalid after the filter" (count and text) went red.
+  - mutation: `RecordFallback`'s `Set row.Reasons = ""` → `"x"` → `TestRefusalTrace` (the row's and the answer's empty `Reasons`, all four replies) went red.
+  - mutation: `FixParameters.SourceFormat` MAXLEN 64 → 63 → `TestDiagnosisLengths` (sourceFormat = targetFormat, and the stated sentence) went red.
+  - mutation: `Notice.cls` L113 slot `fallbackReason` → the text "The reply check failed" → `TestDiagnosisVariants` ("and its slots hold nothing of the reply check") went red (`Test.Watch.Diagnose`, fresh).
 - **(once) Affected areas, each fresh, one part per call** (about 4-6 minutes each, inference). If a part nears 8 minutes, split it further with a larger n.
   - `<lane> OCUTALON_RUN_TAG=e5s12i ci/iris.sh shard lane-a@Watch --part 1/3`, then `2/3` and `3/3`;
   - `… shard lane-a@Agent`;
@@ -301,7 +339,7 @@ The rules for every run:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-31).** The run was planned only and halted after planning, as asked. Nothing was implemented, committed or pushed.
@@ -315,3 +353,16 @@ Blocking condition: none
   - the local-install corner, where the warning could reach a model when OcuTalon watches its own production (never on the online demo);
   - AC1's notice, which is pinned at Decide's answer plus the unchanged `TestDemoDiagnosis`, with no new mock scenario.
 - **Ledger.** The inbox was empty. No footprint extension.
+
+**Implement stage (2026-10-31).**
+- **Summary.** `DiagnosisPayload.Evidence` is 128 characters per reference and the diagnosis prompt says so. `Decide` logs, for an `invalid` decide or diagnose fallback, the check's own error text (through `Redact.Text`) as one warning in the decision's trace session; `Judge` and `Interpret` carry it in a new last `Output problem`. Both recorded host replies now conclude with no fallback.
+- **Files changed.**
+  - `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls`: `Evidence` MAXLEN 128, docs.
+  - `src/ocutalon/cls/OcuTalon/Agent/Diagnosis.cls`: the lengths sentence says 128.
+  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `problem` in `Judge`, `Interpret` and `Conclude`, the warning line, two doc clauses.
+  - `src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls`: two fixtures, `TestHostReplies`, `TestRefusalTrace`, the 128/129 boundaries, helpers, clean-up.
+  - `src/ocutalon/cls/OcuTalon/Test/Watch/Diagnose.cls`: the `invalid-reply` / `refusal` warning assertions and the notice-slots assertion.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`: `TestDiagnosisLengths`.
+- **Review.** 23 findings: 9 rows patched (seven fixes, all test-side: payload and row assertions, the two later `Judge` exits, the answer's `Reasons`, a trace-session assertion, and the missing mutation lines), 0 deferred, 14 rejected with reasons in the triage log. Patched by verdict: low 9, medium 0, high 0. Follow-up review recommended: false.
+- **Verification.** All on lane-b throwaways (tags e5s12i, e5s12iw): fixture bytes `exact` twice; `Test.Watch.Payload` and `Test.Agent.Instructions` passed (warm); `Test.Watch.Diagnose` passed fresh (after the patches); shards `lane-a@Watch` 1/3-3/3, `lane-a@Agent`, `lane-a@Bridge` 1/3-3/3 passed (before the test-only patches; the patched classes were rerun); `Test.Fix.Kind`, `Test.Fix.DryRun` and `Test.Eval.Run` passed; `bash ci/checks.sh` passed. Eleven mutations observed red and reverted (the lines in `## Verification`). Teardown done; the lane-b lock folder is empty.
+- **Residual risks.** The turn and `cut_off` "no warning" paths are pinned only through the `refusal` case. The warning can carry the check's quoted item values (already in the trace's `Reply` body; the lead's ruling U-193 covers the local-install corner).
