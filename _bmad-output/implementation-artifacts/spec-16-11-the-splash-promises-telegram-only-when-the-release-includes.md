@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-10-31'
 status: 'done'
 baseline_revision: 'a1047eef21a0eedb7ed4ac58bf2effa8e994993b'
+baseline_commit: 'a1047eef21a0eedb7ed4ac58bf2effa8e994993b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -92,7 +93,77 @@ deferred: []
   - `[low]` `[patch]` Verification-gap: the new key's catalog text and `splash.telegramLine` have no mutation of their own - both applied, `Test.Web.PublicTexts` and `Test.Msg.Catalog` went red, reverted; lines written.
   - `[medium]` `[patch]` Verification-gap (order mutation, found by running it): the "in that order" assertion in `TestPage` could not fail because the concatenation sat unparenthesised on the right of `[` (ObjectScript evaluates left to right), so shell-before-allowance still passed - parenthesised the expected text, re-ran the mutation (red), reverted it, the class is green.
   - `[false]` `[reject]` Verification-gap: AC 3 has no mutation line - AC 3 is a run-condition AC (fresh stack, either order) that the Verification section leaves to the lead's `shard lane-b` forward and `--reverse` runs; no test of this story pins it.
-  - `[false]` `[reject]` Verification-gap: the spec's `## Auto Run Result
+  - `[false]` `[reject]` Verification-gap: a finding about the spec's Auto Run Result section (the row's text was lost when a spec write consumed it; restored by the lead, 2026-10-31).
+
+## Design Notes
+
+**Governing architecture decisions:**
+- **AD-3:** the public package may reference only `%CSP`, dynamic objects, the allowed `$SYSTEM` members and the two public packages, and it keeps its own copies of the texts it renders, compared with the catalog. So: no `Included()`, no `^OcuTalonTest`, and the new text is a catalog key plus a `Parameter` copy.
+- **AD-13:** the splash's envelope. The page's inline style and script do not change, so the CSP hashes hold.
+- **AD-19:** its fixed public keys are not touched. No new key, no amendment.
+- **AD-29:** `Splash`, `Msg.Catalog.Core` (Lane B's catalog class, where a story adds its keys) and `Test.Web`/`Test.Msg` are all Lane B's. No Lane A file changes.
+- **AD-32:** the one renderer. `Test.Msg.Catalog` renders the new key on every channel.
+- **AD-22:** tests run on throwaways only.
+
+**Decided in-stage:**
+- (1) The splash drops `TELEGRAMLINE` and `LIMITLINE`. The public package keeps its own copies of the texts it renders (AD-3); a parameter that nothing writes would be dead text. Story 12.7 adds a copy and its write together; git holds the old ones. The catalog keys stay unchanged (intent). The public-text check stays consistent: Splash's `compared` map loses two entries and gains one, 41 to 40.
+- (2) The names are `splash.limitLineChat` and `LIMITLINECHAT`, each beside its sibling. Neither is user-facing.
+- (3) The new entry's `source` is its neighbours' EXPERIENCE path. EXPERIENCE.md:119 already holds the text word for word (U-196), so this is no new public text.
+- (4) The browser check is scoped to the Before you start card. `LIMIT_LINE` is re-pointed rather than a new constant added, and `TELEGRAM_LINE` is deleted. No dead constant is left, which matters because `tsconfig.e2e.json` does not flag unused locals.
+- (5) No new test method. The assertions extend `TestPage` and `TestEdgeValues`.
+
+**Integration ACs (Rule 1/2):** this story adds no service, module or shared component. It adds one catalog key, whose only consumer is the splash in this story (AC 1). **Consumes:** `OcuTalon.Data.Public.Settings.Get("messageAllowance")` (Story 16.1). **Consumed-by:** none. Story 12.7 owns the "Telegram included" case and decides whether `splash.limitLineChat` stays.
+
+**Extend, don't copy:** the chat-only write replaces the existing limit write in place, with the same replacement and escaping. The catalog entry copies `splash.limitLine`'s shape. Nothing is near-copied.
+
+**Inbox (Rule 17):** this story owns no ledger entries. DW-501, the allowance banner's "chat or Telegram", is out of scope (routed to Story 12.7).
+
+**Footprint:**
+- Inside Epic 16's `paths_hint`: `Web/Public/Splash.cls` and `Test/Web/**`.
+- Footprint extensions, as the ruling and the AC direct: `Msg/Catalog/Core.cls` (also in the hints of Epics 18, 21, 24, 27 and 40), `Test/Msg/Catalog.cls`, and `web/e2e-online/splash.spec.ts`.
+- Merge hotspot: the key counts in `Test.Msg.Catalog`.
+
+## Verification
+
+**Targets and variables:**
+- Run every command from the Epic 16 worktree root (`git rev-parse --show-toplevel`), in the foreground, with `timeout: 600000`, one per call. Never put two test-runner calls in one message.
+- `LANE_B` below stands for the prefix `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=16 stage=<implement|qa|review>'` (the running stage's name). It goes on every `ci/iris.sh` and `ci/warm.sh` call.
+- Tags: implement `e16s11i`/`e16s11iw`; QA `e16s11q`/`e16s11qw`; review `e16s11r`/`e16s11rw`. Each stage tears down only its own tags.
+- MCP calls, if any: `server: ocutalon-slot-b`, `namespace: OCUTALON`, after `iris_server_info` shows build 154 and port 1991. One `iris_execute_tests` per message.
+
+**Commands:**
+- (loop) `LANE_B OCUTALON_RUN_TAG=e16s11iw bash ci/warm.sh up` -- run once, at the stage's start.
+- (loop) `LANE_B OCUTALON_WARM=1 OCUTALON_RUN_TAG=e16s11iw bash ci/iris.sh class <Class>` -- one call per class: `OcuTalon.Test.Web.Splash`, `OcuTalon.Test.Web.PublicTexts`, `OcuTalon.Test.Msg.Catalog`, `OcuTalon.Test.Web.SignIn`. Expected: `WARM reloaded`, then `CLASS ... passed`.
+- (loop) `LANE_B OCUTALON_RUN_TAG=e16s11iw bash ci/warm.sh down` -- at the stage's end, also after a failure.
+- (once) `npm --prefix web run lint` -- `tsc` passes over `e2e-online/`.
+- (once) `node --test web/scripts/catalog.test.mjs` -- passes; "has a current catalog.ts" included.
+- (once) `bash ci/checks.sh` -- every block passes (`boundaries` and `class-rules` included).
+- (once) `LANE_B OCUTALON_RUN_TAG=e16s11i bash ci/iris.sh build` -- rebuilds the bundle before the browser unit.
+- (once) `LANE_B OCUTALON_RUN_TAG=e16s11i bash ci/iris.sh live online-demo` -- PASS, with S2 on the new list. Measured locally at 364-422 s.
+- (once) `LANE_B OCUTALON_RUN_TAG=e16s11i bash ci/iris.sh teardown` -- leaves nothing tagged `e16s11i`.
+- **Left to the lead and CI:** the lead's fresh-environment check (Rule 19: `shard lane-b` forward and `--reverse`) and every other CI group.
+
+**Shared surfaces:**
+- The Before you start list: `Test.Web.Splash` `TestPage` and `TestEdgeValues`; `web/e2e-online/splash.spec.ts` S2.
+- Splash's own parameters: `Test.Web.Splash` `TestTexts`; `Test.Web.PublicTexts` `Classified` and its two counts (41 to 40).
+- The catalog's key list, fixtures and counts: `Test.Msg.Catalog` XData `Keys` and `Fixtures`, 94 to 95 and 116 to 117.
+- Unchanged: the web catalog module `web/src/app/msg/catalog.ts`, which `web/scripts/catalog.mjs` generates from an allowlist with no `splash.*` key, and the tests that pin it (`web/scripts/catalog.test.mjs` "has a current catalog.ts", and `docker/tests/test-web-build.sh`'s `catalog.mjs --check`). The `web` job reruns, because `Msg/Catalog/Core.cls` matches `WEB_INPUT_PATTERN`. No CI unit or group changes.
+- Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**Pinning tests and their mutations** (the implement stage writes each `mutation:` line):
+- AC 1: `Test.Web.Splash.TestPage`. Mutation: write a `<li>Have Telegram?</li>` item before the limit item; `TestPage` must go red. S2 is the real-browser check of the same list.
+- Matrix row 2: `Test.Web.Splash.TestEdgeValues`. Mutation: drop the `If limit '= ""` guard; it must go red.
+- AC 2: `Test.Web.PublicTexts.TestCopiesEqualTheCatalog`. Mutation: drop the final "." of `LIMITLINECHAT`; it must go red. The kept keys are pinned by `Test.Msg.Catalog.TestEveryKeyOnEveryChannel`. Mutation: change one word of `splash.limitLine`; it must go red.
+
+**Mutation lines** (restored by the lead on 2026-10-31: the implement stage's final spec write consumed `## Design Notes`, `## Verification` and the `## Auto Run Result` heading; the two sections above are the plan's text, and these lines record the mutations the implement stage ran, per its Review Triage Log and its report. QA demonstrates one mutation per AC again and corrects these lines):
+- mutation: write a `<li>Have Telegram? ...</li>` item before the allowance item in `Splash.cls` -> `Test.Web.Splash.TestPage` red (AC 1).
+- mutation: swap the shell line above the allowance line -> `Test.Web.Splash.TestPage` red, once its "in that order" assertion was parenthesised (AC 1, list order).
+- mutation: the same Telegram item -> `ci/iris.sh live online-demo` red on `web/e2e-online/splash.spec.ts` S2 only (AC 1, browser).
+- mutation: change the new key's text in `Msg/Catalog/Core.cls` -> `Test.Web.PublicTexts` and `Test.Msg.Catalog` red (AC 2, chat-only text from the catalog).
+- mutation: change one word of `splash.telegramLine` -> `Test.Msg.Catalog` red (AC 2, the kept keys unchanged).
+- mutation: drop the `If limit '= ""` guard -> `Test.Web.Splash.TestEdgeValues` red (matrix row 2; planned, not recorded as run: QA demonstrates it).
+
+## Auto Run Result
 
 Status: done
 Blocking condition: none
