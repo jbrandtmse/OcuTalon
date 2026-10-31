@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
-# Pins README.md (Story 10.2; FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
+# Pins README.md (Stories 10.2 and 10.4; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
 # and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
 #
 # What it pins, one rule each:
-#   top            the README opens with "# OcuTalon", then only blank lines, then the H2 sections "Try it in two minutes",
-#                  "What's interesting" and "Contest task -> where to see it" in this order; the other H2 sections are there
+#   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then at most the teaser line,
+#                  then the H2 sections "Try it in two minutes", "What's interesting" and "What you can use it for" in this order;
+#                  the other H2 sections are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
 #                  beside it and the splash screen; the local path is four numbered steps
 #   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
 #                  audit log
-#   contest-table  one row each for the three task parts and the five criteria, with all three cells filled
-#   teaser         the teaser line is there once, word for word, as the last line of the table's section, with no embed
+#   use-cases      "What you can use it for" holds exactly the two use cases, word for word
+#   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
+#                  them and above the first H2 section, with no embed
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs
 #   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
 #   commands       every `docker compose` command that install.sh prints after "run:" is in the README (DW-134), and the README
 #                  has no `docker compose restart`, `docker-compose restart`, `docker restart`, "install.sh again", "the install
 #                  script again", "rerun" or "re-run"
-#   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence, the README account and
-#                  "Sign in to Visual Trace"; no key-shaped example
+#   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence of "Set a model key", the
+#                  model paragraph and three-row table at the end of "What OcuTalon does", with an empty line above, the README
+#                  account and "Sign in to Visual Trace"; no "No key, still works." bullet; no key-shaped example
 #   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps (DW-3)
 #   sign-in-address  the README's ready block is the one install.sh prints, with the compose file's default web port, and "Try it
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
@@ -48,7 +51,8 @@
 #
 # Each rule first runs on copies of its input that are broken for that rule, each of which it must flag (a rule that can no
 # longer flag anything fails), and only then on the real files. With no README.md every rule fails closed, which is checked first
-# (a FAIL no-readme line names a rule that does not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
+# (a FAIL no-readme line names a rule that does not), and so is that every rule_* function is in RULES (a FAIL rules line names
+# one that is not). Prints one PASS, FAIL or SKIP line per rule; a failing rule prints what is
 # wrong (a README line number or a missing text); exits 0 only when no rule fails.
 # shellcheck disable=SC2016
 set -u
@@ -105,7 +109,27 @@ printf '%s\n' "$listing" | product_files > "$tmp/product.list"
 ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
 H_INT="What's interesting"
-H_TABLE="Contest task $ARROW where to see it"
+H_USE='What you can use it for'
+# The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
+# and table of "What OcuTalon does".
+OPENING="Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing."
+ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.'
+ITEM2='- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear.'
+MODEL_PARA="**With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace."
+T_HEAD='| | With a model | With fixed rules only |'
+T_SEP='| --- | --- | --- |'
+T_ROW1='| An item arrives | It decides Ignore, Digest, Tell now or Act, and says why | Tell now, marked as a fallback with the reason |'
+T_ROW2='| 50 orders fail | One incident, with the cause in plain English, the part at fault, and a fix with a dry run | Grouped by item and error, with no cause and no fix |'
+T_ROW3="| You ask in the chat | It answers, watches a production or sets a reminder | It says it couldn't answer, and why |"
+MODEL_BLOCK="$MODEL_PARA
+
+$T_HEAD
+$T_SEP
+$T_ROW1
+$T_ROW2
+$T_ROW3"
+# The sentence of "Set a model key" that stays as it is.
+FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
 TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
 NOTE='OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.'
 OTHER_H2='What OcuTalon does
@@ -144,6 +168,29 @@ chk_facts() {
   printf '%s\n' "$3" | while IFS= read -r fact; do
     if [ -n "$fact" ] && ! grep -qF -e "$fact" "$2"; then echo "$1: missing '$fact'"; fi
   done
+}
+
+# chk_block <label> <file> <lines>: "<label>: ..." unless the file holds the lines one right after the other, in this order, each
+# line whole and word for word. An empty line of the block must be an empty line of the file. A line that is nowhere in the file is
+# named.
+chk_block() {
+  printf '%s\n' "$3" > "$tmp/block.want"
+  awk -v label="$1" '
+    NR == FNR { want[++n] = $0; next }
+    { have[++m] = $0; seen[$0] = 1 }
+    END {
+      for (j = 1; j <= n; j++) {
+        if (want[j] != "" && !(want[j] in seen)) { print label ": missing the line \"" substr(want[j], 1, 60) "...\""; bad = 1 }
+      }
+      if (bad) exit
+      for (i = 1; i + n - 1 <= m; i++) {
+        ok = 1
+        for (j = 1; j <= n; j++) if (have[i + j - 1] != want[j]) { ok = 0; break }
+        if (ok) exit
+      }
+      print label ": the lines of the block \"" substr(want[1], 1, 40) "...\" are not there one right after the other, in this order"
+    }
+  ' "$tmp/block.want" "$2"
 }
 
 # --- the self-test helpers: broken copies of an input ---
@@ -249,15 +296,24 @@ finish() {
 
 # top
 chk_top() {
-  local f=$1 h2s t
-  awk '
+  local f=$1 h2s t n
+  awk -v opening="$OPENING" -v teaser="$TEASER" '
     state == 0 && $0 ~ /[^ \t]/ { if ($0 != "# OcuTalon") print FILENAME ":" FNR ": the first line is not \"# OcuTalon\""; state = 1; next }
     state == 1 && /^## / { state = 2 }
-    state == 1 && $0 ~ /[^ \t]/ { print FILENAME ":" FNR ": a line between the title and the first H2 section" }
+    state == 1 && $0 ~ /[^ \t]/ {
+      if ($0 != opening && $0 != teaser) print FILENAME ":" FNR ": a line between the title and the first H2 section that is neither the opening paragraph nor the teaser"
+    }
+    state == 0 { next }
+    /^#+ Contest task/ || index($0, "| Contest task or criterion") == 1 { print FILENAME ":" FNR ": the Contest task section is back" }
   ' "$f"
+  chk_block top "$f" "# OcuTalon
+
+$OPENING"
+  n=$(grep -cxF -- "$OPENING" "$f")
+  if [ "$n" -gt 1 ]; then echo "$f: the opening paragraph is there $n times, not once"; fi
   h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
-  if [ "$(printf '%s\n' "$h2s" | head -n 3)" != "$(printf '%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_TABLE")" ]; then
-    echo "$f: the first three H2 sections are not, in this order: $H_TRY, $H_INT, Contest task ... where to see it"
+  if [ "$(printf '%s\n' "$h2s" | head -n 3)" != "$(printf '%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_USE")" ]; then
+    echo "$f: the first three H2 sections are not, in this order: $H_TRY, $H_INT, $H_USE"
   fi
   printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
     if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
@@ -311,39 +367,38 @@ chk_interesting() {
   chk_facts interesting "$sec" "$INT_FACTS"
 }
 
-# contest-table
-TABLE_ROWS='IRIS Interoperability workflow
-IRIS AI Hub agent
-decision-making task
-Complexity
-Clarity of Instructions
-Developer Experience
-Applicability
-Usability'
-chk_table() {
-  local sec="$tmp/sec.table" label row
-  section "$1" "$H_TABLE" > "$sec"
-  printf '%s\n' "$TABLE_ROWS" | while IFS= read -r label; do
-    row=$(awk -F'|' -v l="$label" '/^\|/ && index($2, l) { print; exit }' "$sec")
-    if [ -z "$row" ]; then
-      echo "contest-table: no row for '$label'"
-    elif ! printf '%s\n' "$row" | awk -F'|' '{ bad = (NF < 5); for (i = 2; i <= 4; i++) { c = $i; gsub(/^[ \t]+/, "", c); gsub(/[ \t]+$/, "", c); if (c == "") bad = 1 } exit bad }'; then
-      echo "contest-table: the row for '$label' has fewer than three filled cells"
-    fi
-  done
+# use-cases
+chk_use_cases() {
+  local sec="$tmp/sec.use" n
+  section "$1" "$H_USE" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_USE'"
+    return
+  fi
+  chk_block use-cases "$sec" "$ITEM1
+$ITEM2"
+  n=$(grep -c '[^[:space:]]' "$sec")
+  if [ "$n" -ne 2 ]; then echo "use-cases: '$H_USE' has $n lines, not exactly the two items"; fi
 }
 
 # teaser
 chk_teaser() {
-  local f=$1 sec="$tmp/sec.teaser" n last at lastrow
+  local f=$1 n op at h2
   n=$(grep -cxF -- "$TEASER" "$f")
   if [ "$n" -ne 1 ]; then echo "teaser: the line '$TEASER' is there $n times, not once"; fi
-  section "$f" "$H_TABLE" > "$sec"
-  last=$(grep -v '^[[:space:]]*$' "$sec" | tail -n 1)
-  if [ "$last" != "$TEASER" ]; then echo "teaser: it is not the last line of the section '$H_TABLE'"; fi
-  at=$(grep -nxF -- "$TEASER" "$sec" | head -n 1 | cut -d: -f1)
-  lastrow=$(grep -n '^|' "$sec" | tail -n 1 | cut -d: -f1)
-  if [ -z "$lastrow" ] || [ -z "$at" ] || [ "$at" -le "$lastrow" ]; then echo "teaser: it does not come after the table"; fi
+  op=$(grep -nxF -- "$OPENING" "$f" | head -n 1 | cut -d: -f1)
+  at=$(grep -nxF -- "$TEASER" "$f" | head -n 1 | cut -d: -f1)
+  h2=$(grep -n -m 1 '^## ' "$f" | cut -d: -f1)
+  if [ -z "$op" ]; then
+    echo "teaser: the opening paragraph is not there, so the teaser has no place under it"
+  elif [ -n "$at" ]; then
+    if [ "$at" -ne $((op + 2)) ]; then
+      echo "teaser: $f:$at: it is not the second line below the opening paragraph (line $op)"
+    elif [ -n "$(sed -n "$((op + 1))p" "$f" | tr -d ' \t')" ]; then
+      echo "teaser: $f:$((op + 1)): there is no empty line between the opening paragraph and the teaser"
+    fi
+    if [ -n "$h2" ] && [ "$at" -gt "$h2" ]; then echo "teaser: $f:$at: it is below the first H2 section"; fi
+  fi
   grep -niE '!\[|<(img|iframe|video|embed|object|picture)' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image or embed (the teaser is a plain link)|"
 }
 
@@ -415,15 +470,27 @@ chk_commands() {
 KEY_FACTS='ANTHROPIC_API_KEY=<your key>
 .env.example
 Claude Haiku 5.5
-fixed rules
 Sign in to Visual Trace'
 ACCOUNT_FACTS='User name: `ocutalon`
 Password: `ocutalon`'
 chk_key_account() {
-  local sec="$tmp/sec.signin"
+  local sec="$tmp/sec.signin" rows
   chk_facts key-account "$1" "$KEY_FACTS"
   section "$1" 'Sign in' > "$sec"
   chk_facts key-account "$sec" "$ACCOUNT_FACTS"
+  section "$1" 'Set a model key' > "$sec"
+  chk_facts key-account "$sec" "$FIXED_SENTENCE"
+  section "$1" 'What OcuTalon does' > "$sec"
+  chk_block key-account "$sec" "$MODEL_BLOCK"
+  rows=$(grep -c '^|' "$sec")
+  if [ "$rows" -ne 5 ]; then echo "key-account: What OcuTalon does has $rows table lines, not the 5 of the model table"; fi
+  awk -v para="$MODEL_PARA" -v last="$T_ROW3" '
+    $0 == para && prev != "" { print "key-account: What OcuTalon does: the line above the model paragraph is not empty" }
+    { prev = $0 }
+    /[^ \t]/ { tail = $0 }
+    END { if (tail != last) print "key-account: What OcuTalon does: the model table is not the end of the section" }
+  ' "$sec"
+  grep -nF 'No key, still works.' "$1" | cut -d: -f1 | sed 's|^|key-account: README.md:|; s|$|: the bullet "No key, still works." is back|'
   grep -n 'ANTHROPIC_API_KEY=' "$1" | grep -v 'ANTHROPIC_API_KEY=<your key>' | cut -d: -f1 | sed 's|^|key-account: README.md:|; s|$|: a key-shaped example|'
 }
 
@@ -683,9 +750,17 @@ rule_top() {
   st 'a line before the first H2 section' 1 "$README" 'NR == 1 { print; print "A stray line."; next } { print }' chk_top
   st 'a first line that is not the title' 1 "$README" 'NR == 1 { print "# Other"; next } { print }' chk_top
   st 'the first two sections swapped' 1 "$README" '/^## What.s interesting$/ { print "## Try it in two minutes"; next } /^## Try it in two minutes$/ { print "## What'"'"'s interesting"; next } { print }' chk_top
-  st 'the Contest task section moved down' 1 "$README" '/^## Contest task / { sub(/^## /, "## Zz ") } { print }' chk_top
+  st 'the opening paragraph changed' 1 "$README" '/^Your integrations already/ { sub(/fifty/, "fifteen") } { print }' chk_top
+  st 'the opening paragraph removed' 1 "$README" '!/^Your integrations already/' chk_top
+  st 'the opening paragraph twice' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print o } /^Your integrations already/ { o = $0 }' chk_top
+  st 'the opening and the teaser swapped' 1 "$README" '/^Your integrations already/ { o = $0; next } /^Watch the 35-second teaser: / { print; print ""; print o; next } { print }' chk_top
+  st 'the use cases section moved down' 1 "$README" '/^## What you can use it for$/ { print "## What OcuTalon does"; next } /^## What OcuTalon does$/ { print "## What you can use it for"; next } { print }' chk_top
+  st 'the use cases section renamed' 1 "$README" '/^## What you can use it for$/ { print "## What you can do with it"; next } { print }' chk_top
+  st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
   st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
-  finish top 'the title, then the three top sections in order, and the other sections are there' chk_top
+  st 'the Contest task section back' 1 "$README" '{ print } END { print ""; print "## Contest task"; print "" }' chk_top
+  st 'the Contest task table header back' 1 "$README" '{ print } /^## What OcuTalon does$/ { print ""; print "| Contest task or criterion | x | y |" }' chk_top
+  finish top 'the title, the opening paragraph, then the three top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -721,18 +796,19 @@ rule_interesting() {
   finish interesting 'at most 120 words, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
 }
 
-rule_contest_table() {
-  local label
-  rule_begin contest-table "$README" || return
-  while IFS= read -r label; do
-    st "the row for '$label' removed" 1 "$README" "BEGIN { FS = \"|\" } !(\$0 ~ /^\\|/ && index(\$2, \"$label\"))" chk_table
-    st "an empty cell in the row for '$label'" 1 "$README" "BEGIN { FS = OFS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { \$4 = \" \" } { print }" chk_table
-    st "an empty feature cell in the row for '$label'" 1 "$README" "BEGIN { FS = OFS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { \$3 = \" \" } { print }" chk_table
-    st "the row for '$label' without its closing bar" 1 "$README" "BEGIN { FS = \"|\" } (\$0 ~ /^\\|/ && index(\$2, \"$label\")) { sub(/[ \\t]*\\|[ \\t]*\$/, \"\") } { print }" chk_table
-  done <<EOF
-$TABLE_ROWS
-EOF
-  finish contest-table 'a row for each of the three task parts and the five criteria, each with its feature and its place' chk_table
+rule_use_cases() {
+  rule_begin use-cases "$README" || return
+  st 'item 1 changed' 1 "$README" '/^- \*\*The partner feed/ { sub(/2am/, "3am") } { print }' chk_use_cases
+  st 'item 2 changed' 1 "$README" '/^- \*\*"Only tell me/ { sub(/never gives/, "rarely gives") } { print }' chk_use_cases
+  st 'item 1 removed' 1 "$README" '!/^- \*\*The partner feed/' chk_use_cases
+  st 'item 2 removed' 1 "$README" '!/^- \*\*"Only tell me/' chk_use_cases
+  st 'the items swapped' 1 "$README" '/^- \*\*The partner feed/ { held = $0; next } { print } /^- \*\*"Only tell me/ { print held }' chk_use_cases
+  st 'a third item' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **A third item.** More." }' chk_use_cases
+  st 'the production-stopped sentence appended to item 2' 1 "$README" '/^- \*\*"Only tell me/ { $0 = $0 " It also tells you once when a production stops or one of its items is disabled." } { print }' chk_use_cases
+  st 'the production-stopped sentence on a line of its own' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "It also tells you once when a production stops or one of its items is disabled." }' chk_use_cases
+  st 'an audit item appended' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **An AI decision step you can audit, in your own production.**" }' chk_use_cases
+  st 'the section heading removed' 1 "$README" '!/^## What you can use it for$/' chk_use_cases
+  finish use-cases 'What you can use it for holds exactly the two items, word for word' chk_use_cases
 }
 
 rule_teaser() {
@@ -740,7 +816,10 @@ rule_teaser() {
   st 'the teaser line removed' 1 "$README" '!/^Watch the 35-second teaser: /' chk_teaser
   st 'the teaser line changed' 1 "$README" '{ sub(/35-second/, "36-second"); print }' chk_teaser
   st 'the teaser moved to the end of the README' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } END { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
-  st 'the teaser before the table' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } /^## Contest task / { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st 'the teaser above the opening paragraph' 1 "$README" '/^Watch the 35-second teaser: / { next } /^Your integrations already/ { print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU"; print "" } { print }' chk_teaser
+  st 'the teaser under the first H2 section' 1 "$README" '/^Watch the 35-second teaser: / { next } { print } /^## Try it in two minutes$/ { print ""; print "Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU" }' chk_teaser
+  st 'no empty line between the opening paragraph and the teaser' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Your integrations already/ { held = 1 }' chk_teaser
+  st 'a stray line where the empty line is' 1 "$README" 'held { held = 0; if ($0 == "") { print "x"; next } } { print } /^Your integrations already/ { held = 1 }' chk_teaser
   st_append 'an embedded image' '![teaser](teaser.png)' chk_teaser
   st_append 'an image tag' '<img src=teaser.png>' chk_teaser
   st_append 'a frame' '<iframe src=teaser></iframe>' chk_teaser
@@ -748,7 +827,7 @@ rule_teaser() {
   st_append 'an image tag in capitals' '<IMG src=teaser.png>' chk_teaser
   st_append 'a picture tag' '<picture><source srcset=teaser.png></picture>' chk_teaser
   st_append 'the teaser line twice' "$TEASER" chk_teaser
-  finish teaser 'the teaser is a plain link, word for word, after the table, as the last line of its section' chk_teaser
+  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no embed' chk_teaser
 }
 
 rule_outcomes() {
@@ -807,8 +886,20 @@ rule_key_account() {
   rule_begin key-account "$README" || return
   st_facts chk_key_account "$KEY_FACTS"
   st_facts chk_key_account "$ACCOUNT_FACTS"
+  st_facts chk_key_account "$FIXED_SENTENCE"
+  st_facts chk_key_account "$MODEL_BLOCK"
+  st 'a cell of the model table changed' 1 "$README" '{ sub(/with no cause and no fix/, "with a cause and no fix"); print }' chk_key_account
+  st 'a row of the model table removed' 1 "$README" '!/^\| 50 orders fail \|/' chk_key_account
+  st 'a fourth row added to the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print "| Cost | Costs you nothing extra | Free |" }' chk_key_account
+  st 'the empty line above the table removed' 1 "$README" '{ line[NR] = $0 } END { for (i = 1; i <= NR; i++) if (!(line[i] == "" && line[i + 1] ~ /^\| \| With a model/)) print line[i] }' chk_key_account
+  st 'the empty line above the model paragraph removed' 1 "$README" '{ line[NR] = $0 } END { for (i = 1; i <= NR; i++) if (!(line[i] == "" && index(line[i + 1], "**With a model, and without one.**") == 1)) print line[i] }' chk_key_account
+  st 'a line without a bar right under the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print "Cost | Costs you nothing extra | Free" }' chk_key_account
+  st 'a bullet after the model table' 1 "$README" '{ print } /^\| You ask in the chat \|/ { print ""; print "- **Extra.** More." }' chk_key_account
+  st_move 'the model table moved out of its section' 'What OcuTalon does' '|' chk_key_account
+  st_move 'the fixed-rules sentence moved out of its section' 'Set a model key' 'Without a key, OcuTalon still starts.' chk_key_account
+  st_append 'the bullet back' '- **No key, still works.** Without a model key, OcuTalon starts and every decision uses fixed rules. The page says so.' chk_key_account
   st_append 'a key-shaped example' 'Set ANTHROPIC_API_KEY=abc in .env.' chk_key_account
-  finish key-account 'the key line, .env.example, the default model, fixed rules, the README account and the Visual Trace sign-in' chk_key_account
+  finish key-account 'the key line, .env.example, the default model, the fixed-rules sentence, the model paragraph and table, the README account and the Visual Trace sign-in' chk_key_account
 }
 
 rule_lan() {
@@ -1012,8 +1103,8 @@ rule_readme_links() {
   st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
   st_append 'two headings with one slug' '## Sign in' chk_readme_links
   # A link by the GitHub slug of a heading (Design Note 8) is not flagged: the arrow, the apostrophe and the parentheses are dropped,
-  # the spaces around the arrow stay (two hyphens), and a hyphen of the heading stays.
-  awk '{ print } END { print "[a](#contest-task--where-to-see-it) [b](#whats-interesting) [c](#stop-start-and-update) [d](#the-iris-non-health-image)" }' "$README" > "$tmp/slug.md"
+  # the spaces around the arrow stay (two hyphens), and a hyphen of the heading stays. The copy gets its own heading with the arrow.
+  awk -v arrow="$ARROW" '{ print } END { print ""; print "## Contest task " arrow " where to see it"; print "[a](#contest-task--where-to-see-it) [b](#whats-interesting) [c](#stop-start-and-update) [d](#the-iris-non-health-image)" }' "$README" > "$tmp/slug.md"
   if [ -n "$(chk_readme_links "$tmp/slug.md")" ]; then st_note 'a link by the GitHub slug of a heading is flagged'; fi
   finish readme-links 'every link reaches a heading, a file or folder of the repository, or an allow-listed host' chk_readme_links
 }
@@ -1028,7 +1119,25 @@ rule_must_scan() {
   finish must-scan "the must-scan list for paths and keys in $BOUNDARIES names $README" chk_must_scan
 }
 
-RULES='top try_it interesting contest_table teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
+RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
+
+# unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
+unlisted() {
+  declare -F | sed -n 's/^declare -f rule_//p' | while IFS= read -r r; do
+    case " $1 " in *" $r "*) ;; *) if [ "$r" != begin ]; then echo "$r"; fi ;; esac
+  done
+}
+
+# Every rule the script defines runs: a rule_* function missing from RULES never runs, so CI would not see it. The check first
+# proves it flags a list without its last rule.
+if [ -z "$(unlisted "${RULES% *}")" ]; then
+  echo "FAIL rules: a rule left out of RULES is not found"
+  fails=$((fails + 1))
+fi
+for r in $(unlisted "$RULES"); do
+  echo "FAIL rules: rule_$r is not in RULES"
+  fails=$((fails + 1))
+done
 
 # With no README.md every rule fails closed: each one, run as if the file were absent, must print a FAIL line that says so.
 for r in $RULES; do

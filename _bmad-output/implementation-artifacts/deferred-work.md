@@ -1270,6 +1270,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+- 2026-10-31T10:06:02Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=burndown note=delivered_by_10.3_d917d26(adjudication_trailer_missed_on_2026-10-28): AnswersIn.FromTelegram passes only the paired session's Ref (Core/AnswersIn.cls:44-80); Test/Core/AnswersTelegram.cls TestApprovedAndRejected:74 pins sessionRef=the session's Ref, TestBadSessionRefIsNotAllowed:128 pins not_allowed with nothing handed over
 
 ### DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1350,6 +1351,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
 - 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
+- 2026-10-31T10:06:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=burndown note=residual: Data/Pairing.cls:68 HashCode still repeats Data/Session.cls:122 Hash's body (same SHA-256 base64url line, plus an empty-code guard); make HashCode keep its guard and quit Session.Hash(code). Not covered by 10.3 (missed adjudication); overflow, not chartered (1 entry, under cap 8, no occurrences; Story 10.4 is a README-only re-open with a launch deadline). 31-4 is a Lane B pairing story (Data/Pairing.cls is Lane B's, AD-29)
 
 ### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
@@ -2193,6 +2195,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T10:50:46Z occurrence=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=sibling Test.Live.GuideRefresh.TestHeldLockCallerWait seeds Fixture.Check with no NextDueAt, asserts seq=1; status_unchanged
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
+- 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2542,6 +2545,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
 
+### DW-480: README opening (owner text) 'Every decision is in Visual Trace with its reasons and cost' may read as an overclaim for a fixed-rules decision, which keeps only its fallback reason (Reasons empty, FallbackReason set)
+- source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
+- 2026-10-31T09:28:00Z status=open owner=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=harvest note=owner's word-for-word text: never edited by this story; adjudicated at ledger_adjudicated
+- 2026-10-31T10:00:28Z status=by-design by=adjudication note=spec-bound_owner_text(Story_10.4_word_for_word,never_edited). Build check: a fixed-rules decision's Result still carries Fallback, FallbackReason (its reason) and the usage and CostUSD fields in its Visual Trace XML (Bridge/Msg/Result.cls, Decide.cls RecordFallback), so 'with its reasons and cost' reads as the fallback reason and the turn's cost; CR found no contradiction. The Story 10.2 line is README.md:36 (not :34). Reported to the orchestrator for the Contest Planner in the contract notes
+
+### DW-481: Story 10.2's Given line ('right after Try it in two minutes') and first criterion ('it starts with Try it in two minutes') predate Story 10.4's opening and teaser above that heading
+- source: spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: epics.md:3540 Given 'the top of the README, right after Try it' vs :3545 teaser 'above Try it'; :3523 'it starts with Try it'; text per Design Note 3
+- 2026-10-31T09:58:52Z status=by-design owner=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=cr note=spec-bound: Design Note 3 text and decided-in-stage (e); the lead may add a marker at its gate
 ### DW-429: flake: live:online-session web/e2e-online/session/leave.spec.ts L2 (600 s idle frees the place) went red once in CI with since=NaN in the freed page's URL and passed on an unchanged rerun
 - source: CI run 41027546659 (OCT-epic29 468654f, iris install-fresh) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: attempt 1 red (expectPlaceFreed: since parsed NaN after landedOn matched ?since=), attempt 2 green on the same sha; Story 29.3 changed no web or product code
