@@ -2,7 +2,7 @@
 title: 'Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it'
 type: 'feature'
 created: '2026-10-30'
-status: 'blocked'
+status: 'in-review'
 baseline_revision: 'ac6c8021785b8cb7533a2b7d49faaa714f787122'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -278,6 +278,8 @@ deferred: []
 
 - 2026-10-31, before implementation (runner C ruling, decide): the `Channel` classes leave `shard:lane-a@rest` (`shards-2`, 31 minutes on af47ff3c) for their own unit `shard:lane-a@Channel` in `production` (25 minutes; in `NO_WEB_BUNDLE_UNITS` only if shown bundle-free), else `browser` (26 minutes); new Tasks & Acceptance item; `## Verification`'s "Left to CI" note on `shards-2` is superseded by it.
 
+- 2026-10-31, implement blocked then resumed at review (runner C, orchestrator ruling, decide): the implement pass halted on the contended `Test/Install/Production.cls`; the orchestrator allowed the Telegram oracle rows and the `TestStubsAnswer` relaxation and dropped the class-doc edit (DW-482 to Story 15.3). The saved attempt patch was applied with those two changes, the patch file removed, and the spec set to `in-review` so build-auto resumes at its review step (Design Notes, "Orchestrator ruling of 2026-10-31").
+
 ## Review Triage Log
 
 ## Design Notes
@@ -402,6 +404,10 @@ All are used against the real mock and the running production.
 **Lane B mock ask (AD-22, AD-33):** none. A rejected `getMe`, a busy `getUpdates` and a 200 followed by a 429 are new Lane A scenario files that the existing loader and queue serve.
 
 **Owned ledger:** DW-422 is addressed by the "Offset node (DW-422)" matrix row, the DW-422 acceptance criterion and `Test.Channel.TelegramIn`'s offset test.
+
+### Orchestrator ruling of 2026-10-31: the contended test file
+
+`src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` is contended (Epics 15 and 13). Ruling (orchestrator, decide): two edits are allowed as a file-level extension, reported under `footprint_extensions:`. (1) Lane A's own Telegram oracle rows: `TelegramIn` and `TelegramOut` go to `"stub": 0`, and `TelegramIn` gains `CallInterval` 1; the file's oracle rows are shared by row, like `Production.cls`'s lane regions. (2) `TestStubsAnswer` line 170 is relaxed from `expectedStubs > 0` to `expectedStubs >= 0`: with the Telegram items built, no production item is a stub any more (EvalIn and EvalSink have been `"stub": 0` since Story 9.1), and the exact-count assertion on the next line still pins the test (keeping `STUB` on `Out.cls` turns it red). The class doc's line 13 (its list of items without STUB), which Epic 15 also changes, is NOT edited: DW-482 (low, routed to Story 15.3) adds `TelegramIn` and `TelegramOut` there. The runner applied the implement stage's saved patch with edit 3 left out and edit 2 added, and ran `ci/iris.sh class OcuTalon.Test.Install.Production` on a fresh lane-C throwaway (tag `e12s2rc`): passed (its `TestStepHelpers` SKIP is pre-existing).
 
 ## Verification
 

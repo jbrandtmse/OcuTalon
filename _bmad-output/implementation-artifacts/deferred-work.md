@@ -2670,3 +2670,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
+
+### DW-482: Test.Install.Production class doc (line 10): its list of items that carry no STUB (so the oracle marks them stub 0) does not yet name TelegramIn and TelegramOut, which Story 12.2 builds
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 sets the TelegramIn and TelegramOut oracle rows to stub 0 (orchestrator ruling 2026-10-31, file-level extension); the doc line 10 edit was dropped because Epic 15 also changes line 10 of src/ocutalon/cls/OcuTalon/Test/Install/Production.cls
+- 2026-10-31T11:52:15Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=doc only: append TelegramIn and TelegramOut (built in Story 12.2) to the class doc's list of items without STUB, in the same edit as Epic 15's own line-10 change; no behaviour
