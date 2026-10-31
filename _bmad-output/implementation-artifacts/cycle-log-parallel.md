@@ -1165,3 +1165,5 @@
 2026-10-31T17:44:19Z	Epic 16	runner_resumed	agent=af4a0f6f7daaef78f answer=ruling_C(U-197):drop_the_Telegram_QR_line,chat-only_limit_line_as_its_own_key,EXPERIENCE.md_118-119_amended(U-196),banner.allowance_ledgered_to_12.7
 2026-10-31T17:44:19Z	Epic 12	runner_message	agent=ab46a01f748320374 note=12.7_gains_the_splash's_Telegram_lines(U-197);AD-19_public-key_mechanism_to_the_orchestrator_at_12.7's_spec_gate
 2026-10-31T17:44:19Z	Epic 1-37	planner_pointer	to=Contest_Planner items=U-196(veto,Epic_16_readiness),U-197(veto,16.11_gate_ruling_C) last_pointed=U-197 eta_16.11=~20:00-20:15Z(misses_19:30Z;next_host_update)
+2026-10-31T17:45:03Z	Epic 16	owner_decision	items=U-196,U-197 via=inbox(Contest_Planner) answer=keep:comply_now;16.11_drops_the_QR_line_and_'in_the_chat'_only;the_Telegram_case_to_12.7_with_the_AD-19_public_key_at_its_spec_gate;no_AD-19_change_today resolve=when_16.11_reports_applied
+2026-10-31T17:45:03Z	Epic 5	host_confirmed	head=14de8018(deployed_17:27Z) case1=7/7(notices_18-31s,all_resolved) run1=110/110 browser_walk=clean;5.12_confirmed_on_real_Haiku new_low=DW-500(Triage_reasons_on_a_user_command)->30.5
