@@ -271,3 +271,5 @@
 2026-10-31T17:24:12Z	Epic 16	sprint_planning_complete	gate=CONCERNS scope=epic_16(story_16.11) findings=2(EXPERIENCE.md:118-119_stale_unconditional_Telegram_lines;16.11_cited_UX-DR28_not_UX-DR24) inbox=U-196(veto) amendments=epics.md:5019(UX-DR28->UX-DR24,tier-1) model=claude-opus-5-5
 2026-10-31T17:24:12Z	Epic 16	ruling	question=readiness_CONCERNS_on_re-open choice=continue_with_veto_item rejected=stop_epic why=the_AC_records_the_gate_and_both_texts_verbatim;only_the_UX_spec_is_stale category=veto reversal=amend_EXPERIENCE.md_lines_118-119 inbox=U-196 policy=6df0676
 2026-10-31T17:24:12Z	Epic 16	retro_review_skipped	reason=no_x0_input(re-open_for_one_launch-text_story;assignment_skip_by_dispatch)
+2026-10-31T17:27:07Z	Epic 16	epic_context_compiled	sha=7563b1c8 reason=planning_artifact_newer(re-open,story_16.11) model=claude-opus-5-5 lines=60
+2026-10-31T17:27:26Z	Story 16.11	stage_spawned	stage=plan spawn_at=2026-10-31T17:27:26Z model=claude-opus-5-5 agent_name=16-11-the-splash-promises-telegram-plan-1 cycle_iteration=1
