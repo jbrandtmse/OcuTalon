@@ -112,3 +112,4 @@
 2026-10-31T11:42:11Z	Epic 30	epic_context_spawned	reason=planning_artifact_newer(integrate-forward_b4406c6:epics.md_30.1_DW-386/DW-448_bullets,Epic_9_merged) spawn_at=2026-10-31T11:42:11Z model=claude-opus-5-5
 2026-10-31T11:42:11Z	Epic 30	ci_registered	sha=d1050ce runs=41197689148(ci),41197689030(lane-a) result=pending note=integrate-forward_head
 2026-10-31T11:47:46Z	Epic 30	epic_context_compiled	reason=planning_artifact_newer(integrate-forward) model=claude-opus-5-5 spawn_at=2026-10-31T11:42:11Z agent=a5874b8cd76eeb271 lines=161 notes=DW-386:Redact_misses_dop_v1_and_PEM;sk-ant_and_Telegram_token_covered_but_need_tests;DW-448:Walk_decodes_$List,throwaway_measures_stream_chunks;30.5_spec_stale_on_Q1,U-182_three_counts,U-183_Lane_A_payload
+2026-10-31T11:48:23Z	Story 30.1	stage_spawned	stage=plan spawn_at=2026-10-31T11:48:23Z model=claude-opus-5-5 agent_name=30-1-plan-1 cycle_iteration=1
