@@ -3850,6 +3850,26 @@ So that a rejection, a refusal, a newsletter and a suspicious request behave as 
 
 [ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.1]
 
+[AMENDED 2026-10-31, Story 11.7's plan, unattended split ruling (decide, U5): the failure-path scenarios and the coda moved verbatim to Story 11.10]
+
+**Acceptance Criteria:**
+
+**Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
+**When** it reaches a decision
+**Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
+
+- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
+- DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view; turn its steps on here (ledger; split from Story 11.1 2026-10-31)
+- DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2) (ledger; split from Story 11.1 2026-10-31)
+
+### Story 11.10: The demo path's failure paths and quiet outcomes pass in the REL-2 test
+
+As a judge,
+I want the demo path's rejection, refusal and quiet outcomes checked as well as its main route,
+So that a rejection, a refusal, a newsletter and a suspicious request behave as the README says.
+
+[ADDED 2026-10-31, split from Story 11.7 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.7, which had them from Story 11.1]
+
 **Acceptance Criteria:**
 
 **Given** the test's failure-path scenarios
@@ -3859,14 +3879,6 @@ So that a rejection, a refusal, a newsletter and a suspicious request behave as 
 **Given** the coda
 **When** the test presses "Sample: newsletter" and "Sample: suspicious request"
 **Then** the newsletter is decided Ignore with nothing on the phone, the suspicious request leads to no approval request, resend or setting change, and the whole test keeps a full CI run within 35 minutes [AMENDED 2026-10-20, owner decision 7] (NFR-14, REL-4, UX-DR105)
-
-**Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
-**When** it reaches a decision
-**Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
-
-- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
-- DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view; turn its steps on here (ledger; split from Story 11.1 2026-10-31)
-- DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2) (ledger; split from Story 11.1 2026-10-31)
 
 ### Story 11.8: The chat cancels several reminders in one call and says it can set them
 
