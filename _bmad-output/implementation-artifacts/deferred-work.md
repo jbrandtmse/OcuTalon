@@ -2405,3 +2405,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-7-demo-busy-counts-the-live-visitors.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Story 29.7 adds the public package's first global read (Web/Public/Status.cls Visitors, by indirection on its store argument); the check scans ##class, $SYSTEM and dynamic calls from the class dictionary only (spec Code Map). The public account still holds no read on any private database.
 - 2026-10-30T23:36:35Z status=wontfix-accepted owner=29-7-demo-busy-counts-the-live-visitors by=cr note=reopen_if=a Web.Public or Data.Public class reads a global other than ^OcuTalonPublic and ^%cspSession
+
+### DW-463: In one throwaway run of Story 29.8's L2 the connection reading after the one more visitor was one lower than the peak of the visitors' trace pages (6/2 against 7/2), so a trace connection may end within seconds of its last page
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: first live run of the load phase: 3/2, 5/2, 7/2 after visitors 1-3, 6/2 about 5 s later after the one more visitor; later runs not reproduced
+- 2026-10-31T02:35:19Z status=wontfix-accepted owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=harvest note=reopen_if=the host's H25 load run, or a throwaway reading the units every 2 s for 2 minutes after the last trace page, shows a trace connection ending before the ~120 s timeout; the script reports the peak as the load reading
