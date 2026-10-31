@@ -2823,6 +2823,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Decide.Judge sets problem = $SYSTEM.Status.GetErrorText(checked), and 'After the reply filter ran: ' plus its first 400 characters; IRIS's MAXLEN error #7201 quotes the datatype value
 - 2026-10-31T17:19:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=U-193_condition:build_the_warning_from_the_status's_code+property+limit(and_the_measured_length),never_its_value_text;a_test_pins_that_no_reply_content_appears;do_it_first_at_Epic_30's_re-dispatch
+- 2026-10-31T21:11:05Z owner=30-6-the-invalid-reply-warning-names-what-failed-never-the-reply by=lead note=dispatch(redispatch_2):DW-498_as_its_own_small_story_30.6,done_first;30.1_is_full;epics.md_bullet_under_30.6
 
 ### DW-500: When the item is the user's own command (for example 'Watch the Orders production…'), Triage's reasons describe its own tool limits ('I have no tools to read the production, so I cannot check whether anything there needs the user') and the outcome is overridden to Tell now at confidence 0.30; it reads oddly on the page, in Recent decisions and in the reply. Triage's reasons should describe the request instead (for example 'A request to start a watch; the user is answered directly')
 - source: Contest Planner: demo host walk on 14de8018, 2026-10-31 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2838,6 +2839,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AssertTrueViaMacro takes ''value, so (text [ "agent steps ")_stepId is "0"_id, a nonzero number, when Find misses the step; 16.11's review found six in Test.Web.Splash (one could never fail) and parenthesised them
 - 2026-10-31T19:24:43Z status=routed owner=burndown by=cr note=parenthesise KeyScan:123; a class-rules check for a top-level _ right of [ or ] in an assertion's first argument
 - 2026-10-31T20:50:43Z owner=30-1-long-conversations-are-compacted-under-the-limit by=burndown note=overflow from Epic 16's burn-down (one entry, under the cap, no charter): Lane A's Test.Agent.KeyScan:123 needs the parenthesised form, and a class-rules check could reject x [ "a"_y; Epic 30 is Lane A's hardening epic and its agent and bridge tests sit beside KeyScan
+- 2026-10-31T21:11:05Z owner=30-6-the-invalid-reply-warning-names-what-failed-never-the-reply by=lead note=dispatch:taken_with_DW-498's_small_story(Test.Agent.KeyScan:123_parenthesised+class-rules_check);epics.md_bullet_under_30.6
 
 ### DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram on the online demo: 'Your session and Telegram pairing will be cleared.' while the release has no Telegram; a sibling of DW-501
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint

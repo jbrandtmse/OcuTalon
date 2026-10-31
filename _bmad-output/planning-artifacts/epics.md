@@ -6879,6 +6879,34 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 - DW-469: U-180's condition: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label, for both time sources; pin it with a test (ledger; routed by lead 2026-10-31)
 - DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
 
+### Story 30.6: The invalid-reply warning names what failed, never the reply
+
+[ADDED 2026-10-31 at Epic 30's second re-dispatch, by the orchestrator's dispatch: DW-498, U-193's condition (kept by the Contest Planner), done first, as a story of its own because Story 30.1 is full. It reaches the demo with the next deploy of Epic 30's merge.]
+
+As a production developer,
+I want the trace warning for a refused reply to say which property failed and by how much, without quoting the reply,
+So that the model's own reply content never reaches the trace through an error text.
+
+**Acceptance Criteria:**
+
+**Given** a reply whose check fails on a length or datatype rule (for example an evidence element longer than its limit)
+**When** `Decide` refuses it as `invalid`
+**Then** its one trace warning names the failing property and the limit, with the measured length where it applies (for example 'Evidence element 6: 42 > 32'), built from the status's error code, property and limit, and quotes none of the reply's own content (U-193)
+
+**Given** a reply that fails its check again after the reply filter ran
+**When** `Decide` refuses it
+**Then** the "After the reply filter ran" warning follows the same rule (U-193)
+
+**Given** any other check failure (the reply is not one JSON object, or the status carries an error code with no property and limit)
+**When** the warning is written
+**Then** it names the error code and the reply class, and still quotes no reply content
+
+**Given** the tests in `OcuTalon.Test.Bridge`
+**When** they run
+**Then** a test pins that no reply content appears in the warning: a refused reply whose failing value carries a unique marker produces a warning without the marker, for both paths; the change stays inside `Decide.Judge` and its caller in `Bridge/Process/Decide.cls`
+- DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content); the warning must name the failing property and the limit and quote none of the reply (ledger; routed by orchestrator 2026-10-31)
+- DW-505: An assertion written x [ "a"_y tests only x [ "a", so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail; parenthesise it, and have a class-rules check reject a top-level _ right of [ or ] in an assertion's first argument (ledger; routed by burndown 2026-10-31)
+
 ## Epic 31: Lane B post-demo hardening
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane B's demo-path stories moved after the demo path.] On a local install the page gets live events over a WebSocket, with polling as the fallback, and a risky tool call's approval request reaches the simulated phone and the paired chat with Approve and Reject and is edited in place when answered. Each part lands before 1.0.0.
