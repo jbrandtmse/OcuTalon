@@ -1118,3 +1118,6 @@
 2026-10-31T11:56:37Z	Epic 16	worktree_provisioned	worktree=.worktrees/epic-16 branch=OCT-epic16 from=9ac6e499 reason=SC-5_reopen_for_story_16.11 bootstrap=ok
 2026-10-31T12:02:51Z	Epic 5	launch_risk_data	second_invalid_diagnosis=12:01:54Z(evidence_lengths_33,17,25,15,21;same_rule);host_rate=2/10_diagnoses;second_fixture_added_to_5.12's_prompt new_ledger=DW-484(agent-written_reminder_time_without_zone;routed_30-5)
 2026-10-31T12:04:51Z	Epic 1-37	ledger_routed_planned	entry=DW-485(allow-hyperevent_host_check;host_filter_fixed_host-side) story=31.4 by=orchestrator deps_hash=rerecorded(ledger_routed)
+2026-10-31T12:22:15Z	Epic 30	runner_ended	agent=ae4f43202b0e3ca11 reason=waiting waiting_on=5(launch_hotfix_5.12) head=d4793d2d(=origin;clean) integrated=86d4fe20(b4406c62) ci=pending(41200695365,41200695393) 30.1=spec_planned_not_validated(V1_veto;R1;DW-386/448_to_burndown_per_planner) 30.5=spec_planned applied=none
+2026-10-31T12:22:15Z	Epic 5	dispatch_planned	runner=B slot=ocutalon-slot-b reason=LAUNCH_RISK_hotfix(Epic_30_yielded) base=8b8fd952 prompt=scratchpad/dispatch-epic-5-hotfix.md eta_feature=~16:00-16:30Z
+2026-10-31T12:22:36Z	Epic 5	runner_dispatched	agent=a4831f2327c86bba0 model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,Story_5.12,launch_hotfix) base=8b8fd952 prompt=scratchpad/dispatch-epic-5-hotfix.md
