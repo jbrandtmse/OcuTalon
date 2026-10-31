@@ -2809,6 +2809,40 @@ So that the integrated feature branch stays green and each case's guide shows th
 **Then** no incident those tests left is visible to that session, whichever test made it (CI run 40525019781: `TestHookPublishesOnChange`, `TestEventsBodyServesTheGuide`)
 - DW-305: flake: the demo guide's computed step in Test.Live.GuideRefresh and e2e/floor/guide.spec.ts (M7, M9) differs in CI after Epic 5 merges into Epic 4's guide (ledger; routed by integrate-forward 2026-10-27)
 
+### Story 5.12: A correct diagnosis is never refused for an over-long evidence reference
+
+[ADDED 2026-10-31, launch-risk hotfix, decided by the orchestrator at the Contest Planner's request under the owner's delegation. Epic 5 is re-opened for it under SC-5. On the online demo host (fe1d81e2), one in six diagnoses in the load run fell back as `invalid`: the visitor got the fallback notice with no fix and could not finish the demo path. The rejected reply was correct (the OrderDate cause, a repair_resend fix, confidence 0.92). Its sixth evidence entry, "trace PartnerOrdersIn to OrdersFromPartner", is 42 characters, and `OcuTalon.Watch.Msg.DiagnosisPayload.Evidence` refuses any reference over 32, so the whole diagnosis failed its check. The probe also logged one `invalid` decision turn, whose cause is unknown because its evidence was reset. This must merge into the feature branch today, before the online demo goes public.]
+
+As a visitor on the online demo,
+I want a correct diagnosis accepted even when one of its evidence references runs long,
+So that Break the feed always ends with a fix I can approve.
+
+**Acceptance Criteria:**
+
+**Given** a diagnosis reply whose `evidence` holds a reference longer than 32 characters and no longer than 128
+**When** `OcuTalon.Bridge.Process.Decide` checks it against `OcuTalon.Watch.Msg.DiagnosisPayload`
+**Then** the reply passes, the incident's notice carries the cause, the fix, the dry run and the approval request, and no fallback is recorded
+**And** `DiagnosisPayload.Evidence` accepts each reference up to 128 characters; the diagnosis prompt (`OcuTalon.Agent.Diagnosis`) still asks for short references and states the new limit, at most 128 characters each, so the prompt and the class agree
+**And** a test replays the exact reply the host recorded (the fixture below, which holds no host detail), through the same check, and passes
+
+**Given** the other reply classes and prompts the model answers (the attention decision, the diagnosis, the chat turn's command reply, and any other class with a `MAXLEN` the prompt names)
+**When** this story audits them
+**Then** every length the prompt states matches its class, and no property tighter than 32 characters holds free text the model writes, outside the fixed value lists (outcome, causeCategory, fixKind); each limit this story widens is listed in the spec, and each one it keeps is kept with its reason
+
+**Given** a reply that its check refuses (`invalid`)
+**When** Decide records the fallback
+**Then** the trace of that decision also records the check's own error text (for example, which property failed and why). It is internal text: it never reaches the page, a notice, the phone or the model, and it names no key or secret. So the next `invalid` on the host can be diagnosed from the trace alone
+**And** a test pins it with a reply that fails one rule
+
+**Given** the change
+**When** this story merges
+**Then** CI is green on every workflow, the evaluation set on the mock passes unchanged, and the change touches only the payload class, the prompt classes, Decide's fallback trace, their tests and the fixture
+
+The fixture is the reply the host recorded at 11:45:50Z, kind diagnose, Claude Haiku 5.5, finish end_turn. It is copied into the test byte for byte:
+`{"outcome":"act","causeCategory":"data_format_change","elementAtFault":"OrderDate","evidence":["headerId 203","OrderDate 10/31/2026","expected YYYY-MM-DD","50 failed messages","OrdersFromPartner item","trace PartnerOrdersIn to OrdersFromPartner"],"fixKind":"repair_resend","fixParameters":{"field":"OrderDate","sourceFormat":"MM/DD/YYYY","targetFormat":"YYYY-MM-DD"},"cause":"The partner now sends OrderDate as MM/DD/YYYY, but the OrdersFromPartner item expects YYYY-MM-DD, so every order fails.","fixSummary":"repair the OrderDate field from MM/DD/YYYY to YYYY-MM-DD and resend the 50 failed orders, once you approve","itemNoun":{"one":"order","other":"orders"},"reasons":["The sample's OrderDate is 10/31/2026. Day 31 cannot be a month, so the format is MM/DD/YYYY.","The error names the expected format YYYY-MM-DD and the field value that did not match.","All 50 failures share the same error pattern, which points to a change in the partner's date format rather than a one-off bad message."],"confidence":0.92}`
+
+Not in this story: one retry on an `invalid` reply before the fallback. It would add a model call inside NFR-7's diagnosis budget, so it is a measured follow-up for the bridge's owner (Epic 30), decided by the Contest Planner.
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.

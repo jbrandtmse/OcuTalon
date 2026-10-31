@@ -50,6 +50,11 @@
 # merges. Epic 38 depends on Epic 11 and gates the v0.1.0 tag (people do the tag; Epic 12's merge gate on v0.1.0 waits for
 # it). Epic 11 merges once 11.1, 11.2, 11.4, 11.5 (with its rehearsal mode) and 11.3's harness and dry runs are done, so the
 # edges on Epic 11 (12.7, 13, 14, 15.3) clear at that merge. Epic 11's runner moves the stories in epics.md.
+# Changed 2026-10-31 (launch-risk hotfix, at the Contest Planner's request under the owner's delegation): Story 5.12 re-opens Epic 5
+# under SC-5. A correct diagnosis was refused on the demo host for one evidence reference over 32 characters. It changes only the
+# diagnosis payload class, the prompts, Decide's fallback trace and their tests, depends on nothing unmerged, and must merge today
+# before the online demo goes public. Epic 30, which also changed Decide.cls, yields runner B for it and integrates it at its
+# re-dispatch. No other edge changes.
 #
 # Dispatch rules on top of depends_on (the orchestrator enforces them):
 #   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
@@ -86,7 +91,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "d08fe9e8a8156ae3c30071387d7e83945484a4b879ecbfd7e16ef5663c2145fc"
+epics_md_hash: "f95412d4ba8e2aeaad9b2d5c7de72fd77a971633e4f04752b17de3c286d93194"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
