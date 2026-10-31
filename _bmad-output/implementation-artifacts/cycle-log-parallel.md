@@ -1159,3 +1159,4 @@
 2026-10-31T17:19:18Z	Epic 5	ledger_routed_planned	entries=DW-483->30.1,DW-484->30.5,DW-497->31.2 by=orchestrator
 2026-10-31T17:19:23Z	Epic 5	worktree_removed	worktree=.worktrees/epic-5 branch=OCT-epic5_deleted(local+remote)
 2026-10-31T17:19:56Z	Epic 5	condition_check	item=U-193(#581) condition='names_the_failing_property_and_the_limit_and_quotes_none_of_the_reply' result=NOT_MET_in_14de8018(GetErrorText_quotes_the_value) action=DW-498_routed_30-1(first_at_Epic_30's_re-dispatch);U-193_stays_open_until_it_lands
+2026-10-31T17:20:49Z	Epic 1-37	owner_decision	via=contest_planner item=U-193_gap(DW-498) decision=fix_in_Epic_30_first_at_re-dispatch;accepted_on_the_host_until_then;no_5.13;16.11_keeps_runner_B;resolve_U-193_against_DW-498's_apply_at_Epic_30's_merge
