@@ -2,8 +2,9 @@
 title: 'Story 15.2: The second install run gives a working OcuTalon with demo mode off'
 type: 'feature'
 created: '2026-10-30'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '7fd58499ccc20305a6be8ccd49febdb9ff8e1e71'
+baseline_commit: '7fd58499ccc20305a6be8ccd49febdb9ff8e1e71'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -34,7 +35,7 @@ deferred: []
 - Never run the installer steps inside IPM's open transaction. Measured at plan: the production cannot start there (`ErrCanNotAcquireRuntimeLock`). Never use `NoTransaction`, `-dev` or `<Defaults>`, which would undo Story 15.1's rollback of the stopped first run.
 - Never change an instance setting OcuTalon doesn't own, and never touch a namespace or database it didn't create. That covers services, a foreign `PasswordValidationRoutine` and its routine, `EnsembleAutoStart`, the host's zone, and a foreign OCUORDERS. No key or token goes into IRIS, a log or the trace. The chat check uses the CI mock through `keys_point`, never a key variable.
 - Never mark autostart on the Docker path, and never clear an existing mark.
-- Never edit a Lane B file or a Lane B test (U-177: the cross-lane group moved to Story 31.3, Lane B; AD-33). `Test/Core/SettingsOps.cls` is also contended by Epic 9.
+- Never edit a Lane B file or a Lane B test (U-177: the cross-lane group moved to Lane B; AD-33). `Test/Core/SettingsOps.cls` is also contended by Epic 9.
 - Never edit a contended file:
   - `docker/tests/lib-live.sh`, `docker/tests/lib-online.sh`, `docker/tests/test-production.sh`, `docker/after-start.cos`;
   - `src/bridge/**`, `Install/Step/{Telegram,SSL,Tasks,Retention,Watch}.cls`, `Install/Task*`;
@@ -220,6 +221,12 @@ deferred: []
   - **No local path, key or token** (`test-boundaries.sh`).
 - [ ] `.github/workflows/lane-a.yml`: unchanged. Only if `TIME` totals of `a` and `b` together go over 8 minutes locally: in job `ipm-install` only, set `timeout-minutes: 35` and `OCUTALON_LIVE_DEADLINE: "1980"`. Rule 7 needs the deadline under timeout times 60.
 
+**Owner decision U-176 (the answer of 2026-10-31T00:05:17Z#534, the owner's delegate, the Contest Planner): keep the commit at Configure, After, with four conditions. Work only these items in this pass.**
+- [ ] [Owner U-176 (1)] `src/ocutalon/cls/OcuTalon/Install/Registry.cls`: when `Ipm()`'s `Run("ipm")` fails after the commit, the install command reports failure (it already returns the error to IPM, so IPM prints `Configure FAILURE` and `ERROR! ...`; keep that, never let IPM's success line stand alone) and `Ipm()` prints exactly one more terminal line, in the Install step style of `Run`'s `STEP <name> ...` lines, that names the failed step, says that the new code is installed, and says to run the same install command again. Suggested text (decide the exact wording in the same plain style and record it): `STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.` Name the step from the run itself (the first failed step), never a guess. The Docker path (`Run("after-start")`) is unchanged. Pin it with a unit test in `Test.Install.Registry` if a pure seam allows (for example a class method that builds the line from a step name), and in the live check below.
+- [ ] [Owner U-176 (2)] `release/ipm-install.sh`, path A, after the existing checks (the FR-57 job's harness is here, so it is built in this story): a **forced step failure on a reinstall** through a test-only seam, never a switch in the shipped package. The seam lives only in the test: inside the throwaway, copy the package folder to a scratch folder of the container and change one installer step there so that its `Run()` returns an error (for example a Lane A step such as `Install/Step/Approvals.cls` or one that is safe to fail; never edit the real source tree), then `zpm "load <scratch folder>"` in OCUTALON as the reinstall. Before it, seed recognisable data that a reinstall must keep (for example a row the earlier checks already created, or a setting value; read it back by value). Prove: the command reports the failure (IPM's `ERROR!` and no success line alone), the U-176 (1) line names that step, the data is still there, OCUTALON and its four databases still exist; then the real folder's `zpm "load ..."` again completes, every `STEP ... OK`, the production runs, and the checks of Stories 15.1 and 15.2 pass again (reuse the existing check functions; do not copy them). Then a **failed Compile**: a second scratch copy with one class that does not compile; `zpm "load ..."` fails, IPM rolls it back, and the previous version keeps running (the production still runs with nothing missing, a class of the package still answers as before, and the module version is unchanged). Each `zpm` run goes through `run` so its `OUTPUT` and `TIME` lines are kept. Keep `a`'s local time well inside the 10-minute cap (split into a new argument, for example `r`, if needed, and list it in the header); the no-argument job line stays the same. If the job's local total of `a` plus `b` (plus any new argument) goes over 8 minutes, apply the spec's existing lane-a.yml rule (job `ipm-install` only: `timeout-minutes: 35`, `OCUTALON_LIVE_DEADLINE: "1980"`).
+- [ ] [Owner U-176 (3)] `docs/install-ipm.md`: one line that says the same: if a step fails after the code has loaded, the command reports the failure and names the step, the new code stays installed, and running the same command again finishes the install; a failure while IPM loads or compiles the code is rolled back and the previous version keeps running. Keep every existing rule of the document (real output, no local path, key or token).
+- [x] [Owner U-176 (4)] Done by the lead: Story 15.3's criterion in `epics.md` carries the reading ("the load" means IPM's Reload, Validate and Compile phases), and 15.3 gains the named AC that the same forced-failure re-run also passes Story 15.3's own checks once they exist.
+
 **Acceptance Criteria:**
 - Given the first run has created OCUTALON, or `iris merge` and `zpm "enable -map -ns OCUTALON"` have, when the install command runs in OCUTALON, then the matrix rows "Second run, path A", "Install checks" and "Path B" hold: `release/ipm-install.sh a` and `b` pass. This is an Integration AC whose consumer is IPM's Configure Invoke, and its effect is a running OcuTalon.
 - Given an IPM install, when its install checks and the web and REST checks run, then the rows "Web and REST" and "Package" hold.
@@ -233,7 +240,12 @@ deferred: []
 - Given an instance whose `PasswordValidationRoutine` is "" or names a foreign routine, when the install runs with the online-demo flag off, then the setting is unchanged and the foreign routine still exists. This holds in `Test.Install.Users.TestForeignGuardIsRefused`, and on the IPM install in path A ("") and path B (foreign) (DW-212).
 - Given the captured output of a passing run, when `docs/install-ipm.md` is read, then it covers every point of its task, its output blocks equal that run's `OUTPUT` blocks with ANSI codes removed, and `bash docker/tests/test-boundaries.sh` passes.
 
+- Given an IPM reinstall in OCUTALON where one installer step fails after the commit (a test-only scratch copy of the package), when the install command runs, then it reports the failure, prints one Install-style line naming the step that says the new code is installed and to run the same command again, keeps the data, OCUTALON and its databases, and the same command with the real package then completes and passes the checks of Stories 15.1 and 15.2 (U-176 (1), (2)).
+- Given an IPM reinstall whose Compile fails (a test-only scratch copy), when the install command runs, then IPM rolls it back and the previous version keeps running (U-176 (2)).
+- Given `docs/install-ipm.md`, when it is read, then one line says what a failed step after the load means and that running the same command again finishes the install (U-176 (3)).
 ## Spec Change Log
+
+- 2026-10-31, after the first implement pass (lead): the owner decision U-176 (via the Contest Planner, answer 2026-10-31T00:05:17Z#534) kept the commit at Configure, After, with conditions; the lead re-opened the spec (`in-progress`) with the four `[Owner U-176]` items and their acceptance criteria. The answer U-177 (#535) kept the Lane B routing and named Story 31.1 as the first owner of DW-34, DW-207 and DW-223.
 
 - 2026-10-31, spec gate (lead): the orchestrator's ruling U-177 (option B) removed the task group "Cross-lane (AD-33), awaiting the orchestrator's ruling", its acceptance criteria, its verification line, its three mutation rows and its shared surfaces; DW-34, DW-207 and DW-223 are declined (moved to Story 31.3). The Lane A scope, DW-212 included, is unchanged. The spine rows "IPM steps" and the `ReconcileIn` ownership row were written at this gate (veto U-176 for the step-failure reading).
 
@@ -272,7 +284,7 @@ deferred: []
 - AD-2: one package, the bridge's resources first, no dependency.
 - AD-3: the mappings and their install checks, OCUORDERS owned by the Demo step, and an IPM install marking autostart.
 - AD-5: every reconcile is idempotent, and the startup reconciler re-arms waiters.
-- AD-18: read only; DW-34 (the instance zone where TZ is unset) moved to Story 31.3 (U-177), so this story changes no zone code.
+- AD-18: read only; DW-34 (the instance zone where TZ is unset) moved to Lane B (U-177), so this story changes no zone code.
 - AD-19: keys only from the environment, and the `demo.mode` seed is "0" off the image.
 - AD-22: destructive work only on throwaways.
 - AD-23: the IPM install runs the same steps, `Production` marks autostart, and every production start reconciles.
@@ -338,17 +350,17 @@ No AC contradicts an AD.
 11. **The new tests go in the Install area.**
     - The `Test.Install` class changes run in `shards`' piece `lane-a@Checks,Install,Watch`, because the pieces are cut by area. `Test.Install.ReconcileIn` is pure and takes under 1 s.
     - `ci/units.sh` doesn't change.
-12. *(Withdrawn by U-177: DW-207 moved to Story 31.3.)*
-13. *(Withdrawn by U-177: DW-34 moved to Story 31.3.)*
+12. *(Withdrawn by U-177: DW-207 moved to Lane B.)*
+13. *(Withdrawn by U-177: DW-34 moved to Lane B.)*
 
-**Cross-lane ruling (U-177, the orchestrator, 2026-10-31, option B).** The cross-lane group left this story: no Lane B class or Lane B test is edited, `Test/Core/SettingsOps.cls` is left alone, and no AD-18 or AD-33 text changes. The plan's measured DW-34 facts above stay as a record for Story 31.3.
-- Declined DW-34 (U-177: moved to Story 31.3, Lane B classes, AD-33)
-- Declined DW-207 (U-177: moved to Story 31.3, Lane B classes, AD-33)
-- Declined DW-223 (U-177: moved to Story 31.3, Lane B classes, AD-33)
+**Cross-lane ruling (U-177, the orchestrator, 2026-10-31, option B).** The cross-lane group left this story (moved to Lane B; the answer of 2026-10-31T00:05:17Z#535 kept the routing and named Story 31.1): no Lane B class or Lane B test is edited, `Test/Core/SettingsOps.cls` is left alone, and no AD-18 or AD-33 text changes. The plan's measured DW-34 facts above stay as a record for Story 31.3.
+- Declined DW-34 (moved to Lane B (U-177): Lane B classes, AD-33)
+- Declined DW-207 (moved to Lane B (U-177): Lane B classes, AD-33)
+- Declined DW-223 (moved to Lane B (U-177): Lane B classes, AD-33)
 
 **Ledger inbox (Rule 17):**
 - DW-212 is addressed by the `Test/Install/Users.cls` task and matrix row "Path B".
-- DW-34, DW-207 and DW-223 are declined above (U-177) and re-owned to `31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur` by the orchestrator.
+- DW-34, DW-207 and DW-223 are declined above (U-177) and re-owned by the orchestrator to `31-1-push-live-events-over-a-websocket-on-local-installs`, the first Lane B story inside 1.0.0 that runs with their files free (DW-207 only once Epic 9 has merged; else the next Lane B story, 31.3 at the latest).
 
 **Integration ACs, Consumed-by and Consumes (Rules 1 and 2).**
 
