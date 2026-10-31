@@ -2399,3 +2399,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41150628107 attempt 1 (578d253, Story 30.3), iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: shard:lane-a@rest 1 of 57 classes failed (Approval 166.75s); 30.3 reworked the hold's delivery (re-arm, retry, Reconcile pass 3); passed locally fresh forward and reversed and warm; attempt 2 green
 - 2026-10-31T01:39:09Z status=routed owner=burndown by=ci note=flake: first occurrence; priority for Epic 30's burn-down (the hold timing on the x64 runner under 30.3's re-arm/retry)
+
+### DW-469: U-180's condition on V4: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label (for example '14:12 ET' on the online demo), for both time sources (IRIS's stop time and the check's detection time); the code does so by construction (a UTC 'time' slot rendered by Msg.Catalog.Render via Data.Time.ForMessage) but no test pins it
+- source: inbox U-180 (owner decision via the Contest Planner, 2026-10-31T05:42:45Z#545) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 30.4's Checks.Process sends slots {production, time: UTC ISO}; Msg.Catalog.Render formats a time slot through Data.Time.ForMessage with ' ET' on the online demo
+- 2026-10-31T06:16:18Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=lead note=30.5 touches the watch catalog and its tests: add a RenderAt pin for both keys and both time sources, with the online-demo flag on and off
+
+### DW-470: U-172's conditions: a replayed tool call that fails because no provider key is set or the provider can't be reached says so in its failed row, in catalog words, and that nothing was changed; and no public text claims a replay works without a provider connection
+- source: inbox U-172 (owner decision via the Contest Planner, 2026-10-31T05:42:45Z#546) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 30.3's Replay closes such a row failed with no reason the person reads (ProviderCreateFailed); DW-451 recorded the provider dependency
+- 2026-10-31T06:16:18Z status=routed owner=burndown by=lead note=for Epic 30's burn-down story with DW-444 and DW-462 (the replay and approval path); the lead checks the public texts now

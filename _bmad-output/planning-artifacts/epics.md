@@ -6425,6 +6425,7 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
 - DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
+- DW-469: U-180's condition: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label, for both time sources; pin it with a test (ledger; routed by lead 2026-10-31)
 
 ## Epic 31: Lane B post-demo hardening
 
