@@ -53,6 +53,9 @@
 ///   - UseItemClass and RestoreItemClass (Story 1.10): put a test class behind an item (the double of CommandsIn, Test.Tools.CommandsDouble) by changing the
 ///     item's ClassName in the stored configuration of the production, updating the running production and waiting until every item runs, and put the
 ///     item's class back; both go through ChangeSettings, which takes an optional class name.
+///   - StepProblems (Story 11.8): the one check of a turn's Visual Trace steps, which Test.Tools.Reminders, Test.Schedule.ReminderChat and Test.Watch.Turns share.
+///     It waits for the steps of a decision, then names, joined by "; " like FallbackProblems, whatever is not as a turn with n tool calls leaves: the kinds,
+///     each tool step's label, summary and status, a step with no header in the trace session or with one outside it, and, for a runner, its replies to Decide.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -854,6 +857,59 @@ ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObje
 		If row.FallbackReason '= reason Set problems = problems _ $ListBuild("the reason of the row is '"_row.FallbackReason_"', not "_reason)
 		If (row.Reasons _ row.Confidence _ row.Payload) '= "" Set problems = problems _ $ListBuild("the row keeps reasons, a confidence or a payload")
 		If $IsObject(answer) && (row.Ref '= answer.DecisionRef) Set problems = problems _ $ListBuild("the Ref of the row is not the DecisionRef of the answer")
+	}
+	Quit $ListToString(problems, "; ")
+}
+
+/// What is wrong with the Visual Trace steps of a turn's decision, named and joined by "; ", or "" when nothing is. The turn made one tool call for each
+/// label, and labels and tools hold, in order, the step label and the tool name of each call. It polls StepsOf every 0.25 s, for at most seconds, until the
+/// decision has 1 + 2n steps (the AgentSteps operation writes them after the turn), then names:
+///   - kinds other than model, followed by n pairs of tool and model;
+///   - a tool step i with a label other than labels(i), a summary that lacks tools(i), or a status other than ok;
+///   - a step with a header outside the session sessionId, and a step with no header in it;
+///   - when runner is not empty, a count of that runner's replies to Decide in the session other than 1.
+ClassMethod StepProblems(decisionRef As %String, sessionId As %Integer, labels As %List, tools As %List, runner As %String = "", seconds As %Integer = 10) As %String
+{
+	Set count = $ListLength(labels)
+	Set end = $ZHorolog + seconds
+	For {
+		Set steps = ..StepsOf(decisionRef)
+		If (steps.%Size() >= (1 + (2 * count))) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Set problems = ""
+	Set want = "model"
+	For i = 1:1:count {
+		Set want = want _ ",tool,model"
+	}
+	Set actual = ""
+	Set toolPosition = 0
+	Set iterator = steps.%GetIterator()
+	While iterator.%GetNext(, .step) {
+		Set actual = actual _ $Select(actual = "": "", 1: ",") _ step.kind
+		If step.kind = "tool" {
+			Set toolPosition = toolPosition + 1
+			If toolPosition > count Continue
+			Set label = $List(labels, toolPosition)
+			Set tool = $List(tools, toolPosition)
+			If step.label '= label Set problems = problems _ $ListBuild("tool step "_toolPosition_" has the label '"_step.label_"', not '"_label_"'")
+			If step.summary '[ tool Set problems = problems _ $ListBuild("the summary of tool step "_toolPosition_" does not name "_tool_": "_$Extract(step.summary, 1, 120))
+			If step.status '= "ok" Set problems = problems _ $ListBuild("the status of tool step "_toolPosition_" is '"_step.status_"', not ok")
+		}
+	}
+	If actual '= want Set problems = $ListBuild("the steps are "_actual_", not "_want) _ problems
+	Set iterator = steps.%GetIterator()
+	While iterator.%GetNext(, .step) {
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId <> ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, sessionId)
+		Do rows.%Next()
+		If rows.%GetData(1) > 0 Set problems = problems _ $ListBuild("step "_step.position_" ("_step.kind_") has a header outside session "_sessionId)
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId = ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, sessionId)
+		Do rows.%Next()
+		If rows.%GetData(1) = 0 Set problems = problems _ $ListBuild("step "_step.position_" ("_step.kind_") has no header in session "_sessionId)
+	}
+	If runner '= "" {
+		Set replies = ..CountTo(..Headers(sessionId, runner), "Decide")
+		If replies '= 1 Set problems = problems _ $ListBuild("the runner "_runner_" sent "_replies_" replies to Decide in session "_sessionId_", not 1")
 	}
 	Quit $ListToString(problems, "; ")
 }

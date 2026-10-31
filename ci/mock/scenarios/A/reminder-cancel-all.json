@@ -1,0 +1,32 @@
+{
+  "name": "reminder-cancel-all",
+  "match": {
+    "marker": "reminder-cancel-all"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_reminders",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "cancel_reminder",
+        "input": {
+          "reminderRefs": [
+            "zzReminderChatCancel02",
+            "zzReminderChatCancel03",
+            "zzReminderChatCancel04"
+          ]
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock cancelled the reminders."
+    }
+  ]
+}

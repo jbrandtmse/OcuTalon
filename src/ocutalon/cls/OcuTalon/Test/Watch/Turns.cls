@@ -61,7 +61,7 @@ Method TestStartThroughTheAgent()
 		}
 	}
 	If requests.%Size() > 0 Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(0)), "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,set_reminder,start_watch,stop_watch", "the model is offered the eight tools of Chat")
-	Do ..AssertSteps(answer, turnSession, "Starting a watch", "start_watch", "ok")
+	Do ..AssertSteps(answer, turnSession, "Starting a watch", "start_watch")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(session)
 	Do $$$AssertEquals(checks.Count(), 1, "Ownership.Checks, the source of /state, lists one watch")
 	If checks.Count() = 1 Do $$$AssertEquals(checks.GetAt(1).Kind_"|"_checks.GetAt(1).DisplayName, "production|Orders", "of Kind production and display name Orders")
@@ -91,7 +91,7 @@ Method TestStopLeavesTheOtherSession()
 			Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.production, "1|stopped|Orders", "the model reads ok, stopped and Orders")
 		}
 	}
-	Do ..AssertSteps(answer, turnSession, "Stopping a watch", "stop_watch", "ok")
+	Do ..AssertSteps(answer, turnSession, "Stopping a watch", "stop_watch")
 }
 
 Method TestUnknownName()
@@ -151,7 +151,7 @@ Method TestDismissThroughTheAgent()
 			Do $$$AssertEquals(seen.ok_"|"_seen.outcome_"|"_seen.ref_"|"_seen.state, "1|closed|"_ref_"|closed", "the model reads ok, closed, the Ref and the state closed")
 		}
 	}
-	Do ..AssertSteps(answer, turnSession, "Dismissing an incident", "dismiss_incident", "ok")
+	Do ..AssertSteps(answer, turnSession, "Dismissing an incident", "dismiss_incident")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "incident", 1, ..#WAITINCIDENT)
 	Do $$$AssertTrue(events.%Size() > 0, "the session's stream holds an incident event")
 	If events.%Size() > 0 {
@@ -261,33 +261,11 @@ Method AssertTurn(sc As %Status, answer As %Persistent, request As OcuTalon.Brid
 	Quit $$$ISOK(sc) && $IsObject(row) && (answer.Text = text)
 }
 
-/// The steps of Visual Trace: model, the tool step with the label, whose summary names the tool and whose status is the given one, and model; no step has
-/// a header outside the session of the decision, and the runner's reply is in that session too (DW-74).
-Method AssertSteps(answer As %Persistent, session As %Integer, label As %String, tool As %String, status As %String) [ Private ]
+/// The steps of Visual Trace: model, the tool step with the label, whose summary names the tool and whose status is ok, and model; no step has
+/// a header outside the session of the decision, and the runner's reply is in that session too (DW-74). RunnerFixture.StepProblems does the check.
+Method AssertSteps(answer As %Persistent, session As %Integer, label As %String, tool As %String) [ Private ]
 {
-	Set fixture = ..#FIXTURE
-	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
-	Set actual = ""
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set actual = actual _ $Select(actual = "": "", 1: ",") _ step.kind
-		If step.kind = "tool" {
-			Do $$$AssertEquals(step.label, label, "the tool step has the label "_label)
-			Do $$$AssertTrue(step.summary [ tool, "and its summary names "_tool_": "_$Extract(step.summary, 1, 120))
-			Do $$$AssertEquals(step.status, status, "and its status is "_status)
-		}
-	}
-	Do $$$AssertEquals(actual, "model,tool,model", "the steps are model, tool and model")
-	Set outside = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId <> ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, session)
-		Do rows.%Next()
-		Set outside = outside + rows.%GetData(1)
-	}
-	Do $$$AssertEquals(outside, 0, "no step has a header outside the session of the decision")
-	Set headers = $ClassMethod(fixture, "Headers", session, "ChatAgent")
-	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", headers, "Decide"), 1, "and the runner's reply is in that session too")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "StepProblems", answer.DecisionRef, session, $ListBuild(label), $ListBuild(tool), "ChatAgent"), "", "the steps of the turn are right")
 }
 
 }

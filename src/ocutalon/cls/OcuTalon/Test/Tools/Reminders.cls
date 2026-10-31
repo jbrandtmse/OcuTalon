@@ -11,7 +11,7 @@
 /// Test.Tools.Result does, and call the tool methods. Every user turn has an owner of its own (a new Ref).
 ///   - TestDeclarations (AC1, AC2; no production needed): Chat's TOOLSETS is the toolset, which offers exactly the three names of Tools.Names, each once, from
 ///     ReminderTools; each tool's step label is its own class parameter, not the generic one; the classification parameters are the table of the spec; the
-///     inputs are text, delaySeconds and localDueAt, none and reminderRef, and none names a session, an owner or an origin; the toolset holds no Requirement;
+///     inputs are text, delaySeconds and localDueAt, none and reminderRefs, and none names a session, an owner or an origin; the toolset holds no Requirement;
 ///   - TestSetRelative (AC3, AC4, AC7): "Remind me in 1 minute to stretch." (reminder-set-relative) submits one SetReminder with origin tool, the session of the
 ///     turn, the key <ItemId>:1, Text and DelaySeconds 60 and no other field; the model's next request carries ok, message, ref, due and dueLocal; the reply is
 ///     the scenario's text; the steps are model, tool (Setting a reminder) and model, in the session of the decision; the Reminder table is unchanged;
@@ -45,6 +45,13 @@
 ///   - TestListKeepsTheOwnersOrder (AC6): the list is in the order of the owner's Data, which is neither the order of the due times nor of the refs nor of the texts;
 ///   - TestBadDelayThroughTheToolManager (AC8): a delaySeconds of 1.5, -5 or abc, given as AI Hub's tool manager decodes it, answers BADDELAY and submits nothing,
 ///     while 60 and an omitted one reach the owner, so a coercion by AI Hub would show.
+/// Added by Story 11.8 (DW-140; AC1, AC3):
+///   - TestCancelSeveral (AC1): cancel_reminder takes reminderRefs and submits one CancelReminder for each ref, in order, with the keys of the next positions;
+///     one refused (refuseRef of the double) does not stop the others and stays in its entry; one ref, as a list or as a string, keeps the flat answer; a failed
+///     submit answers NOTSENT in each entry with one warning each; a ref given twice is submitted twice;
+///   - TestCancelThroughTheToolManager (AC3): a JSON array and a JSON string reach the method as AI Hub's tool manager decodes them, the bad shapes answer BADREFS
+///     and record nothing, and a call outside a session's turn answers NOSESSION first.
+/// The steps of every live test are checked by RunnerFixture.StepProblems (DW-316).
 /// The tests of the cancel and the list also compare the whole Reminder table before and after the turn (a tool that updates a row is caught, not only one that adds).
 /// OnAfterOneTest and OnAfterAllTests put back what a test made, also when it failed: the fixture Reminder rows (by Ref), ^OcuTalonTest("CommandsDouble"), the
 /// Decision, Usage and AgentStep rows of the turns (by ItemId), the AI sessions the turns saved with their links, the context, the process zone (the base class
@@ -154,7 +161,7 @@ Method OnAfterAllTests() As %Status
 /// step label is the class parameter STEPLABEL<NAME>, not the generic label. The classification parameters are set and cancel: safe, not read-only,
 /// trusted output (their answers are built by code, so two calls in one response both run and nothing taints the turn: DW-136); list: safe, read-only,
 /// trusted output (DW-139). The inputs are text, delaySeconds and localDueAt for set (text required), none for list and
-/// reminderRef for cancel (required), and none names a session, an owner or an origin. The descriptions tell the model the two due forms and that
+/// reminderRefs for cancel (required, an array of strings), and none names a session, an owner or an origin. The descriptions tell the model the two due forms and that
 /// cancel takes the ref that list gave, and none starts with an SQL verb. The toolset holds no Requirement element, and each method returns a dynamic object.
 Method TestDeclarations()
 {
@@ -165,7 +172,7 @@ Method TestDeclarations()
 	Set expected = $ListBuild($Parameter(names, "SETREMINDER"), $Parameter(names, "LISTREMINDERS"), $Parameter(names, "CANCELREMINDER"))
 	Set want("set_reminder") = $ListBuild("safe", 0, 1, "Setting a reminder", "delaySeconds,localDueAt,text", "text")
 	Set want("list_reminders") = $ListBuild("safe", 1, 1, "Listing your reminders", "", "")
-	Set want("cancel_reminder") = $ListBuild("safe", 0, 1, "Cancelling a reminder", "reminderRef", "reminderRef")
+	Set want("cancel_reminder") = $ListBuild("safe", 0, 1, "Cancelling a reminder", "reminderRefs", "reminderRefs")
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
 	Do $$$AssertEquals(tools.%Size(), 3, "the toolset offers three tools")
 	Set found = ""
@@ -189,6 +196,10 @@ Method TestDeclarations()
 		Do $$$AssertEquals(inputs, $List(want(name), 5), name_" takes the inputs '"_$List(want(name), 5)_"'")
 		Do $$$AssertEquals($ListToString(..Items(tool.parameters.required)), $List(want(name), 6), name_" requires '"_$List(want(name), 6)_"'")
 		If name = "set_reminder" Do $$$AssertEquals(tool.parameters.properties.delaySeconds.type, "integer", "set_reminder's delaySeconds is an integer in the schema, so the model is asked for a whole number")
+		If name = "cancel_reminder" {
+			Do $$$AssertEquals(tool.parameters.properties.reminderRefs.type, "array", "cancel_reminder's reminderRefs is an array in the schema, so the model is asked for a list of refs")
+			Do $$$AssertEquals(tool.parameters.properties.reminderRefs.items.type, "string", "whose items are strings")
+		}
 		For input = 1:1:$Length(inputs, ",") {
 			Set one = $Piece(inputs, ",", input)
 			If one = "" Continue
@@ -231,6 +242,7 @@ Method TestDeclarations()
 	Do $$$AssertTrue(descriptions("set_reminder") [ "localDueAt", "and localDueAt, for a day and time")
 	Do $$$AssertTrue(descriptions("set_reminder") [ "Local time", "which is worked out from the Local time line of the message")
 	Do $$$AssertTrue(descriptions("cancel_reminder") [ "list_reminders", "the description of cancel_reminder says that it takes the ref that list_reminders gave")
+	Do $$$AssertTrue(descriptions("cancel_reminder") [ "all in this one call", "and that every ref goes in one call")
 	Set definition = ##class(%Dictionary.XDataDefinition).%OpenId(..#TOOLSET_"||Definition")
 	Set xml = $Select($IsObject(definition): definition.Data.Read(32000), 1: "")
 	Do $$$AssertTrue(xml '= "", "the toolset has its Definition")
@@ -379,6 +391,135 @@ Method TestCancelRefused()
 	Do ..AssertSteps(answer, session, $ListBuild("Listing your reminders", "Cancelling a reminder"), $ListBuild("list_reminders", "cancel_reminder"))
 	Set calls = ..Calls()
 	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded the list and the cancel")
+}
+
+/// Several refs in one cancel_reminder call (AC1; DW-140, U-118), in process. Each case is a session's turn of its own.
+///   - Three refs: three CancelReminder commands in the order of the refs, each with origin tool, the session, and the keys :1, :2 and :3; the answer is
+///     {"ok": true, "results": [one answer for each ref, with its ref]};
+///   - the owner refuses the second (refuseRef): the first and the third are still submitted, the second's entry is {"ok": false, "message": the owner's, "ref"}
+///     and the top ok is false;
+///   - one ref, as a one-element list and as the string: one command, and the flat answer of a single cancel, with no results;
+///   - a failed submit of two refs: both are recorded, both entries are {"ok": false, "message": NOTSENT, "ref"}, with one warning each;
+///   - a ref given twice is submitted twice, each with its own key, and the tool does not dedupe.
+Method TestCancelSeveral()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set r1 = ..RefOf("Sev1")
+	Set r2 = ..RefOf("Sev2")
+	Set r3 = ..RefOf("Sev3")
+	Set done = "The CI double cancelled the reminder."
+	Set verb = "OcuTalon.Msg.Command.CancelReminder"
+	Set names = "IdempotencyKey,Origin,ReminderRef,SessionRef"
+
+	Set itemId = ..Fresh(owner)
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2), (r3)])
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 3, "three refs: the double recorded three commands")
+	If calls.%Size() = 3 {
+		For i = 0:1:2 {
+			Do ..AssertCall(calls.%Get(i), verb, owner, itemId_":"_(i + 1), names, "cancel "_(i + 1))
+			Do $$$AssertEquals(calls.%Get(i).fields.ReminderRef, $Case(i, 0: r1, 1: r2, :r3), "cancel "_(i + 1)_" names ref "_(i + 1)_", in the order given")
+		}
+	}
+	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": true, "message": (done), "ref": (r2)}, {"ok": true, "message": (done), "ref": (r3)}], "three refs")
+
+	Set itemId = ..Fresh(owner)
+	Set ^OcuTalonTest("CommandsDouble", "refuseRef", r2) = "That reminder has already fired."
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2), (r3)])
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 3, "one refused: R1 and R3 are still submitted, three commands")
+	If calls.%Size() = 3 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key_"|"_calls.%Get(2).key, itemId_":1|"_itemId_":2|"_itemId_":3", "with the keys of their positions")
+	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": false, "message": "That reminder has already fired.", "ref": (r2)}, {"ok": true, "message": (done), "ref": (r3)}], "one refused")
+	Do $$$AssertEquals(answer.ok, 0, "and the top ok is false")
+
+	Set itemId = ..Fresh(owner)
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1)])
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "one ref in a list: one command")
+	If calls.%Size() = 1 Do ..AssertCall(calls.%Get(0), verb, owner, itemId_":1", names, "cancel")
+	Do ..AssertObject(answer, {"ok": true, "message": (done), "ref": (r1)}, "one ref in a list answers the flat answer")
+	Set itemId = ..Fresh(owner)
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder(r1)
+	Do $$$AssertEquals(..Calls().%Size(), 1, "one ref as a string: one command")
+	Do ..AssertObject(answer, {"ok": true, "message": (done), "ref": (r1)}, "and the flat answer")
+	Set itemId = ..Fresh(owner)
+	Set ^OcuTalonTest("CommandsDouble", "refuseRef", r1) = "That reminder has already fired."
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1)])
+	Do ..AssertObject(answer, {"ok": false, "message": "That reminder has already fired."}, "one ref that the owner refuses answers the owner's refusal, with no ref and no results")
+
+	Set itemId = ..Fresh(owner)
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r1)])
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 2, "a ref given twice: the tool submits it twice")
+	If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "each with its own key")
+	Do ..AssertResults(answer, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": true, "message": (done), "ref": (r1)}], "a ref given twice")
+
+	Set itemId = ..Fresh(owner)
+	Set ^OcuTalonTest("CommandsDouble", "fail") = 1
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder([(r1), (r2)])
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 2, "failed submit: the double recorded both commands")
+	If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "with the keys :1 and :2")
+	Set notsent = $Parameter(..#CALL, "NOTSENT")
+	Do ..AssertResults(answer, [{"ok": false, "message": (notsent), "ref": (r1)}, {"ok": false, "message": (notsent), "ref": (r2)}], "a failed submit")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#CALL, "Run", $ListBuild(verb, "The CI double was set to fail")), 2, "with one warning of Run for each ref")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).WarningRows(mark, "", ..#CALL), 2, "and no other warning of "_..#CALL)
+}
+
+/// cancel_reminder through AI Hub's tool manager (AC3; DW-140), in process (a fresh %AI.ToolMgr, as TestBadDelayThroughTheToolManager does). A JSON
+/// {"reminderRefs": [R1, R2]} gives two commands, keys :1 and :2, and the several-ref answer; {"reminderRefs": "R3"} gives one command and the flat answer;
+/// each bad shape (reminderRefs left out, [], {}, "", null, and a list with a 5, an {} or a null in it) answers BADREFS and records nothing; and a call
+/// outside a session's turn answers NOSESSION whatever its arguments.
+Method TestCancelThroughTheToolManager()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set r1 = ..RefOf("Mgr1")
+	Set r2 = ..RefOf("Mgr2")
+	Set r3 = ..RefOf("Mgr3")
+	Set done = "The CI double cancelled the reminder."
+	Set manager = ##class(%AI.ToolMgr).%New()
+	Do $$$AssertStatusOK(manager.RegisterToolSet(..#TOOLSET), "a fresh tool manager registers the reminder toolset")
+	Do manager.%Discover()
+	Set itemId = ..Fresh(owner)
+	Set result = manager.ExecuteTool("cancel_reminder", {}.%FromJSON("{""reminderRefs"":[""" _ r1 _ """,""" _ r2 _ """]}"))
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 2, "a JSON array of two refs: two commands")
+	If calls.%Size() = 2 {
+		Do ..AssertCall(calls.%Get(0), "OcuTalon.Msg.Command.CancelReminder", owner, itemId_":1", "IdempotencyKey,Origin,ReminderRef,SessionRef", "the first")
+		Do ..AssertCall(calls.%Get(1), "OcuTalon.Msg.Command.CancelReminder", owner, itemId_":2", "IdempotencyKey,Origin,ReminderRef,SessionRef", "the second")
+		Do $$$AssertEquals(calls.%Get(0).fields.ReminderRef_"|"_calls.%Get(1).fields.ReminderRef, r1_"|"_r2, "for the refs in order")
+	}
+	Do ..AssertResults(result.value, [{"ok": true, "message": (done), "ref": (r1)}, {"ok": true, "message": (done), "ref": (r2)}], "the answer of a JSON array")
+	Set itemId = ..Fresh(owner)
+	Set result = manager.ExecuteTool("cancel_reminder", {}.%FromJSON("{""reminderRefs"":""" _ r3 _ """}"))
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "a JSON string: one command")
+	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(0).fields.ReminderRef, itemId_":1|"_r3, "with the key :1 and the ref")
+	Do ..AssertObject(result.value, {"ok": true, "message": (done), "ref": (r3)}, "and the flat answer")
+	Set itemId = ..Fresh(owner)
+	Do manager.ExecuteTool("cancel_reminder", {}.%FromJSON("{""reminderRefs"":[""""]}"))
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "a list holding an empty string holds a string: it goes to the owner as one command")
+	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(0).fields.ReminderRef, itemId_":1|", "with the key :1 and an empty ref")
+
+	Set itemId = ..Fresh(owner)
+	Set badrefs = $Parameter(..#TOOLS, "BADREFS")
+	For json = "{}", "{""reminderRefs"":[]}", "{""reminderRefs"":{}}", "{""reminderRefs"":""""}", "{""reminderRefs"":null}", "{""reminderRefs"":[5]}", "{""reminderRefs"":[{}]}", "{""reminderRefs"":[null]}", "{""reminderRefs"":[""a"",5]}", "{""reminderRefs"":[true]}" {
+		Set result = manager.ExecuteTool("cancel_reminder", {}.%FromJSON(json))
+		Do ..AssertObject(result.value, {"ok": false, "message": (badrefs)}, json_" answers BADREFS")
+	}
+	Do $$$AssertEquals(..Calls().%Size(), 0, "and the double recorded nothing")
+
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set result = manager.ExecuteTool("cancel_reminder", {}.%FromJSON("{""reminderRefs"":[""" _ r1 _ """]}"))
+	Do ..AssertObject(result.value, {"ok": false, "message": ($Parameter(..#CALL, "NOSESSION"))}, "with no session's turn, a good call answers NOSESSION")
+	Set result = manager.ExecuteTool("cancel_reminder", {})
+	Do ..AssertObject(result.value, {"ok": false, "message": ($Parameter(..#CALL, "NOSESSION"))}, "and so does a bad one, before the refs are read")
+	Do $$$AssertEquals(..Calls().%Size(), 0, "and nothing is submitted")
+	Do manager.Cleanup()
 }
 
 /// "Which reminders do I have?" (AC6; scenario reminder-list). Owner A has two pending reminders (due 2027-03-04T15:00:00Z and, sooner, 2027-03-02T09:00:00Z),
@@ -925,40 +1066,10 @@ Method AssertTurn(sc As %Status, answer As %Persistent, request As OcuTalon.Brid
 
 /// The steps of Visual Trace (AC1, AC7): the AgentStep messages of the decision are a model step, then a tool step and a model step for each tool call. The
 /// tool steps have the labels, their summaries name the tools, and their status is ok. The steps, and the runner's reply, are in the session of the decision.
+/// RunnerFixture.StepProblems does the check and names whatever is wrong.
 Method AssertSteps(answer As %Persistent, session As %Integer, labels As %List, tools As %List) [ Private ]
 {
-	Set fixture = ..#FIXTURE
-	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
-	Set kinds = "model"
-	For i = 1:1:$ListLength(labels) {
-		Set kinds = kinds _ ",tool,model"
-	}
-	Set actual = ""
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set actual = actual _ $Select(actual = "": "", 1: ",") _ step.kind
-	}
-	Do $$$AssertEquals(actual, kinds, "the steps are "_kinds)
-	Set toolPosition = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		If step.kind '= "tool" Continue
-		Set toolPosition = toolPosition + 1
-		If toolPosition > $ListLength(labels) Continue
-		Do $$$AssertEquals(step.label, $List(labels, toolPosition), "tool step "_toolPosition_" has the label "_$List(labels, toolPosition))
-		Do $$$AssertTrue(step.summary [ $List(tools, toolPosition), "and its summary names "_$List(tools, toolPosition)_": "_$Extract(step.summary, 1, 120))
-		Do $$$AssertEquals(step.status, "ok", "and its status is ok")
-	}
-	Set outside = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId <> ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, session)
-		Do rows.%Next()
-		Set outside = outside + rows.%GetData(1)
-	}
-	Do $$$AssertEquals(outside, 0, "no step has a header outside the session of the decision")
-	Set headers = $ClassMethod(fixture, "Headers", session, "ChatAgent")
-	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", headers, "Decide"), 1, "and the runner's reply is in that session too")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "StepProblems", answer.DecisionRef, session, labels, tools, "ChatAgent"), "", "the steps of the turn are right")
 }
 
 /// Asserts the record of one command of the double: its class, origin tool, the session, the key, the names of its non-empty fields and the verb.
@@ -969,6 +1080,44 @@ Method AssertCall(call As %DynamicObject, class As %String, owner As %String, ke
 	Do $$$AssertEquals(call.sessionRef, owner, verb_": its SessionRef is the OwnerRef of the turn")
 	Do $$$AssertEquals(call.key, key, verb_": its key is "_key)
 	Do $$$AssertEquals(..SortedKeys(call.fields), names, verb_": it sets "_names_" and no other field")
+}
+
+/// A fresh start of a case for the tests of several refs: the double's records and modes are cleared, the context ends, and a context of a new turn of the owner
+/// begins. Gives the turn's ItemId.
+Method Fresh(owner As %String) As %String [ Private ]
+{
+	Kill ^OcuTalonTest("CommandsDouble")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, itemId)
+	Quit itemId
+}
+
+/// Asserts that the answer of a cancel of several refs (a dynamic object, as the tool returns it) is {"ok": every entry ok, "results": [...]}, with one entry
+/// for each expected one, in order, each the flat object that AssertObject compares.
+Method AssertResults(actual As %DynamicObject, entries As %DynamicArray, label As %String) [ Private ]
+{
+	If '$IsObject(actual) {
+		Do $$$AssertTrue(0, label_": the answer is an object: "_$Extract(actual, 1, 200))
+		Quit
+	}
+	Do $$$AssertEquals(..SortedKeys(actual), "ok,results", label_": the answer has ok and results and nothing else")
+	Do $$$AssertEquals(actual.%GetTypeOf("ok"), "boolean", label_": ok is a boolean")
+	Set every = 1
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If 'entry.ok Set every = 0
+	}
+	Do $$$AssertEquals(actual.ok, every, label_": ok is true only when every entry is")
+	Set results = actual.results
+	If '$IsObject(results) || ('results.%IsA("%Library.DynamicArray")) {
+		Do $$$AssertTrue(0, label_": results is an array")
+		Quit
+	}
+	Do $$$AssertEquals(results.%Size(), entries.%Size(), label_": one entry for each ref")
+	For i = 0:1:entries.%Size() - 1 {
+		If i < results.%Size() Do ..AssertObject(results.%Get(i), entries.%Get(i), label_": entry "_(i + 1))
+	}
 }
 
 /// The commands that the double recorded, in order, as a dynamic array of {"class","origin","sessionRef","key","fields"}: fields is the JSON object of the

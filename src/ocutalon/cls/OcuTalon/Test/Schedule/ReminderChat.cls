@@ -12,6 +12,10 @@
 ///   - TestCancelThroughChat (AD-4): two sessions each set a reminder with the guide prompt; one asks to cancel it with the marker
 ///     reminder-cancel-chat. The list gives only its own reminder, the cancel (key <ItemId>:2) cancels that one and ends its waiter at
 ///     once, its one cancelled event takes the row out of its rail, and the other session's row, waiter and events are untouched.
+///   - TestCancelAllThroughChat (DW-140, AD-20): session A sets three reminders (the marker reminder-thursday, the fixed Refs 02 to 04) and B one;
+///     A sends "Cancel all my reminders." with the marker reminder-cancel-all. Chat makes 3 requests (the list, one cancel_reminder call with the three
+///     refs, the reply), under its ceiling of 4. A's three rows are cancelled with the keys <ItemId>:2, :3 and :4, their waiters end, their cancelled events
+///     arrive and A's rail is empty; B's row, waiter, event and rail are untouched.
 /// A reminder's created event has the state pending, as Test.Schedule.Reminders reads it. The model's history carries the answer to the
 /// earlier set tool call of the session, so the tool_results of a later request start with it.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("ReminderChat","n")), Send, WaitDone and the clean-up are those of
@@ -32,6 +36,9 @@ Parameter GUIDEPROMPT = "Remind me in 1 minute to stretch.";
 
 /// The Ref that scenario reminder-cancel-chat cancels.
 Parameter FIXEDREF = "zzReminderChatCancel01";
+
+/// The Refs that scenario reminder-cancel-all cancels, comma-separated.
+Parameter ALLREFS = "zzReminderChatCancel02,zzReminderChatCancel03,zzReminderChatCancel04";
 
 /// 1 while the runners' keys point at the CI mock.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
@@ -97,6 +104,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveAll(session)
 	}
 	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(..#FIXEDREF)
+	For i = 1:1:$Length(..#ALLREFS, ",") {
+		Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove($Piece(..#ALLREFS, ",", i))
+	}
 	Kill ^OcuTalonTest("ReminderOpsFixedRef", "next")
 	If ..Missing = "" {
 		For i = 1:1:$Length(..Sessions, ",") {
@@ -232,63 +242,17 @@ ClassMethod ListedRefs(text As %Any) As %String [ Private ]
 	Quit refs
 }
 
-/// Waits until the decision has count AgentStep rows or the seconds have passed (the AgentSteps operation writes them after the turn), and
-/// answers the rows.
-ClassMethod WaitSteps(decisionRef As %String, count As %Integer, seconds As %Integer) As %DynamicArray [ Private ]
-{
-	Set end = $ZHorolog + seconds
-	For {
-		Set steps = ##class(OcuTalon.Test.Agent.RunnerFixture).StepsOf(decisionRef)
-		If (steps.%Size() >= count) || ($ZHorolog > end) Quit
-		Hang 0.25
-	}
-	Quit steps
-}
-
 /// The steps of Visual Trace (AD-9, AD-26) of the turn's decision: a model step, then a tool step and a model step for each tool call. The
 /// tool steps have the labels, their summaries name the tools and their status is ok. Every AgentStep of the decision has a header in the
-/// turn's trace session, the session of the header the Turn names, and none has a header outside it.
+/// turn's trace session, the session of the header the Turn names, and none has a header outside it. RunnerFixture.StepProblems does the check.
 Method AssertToolSteps(row As OcuTalon.Data.Turn, tools As %List, labels As %List) [ Private ]
 {
-	Set steps = ..WaitSteps(row.TurnDecisionRef, 1 + (2 * $ListLength(labels)), 10)
-	Set kinds = "model"
-	For i = 1:1:$ListLength(labels) {
-		Set kinds = kinds _ ",tool,model"
-	}
-	Set actual = ""
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set actual = actual _ $Select(actual = "": "", 1: ",") _ step.kind
-	}
-	Do $$$AssertEquals(actual, kinds, "the steps are "_kinds)
-	Set toolPosition = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		If step.kind '= "tool" Continue
-		Set toolPosition = toolPosition + 1
-		If toolPosition > $ListLength(labels) Continue
-		Do $$$AssertEquals(step.label, $List(labels, toolPosition), "tool step "_toolPosition_" has the label "_$List(labels, toolPosition))
-		Do $$$AssertTrue(step.summary [ $List(tools, toolPosition), "and its summary names "_$List(tools, toolPosition)_": "_$Extract(step.summary, 1, 120))
-		Do $$$AssertEquals(step.status, "ok", "and its status is ok")
-	}
 	Set header = ##class(Ens.MessageHeader).%OpenId(row.TraceHeaderId)
 	If '$IsObject(header) {
 		Do $$$AssertTrue(0, "the turn's trace header "_row.TraceHeaderId_" exists")
 		Quit
 	}
-	Set outside = 0
-	Set inside = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId <> ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, header.SessionId)
-		Do rows.%Next()
-		Set outside = outside + rows.%GetData(1)
-		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId = ?", "OcuTalon.Bridge.Msg.AgentStep", step.id, header.SessionId)
-		Do rows.%Next()
-		If rows.%GetData(1) > 0 Set inside = inside + 1
-	}
-	Do $$$AssertEquals(outside, 0, "no step has a header outside the turn's trace session")
-	Do $$$AssertEquals(inside, steps.%Size(), "every step has a header in the turn's trace session: "_inside_" of "_steps.%Size()_" steps")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).StepProblems(row.TurnDecisionRef, header.SessionId, labels, tools), "", "the steps of the turn are right, in the turn's trace session")
 }
 
 /// "Remind me in 1 minute to stretch." (DW-232): the guide's prompt is answered by B/guide-reminder.json, selected by the prompt. Chat calls
@@ -397,4 +361,101 @@ Method TestCancelThroughChat()
 	Do ..AssertToolSteps(row, $ListBuild("list_reminders", "cancel_reminder"), $ListBuild("Listing your reminders", "Cancelling a reminder"))
 }
 
+
+/// Session A sets three reminders with the marker reminder-thursday (due in 2030, so none fires during the test), each after ReminderOpsFixedRef.Next of
+/// the Refs 02, 03 and 04; B sets one the same way. A sends "Cancel all my reminders." with the marker reminder-cancel-all (DW-140, AD-20). Chat makes three
+/// requests (the list, one cancel_reminder call with A's three Refs, the reply), under the ceiling of 4 that Chat keeps. The list names exactly A's three
+/// Refs; the answer to the cancel is {"ok": true, "results": [...]} with an ok entry for each Ref, in the scenario's order. A's rows are cancelled with the
+/// keys <ItemId>:2, :3 and :4, their waiters end, their events are three created then three cancelled, and A's rail is empty. B's row is pending, its
+/// waiter is waiting, its event is the created one and its rail still lists it. The tool steps are the list, then the cancel.
+Method TestCancelAllThroughChat()
+{
+	If '..Guard() Quit
+	Set refs = ..#ALLREFS
+	For i = 1:1:3 {
+		Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove($Piece(refs, ",", i))
+	}
+	Set a = ..Session("cancelalla")
+	Set b = ..Session("cancelallb")
+	Set setUp = 1
+	For i = 1:1:3 {
+		If setUp {
+			Do ##class(OcuTalon.Test.Schedule.ReminderOpsFixedRef).Next($Piece(refs, ",", i))
+			If '..Turn(a, "zzc"_..Number_"allseta"_i, "Remind me Thursday at 10 to load the new certificate. [[mock:reminder-thursday]]", .setA, .chatA) Set setUp = 0
+		}
+	}
+	If 'setUp Quit
+	Do $$$AssertEquals($ListToString(..ReminderRefs(a)), refs, "control: A has three reminders, with the fixed Refs")
+	If '..Turn(b, "zzc"_..Number_"allsetb", "Remind me Thursday at 10 to load the new certificate. [[mock:reminder-thursday]]", .setB, .chatB) Quit
+	Set refsB = ..ReminderRefs(b)
+	Do $$$AssertEquals($ListLength(refsB), 1, "control: B has one reminder")
+	If $ListLength(refsB) '= 1 Quit
+	Set refB = $List(refsB, 1)
+	Do $$$AssertEquals(..Waiting($Piece(refs, ",", 1))_"|"_..Waiting($Piece(refs, ",", 2))_"|"_..Waiting($Piece(refs, ",", 3))_"|"_..Waiting(refB), "1|1|1|1", "all four waiters are waiting")
+
+	If '..Turn(a, "zzc"_..Number_"cancelall", "Cancel all my reminders. [[mock:reminder-cancel-all]]", .row, .chat) Quit
+	Do $$$AssertEquals(row.ReplyText_"|"_row.FallbackReason, "The CI mock cancelled the reminders.|", "the reply is the scenario's and the turn is no fallback")
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Chat).%New().MaxIterations, 4, "Chat's ceiling is still 4 (AD-20)")
+	If ..AssertChat(chat, 3, "marker") {
+		Set second = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(chat.%Get(1))
+		Do $$$AssertTrue($ListLength(second) > 0, "request 2 carries the list")
+		If $ListLength(second) > 0 {
+			Set listed = ..ListedRefs($List(second, $ListLength(second)))
+			Do $$$AssertEquals(..Sorted(listed), ..Sorted(refs), "the list names A's three reminders only, not B's")
+		}
+		Set third = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(chat.%Get(2))
+		Do $$$AssertTrue($ListLength(third) > 0, "request 3 carries the answer to the cancel")
+		If $ListLength(third) > 0 {
+			Set answer = ..Parsed($List(third, $ListLength(third)))
+			Do $$$AssertTrue($IsObject(answer), "the answer to the cancel is a JSON object")
+			If $IsObject(answer) {
+				Do $$$AssertEquals(answer.%GetTypeOf("ok")_"|"_answer.ok, "boolean|1", "the answer is ok")
+				Set results = answer.results
+				Do $$$AssertEquals($Select($IsObject(results): results.%Size(), 1: "none"), 3, "and holds three results")
+				If $IsObject(results) && (results.%Size() = 3) {
+					For i = 0:1:2 {
+						Do $$$AssertEquals(results.%Get(i).%GetTypeOf("ok")_"|"_results.%Get(i).ok_"|"_results.%Get(i).ref, "boolean|1|"_$Piece(refs, ",", i + 1), "result "_(i + 1)_" is ok and names "_$Piece(refs, ",", i + 1))
+					}
+				}
+			}
+		}
+	}
+	For i = 1:1:3 {
+		Set ref = $Piece(refs, ",", i)
+		Set reminder = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+		If '$IsObject(reminder) {
+			Do $$$AssertTrue(0, ref_" exists")
+			Continue
+		}
+		Do $$$AssertEquals(reminder.State_"|"_reminder.CancelKey, "cancelled|"_row.ItemId_":"_(i + 1), ref_" is cancelled with the key of position "_(i + 1)_" of the cancel turn")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitEnded(ref, 10), "and its waiter has ended")
+	}
+	Do $$$AssertEquals(..EventStates(a, 6), "pending,pending,pending,cancelled,cancelled,cancelled", "A's events are the three created ones, then the three cancelled ones")
+	Do ..State(a, .railA, .stepTwoA)
+	Do $$$AssertEquals(railA, "", "A's rail has no reminder")
+	Set reminderB = ##class(OcuTalon.Data.Reminder).RefIndexOpen(refB)
+	Do $$$AssertEquals(reminderB.State_"|"_..Waiting(refB), "pending|1", "B's reminder is pending and its waiter is waiting")
+	Do $$$AssertEquals(..EventStates(b, 1), "pending", "B's one event is the created one (state pending)")
+	Do ..State(b, .railB, .stepTwoB)
+	Do $$$AssertEquals(railB, refB, "B's rail still lists it")
+	Do ..AssertToolSteps(row, $ListBuild("list_reminders", "cancel_reminder"), $ListBuild("Listing your reminders", "Cancelling a reminder"))
+}
+
+/// The comma-separated Refs in sorted order.
+ClassMethod Sorted(refs As %String) As %String [ Private ]
+{
+	Set list = $ListFromString(refs)
+	Set sorted = ""
+	Set position = 0
+	While $ListNext(list, position, ref) {
+		Set sorted(ref) = ""
+	}
+	Set ref = ""
+	For {
+		Set ref = $Order(sorted(ref))
+		Quit:ref=""
+		Set text = $Get(text) _ $Select($Get(text) = "": "", 1: ",") _ ref
+	}
+	Quit $Get(text)
+}
 }

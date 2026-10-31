@@ -3,6 +3,11 @@
 /// owner's answer, so the tools never read or write a reminder themselves: ReminderOps owns the reminders and every check of a request
 /// (empty text, a time that is past, not exactly one due form, a due time that cannot be read, a reminder that is not the session's).
 /// The session comes from the bridge context of the call, never from an argument.
+/// cancel_reminder takes one or more refs and submits one CancelReminder for each, in order, inside the one tool call (the tool does not
+/// dedupe and does not stop at a refusal). Each command takes the next command position of the call, so each has its own IdempotencyKey.
+/// With one ref the answer is the owner's flat answer. With several it is {"ok": every one cancelled, "results": [one answer per ref, each
+/// with its ref]}. A call that is not a session's turn answers NOSESSION before the refs are read, and refs that are not one or more
+/// strings answer BADREFS with nothing submitted. Every helper is Private, because a public method of a tool class becomes a tool.
 /// Each tool declares, by one naming rule (the tool's name in upper case with _ and - removed), its step label (STEPLABEL<NAME>, AD-9) and its
 /// classification for the gate (CLASSIFICATION<NAME>: safe or risky; READONLY<NAME> and TRUSTEDOUTPUT<NAME>: 1 or 0, AD-10).
 /// All three are safe and trusted output: their answers are built in code from the owner's CommandResult (CommandCall.Answer and Listed),
@@ -17,6 +22,9 @@ Class OcuTalon.Tools.ReminderTools Extends OcuTalon.Tools.Result
 
 /// The answer when delaySeconds is not a whole number of seconds; nothing is submitted.
 Parameter BADDELAY = "delaySeconds must be a whole number of seconds, so nothing was done.";
+
+/// The answer when reminderRefs is left out, is empty, or holds anything but strings; nothing is submitted.
+Parameter BADREFS = "reminderRefs must hold one or more refs, each as list_reminders gave it, so nothing was cancelled.";
 
 Parameter STEPLABELSETREMINDER = "Setting a reminder";
 
@@ -68,15 +76,60 @@ ClassMethod ListReminders() As %DynamicObject
 	Quit ..Return(##class(OcuTalon.Tools.CommandCall).Listed(result))
 }
 
-/// Cancels one pending reminder of the user in this conversation. Give the ref that list_reminders gave for it. The answer says whether the
-/// reminder was cancelled. When it was not, the message says why, in plain English, so tell the user.
-ClassMethod CancelReminder(reminderRef As %String(DESCRIPTION = "The ref of the reminder, exactly as list_reminders gave it.")) As %DynamicObject
+/// Cancels pending reminders of the user in this conversation. Give in reminderRefs the ref of every reminder to cancel, exactly as list_reminders gave it, all in this one call: one ref, or several, such as every pending one when the user asks to cancel all of them. With one ref, the answer says whether that reminder was cancelled. With several, ok is true only when every one was cancelled, and results holds one answer for each ref, in the order given, each with its ref. When a reminder was not cancelled, its message says why, in plain English, so tell the user.
+ClassMethod CancelReminder(reminderRefs As %DynamicArray(DESCRIPTION = "The refs of the reminders to cancel, each exactly as list_reminders gave it: one or more.")) As %DynamicObject
+{
+	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session()
+	If $IsObject(refusal) Quit ..Return(refusal)
+	Do ..RefList(reminderRefs, .refs)
+	If refs = "" Quit ..Return({"ok": false, "message": (..#BADREFS)})
+	If $ListLength(refs) = 1 {
+		Do ..CancelOne($List(refs, 1), .answer)
+		Quit ..Return(answer)
+	}
+	Set results = []
+	Set allOk = 1
+	For index = 1:1:$ListLength(refs) {
+		Set ref = $List(refs, index)
+		Do ..CancelOne(ref, .entry)
+		If entry.%Get("ref") = "" Set entry.ref = ref
+		If 'entry.%Get("ok") Set allOk = 0
+		Do results.%Push(entry)
+	}
+	Set answer = {}
+	Do answer.%Set("ok", allOk, "boolean")
+	Set answer.results = results
+	Quit ..Return(answer)
+}
+
+/// The refs of the argument of CancelReminder, in the order given, in refs as a $List: a non-empty %DynamicArray whose entries are all JSON
+/// strings, or a non-empty scalar (one ref). Otherwise refs is "". A helper of a tool class gives its value through an output argument,
+/// because a tool class quits only through ..Return( (Test.Bridge.CodeRules, TestToolsReturnThroughResult).
+ClassMethod RefList(reminderRefs As %Any, Output refs As %List) [ Private ]
+{
+	Set refs = ""
+	If '$IsObject(reminderRefs) {
+		If reminderRefs '= "" Set refs = $ListBuild(reminderRefs)
+		Quit
+	}
+	If 'reminderRefs.%IsA("%Library.DynamicArray") || (reminderRefs.%Size() = 0) Quit
+	For index = 0:1:reminderRefs.%Size() - 1 {
+		If reminderRefs.%GetTypeOf(index) '= "string" {
+			Set refs = ""
+			Quit
+		}
+		Set refs = refs _ $ListBuild(reminderRefs.%Get(index))
+	}
+}
+
+/// Submits one CancelReminder for ref and puts the owner's answer in answer: CommandCall.Answer, or the refusal of CommandCall.Run.
+ClassMethod CancelOne(ref As %String, Output answer As %DynamicObject) [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
-	Set command.ReminderRef = reminderRef
-	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
-	If $IsObject(refusal) Quit ..Return(refusal)
-	Quit ..Return(##class(OcuTalon.Tools.CommandCall).Answer(result))
+	Set command.ReminderRef = ref
+	Set answer = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
+	If $IsObject(answer) Quit
+	Set answer = ##class(OcuTalon.Tools.CommandCall).Answer(result)
 }
 
 }
