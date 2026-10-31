@@ -2409,3 +2409,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-172 (owner decision via the Contest Planner, 2026-10-31T05:42:45Z#546) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 30.3's Replay closes such a row failed with no reason the person reads (ProviderCreateFailed); DW-451 recorded the provider dependency
 - 2026-10-31T06:16:18Z status=routed owner=burndown by=lead note=for Epic 30's burn-down story with DW-444 and DW-462 (the replay and approval path); the lead checks the public texts now
+
+### DW-472: The page's result band picks no key for a fix run that stopped partway: web/src/app/approvals resultView must pick result.stoppedPartway when Live.Payload.Incident's Requests[].Result unreached is above 0 (Story 30.5 adds unreached and the catalog key), and the web catalog key lists (web/scripts/catalog.mjs, web/src/app/msg/catalog.ts) gain the key and its count-of-one form; until then the page shows such a run as 'had changed since the dry run'
+- source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 30.5 plan, Lane B need 1: the page picks result.* from Live.Payload.Incident (Conventions Result texts); web/ is Lane B's (AD-33)
+- 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part of 30.5's stopped-partway result; 30.5 lands the Lane A payload field and the catalog text
+
+### DW-473: The page has no 'still resending' result band for a fix run still running after FixExecutor's 60-second wait, and the counts so far are stored nowhere the page reads them
+- source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.5 plan, Lane B need 2: Live.Payload.Incident fills a request's result only from an ended run; the chat notice uses result.stillResending (30.5)
+- 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part (the still-resending band)
