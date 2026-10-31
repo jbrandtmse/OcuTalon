@@ -2,12 +2,20 @@
 title: 'The README opens with what OcuTalon is for, and what a model adds'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '095c523433cac9e1285745aca38b7d8f16efe7c5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The README opening ("Every decision is in Visual Trace with its reasons and cost") and the unchanged "Each decision shows its reasons, its confidence and its cost" line may read as an overclaim for a fixed-rules decision, which keeps only the fallback reason.
+    evidence: |-
+      Design Note 1 row "Opening: ... Visual Trace with its reasons and cost" records "a fallback row keeps no reasons or payload" yet agrees. A reviewer read this as a possible overclaim. The opening is the owner's text and was not changed.
+    location: >-
+      README.md:3 and README.md:34
+    severity: low (unverified)
 ---
 
 <intent-contract>
@@ -86,6 +94,29 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-31 - Review pass
+- verdicts: 19 findings (rows; the verification-gap pair on the opening paragraph shares one row) - high 0, medium 1, low 10, false 7, maybe-false 1
+- findings:
+  - `[low]` `[defer]` Blind 1: the opening and the unchanged "Each decision shows its reasons ..." line say a decision shows reasons and cost, while a fixed-rules row keeps only the fallback reason -- owner text, plan-stage Design Note 1 judged it agreed; not changed here (Never: no cell or opening edits). Recorded unverified for the Contest Planner (deferred).
+  - `[false]` `[reject]` Blind 2: "a fix with a dry run" is not always true -- the cell describes the row's date-format case, which Design Note 1 verified; owner text, and an edit would break the byte-for-byte rule.
+  - `[low]` `[patch]` Blind 3: `rule_key_account` declared an unused `local n` -- removed the declaration.
+  - `[false]` `[reject]` Blind 4: the Auto Run Result status reads stale -- finalize rewrites it in this pass.
+  - `[false]` `[reject]` Blind 5: `chk_block` matches anywhere, so `top` does not pin the opening to the top -- line 1 must be the title (checked), and any non-blank line before the first H2 other than the opening and the teaser is flagged, so the block can only sit at the top.
+  - `[low]` `[reject]` Blind 6: Story 10.2's criterion is loosely formatted -- it is the text Design Note 3 prescribes; the fix edits the spec's prescription.
+  - `[low]` `[reject]` Blind 7: the removed table's repository pointers have no replacement -- the owner removed the section; the "add it back later" follow-up belongs to the lead.
+  - `[low]` `[patch]` Edge 1 and Verification-gap 2: the opening paragraph could appear twice and `top` stayed green -- `chk_top` counts the opening and flags more than one; self-test 'the opening paragraph twice' added.
+  - `[low]` `[reject]` Edge 2: the Contest task heading and header-row match only one casing and spacing -- unlikely drift; the fix is a looser regex for a case the owner text does not show.
+  - `[low]` `[reject]` Edge 3: the "No key, still works." refusal is case- and period-sensitive -- the spec names that exact string.
+  - `[low]` `[reject]` Edge 4: the "Set a model key" sentence is a substring match -- `chk_facts` semantics, the same as every fact the rule held before.
+  - `[medium]` `[patch]` Verification-gap 1: a fourth row in the model table kept every rule green -- `chk_key_account` now counts the `|` lines of "What OcuTalon does" (5); self-test 'a fourth row added to the model table' added.
+  - `[low]` `[patch]` Verification-gap 3: the "non-empty line where the blank is" branch of `chk_teaser` had no self-test -- self-test 'a stray line where the empty line is' added; without the branch `FAIL teaser` goes red.
+  - `[false]` `[reject]` Verification-gap AC4 note: AC4 has no pinning test by design (a recorded check, mutation line "none").
+  - `[false]` `[reject]` Intent-alignment (1)-(3): descriptive; the diff implements the byte-for-byte reading (A) and its tests exercise the raw file, as the spec says.
+  - `[false]` `[reject]` Intent-alignment: no rendering test exists -- the spec calls for text pins; the shape (blank lines before the table) is pinned by `chk_block`.
+  - `[false]` `[reject]` Intent-alignment: the constants and the README agree by construction -- the spec's byte check against epics.md is the independent check, and it printed `checked 9`.
+  - `[maybe-false]` `[reject]` Intent-alignment: claims versus pinned text -- the script pins wording; Design Note 1 holds the code evidence, and a behaviour change is outside this story.
+  - `[low]` `[reject]` Intent-alignment: the old table's repository links are gone from the top -- owner decision (observation only).
 
 ## Design Notes
 
@@ -228,7 +259,47 @@ Mutations (Rule 19; the implement stage writes one line per AC, each on the scra
 - AC6: the marker removed from the tree's epics.md -> the amendment command prints 0.
 - AC7: `![badge](x.svg)` appended -> `FAIL teaser`.
 
+### Verification results (implement stage, base `095c523433cac9e1285745aca38b7d8f16efe7c5`)
+
+- (loop) `bash docker/tests/test-readme.sh`: 21 PASS lines, `SKIP #telegram`, `test-readme: all rules passed`, exit 0. The PASS-name command printed exactly `top try-it interesting use-cases teaser outcomes install install-pointer commands key-account lan sign-in-address demo-mode admin-commands after-start-log dev-only public-text no-telegram product-links readme-links must-scan `.
+- (loop) Byte check: `checked 9`, no `NOT ONCE` line. The teaser line count is 1 in README.md and 1 in `git show <baseline>:README.md`. README.md and `test-readme.sh` hold no byte above 0x7F.
+- (loop) Amendment: the command prints 1 (both strings on the one marker line); `grep -c '^- a "Contest task'` in Story 10.2's block prints 0.
+- (loop) shellcheck 0.9.0.6 on `docker/tests/test-readme.sh`: no findings, exit 0. `bash docker/tests/test-boundaries.sh`: `test-boundaries: all rules passed`, exit 0.
+- (loop) Matrix on the scratch tree (30 one-line edits, each reset by `cp` from the worktree): every row exits 1 and prints `FAIL <rule>` for its own rule. The rows of the spec's list all hold, plus extra rows: the opening's "fifty" changed, a `## Contest task` heading back, the use-cases heading renamed, a second teaser line, the "No key, still works." bullet back, the "Set a model key" sentence changed, and one cell of the model table changed. Where a row also trips a neighbouring rule, the extra FAIL is a consequence of the edit (the stray line under the title also fails `top`; `x.svg` also fails `readme-links`; the renamed `## Set a model key` also fails `top`, `key-account` and `readme-links`). No README: exit 1, 21 of 21 rules print `FAIL ...: README.md is missing`, `use-cases` included.
+- (once) GNU tools: the scratch tree in the local `ubuntu:24.04` image (present; tree mounted read-only, a `git ls-files` stand-in filtering the tree's list by the pathspec prefix): the same 21 PASS lines, `SKIP #telegram`, `test-readme: all rules passed`.
+- (once) `bash ci/checks.sh`: `checks: all scripts passed`.
+- Manual: `git diff <baseline> -- README.md` removes the Contest task H2, table and teaser line with its blank, and the "No key" bullet; it adds the quoted lines, the teaser line, `## What you can use it for` and blank lines. `git diff --stat <baseline>` names README.md, `test-readme.sh`, `epics.md` and this spec. `git diff --stat <baseline> -- src web ci` is empty (AC4). No committed file holds a local absolute path.
+- Design Note 1: every claim was taken as checked at the plan stage; the implement stage found no contradiction and changed no cell, the opening or an item.
+
+Mutations (Rule 19; each on the scratch tree, reverted and compared byte for byte with the worktree):
+- mutation: AC1: the `chk_block top` opening comparison in `chk_top` replaced by `true` -> `FAIL top: a broken copy was not flagged` (self-tests 'the opening paragraph removed' and 'the opening and the teaser swapped' not flagged).
+- mutation: AC2: "never gives" changed to "rarely gives" in item 2 -> `FAIL use-cases` (`use-cases: missing the line "- **"Only tell me if something needs me."** ...`).
+- mutation: AC3: "with no cause and no fix" changed to "with a cause and no fix" in the fixed-rules column -> `FAIL key-account` (`missing the line "| 50 orders fail | ..."`).
+- mutation: AC4: none, because it is a recorded check; `git diff --stat <baseline> -- src web ci` is empty.
+- mutation: AC5: `use_cases` dropped from `RULES` -> the PASS-name command prints 20 names, without `use-cases`, which differs from the expected list.
+- mutation: AC6: the `[AMENDED 2026-10-31, owner decision` line removed from the tree's epics.md -> the amendment command prints 0.
+- mutation: AC7: `![badge](x.svg)` appended -> `FAIL teaser` (`an image or embed`).
+- mutation: review patches (on the scratch tree, reverted from a backup and compared byte for byte): the `elif` branch of `chk_teaser` deleted -> `FAIL teaser`; the `rows=` count lines of `chk_key_account` deleted -> `FAIL key-account: a broken copy was not flagged`; the opening-once line of `chk_top` deleted -> `FAIL top: a broken copy was not flagged`.
+
+Review-pass re-run (after the three test patches, base `095c523433cac9e1285745aca38b7d8f16efe7c5`): `test-readme.sh` 21 PASS and `SKIP #telegram`, shellcheck clean; (once) `bash ci/checks.sh` -> `checks: all scripts passed`; (once) GNU tools in `ubuntu:24.04` -> the same 21 PASS and `test-readme: all rules passed`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: the README now opens with the owner's opening paragraph and the teaser line, drops the "Contest task" section, adds "What you can use it for" (two items) and, in "What OcuTalon does", the model paragraph and three-row table in place of the "No key, still works." bullet. `test-readme.sh` pins the new shape (`chk_block`, new `use-cases` rule; `contest-table` removed). Story 10.2's top-of-the-README criterion in epics.md carries the 2026-10-31 amendment.
+
+Files changed:
+- `README.md` -- the four edits, pure ASCII, owner text copied by script from epics.md.
+- `docker/tests/test-readme.sh` -- `chk_block`, reworked `top`, `teaser`, `key-account`, new `use-cases`, `contest-table` removed, slug self-test supplies its own arrow heading; review patches: model-table line count, opening-once count, two self-tests.
+- `_bmad-output/planning-artifacts/epics.md` -- Story 10.2's criterion amended.
+- this spec -- Verification results, mutation lines, triage log.
+
+Review: 19 findings from four layers. Patches applied: 4 (1 medium: fourth table row not flagged; 3 low: unused `local n`, opening could appear twice, unexercised blank-line branch of `chk_teaser`). Deferred: 1 (low, unverified: reasons-and-cost wording for fixed-rules decisions in owner text). Rejected: 14 (rows marked reject), each with its reason in the Review Triage Log.
+
+Follow-up review recommended: false (no high patched; one medium patched).
+
+Verification: see "Verification results" above and the review-pass re-run line; all (loop) and (once) commands pass.
+
+Residual risks: the reasons-and-cost wording in the deferred item; wording is pinned, not product behaviour.

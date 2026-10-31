@@ -1,5 +1,9 @@
 # OcuTalon
 
+Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing.
+
+Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU
+
 ## Try it in two minutes
 
 Start with the online demo, at https://demo.ocutalon.com (nothing to install, and no Early Access image needed). Its sign-in details are on the splash screen.
@@ -15,20 +19,10 @@ To run OcuTalon on your own machine instead:
 
 OcuTalon runs as an IRIS Interoperability production, so the agent is an Interoperability workflow, and its work shows in Visual Trace, the tool you already use for your feeds. For each item that arrives, an IRIS AI Hub agent makes one attention decision, with its reasons and cost. Nothing risky runs without your yes: you get a dry run with counts first, you approve in the web chat, and every answer lands in the IRIS audit log. It was built this way so that you can audit and debug your assistant in the same place as the rest of your integrations.
 
-## Contest task → where to see it
+## What you can use it for
 
-| Contest task or criterion | What release 1 has | Where to see it |
-| --- | --- | --- |
-| An IRIS Interoperability workflow | OcuTalon is an Interoperability production: every item and every decision is a production message you can follow in Visual Trace. Break the feed also sends 50 orders through a second production, Orders, which OcuTalon watches. | Online demo: the trace link under a reply opens Visual Trace. Repository: [src/ocutalon](src/ocutalon). |
-| An IRIS AI Hub agent | Each item gets one attention decision from an AI Hub agent running Claude Haiku 5.5, with its reasons, confidence, tokens and cost. Every model request and tool call is an agent step in Visual Trace. | Online demo: "Decision details" under a reply. Repository: [src/ocutalon/cls/OcuTalon/Agent](src/ocutalon/cls/OcuTalon/Agent). |
-| A decision-making task | The attention decision: Ignore, Digest, Tell now or Act. Anything risky waits for your approval, and content that did not come from you can only look, notify and save. A recorded evaluation set scores the decisions. | Online demo: the outcome on each reply and the Recent decisions list. Repository: [eval](eval) and [src/bridge](src/bridge). |
-| Complexity | An agent inside a production, a cause worked out from the failed messages, and a repair and resend fixed to exact targets that runs only after an approval. The first answer to an approval request wins. | Online demo: steps 3 to 5 of the demo guide. Repository: [src/ocutalon](src/ocutalon) and [src/bridge](src/bridge). |
-| Clarity of Instructions | This README, one install script, a plain `docker compose up -d`, and the online demo's splash screen and demo guide. | Online demo: the splash screen and the demo guide. Repository: [install.sh](install.sh) and [Install it yourself](#install-it-yourself). |
-| Developer Experience | One script finds the image, starts OcuTalon and says where to sign in, with the exact fix when a check fails. Checks and tests run in CI on pushes and pull requests. | Repository: [install.sh](install.sh), [.github/workflows/ci.yml](.github/workflows/ci.yml) and [ci](ci). |
-| Applicability | Ask OcuTalon in plain words to watch a production. It picks up new failures, groups the ones with one cause into an incident, and never gives a false all-clear. Reminders fire on time and survive restarts. | Online demo: step 1 of the demo guide, which watches the Orders production. A local install can watch any production its service user may read. |
-| Usability | A two-minute demo guide with one-click prompts. Causes are in plain English. You answer Approve or Reject in the chat or on the page's Simulated phone. | Online demo: the demo guide and Break the feed. |
-
-Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU
+- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.
+- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear.
 
 ## What OcuTalon does
 
@@ -45,7 +39,14 @@ Each decision shows its reasons, its confidence and its cost.
 - **Break the feed.** In demo mode the page has a Break the feed button. It makes a simulated partner send 50 orders in a changed date format into the Orders production, where they fail for real. OcuTalon groups the failures into one incident, explains the cause in plain English and proposes a fix with a dry run: how many orders it would resend, with an example. Nothing is resent until you press Approve in the chat or on the page's Simulated phone. Reject leaves everything as it was. After an approval, OcuTalon reports how many orders went through.
 - **Watching a production.** Ask in plain words, for example "Watch the Orders production and only tell me if something needs me." To stop, say "Stop watching Orders."
 - **Reminders.** Ask in plain words, for example "Remind me in 1 minute to stretch." A reminder arrives on time, survives a restart, and can be listed and cancelled in the chat.
-- **No key, still works.** Without a model key, OcuTalon starts and every decision uses fixed rules. The page says so.
+
+**With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace.
+
+| | With a model | With fixed rules only |
+| --- | --- | --- |
+| An item arrives | It decides Ignore, Digest, Tell now or Act, and says why | Tell now, marked as a fallback with the reason |
+| 50 orders fail | One incident, with the cause in plain English, the part at fault, and a fix with a dry run | Grouped by item and error, with no cause and no fix |
+| You ask in the chat | It answers, watches a production or sets a reminder | It says it couldn't answer, and why |
 
 ## Install it yourself
 

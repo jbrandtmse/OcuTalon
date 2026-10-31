@@ -3541,9 +3541,10 @@ So that I can try it without help and trust that it claims only what the release
 **When** a judge reads it
 **Then** it has, in this order:
 - a short "What's interesting" section, of about 120 words at most, that says what is technically interesting in what the release ships and why it was built that way;
-- a "Contest task → where to see it" table that maps each part of the contest task (an IRIS Interoperability workflow, an IRIS AI Hub agent and a decision-making task) and each judging criterion (Complexity, Clarity of Instructions, Developer Experience, Applicability and Usability) to the feature that meets it and the place in the online demo or the repository that shows it;
-- and the teaser video's link, which the author gives (until then there is no video line and no placeholder) (FR-58).
+- and Story 10.4's "What you can use it for" section (FR-58).
+The teaser video's link, which the author gives, is the line right under Story 10.4's opening paragraph, above "Try it in two minutes" (FR-58).
 [AMENDED 2026-10-23, owner decision, relayed by the Contest Planner; the owner: "Yes I agree with your recommendations". Added from the experts' advice post of Oct 19, "Highlight your strongest work in the README".]
+[AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "I'm not sure that I want to keep the "Contest task -> where to see it" section. Let's remove it for now and consider adding it back in later if it makes sense." Story 10.4 removes the table and moves the teaser line under its opening paragraph. The table line read: "a "Contest task → where to see it" table that maps each part of the contest task (an IRIS Interoperability workflow, an IRIS AI Hub agent and a decision-making task) and each judging criterion (Complexity, Clarity of Instructions, Developer Experience, Applicability and Usability) to the feature that meets it and the place in the online demo or the repository that shows it;" and the teaser line read: "and the teaser video's link, which the author gives (until then there is no video line and no placeholder) (FR-58)."]
 **And** every sentence and table row claims only what the release ships and links only to what exists (FR-58)
 
 **Given** the whole README
