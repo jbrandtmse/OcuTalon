@@ -230,7 +230,7 @@ deferred: []
   - `ocutalon_ci_bot` in `StateBody`.
 
 **Acceptance Criteria:**
-- **The owner's U-164 condition (1):** given the installer's client SSL configuration `OcuTalonClient`, when a test runs against the shipped image (a fresh throwaway or CI stack built from the image, never slot A), then the CA file the configuration names exists in that image, and a request through `OcuTalonClient` to a disposable TLS server with a bad certificate (self-signed or for another host, started by the test inside its own throwaway, never a real external host) is refused (NFR-11, AD-19, AD-23).
+- **The owner's U-164 condition (1):** given the installer's client SSL configuration `OcuTalonClient`, when a test runs against the shipped image (a fresh throwaway or CI stack built from the image, never a dev slot), then the CA file the configuration names exists in that image, and a request through `OcuTalonClient` to a disposable TLS server with a bad certificate (self-signed or for another host, started by the test inside its own throwaway, never a real external host) is refused (NFR-11, AD-19, AD-23).
 - **The owner's U-164 condition (2):** given an `http://` `ApiBase` (the CI mock through `OCUTALON_TELEGRAM_API_BASE`; AD-19), when `TelegramIn` and `TelegramOut` call the Bot API, then they stay plain HTTP and work with no SSL configuration in the way: the request is not HTTPS, and a missing or broken `SSLConfig` changes nothing on an `http://` base (AD-19, AD-22).
 - Given a token set and `TelegramIn` started, when it starts, then:
   - it reads the token only from the environment;
@@ -272,12 +272,14 @@ deferred: []
 
 - 2026-10-30, spec gate (runner): the proposed split is decided (unattended ruling, split, decide). The page side (the third criterion's banner and card clause, "the banner leaves within one live update", and the search of the page) moved verbatim to the new Story 12.8, planned next (`12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try`). This spec keeps the server side as planned. The two contended `Install/**` edits wait on the orchestrator's ruling.
 
+- 2026-10-31, before implementation (runner C, re-dispatch after Epic 9): the epic now runs on runner C, so `## Verification`'s `<lane>` uses lane C (`locks/lane-c`, web port 52803) and slot C (`ocutalon-slot-c`) instead of lane A and slot A, and the two "never slot A" phrases read "never a dev slot". The branch was integrated forward onto 366a79ab (Epics 9 and 29); no AD this spec names changed in a way that touches it. No other change to the plan.
+
 ## Review Triage Log
 
 ## Design Notes
 
 **The owner's U-164 answer (2026-10-30T09:39:29Z, applied by the runner before implementation).** Keep the one general client configuration `OcuTalonClient`, with three conditions; conditions (1) and (2) are this story's acceptance criteria above, and (3) is Story 12.7's (its hands-on pass records a verified handshake with `api.telegram.org`).
-- Condition (1) is checked against the built image, never on slot A: either a `Test.Channel` %UnitTest class that runs on a fresh throwaway built from the image (lane A locally; `shards-2` in CI), or a new `docker/tests` script run as a unit in `shards` or `shards-2` (with `ci/units.sh` and `docker/tests/test-ci-config.sh` updated). "The CA file the configuration names": if the configuration keeps `%OSCertificateStore`, the test proves the OS store resolves to a CA bundle present in the image (and records which file); if an explicit `CAFile` is the cleaner way to make that provable, the implement stage may name the image's bundle instead and record why. The bad-certificate server is disposable and local to the test's own stack (for example `openssl s_server` with a certificate the test generates, or a Node `https` server in the stack), torn down by the test; record what was measured.
+- Condition (1) is checked against the built image, never on a dev slot: either a `Test.Channel` %UnitTest class that runs on a fresh throwaway built from the image (the runner's lane locally, lane C since the 2026-10-31 re-dispatch; `shards-2` in CI), or a new `docker/tests` script run as a unit in `shards` or `shards-2` (with `ci/units.sh` and `docker/tests/test-ci-config.sh` updated). "The CA file the configuration names": if the configuration keeps `%OSCertificateStore`, the test proves the OS store resolves to a CA bundle present in the image (and records which file); if an explicit `CAFile` is the cleaner way to make that provable, the implement stage may name the image's bundle instead and record why. The bad-certificate server is disposable and local to the test's own stack (for example `openssl s_server` with a certificate the test generates, or a Node `https` server in the stack), torn down by the test; record what was measured.
 - Condition (2): `Api` sets the request's SSL configuration only for an `https://` base; a test pins that an `http://` base makes a plain request (no `Https`, no `SSLConfiguration`) and keeps working when `SSLConfig` names a configuration that does not exist. The existing CI mock tests over `http://mock:8080` are the "it works" evidence.
 - Both get rows in the mutation table (for example: `Api` sets `Https` for an `http://` base; `OcuTalonClient` with `VerifyPeer` 0; the CA file check pointed at a missing file).
 
@@ -399,12 +401,12 @@ All are used against the real mock and the running production.
 
 ## Verification
 
-`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=12 stage=<stage>'`, run from the worktree root.
+`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=12 stage=<stage>'`, run from the worktree root.
 
 How to run:
 - One command per foreground tool call, with `timeout: 600000`, and never two IRIS test runs in one message.
 - A call that the harness moves to the background is polled in foreground calls of under 170 s each.
-- Tests never run on `ocutalon-slot-a`.
+- Tests never run on a dev slot (this runner's is `ocutalon-slot-c`); IRIS MCP calls name `server: ocutalon-slot-c` and `namespace: OCUTALON`.
 - Tear down only `e12s2i` and `e12s2iw`, also after a failure.
 
 **Commands:**
