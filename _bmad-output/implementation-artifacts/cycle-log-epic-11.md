@@ -30,3 +30,6 @@
 2026-10-31T08:34:17Z	Story 11.0	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 entries=DW-237:resolved-by new_this_story=DW-478(by-design),DW-479(wontfix-accepted) model=claude-opus-5-5
 2026-10-31T08:36:16Z	Story 11.0	smoke_complete	method=other(slot_A:iris_execute_command) result=pass iterations=1 defects_caught=0 evidence=HashCode(abc)=Session.Hash(abc)=VECTORABC,HashCode('')='' model=claude-opus-5-5
 2026-10-31T08:36:16Z	Story 11.0	fresh_check	env=recipe(ci/iris.sh_class_fresh_e11s0fc) tests=1(Test.Data.PairingRows) result=pass order=forward(single_class;reverse_trivial) ready=90s
+2026-10-31T08:36:49Z	Story 11.0	committed	sha=78e06431 submodules= ci=pending runs=41185290587,41185290594 amendments=epics.md:Story_11.0_block(x0_insert) pushed=verified_on_origin
+2026-10-31T08:36:49Z	Story 11.0	story_cycle	plan_to_commit_min=59 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-31T08:38:18Z	Story 11.1	stage_spawned	stage=plan spawn_at=2026-10-31T08:38:18Z model=claude-opus agent_name=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test-plan-1 cycle_iteration=1 ledger_inbox=DW-140,DW-142,DW-202,DW-221,DW-307,DW-316,DW-294,DW-340,DW-349,DW-376,DW-396 note=epic29_complete_awaiting_merge(4dab25d0)_contends_demo-path_specs
