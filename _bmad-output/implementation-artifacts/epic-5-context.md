@@ -4,7 +4,7 @@
 
 ## Goal
 
-A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one diagnosed incident, which moves through a fixed state table and is noticed with what broke. The heartbeat checks each watched production every minute, and OcuTalon never gives a false all-clear. All of that is built. The one remaining story, 5.11, is a fix-forward. Since Epic 4's demo guide merged in, the real `FailurePoller` and `IncidentManager` turn real failing Orders messages into real, noticed incidents, and the guide's tests don't clean those up. 5.11 makes those tests hold again, so the integrated branch stays green and each case's guide shows the step its own rows say.
+A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one incident. The incident gets a plain-English cause, the element at fault, a proposed fix and evidence, and moves through fixed states. OcuTalon never gives a false all-clear. Stories 5.1 to 5.11 have built all of that. Epic 5 is re-opened for one launch-risk hotfix, Story 5.12, which must merge into the feature branch today, before the online demo goes public. On the demo host, correct diagnoses were refused as `invalid` because one evidence reference was longer than the 32-character limit on `DiagnosisPayload.Evidence`. It happened to one in six diagnoses in the load run, and later to 2 in 10. The visitor got the fallback notice with no fix and could not finish the demo path. 5.12 makes those replies pass, so Break the feed always ends with a fix the visitor can approve.
 
 ## Stories
 
@@ -19,88 +19,57 @@ A user asks OcuTalon in plain words to watch a production. New failures are pick
 - Story 5.9: Ask OcuTalon in the chat to dismiss an incident
 - Story 5.10: Epic 5 burn-down
 - Story 5.11: The demo guide's tests hold now that incidents are real
+- Story 5.12: A correct diagnosis is never refused for an over-long evidence reference
 
 ## Requirements & Constraints
 
-**Story 5.11 (DW-305). Two criteria, both red twice in CI, so this is not a flake:**
-1. **Clean up after the real press.** The floor case that presses Break the feed for real is M4 in `web/e2e/floor/guide.spec.ts`. When it ends, no incident or failure group that its press caused may remain for the FLOOR session. That includes one the real `IncidentManager` records or notices after the case's batch clean-up has run. The next case's guide must open at the step its own rows say. The cases that went red are M7 ("the page opens at step 3") and M9 ("while step 5 is current the box is the secondary style").
-2. **Earlier tests' incidents stay invisible.** Some tests compute a new watching session's guide: `Test.Live.GuideRefresh` in the lane-b shard, or any floor case. No incident left by earlier tests that sent real failing Orders messages may be visible to that session, whichever test made it. The cases that went red are `TestHookPublishesOnChange` and `TestEventsBodyServesTheGuide`.
-- The ruling that created 5.11: the guide tests and their support code clean up the incidents that a real press or untagged failures leave. Fix it in the tests, not in product behaviour. Paths that another epic also edits go to the orchestrator.
+Story 5.12 is the only open story.
+
+- **Accept long references.** `DiagnosisPayload.Evidence` accepts each reference up to 128 characters. A reply with a reference over 32 and at most 128 characters passes `Decide`'s check, records no fallback, and gives the with-fix notice: cause, fix, dry run and approval request.
+- **Prompt and class agree.** The diagnosis prompt (`OcuTalon.Agent.Diagnosis`) still asks for short references and states the new limit: at most 128 characters each.
+- **Replay the host's replies.** Two tests replay, through the same check, the two replies the host recorded, and both pass. Each fixture is copied byte for byte from Story 5.12's block in `epics.md`:
+  - 11:45:50Z: the sixth reference is 42 characters;
+  - 12:01:54Z: the first reference is 33 characters.
+
+  Neither fixture holds any host detail.
+- **Audit every reply class.** Cover the attention decision (`DecisionPayload`), the diagnosis, the chat turn's command reply, and any other class with a `MAXLEN` that its prompt names. Every length a prompt states must match its class. No free text the model writes may be held in a property tighter than 32 characters. The fixed value lists (`outcome`, `causeCategory`, `fixKind`) are exempt. The spec lists each limit it widens, and gives the reason for each limit it keeps.
+- **Trace the check's error.** When a reply is refused as `invalid`, the decision's trace also records the check's own error text: which property failed and why. That text is internal:
+  - it never reaches the page, a notice, the phone or the model;
+  - it names no key or secret.
+
+  A test pins it with a reply that breaks one rule.
+- **Footprint and gates.** Touch only the payload class, the prompt classes, Decide's fallback trace, their tests and the fixture. CI is green on every workflow, and the evaluation set on the mock passes unchanged.
+- **Out of scope:** one retry on an `invalid` reply. It would add a model call inside the 20-second diagnosis budget, so it is a measured follow-up for Epic 30, which the Contest Planner decides. The step 2 retry on a second model is also separate.
+- **Timing.** The notice comes at most 60 s after the press in 19 of 20 runs. The diagnosis takes at most 20 s of that, and a typical diagnosis needs one model request.
 
 ## Technical Decisions
 
-**How an incident becomes visible to a session (the ownership rules):**
-- Every REST read and the guide go through one ownership API, `OcuTalon.Data.Ownership`. It takes the caller's `SessionRef` from the CSP session.
-- A session sees its own incidents. On a local install, it also sees the `instance` incidents of every production it watches, and their approval requests.
-- Only incidents whose `NoticedAt` is set are visible. Until the notice, the snapshot, the guide and Break the feed's availability all leave the incident out.
-- `Session.Recipients(ownerRef, incidentRef)` gives the sessions that receive an incident: the owning session; for an `instance` incident, every session watching that production; none for owner `eval`. The notice and the `incident` events go to each recipient's stream.
-- (inference, as built) The visibility filter matches on the incident's `OwnerRef` (a `SessionRef` or `instance`), `Namespace` and `Production`. It ignores the incident's state, so closed incidents stay visible too.
-- On a local install, each IRIS user has one durable session. (inference) So every floor case signed in as the same user shares one FLOOR session, and whatever one case leaves, the next case sees.
-
-**Scope (AD-4):**
-- A failure tagged with a session's `TraceRef` as its `SuperSession` belongs to that session, on any install. An untagged failure has scope `instance`.
-- Break the feed tags each of its 50 orders with the session's `TraceRef`, so a press makes the session's own incident.
-- A test that sends untagged failing Orders messages makes an `instance` incident. Every session watching Orders can see it.
-- On the online demo, only Orders can be watched, so `instance` scope never arises there.
-
-**What gets picked up and noticed:**
-- `FailurePoller` polls every 3 s, and only watched productions. It reads above `WatchMark`, starting no earlier than the earliest watch's `CreatedAt`.
-- A failure is a header with `Status` 8, or an event-log row of type 2 or 6 with no `SessionId`.
-- `IncidentManager` skips a failure it already holds.
-- Settle rule: the notice step starts after 10 s without a new same-cause failure, or 30 s after the first failure, whichever comes first. Diagnosis follows. A typical notice comes 30 to 35 s after the press (NFR-7 allows 60 s). So an incident can be created and noticed well after a test's clean-up has run.
-- The notice (Story 5.8) sets `NoticedAt` for two results:
-  - a fallback (refusal, timeout, any other fallback): the incident is open with variant `fallback`;
-  - a usable diagnosis with no fix in the fixed set, `unknown` included: open with variant `no_fix`.
-- A usable data-format diagnosis is stored and **left unnoticed**, so it stays invisible. Story 7.2 will send its with-fix notice, moving the incident to `awaiting_approval`. (inference) So a clean-up must not depend on which diagnosis the mock gives.
-- An open incident (fallback, no fix, rejected or expired) never closes on quiet in demo mode. Only Dismiss closes it. A leftover one keeps Break the feed inactive for good.
-- `IncidentManager` is the product's only writer of `Incident` and `FailureGroup` rows. Everything else asks it with `IncidentCommand`:
-  - `dismiss`, only from a recipient session;
-  - `closeForReplay`, only for a resolved incident;
-  - `closeQuiet`.
-- (inference) Test fixtures already write these rows directly. Criterion 1 says no incident or group may *remain*, which reads as removing them, not only closing them.
-
-**Guide rules. `OcuTalon.Demo.Guide.Compute(SessionRef)` is the only source of guide state.** A step is done only from the session's real state:
-- Step 1: an Orders production watch exists.
-- Step 2: a reminder exists, pending or fired.
-- Step 3: the notice of the session's Orders incident (with fix, fallback or no fix) arrived in the current run, so `NoticedAt` is set.
-- Step 4: that incident's approval request has been answered.
-- Step 5: the trace-opened marker is set.
-
-Break the feed's state:
-- inactive, "not watching", while there is no Orders watch;
-- inactive, "incident in progress", while the session's Orders incident is open (including after a rejection, until it is dismissed), awaiting approval or fixing, or while a run under 3 minutes old has no notice;
-- active otherwise, including while the incident is resolved.
-
-Other guide rules:
-- **Run again** starts a new run epoch. It resets the guide's markers and never the session's data.
-- (inference, as built) The current run starts at the epoch's latest `BreakFeedRun`. Without one, it starts at `GuideState.RunStartedAt`. Without that, it covers the whole session. So deleting a case's `BreakFeedRun` rows makes the window wider, and an earlier noticed incident still counts for step 3.
-- With demo mode on, `Live.Publish` recomputes the guide after it publishes `incident`, `approval`, `check`, `reminder`, `chat.message`, `pairing` or `breakfeed.progress`. It publishes `guide.state` only when the state changed. So a stray incident event can also publish a `guide.state`.
-- `StatusMonitor`'s 15 s tick recomputes the guide for open runs, and so does each marker write.
-- The guide's tests drive each step with fixture `BackgroundCheck`, `Reminder`, `Incident`, `ApprovalRequest` and `BreakFeedRun` rows.
-
-**Conventions:**
-- Tests are named `OcuTalon.Test.<Area>.<Subject>`.
-- Floor specs under `web/e2e/floor/` run only in the `live:floor` unit. `Test.Live` runs in the `lane-b` shard, and each shard is its own compose project.
-- Times are UTC ISO 8601 to the second.
-- The files 5.11 names are in Lane B's areas (`web/`, `.Live`, `.Demo`, `.Data.Ownership`). `Incident`, `FailureGroup` and `WatchMark` are Lane A's.
+- **Reply checking.** Diagnosis and Triage each answer with one JSON object. It is checked against the `%JSON.Adaptor` class named in the runner's `ReplyClass` setting: `OcuTalon.Watch.Msg.DiagnosisPayload` for `DiagnosisAgent`, and `OcuTalon.Bridge.Msg.DecisionPayload` for Triage. Only the bridge decides that a reply is unusable. JSON that fails the check is `invalid`.
+- **The fallback route.** Any fallback has outcome `tellnow`, `Fallback` true and its `FallbackReason`. It triggers no fix or approval request, and its decision message is flagged as a fallback in Visual Trace. The incident is grouped by the fixed rules and gets the fallback notice.
+- **Check order.** `Decide` runs the reply filter on each property named in the class's `FILTERED` list, then validates again. The reply filter is `OcuTalon.Checks.ReplyGuard`, from Story 5.7. Every stored model text is filtered before anything is recorded.
+- **The fix check comes last.** It is the kind's parameter check, `OcuTalon.Fix.Kind.Check`, run against the keys of the sample body in the request's evidence pack. It reads that pack through `OcuTalon.Bridge.ReplyCheck`, which `Decide.Interpret` begins and clears on every exit. With no pack, every fix is refused. (inference) So a replay test must give the check a pack whose sample body holds `OrderDate`. Otherwise the reply fails for a reason other than length.
+- **Agents.** The agents are `%AI.Agent` subclasses with static `XData INSTRUCTIONS`. A CI check fails any INSTRUCTIONS block that contains `{{`. Diagnosis runs on `claude-haiku-5-5` at effort `high`, with no sampling parameters.
+- **What the trace holds.** Decision and reply messages carry `Outcome`, `Reasons`, `Confidence`, `Fallback` and `FallbackReason`. Agent steps go through the bridge's redactor and are emitted by `Decide` as `AgentStep` messages. A fallback also carries the steps buffered by a failed Chat. Model keys and bot tokens never appear in Visual Trace, logs or audit entries. (inference) Keep the check's error text off everything the page or a notice reads, including the `decision` and `incident` events and the stored reasons the user sees.
+- **The mock and the evaluation set.** The mock picks a diagnosis's default script by the agent's `MOCKKEY`, `diagnosis`. Lane A adds mock behaviour only as files under `ci/mock/scenarios/A/`. The evaluation set runs on the mock on every push. It goes through the product path (`EvidencePack.Build`, `Decide`, `IncidentManager`) with owner `eval`.
+- **Conventions:**
+  - Tests are `%UnitTest` classes named `OcuTalon.Test.<Area>`. Agent, Bridge and Watch are areas of the `lane-a` shard.
+  - Only the owning lane edits a class. Epic 5 is Lane A.
+  - Times are UTC ISO 8601 to the second.
 
 ## UX & Interaction Patterns
 
-- Step markers come only from `guide.state`, never from a click. The page opens at the current step.
-- The Break the feed box:
-  - active, it is the attention style, with a "Next step" tag while it is the current step;
-  - while step 5 is current, it is the secondary style;
-  - inactive, it shows the hint "Finish the current Orders incident first…".
+- An `invalid` fallback shows the UX's generic reason: "the model's reply couldn't be used". The check's error text never appears to a user. It lives only in the trace, and everything a user reads stays plain English.
+- On the demo path, a usable data-format diagnosis must give the with-fix notice: the count, the start time, the cause, the fix summary, the dry run and an Approve or Reject request. A fallback blocks the visitor until they dismiss the incident.
 
 ## Cross-Story Dependencies
 
-- Already built in Epic 5:
-  - 5.2: the poller and the failure's scope;
-  - 5.3: the settle rule and `NoticedAt`;
-  - 5.5: the state table, dismiss and `closeQuiet`;
-  - 5.8: the fallback and no-fix notices.
-- Merged from other epics:
-  - Story 2.2: the ownership API's `NoticedAt` filter and `Session.Recipients`;
-  - Epic 4: 4.2 (`Guide.Compute`), 4.3 (the real 50-order batch, and `closeForReplay` before a new run), 4.4 (the box) and 4.7 (the step 4 variants and the finish state).
-- Story 7.2 will notice data-format incidents too, with the dry run and `Raise`. Clean-ups should already handle that case.
-- If 5.11 is dropped, DW-305 goes to an Epic 6 story instead. Epic 6 owns `Test/Live` next.
+- 5.12 builds on these stories, all done and on the feature branch:
+  - 1.6: the `invalid` classification and the fallback flag in the trace;
+  - 1.5: agent steps;
+  - 5.4: `DiagnosisPayload`, `Agent.Diagnosis` and the evidence pack;
+  - 5.7: the reply guard;
+  - 5.8: the fallback notice;
+  - 7.1: the fix-kind check through `ReplyCheck`;
+  - 7.2: the with-fix notice with its dry run and `Raise`.
+- Epic 30 owns the possible retry on `invalid`, which the Contest Planner decides after measuring.
+- Story 5.11 (the guide tests' incident clean-up) is done and imposes nothing on 5.12.

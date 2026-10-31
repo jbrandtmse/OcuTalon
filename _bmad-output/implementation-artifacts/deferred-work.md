@@ -2664,6 +2664,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
+
+### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestDiagnosisLengths builds its expected sentence from the compiled MAXLENs, so narrowing a whole group (ElementAtFault, FixParameters.Field, ItemNoun.One/Other) together with the prompt stays green; Evidence alone is pinned by TestPayloadAccepted's 128 boundary and TestHostReplies
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a FILTERED property of a reply class gets MAXLEN<=32 (git log -S MAXLEN on Watch/Msg or Bridge/Msg)
+
+### DW-493: Test.Watch.Diagnose.DecideWarnings near-copies Test.Core.Observe.Warnings (the same count-and-newest-text loop) with a SessionId filter that Observe.Warnings cannot take
+- source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Diagnose.cls DecideWarnings filters SessionId, SourceClass and SourceMethod; Observe.cls Warnings filters mark, method and text start; the loop is the same; extending Observe (Test/Core) is outside Epic 5's footprint
+- 2026-10-31T15:02:51Z status=wontfix-accepted owner=5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden by=cr note=reopen_if=a second test counts Type 3 warnings by SessionId (grep 'WHERE SessionId = ? AND Type = 3' under src/ocutalon/cls/OcuTalon/Test)
 - 2026-10-31T11:56:37Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-191_kept(#576):measure_the_invalid_rate_per_reply_kind_after_5.12(host_Decision_rows+Story_9.5's_real-key_run);build_the_retry_in_30.1_only_if_diagnose_still_falls_back_on_invalid_in_more_than_about_1_in_50,and_only_within_NFR-7's_20_s_diagnosis_budget
 
 ### DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks
@@ -2675,3 +2685,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: demo host pass on fe1d81e2, 2026-10-31 (host filter fixed host-side: on a decoded route ending in /%csp.broker.cls it also admits ^W(ARGC|EVENT|ARG_[0-9]{1,3})$) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Visual Trace drew but every message click showed IRIS's 'error while loading this page' with empty Header, Body and Contents; after the host fix run 1 is 110/110 and the Header pane fills at a full house of six
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
+
+### DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun
+- source: ci run 41215425837 attempt 1 (OCT-epic5 d103aec0, Story 5.12) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
+- 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
+- 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
