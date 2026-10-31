@@ -1062,3 +1062,4 @@
 2026-10-31T08:40:41Z	Epic 1-37	inbox_resolved	id=U-176 by=orchestrator note=Epic_15_applied
 2026-10-31T08:40:41Z	Epic 1-37	inbox_resolved	id=U-177 by=orchestrator note=Epic_15_applied
 2026-10-31T08:40:56Z	Epic 10	dispatch_planned	runner=B slot=ocutalon-slot-b reason=slot_B_freed(Epic_15_ended_waiting_on_11)->Story_10.4_first(deadline_19:00Z;B's_own_order_holds_10) base=145b4018 feature_head=c9f1288c(green) prompt=scratchpad/dispatch-epic-10-reopen.md
+2026-10-31T08:41:53Z	Epic 10	runner_dispatched	agent=aa35732267c39dc8b model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,Story_10.4) base=145b4018 prompt=scratchpad/dispatch-epic-10-reopen.md
