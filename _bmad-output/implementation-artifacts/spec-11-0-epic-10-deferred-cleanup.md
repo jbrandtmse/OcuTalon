@@ -152,6 +152,11 @@ Observed (implement stage, warm stack e11s0iw; each reverted from a backup of th
 - mutation: delegated as `Session.Hash($ZConvert(code, "L"))` -> `TestHashCodeVectors` red on "a 24-character code" and "the hash is case-sensitive", and `TestHashCodeIsSessionHash` red on "HashCode equals Session.Hash of 24 characters".
 - mutation (AC3, review stage, warm stack e11s0iw, reverted from a backup of this stage, `git status --short` and `git diff --stat` byte-identical, then `PairingApi` and `Contract.Ac` green again): the parameter of `HashCode` renamed `code` to `text`, so the body hashes an undefined `code` and answers `""` -> `Test.Contract.Ac` red on `TestCrossLaneSignatures` ("HashCode takes (code) in that order"), and `Test.Web.PairingApi` red on `TestCodeRoute` ("the session's code row holds the hash of the code") and `TestPageUnpair` ("A pairing code is stored as its hash: the hash is empty"). `PairingApi` and `SessionOps` compare `HashCode` with itself, so they pin the plumbing (a hash is stored, and a Pair with it pairs the chat); the hash value is pinned by `PairingRows`.
 
+QA stage (warm stack e11s0qw; each mutation reverted from a backup of this stage, `git status --short` and `git diff --stat` empty, then `PairingRows` green again). No test added: AC1 and AC2 are pinned by `TestHashCodeIsSessionHash` and the unchanged `TestHashCodeVectors`, AC3 by `Test.Contract.Ac` and `Test.Web.PairingApi` (red observed at the review stage). Test files created or changed by QA: (none).
+
+- mutation (QA, AC1): `HashCode`'s `Quit` back to the inline `$Translate(...SHAHash(256, ...))` copy -> `TestHashCodeIsSessionHash` red on "HashCode calls Session.Hash" and "HashCode holds no hashing expression of its own".
+- mutation (QA, AC2): delegated as `Session.Hash($ZConvert(code, "L"))` -> `TestHashCodeVectors` red on "a 24-character code" and "the hash is case-sensitive", and `TestHashCodeIsSessionHash` red on "HashCode equals Session.Hash of 24 characters".
+
 ## Auto Run Result
 
 Status: done
