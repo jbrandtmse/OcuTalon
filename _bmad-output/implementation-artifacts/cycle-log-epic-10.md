@@ -132,3 +132,4 @@
 2026-10-31T09:05:42Z	Story 10.4	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-8,AD-10,AD-15,AD-17,AD-22,AD-28,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false table_cells=6/6_agree(DN1,lead_spot-checked_catalog_Watch.cls:119,Core.cls:157,244) quoted_text=ascii_in_epics.md(no_typographic_bytes;copied_as_is) model=claude-opus-5-5
 2026-10-31T09:06:00Z	Epic 10	ci_resolved	story=branch_base sha=145b4018 runs=41176985646,41176985559 result=success failed=none via=none resolved_at=next_plan
 2026-10-31T09:06:00Z	Epic 10	epic_status_reopened	epic-10=done->in-progress reason=SC-5_reopen(epic_branch_reopened) story=10.4
+2026-10-31T09:06:01Z	Story 10.4	stage_spawned	stage=implement spawn_at=2026-10-31T09:06:26Z model=claude-sonnet agent_name=10-4-readme-opens-implement-1 cycle_iteration=1 story_base=dca43cef
