@@ -560,6 +560,22 @@ Record each as a `mutation:` line here. Mutations whose reds land in different s
 - mutation: AC7 `ci/units.sh` swapped back (`live:install-script-live` in `image`) -> `test-ci-config.sh` red (`i-reads-declared-example` names group install-fresh, and the input patterns of the IRIS groups); reverted, all rules pass.
 - Final runs after the review patches: `live demo-path` (mock) 240 s and `live demo-path` with `real` 217 s, both `6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed`; `live online-demo-path` 198 s (7 passed, 3 skipped, L1 and L2 PASS); `live sign-in --part 2/2` 318 s (96 passed, `reminder/chat.spec.ts` included, which sends the reminder prompt through the composer); `npm --prefix web test` 1136 of 1136; `test-mock.sh` 131 of 131; the gate, `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-online-load.sh` pass; `ci/changes.sh` prints seven GROUP lines.
 
+### QA record (qa stage, 2026-10-31)
+
+Every AC already had a pinning test with an implement-stage `mutation:` line on this tree (HEAD `ae6e9b47` code, unchanged since). AC6 (a search) had no pinning test; one was added. The QA stage re-demonstrated one mutation per AC where it could be done cheaply, and the AC2/AC3 pair live. Each was applied, red observed, restored from a scratch backup, and `git status --short` and `git diff --stat` compared byte-identical, then green again.
+
+- Baselines on the tree: `node --test ci/mock/test` 131 of 131; `npm --prefix web test` 1136 of 1136 (1142 with the QA file); `test-demo-path-gate.sh` and `test-ci-config.sh` all pass; `npm --prefix web run lint` exit 0.
+- mutation (QA): AC1 `select` ignores `match.mockkey` -> `ci/mock/test/server.test.mjs` row 7 (a keyed guide prompt answers only the agent it names) red, 130 of 131; reverted, 131 of 131.
+- mutation (QA): AC2 `B/guide-watch.json` reply 0 is the text, not `start_watch` -> live `demo-path` 02 red on `the "Orders production" check row shows` (expected 1, received 0); 04 to 06 red as a cascade (no watch, no incident); reverted.
+- mutation (QA): AC3 `B/guide-reminder-triage.json` set aside -> live `demo-path` 03 red on `its chip is Act: the mock answered the Triage request with its own scenario` (expected Act, received Tell now); reverted (same live run as AC2; one run of 6 min 43 s, including the lane wait).
+- mutation (QA): AC5 `parseModel` returns `mock` for an unknown value -> `web/scripts/demo-path-summary.test.mjs` "fail before any step on a model value that is neither mock nor real, and name the value" red, 35 of 36; reverted, 36 of 36.
+- mutation (QA): AC5 the gate: the point call replaced by `keys_ok=1` in `docker/tests/test-demo-path.sh` -> `test-demo-path-gate.sh` red, three FAIL lines (call order `point read npm read` missing `point`; keys that cannot be pointed do not fail the dry run; npm ran after keys that could not be pointed); reverted, all checks pass.
+- mutation (QA): AC7 `ci/units.sh` swapped back (`live:install-script-live` to `image`, out of `install-fresh`) -> `test-ci-config.sh` red (`i-reads-declared-example` names group image, and the input patterns of the IRIS groups); reverted, all rules pass.
+- mutation (QA): AC6 a retired name (`armCountdown`) re-added as a comment in `web/e2e/support/devices.ts` -> `web/scripts/retired-demo-path-names.test.mjs` "names armCountdown in no file outside _bmad-output" red; reverted, 6 of 6.
+- AC4 (online steps 2 to 5, the report check) and AC3's IRIS half keep their implement-stage mutation lines (the Notify SimPhoneOut mutation, the `notBuilt` report-check mutation, `TestWatchPromptTriage`, `TestReminderPromptTriage`); not re-run: a live `online-demo-path` and the IRIS classes need the lane for another ~4 min each and the lines are current.
+- Test file added (QA): `web/scripts/retired-demo-path-names.test.mjs` (AC6; in the default suite, `npm --prefix web test`).
+- Teardown: `ci/iris.sh teardown` for tag `e11s7q`; no lane-a lock of this stage is left.
+
 ## Auto Run Result
 
 Status: done
