@@ -16,3 +16,4 @@
 2026-10-31T07:32:01Z	Epic 11	ruling	question=x0_input_DW-237(Rule2_forced_copy_Pairing.HashCode) choice=include_in_Story_11.0(default-include:trivial,low_fix-risk) rejected=wontfix-accepted,fold_into_11.1 why=Rule17_burden_flips_to_exclusion;11.1_gate_does_not_fail_on_it category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
 2026-10-31T07:32:01Z	Epic 11	deps_hash_note	reason=x0_inserted epics_md_change=Story_11.0_block note=for_orchestrator_rerecord
 2026-10-31T07:37:33Z	Epic 11	epic_context_compiled	reason=initial(x0_inserted) spawn_at=2026-10-31T07:32:17Z model=claude-opus lines=243 header=ok subagent_tokens=175253
+2026-10-31T07:37:52Z	Story 11.0	stage_spawned	stage=plan spawn_at=2026-10-31T07:37:52Z model=claude-opus agent_name=11-0-epic-10-deferred-cleanup-plan-1 cycle_iteration=1 ledger_inbox=DW-237 agent_schema=no_run_in_background_param(call_blocks)
