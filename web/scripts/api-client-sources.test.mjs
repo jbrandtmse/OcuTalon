@@ -117,12 +117,12 @@ describe('the Telegram parts of the demo path', () => {
   ];
 
   for (const [name, step, index, story, ownTests] of parts) {
-    it(`${name} declares one not-built part, owned by Story ${story}, and is a part of the ${step} step`, () => {
+    it(`${name} declares one not-built part, owned by Story ${story}, ${ownTests ? 'has tests of its own' : 'has no test of its own yet'}, and is a part of the ${step} step`, () => {
       const code = readFileSync(join(e2e, name), 'utf8');
       assert.match(code, /import \{ notBuilt \} from '\.\/not-built';/);
       assert.equal((code.match(/\bnotBuilt\(/g) ?? []).length, 1, 'one declaration');
       assert.match(code, new RegExp(`^notBuilt\\('[^']+', '${story.replace('.', '\\.')}'\\);$`, 'm'));
-      assert.doesNotMatch(code, /\btest\.(skip|only)\(/, 'no skipped or focused test: only notBuilt skips');
+      assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe: only notBuilt skips');
       // The page file holds the tests of Story 12.8 (the pause), beside the one notBuilt that Story 12.4 replaces; the approval file has no test yet.
       assert.equal(/\btest\(/.test(code), ownTests, ownTests ? 'tests of its own (Story 12.8)' : 'no test of its own yet: Lane A replaces the call');
       assert.deepEqual(stepOfFile(name), { index, numbered: false });

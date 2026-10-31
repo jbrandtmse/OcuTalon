@@ -18,8 +18,8 @@ Include Ensemble
 ///     StatusMonitor publishes on the instance stream (the pattern of OcuTalon.Test.Schedule.Stalled): the monitor's silent first run must be
 ///     over, and a test that caused a pause waits for its clear, so that no event of it lands in a later test's window.
 ///   - The helpers that keep no state of the test are public class methods (BaseReason, WaitJobs, CallsOf, WaitCalls, WaitState, WaitMark,
-///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow), and so are Enable, Disable, Marks and
-///     PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
+///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow, Cut), and so are Enable, Disable, Marks
+///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
 Class OcuTalon.Test.Channel.LiveCase Extends %UnitTest.TestCase [ Abstract ]
 {
@@ -75,8 +75,14 @@ Method Finish() [ Private ]
 /// The text of an exception with the token cut out.
 Method Safe(ex As %Exception.AbstractException) As %String [ Private ]
 {
-	Set text = $Translate(ex.DisplayString(), $Char(13, 10), "  ")
-	If ..Token '= "" Set text = $Replace(text, ..Token, "[token]")
+	Quit ..Cut(ex.DisplayString(), ..Token)
+}
+
+/// The text in one line, with the token cut out (an empty token cuts nothing).
+ClassMethod Cut(text As %String, token As %String) As %String
+{
+	Set text = $Translate(text, $Char(13, 10), "  ")
+	If $Get(token) '= "" Set text = $Replace(text, token, "[token]")
 	Quit text
 }
 

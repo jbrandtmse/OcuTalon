@@ -162,12 +162,23 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
     return { reason, values: Object.fromEntries(outputs.map((name) => [name, chk(lines, name) ?? ''])) };
   }
 
-  /** Waits until the page has applied the event of this Seq on the instance stream. */
-  async function appliedInstance(page: Page, seq: number): Promise<void> {
+  /** Waits until the page has applied the event of this Seq on the instance stream, and returns when it saw that (Date.now()). */
+  async function appliedInstance(page: Page, seq: number): Promise<number> {
     await expect
-      .poll(async () => Number(await mainOf(page).getAttribute('data-instance-seq')), { message: `the page applied Seq ${seq} of the instance stream`, timeout: APPLIED_MS })
+      .poll(async () => Number(await mainOf(page).getAttribute('data-instance-seq')), {
+        message: `the page applied Seq ${seq} of the instance stream`,
+        timeout: APPLIED_MS,
+        intervals: [100],
+      })
       .toBeGreaterThanOrEqual(seq);
+    return Date.now();
   }
+
+  /**
+   * What is left of the one live update that started when the page applied the event, so that the banner and the card share one window;
+   * at least 250 ms, the time one check of the card takes.
+   */
+  const leftOf = (applied: number): number => Math.max(250, ONE_UPDATE_MS - (Date.now() - applied));
 
   /**
    * T1: the real pause, end to end. TelegramIn runs against the CI mock, the mock answers its poll with a 409, and the chain TelegramIn, the
@@ -180,7 +191,10 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
     let saved = '';
     let passed = false;
     try {
-      const token = (await irisScript([`Write !,"CHK|token|",${FIXTURE}.Token()`].join('\n')).then((lines) => chk(lines, 'token'))) ?? '';
+      const token =
+        (await irisScript(['Set t=""', `Try { Set t=${FIXTURE}.Token() } Catch ex { Set t="" }`, 'Write !,"CHK|token|",t'].join('\n')).then((lines) =>
+          chk(lines, 'token'),
+        )) ?? '';
       expect(token.length > 0, 'the stack has the CI dummy token').toBe(true);
       const bodies: Array<Promise<string>> = [];
       page.on('response', (response) => {
@@ -203,9 +217,9 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
       const until = conflict.values['until'] ?? '';
       const time = kolkata(until);
       expect(until, 'the mark is a UTC time').toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
-      await appliedInstance(page, Number(conflict.values['onset']));
+      const onsetApplied = await appliedInstance(page, Number(conflict.values['onset']));
       await expectBanner(page, time, ONE_UPDATE_MS);
-      await expectPausedCard(page, time, ONE_UPDATE_MS);
+      await expectPausedCard(page, time, leftOf(onsetApplied));
       const pausedHtml = await page.content();
 
       // A reload shows the same, from /state.
@@ -217,15 +231,20 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
       // The resume and the clear.
       const resumed = await fixture(`Resume(2, ${Number(conflict.values['onset'])}, .clear)`, ['clear']);
       expect(resumed.reason, 'the first 200 deletes the mark and StatusMonitor publishes the clear').toBe('');
-      await appliedInstance(page, Number(resumed.values['clear']));
+      const clear = Number(resumed.values['clear']);
+      const clearApplied = await appliedInstance(page, clear);
       await expect(bannerOf(page), 'the banner leaves within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
-      await expectNotPausedCard(page, ONE_UPDATE_MS);
+      await expectNotPausedCard(page, leftOf(clearApplied));
       const clearedHtml = await page.content();
 
       // The token search: the page's HTML at the pause and after the clear, and every response under /ocutalon/ that the page received.
       expect(pausedHtml.includes(bannerText(time)), 'the HTML at the pause holds the banner text (the scan sees what the store holds)').toBe(true);
       expect(pausedHtml.includes(token), 'the HTML at the pause holds no bot token').toBe(false);
-      expect(clearedHtml.includes('app-telegram-card'), 'the HTML after the clear holds the Telegram card (the scan sees what the store holds)').toBe(true);
+      expect(clearedHtml.includes('app-telegram-card'), 'the HTML after the clear holds the Telegram card').toBe(true);
+      expect(
+        Number(/data-instance-seq="(\d+)"/.exec(clearedHtml)?.[1] ?? Number.NaN) >= clear,
+        'the HTML after the clear holds the store\'s instance Seq of the clear (the scan sees what the store holds)',
+      ).toBe(true);
       expect(clearedHtml.includes(token), 'the HTML after the clear holds no bot token').toBe(false);
       const texts = await Promise.all(bodies);
       expect(texts.some((text) => text.includes(token)), 'no response holds the bot token').toBe(false);

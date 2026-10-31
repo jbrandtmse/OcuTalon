@@ -103,8 +103,8 @@ ClassMethod Resume(seconds As %Numeric, onset As %Integer, Output clear As %Inte
 }
 
 /// Puts back what Start saved, after any partial Start: TelegramIn is disabled and has no job, its Enabled row and the two Telegram marks
-/// are as they were, the mock's Bot API side is reset (after the item has no job, as BotApi.Reset requires), and StatusMonitor has published
-/// the clear of any pause. Returns "" or the first reason something was not put back.
+/// are as they were (the marks are read back and compared), the mock's Bot API side is reset (after the item has no job, as BotApi.Reset
+/// requires), and StatusMonitor has published the clear of any pause. Returns "" or the first reason something was not put back.
 ClassMethod Finish(saved As %String) As %String
 {
 	If saved = "" Quit ""
@@ -119,6 +119,7 @@ ClassMethod Finish(saved As %String) As %String
 			If $$$ISERR(sc) Set first = $SYSTEM.Status.GetErrorText(sc)
 		}
 		Do $ClassMethod(..#CASE, "PutMarks", marks)
+		If ($ClassMethod(..#CASE, "Marks") '= marks) && (first = "") Set first = "the two Telegram marks are not as Start found them"
 		Set sc = ##class(OcuTalon.Test.Channel.BotApi).Reset()
 		If $$$ISERR(sc) && (first = "") Set first = $SYSTEM.Status.GetErrorText(sc)
 		If '$ClassMethod(..#CASE, "WaitClear", since) && (first = "") Set first = "StatusMonitor published no clear of the pause"
@@ -140,13 +141,10 @@ ClassMethod Pack(rows As %List, marks As %List, since As %Integer) As %String [ 
 	Quit $SYSTEM.Encryption.Base64Encode($ZConvert($ListBuild(rows, marks, since), "O", "UTF8"), 1)
 }
 
-/// The text of an exception, in one line, with the token cut out.
+/// The text of an exception, in one line, with the token cut out (LiveCase.Cut).
 ClassMethod Safe(ex As %Exception.AbstractException) As %String [ Private ]
 {
-	Set text = $Translate(ex.DisplayString(), $Char(13, 10), "  ")
-	Set token = ..Token()
-	If token '= "" Set text = $Replace(text, token, "[token]")
-	Quit text
+	Quit $ClassMethod(..#CASE, "Cut", ex.DisplayString(), ..Token())
 }
 
 }

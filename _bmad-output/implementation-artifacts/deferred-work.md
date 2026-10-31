@@ -2747,3 +2747,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Sibling view modules (banner-view, rail-view) have web/scripts/*-view.test.mjs; a new file under web/scripts/ is Lane B's (AD-29) and Story 12.8's ruling allows only three named entries; T1 and T2 cover paused, off, rejected and not paused (750cc54e)
 - 2026-10-31T17:44:56Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=harvest note=reopen_if=a card-state defect reaches CI or the page that T1/T2 did not catch, or Lane A gains its own web unit-test file for telegram-card (then add telegram-card-view.test.mjs there)
+
+### DW-502: The Telegram card's paused predicate (telegram-card-view.ts holds() and the condition name telegramPaused) is a copy of banner-view.ts's private holds(), so a later change to the banner's rule would leave the card and the banner out of step
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: A one-expression copy that the spec forces (Decided 1; banners/* is on the Never list, Lane B's under AD-29); T1 pins both together for today's rule; the unifying fix exports holds() from banner-view.ts, a Lane B file
+- 2026-10-31T18:23:40Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=cr note=reopen_if=banner-view.ts's holds() or its telegramPaused row changes, or a Lane B story exports holds(): then import it
