@@ -1148,3 +1148,7 @@
 2026-10-31T15:34:11Z	Epic 1-37	planning_applied	source=U-195(#588)+the_Planner's_correct-course_additions files=prd.md,ARCHITECTURE-SPINE.md,epics.md,epic-dependencies.yaml,EXPERIENCE.md,DESIGN.md,brief.md,sprint-change-proposal-2026-10-31.md(new),sprint-status.yaml(+33:Epics_39-41) epics=39(heartbeat,6),40(persona,7),41(memory,7+7_re-open) step7_out=27,28 lint=baseline tracker=valid
 2026-10-31T15:34:11Z	Epic 1-37	deps_approved	hash=2cb8a30f5774 by=Contest_Planner(U-195,owner_batch) change=epics_39,40,41_added(pool_after_33,34;merge_gate_release/1.0.0-rc1);step_7(27,28)_out_of_the_orders;daily-release_wording
 2026-10-31T15:34:37Z	Epic 1-37	planner_note	to=Contest_Planner sent=planning_commit_a5ed4893;SCP_path;hold10_script(blob_ff1bd1a60299,sha256_4636e32f071c);run-now_reading_to_confirm;forecast_correction(Nov_2_is_Monday)
+2026-10-31T15:35:11Z	Epic 1-37	planner_note	from=Contest_Planner a5ed4893_verified;hold9+hold10_both_run_in_hold_9->expected_policy_blob_at_resume=ff1bd1a60299(sha256_4636e32f071c);run-now_reading_confirmed;forecast_correction_noted
+2026-10-31T17:18:08Z	Epic 5	runner_complete	agent=a4831f2327c86bba0 head=29d16db6 ci=success(41221079306,41221079183) story=5.12(launch_hotfix) inbox=U-193(veto,keep) flake=DW-497(live:cards_A7,->31.2) ci_groups=install-fresh_31.4,shards-2_30.6,install-upgrade_29.3,shards_28.3,image_27.5,browser_26.2
+2026-10-31T17:18:08Z	Epic 5	merge_enqueued	position=1(LAUNCH_RISK)
+2026-10-31T17:18:08Z	Epic 5	epic_merge_started	branch=OCT-epic5 head=29d16db6
