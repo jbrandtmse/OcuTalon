@@ -101,3 +101,6 @@
 2026-10-31T15:00:08Z	Story 12.2	ci_diagnose	test=OcuTalon.Test.Fix.Partial env=fresh_lane-C_throwaway(tag_e12s2dx,torn_down) tree=1e206f31 result=passed(41.36s) note=consistent_with_a_load-timing_flake;awaiting_rerun
 2026-10-31T15:28:23Z	Story 12.2	ci_resolved	story=12.2 sha=ec468c81 runs=41207682542,41207682575 result=success failed=none via=none resolved_at=next_implement attempts=ci:2(shards-2_rerun_flake_DW-494),lane-a:1 flake=OcuTalon.Test.Fix.Partial.TestCopiesFailAgain(DW-494) queue=IRIS_jobs_waited_16-31m_for_runners
 2026-10-31T15:28:23Z	Story 12.2	ci_red_classified	run=41207682542 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Fix.Partial.TestCopiesFailAgain job=iris(shards-2) rerun=green ledger=DW-494
+2026-10-31T15:28:51Z	Epic 12	pushed	sha=6e1ff8c3 kind=integrate_forward(311aa776)+owner_decision_edits+12.8_spec ci=pending runs=41215026595,41215026539
+2026-10-31T15:39:46Z	Epic 12	ci_resolved	sha=6e1ff8c3 runs=41215026595,41215026539 result=success failed=none via=none resolved_at=next_implement note=merge_head(311aa776);IRIS_groups_skipped
+2026-10-31T15:39:46Z	Story 12.8	stage_spawned	stage=implement spawn_at=2026-10-31T15:39:46Z model=claude-sonnet-5-5 agent_name=12-8-implement-1 cycle_iteration=1 story_base=6e1ff8c3
