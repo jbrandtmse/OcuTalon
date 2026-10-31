@@ -33,7 +33,7 @@ deferred: []
 - Never run the installer steps inside IPM's open transaction. Measured at plan: the production cannot start there (`ErrCanNotAcquireRuntimeLock`). Never use `NoTransaction`, `-dev` or `<Defaults>`, which would undo Story 15.1's rollback of the stopped first run.
 - Never change an instance setting OcuTalon doesn't own, and never touch a namespace or database it didn't create. That covers services, a foreign `PasswordValidationRoutine` and its routine, `EnsembleAutoStart`, the host's zone, and a foreign OCUORDERS. No key or token goes into IRIS, a log or the trace. The chat check uses the CI mock through `keys_point`, never a key variable.
 - Never mark autostart on the Docker path, and never clear an existing mark.
-- Never edit a Lane B file outside the task group "Cross-lane (AD-33), awaiting the orchestrator's ruling".
+- Never edit a Lane B file or a Lane B test (U-177: the cross-lane group moved to Story 31.3, Lane B; AD-33). `Test/Core/SettingsOps.cls` is also contended by Epic 9.
 - Never edit a contended file:
   - `docker/tests/lib-live.sh`, `docker/tests/lib-online.sh`, `docker/tests/test-production.sh`, `docker/after-start.cos`;
   - `src/bridge/**`, `Install/Step/{Telegram,SSL,Tasks,Retention,Watch}.cls`, `Install/Task*`;
@@ -219,37 +219,6 @@ deferred: []
   - **No local path, key or token** (`test-boundaries.sh`).
 - [ ] `.github/workflows/lane-a.yml`: unchanged. Only if `TIME` totals of `a` and `b` together go over 8 minutes locally: in job `ipm-install` only, set `timeout-minutes: 35` and `OCUTALON_LIVE_DEADLINE: "1980"`. Rule 7 needs the deadline under timeout times 60.
 
-**Cross-lane (AD-33), awaiting the orchestrator's ruling.** Build these only if the orchestrator rules them in; otherwise leave the files and the dependent checks out, and record that under "Measured in implement".
-- [ ] DW-34 in `src/ocutalon/cls/OcuTalon/Data/Time.cls` (Lane B):
-  - Add `ClassMethod ZoneFrom(tz As %String, tzDefined As %Boolean, localtimePath As %String, offsetMinutes As %Integer) As %String`, which is pure:
-    - when TZ is defined, it returns TZ without a leading `:`, or "UTC" for "";
-    - otherwise the part of the path after `zoneinfo/`, without `posix/` or `right/`, with a UTC alias (`UTC`, `Etc/UTC`, `Etc/UCT`, `UCT`, `Etc/Universal`, `Universal`, `Etc/Zulu`, `Zulu`) reported as `UTC`;
-    - otherwise `UTC` for offset 0, `Etc/GMT-n`/`Etc/GMT+n` for whole hours (the sign is inverted), and `+hh:mm`/`-hh:mm` for other offsets.
-  - `Zone()` calls it with `$SYSTEM.Process.TimeZone()`'s -1 test, `##class(%File).ResolvePath("/etc/localtime")` and the minutes of `$Horolog` minus `$ZTimeStamp`.
-  - A Docker install, where TZ is unset and the path is `Etc/UTC` (measured), still reports `UTC`.
-- [ ] DW-34 in `src/ocutalon/cls/OcuTalon/Test/Data/Time.cls` (Lane B): `TestZoneFrom` covers every branch.
-- [ ] DW-34 in `release/ipm-install.sh` (Lane A, depends on the ruling): as the last check of path A, as root point `/etc/localtime` at `/usr/share/zoneinfo/America/New_York`. A new session must then give:
-  - `TimeZone()=-1`;
-  - `Zone()=America/New_York`;
-  - `ToLocal("2026-01-15T12:00:00Z")=2026-01-15T07:00:00` and `ToLocal("2026-07-15T12:00:00Z")=2026-07-15T08:00:00`.
-- [ ] DW-207 in `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` (Lane B):
-  - Add `ClassMethod PlanNow(on As %Boolean, Output sc, Output kept, Output what) As %String`, which is `Plan(on, ##class(%SYS.Namespace).Exists(..#NAMESPACE), ..Owned(), ...)`. `Run` (:76-77) uses it.
-- [ ] DW-223 in `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` (Lane B):
-  - `WithOrders(resources, on, own As %List = {$ListBuild("%DB_"_..#CODEDB, "%DB_"_..#DATADB)})` uses `seen(name)` throughout.
-  - `WithOrdersData(resources, on)` becomes `Quit ..WithOrders(resources, on, $ListBuild("%DB_"_..#DATADB))`, so its callers (:493, Lane A's `Watch/Grant`) stay.
-- [ ] DW-207 in `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` (Lane B):
-  - In `Carry`, before `WriteAudit` (:58): when `command.DemoMode` and `Demo.PlanNow(1, .planSc)="error"`, `$$$LOGWARNING` and return `Result(0, "refused", "Demo mode stays off. "_##class(OcuTalon.Core.Admin).ErrorText(planSc)_" Nothing was changed.")`.
-  - The sentence is `Plan`'s own (:115), which names no customer data.
-  - The class doc lists the outcome `refused`. `Admin.SetDemoMode` prints it unchanged.
-- [ ] DW-207 in `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` and `SettingsOpsProbe.cls` (Lane B):
-  - A probe seam `PlanNow` that does not count as a call.
-  - `TestForeignRefused`: Ok 0, outcome `refused`, the exact message, 0 calls (no audit, no write, no step), and the row's value and `UpdatedAt` unchanged.
-  - `TestForeignOffGoesThrough`: off with the same answer carries out as today.
-- [ ] DW-223 in `src/ocutalon/cls/OcuTalon/Test/Demo/Step.cls` (Lane B): in `TestWithOrders`, add a case with an explicit one-element `own` list that gives `WithOrdersData`'s answers.
-- [ ] DW-207 in `release/ipm-install.sh` (Lane A, depends on the ruling), path B after the install:
-  - `run refuse-demo OCUTALON 'Do ##class(OcuTalon.Core.Admin).SetDemoMode(1)'`. Its final line is exactly the refusal, `Data.Setting.Get("demo.mode")` is still "0", the count of OcuTalon `Settings` audit entries is unchanged, and the foreign namespace and its databases are unchanged.
-  - Then `run later-start OCUTALON 'Set sc=##class(OcuTalon.Install.Registry).Run("ipm") Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)'` shows `STEP Demo OK` (with `WARN Demo`), `STEP Production OK`, `STEP Ready OK` and `CHK|run|1`.
-
 **Acceptance Criteria:**
 - Given the first run has created OCUTALON, or `iris merge` and `zpm "enable -map -ns OCUTALON"` have, when the install command runs in OCUTALON, then the matrix rows "Second run, path A", "Install checks" and "Path B" hold: `release/ipm-install.sh a` and `b` pass. This is an Integration AC whose consumer is IPM's Configure Invoke, and its effect is a running OcuTalon.
 - Given an IPM install, when its install checks and the web and REST checks run, then the rows "Web and REST" and "Package" hold.
@@ -262,12 +231,10 @@ deferred: []
 - Given the manifest, when `bash docker/tests/test-cpf.sh` runs, then rules 1-8 pass, and `test-pinned-sources.sh`'s `bridge_first` still pins the bridge's resources first.
 - Given an instance whose `PasswordValidationRoutine` is "" or names a foreign routine, when the install runs with the online-demo flag off, then the setting is unchanged and the foreign routine still exists. This holds in `Test.Install.Users.TestForeignGuardIsRefused`, and on the IPM install in path A ("") and path B (foreign) (DW-212).
 - Given the captured output of a passing run, when `docs/install-ipm.md` is read, then it covers every point of its task, its output blocks equal that run's `OUTPUT` blocks with ANSI codes removed, and `bash docker/tests/test-boundaries.sh` passes.
-- Only if the orchestrator rules the cross-lane group in:
-  - Given TZ unset and `/etc/localtime` at America/New_York, when a session asks, then `Zone()` and `ToLocal` agree (DW-34).
-  - Given a foreign OCUORDERS, when `SetDemoMode(1)` runs, then it refuses before the audit and the write, prints the refusal line, leaves `demo.mode` 0, and a later `Registry.Run("ipm")` reaches `Production` and `Ready` (DW-207).
-  - Given `WithOrdersData`, when `Test.Demo.Step.TestWithOrders` and `Test.Watch.Grant.TestHelper` run, then it gives the answers of `WithOrders` with a one-element `own` list (DW-223).
 
 ## Spec Change Log
+
+- 2026-10-31, spec gate (lead): the orchestrator's ruling U-177 (option B) removed the task group "Cross-lane (AD-33), awaiting the orchestrator's ruling", its acceptance criteria, its verification line, its three mutation rows and its shared surfaces; DW-34, DW-207 and DW-223 are declined (moved to Story 31.3). The Lane A scope, DW-212 included, is unchanged. The spine rows "IPM steps" and the `ReconcileIn` ownership row were written at this gate (veto U-176 for the step-failure reading).
 
 ## Review Triage Log
 
@@ -277,8 +244,7 @@ deferred: []
 - AD-2: one package, the bridge's resources first, no dependency.
 - AD-3: the mappings and their install checks, OCUORDERS owned by the Demo step, and an IPM install marking autostart.
 - AD-5: every reconcile is idempotent, and the startup reconciler re-arms waiters.
-- AD-17: the DW-207 refusal comes before the audit entry.
-- AD-18: one converter and the instance zone (DW-34).
+- AD-18: read only; DW-34 (the instance zone where TZ is unset) moved to Story 31.3 (U-177), so this story changes no zone code.
 - AD-19: keys only from the environment, and the `demo.mode` seed is "0" off the image.
 - AD-22: destructive work only on throwaways.
 - AD-23: the IPM install runs the same steps, `Production` marks autostart, and every production start reconciles.
@@ -334,19 +300,17 @@ No AC contradicts an AD.
 11. **The new tests go in the Install area.**
     - The `Test.Install` class changes run in `shards`' piece `lane-a@Checks,Install,Watch`, because the pieces are cut by area. `Test.Install.ReconcileIn` is pure and takes under 1 s.
     - `ci/units.sh` doesn't change.
-12. **The DW-207 line keeps within U-106's condition:** "Demo mode stays off.", then `Plan`'s sentence, then "Nothing was changed.". It names no database.
-13. **DW-34 maps UTC aliases to `UTC`,** so the Docker installs and every existing zone assertion are unchanged.
+12. *(Withdrawn by U-177: DW-207 moved to Story 31.3.)*
+13. *(Withdrawn by U-177: DW-34 moved to Story 31.3.)*
 
-**Cross-lane edits (AD-33) awaiting ruling:**
-- `src/ocutalon/cls/OcuTalon/Data/Time.cls` and `Test/Data/Time.cls` (Lane B): `ZoneFrom` and `Zone()`, and `TestZoneFrom` (DW-34). There is no Lane A design: `Zone()` is the only zone source (AD-18).
-- `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` (Lane B): `PlanNow` (DW-207, Rule 2) and `WithOrders` with an `own` list (DW-223). `Test/Demo/Step.cls`: the explicit-list case.
-- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` (Lane B): the refusal before the audit (DW-207). `Test/Core/SettingsOps.cls` and `SettingsOpsProbe.cls`: `TestForeignRefused` and `TestForeignOffGoesThrough`.
-- `release/ipm-install.sh` (Lane A): the DW-34 and DW-207 live checks, which depend on the rulings above.
-- If DW-207 is ruled out, DW-207 stays routed. If DW-223 is ruled out, it is declined here as "Lane B's `Demo.cls`, not this story's". No contended file is in this list.
+**Cross-lane ruling (U-177, the orchestrator, 2026-10-31, option B).** The cross-lane group left this story: no Lane B class or Lane B test is edited, `Test/Core/SettingsOps.cls` is left alone, and no AD-18 or AD-33 text changes. The plan's measured DW-34 facts above stay as a record for Story 31.3.
+- Declined DW-34 (U-177: moved to Story 31.3, Lane B classes, AD-33)
+- Declined DW-207 (U-177: moved to Story 31.3, Lane B classes, AD-33)
+- Declined DW-223 (U-177: moved to Story 31.3, Lane B classes, AD-33)
 
 **Ledger inbox (Rule 17):**
 - DW-212 is addressed by the `Test/Install/Users.cls` task and matrix row "Path B".
-- DW-34, DW-207 and DW-223 are addressed by the cross-lane tasks above.
+- DW-34, DW-207 and DW-223 are declined above (U-177) and re-owned to `31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur` by the orchestrator.
 
 **Integration ACs, Consumed-by and Consumes (Rules 1 and 2).**
 
@@ -374,7 +338,6 @@ Consumes:
 - `Ipm()` and `MapAndStop` differ on purpose: one commits, the other suspends.
 - `residue` gets a scope rather than a copy.
 - `release/ipm-install.sh` copies about 15 lines of curl and state parsing from `test-demo-switch.sh`, whose helpers are local to that Lane B script. The shared libraries are contended, so no common helper can be made there now.
-- `PlanNow` keeps `SettingsOps` from repeating `Run`'s two lines.
 
 **Architectural weight, for the lead (Rule 20):**
 - A Conventions row, "IPM steps":
@@ -383,7 +346,6 @@ Consumes:
   - A Reload, Validate or Compile failure is still rolled back. A step failure leaves the new code installed, and the next command runs the steps again.
   - Story 15.3's "if the load fails part-way, IPM rolls it back" therefore reads as the load phases.
 - **The ownership-table row** `ReconcileIn` | `OcuTalon.Install.ReconcileIn` | A (AD-33). A note on AD-23's "every production start ... runs Reconcile": the `Production` step's start lock and `ReconcileIn`.
-- **If DW-34 is ruled in,** AD-18's "In release 1 the instance zone is the container's `TZ`" gains "and, where TZ is unset, the operating system's zone (`/etc/localtime`)".
 
 **Footprint extension, for the lead:** `src/ocutalon/cls/OcuTalon/Production.cls` (Lane A region), `src/ocutalon/cls/OcuTalon/Test/Install/**` and `docs/`.
 
@@ -412,7 +374,6 @@ Every `[L]` command uses only fresh throwaways. The `class` and `shard` calls ar
 - `[L] bash ci/iris.sh class OcuTalon.Test.Install.Users` (loop): passed.
 - `[L] bash release/ipm-install.sh a` (loop): `ipm-install: all checks passed`, with the `OUTPUT` and `TIME` lines.
 - `[L] bash release/ipm-install.sh b` (loop): `ipm-install: all checks passed`.
-- Cross-lane only, if ruled in (loop): `[L] bash ci/iris.sh class OcuTalon.Test.Data.Time`, `... OcuTalon.Test.Demo.Step`, `... OcuTalon.Test.Core.SettingsOps`, `... OcuTalon.Test.Core.Admin` and `... OcuTalon.Test.Watch.Grant`: each passed.
 - `bash ci/checks.sh` (once): no `checks: failed`.
 - `[L] bash release/ipm-install.sh` (once), only when `a`'s and `b`'s `TIME` lines sum to under 8 minutes; otherwise CI's job is its first full run: all checks passed.
 - `[L]` (once), one call each, every one expected to pass:
@@ -445,9 +406,6 @@ Every `[L]` command uses only fresh throwaways. The `class` and `shard` calls ar
 | FileCopy target `${cspdir}` | `ipm-install.sh a` (bundle, sign-in page) | bundle path |
 | `Public.RunLocal` writes `onlineDemo` 1 | `ipm-install.sh a` ("Web and REST") | not the online demo |
 | The Demo step's create skips the public mappings | `ipm-install.sh a` ("Demo switch") | demo on |
-| Cross-lane: `Zone()` back to TZ only | `Test.Data.Time.TestZoneFrom`, `ipm-install.sh a` DW-34 | DW-34 |
-| Cross-lane: the `SettingsOps` guard removed | `Test.Core.SettingsOps.TestForeignRefused`, `ipm-install.sh b` | DW-207 |
-| Cross-lane: `WithOrders` ignores `own` | `Test.Demo.Step.TestWithOrders`, `Test.Watch.Grant.TestHelper` | DW-223 |
 
 **Shared surfaces:**
 - **The production's item list,** now with `ReconcileIn`. Read by:
@@ -462,10 +420,6 @@ Every `[L]` command uses only fresh throwaways. The `class` and `shard` calls ar
   - `ci/warm.sh`'s manifest (a change refuses a warm reload);
   - `test-build-inputs.sh`.
 - **`release/ipm-install.sh`'s check list,** read by lane-a's job.
-- **Cross-lane:**
-  - the `SettingsOps` outcomes: `Test.Core.SettingsOps`, `Test.Core.Admin.TestPrinted` and `test-demo-switch.sh`'s texts;
-  - `Zone()`: `Test.Data.Time.TestUnsetZone`, `Test.Web.Api`:118, `Test.Agent.Render`:140, `Test.Tools.Reminders`:1052, `test-sign-in.sh`:248, `test-production.sh`:250 and `/state`'s `instanceZone`;
-  - `WithOrders`: `Test.Demo.Step` and `Test.Watch.Grant`.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
