@@ -21,6 +21,9 @@ Include Ensemble
 ///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow, Cut), and so are Enable, Disable, Marks
 ///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
+///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
+///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). Their first user is
+///     OcuTalon.Test.Channel.TelegramNoToken; the second is TelegramPageFixture's search of the pairing codes (Story 12.3).
 Class OcuTalon.Test.Channel.LiveCase Extends %UnitTest.TestCase [ Abstract ]
 {
 
@@ -246,7 +249,7 @@ Method ChatRows(chatId As %String) As %Integer [ Private ]
 }
 
 /// The highest id of the message headers: the mark that HeadersFrom reads from.
-ClassMethod HeaderMark() As %Integer [ Private ]
+ClassMethod HeaderMark() As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens.MessageHeader")
 	Do result.%Next()
@@ -254,9 +257,52 @@ ClassMethod HeaderMark() As %Integer [ Private ]
 }
 
 /// The number of message headers after the mark whose source item is the item.
-ClassMethod HeadersFrom(mark As %Integer, item As %String) As %Integer [ Private ]
+ClassMethod HeadersFrom(mark As %Integer, item As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = ?", mark, item)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// Every text of every row of a SELECT that names its columns, as one text.
+ClassMethod RowsText(sql As %String, mark As %Integer) As %String
+{
+	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, mark)
+	While result.%Next() {
+		For column = 1:1:result.%ResultColumnCount {
+			Set text = text _ result.%GetData(column) _ $Char(10)
+		}
+	}
+	Quit text
+}
+
+/// The exported body of every message header after the mark, as one text.
+ClassMethod Bodies(mark As %Integer) As %String
+{
+	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE ID > ?", mark)
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		Set id = result.%GetData(2)
+		If (class = "") || (id = "") Continue
+		Try {
+			Set body = $ClassMethod(class, "%OpenId", id)
+			If $IsObject(body) {
+				Set xml = ""
+				If body.%Extends("%XML.Adaptor") && $$$ISOK(body.XMLExportToString(.xml)) Set text = text _ xml _ $Char(10)
+			}
+		} Catch {
+			Set text = text _ "body not readable: " _ class _ $Char(10)
+		}
+	}
+	Quit text
+}
+
+/// The highest id of the live events: the mark that the live-event scan reads from.
+ClassMethod LiveMark() As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(%ID) FROM OcuTalon_Live.Event")
 	Do result.%Next()
 	Quit +result.%GetData(1)
 }

@@ -2,7 +2,8 @@
 title: 'Story 12.3: The Telegram card shows a fresh pairing code as a QR code'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b824bd01ccced5ecd3811d9386e8a47ee3dc55b6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -281,6 +282,33 @@ These rows assume:
 
 ## Review Triage Log
 
+### 2026-10-31 - Review pass
+- verdicts: 23 findings (a finding that two layers reported shares one row, with both layers named) - high 0, medium 0, low 12, false 11, maybe-false 0
+- findings:
+  - `[low]` `patch` (Blind Hunter 1, Edge Case Hunter 1, Verification Gap "empty list versus no list") `TelegramPageFixture.Start` packs `codes` as "" when it throws before `CodeRefs()` has run, so `Finish` read a four-element list and `DropCodes("")` deleted every code row, pre-existing ones included - real: `Pack` always wrote four elements. Fixed: `Start` packs `$ListBuild(1, refs)` only once `CodeRefs()` returned, `Finish` drops codes only for that shape, and the `Start`, `Pack` and `Finish` docs agree. `live demo-path` and both `shard lane-a@Channel` orders re-run green.
+  - `[low]` `reject` (Blind Hunter 2) `LiveCase.Bodies` skips bodies that are not `%XML.Adaptor` - the method moved verbatim from `TelegramNoToken` (Task 1 is behaviour-preserving), so it is not this story's change; the production's only message bodies are the XML-adaptor requests the probe covers.
+  - `[false]` `reject` (Blind Hunter 3, Verification Gap "shared algorithm") the QR oracle repeats the implementation - the spec's matrix defines the oracle as `S(link)`, the library's own calls with the stated grammar, and the mutation "the symbol encodes the code alone" went red.
+  - `[low]` `reject` (Blind Hunter 4, Verification Gap 1, Intent Alignment "unit-level contracts") the view's pure helpers have no Node unit test - Design Notes Decided 13 decides this (DW-499, `wontfix-accepted`), and a test file would be a new Lane B file under `web/scripts/`, outside the footprint; the browser rows pin the branches. The ten-minute cap (`dueTime`) and the unreadable-expiry rule are not pinned by any row (T3's third answer is passed through, as the matrix says); recorded under Residual risks.
+  - `[low]` `reject` (Blind Hunter 5, Verification Gap 2, Intent Alignment "409 refusal reset") T4's 3 s window cannot catch a retry after 10 s or 30 s, and no test makes the route fail with a 500 - the matrix row says "no second POST within 3 s", the story has no AC for the 30 s retry, and a 35 s wait would add to a `browser` group budgeted at about 29.5 of 30 minutes; recorded under Residual risks.
+  - `[false]` `reject` (Blind Hunter 6) hard-coded `ocutalon_ci_bot` in T1 and T4 - the spec names that mock default in the matrix; a change of the mock's default would fail both tests loudly.
+  - `[false]` `reject` (Blind Hunter 7, Edge Case Hunter 6) `pairingLink` does not encode the bot name or the code - `RecordTelegram` accepts `[A-Za-z0-9_]{0,64}` and the code is base64url, and the Boundaries fix the `href` as `https://t.me/<botUserName>?start=<code>`; encoding would change nothing for either alphabet.
+  - `[false]` `reject` (Blind Hunter 8) a non-409 failure blanks the card for up to 30 s - Decided 3 (the UX has no error state, and an expired code must not stay on screen).
+  - `[low]` `reject` (Blind Hunter 9) no test of 409 after a held code, of the 30 s retry or of `CODE_RETRY_MS` - same as the T4 row above.
+  - `[false]` `reject` (Blind Hunter 10) the probe command may be cleaned before SessionOps handles it - `CodeProbed` checks that the header and body scans find the probe before `CodeSearch` removes anything; the `^OcuTalonTest` counter is a test global the tests own.
+  - `[low]` `reject` (Blind Hunter 11, "smaller points": `a,,b`, public `RowsText`) an empty item in the codes argument and the public raw-SQL helper - the arguments come from the spec's own call, and the helper moved verbatim.
+  - `[low]` `reject` (Edge Case Hunter 2) the cleanup `Try` in `CodeSearch` stops at its first throw - the three calls do not throw in practice (`%ExecDirect` returns a status), the catch is there so that the search's verdict survives, and a split would add three blocks for a case that was not shown.
+  - `[low]` `reject` (Edge Case Hunter 3) the route handler throws on a non-JSON or non-200 answer - T3 requires 200 answers, so such an answer fails the test either way; the handler is the test's own.
+  - `[false]` `reject` (Edge Case Hunter 4) T1's window ends at the `Resume` call, not at the page applying the clear - the page learns of the clear after `Resume` and may then ask legitimately before the test notices; the first version of the test failed on that race, and the mutation "the request condition ignores the pause" still goes red.
+  - `[false]` `reject` (Edge Case Hunter 5) a browser clock more than ten minutes ahead rotates the code every 10 s - Decided 4 and the Boundaries' spacing rule, by design.
+  - `[false]` `reject` (Edge Case Hunter 7) after a 409 the card stays not set up until the snapshot's values change - Decided 2, by design (no event carries the server's state).
+  - `[low]` `reject` (Edge Case Hunter 8) a code asked for between `Disable` and `DropCodes` is not removed - the page's only pending timer after the last answer is the real 600 s one, so no request falls into the window within a test.
+  - `[low]` `reject` (Verification Gap 3) the AC3 "without losing input" mutation was applied in its focus half only - the table row reads "reloads the snapshot or moves focus"; the card does not call `LiveState`'s reload, and the recorded line says so.
+  - `[low]` `reject` (Verification Gap, T4 ambient state) T4 relies on the server being off - on a stack where Telegram were on the page would get a 200 and T4 would fail loudly, not pass falsely; the fresh-stack and either-order runs are green.
+  - `[low]` `reject` (Verification Gap, timing margin) T3's 9 s gaps are measured after `route.fetch()` - a slower answer lengthens the gap, it does not shorten it; the 1 s margin covers the spacing.
+  - `[false]` `reject` (Verification Gap, positive controls) `Codes` has a control for the settings and the event log only - Decided 10 lists the probes, and `KeyScan.Find`'s own test covers its other scans.
+  - `[false]` `reject` (Verification Gap, stale header) `qr-pin.test.mjs` header - DW-504, accepted, Lane B's.
+  - `[false]` `reject` (Intent Alignment) the descriptive report's divergences: the "no bot name" row has R11 (Lane B, unchanged, green in `live sign-in`); the 9 s lower bound against "at least 10 s" is the matrix's own tolerance; the helpers made public are in the Tasks.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -457,9 +485,24 @@ How to run:
 | AC3, the spacing | No 10 s spacing | T3 (more than one `POST` within 9 s of answer 2) |
 | AC4 | `Web/Api.cls` `PairingCode` writes the code to the event log (`##class(Ens.Util.Log).LogInfo(…, code)`) | T3 (`Codes`: the event log holds a code) |
 
+Mutation results (each applied, `live demo-path` run, seen red, reverted byte for byte against a backup; `git diff` identical afterwards):
+- mutation: AC1 the code is the server's: the card holds a fixed 22-character code instead of the answer's -> T3 red (`to the pairing link of the code`: expected the answer's code, received `AAAAAAAAAAAAAAAAAAAAAA`)
+- mutation: AC1 the row: `Web/Api.cls` `PairingCode` skips `StoreCode` -> T3 red (`Codes`: `no code row holds the hash of the last code`)
+- mutation: AC1 And off: a 409 leaves the refusal unrecorded, so the card shows nothing -> T4 red (`refused: the card is not set up`: expected 1, received 0)
+- mutation: AC1 And paused: the request condition ignores the pause (`asksForCode(telegram, undefined)`) -> T1 red (`the page asked for no code from its onset to the resume, the reload included`: expected 0, received 1)
+- mutation: AC2 the link follows `getMe`: the link names `ocutalon_ci_bot` whatever the snapshot says -> T3 red (`href` is `ocutalon_ci_bot`, expected `ocutalon_qr_bot`)
+- mutation: AC2 the symbol encodes the link: the symbol encodes the code alone -> T3 red (`which is the symbol of the same link`: the path differs)
+- mutation: AC2 navy on white in both themes: the path's fill is `var(--ink)` -> T3 red (`dark: with a navy symbol`: received `rgb(238, 242, 247)`)
+- mutation: AC2 `{n}`: `Math.ceil` instead of `Math.floor` -> T3 red (`and the card says so`: expected `New code in 9 min`, received `New code in 10 min`)
+- mutation: AC3 the refresh: no refresh at the due time -> T3 red (`the second request for a code`: expected 2 or more, received 1)
+- mutation: AC3 focus to the new link: the link is re-created for each code (`@for (one of [view().link]; track one)`) -> T3 red (`the focused link keeps its focus with the new code`: expected focused, received inactive)
+- mutation: AC3 without losing input: the refresh moves focus to the link -> T3 red (`the composer still has focus`: expected focused, received inactive). The other half of this row, a refresh that reloads the snapshot, was not applied: it needs a `LiveState` call, and the card does not inject `LiveState`'s reload.
+- mutation: AC3 the spacing: no 10 s spacing -> T3 red (a loop of requests: `the route kept the second answer` saw 3 answers, expected 2)
+- mutation: AC4: `Web/Api.cls` `PairingCode` writes the code to the event log -> T3 red (`Codes`: `the settings, item settings, event log or sessions hold code 1`)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan summary.** The card gains its unpaired state (QR code of `https://t.me/<bot>?start=<code>`, the scan line, "Open in Telegram (opens Telegram)", "New code in {n} min"), asks for its code through `ApiClient.pairingCode()`, refreshes it in place at its due time with a 10 s spacing, and shows its off state on a 409 and its paused state on a pause. The tests are T3 and T4 (new) and T1 (extended), in `telegram-page.spec.ts`. `TelegramPageFixture` gains `Start(…, botName)`, the code-row removal in `Finish`, `CodeMark` and `Codes`, and `LiveCase` takes `TelegramNoToken`'s scans as public class methods.
@@ -474,3 +517,31 @@ Blocking condition: none
 - `browser` is expected at about 29 to 29.5 minutes on the runner after Stories 12.8 and 12.3 (inference). A run over 30 minutes needs a unit moved in `ci/units.sh`, which is the orchestrator's (Lane B's file).
 - A browser clock far from the server's is held to one code request every 10 s (fast clock) or to the ten-minute cap (slow clock). The page's other countdowns assume synchronised clocks, as before.
 - Background tabs may run the refresh timer up to a minute late (browser timer throttling, inference). The expired code then shows until the timer fires, and a scan of it gets Story 12.5's "That code didn't work" reply.
+
+**Summary of the implemented change.** The Telegram card has its unpaired state: it asks the server for a pairing code through `ApiClient.pairingCode()` while Telegram is `on` with a bot name, the session is unpaired and the card is not paused, and shows the QR code of `https://t.me/<bot>?start=<code>` (navy on white, 132 px, one bound path), the scan line, the "Open in Telegram (opens Telegram)" link and "New code in {n} min". The code is due at the earlier of its expiry and ten minutes after it arrived, requests are at least 10 s apart, a new code replaces the old one in the same elements, a 409 shows the not-set-up view, and any other failure shows nothing and asks again after 30 s. `TelegramPageFixture` gained `Start(..., botName)`, the code-row removal in `Finish`, `CodeMark` and `Codes`; `LiveCase` took over `TelegramNoToken`'s scans.
+
+**Files changed.**
+- `web/src/app/rail/telegram-card/telegram-card-view.ts`: the five texts, the `unpaired` kind and the pure helpers (`asksForCode`, `pairingLink`, `dueTime`, `minutesLeft`, `qrSymbol`).
+- `web/src/app/rail/telegram-card/telegram-card.ts`: injects `ApiClient`, the unpaired block and the code's lifecycle.
+- `web/scripts/ux-strings.test.mjs`: the one Lane B entry (`SOURCES.ux` gains the five strings).
+- `web/e2e/demo-path/telegram-page.spec.ts`: T1 extended, T3 and T4 new, helpers at the top level.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls`: `Start`'s `botName`, `Finish`'s code-row removal, `CodeMark`, `Codes`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls` and `TelegramNoToken.cls`: the scan helpers moved into `LiveCase` and made public.
+- This spec: the thirteen `mutation:` lines, the triage log and this result.
+
+**Review findings breakdown.** 4 layers, 23 triaged findings (cross-layer duplicates share a row). Patches applied: 1 (low: `Start`'s partial failure could make `Finish` delete pre-existing code rows). Deferred: 0. Rejected: all others, each with its reason in the triage log (spec decisions 2, 3, 4, 10 and 13; moved-verbatim code; by-design behaviour; low and unlikely).
+
+**Follow-up review recommended:** false (one low patch).
+
+**Verification performed.**
+- `npm --prefix web test`: 1127 passed. `npm --prefix web run lint`: clean.
+- `ci/iris.sh build`: the bundle builds (714.55 kB initial total by the handoff run, under the 1 MB error budget).
+- `ci/iris.sh live demo-path`, twice (before and after the review patch): 16 Playwright tests passed; `STEP 1 page: partly skipped, 10 passed, 1 skipped (Story 12.4)`; `floor 11 of 11 passed`.
+- The handoff run, before the review patch: the seven Telegram classes warm (passed), `shard lane-a@Channel` in both orders, the reversed-order browser run, `live sign-in` parts 1/2 and 2/2, `test-ci-config.sh`, `test-boundaries.sh`, `ci/checks.sh`, and the thirteen pinning mutations (each red, each reverted byte for byte; the Lane B ones temporary).
+- After the review patch: `shard lane-a@Channel` forward (8 classes, 424 s) and `--reverse` (8 classes, 496 s) passed; `test-ci-config.sh` and `test-boundaries.sh` passed.
+- The footprint command prints nothing; the only Lane B path changed is `web/scripts/ux-strings.test.mjs`.
+- `iris (browser)` minutes and `live:demo-path` seconds on the runner are left to CI (Rule 23); locally `live demo-path` took about 1.9 minutes of Playwright.
+
+**Residual risks (added by the review).**
+- Not pinned by any test: the ten-minute cap in `dueTime` and its unreadable-expiry rule (T3's third answer is the server's real one, as the matrix says), the 30 s retry after a non-409 failure, and the 409 stop beyond T4's 3 s window. A regression in those would pass the browser tests; DW-499 keeps the view out of a Node unit test.
+- The AC3 "reload" half of the without-losing-input mutation was not applied (the card does not call `LiveState`'s reload).

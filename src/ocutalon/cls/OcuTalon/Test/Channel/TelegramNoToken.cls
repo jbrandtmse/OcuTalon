@@ -21,41 +21,6 @@ Parameter API = "OcuTalon.Channel.Telegram.Api";
 /// The statuses' texts that the paths returned, as a list.
 Property Texts As %String(MAXLEN = "") [ Private ];
 
-/// Every text of every row of a SELECT that names its columns, as one text.
-ClassMethod RowsText(sql As %String, mark As %Integer) As %String [ Private ]
-{
-	Set text = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, mark)
-	While result.%Next() {
-		For column = 1:1:result.%ResultColumnCount {
-			Set text = text _ result.%GetData(column) _ $Char(10)
-		}
-	}
-	Quit text
-}
-
-/// The exported body of every message header after the mark, as one text.
-ClassMethod Bodies(mark As %Integer) As %String [ Private ]
-{
-	Set text = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE ID > ?", mark)
-	While result.%Next() {
-		Set class = result.%GetData(1)
-		Set id = result.%GetData(2)
-		If (class = "") || (id = "") Continue
-		Try {
-			Set body = $ClassMethod(class, "%OpenId", id)
-			If $IsObject(body) {
-				Set xml = ""
-				If body.%Extends("%XML.Adaptor") && $$$ISOK(body.XMLExportToString(.xml)) Set text = text _ xml _ $Char(10)
-			}
-		} Catch {
-			Set text = text _ "body not readable: " _ class _ $Char(10)
-		}
-	}
-	Quit text
-}
-
 /// Keeps the text of a status for the scan.
 Method Keep(sc As %Status) [ Private ]
 {
@@ -190,14 +155,6 @@ Method TestNoTokenAnywhere()
 	Do $ClassMethod("OcuTalon.Test.Agent.KeyScan", "SetEnv", var, ..Token)
 	Do ..Cleanup()
 	Do $$$AssertTrue(..WaitClear(since), "StatusMonitor has published the clear of the test's pause")
-}
-
-/// The highest id of the live events: the mark that the live-event scan reads from.
-ClassMethod LiveMark() As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(%ID) FROM OcuTalon_Live.Event")
-	Do result.%Next()
-	Quit +result.%GetData(1)
 }
 
 }
