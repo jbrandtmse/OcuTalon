@@ -128,3 +128,5 @@
 2026-10-31T08:44:12Z	Epic 10	retro_review_skipped	reason=no_x0_input(reopen_for_one_story;retro_review_assigned=skip)
 2026-10-31T08:47:19Z	Epic 10	epic_context_compiled	reason=planning_artifact_newer(story_10.4_added) lines=76 model=claude-opus-5-5
 2026-10-31T08:47:19Z	Story 10.4	stage_spawned	stage=plan spawn_at=2026-10-31T08:47:39Z model=claude-opus-5-5 agent_name=10-4-readme-opens-plan-1 cycle_iteration=1
+2026-10-31T09:05:42Z	Story 10.4	story_created	spawn_at=2026-10-31T08:47:39Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md build_status=ready-for-dev spec_lines=234 epic_context=reused warnings=oversized
+2026-10-31T09:05:42Z	Story 10.4	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-8,AD-10,AD-15,AD-17,AD-22,AD-28,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false table_cells=6/6_agree(DN1,lead_spot-checked_catalog_Watch.cls:119,Core.cls:157,244) quoted_text=ascii_in_epics.md(no_typographic_bytes;copied_as_is) model=claude-opus-5-5
