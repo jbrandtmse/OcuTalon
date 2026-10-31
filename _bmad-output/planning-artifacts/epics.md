@@ -5321,6 +5321,7 @@ So that I can tell where an answer came from.
 **And** the fixed-strings test covers the new texts (UX-DR117)
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
+- DW-383: Eval.In.Render is a line-for-line copy of Lane B's private Core.Conversation.Checked (the glue from a Reply's HostData checks to Checks.Render's key and rows), forced by AD-29; when Conversation's HostData handling changes, the evaluation's all-clear path drifts from the product's (AD-22) (ledger; routed by merge_gate 2026-10-31)
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 
@@ -6461,6 +6462,8 @@ So that long conversations keep working at the cheaper price tier.
 - DW-125: Until Story 30.1's compaction, a linked conversation whose stored history alone passes the request-size limit answers too_large on every turn that continues it (about 400,000 characters of history); Epic 2's Conversation starts a fresh session only after Tainted or SessionBroken, so the conversation stays stuck (ledger; routed by spec_gate 2026-10-23)
 - DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted (ledger; routed by harvest 2026-10-23)
 - DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured) (ledger; routed by merge_gate 2026-10-24)
+- DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node, so a key inside a zstd-compressed %Stream.Global* chunk, a 16-bit $List element or split across stream chunks reads as clean (ledger; routed by merge_gate 2026-10-31)
+- DW-386: The product redactor OcuTalon.Bridge.Redact does not replace two key shapes that docker/tests/test-boundaries.sh key_like flags: DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY) (ledger; routed by merge_gate 2026-10-31)
 
 ### Story 30.2: Old messages and records are purged on schedule
 
@@ -6583,6 +6586,7 @@ So that updates arrive at once.
 **Given** the CI demo-path environment
 **When** the WebSocket tests run
 **Then** an event published while the socket is open reaches the page through it; with the socket blocked, polling still delivers it; the 2-second delivery bound is measured in the rehearsal (NFR-9, AD-12) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the banner half of this criterion stays in Story 2.11]
+- DW-397: Test.Eval.Feed.Fixture (Story 9.9) near-copies Install.Step.Demo.System's namespace create/remove and ServiceRole, and Keys/Count repeat Test.Demo.Production WaitCount/Count, forced by Lane B's OCUORDERS-fixed private helpers; the two teardown sequences drift when one changes (ledger; routed by merge_gate 2026-10-31)
 
 ### Story 31.2: A tool call's approval request reaches the phone with Approve and Reject
 
@@ -6639,6 +6643,7 @@ So that what reaches my phone is my own work.
 **Given** 0.1.1's Telegram channel (Epic 12, Lane A) and Story 29.4 merged
 **When** this story's tests run
 **Then** it turns on Story 29.4's paired-chat cases: session A's incident, notification and approval request reach only A's paired chat, and B's paired chat gets none of them; a button press from B's paired chat on A's approval request is refused and changes nothing; and no OCUTALON or OCUORDERS message body or header from the run carries the paired mock chat's display name, user name, chat id or phone number (FR-8, FR-15, FR-20, NFR-11, AD-4, AD-11, AD-29)
+- DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too (ledger; routed by merge_gate 2026-10-31)
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 

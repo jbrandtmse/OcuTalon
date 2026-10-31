@@ -2223,6 +2223,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-4-ten-incidents-are-recorded-from-real-failures.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: found by 9.4's code review comparing Redact.Text with key_like; Bridge.Redact is src/bridge (Lane A, Epic 7's contended path while Epic 7 is open); no release-1 recording source contains these shapes
 - 2026-10-29T08:51:48Z status=escalated owner=burndown by=cr note=for the decision sheet: extend Bridge.Redact's key patterns to every key_like shape (security posture; a story of the bridge's owner once Epic 7 merges), or accept with reopen_if a recording or trace shows one
+- 2026-10-31T07:17:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=Epic_9_decision_sheet,veto_U-184:extend_Bridge.Redact_to_every_key_like_shape(dop_v1_,PEM_private-key_headers),one_test_per_shape,before_1.0.0
 
 ### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -2244,6 +2245,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Fixture.cls RemoveSystem (about 65 of its 95 lines) vs Demo.cls System off branch, Revoke vs Demo.ServiceRole(0); Install/** and Test/Demo/* are read-only for 9.9 and both siblings are fixed to OCUORDERS
 - 2026-10-29T17:55:09Z status=routed owner=burndown by=cr note=Rule 2 forced copy: a namespace-parameterised Demo.System helper unifies it when Epic 15 touches Demo.cls (cf. DW-223)
 - 2026-10-30T15:23:33Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow: the fix (a namespace-parameterised Install.Step.Demo System helper that Test.Eval.Feed.Fixture calls) needs Install/Step/Demo.cls, Epic 15's contended path; Story 15.2 touches Demo.cls and already owns the sibling copy DW-223
+- 2026-10-31T07:17:56Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=merge_gate note=follows_DW-223(U-177):the_fix_needs_Install/Step/Demo.cls(Lane_B,AD-33),not_Lane_A's_15.2;31.1_declines_it_onward_if_Demo.cls_is_not_free
 ### DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); recheck every README link and GitHub's heading slugs on the public page before the release
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
@@ -2437,6 +2439,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T10:59:46Z status=decision-pending owner=burndown by=lead note=for the decision sheet: the orchestrator writes AD-22's as-built CI line at Epic 9's merge gate, as for DW-407 (no worktree spine edit)
 - 2026-10-30T11:47:02Z occurrence=9-5-release-candidates-pass-the-evaluation-and-the-demo-incident by=spec_gate note=also for the orchestrator at the merge gate: Story 9.5's proposed AD-22 as-built bullet 'The release-candidate run (Story 9.5)' (text in spec-9-5's Design Notes, Proposed spine text); write it only once 9.5 is done and only as built
 - 2026-10-30T16:16:12Z occurrence=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=spec_gate note=also: Story 9.10's proposed AD-22 as-built text (spec-9-10 Design Notes); write it only once 9.10 is done and only as built
+- 2026-10-31T07:17:56Z status=resolved-by:9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=merge_gate note=the_orchestrator_wrote_AD-22's_as-built_lines_at_Epic_9's_merge(live:cards_in_shards,live:audit_in_shards-2;the_9.5_and_9.10_bullets),checked_against_ci/units.sh
 
 ### DW-434: eval/run.sh --release-candidate keeps ANTHROPIC_API_KEY in the environment of lib-live's ensure_web_bundle, so in a checkout without the web bundle npm ci's install scripts and the web build run with the real key
 - source: spec-9-5-release-candidates-pass-the-evaluation-and-the-demo-incident.md | severity: low | fix-risk: low | footprint: in-story
@@ -2463,6 +2466,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: Walk tests reference [ value and data [ value per node (KeyProof.cls Walk); %Stream.GlobalCharacter has COMPRESS=1 and TmpCharacter compresses a block of 1 KB or more (irislib/%Stream/TmpCharacter.cls:889); the demo-case control cannot detect it; found by code review (blind, edge, acceptance layers)
 - 2026-10-30T20:42:31Z status=escalated owner=burndown by=cr note=for the user: decode $List elements (cheap) and compressed stream chunks (needs a measurement of the storage on a throwaway); the same walk is copied in Test.Web.SessionEvents.ReferenceHits
+- 2026-10-31T07:17:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=Epic_9_decision_sheet,veto_U-185:decode_$List_elements_in_Test.Eval.KeyProof_Walk;measure_on_a_throwaway_whether_a_message_body_can_store_a_key_in_a_compressed_or_split_%Stream.Global*_chunk(yes:decode;no:that_half_wontfix-accepted_with_the_measurement);Lane_B's_copy_is_its_own_entry_for_31.4
 
 ### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2473,3 +2477,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: KeyProof.cls Walk vs SessionEvents.cls ReferenceHits :590-598; the spec records the reason (Test/Web is contended by Epic 29, and the sibling walks one namespace by location); no story in Epic 9 touches Test/Web; found by code review (Rule 2)
 - 2026-10-30T20:42:31Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=cr note=reopen_if=either walk changes how it matches a node (for example the decoding of the escalated globals-scan entry) and the other does not
+
+### DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too
+- source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
+- 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
