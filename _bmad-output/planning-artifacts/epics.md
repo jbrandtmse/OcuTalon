@@ -3789,7 +3789,7 @@ So that every README claim happens on the product's real items in about two minu
 **Given** every release-1 floor epic (0 to 10) merged into the integration branch, and the IRIS CI job running OcuTalon with the CI override (mocked model)
 **When** the REL-2 Playwright test runs on a pull request or a push to `main`
 **Then** every UJ-1 step spec under `web/e2e/demo-path/` except Telegram's is turned on and passes in order: sign-in; the watch step shows the Act strip with its reasons and trace link, the "Orders production" check row and an active Break the feed; the reminder step shows the reminder row; Break the feed leads to one incident card awaiting approval in the chat and on the simulated phone, with the headline, cause, evidence line, dry run, Approve and Reject, "Approval requests (1)" in the rail, and the reminder landing in the chat and on the phone during the wait (REL-2, FR-16, FR-23, FR-24, FR-34, UX-DR101)
-**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
+**And** this story turns on every step spec still skipped except Telegram's, and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29) [AMENDED 2026-10-31, Story 11.1's plan, unattended split ruling (decide, U5): the "turns on when … merges" half moved verbatim to Story 11.9; it read "this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)"]
 
 **Given** the incident awaiting approval
 **When** the test presses Approve on the simulated phone
@@ -3799,6 +3799,22 @@ So that every README claim happens on the product's real items in about two minu
 **When** the test presses Open the trace
 **Then** the link opens OcuTalon's trace application at the incident's diagnosis session, after the local install's Visual Trace sign-in popover, and the guide's finish state shows "This run: {n} decisions · {tokens} tokens · {cost} on {model}." (AD-26, UX-DR47, UX-DR101, UX-DR139, UX-DR140)
 **And** after the browser steps, the same job reads the IRIS audit log, polling with a timeout, and finds the approval's answered entry and the resend's action entry for the run's session, with no key, access token, password or Telegram identity in either (FR-9, AD-17)
+
+[AMENDED 2026-10-31, Story 11.1's plan, unattended split ruling (decide, U5): the failure-path scenarios, the coda and the real-model rule moved verbatim to Story 11.7; DW-307 moved to Story 11.7, DW-140 and DW-142 to Story 11.8]
+
+- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
+- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
+
+### Story 11.7: The demo path's failure paths, quiet outcomes and online run pass in the REL-2 test
+
+As a judge,
+I want the demo path's failure paths, its quiet outcomes and the online demo's run checked as well as its main route,
+So that a rejection, a refusal, a newsletter and a suspicious request behave as the README says, locally and online.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.1]
+
+**Acceptance Criteria:**
 
 **Given** the test's failure-path scenarios
 **When** one rejects the request and another makes the mocked model refuse the diagnosis
@@ -3812,12 +3828,46 @@ So that every README claim happens on the product's real items in about two minu
 **When** it reaches a decision
 **Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
 
-- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
+- DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view; turn its steps on here (ledger; split from Story 11.1 2026-10-31)
+- DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2) (ledger; split from Story 11.1 2026-10-31)
+
+### Story 11.8: The chat cancels several reminders in one call and says it can set them
+
+As a user,
+I want to ask OcuTalon in the chat to cancel several reminders at once, and to hear from it what it can do,
+So that "cancel all my reminders" works in one turn and the chat never says it can't set a reminder.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.1]
+
+**Acceptance Criteria:**
+
+**Given** the ledger bullets below, moved from Story 11.1
+**When** the story is done
+**Then** each is met and pinned by tests on the CI mock; the live check on Claude Haiku 5.5 that DW-142 names runs in Story 38.1's real-key pass (was Story 11.6), with DW-358 (U-118, REL-7)
+
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time; U-118 (kept by the owner): Lane A's cancel_reminder takes one or more reminder ids and sends one CancelReminder per id within one tool call, each with its own IdempotencyKey, with no AD-20 change; Story 11.6 runs the live check (DW-358) (ledger; routed by merge_gate 2026-10-28)
 - DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools; U-118 (kept by the owner): Chat's instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest, and a live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, passes before 0.1.0 is cut (ledger; routed by merge_gate 2026-10-28)
-- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
-- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
-- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
+- DW-316: Test.Schedule.ReminderChat.AssertToolSteps is a near-copy of Lane A's private Test.Tools.Reminders.AssertSteps (the step kinds, tool labels, summaries, status and outside-session count), forced by AD-29; one shared agent-step checker serves both (ledger; split from Story 11.1 2026-10-31)
+
+### Story 11.9: Every check left off for release 1 turns on, and the CI flakes are fixed
+
+As a maintainer,
+I want every check that earlier stories left off until release 1 turned on, and the known CI flakes fixed,
+So that the release candidate's CI run proves everything it claims and needs no reruns.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the clause half of the criterion below moved verbatim from Story 11.1]
+
+**Acceptance Criteria:**
+
+**Given** Epics 0 to 10 merged into the integration branch
+**When** this story is done
+**Then** every check left off by a "turns on when … merges" clause in Epics 0 to 10 is turned on, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on
+**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
+
+- DW-376: flake: OcuTalon.Test.Schedule.Heartbeat TestStoppedThenStarted, 'the task ran while the production was stopped': the Task Manager's RunNow run was not seen within RUNSECONDS (ledger; split from Story 11.1 2026-10-31)
+- DW-396: flake: checks ci-warm 'up beside a held warm-iris.lock' printed LOCK busy after 1 s without its LOCK waiting line (docker/tests/test-ci-warm.sh, Story 32.4) (ledger; split from Story 11.1 2026-10-31)
+- DW-415: flake: live:sign-in web/e2e/sign-in/shell.spec.ts:93 row 9 failed with page.goto: net::ERR_NETWORK_CHANGED (Chromium saw the CI host's network interfaces change mid-run), then passed on an unchanged rerun (ledger; split from Story 11.1 2026-10-31)
 
 ### Story 11.2: Upgrades and restarts keep every record working
 
@@ -3858,34 +3908,27 @@ As the author,
 I want each release candidate installed on a clean machine and its demo path timed on the real model,
 So that the release works for a judge and the timing bounds are measured, not assumed.
 
+[AMENDED 2026-10-31, U-189 (option (a), decided by the Contest Planner under the owner's delegation): narrowed to what can be built and dry-run on throwaways; the criteria that need the author's real clean hosts, the driver host and a real model key moved verbatim to Story 38.2 in Epic 38; it read as Story 38.2's criteria now read]
+
 **Acceptance Criteria:**
 
-**Given** a clean machine with Docker and the build 154 image archive loaded, no OcuTalon volume and no Node.js, and a separate driver host with Node.js and Playwright that reaches the clean machine's published port (the author provides the hosts before this story starts, and restoring each clean host to clean for every candidate is part of that precondition)
-**When** the rehearsal script in `release/` reaches each clean host and the driver host over SSH, with their addresses and keys from the author's configuration outside the repository, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, and runs `install.sh` with the author's model key in `.env`
-**Then** the install finds, checks and retags the image, starts OcuTalon, reaches ready and prints the address and sign-in details, and the first start's duration, install included, is recorded for the README (FR-55, NFR-22, REL-6, AD-23)
+**Given** the rehearsal script in `release/`, the clean host's and the driver host's addresses and SSH keys from the author's configuration outside the repository, and a candidate branch
+**When** it runs against a host
+**Then** it reaches the clean host and the driver host over SSH, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, runs `install.sh` with the model key in the host's `.env`, waits for ready, reads the printed address and sign-in details, and records the first start's duration, install included (FR-55, NFR-22, REL-6, AD-23)
 **And** the script never prints a value from `.env`: it runs `docker compose config` only with `--quiet` and `docker inspect` only with `--format` (NFR-11, AD-22)
 
-**Given** the running install on Claude Haiku 5.5
-**When** the rehearsal runner, the REL-2 Playwright specs run from the driver host against the clean machine, drives the web demo path through the page 20 times on each clean host, using Run again and the replay rule between runs
-**Then** every run passes UJ-1's web route on real components, with no mock in the compose file, and NFR-7 passes when Break the feed to the incident notice on the simulated phone takes at most 60 seconds in at least 19 of the 20 runs (NFR-7, REL-6, CON-3, UX-DR101)
-**And** each run splits that time, from production message timestamps, into pick-up (at most 15 s), the settle rule's end (at most 30 s after the first failure), diagnosis (at most 20 s) and delivery (at most 5 s), and the report gives the median notice time against the typical target of about 35 seconds (NFR-7, AD-15, UX-DR102)
-
-**Given** the same 20 runs
-**When** the report is written
-**Then** it also records step 1's decision time (within 10 s in at least 19 of 20 runs), the approval result reaching the page (within 2 s in at least 19 of 20 runs, P30), each reminder's firing against its due time (within 10 s), the largest model request (none over 100,000 input tokens), the first reply's time, and when the reminder lands relative to "All 50 orders went through.", which the deferred reminder-prompt decision needs (NFR-3, NFR-8, NFR-9, NFR-10, P30, UX-DR102)
+**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine N times (20 for a real rehearsal), using Run again and the replay rule between runs
+**When** the runs end
+**Then** the report splits each run's Break the feed to incident notice time, from production message timestamps, into pick-up, the settle rule's end, diagnosis and delivery, and checks every bound Story 38.2 measures: NFR-7's 60 seconds in at least 19 of 20 runs and its split bounds, the median against about 35 seconds, step 1's decision time, the approval result's 2 seconds, each reminder's firing within 10 seconds, the largest model request under 100,000 input tokens, the first reply's time, when the reminder lands relative to "All 50 orders went through.", and the tell-now notice's 5 seconds in at least 19 of 20 runs (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
 
 **Given** a failed run or a missed bound
 **When** the rehearsal ends
 **Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
 **And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
 
-**Given** the clean-machine rehearsal
-**When** a sample email that the evaluation set records as tell now is sent from the simulated mailbox
-**Then** the time from its decision to the notification on the simulated phone is recorded in 20 runs and is at most 5 seconds in at least 19 (FR-1, NFR-9, P30)
-
-**Given** the rehearsal runs on both a clean macOS host and a clean Linux host, each with Docker and outbound network access limited to the configured model provider (and the Telegram API when a token is set), which the author provides before this story starts
-**When** the install script and the 20 runs of the whole web demo path run on each
-**Then** both pass with no other destination contacted, and the release notes record both hosts (FR-55, NFR-18, NFR-22)
+**Given** this build, which has no clean host and never a real model key
+**When** the script's tests run
+**Then** they prove all of the above on throwaways: a throwaway compose project or container standing in for the clean host and the driver host, the CI mock in place of the model (the report and the record mark such a run as a dry run, never as a rehearsal pass), a run set with a planted missed bound that fails the rehearsal and names the run, the step and the bound, and a scan of the script's whole output that finds no `.env` value; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
 
 ### Story 11.4: The release gets draft notes and a checklist
 
@@ -3965,32 +4008,11 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the author runs the sequence on it before the real 0.1.0 cut
 **Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Story 11.6 runs the real 0.1.0 cut through it (REL-1, REL-3, REL-7)
 
+**Given** the release sequence packaging a candidate's IPM artifact
+**When** it builds the package
+**Then** it builds the web page and puts the built bundle into the package's resources, in `src/ocutalon/csp/` (which `src/module.xml`'s `FileCopy` already copies into `${dataDir}csp/ocutalon-web/`), before it packages the artifact, so the artifact is self-contained and a registry install works with no Node.js on the judge's machine; it records in the candidate's record the artifact it would publish, so Story 15.3 can install exactly that artifact; the registry publish itself stays the author's action, at 1.0.0, and the sequence asks for the author's word before anything goes out (REL-3, REL-11, AD-23) [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation]
+
 - DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
-
-### Story 11.6: A hands-on pass with real keys finds and fixes what the tests missed before 0.1.0
-
-As the author,
-I want the Contest Planner to run the web demo path by hand with a real model key before 0.1.0 is cut, on my behalf (REL-7's amendment of 2026-10-25),
-So that what the automated tests can't see is found and fixed before the first release (REL-7).
-
-**Acceptance Criteria:**
-
-**Given** Stories 11.1 to 11.5 merged, and Story 11.5's sequence stopped at the hands-on gate for the 0.1.0 candidate `release/0.1.0-rc<n>`
-**When** the Contest Planner installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand in a browser: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
-**Then** each finding goes into the candidate's record (`release/records/0.1.0/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29)
-**And** the pass has no Telegram, because 0.1.0 has none; Story 12.7 runs the Telegram pass for 0.1.1 (REL-7)
-
-**Given** fixes made after the pass
-**When** Story 11.5's sequence cuts the next candidate and reaches the hands-on gate
-**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the Contest Planner's note in its record; otherwise, as for a re-cut from the integration branch's head, the Contest Planner runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
-
-**Given** the real 0.1.0 cut through Story 11.5's sequence
-**When** it is resumed after the recorded pass and it finishes
-**Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
-
-- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
-- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
-- DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
 
 ## Epic 12: Approve from your own phone with Telegram
 
@@ -7241,3 +7263,71 @@ So that I can see what OcuTalon costs and spot a request close to the size limit
 **Given** automated tests and a Playwright spec under `web/e2e/` with fixture usage rows across days, agents, channels and models
 **When** each grouping is chosen
 **Then** each total equals the sum of its rows, the chart and the table agree, another session's rows never appear, and the page works by keyboard with labelled controls and never relies on colour alone (FR-52, AD-4, NFR-25, UX-DR134)
+
+## Epic 38: 0.1.0 is checked by hand and cut
+
+Once Epic 11 has merged and Story 11.5's sequence has cut the 0.1.0 candidate, the author's clean macOS and Linux hosts install it and time its demo path on the real model, and the Contest Planner runs the web demo path by hand with a real model key on the author's behalf; this epic gates the v0.1.0 tag. [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation (inbox U-189, option (a))]
+
+### Story 38.1: A hands-on pass with real keys finds and fixes what the tests missed before 0.1.0
+
+As the author,
+I want the Contest Planner to run the web demo path by hand with a real model key before 0.1.0 is cut, on my behalf (REL-7's amendment of 2026-10-25),
+So that what the automated tests can't see is found and fixed before the first release (REL-7).
+
+[MOVED 2026-10-31 from Story 11.6, whole and verbatim, U-189 (option (a), decided by the Contest Planner under the owner's delegation); its "Given Stories 11.1 to 11.5 merged" now reads as Epic 11 merged; DW-299, DW-358 and DW-365 moved with it]
+
+**Acceptance Criteria:**
+
+**Given** Stories 11.1 to 11.5 merged, and Story 11.5's sequence stopped at the hands-on gate for the 0.1.0 candidate `release/0.1.0-rc<n>`
+**When** the Contest Planner installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand in a browser: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
+**Then** each finding goes into the candidate's record (`release/records/0.1.0/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29)
+**And** the pass has no Telegram, because 0.1.0 has none; Story 12.7 runs the Telegram pass for 0.1.1 (REL-7)
+
+**Given** fixes made after the pass
+**When** Story 11.5's sequence cuts the next candidate and reaches the hands-on gate
+**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the Contest Planner's note in its record; otherwise, as for a re-cut from the integration branch's head, the Contest Planner runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
+
+**Given** the real 0.1.0 cut through Story 11.5's sequence
+**When** it is resumed after the recorded pass and it finishes
+**Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
+
+- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
+- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
+- DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+
+### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
+
+As the author,
+I want each release candidate installed on a clean machine and its demo path timed on the real model,
+So that the release works for a judge and the timing bounds are measured, not assumed.
+
+[MOVED 2026-10-31 from Story 11.3, verbatim, U-189 (option (a), decided by the Contest Planner under the owner's delegation): the criteria that need the author's real clean hosts, the driver host and a real model key; Story 11.3 keeps the rehearsal script and its dry runs on throwaways, which this story runs for real]
+
+**Acceptance Criteria:**
+
+**Given** a clean machine with Docker and the build 154 image archive loaded, no OcuTalon volume and no Node.js, and a separate driver host with Node.js and Playwright that reaches the clean machine's published port (the author provides the hosts before this story starts, and restoring each clean host to clean for every candidate is part of that precondition)
+**When** the rehearsal script in `release/` reaches each clean host and the driver host over SSH, with their addresses and keys from the author's configuration outside the repository, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, and runs `install.sh` with the author's model key in `.env`
+**Then** the install finds, checks and retags the image, starts OcuTalon, reaches ready and prints the address and sign-in details, and the first start's duration, install included, is recorded for the README (FR-55, NFR-22, REL-6, AD-23)
+**And** the script never prints a value from `.env`: it runs `docker compose config` only with `--quiet` and `docker inspect` only with `--format` (NFR-11, AD-22)
+
+**Given** the running install on Claude Haiku 5.5
+**When** the rehearsal runner, the REL-2 Playwright specs run from the driver host against the clean machine, drives the web demo path through the page 20 times on each clean host, using Run again and the replay rule between runs
+**Then** every run passes UJ-1's web route on real components, with no mock in the compose file, and NFR-7 passes when Break the feed to the incident notice on the simulated phone takes at most 60 seconds in at least 19 of the 20 runs (NFR-7, REL-6, CON-3, UX-DR101)
+**And** each run splits that time, from production message timestamps, into pick-up (at most 15 s), the settle rule's end (at most 30 s after the first failure), diagnosis (at most 20 s) and delivery (at most 5 s), and the report gives the median notice time against the typical target of about 35 seconds (NFR-7, AD-15, UX-DR102)
+
+**Given** the same 20 runs
+**When** the report is written
+**Then** it also records step 1's decision time (within 10 s in at least 19 of 20 runs), the approval result reaching the page (within 2 s in at least 19 of 20 runs, P30), each reminder's firing against its due time (within 10 s), the largest model request (none over 100,000 input tokens), the first reply's time, and when the reminder lands relative to "All 50 orders went through.", which the deferred reminder-prompt decision needs (NFR-3, NFR-8, NFR-9, NFR-10, P30, UX-DR102)
+
+**Given** a failed run or a missed bound
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
+**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
+
+**Given** the clean-machine rehearsal
+**When** a sample email that the evaluation set records as tell now is sent from the simulated mailbox
+**Then** the time from its decision to the notification on the simulated phone is recorded in 20 runs and is at most 5 seconds in at least 19 (FR-1, NFR-9, P30)
+
+**Given** the rehearsal runs on both a clean macOS host and a clean Linux host, each with Docker and outbound network access limited to the configured model provider (and the Telegram API when a token is set), which the author provides before this story starts
+**When** the install script and the 20 runs of the whole web demo path run on each
+**Then** both pass with no other destination contacted, and the release notes record both hosts (FR-55, NFR-18, NFR-22)

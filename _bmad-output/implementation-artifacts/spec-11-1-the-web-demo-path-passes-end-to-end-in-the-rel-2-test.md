@@ -330,6 +330,14 @@ No AC contradicts an AD. The Act strip on the mock is met within AD-22 through i
 - `/state` attaches the decision beside the incident payload, not inside it. The payload stays the entity's own view (AD-12), and payloads.ts is unchanged.
 - Fixture check rows default to an hour ahead (`CHECKAHEAD`), through the fixture, never per call site.
 
+
+**Lead rulings at the spec gate (2026-10-31, unattended; these override anything above that disagrees).**
+- The proposed split is accepted (decide, U5): Stories 11.7, 11.8 and 11.9 are in `epics.md` right after 11.1, with the moved criteria verbatim, and the moved ledger entries are re-owned to them (`by=spec_gate`). Story 11.1 keeps DW-202, DW-294, DW-340 and DW-349.
+- Story 11.6 moved whole to Story 38.1 in a new Epic 38 (inbox U-189, decided by the Contest Planner under the owner's delegation). Read every "Story 11.6" above as Story 38.1; DW-142's live check runs in 38.1's real-key pass.
+- Step 2's AD-22 route (the watch prompt through the composer behind a marker with an armed countdown) is accepted as a veto-window ruling (inbox U-190). The AD-22 amendment question goes to the orchestrator at Story 11.7's plan.
+- `ci/units.sh` is shared by region in this run, not contended (the runner's spawn prompt): this story may edit its own entries and group lines, as a plain union at integrate-forward. It changes nothing there unless the browser group, measured on this story's CI run, passes 30 minutes; then the lead decides the move. After any `ci/units.sh` change the `docker/tests/test-ci-config.sh` pins are updated and `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh` run.
+- Epic 29 has merged and Epic 11 has integrated the feature branch forward (merge `cda3e52c`), so the implement stage works on the merged tree, not on `origin/OCT-epic29`.
+
 ### Proposed split
 
 The lead inserts the siblings into `epics.md`, in Epic 11, before Story 11.5's cut. Every moved item stays in release 0.1.0's scope.

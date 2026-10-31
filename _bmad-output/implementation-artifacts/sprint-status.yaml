@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-31-2026 09:27
+last_updated: 10-31-2026 09:31
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -168,12 +168,14 @@ development_status:
 
   epic-11: in-progress
   11-0-epic-10-deferred-cleanup: done
-  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
+  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: ready-for-dev
+  11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run: backlog
+  11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c: backlog
+  11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake: backlog
   11-2-upgrades-and-restarts-keep-every-record-working: backlog
   11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
   11-4-the-release-gets-draft-notes-and-a-checklist: backlog
   11-5-one-scripted-sequence-cuts-a-release: backlog
-  11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
   epic-11-retrospective: optional
 
   epic-12: backlog
@@ -354,6 +356,11 @@ development_status:
   37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
   37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   epic-37-retrospective: optional
+
+  epic-38: backlog
+  38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  38-2-the-clean-machine-rehearsal-runs-on-the-author-s-hosts-and-t: backlog
+  epic-38-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
     epic: 32
