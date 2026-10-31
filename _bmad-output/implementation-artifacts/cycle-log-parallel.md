@@ -1058,3 +1058,7 @@
 2026-10-31T07:25:04Z	Epic 9	owner_decision	id=U-185 at=2026-10-31T07:24:35Z#558 via=inbox by=Contest_Planner(owner_delegate) answer=keep_split;condition:a_wontfix-accepted_close_records_the_evidence(throwaway_build,message_class,what_was_stored)_in_the_entry;the_key_proof_otherwise_unchanged route=ledger_note_DW-448(main)+Epic_30_redispatch
 2026-10-31T07:25:04Z	Epic 1-37	inbox_resolved	id=U-184 by=orchestrator note=condition_on_the_ledger_entry;Epic_30_redispatch
 2026-10-31T07:25:04Z	Epic 1-37	inbox_resolved	id=U-185 by=orchestrator note=condition_on_the_ledger_entry;Epic_30_redispatch
+2026-10-31T08:40:41Z	Epic 15	runner_ended	agent=a70e7e99328feba4b reason=waiting waiting_on=11(15.3) head=22a09708(verified=HEAD=origin;unpushed=none;clean) code_head=0a6f3549(green:41182314256,41182314302) applied=U-176(#534),U-177(#535) ci=install-fresh_34.8(>33_soft,<35;branch_lacks_Epic_9's_rebalance),install-upgrade_32.3,lane-a_ipm-install_14.4(was_5.1);queue:install-fresh_9.8min,install-upgrade_13.6min new_flake=DW-471(leave.spec.ts_L2;routed_29-4;re-own_at_Epic_15's_merge)
+2026-10-31T08:40:41Z	Epic 1-37	inbox_resolved	id=U-176 by=orchestrator note=Epic_15_applied
+2026-10-31T08:40:41Z	Epic 1-37	inbox_resolved	id=U-177 by=orchestrator note=Epic_15_applied
+2026-10-31T08:40:56Z	Epic 10	dispatch_planned	runner=B slot=ocutalon-slot-b reason=slot_B_freed(Epic_15_ended_waiting_on_11)->Story_10.4_first(deadline_19:00Z;B's_own_order_holds_10) base=145b4018 feature_head=c9f1288c(green) prompt=scratchpad/dispatch-epic-10-reopen.md
