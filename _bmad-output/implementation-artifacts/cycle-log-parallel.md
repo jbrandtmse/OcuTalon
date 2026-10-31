@@ -1079,3 +1079,4 @@
 2026-10-31T09:04:02Z	Epic 29	ledger_routed_planned	stories=31.3:2(DW-416,DW-432),31.4:1(DW-446) excess=0 by=merge_gate
 2026-10-31T09:04:02Z	Epic 1-37	deps_hash_rerecorded	hash=0ddbff56a9e9 reason=split(29.3->29.5/29.6,29.4->29.7/29.8)+burndown_inserted(29.9)+ledger_routed
 2026-10-31T09:04:02Z	Epic 29	merge_checks	amendments=epics.md_Epic_29_blocks(split_notes,29.5-29.9) footprint_extensions=web/e2e/**,ci/mock/**,docker/tests/lib-stub.sh,lib-live.sh,Test/Agent/Decide.cls,ci/units.sh(rebalance),_bmad/custom/skill-rules.md(two_Rule_21_measured-fact_bullets:owner_only_file_by_precedent_of_Rule_21_records;flagged_to_the_Planner) inbox_snapshot=copied
+2026-10-31T09:04:06Z	Epic 29	worktree_removed	worktree=.worktrees/epic-29 branch=OCT-epic29_deleted(local+remote)

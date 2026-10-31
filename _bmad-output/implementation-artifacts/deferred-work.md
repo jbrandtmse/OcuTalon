@@ -2599,6 +2599,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: During case 1's hold busy comes from the visitor count, and IRIS serves its own busy splash (200, X-OcuTalon-Busy); IRIS answers 503 only at the cap of 8 connections (AD-13), and case 2 peaks at 6. Run 3 accepts IRIS's splash by Story 29.3's design, so H8 can read measured with the proxy's 503 mapping unexercised.
 - 2026-10-31T03:28:16Z status=decision-pending owner=burndown by=cr note=product call: how H8's 503 mapping is shown on the host; the check list and the spec say only 'during the hold'
 - 2026-10-31T09:02:42Z status=decision-pending owner=burndown by=unattended note=inbox=U-188
+- 2026-10-31T09:04:17Z status=wontfix-accepted owner=burndown by=owner note=U-188_decided_by_the_Contest_Planner(cross-session,2026-10-31):H8_shown_in_two_parts_on_the_host:IRIS's_busy_splash_during_case_1's_hold(run_3_accepts_X-OcuTalon-Busy:1);the_proxy's_503_mapping_exercised_once_at_the_true_cap_at_the_end_of_case_2(two_more_trace_sessions_to_8;/ocutalon/_gets_the_busy_page_with_X-OcuTalon-Busy-Page;/ocutalon/api/_passes_the_503);else_the_Oct_30_busy_test_plus_the_proxy_rule;no_repo_change
 
 ### DW-465: A change to release/demo-load.sh alone runs every IRIS CI group
 - source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: med | footprint: in-story
