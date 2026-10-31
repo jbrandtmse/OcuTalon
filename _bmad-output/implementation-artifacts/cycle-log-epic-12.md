@@ -126,3 +126,4 @@
 2026-10-31T19:21:16Z	Story 12.8	ci_diagnose	test=web/e2e/floor/guide.spec.ts_M4 env=fresh_lane-C_throwaway(live_floor,tag_e12s8dx,torn_down) tree=7318d991 result=passed(105_passed,4.4m) note=consistent_with_a_flake;awaiting_rerun
 2026-10-31T19:42:05Z	Story 12.8	ci_red_classified	run=41230579974 class=flake test=web/e2e/floor/guide.spec.ts:M4 job=iris(shards)/live:floor rerun=green ledger=DW-508
 2026-10-31T19:42:05Z	Story 12.8	ci_resolved	story=12.8 sha=a634857d runs=41230579974,41230579971 result=success failed=none via=none resolved_at=next_implement attempts=ci:2(browser_DW-349,shards_DW-508_reruns),lane-a:1 ci_groups=shards:26m,browser:25m,install-fresh:31m,install-upgrade:30m,shards-2:30m,image:26m,production:28m,
+2026-10-31T19:42:21Z	Story 12.3	stage_spawned	stage=implement spawn_at=2026-10-31T19:42:21Z model=claude-sonnet-5-5 agent_name=12-3-implement-1 cycle_iteration=1 story_base=10efd824
