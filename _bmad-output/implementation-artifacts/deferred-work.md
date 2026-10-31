@@ -524,6 +524,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge/RequestSize.cls HistoryChars; Test.Bridge.Conversation BANDPERCENT 29
 - 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=Story 30.1 reads the stored history and can subtract the stored prompt, or BANDPERCENT has to grow above 29
 - 2026-10-31T17:47:57Z status=wontfix-accepted occurrence=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=harvest note=reopen_if restated after Story 11.8's CI rework (837f77f3): Test.Bridge.Conversation's BANDPERCENT 29 is replaced by ENVELOPECHARS 500, so the bound follows Chat's own system prompt; reopen_if=ENVELOPECHARS has to grow above 500, or Decide's estimate of a continuing turn exceeds the runner's by more than the agent's prompt plus 500 characters
+- 2026-10-31T18:09:20Z status=wontfix-accepted by=cr note=reopen_if=Decide subtracts the stored prompt (Story 30.1), or the gap past Chat's escaped prompt tops 500 (now 149)
 
 ### DW-133: RequestSize.HistoryChars returns 0 with no status or log line when the SQL read of the stored history or the stream open fails, so the estimate fails open silently
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
