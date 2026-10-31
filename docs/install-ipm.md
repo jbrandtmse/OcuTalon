@@ -4,7 +4,7 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 ## What you need
 
-- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded and enabled for the namespace you start from (the examples use USER).
+- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for the namespace you start from (the examples use USER).
 - The OcuTalon package folder. That is the `src` folder of the OcuTalon repository, with the web page built once on any machine that has Node.js 24.15 or later:
 
   ```
@@ -24,7 +24,7 @@ Open an IRIS terminal in any namespace (USER here) and load the package:
 zpm "load /opt/ocutalon-ipm/src"
 ```
 
-This run ends early by design. It creates the namespace OCUTALON with its four databases and the mappings OcuTalon needs, maps IPM into it, and then stops with an error that is the next instruction. It does not load any OcuTalon code. This is the output of that run on a new instance, with the terminal's colour codes removed:
+This run ends early by design. It creates the namespace OCUTALON with its four databases and the mappings OcuTalon needs, maps IPM into it, and then stops with an error that is the next instruction. It leaves no OcuTalon code installed: IPM removes the one class it compiles for this run when the run stops. This is the output of that run on a new instance, with the terminal's colour codes removed:
 
 ```
 
@@ -55,7 +55,7 @@ zn "OCUTALON"
 zpm "load /opt/ocutalon-ipm/src"
 ```
 
-This run loads and compiles OcuTalon, installs the web page, and runs the installer steps one after another. Each step prints one `STEP <name> OK` line. A step that fails prints `STEP <name> FAILED <text>` and the command ends with `ERROR! <text>`; the code stays installed, and the same command runs the steps again. When the last line is `Activate SUCCESS`, OcuTalon runs. This is the output of that run, with the colour codes removed:
+This run loads and compiles OcuTalon, installs the web page, and runs the installer steps one after another. Each step prints one `STEP <name> OK` line, and a step can add `WARN <name> <text>` lines after it; a warning does not fail the step. A step that fails prints `STEP <name> FAILED <text>` and the command ends with `ERROR! <text>`; the code stays installed, and the same command runs the steps again. When the last line is `Activate SUCCESS`, OcuTalon runs. This is the output of that run, with the colour codes removed:
 
 ```
 
@@ -123,7 +123,7 @@ zn "OCUTALON"
 zpm "load /opt/ocutalon-ipm/src"
 ```
 
-This gives the same OcuTalon as the two commands above.
+The install command then runs the same installer steps as the second command above.
 
 ## Demo mode
 

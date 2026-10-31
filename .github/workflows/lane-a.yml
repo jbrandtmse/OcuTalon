@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
       - name: Build the web bundle
         run: bash ci/iris.sh build
-      - name: Run the first install run and the merge
+      - name: Run the IPM install checks
         run: bash release/ipm-install.sh
       - name: Tear down
         if: always()

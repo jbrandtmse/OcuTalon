@@ -15,6 +15,10 @@
 #      before the script runs, and a live deadline that ends before the job's timeout.
 #   8. src/module.xml declares the IPM entry point once: the exact Configure, After Invoke of OcuTalon.Install.Registry Ipm, on a line
 #      of its own after the MapAndStop Invoke;
+#   9. docs/install-ipm.md (QA of Story 15.2) keeps the points of its task and agrees with the code it quotes: no ANSI code, the stop
+#      sentence of OcuTalon.Install.Ipm after `ERROR! `, the install command and the iris merge commands, the demo-mode, model-key and
+#      README-account lines, the line of Registry FailureLine, and the STEP lines inside Configure START and SUCCESS (each OK, and
+#      every name of Registry.Order() once, in its order).
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -257,6 +261,94 @@ else
   fail "rule 8 on samples: the checker accepts a manifest without the exact Configure Invoke of Ipm after MapAndStop, or rejects the right one"
 fi
 
+# 9. The install document. The code it quotes is read from the sources: the stop sentence (preload/.../Install/Ipm.cls STOP, whose
+# doubled quotation marks are one) and the tail of Registry FailureLine, and the order of Registry.Order().
+ipm_class=src/preload/cls/OcuTalon/Install/Ipm.cls
+registry_class=src/ocutalon/cls/OcuTalon/Install/Registry.cls
+install_doc=docs/install-ipm.md
+stop_sentence() { sed -n 's/^Parameter STOP = "\(.*\)";$/\1/p' "$1" | sed 's/""/"/g'; }
+failure_tail() { sed -n 's/^[[:space:]]*Quit "STEP " _ step _ " FAILED: \(.*\)"$/\1/p' "$1"; }
+order_names() {
+  awk '/ClassMethod Order\(\)/ { on = 1 } on && /Quit \$ListBuild\(/ { print; exit }' "$1" | sed 's/^[^(]*(//; s/)[^)]*$//' | tr -d '" ' | tr ',' ' '
+}
+DOC_PHRASES=(
+  'zpm "load /opt/ocutalon-ipm/src"'
+  'zn "OCUTALON"'
+  'iris merge <instance> /opt/ocutalon-ipm/src/cpf/ocutalon.cpf'
+  'zpm "enable -map -ns OCUTALON"'
+  'do ##class(OcuTalon.Core.Admin).SetDemoMode(1)'
+  'do ##class(OcuTalon.Core.Admin).SetDemoMode(0)'
+  'ANTHROPIC_API_KEY'
+  'Node.js 24.15'
+  'IPM 0.10.10'
+  '`ocutalon`'
+  'Security.Users'
+  'Modify("ocutalon"'
+)
+# install_doc_ok <doc> <stop sentence> <failure tail> <order names, blank separated>
+install_doc_ok() {
+  local doc=$1 stop=$2 tail=$3 order=$4 phrase
+  [ -n "$stop" ] && [ -n "$tail" ] && [ -n "$order" ] || return 1
+  ! grep -q "$(printf '\033')" "$doc" || return 1
+  grep -qxF -- "ERROR! $stop" "$doc" || return 1
+  for phrase in "${DOC_PHRASES[@]}"; do
+    grep -qF -- "$phrase" "$doc" || return 1
+  done
+  grep -qF -- "STEP <name> FAILED: $tail" "$doc" || return 1
+  awk -v order="$order" '
+    BEGIN { n = split(order, names, " "); for (i = 1; i <= n; i++) pos[names[i]] = i }
+    /Configure START/ { on = 1; next }
+    /Configure SUCCESS/ { on = 0; closed = 1 }
+    on && /^STEP / {
+      if ($3 != "OK" || !($2 in pos) || pos[$2] <= last) bad = 1
+      last = pos[$2]; count++
+    }
+    END { exit (closed && !bad && count == n) ? 0 : 1 }' "$doc"
+}
+
+stop_text=$(stop_sentence "$ipm_class")
+fail_tail=$(failure_tail "$registry_class")
+order_text=$(order_names "$registry_class")
+{
+  echo "ERROR! $stop_text"
+  for phrase in "${DOC_PHRASES[@]}"; do echo "$phrase"; done
+  echo "\`STEP <name> FAILED: $fail_tail\`"
+  echo '[OCUTALON|ocutalon]	Configure START'
+  for name in $order_text; do echo "STEP $name OK 0.0s"; done
+  echo '[OCUTALON|ocutalon]	Configure SUCCESS'
+} > "$tmp/doc.good"
+{ cat "$tmp/doc.good"; printf '\033[0m\n'; } > "$tmp/doc.ansi"
+sed 's/^ERROR! OcuTalon created namespace OCUTALON\./ERROR! OcuTalon made namespace OCUTALON./' "$tmp/doc.good" > "$tmp/doc.stop"
+grep -v 'iris merge' "$tmp/doc.good" > "$tmp/doc.no-merge"
+grep -v 'SetDemoMode(0)' "$tmp/doc.good" > "$tmp/doc.no-demo-off"
+grep -v 'ANTHROPIC_API_KEY' "$tmp/doc.good" > "$tmp/doc.no-key"
+grep -v 'STEP <name> FAILED' "$tmp/doc.good" > "$tmp/doc.no-failure"
+sed 's/Run the same install command again\./Try again./' "$tmp/doc.good" > "$tmp/doc.failure-tail"
+grep -v '^STEP Production OK' "$tmp/doc.good" > "$tmp/doc.no-production"
+sed 's/^STEP Web OK/STEP Browser OK/' "$tmp/doc.good" > "$tmp/doc.renamed-step"
+sed 's/^STEP Roles OK 0.0s$/STEP Roles FAILED boom/' "$tmp/doc.good" > "$tmp/doc.failed-step"
+awk '/^STEP Public OK/ { held = $0; next } /^STEP Roles OK/ { print; print held; next } { print }' "$tmp/doc.good" > "$tmp/doc.misordered"
+grep -v 'Configure SUCCESS' "$tmp/doc.good" > "$tmp/doc.unclosed"
+if install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.ansi" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.stop" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-merge" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-demo-off" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-key" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-failure" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.failure-tail" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-production" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.renamed-step" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.failed-step" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.misordered" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.unclosed" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text ZzAddedStep" \
+  && ! install_doc_ok "$tmp/doc.good" "" "$fail_tail" "$order_text"; then
+  pass "rule 9 on samples: a document with every point passes; an ANSI code, another stop sentence, a missing command, key or failure line, a changed failure line, a missing, renamed, failed or misordered STEP, a step the order gained, no Configure SUCCESS or no source text fails"
+else
+  fail "rule 9 on samples: the checker accepts a document that lost a point or disagrees with the code, or rejects the right one"
+fi
+
 cat > "$tmp/lane.good" <<'EOL'
 jobs:
   standalone-bridge:
@@ -321,6 +413,7 @@ check "rule 5: $manifest declares the preload resource and invokes MapAndStop on
 check "rule 6: .github/workflows/lane-a.yml defines job ipm-install, which runs release/ipm-install.sh" ipm_job_runs_script .github/workflows/lane-a.yml
 check "rule 7: job ipm-install has the base image, the -ipm tag, the bundle build before the script and a deadline inside the timeout" ipm_job_wired .github/workflows/lane-a.yml
 check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configure, After, after MapAndStop" ipm_entry_declared "$manifest"
+check "rule 9: $install_doc keeps its points and agrees with the stop sentence of Install.Ipm, the failure line and the order of Registry" install_doc_ok "$install_doc" "$stop_text" "$fail_tail" "$order_text"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

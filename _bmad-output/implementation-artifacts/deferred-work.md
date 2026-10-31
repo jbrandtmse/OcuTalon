@@ -1660,6 +1660,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
 - 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
+- 2026-10-31T07:44:46Z status=resolved-by:15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=adjudication note=Test.Install.Users.TestForeignGuardIsRefused_asserts_RoutineExists(ZzForeign)_after_the_refused_flag-on_run_and_after_the_flag-off_run;release/ipm-install.sh_path_A_keeps_PasswordValidationRoutine_empty,path_B_keeps_ZzOther^ZzForeign_and_the_routine(IPM_install_into_an_existing_instance)
 
 ### DW-231: Story 4.4's feed/break-feed-api.ts (and Story 4.7's guide-marker calls) is a second typed API client beside ApiClient (Stack row: one typed API client), because web/src/app/api/** is Epic 10's footprint
 - source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2305,3 +2306,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-15.md (CI run 41147556361 of 55d1d25) | severity: med | fix-risk: low | footprint: web/e2e-online/session/leave.spec.ts (Lane B; contended by Epic 29)
 - evidence: attempt 1 iris (install-fresh) UNIT live:online-session failed: leave.spec.ts:64 expected <5000 received NaN; attempt 2 of the same head passed; the same tree passed on 307ff78
 - 2026-10-31T06:17:44Z status=routed owner=29-4-sessions-stay-isolated-under-load by=ci note=Lane B test outside Epic 15's lane and footprint; same owner as the DW-333 online-session flake; the orchestrator confirms the receiving story
+
+### DW-475: ReconcileIn's poll with ByStep 0 (OnProcessInput handing NotRunning() to Next, and its one warning after WAITWARNSECONDS) has no test of its caller path
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestNext feeds Next directly, StartLock polls only with ByStep 1, check_start_outside counts rows with every item up; a down item in a unit test needs a TempStop of a live item
+- 2026-10-31T07:41:38Z status=wontfix-accepted owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=reopen_if=ReconcileIn logs its Info row while NotRunning() is non-empty, or no warning names an item down 60 s
+
+### DW-476: Step.Production can release STARTLOCK while ReconcileIn's job is registered but before its OnInit probes the lock, so a start by the step could also be reconciled by ReconcileIn
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib Ens/Job.cls Start: Register (status registered, State Alive for NotRunning) precedes %New/OnInit; never seen: start by the step stayed flat in every ipm-install run (1->1, 2->2)
+- 2026-10-31T07:41:38Z status=wontfix-theoretical owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=real_if=a ReconcileIn Info row after a Production-step start; fix: count job status registered as not running
+
+### DW-477: AD-23 says the registry writes WARN lines in the after-start log only, but on the IPM path Registry.Run prints them to the install command's output, which path B's WARN Demo check reads
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the spine's AD-23 step-ownership paragraph predates the IPM path; the spec's Path B row and release/ipm-install.sh path B require WARN Demo in the IPM output
+- 2026-10-31T07:41:38Z status=by-design owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=lead: clarify AD-23's WARN sentence (the command's output on the IPM path) at the next spine update (Rule 20)
+- 2026-10-31T07:45:00Z occurrence=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo note=lead:spine_Conventions_row_IPM_steps_now_says_the_IPM_path_prints_STEP_and_WARN_lines_to_the_command_output;AD-23_text_unchanged(AD_amendments_are_the_orchestrator's)

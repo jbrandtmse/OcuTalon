@@ -3,7 +3,9 @@ Include Ensemble
 /// ReconcileIn, the item that reconciles every production start that the Production installer step did not make (AD-5, AD-23). Every
 /// production start is reconciled exactly once:
 ///   - a start made by OcuTalon.Install.Step.Production holds its start lock (Step.Production STARTLOCK) while it waits for the items, so
-///     OnInit finds the lock taken and the item does nothing: the installer's Reconcile step, which follows that step, reconciles it;
+///     OnInit finds the lock taken and the item does nothing: the installer's Reconcile step, which follows that step, reconciles it
+///     (when the step fails, the run stops before its Reconcile step, and the run of the install command again that the failure asks for
+///     reconciles);
 ///   - any other start (instance autostart, the portal, Ens.Director from a session) finds the lock free, so once every enabled item runs
 ///     (Step.Production NotRunning is empty) the item calls the installer's Reconcile step (OcuTalon.Install.Step.Reconcile Run) once, under
 ///     the start lock, logs one Info row (LOGTEXT) and does nothing more until the item starts again.

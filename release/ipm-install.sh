@@ -29,8 +29,9 @@
 #   Path A, after check 6, the same install command in OCUTALON:
 #   8. the output shows Initialize to Activate SUCCESS and, between Configure START and Configure SUCCESS, one `STEP <name> OK` line
 #      per name of Registry.Order(), in that order; the production runs with no item missing and no runner without a model,
-#      ^Ens.AutoStart is OcuTalon.Production, the module is recorded with 0 dependencies, the services are the baseline's, USER and
-#      %SYS hold no OcuTalon class, routine, module record or global, and PasswordValidationRoutine is still empty;
+#      ^Ens.AutoStart is OcuTalon.Production, the module is recorded with 0 dependencies, the services are the baseline's, the
+#      configuration is the first run's (the snapshot of check 3: OCUTALON, its databases, resources and mappings, USER's mappings), USER
+#      and %SYS hold no OcuTalon class, routine, module record or global, and PasswordValidationRoutine is still empty;
 #   9. the install checks: the public package and global resolve to OCUTALON_PUBLIC and the private globals to OCUTALON_PRIVATE,
 #      `STEP PrivateData OK`, the bundle's index.html is in the /ocutalon application's Path, onlineDemo is 0 and ready is 1;
 #   10. web and REST: /ocutalon/ serves the sign-in page and not the online demo's, ocutalon/ocutalon signs in, /state has onlineDemo
@@ -58,7 +59,7 @@
 #   18. a reinstall whose Compile fails (a scratch copy with a class that does not compile and a changed Registry.Order()): IPM reports the
 #      failure and no step runs, and the previous version keeps running: the production runs with nothing missing, Registry.Order() answers as
 #      before, the module version is unchanged, the scratch class is absent, the mark is kept and the configuration is unchanged.
-# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18) and B (the job), `a` path A (checks 1 to 14) only, `r` path A's
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18) and B (the job), `a` path A (checks 1 to 6 and 8 to 14) only, `r` path A's
 # first and second run and the reinstalls (checks 16 to 18), `b` path A's first run (the reference of path B's comparison) and path B.
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
@@ -219,6 +220,11 @@ stops_with_next_command() {
 # chk <name> < script: the value of the CHK|<name>| line that the script prints, run in the namespace OCUTALON.
 chk() { session_value OCUTALON "$1"; }
 
+# registry_order: Registry.Order() of the installed code in OCUTALON, as a comma list.
+registry_order() {
+  printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order
+}
+
 # step_names <file>: the names of the STEP lines between Configure START and Configure SUCCESS in the plain output, as a comma list,
 # a name that did not end OK shown as name(status). The line that Registry.Ipm writes after a failed step (STEP <name> FAILED: ...) is not a step.
 step_names() {
@@ -280,6 +286,7 @@ other_state() {
     'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Config.Namespaces ORDER BY Name") While rs.%Next() { Write:$Extract(rs.%GetData(1),1,9)'"'"'="OCUORDERS" !,"CHK|namespace|",rs.%GetData(1) }' \
     'For q="MapGlobals","MapPackages","MapRoutines" { Set rs=##class(%ResultSet).%New("Config."_q_":List") Set sc=rs.Execute("USER") While rs.Next() { Write !,"CHK|umap-",q,"|",rs.Get("Name"),"|",rs.Get("Database") } }' \
     'Halt' | iris_script %SYS | sort > "$1"
+  grep -q '^CHK|namespace|USER$' "$1" || fail "demo switch: the session that lists the instance's namespaces printed no USER ($(basename "$1"))"
 }
 
 # orders_state: "<namespace exists>|<code db exists>|<data db exists>" of OCUORDERS.
@@ -303,7 +310,7 @@ orders_up() { [ "$(orders_running)" = 1 ]; }
 check_second_run() {
   local name="${1:-second-ocutalon}" label="${2:-second run}" f order got phase ok=1
   f="$tmp/$name.txt"
-  order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+  order=$(registry_order)
   got=$(step_names "$f")
   for phase in Initialize Reload Validate Compile Configure Activate; do
     grep -q "$phase SUCCESS" "$f" || { echo "  no '$phase SUCCESS' line"; ok=0; }
@@ -330,6 +337,7 @@ CHK|module|ocutalon|0" \
     'Halt'
   take_snapshot "$name" "$label"
   same_services "$label" base "$name"
+  same_config "$label" first "$name"
   check_no_residue "$label" USER %SYS
   check_session "$label: PasswordValidationRoutine is still empty" %SYS "CHK|pwd|" \
     'Do ##class(Security.System).Get(,.p) Write !,"CHK|pwd|",$Get(p("PasswordValidationRoutine"))' 'Halt'
@@ -377,6 +385,7 @@ check_web() {
   ocu_jar="$tmp/jar.ocu"
   : > "$ocu_jar"
   next_probe
+  rm -f "$tmp/signin.page"
   curl -s --max-time 30 -b "$ocu_jar" -c "$ocu_jar" -o "$tmp/signin.page" "$base/ocutalon/?probe=$probes"
   if grep -q 'Sign in to OcuTalon' "$tmp/signin.page" && ! grep -q 'Try OcuTalon in two minutes' "$tmp/signin.page"; then
     pass "web: GET /ocutalon/ serves the sign-in page and not the online demo's"
@@ -517,7 +526,7 @@ check_start_by_step() {
   run by-step OCUTALON 'Set sc=##class(OcuTalon.Install.Registry).Run("ipm") Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)'
   sleep 15
   after=$(reconcile_rows)
-  if grep -q '^STEP Reconcile OK' "$tmp/by-step.txt" && ! grep -q 'FAILED' "$tmp/by-step.txt" && [ "$after" = "$before" ]; then
+  if grep -q '^STEP Reconcile OK' "$tmp/by-step.txt" && ! grep -q 'FAILED' "$tmp/by-step.txt" && [ -n "$before" ] && [ "$after" = "$before" ]; then
     pass "start by the step: Registry.Run(\"ipm\") ends with STEP Reconcile OK, and ReconcileIn logged no new Info row in 15 s ($before -> $after)"
   else
     fail "start by the step: STEP Reconcile OK missing or a step failed, or ReconcileIn's Info rows went $before -> $after"
@@ -561,7 +570,7 @@ seed_mark_value() {
 # and mappings, USER's mappings) are identical.
 same_config() {
   if diff "$tmp/$2.snap" "$tmp/$3.snap" > "$tmp/snap.diff"; then
-    pass "$1: OCUTALON, its four databases, resources and mappings, USER's mappings and the services are those of the run before ($(grep -c . "$tmp/$3.snap") lines)"
+    pass "$1: OCUTALON, its four databases, resources and mappings, USER's mappings and the services are those of snapshot $2 ($(grep -c . "$tmp/$3.snap") lines)"
   else
     sed 's/^/  snapshot: /' "$tmp/snap.diff"
     fail "$1: the configuration changed"
@@ -588,7 +597,7 @@ audit_run() {
 # check_failed_step: the reinstall from the scratch copy whose Audit step fails. The output is in $tmp/reinstall-fail.txt.
 check_failed_step() {
   local f="$tmp/reinstall-fail.txt" order want got line next
-  order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+  order=$(registry_order)
   want=$(printf '%s' "$order" | sed 's/,Audit,.*/,Audit(FAILED)/')
   got=$(step_names "$f")
   command_failed "$f" "failed step" "$FORCED_TEXT"
@@ -692,7 +701,7 @@ reinstall_failures() {
     return
   fi
   echo "REINSTALL a forced step failure, the real folder again, and a failed compile"
-  order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+  order=$(registry_order)
   check_session "reinstall: the status mark is seeded" OCUTALON "CHK|seed|1" \
     'Write !,"CHK|seed|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("'"$SEED_MARK"'","'"$SEED_VALUE"'"))' 'Halt'
 
@@ -940,7 +949,7 @@ foreign_before=$(foreign_orders)
 
 run second-merge OCUTALON "$INSTALL"
 take_snapshot second-merge "path B second run"
-order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+order=$(registry_order)
 got=$(step_names "$tmp/second-merge.txt")
 if [ -n "$order" ] && [ "$got" = "$order" ] && ! grep -q 'FAILURE' "$tmp/second-merge.txt" && ! grep -q '^ERROR!' "$tmp/second-merge.txt"; then
   pass "path B: every STEP line of the install command is OK, in the order of Registry.Order()"
