@@ -1157,3 +1157,5 @@
 2026-10-31T17:19:00Z	Epic 16	runner_dispatched	agent=af4a0f6f7daaef78f model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,Story_16.11) base=9ac6e499 prompt=scratchpad/dispatch-epic-16-hotfix.md
 2026-10-31T17:19:00Z	Epic 5	decision_sheet_recorded	decided=0 notes=U-193(veto,keep)_open;DW-497(flake)->31.2 inbox_snapshot=copied deps_hash=rerecorded(rule5_amendment:5.12_second_fixture)
 2026-10-31T17:19:18Z	Epic 5	ledger_routed_planned	entries=DW-483->30.1,DW-484->30.5,DW-497->31.2 by=orchestrator
+2026-10-31T17:19:23Z	Epic 5	worktree_removed	worktree=.worktrees/epic-5 branch=OCT-epic5_deleted(local+remote)
+2026-10-31T17:19:56Z	Epic 5	condition_check	item=U-193(#581) condition='names_the_failing_property_and_the_limit_and_quotes_none_of_the_reply' result=NOT_MET_in_14de8018(GetErrorText_quotes_the_value) action=DW-498_routed_30-1(first_at_Epic_30's_re-dispatch);U-193_stays_open_until_it_lands
