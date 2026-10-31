@@ -4851,6 +4851,26 @@ So that the demo stays affordable and available, and I always know what still wo
 
 **Story 16.10 moved to Story 31.3**, whole and verbatim, in Lane B's Epic 31 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].
 
+### Story 16.11: The splash promises Telegram only when the release includes it
+
+[ADDED 2026-10-31, launch-text fix, at the Contest Planner's request under the owner's delegation. Epic 16 is re-opened for it under SC-5. On the online demo host (fe1d81e2), the splash's "Before you start" list says "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and "Each session can send {limit} messages an hour in the chat or Telegram." But a signed-in visitor finds no Telegram and no QR code, which is right for 0.1.0, because Telegram arrives with Epic 12 (0.1.1). So the splash promises what the page doesn't have. It is to merge into the feature branch before the online demo goes public today if it can; otherwise it ships before Epic 12 merges.]
+
+As a visitor on the online demo,
+I want the splash to promise only what the demo has,
+So that I don't look for a Telegram QR code that isn't there.
+
+**Acceptance Criteria:**
+
+**Given** a release in which Telegram is not included (`OcuTalon.Channel.Telegram.In.Included()` returns 0, the same switch the README's `no-telegram` rule and `/state` use)
+**When** the splash renders its "Before you start" list
+**Then** it shows no Telegram line, and the allowance line reads "Each session can send {limit} messages an hour in the chat." (FR-58, UX-DR28)
+
+**Given** a release in which Telegram is included (`Included()` returns 1, from Story 12.7)
+**When** the splash renders
+**Then** it shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and the allowance line "Each session can send {limit} messages an hour in the chat or Telegram.", word for word as today
+
+**And** both texts come from the message catalog (`splash.telegramLine`, `splash.limitLine`, and the new chat-only form of the limit line), with no text written in code; a test pins each state through the test-only switch that Epic 12's tests use to turn Telegram on, and the splash's existing tests stay green
+
 ## Epic 17: A daily digest you can trust, and model choice with budgets (step 2)
 
 Once a day OcuTalon sends a short digest with the vital signs, a coverage list where every entry is passed, failed or not checked, what needs the user and what was saved for later, giving an all-clear only when code allows it; an admin can choose the provider and model for each agent, set budgets and a second model for the fallback retry.

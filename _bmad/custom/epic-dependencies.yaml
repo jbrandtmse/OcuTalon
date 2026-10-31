@@ -55,6 +55,8 @@
 # diagnosis payload class, the prompts, Decide's fallback trace and their tests, depends on nothing unmerged, and must merge today
 # before the online demo goes public. Epic 30, which also changed Decide.cls, yields runner B for it and integrates it at its
 # re-dispatch. No other edge changes.
+# Changed 2026-10-31 (launch-text fix, at the Contest Planner's request): Story 16.11 re-opens Epic 16 under SC-5 (the splash
+# promises Telegram only when the release includes it). Lane B's Web/Public/Splash.cls and the catalog lines only; no edge changes.
 #
 # Dispatch rules on top of depends_on (the orchestrator enforces them):
 #   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
@@ -91,7 +93,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "f95412d4ba8e2aeaad9b2d5c7de72fd77a971633e4f04752b17de3c286d93194"
+epics_md_hash: "85f6f9a584b7394980eb7a9a22ed4bfac487f14494ae7afdd762f93149fb8727"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
