@@ -2665,3 +2665,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
 - 2026-10-31T11:56:37Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-191_kept(#576):measure_the_invalid_rate_per_reply_kind_after_5.12(host_Decision_rows+Story_9.5's_real-key_run);build_the_retry_in_30.1_only_if_diagnose_still_falls_back_on_invalid_in_more_than_about_1_in_50,and_only_within_NFR-7's_20_s_diagnosis_budget
+
+### DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks
+- source: Contest Planner: demo host walk on fe1d81e2, 2026-10-31T12:01Z | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the model writes the time into its reply text; catalog times carry the zone label (U-180's format), agent-written ones do not
+- 2026-10-31T12:02:51Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=route_agent-written_times_through_the_catalog's_zone-labelled_format(Data.Time.ForMessage),or_have_the_chat_agent's_prompt_label_the_zone;1.0.0_if_cheap,else_defer(Planner)

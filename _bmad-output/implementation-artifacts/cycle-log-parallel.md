@@ -1116,3 +1116,4 @@
 2026-10-31T11:56:37Z	Epic 11	owner_decision	id=U-190 at=2026-10-31T11:55:47Z#577 via=inbox by=Contest_Planner answer=keep;mock-only_composer_step_2_in_11.1;condition:the_real-key_runs(38.1,38.2)_drive_step_2_through_the_guide's_own_Send route=Epic_11_runner(live)
 2026-10-31T11:56:37Z	Epic 1-37	inbox_resolved	id=U-191 by=orchestrator
 2026-10-31T11:56:37Z	Epic 16	worktree_provisioned	worktree=.worktrees/epic-16 branch=OCT-epic16 from=9ac6e499 reason=SC-5_reopen_for_story_16.11 bootstrap=ok
+2026-10-31T12:02:51Z	Epic 5	launch_risk_data	second_invalid_diagnosis=12:01:54Z(evidence_lengths_33,17,25,15,21;same_rule);host_rate=2/10_diagnoses;second_fixture_added_to_5.12's_prompt new_ledger=DW-484(agent-written_reminder_time_without_zone;routed_30-5)
