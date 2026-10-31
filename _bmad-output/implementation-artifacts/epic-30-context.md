@@ -4,197 +4,158 @@
 
 ## Goal
 
-Epic 30 finishes the Lane A parts of the demo-path stories that the owner moved past the demo path. Each part must land before 1.0.0:
-
-- Long conversations are compacted before their requests near the size limit.
-- Old messages and records are purged every day by the standard purge tasks.
-- An approved risky tool call runs exactly once, from its stored row, with no model.
-- A stopped production or a disabled item reaches the user once.
-- A resend that is mixed, still running, stopped partway or unable to start says exactly how far it got, and never claims a change that did not happen.
-
-Each part closes a gap that the demo path left open and that the ledger tracks. Stories 30.2 and 30.3 are done. 30.4 and 30.5 come next, then 30.1, which waits on Epic 9.
+Epic 30 finishes the Lane A parts of the demo-path stories that the owner moved past the demo path, and each part lands before 1.0.0. Long conversations are compacted before their requests near the size limit. Old records are purged on schedule. An approved tool call replays exactly once with no model. A stopped production or a disabled item reaches the user once. A resend that is mixed, still running or stopped partway says exactly how far it got and never claims a change that did not happen. Stories 30.2, 30.3 and 30.4 are done. Epic 9 has merged, so 30.1 and 30.5 are both unblocked, and the epic's burn-down story comes after them.
 
 ## Stories
 
 - Story 30.1: Long conversations are compacted under the limit
 - Story 30.2: Old messages and records are purged on schedule (done)
 - Story 30.3: An approved tool call runs exactly once, with no model (done)
-- Story 30.4: A stopped production or a disabled item is reported once
+- Story 30.4: A stopped production or a disabled item is reported once (done)
 - Story 30.5: Mixed and unfinished resends say how far they got
+- Epic 30 burn-down (chartered by the burn-down gate)
 
 ## Requirements & Constraints
 
-- **Request size.** No model request may go over 100,000 input tokens, and a mock conversation long enough to compact must show a largest request under that. The loop bound only holds once every turn flagged above 40,000 tokens is actually compacted: 40,000 + 3 × 10,000 of tool results + 3 × 8,000 of output = 94,000 tokens at Chat's 4 iterations.
-- **Retention (built).**
-  - `HeartbeatIn` and `Checks` messages are kept 7 days, all other Interoperability data 90.
-  - Decisions, usage and closed incidents (with their groups and FixRuns) are kept 90 days. An AI session goes a day after no conversation link names it.
-  - The audit log is never touched.
-  - History reads OcuTalon's and the bridge's tables, never messages.
-- **Approval before risk (built).** An approved call runs exactly once, calls no model, and reports only through the row and `approval.result` (`{"ref"}`), never the tool's result text.
-- **Audit.** Every approval and action entry carries the time, the IRIS user and the session, and is written only through `Bridge.Audit`. Tests read entries back by polling with a timeout (`Test.Bridge.AuditLog.Wait`), because IRIS writes some rows late.
-- **Only new findings.**
-  - The same finding is never sent twice. Two Ticks after a test production stops give exactly one finding Item.
-  - What counts as "new" lives in rows, never in memory (AD-5).
+- **Request size.** No model request may go over 100,000 input tokens. A mock conversation long enough to compact must record a largest request under that. The loop bound holds only once every turn flagged above 40,000 tokens is actually compacted: 40,000 + 3 × 10,000 of tool results + 3 × 8,000 of output = 94,000 at Chat's 4 iterations.
+- **No key leaks.** The product redactor replaces every key shape that CI's key-like scanner flags. The release candidate's key proof must not read a stored key as clean.
 - **Honest results.**
-  - Each fix run gets exactly one final `FixResult`.
+  - Each fix run gets exactly one final `FixResult`, and at most one in-progress result.
   - Nothing is resent behind the user's back, and a copy that fails again is never retried without a new approval.
-  - A result's text never claims a change that did not happen. "Had changed since the dry run" is only for a target that really changed.
-- **Stored data.** Persistent and message classes are append-only (AD-5), with a committed `Storage` block, and the CI storage diff runs against the last tag. Any new column needs its own veto window.
-- **Public text.** New public wording (a reason sentence, a key, a text) is a veto-window item. Text reaches users only as catalog keys and slots, rendered by the `*Out` operations through `Msg.Catalog.Render`.
+  - A result never claims a change that did not happen: "had changed since the dry run" is only for a target that really changed.
+  - A result never reads all-through while a target was left out.
+- **Exactly once (built; keep it).**
+  - An approved call runs once and makes no inference request. The one tokenless model-metadata GET is allowed (U-172).
+  - It reports only through the row and `approval.result` (`{"ref"}`), never through the tool's result text.
+- **Retention (built; keep it).** `Bridge.Purge` deletes an AI session one day after no conversation link names it. That works only while the runner is the only code that saves AI sessions and points the link right after the save, so the compaction fork must keep that true.
+- **Audit.** Approval and Action entries are written only through `Bridge.Audit`, each with the time, the IRIS user and the session. Tests read them back by polling with a timeout.
+- **Stored data.** Persistent and message classes are append-only, with a committed `Storage` block and the compiler's new slots written back verbatim. Each new column is its own veto item and gets our own entry in `Test.Data.Tables`.
+- **Public text.**
+  - Every new reason sentence, key or text is a veto item.
+  - Producers never render: users see text only as catalog keys and slots, rendered by the `*Out` operations through `Msg.Catalog.Render`.
+  - Time slots are UTC.
+- **Where tests run.** Tests run on throwaway stacks only; the dev slot is for load and compile only. The repository is public, so fixtures use the existing fixture names only.
 
 ## Technical Decisions
 
 **30.1 Compaction (AD-20, AD-6, AD-8).**
 
-What exists:
-
-- `Bridge.Process.Decide` estimates the first request: `RequestSize.AgentChars` and `HistoryChars`, plus the input, at `StepBuffer.CHARSPERTOKEN` characters per token.
-- On a turn's clone, Decide sets `Request.Compact` to 1 above `COMPACTTOKENS` (40,000), and takes the fallback `too_large` above `RequestTokenLimit` (at most 100,000).
-- The runner ignores the flag today. `Adapter.Agent.Answer` sends kind `tool` to `Bridge.Replay.Run`. A linked turn goes through `AnswerLinked`, in this order:
-  1. the link lock;
-  2. `OpenSession` or `NewSession`;
-  3. `Converse` (`Chat`);
-  4. `SaveLinked`: `%Save`, then `ConversationLink.Point`.
-- `Bridge.Compaction` holds `PREFIX` (`OCUTALON-COMPACTION-V1`) and `Prompt()`. Mock scenarios `summary.json` and `summary-off-schema.json` exist under `ci/mock/scenarios/A/`.
-- Code-rule pins: only `AgentRunner` and `Adapter.Agent` may chat or make sessions (`CHATTERS`, `SESSIONMAKERS`), and `LINKNAMERS` lists who may name the link. A compaction class outside the adapter must be added to them on purpose.
-- `Bridge.Purge` (30.2) deletes the session a fork or a rotation leaves behind a day later, so 30.1 adds no cleanup. It relies on only the runner saving AI sessions in OCUTALON and pointing the link right after the save, so keep that true for the fork.
-
-What to build:
-
-- **Where it runs.** The runner compacts in its own job, outside every callback, before `Chat`. No callback may call AI Hub's native library (S4 deadlock).
-- **The call.** `ForkAndSummarize(summarizerProvider, "", k, prompt, 0)`, where `k` keeps the last user turn whole and comes from `GetContext()`. With no older history there is no compaction. `Summarize` in place is never used.
-- **The switch.** Move the link to the fork only after the check passes: the first non-system message is a user message, and every tool result follows its tool call. Then `%Save` the fork.
-- **The fallback.** An exception (it arrives as `<%AICore>InternalError`) or a failed check gives a fresh AI session, seeded with a code-written summary of the stored user and assistant texts. It is never the turn's `FallbackReason`.
-- **The summarizer.** It uses the runner's provider plus `extra_config.output_config.effort` `low`, `request_timeout_secs` 20, and a full retry block with no retries. Decide adds 20 s to a flagged turn's timer, staying at or under `MAXTIMER` (110).
-- **Usage.** One `Usage` row with agent `compaction` and `Estimated` 1. Input is the prompt plus the flattened transcript, output is the stored summary, both at about 4 characters per token, priced at the summarizer model's rate.
+- **What exists.**
+  - `Decide` estimates the first request (`RequestSize`, `StepBuffer.CHARSPERTOKEN`). It sets `Request.Compact` above `COMPACTTOKENS` (40,000) and takes the `too_large` fallback above `RequestTokenLimit`. The runner ignores the flag today.
+  - A linked turn runs through `AnswerLinked`: the link lock, then `OpenSession` or `NewSession`, then `Converse` (`Chat`), then `SaveLinked` (`%Save`, then `ConversationLink.Point`).
+  - `Bridge.Compaction` holds `PREFIX` and `Prompt()`. The mock scenarios `A/summary.json` and `A/summary-off-schema.json` exist.
+  - The code-rule pins are `CHATTERS` (AgentRunner, Adapter.Agent), `SESSIONMAKERS` (Adapter.Agent) and `LINKNAMERS`. A compaction class outside the adapter must be added to them on purpose.
+- **Where it runs.** The runner compacts in its own job, outside every callback, before `Chat`. No callback may call AI Hub's native library, because that deadlocks.
+- **The call.** `ForkAndSummarize(summarizerProvider, "", k, prompt, 0)`. `k` keeps the last user turn whole and comes from `GetContext()`. With no older history there is no compaction. `Summarize` in place is never used.
+- **The switch.** The link moves to the fork only after the check passes: the first non-system message is a user message, and every tool result follows its call. Then the runner `%Save`s the fork.
+- **The fallback.** An exception (`<%AICore>InternalError`) or a failed check gives a fresh AI session, seeded with a code-written summary of the stored user and assistant texts. A compaction failure is never the turn's `FallbackReason`.
+- **The summarizer.** It uses the runner's provider plus `extra_config.output_config.effort` `low`, `request_timeout_secs` 20 and no retries. `Decide` adds 20 s to a flagged turn's timer, staying at or under `MAXTIMER` (110).
+- **Usage.** One row, with agent `compaction` and `Estimated` 1. Input is the prompt plus the flattened transcript, output is the stored summary, both at about 4 characters a token, priced at the summarizer model's rate.
+- **The live smoke test.** It runs in release-candidate runs on the real model: three turns across jobs, a compaction and a tool change, with the thinking-history rule forced. Until 30.1 wires it into Epic 9's run, the result's `thinkingHistorySmoke` reads "not run" (`Eval.Gate.SMOKE`, and the note in `eval/run.sh`).
 - **Ledger.**
-  - DW-125: a history that alone passes the limit answers `too_large` on every turn. Compact it, or rotate to a seeded fresh session.
-  - DW-130: show that a four-iteration turn stays under 100,000.
-  - DW-93: time `Precheck` at about 100,000 `Usage` rows. If it is slow, index `RecordedAt` (Lane B pins the indexes) or cache the day's spend. Usage rows now go after 90 days.
-
-**30.2 Purge (done; AD-27, AD-23).**
-
-- `Install.Step.Retention` (new Lane A area) declares three tasks, all daily at 03:00 instance time (`DailyStartTime` 10800):
-  - `OcuTalon purge heartbeat and check messages`: `messages`, 7 days, `HeartbeatIn,Checks`;
-  - `OcuTalon purge Interoperability data`: `all`, 90 days;
-  - `OcuTalon purge`: `DaysToKeep` 90.
-  
-  `StartDate` is today only while today's 03:00 is more than `STARTMARGIN` (300 s) ahead, otherwise tomorrow, because the Task Manager refuses a first start in the past. Its `Purge(days)` calls `Bridge.Purge.Run(days)`.
-- `Install.Step.Watch` (new area) only purges: `IncidentManager.Purge(days)`.
-- `Bridge.Purge.Run(daysToKeep, now = "")` deletes `Decision` and `Usage` rows older than the cutoff. It deletes an AI session once `^OcuTalonBP.Unlinked(sessionId)` (the first run that found it unlinked) is at least 86,400 s old (veto U-165). It reads the links with one `SELECT` and takes no lock.
-- `Bridge.Time.DaysCutoff(daysToKeep, caller, .cutoff, now)` is the shared day check and UTC cutoff, used by `Bridge.Purge` and `Digest.Data.Item.Purge`. `Data.Pairing.Purge` (Lane B) and `IncidentManager.Purge` (Epic 9) keep their copies (DW-371, burndown).
-- Not purged: `ApprovalRequest`, `Price`, `ModelFamily`, `BackgroundCheck` and `WatchMark`. DW-437 (Turn, Delivery and Session rows outlive their decisions) waits for a product call.
-
-**30.3 Replay (done; AD-10, AD-11, AD-6, AD-30, AD-31).**
-
-- `ApprovalRequest` gained `ToolSource` and `Runner` (slots 24 and 25, veto U-170). `Approval.Validate` refuses both on a fix row.
-- On approval, `Approval.HoldResponse` sends a `tool` request (the Ref in `ItemId`) to Decide. Decide routes it to the row's `Runner` with no precheck, one Decision row of kind `tool` per Ref. An approved row with `ToolSource` or `Runner` empty closes `failed`, with `Decide.HELDBEFOREUPDATE` as the reason (U-170).
-- `Bridge.Replay.Run` does the run, in this order:
-  1. `StartExecution`, the single gate;
-  2. opens a throwaway AI session that is never linked;
-  3. `Context.Begin` with the runner, then `Context.Grant(ref)`;
-  4. `ExecuteTool` with the stored call;
-  5. an Action entry;
-  6. `FinishExecution`, which fires `approval.result`.
-  
-  The gate consumes the grant at the first call whose name, `Context.ArgumentsHash` and source match the row, and denies every other call. `origin_class` arrives on build 154.
-- The hold re-arms, retries and delivers. It refuses a start older than 8 s. `Approval.Reconcile` pass 3 starts a hold for:
-  - every approved `tool_call` row with no live hold;
-  - every approved, rejected or expired fix row with a `ResultTarget`, no live hold, `ExpiresAt` within `DELIVERYDAYS` (7) and no `ApprovalOutcome`.
-  
-  Fix-test fixtures left in those states get a delivery hold at the next start.
-- Routed elsewhere:
-  - DW-443 (the next turn's `SystemNote`) and DW-454 (showing U-170's reason) go to Story 31.2;
-  - DW-444 (a row left `executing` by a crash) goes to the burndown;
-  - DW-451 (the tokenless model GET) is by-design, veto U-172;
-  - DW-461 (`Replay.ActionEntry` repeats `Fix.Executor.ActionEntry`'s approver, session and channel fields) is wontfix-accepted. It reopens if a third Action-entry builder appears, or if the identity fields of the two builders diverge, so keep them in step when 30.4 or 30.5 edits the executor's entry.
-
-**30.4 Findings (AD-18, AD-14, AD-30, AD-32, AD-16).**
-
-What exists:
-
-- `Checks.Process` (PoolSize 1) handles each Tick in this order, each step in its own Try/Catch:
-  1. the quiet sweep;
-  2. `Fixes()`, which sends each final `FixResult` of `Fix.Run.Sweep()` to `IncidentManager`, asynchronously, in the incident's trace session;
-  3. the due production checks.
-- A run reads through `Watch.Reader.Failures`, which gives the running state: `stopped`, `suspended`, `troubled`, `network_stopped`, `unknown`, `timeout` or running. An item's enabled flag is read only in `Reader.Evidence` (snapshot `items[].enabled`). `Watch.Reader` is the only place that switches namespace (AD-3).
-- `Record` writes only the run fields of `BackgroundCheck`, with one SQL `UPDATE` keyed by `Ref`. `LastRunAt` is the clock's `runAt`, while `NextDueAt` follows the Tick time. Findings come from the `FINDING*` parameters.
-- No Item is sent today. `BackgroundCheck` has no field that remembers the last reported state, so adding one is a stored-data change.
-- `Msg.Catalog.Watch` has `watch.productionStopped` (`production`, `time`) and `watch.itemDisabled` (`itemName`, `production`, `time`).
-- `Intake` (Lane B) refuses an Item that is not `untrusted`, has no `ItemId` or `SessionRef`, or has no Text, Subject or Sender. It asks Decide for the attention decision (kind `decide`: Triage, a model request on the mock).
-- The executor today:
-  - `Executor.Resend` turns `ErrProductionNotRunning` into skip code `stopped` for each copy.
-  - `Run` then ends `done` with every target Skipped, so `Watch.Notice.ResultKey` picks `result.skipped`, whose text says the targets had changed since the dry run.
-  - `Test.Fix.Runs.TestStoppedProductionSkipsEveryCopy` pins those counts.
-- `Executor.CouldNotStart(row, total, reason, saved)` already produces the couldn't-start shape: the row closed `failed`, `Resent`, `Completed`, `FailedAgain` and `Skipped` 0, and the `Reason`. It renders as `result.couldNotStart`. The dependency rule lets Fix read the production's state through `Watch.Reader`.
-
-What to build:
-
-- **The Item.** Each finding becomes one `OcuTalon.Msg.Item` (provenance `untrusted`, owner the check's session) carrying `CatalogKey` and `Slots`, sent to `Intake`. `Intake` copies them to the `ItemDecision`, so `OutcomeRouter`'s notification uses them.
-- **Only new.** The last reported state lives in a row. A new `BackgroundCheck` column needs its own veto window.
-- **Stopped production at the start of a run** (AD-16 as amended, U-160, DW-368). A target production that is not running when the run starts ends the run as couldn't start: a final `FixResult` with `Resent` 0, `Skipped` 0 and a plain reason, and the row closed `failed`. The new reason sentence is a veto item. The precedents are `UNUSABLE`, `NOREAD` and `NOSTART`.
-- **Ledger.** DW-414: `Test.Checks.Runs` TestWindow flaked at an instance midnight (23:59:24Z). It derives its expected `from` from the clock's `LastRunAt`, not from the Tick's own time.
+  - **DW-125:** a history that alone passes the limit answers `too_large` on every turn. Compact it, or rotate to a seeded fresh session.
+  - **DW-130:** show that a four-iteration turn stays under 100,000.
+  - **DW-93:** time `Precheck` at about 100,000 `Usage` rows. If it is slow, index `RecordedAt` (Lane B pins the indexes) or cache the day's spend.
+  - **DW-386 (U-184):**
+    - `Bridge.Redact` must cover every pattern of `key_like` in `docker/tests/lib-keys.sh`, the one definition that `test-boundaries.sh` and `eval/run.sh` read, with one test per shape.
+    - Missing today: DigitalOcean `dop_v1_` tokens and PEM private-key headers.
+    - `sk-ant-` and the Telegram bot token are already in `key_like` and in Redact, but each still gets its test (the owner's condition).
+    - Redact stays idempotent, never throws, fails closed and names no OcuTalon package (AD-2).
+  - **DW-448 (U-185):**
+    - `Test.Eval.KeyProof`'s `Walk` decodes `$List` elements.
+    - On a throwaway, measure whether a message body can store a key in a compressed `%Stream.Global*` chunk (blocks of 1 KB or more compress) or in a chunk split across nodes. If it can, decode those too. If it can't, that half closes wontfix-accepted, and the ledger entry gets the evidence: the throwaway's build, the message class and what was stored.
+    - The key proof otherwise stays as it is. Lane B's copy, `Test.Web.SessionEvents.ReferenceHits`, is DW-474 in Story 31.4, so don't edit it.
 
 **30.5 Mixed and unfinished (AD-16, AD-15, AD-18).**
 
-What exists:
+A planned spec exists (ready-for-dev, not validated). It was written before Epic 9 merged, so the spec gate must apply these rulings:
 
-- `Fix.Executor`'s waiter:
-  - One waiter runs at a time, under `WAITLOCK`.
-  - `Waiting` lists the runs with `ResentAt` set, no `EndedAt`, not marked, whose row is executing, inside `WAITSECONDS` (60).
-  - `Look` ends a run once every copy is done: Skipped is the targets with no copy, and `FailReason` comes from the failed copy with the lowest id.
-  - `Pass` drops a run whose time ran out (`LOGWAIT`): nothing is stored or sent, and the row stays `executing`.
-- `ResultOf` always sets `Final` 1. There is no in-progress builder.
-- `Fix.Run.Sweep()` ends marked runs and DW-395 runs. It leaves alone a run with a copy still running, or whose last copy was done after the wait. That branch is 30.5's, and `Test.Fix.Executor.TestSweepLeavesRunsOfTheWaiterAndOfStory305` pins it.
-- `End` and `Mark`, under `RUNLOCK`, are the only writers of a run's end fields.
-- `IncidentManager.Result` treats a `FixResult` that is not final and not interrupted as a `progress` event: `fixing` stays `fixing`, and no notice goes out. The notice (`ResultNotice`, with its key from `Notice.ResultKey(row.State, result)`) goes only with a final or interrupted result.
-- `Live.Payload.Incident` (Lane A, published by IncidentManager) fills a request's `Result` only from an ended FixRun, so a running request shows no result band on the page today.
-- The result key order is already built, identically, in `Watch.Notice.ResultKey` and the page's `resultView` (`web/src/app/approvals/approval-view.ts`), first match wins:
-  1. `executing` → `stillResending`;
-  2. `Interrupted` > 0 → `interrupted`;
-  3. nothing counted and a `Reason` set → `couldNotStart`;
-  4. both `FailedAgain` and `Skipped` → `failedAndSkipped`;
-  5. `FailedAgain` → `failedAgain`;
-  6. `Skipped` → `skipped`;
-  7. otherwise `allThrough`.
-  
-  Every new producer uses it.
-- `Executor.Refusal` refuses a past-expiry approved row with an info line. The "past expiry" case of `Test.Fix.Refused` pins "changes nothing". `FinishExecution` accepts `approved` → `failed`.
-- `Resend` counts the skip codes `stopped`, `refused` and `error` as Skipped, along with the real changes (`gone`, `status`, `body`, `field`, `changed`).
+- **Q1 (orchestrator).** `Watch/IncidentManager.cls` is now Lane A's and uncontended. The one-line edit in `Result` (call `ResultNotice` for every result, not only a final one) is allowed. There is no split and no Story 30.6.
+- **U-182 (kept): AD-16 is extended.**
+  - The extension:
+    - `FixResult` gains `Unreached`.
+    - A resend stops at the first copy that errs (`stopped`, `refused` or `error`).
+    - A run where no copy went ends as couldn't start: `NOTRUNNING` for a stop, otherwise `NOSTART`. A throw before any copy stays `NOREAD`.
+    - `result.stoppedPartway` joins the Result texts order right after `couldNotStart`.
+  - It is written into the spine with the orchestrator's marker and the spine lint, whose baseline is 8 low findings.
+  - **The owner's condition:** the stoppedPartway text gives three counts (resent, the copy that erred, and not tried) and says that nothing else was changed, and a test pins a run that stops at copy k of n. The planned text ("The other {remaining} need a new approval") does not meet this.
+- **U-183 (kept).**
+  - 30.5 adds `unreached` to `Live.Payload.Incident` (Lane A, its publisher), and `result.stoppedPartway` with its count-of-one form to the Watch catalog class. The chat notice uses it.
+  - Two parts go to Lane B's Story 31.2 (DW-472, DW-473): the page's pick in `resultView` with the web key lists, and a still-resending band. 30.5 makes no `web/` edit.
+  - The spec's Never-list entry that calls `Live.Payload.*` Lane B is out of date.
+- **V1 (still a veto item at the spec gate).** The stored column `FixRun.Unreached`, written with `ResentAt`, because the waiter and `Sweep` end runs later, in other jobs.
 
-What to build:
+What the code does today:
 
-- **When the wait ends with copies running.** Send a `FixResult` with `Final` 0 and the counts so far. The incident stays `fixing`, and the notification uses `result.stillResending`.
-- **When every registered copy has completed or failed.** `Sweep` returns the run's one final `FixResult`. `Checks` sends it to `IncidentManager`, which moves the incident by AD-15's table.
-- **A mixed result** carries both counts and uses `result.failedAndSkipped`, with the resent, completed, failed-again and skipped counts as slots.
-- **Ledger.**
-  - DW-384 (U-161): an approved `Execute` whose `ExpiresAt` has passed ends as couldn't start with `NOSTART`, the row closes `failed` through `FinishExecution`, and the incident leaves `fixing`. This is one line in `Executor.Refusal`.
-  - DW-419: a resend that errs partway must report the targets it never reached by how far it got, not as `Skipped`. The spine fixes this principle but names no key. A new key or new text is a veto item.
+- **The waiter.** It runs under `WAITLOCK` and waits `WAITSECONDS` (60). When the time runs out, `Pass` logs `LOGWAIT`, stores and sends nothing, and leaves the row `executing`.
+- **`ResultOf`** always sets `Final` 1.
+- **`Sweep`** leaves alone a run whose last copy finished after the wait. `Test.Fix.Executor.TestSweepLeavesRunsOfTheWaiterAndOfStory305` pins that.
+- **`End` and `Mark`,** under `RUNLOCK`, are the only writers of a run's end.
+- **`IncidentManager.Result`** treats a result that is neither final nor interrupted as progress: `fixing` stays `fixing`, and no notice goes out yet.
+- **DW-384.** `Executor.Refusal` refuses a past-expiry approved row with an info line. The fix is couldn't start with `NOSTART`, through `CouldNotStart`, with `FinishExecution` moving the row from approved to failed.
+- **DW-419.** `Resend` counts `stopped`, `refused` and `error` as Skipped. 30.4's review routed one occurrence here: a start read that times out on a stopped production.
+
+The result key order:
+
+- `Watch.Notice.ResultKey` and the page's `resultView` use the same order, and the first match wins:
+  1. `executing` gives `stillResending`;
+  2. `Interrupted` above 0 gives `interrupted`;
+  3. nothing counted and a `Reason` set gives `couldNotStart`;
+  4. (new) `Unreached` above 0 gives `stoppedPartway`;
+  5. both failed again and skipped give `failedAndSkipped`;
+  6. failed again gives `failedAgain`;
+  7. skipped gives `skipped`;
+  8. otherwise `allThrough`.
+- Every producer uses this order. The plan also maps any result that is neither final nor interrupted to `stillResending`, and the mixed result's slots gain `resent`.
+
+**DW-469 (U-180's condition).** Pin with a test that the `{time}` of `watch.productionStopped` and `watch.itemDisabled` renders through the catalog's time format with the zone label (ET on the online demo), for both sources: IRIS's stop time and the check's detection time.
+
+**Keep consistent with the done stories.**
+
+- **30.4.**
+  - `Checks` writes `BackgroundCheck.Reported` in its single `UPDATE` keyed by `Ref`. A row's first reading run is a baseline, and `Reported` holds only current conditions.
+  - A finding Item is `untrusted`, goes to `Intake` only, and travels in a trace session of its own, with the owner's TraceRef as SuperSession (AD-26).
+  - The executor checks the target's state through `Watch.Reader` after `StartExecution` and the FixRun's save. `stopped`, `suspended` and `network_stopped` end the run as couldn't start with `NOTRUNNING`.
+  - A stop after that check is 30.5's.
+- **30.3.**
+  - `ApprovalRequest` holds `ToolSource` and `Runner`.
+  - The replay's first `ExecuteTool` makes one tokenless `GET /v1/models/<model>`. `BuildAgent` needs a provider key: without one, the row closes `failed` (`ProviderCreateFailed`) with no reason the person reads.
+  - The bridge cannot name the host catalog (AD-2), so U-170's sentence went into the Decision row's `Reasons` through a `Decide` parameter (`HELDBEFOREUPDATE`).
+  - DW-461 reopens if the identity fields drift, so keep `Replay.ActionEntry`'s and `Fix.Executor.ActionEntry`'s approver, session and channel fields in step if 30.5 edits the executor's entry.
+- **30.2.** `Bridge.Time.DaysCutoff` is the shared day-count check and UTC cutoff.
+
+**Burn-down candidates** (the ledger routes these to `burndown` and marks them for Epic 30; the gate fixes the list):
+
+- **DW-470 (U-172).** A replay that fails for lack of a provider key, or because the provider can't be reached, says so in its failed row in catalog words, and says that nothing was changed. No public text may claim that a replay works offline.
+- **DW-444.** A `tool_call` row that a crash leaves `executing` mid-replay stays that way. The candidate fix: a start-only `Reconcile` path (never the one tests call) closes it through `FinishExecution` as interrupted.
+- **DW-462 (priority flake).** `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` went red once on CI. The likely cause is the hold's timing under 30.3's re-arm and retry.
+- **DW-371 (what's left).** `IncidentManager.Purge`'s copy of the day check, now in a Lane A file, can adopt `DaysCutoff`. `Data.Pairing.Purge` is Lane B's.
+- **DW-437.** Still waiting for a product call: Turn, Delivery and Session rows outlive their purged Decision and Usage rows.
 
 ## UX & Interaction Patterns
 
-- **State change:** "The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."
-- **Mixed result:** "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval." When skipped is 1, it reads "so I skipped it."
-- **Still running:** "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done." When completed is 1: "1 of {count} {item noun} has gone through so far."
-- **Couldn't start:** "Nothing was resent: {reason}. Nothing was changed."
+- **Mixed:** "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval."
+- **Still running:** "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done." With one completed: "1 of {count} {item noun} has gone through so far."
+- **Cut off by a restart:** "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval." `stoppedPartway` follows this shape, but it must not borrow the restart cause.
+- **Couldn't start:** "Nothing was resent: {reason}. Nothing was changed." The two reasons are `NOTRUNNING` ("the production isn't running") and `NOSTART` ("OcuTalon couldn't start the resend").
 - **On the page:** each request card has its own result band, and on the web every result is followed by "Recorded in the IRIS audit log."
 
 ## Cross-Story Dependencies
 
-- **Run order:** 30.4, 30.5, then 30.1.
-  - 30.1 waits on Epic 9: its live smoke runs in Story 9.5's release-candidate run (three turns across jobs, a compaction, and a tool change with Claude 5.5's thinking-history rule forced). Its other criteria run on the mock.
-- **30.4 and 30.5:**
-  - Both change `Fix.Executor`'s couldn't-start and skip paths, and both rely on the same result-key order.
-  - Both deliver through `Checks` → `IncidentManager`, and both edit `Checks.Process` (the finding Items, and the Sweep results).
-  - Their pins in `Test.Fix.Runs`, `Test.Fix.Refused` and `Test.Fix.Executor` change.
-- **Contended files:**
-  - `Watch/IncidentManager.cls` is shared with Epic 9, which is live. 30.5's in-progress notice and any `DaysCutoff` adoption touch it. `Production.cls` is also Epic 9's.
-  - Every existing `Install/**` file is shared with Epic 15. New area files are allowed, as 30.2 showed.
-- **30.2 and 30.1:** `Bridge.Purge` removes the AI sessions that compaction and rotation leave behind.
-- **Lane B (read only):** `Intake`, `OutcomeRouter`, `Notify`, `Core.BridgeSink`, `Conversation`'s `SystemNote`, `Data.Pairing`, `Data.Time`, `Data.Ownership` and the `Usage` index pin. Stories 31.2 and 13.2 no longer wait on 30.3.
-- **Lane A's own:**
-  - `src/bridge/**`, `Fix/**`, `Watch/**` (but `IncidentManager.cls`, above) and `Checks/**`;
-  - the new Install areas `Install.Step.Retention` and `.Watch`;
+- **30.1 and Epic 9 (merged):**
+  - Story 9.5's release-candidate run carries 30.1's live smoke test.
+  - `Eval/**` and `Test/Eval/**` are now Lane A files this epic may edit.
+- **30.1 and 30.2:** `Bridge.Purge` removes the AI sessions that a fork or a rotation leaves behind, so 30.1 adds no cleanup.
+- **30.5 and Lane B:**
+  - Story 31.2 takes the page's stopped-partway pick (first, if 31.2 splits), the still-resending band, and DW-443 and DW-454 (the next turn's note, and showing U-170's reason).
+  - Until then, the page shows a partway run in the old wording.
+- **30.5 and Epic 12:** Telegram's in-place result edit sees a progress notice, then the final notice, with the same ApprovalRef.
+- **Lane A's own files:**
+  - `src/bridge/**`, `Fix/**`, `Watch/**` (with `IncidentManager.cls`), `Checks/**`, `Eval/**` and `Test/Eval/**`;
   - `Msg/Catalog/Watch.cls`, `Live.Payload.Incident`, `Live.Payload.Check` and the Lane A tables;
-  - `ci/mock/scenarios/A/`;
-  - `OcuTalon.Test.<Area>`.
+  - the new Install areas `Install.Step.Retention` and `.Watch`;
+  - `ci/mock/scenarios/A/` and `OcuTalon.Test.<Area>`.
+- **Shared files:**
+  - Existing `Install/**` files are shared with Epic 15; new area files are allowed.
+  - `Test/Data/Tables.cls` is shared by entry.
+- **Lane B (read only):** `Intake`, `OutcomeRouter`, `Notify`, `Core.BridgeSink`, `Conversation`, `Data.Pairing`, `Data.Time`, `Data.Ownership`, `web/**` and the `Usage` index pin.
