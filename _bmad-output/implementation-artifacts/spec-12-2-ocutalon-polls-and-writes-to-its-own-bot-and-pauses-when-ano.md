@@ -2,7 +2,8 @@
 title: 'Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: 'ac6c8021785b8cb7533a2b7d49faaa714f787122'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -470,7 +471,48 @@ How to run:
 | Structural `ApiBase` | `Base` writes only when the row is absent | `TelegramSettings` endpoint row |
 | Stubs gone | `Out.cls` keeps `STUB` | `Test.Install.Production` `TestStubsAnswer` |
 
+**Recorded by the implement stage (runner C, 2026-10-31).**
+
+- Task 0: on a fresh throwaway the SSL step created `OcuTalonClient` as a client configuration, enabled, `VerifyPeer` 1, `CAFile` `%OSCertificateStore` (`TelegramSettings`, run fresh). The shipped image keeps `/etc/ssl/certs/ca-certificates.crt` (121 certificates on build 154U); OpenSSL's `/usr/lib/ssl/cert.pem` leads to it, and `TestCAFileInImage` checks both. `%OSCertificateStore` resolving to that file on Linux stays inference until Story 12.7's hands-on pass; the configuration keeps the OS store and no explicit `CAFile`.
+- U-164 condition 1 (`TestBadCertificateRefused`): the test makes a self-signed certificate with `openssl req` and runs `openssl s_server` on a loopback port inside the throwaway's own IRIS container (both exist in the image), then deletes the folder and stops the process. The same server answers HTTP 200 to a test-only client configuration that trusts the certificate, and `OcuTalonClient` is refused with no HTTP answer.
+- U-164 condition 2 (`TelegramApi.TestPlainHttpIgnoresSSLConfig`): a call to the mock's `http://` base with `SSLConfig` set to a configuration that does not exist answers 200 with `getMe`; the same host over `https://` with that configuration gets no answer.
+- `shard:lane-a@Channel` and `NO_WEB_BUNDLE_UNITS`: shown bundle-free by (1) a grep of every `Test/Channel` class for the bundle markers of `docker/tests/test-ci-config.sh` (`csp/`-style paths, the web folder names, `index.html`, `ensure_web_bundle`) with no hit; (2) the only web class that the Channel tests call, `Web.Api.StateBody`, reads rows, marks and the IPM module version, never a file of the bundle (`Web/Api.cls` has no reference to the bundle or its files). The unit sits in `production` and in `NO_WEB_BUNDLE_UNITS`; `test-ci-config.sh` (198 test classes, each in exactly one shard unit, 3 of them pieces) and `test-ci-changes.sh` pass. On the fresh stack `lane-a@Channel` runs 8 classes in 225 s (forward) and 266 s (reversed), build excluded, and both orders pass.
+- Runs: all seven `Test.Channel` live classes, `Install.Production` (see the intent gap below), `Install.Registry`, `Web.Api`, `Web.PairingApi`, `Contract.Mock`, `Live.Status` and `Core.StatusMonitor` on the warm stack; `live production-restart` fresh (every PASS line, `check_telegram_off` and `check_items_run` green); `shard lane-a@Channel` and `--reverse` fresh; `test-mock.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-readme.sh`, `test-boundaries.sh`, `ci/changes.sh ci.yml --paths-from` and `ci/checks.sh` pass.
+- **Intent gap (for the runner).** `TestStubsAnswer` ends with `Do $$$AssertTrue(expectedStubs > 0, "the oracle marks item classes as stubs")`. The spec says that this still holds through EvalIn and EvalSink, but both are built (`"stub": 0`; Story 9.1), so after this story no item of the oracle carries `STUB` and that one assertion fails (`Install.Production` otherwise passes). It was not edited here, because `Test/Install/Production.cls` allows only the named rows; with the guard relaxed to `expectedStubs >= 0` as an experiment (reverted byte for byte) the class passes, and keeping `STUB` on `Out.cls` turns it red. The fix is that one line, for the runner to decide.
+
+Mutations (Rule 19), each applied with the warm stack's reload, run, and reverted byte for byte (`cmp` against my own backup, `git status` unchanged):
+
+- mutation: `RecordTelegram("on", "")` -> `Test.Channel.TelegramIn` TestStart (the name, and StateBody's name)
+- mutation: `OnTearDown` records nothing -> `TelegramIn` TestStop (the state is off, with no name)
+- mutation: `Api.Call` copies the token into a host setting (an `SSLConfig` row of TelegramIn; the row deleted afterwards) -> `TelegramNoToken` (the KeyScan of the settings, and the audit scan)
+- mutation: `Endpoint` drops the base's port -> `TelegramIn` (TestStart, TestOffsetNode, TestAlreadyHandled: the state never becomes on) and `TelegramOut` (TestPlainText, TestNotification: no answer from the Bot API)
+- mutation: the offset kept at `$$$EnsStaticAppData("TelegramIn", "next")` (read and write; the leftover node killed afterwards) -> `TelegramIn` TestOffsetNode (the first poll without offset 3, `Offset()` unchanged), TestAlreadyHandled, TestRestartLosesNothing and TestStart
+- mutation: the `update_id < offset` check removed -> `TelegramIn` TestAlreadyHandled (a row for 7001 appears)
+- mutation: `OnInit` adds 10 to the kept offset -> `TelegramIn` TestRestartLosesNothing (B is never handled), TestOffsetNode, TestAlreadyHandled
+- mutation: the chat-type check removed -> `TelegramIn` TestPrivateOnly (rows for the group, channel and group-press chats)
+- mutation: 401 handled as a retry (never rejected) -> `TelegramIn` TestRejected (the state never becomes rejected, repeated calls)
+- mutation: `POLLSECONDS` 50 -> `TelegramIn` TestStop (the job failed to stop within 10 seconds; the stack was cleaned afterwards)
+- mutation: `retry_after` ignored on a getUpdates 429 -> `TelegramIn` TestUpdatesBusy (the gap was 1.01 s)
+- mutation: `PAUSESECONDS` 0 -> `Test.Channel.TelegramPause` TestPause409 (the mark is not 300 s ahead; no pause; no member in StateBody)
+- mutation: success leaves the pause mark -> `TelegramPause` TestResumeSucceeds (the first 200 does not delete the mark)
+- mutation: the pause read only at the first run -> `TelegramPause` TestResumeMeetsAnother409 (a poll during the pause), TestPause409 and TestResumeSucceeds
+- mutation: `parse_mode` `MarkdownV2` added -> `Test.Channel.TelegramOut` TestPlainText
+- mutation: `Split` ignores line breaks -> `TelegramOut` TestSplitAtLineBreaks and TestSentThenLimited, and `TelegramApi` TestSplitLineBreaks
+- mutation: a 429 is not retried -> `TelegramOut` TestRateLimited and TestSentThenLimited
+- mutation: a retry resends part 1 -> `TelegramOut` TestSentThenLimited (part 2 again, never part 1; three calls, the third is part 1) and TestRateLimited
+- mutation: the 409 warning holds `Api.Call`'s location (the path with the token) -> `Test.Channel.TelegramNoToken` (the event-log scan)
+- mutation: `VerifyPeer` 0 in the SSL step -> `Test.Channel.TelegramSettings` TestSSLConfiguration
+- mutation: `Base` writes only when the row is absent -> `TelegramSettings` TestEndpointSettings (the public API is not written, and a row changed by hand is not rewritten)
+- mutation: `Out.cls` keeps `STUB` -> `Test.Install.Production` TestStubsAnswer (TelegramOut carries STUB, answers 5003, and the stub count differs); the baseline fails on the guard above, so this red was shown with the guard relaxed
+- mutation: `Api` sets `Https` for an `http://` base (U-164 condition 2) -> `TelegramApi` TestPlainHttpIgnoresSSLConfig
+- mutation: the CA-file check pointed at a missing file (U-164 condition 1) -> `TelegramSettings` TestCAFileInImage
+- not mutated: `OcuTalonClient` with `VerifyPeer` 0 against the bad certificate (the SSL step's mutation above turned the SSL row red, and its configuration was put back with the reverted step).
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` (contended: Epics 15 and 13) must change one line outside the spec's Tasks: `TestStubsAnswer` asserts `expectedStubs > 0`, which no longer holds. The spec says it "still holds through EvalIn and EvalSink", but both are `"stub": 0` since Story 9.1, so after this story's two rows go to `"stub": 0` the oracle marks no item as a stub. Recommended ruling: allow the one-line relaxation of line 170 to `expectedStubs >= 0` (measured: with it `Test.Install.Production` passes, and keeping `STUB` on `Out.cls` still turns `TestStubsAnswer` red on the next line's exact-count assertion). An appended block cannot fix it, because the failing assertion sits inside `TestStubsAnswer`.
+
+Implementation state: the full implementation was done, verified and mutation-checked (22 table mutations plus two U-164 extras, all recorded in `## Verification`), then reverted from the tree. It is saved as `_bmad-output/implementation-artifacts/spec-12-2-implementation-attempt.patch` (`git apply` on the clean tree at `ac6c8021`; covers `ci/` and `src/`, new files included). It does not contain the line-170 relaxation. The patch passed: all 7 `Test.Channel` classes, Install.Registry, Web.Api, Web.PairingApi, Contract.Mock, Live.Status and Core.StatusMonitor (warm); `live production-restart`; `shard lane-a@Channel` forward and reverse (fresh); test-mock, test-ci-config, test-ci-changes, test-readme, test-boundaries, `ci/changes.sh`, `ci/checks.sh`. Review layers and finalize were not run.
+
+Also for the lead: `shard:lane-a@Channel` was added to `production` and `NO_WEB_BUNDLE_UNITS` (shown bundle-free, see `## Verification`); footprint extensions are `Install/Step/Telegram.cls`, `Install/Step/SSL.cls` and `Test/Install/Production.cls` (two oracle rows, the `CallInterval` setting, the class doc). Risk for Story 12.4: `RecordChat(chatId, "")` overwrites a known chat's `DisplayName` with an empty string.
