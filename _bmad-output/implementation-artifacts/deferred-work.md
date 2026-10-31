@@ -1317,6 +1317,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T00:29:46Z status=wontfix-accepted owner=16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details by=cr note=reopen_if=Story 29.3's proxy or its stand-in refuses a sign-in POST that carries no IRISSessionToken
 - 2026-10-26T00:55:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=integration risk for the demo host, not a LOW to close: the splash's first sign-in POST carries IRISUsername, IRISPassword and IRISLogin with no IRISSessionToken (measured, Story 16.2); 29.3's proxy allow-list must admit any subset of the four names (only-these), never require all four, else every online-demo sign-in is refused; test it with the splash's real POST
 - 2026-10-30T08:06:49Z status=decision-pending owner=burndown by=adjudication note=the repository follows AD-25 as veto ruling U-158 reads it (a sign-in body's names all come from the four; the splash's three-field sign-in admitted, measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4)); the open question is AD-25's guard wording amendment (U-158's recommended text), for Epic 29's decision sheet
+- 2026-10-31T09:02:42Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=AD-25's_sign-in_rule_reworded_at_Epic_29's_merge_as_veto_U-158_reads_it(names_all_from_the_four;the_pattern_excepts_a_sign-in_body's_one_IRISPassword)
 
 ### DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: med | footprint: in-story
@@ -2490,6 +2491,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-29 launch-fix bullet: 'Story 29.3 changes no file in this repository'; the story adds release/demo-host-check.sh and release/demo-host-checks.md, which epic29_brief directs; no AD-29 as-built line (Rule 20)
 - 2026-10-30T08:03:08Z status=escalated owner=burndown by=cr note=for the decision sheet: an AD-29 as-built line naming 29.3's two release/ files (spine update is the lead's, Rule 20)
 - 2026-10-30T19:11:36Z occurrence=29-6-the-probe-alerts-when-every-turn-falls-back
+- 2026-10-31T09:02:42Z status=resolved-by:29-3-the-demo-host-is-adapted-for-the-launch by=merge_gate note=AD-29's_as-built_line_names_29.3's_release/demo-host-check.sh+demo-host-checks.md_and_29.8's_release/demo-load.sh
 
 ### DW-424: IRIS_INPUT's docker/tests/lib-[^/]+.sh pattern also claims lib-stub.sh, which only the hosted tests test-probe.sh and test-online-host.sh use, so a change to it runs every IRIS group in CI
 - source: spec-29-3-the-demo-host-is-adapted-for-the-launch.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2574,11 +2576,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: docker/probe.sh run_checks matches only daily_cap, no_key, timeout and rate_limited; Decide.Classify gives error to a failure without the cap, key, timeout or rate-limit text (a 401, a 500); H12: the host's IRIS holds a dummy key, so no_key needs a broken deploy; Story 29.6's So that: a demo whose replies are all fallbacks never reports healthy
 - 2026-10-30T19:11:36Z status=decision-pending owner=burndown by=cr note=product call: should error also be degraded (alert-only)? U-157 named three; recommended: yes, like the three
+- 2026-10-31T09:02:42Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=veto_U-187:error_counts_as_degraded(alert_only,not_toward_the_reset),like_U-157's_three;with_a_probe_test
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Spine AD-25, The probe: 'Its outcomes are busy ..., capped ..., auth_failed ... and no_decision'; docker/probe.sh's outcome table also has no_splash and degraded (alert-only, never counted); the spec's Design Notes hand the amendment to the lead (Rule 20)
 - 2026-10-30T19:11:36Z status=escalated owner=burndown by=cr note=for the decision sheet: an AD-25 as-built line adding no_splash and degraded, keeping the id (Rule 20, the lead's)
+- 2026-10-31T09:02:42Z status=resolved-by:29-6-the-probe-alerts-when-every-turn-falls-back by=merge_gate note=AD-25's_probe_outcomes_gain_no_splash(16.6)_and_degraded(29.6),as_built,checked_against_docker/probe.sh
 
 ### DW-458: AD-3's public-package reference check (Test.Web.Status, TestReferencesOnlyThePublicAllowList) reads no global reference, @ indirection or Xecute, so it cannot see Status.Visitors' read of ^%cspSession or a later global read
 - source: spec-29-7-demo-busy-counts-the-live-visitors.md | severity: low | fix-risk: med | footprint: in-story
@@ -2594,6 +2598,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: During case 1's hold busy comes from the visitor count, and IRIS serves its own busy splash (200, X-OcuTalon-Busy); IRIS answers 503 only at the cap of 8 connections (AD-13), and case 2 peaks at 6. Run 3 accepts IRIS's splash by Story 29.3's design, so H8 can read measured with the proxy's 503 mapping unexercised.
 - 2026-10-31T03:28:16Z status=decision-pending owner=burndown by=cr note=product call: how H8's 503 mapping is shown on the host; the check list and the spec say only 'during the hold'
+- 2026-10-31T09:02:42Z status=decision-pending owner=burndown by=unattended note=inbox=U-188
 
 ### DW-465: A change to release/demo-load.sh alone runs every IRIS CI group
 - source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: med | footprint: in-story
