@@ -285,3 +285,13 @@
 2026-10-27T20:12:47Z	Story 5.11	story_cycle	plan_to_commit_min=226 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=0 rulings=U-123(veto:fix-forward_charter)
 2026-10-27T20:13:01Z	Epic 5	integrated_forward	feature=da54554 head=4647731 conflicts_resolved=none note=bookkeeping_only(cycle-log-parallel.md);the_merged_tree_differs_from_5.11%27s_tested_tree_only_there,so_its_smoke_(floor_99)_and_fresh_check_(lane-a_fwd+rev,lane-b_fwd+rev,checks)_stand
 2026-10-27T20:13:01Z	Epic 5	epic_runner_complete	stories_completed=11(5.1-5.11) note=5.11_is_the_fix-forward_for_the_integrated_red(DW-305_resolved)
+2026-10-31T12:24:08Z	Epic 5	runner_unattended_start	run=20261026T1518Z-1-37 policy=6df0676 doctrine=3d11cec note=reopen_for_story_5.12_launch_hotfix
+2026-10-31T12:24:08Z	Epic 5	epic_branch_reopened	reason=story_5.12_launch_hotfix from=8b8fd952 by=orchestrator(SC-5)
+2026-10-31T12:24:08Z	Epic 5	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-31T12:24:08Z	Epic 5	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=pass
+2026-10-31T12:24:08Z	Epic 5	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-10-31T12:24:08Z	Epic 5	epic_branch_checked_out	repos=. head=8b8fd952 ci_expected=ci.yml,lane-a.yml
+2026-10-31T12:24:08Z	Epic 5	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-31T12:24:08Z	Epic 5	ledger_load	total=447 open=0 routed=58 escalated=0 decision_pending=0 terminal=389 owner_unknown=0 burndown=0 reowned_none=0
+2026-10-31T12:24:47Z	Epic 5	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check(headless)_for_the_reopen;in_sync=true
+2026-10-31T12:24:47Z	Epic 5	retro_review_skipped	reason=no_x0_input(reopen_for_one_hotfix;ledger_has_no_burndown_none_or_epic-5_owned_entries) by=orchestrator_dispatch
