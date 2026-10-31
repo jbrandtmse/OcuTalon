@@ -2675,3 +2675,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 12.2 sets the TelegramIn and TelegramOut oracle rows to stub 0 (orchestrator ruling 2026-10-31, file-level extension); the doc line 10 edit was dropped because Epic 15 also changes line 10 of src/ocutalon/cls/OcuTalon/Test/Install/Production.cls
 - 2026-10-31T11:52:15Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=doc only: append TelegramIn and TelegramOut (built in Story 12.2) to the class doc's list of items without STUB, in the same edit as Epic 15's own line-10 change; no behaviour
+
+### DW-486: TelegramIn calls Pairing.RecordChat(chatId, "") for every private update, and RecordChat sets DisplayName unconditionally, so once Story 12.4 stores a paired chat's name every later message would blank it
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally; Channel/Telegram/In.cls HandleUpdate passes an empty name (as 12.2's spec fixes it); no story stores a name yet, so nothing is lost today (dd849271)
+- 2026-10-31T12:13:11Z status=routed owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=fix on Epic 12's side if possible (TelegramIn passes the update's own name, or skips the name when it is empty); Data/Pairing.cls is Lane B's (AD-33) and contended with Epic 11, so a change there is a Lane B ask

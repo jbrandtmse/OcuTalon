@@ -4140,6 +4140,8 @@ So that I know my phone will get OcuTalon's notices.
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
+- DW-486: `TelegramIn` (Story 12.2) calls `Pairing.RecordChat(chatId, "")` for every private update, and `RecordChat` sets `DisplayName` unconditionally, so the name this story stores would be blanked by the chat's next message; this story keeps a stored name (on Epic 12's side if possible: `TelegramIn` passes the update's own name, or skips an empty one; `Data/Pairing.cls` is Lane B's and contended with Epic 11) (ledger; routed by harvest 2026-10-31)
+
 ### Story 12.5: Bad codes, a bare start command and unpairing get polite answers
 
 As a user,
