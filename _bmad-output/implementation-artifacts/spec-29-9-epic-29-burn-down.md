@@ -131,6 +131,49 @@ deferred: []
   - Pin: L2, with the page's `?IRISLogout=end&t=` request held 1.5 s.
 - **AC3 (standing, Rule 19; FR-15).** Given the final tree, when each affected live unit runs once on its own fresh throwaway, then every unit passes, with no unchanged rerun. Every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review, 2026-10-30, full mode. Four layers ran: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on the session's model (no `model-overrides.yaml`, so full-opus). There were 20 findings. 6 of them form 3 patch entries (1 med, 2 low), all applied. None needed a decision, none was deferred, and 14 were rejected.
+
+- [x] [Review][Patch] Ten sign-ins in `frame.spec.ts` still gave the snapshot only the bare 10 s wait, DW-333's root cause [web/e2e/frame/frame.spec.ts:170]
+  - Sites: the F3 badge loop at :170 (two cases), F5 :232, F6 :240, :307, :324 and :337, F7 :383, and F8 :424, :466 and :487.
+  - Each one is a `signInReadme` followed by a 10 s expect on the badge or on the account button. Both come from the snapshot: `header.ts` `accountName` reads "Account" until `/state` answers.
+  - The fix swaps each for `signInReadmeLoaded` and keeps every expect after it.
+  - The manual grep under Verification only matches `data-snapshot` waits, which is why it missed these sites.
+  - Med, fix-risk low (the same swap as F1 to F3 and F9), in-story. Sources: blind-hunter and verification-gap.
+- [x] [Review][Patch] L2's header claimed without condition that IRIS has ended the session before the page leaves [web/e2e-online/session/leave.spec.ts:36]
+  - `groupSignOut()` leaves at IRIS's answer or at the 3 s bound, whichever comes first, so the claim holds only when IRIS answers within the bound.
+  - The header now states that as what the case needs (Rule 14).
+  - Low, fix-risk low, mechanical. Sources: blind-hunter and edge-case-hunter.
+- [x] [Review][Patch] DW-4 resolved the 303's Location against the address after the page booted [web/e2e/sign-in/sign-in.spec.ts:241]
+  - With the submit inside `loadedAfter`, `page.url()` is read after the router has rewritten the address (`/ocutalon/#/...`, query dropped), no longer at the posted address. A query-only Location would then resolve wrongly.
+  - Both DW-4 sites (:241 and :294) now resolve against `response.url()`, the posted address, which is RFC 7231's base. The assertion's input is again what it was before the wrap.
+  - Low, fix-risk low, mechanical. Source: edge-case-hunter.
+
+**Evidence after the patches (lane C throwaways, tag `e29s9cr`, torn down):**
+- `npm --prefix web run lint`: exit 0.
+- `live sign-in --part 1/2`: 127 passed, 340 s.
+- `live sign-in --part 2/2`: 96 passed, 330 s.
+- `live online-session`: 12 passed, 1 skipped (L6, by design), 329 s.
+- All passed first time. The bundle was built after the last `web/src` change, so no rebuild was needed.
+
+**Rejected (14):**
+- `low` (blind-hunter) The Auto Run Result and Design Notes still describe DW-432 as an open request for the lead. The fix would edit the spec under review, and `epics.md` already records the move to 31.3.
+- `low` (blind-hunter, edge-case-hunter, acceptance-auditor; 3 findings) The Summary says "24 spec files under `web/e2e/**`" where it should say 22, and its folder glob covers more files than changed. The fix would edit the spec under review.
+- `low` (blind-hunter) The Verification record leaves out the build, the `e29s9iw` teardown and the pass counts for two units. The fix would edit the spec under review. Nothing tagged `e29s9i` was left running when this review began.
+- `false` (blind-hunter) Row 2's coverage is claimed beyond what was shown. Rule 19 asks for one demonstrated mutation per AC, and AC1's (C7) is recorded. The wording would be a spec edit.
+- `low` (edge-case-hunter, 2 findings) A sign-in that never reaches the page now fails at the case timeout (45 s, or 240 s for R2) rather than at a named 10 s expect, and R2's `finally` may then not restore the reset anchor.
+  - This only happens on a case that is already red. The fix would add a guard, or lies in `web/e2e/support/floor.ts`, which is forbidden.
+  - reopen_if: a CI red where a wrapped sign-in times out at the case timeout and later cases of the same unit fail from what it left behind.
+- `low` (edge-case-hunter) If IRIS takes more than 3 s to answer the group sign-out, L2 and L7 still go red with `since` NaN.
+  - The 3 s is the product's bound (`SIGN_OUT_LIMIT_MS`, pinned by L4c). A timing assertion in the test would only rename a case that is already red.
+  - What would make it real: a CI or demo log in which `?IRISLogout=end&t=` takes more than 3 s.
+- `false` (verification-gap) AC3 has no `mutation:` line. AC3 is the standing fresh-run criterion and has no code under test to mutate; the recorded runs are its evidence.
+- `false` (verification-gap) L7 has no red run of its own. Rule 19 asks for one mutation per AC, and AC2's pin, L2, has its recorded line.
+- `low` (verification-gap) The committed tree cannot catch a revert on a fast host. This is by design: the spec requires the holds to be removed, and the mutations are recorded.
+- `low` (acceptance-auditor) L7 does not assert AC2's "above both cards". This is by design: no assertion may be added, and L2's `expectPlaceFreed` covers it.
+- `low` (acceptance-auditor) Design Notes still carry the DW-432 item for the lead. The fix would edit the spec under review; this duplicates the first DW-432 row.
+
 ## Spec Change Log
 
 ## Review Triage Log

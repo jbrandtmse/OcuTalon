@@ -33,8 +33,8 @@ import {
  * - L2 (row 5, AC 3): the idle cap, on the page's own clock (installed before the load, moved on in steps of five seconds so that the page
  *   polls as it does): polls do not count, a key press and a click do, and 600 s with none lands on the splash with its load time and the
  *   place-freed notice above both cards; the CSP session is gone, a trace page needs a sign-in, and signing in resumes the epoch. The page's
- *   clock crosses the cap with the wall clock, so that the group sign-out's 3 s bound is real time and IRIS has ended the session before the
- *   page leaves.
+ *   clock crosses the cap with the wall clock, so that the group sign-out's 3 s bound is real time. The case needs IRIS to answer that
+ *   sign-out within the bound, so that the session has ended before the page leaves.
  * - L3 (row 7, AC 3): a 401 (the CSP session ended out of band) takes the page to the same splash and notice, never to the sign-in page or
  *   "You were signed out.", and no request of any kind (an API call or a sign-out) follows it.
  * - L4 (row 9, AC 4): an epoch change that the answers inject is never applied: the page shows nothing of the other session, asks for no

@@ -238,7 +238,7 @@ test.describe('DW-4: a deep link survives sign-in', () => {
         response = await submitSignIn(page);
       });
       expect(response.status()).toBe(303);
-      const location = new URL((await response.headerValue('location'))!, page.url());
+      const location = new URL((await response.headerValue('location'))!, response.url());
       expect(location.pathname + location.search, 'the 303 names the address as it was, query included').toBe(target);
       expect(location.hash, 'and no fragment').toBe('');
       expect((await landed).status(), 'the redirect target answers 200').toBe(200);
@@ -291,7 +291,7 @@ test.describe('DW-4: a deep link survives sign-in', () => {
         response = await submitSignIn(page);
       });
       expect(response.status()).toBe(303);
-      const location = new URL((await response.headerValue('location'))!, page.url());
+      const location = new URL((await response.headerValue('location'))!, response.url());
       expect(location.pathname + location.search, 'the 303 names the address as it was').toBe(target);
       expect(location.hash, 'and no fragment').toBe('');
       await expect(page).toHaveTitle('OcuTalon');
