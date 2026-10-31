@@ -1103,3 +1103,4 @@
 2026-10-31T11:32:11Z	Epic 10	worktree_removed	worktree=.worktrees/epic-10 branch=OCT-epic10_deleted(local+remote)
 2026-10-31T11:33:10Z	Epic 30	ci_flake_rerun	head=b924115a run=41176218637 job=iris(install-fresh) unit=live:online-session test=leave.spec.ts_L2('since_is_the_time_the_page_loaded') class=DW-471 action=rerun_failed(once) code_head=18f516c4_green(41173622465,41173622467)
 2026-10-31T11:34:20Z	Epic 30	dispatch_planned	runner=B slot=ocutalon-slot-b reason=slot_B_freed(10.4_merged)->pool_order(12_running_on_C;30_next) base=b924115a feature=86d4fe20 applies=U-182(#553),U-183(#554),Q1 adds=DW-386/DW-448(U-184/U-185_conditions),README_30.4_sentence AD-16_citations_in_flight=none prompt=scratchpad/dispatch-epic-30-redispatch.md
+2026-10-31T11:34:49Z	Epic 30	runner_dispatched	agent=ae4f43202b0e3ca11 model=opus runner=B slot=ocutalon-slot-b previous_runner=ab2b56e0a3ffb8c19 mode=redispatch base=b924115a prompt=scratchpad/dispatch-epic-30-redispatch.md
