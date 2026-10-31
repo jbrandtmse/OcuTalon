@@ -6748,6 +6748,7 @@ So that what reaches my phone is my own work.
 **Then** it turns on Story 29.4's paired-chat cases: session A's incident, notification and approval request reach only A's paired chat, and B's paired chat gets none of them; a button press from B's paired chat on A's approval request is refused and changes nothing; and no OCUTALON or OCUORDERS message body or header from the run carries the paired mock chat's display name, user name, chat id or phone number (FR-8, FR-15, FR-20, NFR-11, AD-4, AD-11, AD-29)
 - DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too (ledger; routed by merge_gate 2026-10-31)
 - DW-446: The probe reports healthy when every turn is an error fallback (a revoked real key, a provider 500 or a down gateway behind the demo's gateway), because degraded covers only no_key, timeout and rate_limited (ledger; routed by merge_gate 2026-10-31)
+- DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper (ledger; routed by merge_gate 2026-10-31)
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 

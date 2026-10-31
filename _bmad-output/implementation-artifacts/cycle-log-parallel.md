@@ -1097,3 +1097,6 @@
 2026-10-31T11:31:35Z	Epic 10	runner_complete	agent=aa35732267c39dc8b head=2e7c8280 ci=success(41196477516,41196477478) stories=1(10.4) decisions=none verbatim_check=9/9_quoted_lines_byte-identical_to_the_spec;no_later_items;Contest_task_section_gone notes=DW-480(by-design:'every_decision...reasons_and_cost'_nuance_for_fixed-rules_decisions,for_the_Planner);DW-237_routed_31-4
 2026-10-31T11:31:35Z	Epic 10	merge_enqueued	position=1 deadline=19:00Z
 2026-10-31T11:31:35Z	Epic 10	epic_merge_started	branch=OCT-epic10 head=2e7c8280
+2026-10-31T11:32:05Z	Epic 10	epic_merged_to_feature	merge=62d2f251 head=2e7c8280 story=10.4 conflicts=none tracker=valid spine_lint=baseline README_names=OpenClaw_only_in_the_not-affiliated_note;no_banned_name_1 verified_on_origin=yes
+2026-10-31T11:32:05Z	Epic 10	decision_sheet_recorded	decided=0 routed_planned=DW-237->31.4 notes=DW-480,DW-481(by-design)
+2026-10-31T11:32:05Z	Epic 1-37	deps_hash_rerecorded	hash=d08fe9e8a815 reason=rule5_amendment(10.2_criterion_per_owner_decision)+ledger_routed
