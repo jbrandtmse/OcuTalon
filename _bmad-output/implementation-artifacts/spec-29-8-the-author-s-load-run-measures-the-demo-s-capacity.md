@@ -283,6 +283,49 @@ The S rows run the real `release/demo-load.sh` against the stand-in of `docker/t
 - **AC9 (pins).** Given S16, when it runs, then the default watch text is the guide's, and the probe's degraded reasons are in the script's list.
 - **AC10 (standing, Rule 19).** Given a fresh environment, when the story's added and changed tests run forward and then in reverse order, then every one passes.
 
+### Review Findings
+
+Code review 2026-10-30 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Each line: severity, fix-risk, footprint, spec-status.
+
+- [x] [Review][Patch] A signal while a sign-in POST is in flight leaves its session open: bash runs the trap only after the curl returns, so `post_signin` never records the 3xx and `on_signal` skips the visitor (measured on bash 3.2 and 5.2); the `opened` read in `on_signal` had no test -- med, fix-risk low, in-story, clear. Fix: record the visitor before the POST and sign out that list on a signal; S14 gains a TERM during a slowed sign-in [release/demo-load.sh:350]
+- [x] [Review][Patch] A driver whose path ends first stops polling, so on a run whose drivers end more than about 2 min apart its CSP session reaches AD-13's 120 s timeout: a false `FAIL` (the state answered 401 at the end) and the visitor count drops, so the one more visitor can read `free` -- med, fix-risk med (the drivers' end condition), in-story, clear (spec silent). Fix: each driver polls like a signed-in-only visitor until every driver has ended; S2 gains a run with one slow turn [release/demo-load.sh:449]
+- [x] [Review][Patch] AC8's "H25 `pending`" is not pinned: the H-row loop accepts any of the three statuses -- med (Rule 19), fix-risk low, in-story, clear [docker/tests/test-online-host.sh:882]
+- [x] [Review][Patch] The stand-in's sessions persist across rows, so a row's busy expectations depend on earlier rows having signed out (Rule 19 hermeticity) -- med, fix-risk low, in-story, clear. Fix: each `set_flags` starts a new generation, and the stand-in clears its sessions when the generation changes [docker/tests/test-online-load.sh:244]
+- [x] [Review][Patch] `UNITS load=` as the run's highest reading has no test that tells it from another reading (S13's command always prints `3 2`) -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:651]
+- [x] [Review][Patch] The one more visitor's path for a busy page with no form (the host's `docker/busy.html`; `account.body`) never runs -- low, fix-risk low, in-story, clear [release/demo-load.sh:664]
+- [x] [Review][Patch] `clean()` has no test -- low, fix-risk low, in-story, clear [release/demo-load.sh:223]
+- [x] [Review][Patch] `clean()` turns the parentheses of the script's own `why` texts into `_` -- low, fix-risk low, in-story, clear [release/demo-load.sh:224]
+- [x] [Review][Patch] `gate_read`'s line-break rule (the guard on `gate.cfg` injection) has no test -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:600]
+- [x] [Review][Patch] The sign-in classes `busy`, `limit` and `refused` are never produced by a test -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:545]
+- [x] [Review][Patch] S12's secret check misses the percent-encoded published account and the base64 gate value, so a sign-in body moved onto the command line stays green -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:616]
+- [x] [Review][Patch] INT and HUP are not pinned: S14 sends TERM only (a non-interactive shell's background job ignores INT, so a static check of the trap line) -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:677]
+- [x] [Review][Patch] `shim_checks`' header says "at least shim_min" where the code needs more than it, and two failure lines do not name the call count -- low, fix-risk low, in-story, clear [docker/tests/lib-stub.sh:112]
+- [x] [Review][Patch] S1's address-check comment claims more than it checks -- low, fix-risk low, in-story, clear [docker/tests/test-online-load.sh:348]
+- [x] [Review][Patch] A progress line prints the server's incident state without `clean()` -- low, fix-risk low, in-story, clear [release/demo-load.sh:533]
+- [x] [Review][Patch] A failed sign-out of a half-failed sign-in is overwritten with `signout=-` -- low, fix-risk low, in-story, clear [release/demo-load.sh:772]
+- [x] [Review][Patch] The one more visitor's table row hard-codes `-` under Signed out, so a failed sign-out of an admitted extra is never shown -- low, fix-risk low, in-story, clear [release/demo-load.sh:860]
+- [x] [Review][Patch] A units command of white space only prints `UNITS before=- load=- after=-` instead of `UNITS n/a` -- low, fix-risk low, in-story, clear [release/demo-load.sh:845]
+- [x] [Review][Defer] H8's "the busy page in place of a 503" is never exercised by run 3 during the load run's `--hold`: busy there comes from the visitor count and IRIS serves its own busy splash, while IRIS answers 503 only at the cap of 8 connections (AD-13) [release/demo-host-checks.md:47] -- deferred: pre-existing (run 3 accepts IRIS's busy splash by Story 29.3's design; this story's edit only renamed the occasion), med, fix-risk low, in-epic; how H8's 503 mapping is shown on the host is the Planner's call (DW-464, decision-pending)
+
+**Rejected:**
+- `low` B1: a change to `release/demo-load.sh` runs every IRIS group -- by-design: the spec puts it in `IRIS_INPUT` (Tasks, CI); a claimed path never reaches `NOT_IRIS_INPUT_PATTERN` (DW-465, by-design).
+- `low` B2: the CI estimates differ (comment "2 to 3 min", Auto Run Result "1.5 to 2"), and shards-2 is near REL-4's 35 min -- both are labelled inference; the rebalance is the lead's.
+- `low` B5: after a signal, a second Ctrl-C is ignored while the sign-outs run, up to 30 s per request against a host that stops answering -- a second signal that aborts would give up the cleanup guarantee (DW-466, wontfix-accepted).
+- `false` B6 (part): `shim_min` leaking -- `shim_checks` never exits early, and S12 resets it on every path.
+- `low` B9/E8: `origin_ok` accepts a value with a line break -- the same behaviour as `demo-host-check.sh` before; such a URL fails loudly (exit 2, host unreachable).
+- `low` B10: row 15's scans skip `lib-online.sh` -- the release scripts use only `gate_read`, `gate_config`, `origin_ok` and `pct` from it, none sends a request; S1 records every method the stand-in sees.
+- `low` B11: the hold prints no end line, and 60 s against run 3's length -- run 3's busy checks are a handful of requests; a late run 3 fails loudly on busy-status, never passes.
+- `low` E4: `UNITS load=` skips a `?` reading -- the `?` shows in the visitor's line; fixing it adds a branch.
+- `low` E5/E12: a `createdAt` in another form makes the notice wait 120 s with the wrong reason -- the server writes UTC whole seconds (T0-b) (DW-467, wontfix-theoretical).
+- `false` E6: a non-approval phone item after the press -- the spec defines the notice as the first phone item at or after the press, and the demo path sends none before the notice (T0-b, L1).
+- `low` E7: a base URL with `:443` sends an `Origin` the server refuses -- the documented commands name no port, and the run fails loudly (403).
+- `low` E9: a line break in a server string adds result keys -- the state, fallback reason and error code are enums or fixed codes (DW-468, wontfix-theoretical).
+- `false` E11: curl globbing of trace URLs -- the product's trace URLs are `.../EnsPortal.VisualTrace.zen?SESSIONID=<n>`, with no brackets or braces.
+- `low` V8: AC10 has no mutation line and CI runs only forward -- by-design: AC10's pin is the lead's fresh check before the push (Rule 19), forward and reverse.
+- `low` A4: the units reading accepts trailing text after the two integers -- a lenient parse of the first two integers; tightening risks the live reading.
+- `false` A7: `UNITS load=` leaves out the after-sign-out reading -- that reading is `after=`, printed beside it.
+- `low` A9: wording drifts ("visitor cap of 6", the head to deploy, the CI estimate) -- cosmetic; the visitor cap setting is 6.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -524,6 +567,48 @@ Every command runs from the worktree root in its own foreground call (`timeout: 
 - AC7 (a session opened by a sign-in whose state read failed is signed out): S9's `state=500` run.
   mutation: applied 2026-10-30 (the record of an opened session removed from `post_signin`); `ONLY_ROWS=s9` went red (`opened [s5 s6], ended [s6], wanted 2 session(s), each ended`); reverted, status and diff stat identical.
 - AC10 (standing): no mutation line; its pin is the forward and reverse run (`TEST_REVERSE=1`) of `test-online-load.sh`, which passed in both orders.
+- (QA) AC7 (`--hold` keeps the visitors signed in): S15.
+  mutation: applied 2026-10-30 (the hold block made `if false`); `ONLY_ROWS=s15` went red (`a session did not poll for 2 s (last span -1 ms)`); reverted from a backup, status and diff stat identical.
+- (QA) AC7 (the licence readings appear as `c/u`): S13.
+  mutation: applied 2026-10-30 (the visitor's units always blanked); `ONLY_ROWS=s13` went red (`units=-` in the line with `UNITS before=3/2`); reverted, status and diff stat identical.
+- (QA) AC4 (the one more visitor admitted): S7.
+  mutation: applied 2026-10-30 (the sign-in dropped from the `EXTRA PASS` condition); `ONLY_ROWS=s7` went red (`EXTRA PASS status=busy splash=busy signin=admitted`); reverted, status and diff stat identical.
+- (QA) AC4 (the one more visitor meets an error page): S8.
+  mutation: applied 2026-10-30 (the splash dropped from the `EXTRA PASS` condition); `ONLY_ROWS=s8` went red (`EXTRA PASS ... splash=error`); reverted, status and diff stat identical.
+- (QA) AC4 (a `daily_cap` fallback): S5.
+  mutation: applied 2026-10-30 (`daily_cap` removed from `DEGRADED_REASONS`); `ONLY_ROWS=s5` went red (`VISITOR 1 PASS ... fallback=daily_cap`); reverted, status and diff stat identical.
+- (QA) AC4 (a failed `session/end`): S9.
+  mutation: applied 2026-10-30 (every `session/end` answer accepted); `ONLY_ROWS=s9` went red (`VISITOR 1 PASS ... signout=ok`); reverted, status and diff stat identical.
+- (QA) AC3 (never re-send; a watch that does not start): S6.
+  mutation: applied 2026-10-30 (the `not watching` failure removed); `ONLY_ROWS=s6` went red (`VISITOR 1 PASS ... turns=1 notice=-`); reverted, status and diff stat identical.
+- (QA) AC5 (`--trace` needs `M >= 2N`): S3.
+  mutation: applied 2026-10-30 (the bound removed); `ONLY_ROWS=s3` went red (`--trace --max-turns 5: exit 1, record 68 lines`); reverted, status and diff stat identical.
+- (QA) AC5 (a list of the wrong length): S11, after the fix below.
+  mutation: applied 2026-10-30 (the length check made a no-op); `ONLY_ROWS=s11` went red (`a list of the wrong length: exit 1, 50 requests`; `an interface list of the wrong length: exit 2, 0 requests`); reverted, status and diff stat identical.
+- (QA) AC5 (both lists are never set together): S11. The pin was unfalsifiable: with the check gone, the run still ended with exit 2 and an empty record, because the interface list pointed at an address that does not exist and the first request failed. `expect_usage` now also requires the script's `usage:` line on stderr, which only a usage error prints (a missing answer prints none), and the "both lists" row uses a list of the right length (`ifc4`) so only the check can stop it.
+  mutation: applied 2026-10-30 (the both-lists check made `if false`); before the fix `ONLY_ROWS=s11` stayed green (the unfalsifiable pin); after the fix it went red (`both lists: exit 2, 0 requests`); reverted, status and diff stat identical.
+- (QA) File list: no new test file. Changed: `docker/tests/test-online-load.sh` (`ifc4`, `expect_usage` requires the `usage:` line). Forward and `TEST_REVERSE=1` runs both pass (54 script runs, about 52 s).
+- (CR) AC7 (a TERM while a sign-in POST waits for its answer still signs that session out): S14's `signin=slow` run.
+  mutation: applied 2026-10-30 (`on_signal` reads `opened` in place of `posting`); `ONLY_ROWS=s14` went red (`opened [s4 ], ended []`); reverted, status and diff identical.
+- (CR) AC7 (INT, TERM and HUP alike): S14's trap check.
+  mutation: applied 2026-10-30 (INT dropped from the trap line); `ONLY_ROWS=s14` went red (`the script's signal trap is not on_signal for INT, TERM and HUP`); reverted, status and diff identical.
+- (CR) AC1/AC4 (a driver that ends first keeps polling until the last driver ends, so no session idles to its CSP timeout): S2's `slow-turn` run.
+  mutation: applied 2026-10-30 (the driver's `wait_visitor` after its path removed); `ONLY_ROWS=s2` went red (`longest pause between visitor 2's state reads 10261 ms`); reverted, status and diff identical.
+- (CR) AC8 (H25 is `pending`): `test-online-host.sh`'s H25 check.
+  mutation: applied 2026-10-30 (H25's status made the `measured ... re-check at the release deploy` text); `test-online-host.sh` went red (`H25 reads 'measured ...', not pending`); reverted, status and diff identical.
+- (CR) AC2/AC7 (`UNITS load=` is the run's highest reading): S13's rising-and-falling run.
+  mutation: applied 2026-10-30 (`u_load` set to the one more visitor's reading); `ONLY_ROWS=s13` went red (`UNITS before=1/1 load=4/2 after=1/1`); reverted, status and diff identical.
+- (CR) AC6 (no secret on a command line, in any form a command line could carry it): S12 with the percent-encoded account and the base64 gate value.
+  mutation: applied 2026-10-30 (the sign-in body posted as `--data-binary "$(cat ...)"`); `ONLY_ROWS=s12` went red in both runs (`7 of 106 command lines hold a secret`), which the raw secrets alone do not catch; reverted, status and diff identical.
+- (CR) AC5 (a gate credential with a line break is a usage error): S11.
+  mutation: applied 2026-10-30 (`gate_read`'s line-break case made to match only `\x01`); `ONLY_ROWS=s11` went red (`a gate password with a line break: exit 2, 1 requests`); reverted, status and diff identical.
+- (CR) AC4 (the one more visitor on a busy page with no form): S8's `extra=page` run.
+  mutation: applied 2026-10-30 (the `account.body` branch removed); `ONLY_ROWS=s8` went red (`EXTRA FAIL status=busy splash=busy signin=error`); reverted, status and diff identical.
+- (CR) Printed server text (`clean`): S5's `fallback=a|b<c` run.
+  mutation: applied 2026-10-30 (`clean` prints its input unchanged); `ONLY_ROWS=s5` went red (`fallback=a|b<c`, and the table row split by the `|`); reverted, status and diff identical.
+- (CR) The sign-in classes: S9's `signin=busy`, `signin=limit` and `signin=refused` runs.
+  mutation: applied 2026-10-30 (`LIMIT_TEXT` changed); `ONLY_ROWS=s9` went red (`signin=limit: ... signin=error`); reverted, status and diff identical.
+- (CR) File list: no new test file. Changed: `docker/tests/test-online-load.sh` (the stand-in's generation reset and its `signin`, `slow-turn` and `extra=page` flags; rows S2, S5, S8, S9, S11, S12, S13 and S14; `load_until`), `docker/tests/test-online-host.sh` (H25 `pending`) and `docker/tests/lib-stub.sh` (`shim_checks`' wording). Forward and `TEST_REVERSE=1` runs both pass (62 script runs, 85 s). `test-online-host.sh` (135 checks), `test-ci-config.sh`, `test-boundaries.sh` and `test-probe.sh` pass. `ci/iris.sh live online-demo-path` (fresh, lane C) passes in 203 s: the load phase 34 s, L1's notices 10 to 12 s, L2's readings 1/1, then 3/2, 5/2 and 7/2, then 1/1; teardown left nothing.
 
 **Shared surfaces:**
 - the check list's H rows (H1 to H25);

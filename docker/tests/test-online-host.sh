@@ -893,6 +893,9 @@ else
   fail "check list: no single row with one of the three statuses for:$bad"
 fi
 if grep -qiE '^\| H[0-9]+ \|.*\|[[:space:]]*(pass|passed|ok)[[:space:]]*\|[[:space:]]*$' "$checklist" 2> /dev/null; then fail "check list: a row is marked as a pass"; else pass "check list: no row is marked as a pass"; fi
+# H25, the load run through the real proxy, is the Planner's: the repository keeps it pending.
+h25=$(grep -E '^\| H25 \|' "$checklist" 2> /dev/null | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
+if [ "$h25" = "$status_pending" ]; then pass "check list: H25 (the load run through the real proxy) is pending"; else fail "check list: H25 reads '$h25', not pending"; fi
 
 echo "MEASURED test-online-host: $runs script runs took $run_seconds s; the test took $((SECONDS - started)) s"
 if [ "$fails" -eq 0 ]; then

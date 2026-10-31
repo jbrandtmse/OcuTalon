@@ -1737,6 +1737,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T10:33:42Z occurrence=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi note=16.4 MEASURED (d): a closed jar's sessions went 152-153 s after its last request; AD-13 says 5-15 s past the 120 s
 - 2026-10-30T09:28:01Z status=routed owner=29-7-the-author-s-load-run-measures-the-demo-s-capacity by=spec_gate note=split from 29-4 with the fourth criterion (Rule 5 tier 2, runner C ruling 2026-10-30); 29.4's plan measured it on a lane-C throwaway (Community key): sign-in holds no connection or unit, each open trace application session adds one connection, the unit is keyed by user and TCP peer, leaving frees within about 2 min
 - 2026-10-30T16:45:40Z status=routed owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=spec_gate note=moved with the author's load criterion to Story 29.8 (runner C split ruling 2026-10-30)
+- 2026-10-31T03:30:40Z status=resolved-by:29-8-the-author-s-load-run-measures-the-demo-s-capacity by=adjudication note=measured on lane-C throwaways (Story 29.4 Task 0, Story 29.8 Task 0 and every L2 run of live:online-demo-path): a signed-in visitor holds no connection or licence unit, each open trace application page holds one connection (3 visitors with both trace pages: 3/2, 5/2, 7/2), the unit is keyed by user and TCP peer, leaving frees within about 2 minutes (1/1 after sign-out); release/demo-load.sh records the readings per visitor; the host's own reading is release check H25 (the Contest Planner, before the flip)
 
 ### DW-287: At 8 licence units iris session terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy
 - source: orchestrator (inbox U-103, Story 4.7 measurement) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2410,3 +2411,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: first live run of the load phase: 3/2, 5/2, 7/2 after visitors 1-3, 6/2 about 5 s later after the one more visitor; later runs not reproduced
 - 2026-10-31T02:35:19Z status=wontfix-accepted owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=harvest note=reopen_if=the host's H25 load run, or a throwaway reading the units every 2 s for 2 minutes after the last trace page, shows a trace connection ending before the ~120 s timeout; the script reports the peak as the load reading
+
+### DW-464: H8's busy page in place of a 503 is never exercised by run 3 during the load run's --hold
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: During case 1's hold busy comes from the visitor count, and IRIS serves its own busy splash (200, X-OcuTalon-Busy); IRIS answers 503 only at the cap of 8 connections (AD-13), and case 2 peaks at 6. Run 3 accepts IRIS's splash by Story 29.3's design, so H8 can read measured with the proxy's 503 mapping unexercised.
+- 2026-10-31T03:28:16Z status=decision-pending owner=burndown by=cr note=product call: how H8's 503 mapping is shown on the host; the check list and the spec say only 'during the hold'
+
+### DW-465: A change to release/demo-load.sh alone runs every IRIS CI group
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: IRIS_INPUT gains release/demo-load.sh, and group_input_pattern puts IRIS_INPUT into all seven groups; only live:online-demo-path (shards-2) runs the script.
+- 2026-10-31T03:28:16Z status=by-design owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=cr note=spec-bound: Tasks (IRIS_INPUT gains release/demo-load.sh) and Design Notes, CI; a per-unit input would scope it to shards-2
+
+### DW-466: After a signal, a second Ctrl-C is ignored while demo-load.sh signs everyone out
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: on_signal sets trap '' INT TERM HUP, then signs out each visitor with up to 5 requests of 30 s each; against a host that stops answering the cleanup can take minutes and cannot be interrupted short of kill -9.
+- 2026-10-31T03:28:16Z status=wontfix-accepted owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=cr note=reopen_if=an H25 run stays on 'interrupted: signing everyone out' for more than 2 min
+
+### DW-467: A phone createdAt in another form makes demo-load.sh wait 120 s and fail as no notice
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: notice_seen's jq errors on a createdAt that is not UTC YYYY-MM-DDTHH:MM:SS[.f]Z, with stderr discarded, so poll_until runs to its limit and the reason reads 'no notice in 120 s'.
+- 2026-10-31T03:28:16Z status=wontfix-theoretical owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=cr note=real if the server's phone createdAt ever carries an offset or another form (T0-b: UTC, whole seconds)
+
+### DW-468: A line break in a server string adds key lines to a demo-load.sh visitor's result file
+- source: spec-29-8-the-author-s-load-run-measures-the-demo-s-capacity.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: setv writes key=value lines unescaped; an incident state, fallback reason or error code holding a line break would add lines that getv reads as the latest value of another key.
+- 2026-10-31T03:28:17Z status=wontfix-theoretical owner=29-8-the-author-s-load-run-measures-the-demo-s-capacity by=cr note=real if /state's incident state or fallbackReason, or an API error code, ever carries a line break (enums today)

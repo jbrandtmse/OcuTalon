@@ -109,7 +109,7 @@ SHIM
 }
 
 # shim_checks <log> <label> <secret>...: from the log of curl_shim, prints a PASS or FAIL line each for: no secret on any command line,
-# no OCUTALON_GATE_* variable in any curl's environment, and every -K file of mode 600. A run must log at least shim_min calls (20 by
+# no OCUTALON_GATE_* variable in any curl's environment, and every -K file of mode 600. A run must log more than shim_min calls (20 by
 # default; a caller sets the variable for a larger run) and read the mode 600 configuration in more than that many calls. At least one
 # secret is required.
 shim_min=20
@@ -129,12 +129,12 @@ shim_checks() {
   if [ "$argv_n" -gt "$shim_min" ] && [ "$cred_argv" = 0 ]; then
     pass "$label: the secrets are on none of the $argv_n command lines"
   else
-    fail "$label: $cred_argv of $argv_n command lines hold a secret"
+    fail "$label: $cred_argv of $argv_n command lines hold a secret (more than $shim_min calls wanted)"
   fi
   if [ "$env_bad" = 0 ] && [ "$argv_n" -gt "$shim_min" ]; then
     pass "$label: no curl inherits OCUTALON_GATE_USER or OCUTALON_GATE_PASSWORD"
   else
-    fail "$label: $env_bad curl call(s) inherit a gate variable"
+    fail "$label: $env_bad of $argv_n curl call(s) inherit a gate variable (more than $shim_min calls wanted)"
   fi
   if [ "$cfg_ok" -gt "$shim_min" ] && [ "$cfg_bad" = 0 ]; then
     pass "$label: the gate's curl configuration is mode 600 in all $cfg_ok calls that read it"

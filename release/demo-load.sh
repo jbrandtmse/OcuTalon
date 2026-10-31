@@ -30,7 +30,8 @@
 #
 # Each visitor, in this order: signs in (the splash prefills the published demo account, which is read from the page and never printed);
 # drives the demo path (the watch message, Break the feed once its turn is done, the notice on the simulated phone, the approval of its
-# request, the incident resolved); or, signed in only, polls the state until the drivers end; with --trace, opens one page in each Visual
+# request, the incident resolved), then polls the state until every driver has ended, so that its session never reaches its timeout;
+# or, signed in only, polls the state until the drivers end; with --trace, opens one page in each Visual
 # Trace application the run links to. Nothing that starts a model turn is ever sent twice; a 409 not_watching from Break the feed, which
 # starts nothing, is retried every 2 s for 20 s.
 #
@@ -220,8 +221,8 @@ getv() { # <visitor> <key> <default>: the last value of the key
 getall() { # <visitor> <key>: every value of the key, comma separated
   grep "^$2=" "$work/v$1/result" 2> /dev/null | sed 's/^[^=]*=//' | tr '\n' ',' | sed 's/,$//'
 }
-clean() { # <text>: server-supplied text as safe output (anything outside letters, digits and . _ , : / space - becomes _)
-  printf '%s' "$1" | tr -c 'A-Za-z0-9_,.:/ -' '_'
+clean() { # <text>: server-supplied text as safe output (anything outside letters, digits and . _ , : / ( ) space - becomes _)
+  printf '%s' "$1" | tr -c 'A-Za-z0-9_,.:/() -' '_'
 }
 vfail() { # <visitor> <text>: records the first failure of the visitor
   [ -n "$(getv "$1" why '')" ] || setv "$1" why "$2"
@@ -236,6 +237,7 @@ for ((n = 1; n <= extra; n++)); do
 done
 : > "$work/signed"
 : > "$work/opened"
+: > "$work/posting"
 
 # --- requests: every request of the run goes through vcall ---
 
@@ -346,8 +348,10 @@ write_signin_body() {
   acct_pw=""
 }
 
-# post_signin <visitor>: posts the visitor's sign-in body.
+# post_signin <visitor>: posts the visitor's sign-in body. The visitor is listed in posting before the request (a signal during it still
+# signs the visitor out) and in opened when the answer is a redirect (the sign-in opened a session).
 post_signin() {
+  echo "$1" >> "$work/posting"
   vcall "$1" POST /ocutalon/ -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$work/v$1/signin.body"
   case $code in
     3??) echo "$1" >> "$work/opened" ;;
@@ -530,10 +534,23 @@ drive_visitor() {
     vfail "$vn" "the incident was not resolved in 120 s (${st:-no incident})"
     return
   fi
-  progress "visitor $vn: the incident is $(getv "$vn" fix '')"
+  progress "visitor $vn: the incident is $(clean "$(getv "$vn" fix '')")"
 }
 
-# wait_visitor <visitor>: a signed-in-only visitor polls /state every 5 s until the drivers end.
+# all_driven: every driver the run started has ended its demo path (a driver writes v<n>/driven when its path ends; the parent writes the
+# number of drivers it started to launched once they all run).
+all_driven() {
+  local want="" n=0 f
+  if [ -f "$work/launched" ]; then read -r want < "$work/launched"; fi
+  case $want in '' | *[!0-9]*) return 1 ;; esac
+  for f in "$work"/v*/driven; do
+    if [ -e "$f" ]; then n=$((n + 1)); fi
+  done
+  [ "$n" -ge "$want" ]
+}
+
+# wait_visitor <visitor>: the visitor polls /state every 5 s until every driver has ended its path: a signed-in-only visitor from its
+# sign-in, and a driver after its own path, so that no session reaches its CSP timeout while another driver still runs.
 wait_visitor() {
   local vn=$1 i
   while :; do
@@ -543,7 +560,7 @@ wait_visitor() {
       return
     fi
     for i in 1 2 3 4 5; do
-      if [ -e "$work/drivers.done" ] || [ -e "$work/stop" ]; then return; fi
+      if all_driven || [ -e "$work/stop" ]; then return; fi
       sleep 1
     done
   done
@@ -565,14 +582,14 @@ stop_drivers() {
   wait 2> /dev/null
 }
 
-# On INT, TERM or HUP: stop the drivers, sign out every visitor signed in so far, and exit 130.
+# On INT, TERM or HUP: stop the drivers, sign out every visitor signed in so far or whose sign-in was sent, and exit 130.
 on_signal() {
   local n
   trap '' INT TERM HUP
   printf 'demo-load: interrupted: signing everyone out\n' >&2
   stop_drivers
   no_stop=1
-  for n in $(cat "$work/signed" "$work/opened" 2> /dev/null | sort -un); do signout_visitor "$n"; done
+  for n in $(cat "$work/signed" "$work/posting" 2> /dev/null | sort -un); do signout_visitor "$n"; done
   exit 130
 }
 trap on_signal INT TERM HUP
@@ -713,20 +730,25 @@ for ((n = 1; n <= visitors; n++)); do
   setv "$n" unit "$unit_now"
 done
 
-# Drive: the driven visitors in parallel, the signed-in-only ones polling.
+# Drive: the driven visitors in parallel, each polling after its path; the signed-in-only ones polling; all until every driver has ended.
+launched=0
 for ((n = 1; n <= visitors; n++)); do
   [ "$(getv "$n" signin '')" = ok ] || continue
   if [ "$n" -le "$drivers" ]; then
-    drive_visitor "$n" &
+    {
+      drive_visitor "$n"
+      : > "$work/v$n/driven"
+      wait_visitor "$n"
+    } &
     driver_pids="$driver_pids $!"
+    launched=$((launched + 1))
   else
     wait_visitor "$n" &
     waiter_pids="$waiter_pids $!"
   fi
 done
-for p in $driver_pids; do wait "$p"; done
-: > "$work/drivers.done"
-for p in $waiter_pids; do wait "$p"; done
+echo "$launched" > "$work/launched.next" && mv "$work/launched.next" "$work/launched"
+for p in $driver_pids $waiter_pids; do wait "$p"; done
 
 for n in $(cat "$work/signed"); do collect_visitor "$n"; done
 
@@ -769,7 +791,7 @@ for ((n = 1; n <= visitors; n++)); do
   if [ "$(getv "$n" signin '')" = ok ]; then
     signout_visitor "$n"
   else
-    setv "$n" signout -
+    [ -n "$(getv "$n" signout '')" ] || setv "$n" signout -
   fi
 done
 unit_read
@@ -815,7 +837,7 @@ for ((n = 1; n <= visitors; n++)); do
   signout=$(getv "$n" signout -)
   why=$(clean "$(getv "$n" why '')")
   units=$(getall "$n" unit)
-  if [ -z "${OCUTALON_LOAD_UNITS_COMMAND:-}" ]; then units=; fi
+  if [ ${#units_words[@]} -eq 0 ]; then units=; fi
   if [ "$trace" = 1 ]; then
     if [ "$(getv "$n" tracebusy 0)" = 1 ]; then trc=busy; else trc=$(getv "$n" tracepages 0); fi
   else
@@ -842,7 +864,7 @@ else
   n_fail=$((n_fail + 1))
 fi
 printf 'EXTRA %s status=%s splash=%s signin=%s\n' "$x_verdict" "$x_status" "$x_splash" "$x_signin"
-if [ -n "${OCUTALON_LOAD_UNITS_COMMAND:-}" ]; then
+if [ ${#units_words[@]} -gt 0 ]; then
   printf 'UNITS before=%s load=%s after=%s\n' "$u_before" "$u_load" "$u_after"
 else
   printf 'UNITS n/a\n'
@@ -857,7 +879,7 @@ case $x_signin in
   admitted) x_signed="admitted" ;;
   *) x_signed=error ;;
 esac
-table="$table$(printf '| %s (one more) | %s | - | - | - | - | - | - | - | %s | - |' "$extra" "$x_signed" "$(getv "$extra" unit -)")
+table="$table$(printf '| %s (one more) | %s | - | - | - | - | - | - | - | %s | %s |' "$extra" "$x_signed" "$(getv "$extra" unit -)" "$(getv "$extra" signout -)")
 "
 printf '\n| Visitor | Signed in | Demo path | Model turns | Notice (s) | Within 60 s | Fix | Trace pages | Fallbacks | Connections/units | Signed out |\n'
 printf '|---|---|---|---|---|---|---|---|---|---|---|\n'

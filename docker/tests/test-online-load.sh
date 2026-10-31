@@ -9,9 +9,12 @@
 # thing at a time: notice=<s>, fallback=<reason>, inc-fallback=<reason>, not-watching, extra=admit (the sign-in admits past the cap),
 # extra=error (the splash answers 500 while busy), signout=fail, ready=false, busy=true, gate=on, hang=turn, early-phone (a notice older
 # than the press comes first), extra-turn (a second chat turn with a decision), trace=form (the trace pages ask for an IRIS sign-in),
-# trace=500 (the trace pages answer 500), state=500 (/state answers 500 after a sign-in). Every run is the real
-# script; the test asserts its exit code, its lines and what the stand-in saw. TEST_REVERSE=1 runs the rows in reverse order, and
-# ONLY_ROWS='s2 s4' runs only those rows (each row sets its own flags and starts with an empty record, so the order does not matter).
+# trace=500 (the trace pages answer 500), state=500 (/state answers 500 after a sign-in), signin=slow (a sign-in's redirect comes 2 s after
+# its session opens), signin=busy|limit|refused (the sign-in answers the busy splash, the address-limit text or a refused form),
+# slow-turn=<address>:<s> (the turn of that address's session runs for s seconds), extra=page (while busy, the splash and the sign-in
+# answer a busy page with no form, as the host's proxy does). Every run is the real script; the test asserts its exit code, its lines and
+# what the stand-in saw. TEST_REVERSE=1 runs the rows in reverse order, and ONLY_ROWS='s2 s4' runs only those rows (each set_flags writes
+# a new generation, on which the stand-in drops every session, and empties the record, so no row depends on another's leftovers).
 #   S1  case 1 (AC1's shape)   S2  the turn bound        S3  Visual Trace            S4  a late notice
 #   S5  fallbacks              S6  the watch does not start    S7  the one more visitor gets in    S8  an error page
 #   S9  a failed sign-out      S10 preconditions         S11 usage                   S12 credentials, addresses, output
@@ -63,6 +66,7 @@ const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, 
 
 const sessions = new Map();
 let nextId = 0;
+let gen = null;
 const live = () => [...sessions.values()].filter((s) => !s.ended);
 const traceCount = () => live().reduce((n, s) => n + s.trace.size, 0);
 const isBusy = (f, form) => f.get("busy") === "true" || (form === "trace" ? traceCount() >= CAP : live().length >= CAP || traceCount() >= CAP);
@@ -73,6 +77,8 @@ const end = (s, how) => {
 };
 
 const BUSY_TEXT = "The demo is busy right now. Try again in a few minutes, or install it yourself.";
+const BUSY_PAGE = "<!DOCTYPE html><html><head><title>Try OcuTalon</title></head><body><main><p>" + BUSY_TEXT + "</p></main></body></html>";
+const LIMIT_TEXT = "Too many new sessions from your network this hour.";
 const splash = (busy, refused) =>
   "<!DOCTYPE html><html><head><title>Try OcuTalon</title></head><body><main>" +
   (busy ? "<p class=\"error\">" + BUSY_TEXT + "</p>" : "") +
@@ -101,7 +107,8 @@ const stateOf = (s, f) => {
   const checks = [];
   const fb = f.get("fallback") || null;
   const ifb = f.get("inc-fallback") || null;
-  const hang = f.get("hang") === "turn";
+  const [slowAddr, slowSec] = (f.get("slow-turn") || ":").split(":");
+  const hang = f.get("hang") === "turn" || (slowAddr !== "" && s.addr === slowAddr && Date.now() < s.msgAt + Number(slowSec) * 1000);
   if (s.msg) {
     const payload = { ref: "m1", clientId: s.msg.clientId, text: s.msg.text, fromGuide: s.msg.fromGuide, state: hang ? "running" : "done" };
     if (!hang) {
@@ -128,6 +135,10 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => chunks.push(c));
   req.on("end", () => {
     const f = readFlags();
+    if (f.get("gen") !== gen) {
+      gen = f.get("gen");
+      sessions.clear();
+    }
     const body = Buffer.concat(chunks).toString("latin1");
     const qi = req.url.indexOf("?");
     const path = qi < 0 ? req.url : req.url.slice(0, qi);
@@ -171,18 +182,24 @@ const server = http.createServer((req, res) => {
       if (s && !s.ended) return send(200, { "Content-Type": "text/html" }, "<html><body><app-root></app-root></body></html>");
       const busy = isBusy(f, "plain");
       if (busy && f.get("extra") === "error") return send(500, { "Content-Type": "text/html" }, "<html><body>error</body></html>");
+      if (busy && f.get("extra") === "page") return send(503, { "Content-Type": "text/html" }, BUSY_PAGE);
       return send(200, busy ? { "Content-Type": "text/html", "X-OcuTalon-Busy": "1" } : { "Content-Type": "text/html" }, splash(busy, false));
     }
     if (path === "/ocutalon/" && req.method === "POST") {
       const b = form(body);
       const busy = isBusy(f, "plain");
-      if (busy && f.get("extra") !== "admit") return send(200, { "Content-Type": "text/html", "X-OcuTalon-Busy": "1" }, splash(true, false));
-      if (b.IRISUsername !== USER || b.IRISPassword !== PW || b.IRISLogin !== "Sign in and start") return send(200, { "Content-Type": "text/html" }, splash(false, true));
+      const sf = f.get("signin");
+      if (busy && f.get("extra") === "page") return send(503, { "Content-Type": "text/html" }, BUSY_PAGE);
+      if ((busy && f.get("extra") !== "admit") || sf === "busy") return send(200, { "Content-Type": "text/html", "X-OcuTalon-Busy": "1" }, splash(true, false));
+      if (sf === "limit") return send(200, { "Content-Type": "text/html" }, splash(false, false).replace("<main>", "<main><p class=\"error\">" + LIMIT_TEXT + "</p>"));
+      if (b.IRISUsername !== USER || b.IRISPassword !== PW || b.IRISLogin !== "Sign in and start" || sf === "refused") return send(200, { "Content-Type": "text/html" }, splash(false, true));
       const id = "s" + ++nextId;
-      const ns = { id, addr: xff, ended: false, trace: new Set(), msg: null, started: null, noticeAt: 0, resolved: false };
+      const ns = { id, addr: xff, ended: false, trace: new Set(), msg: null, msgAt: 0, started: null, noticeAt: 0, resolved: false };
       sessions.set(id, ns);
       record({ issued: id, addr: xff });
-      return send(303, { Location: "/ocutalon/", "Set-Cookie": "SID=" + id + "; path=/; HttpOnly" }, "");
+      const redirect = () => send(303, { Location: "/ocutalon/", "Set-Cookie": "SID=" + id + "; path=/; HttpOnly" }, "");
+      if (sf === "slow") return setTimeout(redirect, 2000);
+      return redirect();
     }
     if (path.startsWith("/ocutalon/trace/") && req.method === "GET") {
       const app = path.startsWith("/ocutalon/trace/ocutalon/") ? "ocutalon" : "ocuorders";
@@ -204,7 +221,10 @@ const server = http.createServer((req, res) => {
       if (path === "/ocutalon/api/v1/messages" && req.method === "POST") {
         let m;
         try { m = JSON.parse(body); } catch (e) { return json(400, { error: { code: "bad_message", message: "bad" } }); }
-        if (!s.msg) s.msg = m;
+        if (!s.msg) {
+          s.msg = m;
+          s.msgAt = Date.now();
+        }
         return json(202, { clientId: m.clientId });
       }
       if (path === "/ocutalon/api/v1/demo/break-feed" && req.method === "POST") {
@@ -236,12 +256,15 @@ closed_port=$(node -e 'const s = require("net").createServer().listen(0, "127.0.
 fwd7="198.51.100.81 198.51.100.82 198.51.100.83 198.51.100.84 198.51.100.85 198.51.100.86 198.51.100.87"
 fwd4="198.51.100.91 198.51.100.92 198.51.100.93 198.51.100.94"
 ifc7="192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14 192.0.2.15 192.0.2.16 192.0.2.17"
+ifc4="192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14"
 # fwd_n <visitors>: the first visitors+1 addresses of fwd7.
 fwd_n() { printf '%s' "$fwd7" | cut -d' ' -f1-$(($1 + 1)); }
 
-# set_flags [<flag>...]: the stand-in's flags for the next runs, and an empty record.
+# set_flags [<flag>...]: the stand-in's flags for the next runs, in a new generation (the stand-in drops its sessions), and an empty record.
+flag_gen=0
 set_flags() {
-  printf '%s\n' ${1+"$@"} > "$flags"
+  flag_gen=$((flag_gen + 1))
+  printf '%s\n' "gen=$flag_gen" ${1+"$@"} > "$flags"
   : > "$record"
 }
 
@@ -344,7 +367,8 @@ row_s1() {
   else
     fail "S1: $(rec '[.[] | select(.m == "GET") | .u] | length') GETs, $(rec '[.[] | select(.m == "GET") | .u] | unique | length') distinct URLs"
   fi
-  # The one more visitor's own address: its status read, splash and sign-in (at least 3 requests) carry the 7th address, none other's.
+  # The one more visitor's own address: its status read, splash and sign-in (at least 3 requests) carry the 7th address (S12's interface
+  # run checks that every visitor's calls carry its own address).
   if [ "$(rec '[.[] | select(.xff == "198.51.100.87")] | length')" -ge 3 ]; then
     pass "S1: the one more visitor's requests carry its own X-Forwarded-For"
   else
@@ -362,7 +386,7 @@ row_s1() {
 # --- row S2: the bound ---
 
 row_s2() {
-  local i l ok=1
+  local i l ok=1 gap
   set_flags
   run_load "OCUTALON_LOAD_FORWARDED_FOR=$fwd7" -- "$url" --visitors 6 --max-turns 5
   for i in 1 2; do case $(vline $i) in *" path=driven "*) ;; *) ok=0 ;; esac; done
@@ -389,6 +413,15 @@ row_s2() {
     pass "S2: turns observed beyond the bound print TURNS FAIL used 6 of at most 4 (exit 1)"
   else
     fail "S2: extra turns: exit $rc; $(grep -E '^(TURNS|Model|demo-load)' "$tmp/out" | tr '\n' '|')"
+  fi
+  # A driver that ends first keeps polling /state until the last driver ends, so its session never idles to its timeout.
+  set_flags slow-turn=198.51.100.81:10
+  run_load "OCUTALON_LOAD_FORWARDED_FOR=$(fwd_n 2)" -- "$url" --visitors 2 --max-turns 4
+  gap=$(rec '[.[] | select(.xff? == "198.51.100.82" and .m == "GET" and (.u | test("api/v1/state"))) | .ts] as $t | [range(1; $t | length) | $t[.] - $t[. - 1]] | max // 99999')
+  if [ "$(n_lines '^VISITOR [12] PASS signin=ok path=driven ')" = 2 ] && [ "$gap" -lt 7500 ] 2> /dev/null; then
+    pass "S2: the driver that ends first polls /state until the slow driver ends (longest pause $gap ms)"
+  else
+    fail "S2: slow turn: longest pause between visitor 2's state reads $gap ms; $(grep '^VISITOR' "$tmp/out" | cut -c1-120 | tr '\n' '|')"
   fi
 }
 
@@ -479,6 +512,14 @@ row_s5() {
   else
     fail "S5: exit $rc; table row $(grep '^| 1 ' "$tmp/out")"
   fi
+  # Server text outside the safe characters is printed as _: the line keeps its fields and the table row its 11 cells.
+  set_flags 'fallback=a|b<c'
+  run_load -- "$url" --visitors 1 --max-turns 2
+  if [ "$(n_lines '^VISITOR 1 PASS .* fallback=a_b_c ')" = 1 ] && [ "$(grep '^| 1 ' "$tmp/out" | tr -cd '|' | wc -c | tr -d ' ')" = 12 ]; then
+    pass "S5: a fallback reason with | and < is printed as a_b_c, and the table row keeps its 11 cells"
+  else
+    fail "S5: unsafe text: $(vline 1); table row $(grep '^| 1 ' "$tmp/out")"
+  fi
 }
 
 # --- row S6: the watch does not start ---
@@ -522,12 +563,20 @@ row_s8() {
   set_flags extra=error
   run_load "OCUTALON_LOAD_FORWARDED_FOR=$fwd7" -- "$url" --visitors 6 --max-turns 12
   if [ "$rc" = 1 ] && grep -q '^EXTRA FAIL .*splash=error' "$tmp/out"; then pass "S8: a 500 splash while busy is EXTRA FAIL splash=error (exit 1)"; else fail "S8: exit $rc; $(grep '^EXTRA' "$tmp/out")"; fi
+  # The host's busy page has no form: the one more visitor posts the run's sign-in from its own address and reads busy.
+  set_flags extra=page
+  run_load "OCUTALON_LOAD_FORWARDED_FOR=$fwd7" -- "$url" --visitors 6 --max-turns 0
+  if [ "$rc" = 0 ] && grep -q '^EXTRA PASS status=busy splash=busy signin=busy$' "$tmp/out" && [ "$(rec '[.[] | select(.m? == "POST" and .u == "/ocutalon/" and .xff == "198.51.100.87")] | length')" = 1 ]; then
+    pass "S8: a busy page with no form: the one more visitor still posts the sign-in and reads EXTRA PASS (exit 0)"
+  else
+    fail "S8: busy page with no form: exit $rc; $(grep '^EXTRA' "$tmp/out")"
+  fi
 }
 
 # --- row S9: a failed sign-out ---
 
 row_s9() {
-  local ids id n ok=1
+  local ids id n ok=1 c
   set_flags signout=fail
   run_load "OCUTALON_LOAD_FORWARDED_FOR=$fwd4" -- "$url" --visitors 3 --max-turns 6
   if [ "$rc" = 1 ] && [ "$(n_lines '^VISITOR [0-9] FAIL .* signout=failed ')" = 3 ]; then
@@ -546,6 +595,12 @@ row_s9() {
   run_load "OCUTALON_LOAD_FORWARDED_FOR=$(fwd_n 1)" -- "$url" --visitors 1 --max-turns 0
   if [ "$rc" = 1 ] && [ "$(n_lines '^VISITOR 1 FAIL signin=error ')" = 1 ]; then pass "S9: a sign-in whose state read fails is signin=error (exit 1)"; else fail "S9: state 500: exit $rc; $(vline 1)"; fi
   sessions_ok "S9 (state 500)" 2
+  # A sign-in that the demo refuses is classified by its page.
+  for c in busy limit refused; do
+    set_flags "signin=$c"
+    run_load -- "$url" --visitors 1 --max-turns 0
+    if [ "$rc" = 1 ] && [ "$(n_lines "^VISITOR 1 FAIL signin=$c .* why=sign-in $c\$")" = 1 ]; then pass "S9: a sign-in answered with the $c page is signin=$c (exit 1)"; else fail "S9: signin=$c: exit $rc; $(vline 1)"; fi
+  done
 }
 
 # --- row S10: preconditions ---
@@ -576,7 +631,7 @@ expect_usage() { # <label> [VAR=value]... -- [<script argument>...]
   shift
   set_flags
   run_load "$@"
-  if [ "$rc" = 2 ] && [ ! -s "$record" ] && [ -s "$tmp/err" ]; then pass "S11: $label is exit 2 with nothing sent"; else fail "S11: $label: exit $rc, $(wc -l < "$record" | tr -d ' ') requests"; fi
+  if [ "$rc" = 2 ] && [ ! -s "$record" ] && grep -q '^usage: ' "$tmp/err"; then pass "S11: $label is a usage error: exit 2 with nothing sent"; else fail "S11: $label: exit $rc, $(wc -l < "$record" | tr -d ' ') requests"; fi
 }
 row_s11() {
   expect_usage "no base URL" -- --visitors 1 --max-turns 0
@@ -590,19 +645,20 @@ row_s11() {
   expect_usage "a list with a repeat" "OCUTALON_LOAD_FORWARDED_FOR=198.51.100.81 198.51.100.82 198.51.100.81 198.51.100.84" -- "$url" --visitors 3 --max-turns 0
   expect_usage "an interface list of the wrong length" "OCUTALON_LOAD_INTERFACES=192.0.2.11" -- "$url" --visitors 3 --max-turns 0
   expect_usage "an entry that is no address" "OCUTALON_LOAD_FORWARDED_FOR=198.51.100.81 198.51.100.82 198.51.100.83 a;b" -- "$url" --visitors 3 --max-turns 0
-  expect_usage "both lists" "OCUTALON_LOAD_FORWARDED_FOR=$fwd4" "OCUTALON_LOAD_INTERFACES=$ifc7" -- "$url" --visitors 3 --max-turns 0
+  expect_usage "both lists" "OCUTALON_LOAD_FORWARDED_FOR=$fwd4" "OCUTALON_LOAD_INTERFACES=$ifc4" -- "$url" --visitors 3 --max-turns 0
   expect_usage "5 visitors and no list" -- "$url" --visitors 5 --max-turns 0
   expect_usage "--hold 601" -- "$url" --visitors 1 --max-turns 0 --hold 601
   expect_usage "--hold 91 with --trace" -- "$url" --visitors 1 --max-turns 2 --trace --hold 91
   expect_usage "an unknown option" -- "$url" --visitors 1 --max-turns 0 --bogus
   expect_usage "one gate variable alone" "OCUTALON_GATE_USER=$gate_user" -- "$url" --visitors 1 --max-turns 0
   expect_usage "a gate user with a colon" "OCUTALON_GATE_USER=a:b" "OCUTALON_GATE_PASSWORD=$gate_password" -- "$url" --visitors 1 --max-turns 0
+  expect_usage "a gate password with a line break" "OCUTALON_GATE_USER=$gate_user" "OCUTALON_GATE_PASSWORD=$gate_password"$'\n'"url = x" -- "$url" --visitors 1 --max-turns 0
 }
 
 # --- row S12: credentials, addresses and output ---
 
 row_s12() {
-  local i a leaks bad_auth n_auth missing lines_without secrets
+  local i a leaks bad_auth n_auth missing lines_without secrets shim_secrets
   curl_shim "$tmp/shim"
   : > "$tmp/shim.log"
   set_flags gate=on
@@ -612,7 +668,9 @@ row_s12() {
   bad_auth=$(rec '[.[] | select(.m? and .auth != "ok")] | length')
   if [ "$n_auth" -gt 50 ] && [ "$bad_auth" = 0 ]; then pass "S12: every one of the $n_auth requests carried the basic authentication"; else fail "S12: $bad_auth of $n_auth requests lacked the basic authentication"; fi
   shim_min=50
-  shim_checks "$tmp/shim.log" "S12" "$gate_password" "$gate_user" "$acct_password" "$acct_user"
+  # The secrets also in the forms a command line could carry them: the account percent-encoded (the sign-in body) and the gate's base64.
+  shim_secrets=("$gate_password" "$gate_user" "$acct_password" "$acct_user" "$(pct "$acct_password")" "$(pct "$acct_user")" "$(printf '%s' "$gate_user:$gate_password" | base64 | tr -d '\n')")
+  shim_checks "$tmp/shim.log" "S12" "${shim_secrets[@]}"
   secrets=("$url" "127.0.0.1" ":$stub_port" "$gate_user" "$gate_password" "$acct_user" "$acct_password")
   for a in $fwd7; do secrets+=("$a"); done
   leaks=0
@@ -636,7 +694,7 @@ row_s12() {
   done
   lines_without=$(grep '^ARGV' "$tmp/shim.log" | grep -vcF '[--interface] [')
   if [ -z "$missing" ] && [ "$lines_without" = 0 ]; then pass "S12: each visitor's calls carry its own --interface, and no call lacks one"; else fail "S12: visitors without their own --interface:$missing; $lines_without calls without one"; fi
-  shim_checks "$tmp/shim.log" "S12 (interfaces)" "$gate_password" "$gate_user" "$acct_password" "$acct_user"
+  shim_checks "$tmp/shim.log" "S12 (interfaces)" "${shim_secrets[@]}"
   shim_min=20
   leaks=0
   for a in $ifc7 "$url" "$gate_password" "$acct_password" "$acct_user"; do
@@ -669,21 +727,40 @@ row_s13() {
   else
     fail "S13: the units command was evaluated by a shell, or the run did not read it: $(grep '^UNITS' "$tmp/out")"
   fi
+  # The load reading is the run's highest: readings that rise and fall (before 1/1, signed in 5/2, the one more visitor 4/2, after 1/1).
+  cat > "$tmp/units-seq.sh" << EOF
+#!/bin/sh
+n=\$(cat "$tmp/units-n" 2> /dev/null || echo 0)
+n=\$((n + 1))
+echo "\$n" > "$tmp/units-n"
+case \$n in 1) echo "1 1" ;; 2) echo "5 2" ;; 3) echo "4 2" ;; *) echo "1 1" ;; esac
+EOF
+  rm -f "$tmp/units-n"
+  set_flags
+  run_load "OCUTALON_LOAD_UNITS_COMMAND=sh $tmp/units-seq.sh" -- "$url" --visitors 1 --max-turns 0
+  if grep -q '^UNITS before=1/1 load=5/2 after=1/1$' "$tmp/out" && grep -q '^| 2 (one more) | .* | 4/2 | ' "$tmp/out"; then
+    pass "S13: the load reading is the run's highest (5/2), and the one more visitor's row keeps its own reading (4/2)"
+  else
+    fail "S13: rising and falling readings: $(grep '^UNITS' "$tmp/out"); $(grep '^| 2 (one more)' "$tmp/out")"
+  fi
 }
 
 # --- row S14: a signal ---
 
-row_s14() {
-  local pid i n0 n1 t0 exited=0
-  set_flags hang=turn
+# load_until <jq test on the record> <visitors> <max turns>: starts the script in the background (FORWARDED_FOR the first visitors+1
+# addresses of fwd7) and, once the record passes the test (10 s at most), sends it TERM; waits up to 10 s for it to end, leaving the exit
+# code in rc, whether it ended in exited and the seconds since the TERM in term_s.
+load_until() {
+  local pid i t0
+  exited=0
   (
     unset OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD OCUTALON_LOAD_INTERFACES OCUTALON_LOAD_UNITS_COMMAND OCUTALON_LOAD_WATCH_TEXT
-    export OCUTALON_LOAD_FORWARDED_FOR="$fwd4"
-    exec bash "$script" "$url" --visitors 3 --max-turns 6 > "$tmp/out" 2> "$tmp/err" < /dev/null
+    export OCUTALON_LOAD_FORWARDED_FOR="$(fwd_n "$2")"
+    exec bash "$script" "$url" --visitors "$2" --max-turns "$3" > "$tmp/out" 2> "$tmp/err" < /dev/null
   ) &
   pid=$!
   for i in $(seq 1 100); do
-    [ "$(count_post 'api/v1/messages$' 2> /dev/null)" -ge 1 ] 2> /dev/null && break
+    [ "$(rec "$1" 2> /dev/null)" = true ] && break
     sleep 0.1
   done
   t0=$SECONDS
@@ -694,7 +771,15 @@ row_s14() {
   done
   wait "$pid" 2> /dev/null
   rc=$?
-  if [ "$exited" = 1 ] && [ "$rc" = 130 ] && [ $((SECONDS - t0)) -le 10 ]; then pass "S14: TERM after the first message POST ends the run with exit 130 in $((SECONDS - t0)) s"; else fail "S14: exit $rc, exited $exited, $((SECONDS - t0)) s"; fi
+  term_s=$((SECONDS - t0))
+}
+
+row_s14() {
+  local n0 n1 exited term_s
+  if grep -q '^trap on_signal INT TERM HUP$' "$script"; then pass "S14: the script traps INT, TERM and HUP alike"; else fail "S14: the script's signal trap is not on_signal for INT, TERM and HUP"; fi
+  set_flags hang=turn
+  load_until '[.[] | select(.m? == "POST" and (.u | test("api/v1/messages$")))] | length >= 1' 3 6
+  if [ "$exited" = 1 ] && [ "$rc" = 130 ] && [ "$term_s" -le 10 ]; then pass "S14: TERM after the first message POST ends the run with exit 130 in $term_s s"; else fail "S14: exit $rc, exited $exited, $term_s s"; fi
   sessions_ok "S14" 3
   n0=$(wc -l < "$record" | tr -d ' ')
   sleep 1
@@ -705,6 +790,11 @@ row_s14() {
   else
     fail "S14: fewer than 3 state reads answered 401"
   fi
+  # TERM while a sign-in POST waits for its answer: the session it opened is still signed out.
+  set_flags signin=slow
+  load_until '[.[] | select(.issued?)] | length >= 1' 1 0
+  if [ "$exited" = 1 ] && [ "$rc" = 130 ]; then pass "S14: TERM during a sign-in POST ends the run with exit 130"; else fail "S14 (during a sign-in): exit $rc, exited $exited"; fi
+  sessions_ok "S14 (TERM during a sign-in)" 1
   set_flags
 }
 
