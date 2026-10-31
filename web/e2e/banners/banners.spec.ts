@@ -12,6 +12,7 @@ import {
   seedDecision,
   type StatusSlots,
 } from '../support/iris';
+import { loadedAfter } from '../support/floor';
 import { announcedTexts, announcementCount, announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
@@ -87,11 +88,10 @@ const rail = (page: Page): Locator => page.getByRole('region', { name: 'Status',
 /** The ids of the banners the slot holds, in order. */
 const stack = (page: Page): Promise<Array<string | null>> => banners(page).evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-banner')));
 
-/** Signs the banners user in and waits for the loaded page. */
+/** Signs the banners user in and waits for the loaded page (the answer of /state first, DW-333). */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser('BANNERS');
-  await signIn(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signIn(page, user, password));
 }
 
 /** Waits until the page has applied the event of this Seq on the session's stream. */

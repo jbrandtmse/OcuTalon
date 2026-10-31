@@ -52,6 +52,7 @@ const SHAPES = {
     { status: 200, toolUse: [{ name: 'check_status', input: { all: true } }, { name: 'read_event_log' }] },
     { status: 200, body: { custom: 'raw' }, headers: { 'X-Extra': 'one' } },
     { status: 200, text: 'Typed.', headers: { 'Content-Type': 'text/x-test' } },
+    { status: 403, body: 'daily cost cap reached', headers: { 'Content-Type': 'text/plain' } },
   ],
 };
 const STEPS = {
@@ -369,6 +370,10 @@ test('row 9: a toolUse list gives one block per item, a body reply is sent as wr
     const third = await post(base, request([marked, use, result, assistant('more'), result]));
     assert.equal(third.json.content[0].text, 'Typed.');
     assert.equal(third.headers.get('content-type'), 'text/x-test');
+    const fourth = await post(base, request([marked, use, result, assistant('more'), result, assistant('more'), result]));
+    assert.equal(fourth.status, 403);
+    assert.equal(fourth.text, 'daily cost cap reached');
+    assert.equal(fourth.headers.get('content-type'), 'text/plain');
   });
 });
 
@@ -535,6 +540,10 @@ test('row 13: the error scenarios answer the API error shapes', async () => {
       assert.equal(r.headers.get('retry-after'), retryAfter, name);
       assert.equal(r.headers.get('content-type'), 'application/json');
     }
+    const plain = await post(base, request([user('[[mock:daily-cap-text]]')]));
+    assert.equal(plain.status, 403);
+    assert.equal(plain.text, 'daily cost cap reached');
+    assert.equal(plain.headers.get('content-type'), 'text/plain');
     const other = await post(base, request([user('[[mock:max-tokens]]')]));
     assert.equal(other.json.stop_reason, 'max_tokens');
     const rejected = await post(base, request([user('[[mock:invalid-reply]]')]));

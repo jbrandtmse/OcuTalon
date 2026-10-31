@@ -4520,6 +4520,11 @@ So that the IPM install is as durable as the Docker one.
 **Given** the author has published 1.0.0 to the package registry, on the author's word
 **When** the registry install path is run once on a clean build 154 instance with the README's two commands
 **Then** it gives the same working OcuTalon, and the result is recorded in the release notes (FR-57, REL-8, REL-11)
+
+**Given** `docs/install-ipm.md`
+**When** a judge reads it
+**Then** it opens with the registry install, the path a judge takes for the IPM bonus: the line that enables the community registry on a fresh IPM (its exact IPM 0.10.10 form, such as `zpm "enable -community"`, and its output, both measured on this story's clean build 154 throwaway), then `zpm "install ocutalon"` with the two-step namespace message; the load-from-folder path, which needs Node.js to build the web page, comes second, for developers [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
+**And** before any publish, it installs the exact artifact the release would publish, which carries the built web page (Story 11.5 builds it into the package's resources), on a clean build 154 throwaway with no Node.js, through a local filesystem IPM repository (`zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps); it proves that `/ocutalon/` serves the branded sign-in page and that the README account signs in, and the guide shows that real output until the author's publish, after which the registry's own output replaces it, as the criterion above says; the release notes record the artifact's size, and a size over a few MB is reported to the Contest Planner [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation: the published IPM package carries the built web page, so a registry install needs no Node.js]
 - DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
 - DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
 
@@ -6361,11 +6366,19 @@ So that I can check status and history from my own tools without opening a new w
 
 **Stories 29.1 and 29.2 moved back to Stories 16.1 and 16.3**, whole and verbatim, in Lane B's Epic 16 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner].
 
+**Stories 29.5 and 29.6 are split from Story 29.3** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: the address counter's keyed hash (DW-233) and the probe's alert-only outcome for fallbacks (DW-260, DW-94), the repository work the owner decision of 2026-10-30 (epic29_brief) names beside Story 29.3's host check script.
+
+**Story 29.7 is split from Story 29.4** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: the author's real-proxy load run and its capacity measurements (DW-286, DW-251), so the isolation criteria proceed while the AD-13 busy-rule question is ruled.
+
+**Story 29.8 is split from Story 29.7** [AMENDED 2026-10-30, by runner C under the unattended policy (Rule 5 tier 2)]: Story 29.7 keeps the AD-13 visitor count (owner decision U-163) and is retitled "Demo busy counts the live visitors"; Story 29.8 takes the author's real-proxy load run with DW-286.
+
 ### Story 29.3: The demo host is adapted for the launch
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.7, renumbered, whole and verbatim. It needs Lane B's Stories 16.5 and 16.6 (the pages and the probe), and no longer waits for Story 11.5: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. The host's deployment stays outside this repository, and the host itself is the owner's (Rule 22.4)]
 
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Lane B builds this story right after Epic 16 merges (Epic 29 moved to Lane B), so Stories 16.5 and 16.6 are in place when it starts]
+
+[AMENDED 2026-10-30, split by runner C under the unattended policy (Rule 5 tier 2: siblings planned next in this epic), at this story's plan: this story keeps the repository's host check script, its stand-in test and the release check list for the Contest Planner's hands-on pass (DW-214, DW-226, DW-234, DW-240, DW-254, DW-287); DW-233 moved to Story 29.5 and DW-260 and DW-94 to Story 29.6, as the owner decision of 2026-10-30 (epic29_brief) describes them. The criteria below are unchanged.]
 
 As the author,
 I want the demo host's proxy, gateway, resets and monitoring set up as the architecture describes,
@@ -6402,11 +6415,8 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 **When** it runs
 **Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
 **And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
-- DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 - DW-287: At 8 licence units `iris session` terminals are refused, so the demo host's own admin and reset path must not need a licence unit, or the host must keep one free; the Contest Planner checks it on the demo host at the Epic 16 deploy (AD-25 as amended 2026-10-27, inbox U-103) (ledger; routed by orchestrator 2026-10-27)
 - DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS (ledger; routed by cr 2026-10-26)
-- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
-- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
 - DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path (ledger; routed by harvest 2026-10-25)
 
 ### Story 29.4: Sessions stay isolated under load
@@ -6416,6 +6426,8 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Lane B builds this story right after Epic 16 merges, so Stories 16.2 and 16.5 are in place when it starts; its load test in `release/` is in Lane A's folder, which AD-29's Epic 29 exception now lets Lane B change for this story; its paired-chat cases moved to Story 31.4, which turns them on once Epics 12 and 29 have merged; Story 29.2's check is Story 16.3's]
 
 [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: its first two criteria need Lane A's real watch, incident and fix-approval path (Epics 5 and 7), so this story waits for Epics 5 and 7 to merge; its real-proxy load case needs the adapted host (Story 29.3) and the released demo path (Epic 11), so it is the author's to run once the host is adapted and the release is deployed]
+
+[AMENDED 2026-10-30, split by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic), at this story's plan: the real-proxy load case (the fourth criterion) moved verbatim to Story 29.7 with DW-286 and DW-251, because the plan's measurement found AD-13's busy rule and that criterion's case 1 at odds (a question for the orchestrator); this story keeps the isolation criteria.]
 
 As a judge,
 I want my run on the online demo kept apart from every other visitor's, even when the demo is full,
@@ -6436,15 +6448,99 @@ So that what I see is my own work.
 **When** every OCUTALON and OCUORDERS message body and header from the run is searched
 **Then** none of those values appears, nor the visitor's IRIS user name; production messages carry only the `SessionRef` and the internal chat reference, which is what the shared Visual Trace shows (FR-15, NFR-11, AD-4, UX-DR107)
 **And** the paired-chat cases (the paired chat in the criteria above, and this one) use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off; Story 31.4 turns them on once Epics 12 and 29 have merged (FR-14, FR-20, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: they stayed off until Story 12.7 turned them on, with Story 29.2's check, which is now Story 16.3's and stays with Story 12.7] [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Epic 29 runs before Epic 12, so Story 12.7 turns these on; Story 16.4's and Story 16.9's Telegram cases stay with Story 16.10]
-
-**Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model
-**When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
-**Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
-- DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference (inbox U-103) (ledger; routed by orchestrator 2026-10-27)
-- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
 - DW-252: No page control sends a guide prompt yet, so the online demo's 503 rule for a guide message (the entry leaves, nothing is announced) has no test (ledger; routed by burndown 2026-10-30)
 - DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable (ledger; routed by merge_gate 2026-10-30)
 - DW-413: Story 16.9's daily-cap browser cases D1, D2 and AP read the instance's day more than once, so an instance midnight inside a case turns it red (ledger; routed by burndown 2026-10-30)
+
+### Story 29.5: The address counter's hash is keyed per reset
+
+[AMENDED 2026-10-30, split from Story 29.3 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): DW-233, kept by the owner's veto ruling U-156 as the owner decision of 2026-10-30 (epic29_brief) describes it]
+
+As the author,
+I want the online demo's address counter to store a keyed hash of each client address, with a key that changes at every reset,
+So that a counter row can't be turned back into a visitor's address, and a reset never brings an old key back.
+
+**Acceptance Criteria:**
+
+**Given** the online demo's per-address sign-in counter
+**When** a counted sign-in stores or looks up a client address
+**Then** the row holds an HMAC of the address, keyed by a per-instance secret in the private database, instead of a plain SHA-256, and the key is never printed, logged or sent (FR-59, AD-3, AD-13)
+**And** the key never comes back with the golden copy: either it is made at start whenever the reset marker changes, or it lives outside what the golden copy captures; the spec names which one, and a test proves that two resets give two different keys (FR-15, AD-19, AD-25)
+- DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life (ledger; routed by merge_gate 2026-10-30)
+
+### Story 29.6: The probe alerts when every turn falls back
+
+[AMENDED 2026-10-30, split from Story 29.3 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): DW-260, kept by the owner's veto ruling U-157, and DW-94, as the owner decision of 2026-10-30 (epic29_brief) describes them]
+
+As the author,
+I want the probe to alert me when the demo answers but its turns fall back,
+So that a demo whose replies are all fallbacks never reports healthy, and still never resets because of it.
+
+**Acceptance Criteria:**
+
+**Given** the probe from Story 16.6
+**When** its chat check gets a decision that is a `no_key`, timeout or rate-limit fallback
+**Then** it reports an alert-only outcome: it alerts the author and never counts toward an unscheduled reset, like busy, while `auth_failed` and `no_decision` still count (FR-59, NFR-23, AD-25)
+**And** a reached daily cost cap is recognized as the daily cap from the gateway's HTTP 403 "daily cost cap reached", or the release check names the body the gateway must send; the change is made in the repository if it needs one (FR-22, AD-8, AD-20, AD-25)
+- DW-260: The probe counts any decision but a daily_cap fallback as healthy, so a demo whose every turn falls back (no_key, a timeout, rate limits) reports healthy and never alerts; only the log line names the reason (ledger; routed by merge_gate 2026-10-30)
+- DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
+
+### Story 29.7: Demo busy counts the live visitors
+
+[AMENDED 2026-10-30, split from Story 29.4 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): Story 29.4's fourth criterion, verbatim, with DW-286 and DW-251. The run itself is the author's (the Contest Planner's pass) on the adapted host, as the owner decision of 2026-10-30 (epic29_brief) says: it spends no more than a brief, bounded number of model turns under the $20 daily cost cap, stays within the 8-licence-unit ceiling, and its results go into the 1.0.0 release notes. The repository holds the load script and its procedure in `release/`, proven on a local stack. Story 29.4's plan measured that a signed-in visitor holds no connection on build 154, so AD-13's busy rule and case 1's busy expectation are at odds; the ruling on that question is applied before this story is planned.]
+
+[AMENDED 2026-10-30, owner decision U-163 (answered by the Contest Planner under the owner's delegation; applied by runner C as a tier-1 amendment): option (a), AD-13 amended on the feature branch (busy also counts OcuTalon's own live demo visitor sessions against a visitor cap of about 6, P12 and NFR-23 unchanged; OWNCONNECTIONS 0; the InstanceConnections check stays as the trace-licence guard). The owner's four conditions are this story's first criteria, below.]
+
+[AMENDED 2026-10-30, split and retitled by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic), at this story's plan: it was "The author's load run measures the demo's capacity"; the author's real-proxy load criterion moved verbatim to Story 29.8 with DW-286, and this story keeps the AD-13 visitor count (U-163's conditions) with DW-251.]
+
+As a judge,
+I want the online demo to stay responsive and say "Demo busy" when it is full,
+So that I either get a working demo or a clear reason to come back later.
+
+**Acceptance Criteria:**
+
+**Given** the online demo with the AD-13 visitor count
+**When** visitors sign in through the proxy
+**Then** `/ocutalon/public/status` and the login page report busy, sessionless and without taking a connection, once the count of live online-demo visitor sessions reaches the visitor cap (about 6), and the post-sign-in check ends a new public session with the busy text when it would take the count past the cap, so a 6th visitor gets in and a 7th sees "Demo busy"; the connection check stays as the guard on trace licence units, and a new session counts no connection of its own (FR-15, NFR-23, P12, AD-13, AD-25) [AMENDED 2026-10-30, owner decision U-163, condition 4]
+**And** a session leaves the count at sign-out and at its CSP timeout (about 120 seconds, as measured), so a crashed tab can't hold a place; the probe and the host's admin path never count; and every reset starts the count at 0 (AD-13, AD-19, AD-25) [AMENDED 2026-10-30, owner decision U-163, conditions 1 to 3]
+**Given** the online demo with the visitor count at the cap (6 visitors signed in) and connections under the cap minus the reserve
+**When** a signed-in visitor opens Visual Trace
+**Then** `/status?for=trace` reports not busy and the trace window opens, while plain `/status` reports busy; with connections at the cap minus the reserve and fewer than 6 visitors, the trace form reports busy and the page shows the busy text, and plain `/status` keeps its own rule (busy from the connection check or the visitor count); any other or missing `for` value, or a repeated one, answers the plain form, and both forms keep the same five keys with no extra field, unauthenticated and sessionless (AD-13 as amended by U-169) [AMENDED 2026-10-30, owner decision U-169 (the Contest Planner under the owner's delegation; condition 2 read as "plain /status keeps its own rule", clarified by the Planner), its three test conditions]
+- DW-251: On build 154 (lane-C throwaway, Community key, the image's web server) a signed-in CSP session does not raise $SYSTEM.License.InstanceConnections(), so AD-13's busy checks (status, splash, post-sign-in reserve) may never engage on the demo host (ledger; routed by harvest 2026-10-26)
+- DW-333: flake: the sign-in-then-10-s data-snapshot wait went red again in live:demo-path (web/e2e/demo-path/01-page.spec.ts, after signInReadme); give the remaining sign-ins (the demo-path specs, the reset, resume, splash and session specs) the loadedAfter wait (ledger; routed by lead 2026-10-30)
+
+### Story 29.8: The author's load run measures the demo's capacity
+
+[AMENDED 2026-10-30, split from Story 29.7 by runner C under the unattended policy (Rule 5 tier 2: a sibling planned next in this epic): the author's real-proxy load criterion, verbatim (first Story 29.4's, then Story 29.7's), with DW-286. The run itself is the author's (the Contest Planner's pass) on the adapted host, as the owner decision of 2026-10-30 (epic29_brief) says: it spends no more than a brief, bounded number of model turns under the $20 daily cost cap, stays within the 8-licence-unit ceiling, and its results go into the 1.0.0 release notes. The repository holds the load script and its procedure in `release/`, proven on a local stack.]
+
+As the author,
+I want a repeatable load run I can point at the adapted demo host,
+So that the demo's capacity and its response under load are measured before the launch, not assumed.
+
+**Acceptance Criteria:**
+
+**Given** a local online-demo stack (a throwaway with the CI mock), standing in for the adapted demo host
+**When** the author's load script in `release/` runs a small, bounded load (a stated number of scripted visitors, without and with Visual Trace open, each from its own client address where the stack allows)
+**Then** it signs each visitor in, drives the demo path's steps within a stated maximum of model turns (none beyond that bound), times each incident notice against NFR-7's 60 seconds, has one more visitor read the status and the splash for the busy text and never an error page, signs every visitor out, holds no host address or credential, and writes one line per visitor and a table for the 1.0.0 release notes (FR-15, NFR-7, NFR-23, AD-13, AD-25, AD-29) [AMENDED 2026-10-30, owner decision (planner_demo_first), relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public this weekend ahead of 1.0.0, so this story closes on throwaway evidence and the real-proxy load case below is a release check the Contest Planner runs on the gated demo host before the public flip, within the owner decision of 2026-10-30 (epic29_brief): no model calls, or a brief bounded run under the $20 daily cost cap, within 8 licence units]
+- DW-286: Measure the licence units each visitor uses on the demo configuration (sign-in, trace pages, after leaving), so AD-13 and AD-25's online-demo consequences and the P12/NFR-23 numbers rest on a measurement, not an inference (inbox U-103) (ledger; routed by orchestrator 2026-10-27)
+
+**Release check (the Contest Planner, on the gated demo host before the public flip):** **Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model **When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path **Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28) [AMENDED 2026-10-30, owner decision (planner_demo_first), relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public this weekend ahead of 1.0.0, so this story closes on throwaway evidence and the real-proxy load case below is a release check the Contest Planner runs on the gated demo host before the public flip, within the owner decision of 2026-10-30 (epic29_brief): no model calls, or a brief bounded run under the $20 daily cost cap, within 8 licence units]
+
+### Story 29.9: Epic 29 burn-down
+
+[AMENDED 2026-10-31, chartered by runner C at Epic 29's burn-down gate (Rule 17): the story-closable ledger entries left after Stories 29.3 to 29.8 that are not overflowed to a later epic; DW-333 has six occurrences, so a burn-down story is required. Small and bounded: it changes tests only, no product behaviour.]
+
+As the author,
+I want the online demo's browser tests to stop failing on timing,
+So that a red CI run on the launch's path means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** the CI runs of Epic 29's stories
+**When** the flaky cases below run on a fresh stack in CI
+**Then** each passes on its own merits without an unchanged rerun: every remaining spec that signs in and then waits for the page waits for the state answer first, and the 600 s idle case reads the freed page's time robustly (FR-15, AD-22) [AMENDED 2026-10-31, runner C at this story's plan (Rule 5 tier 1): the daily-cap banner case is a product gap, not a test flake (a web process cannot read the day's Usage rows, so its /state can miss the spend StatusMonitor counts); DW-432 moved to Story 31.3 as overflow]
+- DW-333: flake: specs that sign in and then wait 10 s for `data-snapshot` (web/e2e/chat/chat.spec.ts C7 open() and its siblings outside Story 29.7's sign-ins) still go red in CI; give them the `loadedAfter` wait (ledger; routed by burndown 2026-10-31)
+- DW-429: flake: live:online-session web/e2e-online/session/leave.spec.ts L2 (600 s idle frees the place) went red once in CI with since=NaN in the freed page's URL (ledger; routed by burndown 2026-10-31)
 
 ## Epic 30: Lane A post-demo hardening
 
@@ -6640,7 +6736,13 @@ So that I can try OcuTalon in two minutes from the README.
 **Given** 0.1.1's Telegram channel (Epic 12, Lane A) and Lane A's real paths merged [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: split from the paired-chat criterion that moved to Story 29.4]
 **When** this story's tests run
 **Then** it turns on Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths (`WatchOps` stopping a signed-out session's watches; the approval that completes while both caps hold) (FR-14, FR-20, FR-40, AD-29)
+
+**Given** the README's IPM install section, which this story adds from `docs/install-ipm.md`
+**When** a judge reads it
+**Then** it opens with the registry install (the community-registry line and `zpm "install ocutalon"`) and gives the load-from-folder path second, for developers, in the order Story 15.3's guide uses [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
 - DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account; the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to (Epic 10's decision sheet, veto U-145) (ledger; routed by merge_gate 2026-10-29)
+- DW-416: Behind a TLS-terminating proxy every online-demo API POST fails the origin check (403 wrong_origin): IRIS expects an http:// origin and the browser sends https://; the demo host maps that exact origin on /ocutalon/api/* as a workaround (ledger; routed by merge_gate 2026-10-31)
+- DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor (ledger; routed by merge_gate 2026-10-31)
 
 **Release check:** measured on the public online demo host serving the 1.0.0 candidate, at the 1.0.0 release, the author's [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so Story 31.3 measures on the public host (see the Epic List's step release checks); it read "measured on the online demo host serving the 1.0.0 candidate, behind the access gate before the public flip, at the 1.0.0 release, the author's"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner (one public release at 1.0.0; see the Epic List's step release checks); it read "measured on the launched online demo at the 1.0.0 release"] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 
@@ -6658,6 +6760,7 @@ So that what reaches my phone is my own work.
 **When** this story's tests run
 **Then** it turns on Story 29.4's paired-chat cases: session A's incident, notification and approval request reach only A's paired chat, and B's paired chat gets none of them; a button press from B's paired chat on A's approval request is refused and changes nothing; and no OCUTALON or OCUORDERS message body or header from the run carries the paired mock chat's display name, user name, chat id or phone number (FR-8, FR-15, FR-20, NFR-11, AD-4, AD-11, AD-29)
 - DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too (ledger; routed by merge_gate 2026-10-31)
+- DW-446: The probe reports healthy when every turn is an error fallback (a revoked real key, a provider 500 or a down gateway behind the demo's gateway), because degraded covers only no_key, timeout and rate_limited (ledger; routed by merge_gate 2026-10-31)
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 

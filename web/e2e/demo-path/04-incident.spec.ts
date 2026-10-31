@@ -3,9 +3,9 @@ import { expect, test } from '@playwright/test';
 import { STATE, post, sessionEvents } from '../support/api';
 import { raise, refOf } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
-import { CARD_MS, inMs } from '../support/floor';
+import { CARD_MS, inMs, signInReadmeLoaded } from '../support/floor';
 import { chk, cleanFixtureRows, irisScript, sendNotification } from '../support/iris';
-import { README_ACCOUNT, signInOverHttp, signInReadme } from '../sign-in/helpers';
+import { README_ACCOUNT, signInOverHttp } from '../sign-in/helpers';
 import { notBuilt } from './not-built';
 
 // The times of the page's texts are the instance's (UTC on a stack) and the browser's, which the case sets to the same zone and a 24-hour clock.
@@ -108,7 +108,7 @@ test("the incident card and the phone's notice, on fixtures for Lane A's raise p
   const rows: string[] = [];
   const start = inMs(-2000);
   try {
-    await signInReadme(page);
+    await signInReadmeLoaded(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     // The README session's pending requests before this case's, so that the count the rail gains is this case's own.
     const pending = page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden');

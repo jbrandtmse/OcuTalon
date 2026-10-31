@@ -16,7 +16,7 @@ import {
   sinkEvent,
   turnRows,
 } from '../support/iris';
-import { CARD_MS, banner, composerOf, inMs, mainOf, railOf, replyOf, unique } from '../support/floor';
+import { CARD_MS, banner, composerOf, inMs, mainOf, railOf, replyOf, unique, loadedAfter } from '../support/floor';
 import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/page';
 
 /**
@@ -70,7 +70,7 @@ async function open(page: Page): Promise<void> {
   await page.clock.install();
   await recordAnnouncements(page);
   const { user, password } = fixtureUser(KIND);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
 }

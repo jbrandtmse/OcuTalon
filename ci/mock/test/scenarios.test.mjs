@@ -60,6 +60,7 @@ const DEFECTS = [
   ['a telegram match that is not a string', { 'A/good.json': { ...GOOD, match: { telegram: 5 }, replies: [TG_REPLY] } }, ['A/good.json', 'match telegram is not a non-empty string']],
   ['a telegram reply with no body', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200 }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
   ['a telegram reply with a body that is a list', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: [1] }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
+  ['a telegram reply with a body that is a string', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: 'x' }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
   ['a telegram reply with text', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, text: 'x' }] } }, ['A/good.json', 'a reply has the unknown field "text"']],
   ['a telegram reply with toolUse', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, toolUse: { name: 'a' } }] } }, ['A/good.json', 'a reply has the unknown field "toolUse"']],
   ['a telegram reply with a stopReason', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, stopReason: 'end_turn' }] } }, ['A/good.json', 'a reply has the unknown field "stopReason"']],
@@ -89,7 +90,7 @@ const DEFECTS = [
   ['a reply with an unknown field', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', delayMS: 5 })] } }, ['A/good.json', 'a reply has the unknown field "delayMS"']],
   ['a reply that is not an object', { 'A/good.json': { ...GOOD, replies: ['x'] } }, ['A/good.json', 'a reply is not an object']],
   ['a text that is not a string', { 'A/good.json': { ...GOOD, replies: [reply({ text: 5 })] } }, ['A/good.json', 'text is not a string']],
-  ['a body that is not an object or a list', { 'A/good.json': { ...GOOD, replies: [reply({ body: 'x' })] } }, ['A/good.json', 'body is not a JSON object or list']],
+  ['a body that is not a string, an object or a list', { 'A/good.json': { ...GOOD, replies: [reply({ body: 5 })] } }, ['A/good.json', 'body is not a string, a JSON object or a list']],
   ['headers that are not strings', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { a: 1 } })] } }, ['A/good.json', 'headers must be an object of strings']],
   ['a header name that is not an HTTP token', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', delayMs: 5, headers: { 'Retry After': '1' } })] } }, ['A/good.json', 'is not a valid HTTP header name and value']],
   ['a header value with a line break', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { 'Retry-After': '1\r\nX-Other: 2' } })] } }, ['A/good.json', 'is not a valid HTTP header name and value']],
@@ -128,6 +129,7 @@ test('row 15: the committed scenario files load with no problem, and hold the sc
   for (const name of STORY_SCENARIOS) assert.ok(scenarios.byName.has(name), `the scenario ${name} is committed`);
   for (const key of ['chat', 'diagnosis', 'triage']) assert.equal(scenarios.byMockKey.get(key).name, key);
   for (const name of STORY_SCENARIOS) assert.equal(scenarios.byName.get(name).folder, 'A', `${name} is Lane A's`);
+  assert.equal(scenarios.byName.get('daily-cap-text')?.folder, 'B', 'daily-cap-text (a plain-text 403) is Lane B\'s');
 });
 
 for (const [what, files, [file, rule]] of DEFECTS) {
@@ -170,6 +172,7 @@ test('row 15: the limits of the format are inclusive, and every API stop reason 
     limit(longName, reply({ text: 'x' })),
     limit('empty-text', reply({ text: '' })),
     limit('body-list', reply({ body: [1, 2] })),
+    limit('body-string', reply({ body: 'plain text' })),
     limit('tool-list', reply({ toolUse: [{ name: 'a' }, { name: 'b', input: { all: true } }] })),
     ...STOP_REASONS.map((r, i) => limit(`stop-${i}`, reply({ text: 'x', stopReason: r }))),
   ]);
