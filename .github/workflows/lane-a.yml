@@ -43,11 +43,11 @@ jobs:
   ipm-install:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, ocutalon]
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm
-      OCUTALON_LIVE_DEADLINE: "1500"
+      OCUTALON_LIVE_DEADLINE: "1980"
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

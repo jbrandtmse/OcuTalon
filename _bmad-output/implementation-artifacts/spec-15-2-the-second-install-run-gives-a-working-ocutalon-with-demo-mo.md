@@ -2,8 +2,8 @@
 title: 'Story 15.2: The second install run gives a working OcuTalon with demo mode off'
 type: 'feature'
 created: '2026-10-30'
-status: 'in-progress'
-baseline_revision: '7fd58499ccc20305a6be8ccd49febdb9ff8e1e71'
+status: 'done'
+baseline_revision: '5378faf493bb7cef87d59ad6d181c58d8b4499c0'
 baseline_commit: '7fd58499ccc20305a6be8ccd49febdb9ff8e1e71'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -222,9 +222,9 @@ deferred: []
 - [ ] `.github/workflows/lane-a.yml`: unchanged. Only if `TIME` totals of `a` and `b` together go over 8 minutes locally: in job `ipm-install` only, set `timeout-minutes: 35` and `OCUTALON_LIVE_DEADLINE: "1980"`. Rule 7 needs the deadline under timeout times 60.
 
 **Owner decision U-176 (the answer of 2026-10-31T00:05:17Z#534, the owner's delegate, the Contest Planner): keep the commit at Configure, After, with four conditions. Work only these items in this pass.**
-- [ ] [Owner U-176 (1)] `src/ocutalon/cls/OcuTalon/Install/Registry.cls`: when `Ipm()`'s `Run("ipm")` fails after the commit, the install command reports failure (it already returns the error to IPM, so IPM prints `Configure FAILURE` and `ERROR! ...`; keep that, never let IPM's success line stand alone) and `Ipm()` prints exactly one more terminal line, in the Install step style of `Run`'s `STEP <name> ...` lines, that names the failed step, says that the new code is installed, and says to run the same install command again. Suggested text (decide the exact wording in the same plain style and record it): `STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.` Name the step from the run itself (the first failed step), never a guess. The Docker path (`Run("after-start")`) is unchanged. Pin it with a unit test in `Test.Install.Registry` if a pure seam allows (for example a class method that builds the line from a step name), and in the live check below.
-- [ ] [Owner U-176 (2)] `release/ipm-install.sh`, path A, after the existing checks (the FR-57 job's harness is here, so it is built in this story): a **forced step failure on a reinstall** through a test-only seam, never a switch in the shipped package. The seam lives only in the test: inside the throwaway, copy the package folder to a scratch folder of the container and change one installer step there so that its `Run()` returns an error (for example a Lane A step such as `Install/Step/Approvals.cls` or one that is safe to fail; never edit the real source tree), then `zpm "load <scratch folder>"` in OCUTALON as the reinstall. Before it, seed recognisable data that a reinstall must keep (for example a row the earlier checks already created, or a setting value; read it back by value). Prove: the command reports the failure (IPM's `ERROR!` and no success line alone), the U-176 (1) line names that step, the data is still there, OCUTALON and its four databases still exist; then the real folder's `zpm "load ..."` again completes, every `STEP ... OK`, the production runs, and the checks of Stories 15.1 and 15.2 pass again (reuse the existing check functions; do not copy them). Then a **failed Compile**: a second scratch copy with one class that does not compile; `zpm "load ..."` fails, IPM rolls it back, and the previous version keeps running (the production still runs with nothing missing, a class of the package still answers as before, and the module version is unchanged). Each `zpm` run goes through `run` so its `OUTPUT` and `TIME` lines are kept. Keep `a`'s local time well inside the 10-minute cap (split into a new argument, for example `r`, if needed, and list it in the header); the no-argument job line stays the same. If the job's local total of `a` plus `b` (plus any new argument) goes over 8 minutes, apply the spec's existing lane-a.yml rule (job `ipm-install` only: `timeout-minutes: 35`, `OCUTALON_LIVE_DEADLINE: "1980"`).
-- [ ] [Owner U-176 (3)] `docs/install-ipm.md`: one line that says the same: if a step fails after the code has loaded, the command reports the failure and names the step, the new code stays installed, and running the same command again finishes the install; a failure while IPM loads or compiles the code is rolled back and the previous version keeps running. Keep every existing rule of the document (real output, no local path, key or token).
+- [x] [Owner U-176 (1)] `src/ocutalon/cls/OcuTalon/Install/Registry.cls`: when `Ipm()`'s `Run("ipm")` fails after the commit, the install command reports failure (it already returns the error to IPM, so IPM prints `Configure FAILURE` and `ERROR! ...`; keep that, never let IPM's success line stand alone) and `Ipm()` prints exactly one more terminal line, in the Install step style of `Run`'s `STEP <name> ...` lines, that names the failed step, says that the new code is installed, and says to run the same install command again. Suggested text (decide the exact wording in the same plain style and record it): `STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.` Name the step from the run itself (the first failed step), never a guess. The Docker path (`Run("after-start")`) is unchanged. Pin it with a unit test in `Test.Install.Registry` if a pure seam allows (for example a class method that builds the line from a step name), and in the live check below.
+- [x] [Owner U-176 (2)] `release/ipm-install.sh`, path A, after the existing checks (the FR-57 job's harness is here, so it is built in this story): a **forced step failure on a reinstall** through a test-only seam, never a switch in the shipped package. The seam lives only in the test: inside the throwaway, copy the package folder to a scratch folder of the container and change one installer step there so that its `Run()` returns an error (for example a Lane A step such as `Install/Step/Approvals.cls` or one that is safe to fail; never edit the real source tree), then `zpm "load <scratch folder>"` in OCUTALON as the reinstall. Before it, seed recognisable data that a reinstall must keep (for example a row the earlier checks already created, or a setting value; read it back by value). Prove: the command reports the failure (IPM's `ERROR!` and no success line alone), the U-176 (1) line names that step, the data is still there, OCUTALON and its four databases still exist; then the real folder's `zpm "load ..."` again completes, every `STEP ... OK`, the production runs, and the checks of Stories 15.1 and 15.2 pass again (reuse the existing check functions; do not copy them). Then a **failed Compile**: a second scratch copy with one class that does not compile; `zpm "load ..."` fails, IPM rolls it back, and the previous version keeps running (the production still runs with nothing missing, a class of the package still answers as before, and the module version is unchanged). Each `zpm` run goes through `run` so its `OUTPUT` and `TIME` lines are kept. Keep `a`'s local time well inside the 10-minute cap (split into a new argument, for example `r`, if needed, and list it in the header); the no-argument job line stays the same. If the job's local total of `a` plus `b` (plus any new argument) goes over 8 minutes, apply the spec's existing lane-a.yml rule (job `ipm-install` only: `timeout-minutes: 35`, `OCUTALON_LIVE_DEADLINE: "1980"`).
+- [x] [Owner U-176 (3)] `docs/install-ipm.md`: one line that says the same: if a step fails after the code has loaded, the command reports the failure and names the step, the new code stays installed, and running the same command again finishes the install; a failure while IPM loads or compiles the code is rolled back and the previous version keeps running. Keep every existing rule of the document (real output, no local path, key or token).
 - [x] [Owner U-176 (4)] Done by the lead: Story 15.3's criterion in `epics.md` carries the reading ("the load" means IPM's Reload, Validate and Compile phases), and 15.3 gains the named AC that the same forced-failure re-run also passes Story 15.3's own checks once they exist.
 
 **Acceptance Criteria:**
@@ -277,6 +277,30 @@ deferred: []
   - `[low]` `[patch]` `TestIpmOnTheImage` and the Task text claim no unit test calls `Run` (gap, other) - fixed in the test's doc; `TestIpmRunsTheSteps` now calls it over fixture steps.
   - `[low]` `[reject]` `TestIpmOnTheImage` assumes `$TLevel` 0 at its start (gap, other) - the unit-test manager opens no transaction; `TestIpmRunsTheSteps` uses a base level.
   - `[low]` `[reject]` the Demo-switch comparison excludes names that start with `OCUORDERS` (gap, other) - recorded in "Measured in implement"; path B's `foreign_orders` covers a foreign one.
+
+### 2026-10-30 — Review pass (rework: owner decision U-176)
+- verdicts: 31 findings — high 0, medium 9, low 20, false 2, maybe-false 0 (rows group findings by layer and number: blind 6, edge 11, gap 8, intent 6)
+- findings:
+  - `[low]` `[patch]` blind 1, edge 8, gap 3: a `Run` that fails without a failed step (refused namespace) or throws has no test for "no failure line" — added `Test.Install.Registry.TestIpmWithoutAFailedStep` (two cases) and its mutation line (dropping the `failed '= ""` guard goes red).
+  - `[low]` `[reject]` blind 1 (the thrown-`Run` half), edge 7: no line when `Run` itself throws — `RunStep` catches a step's exception, so `Run` throws only on a platform fault; the owner's condition names a step, and the test now pins the behavior.
+  - `[low]` `[reject]` blind 2, edge 10, gap 8: the 2-minute margin between deadline 1980 s and `timeout-minutes: 35` — the values are the spec's own 8-minute rule (item 16); `test-cpf.sh` rule 7 pins the deadline inside the timeout.
+  - `[medium]` `[patch]` blind 3, gap 4: the failed-compile check accepted any `ERROR!` line — the check now also requires the undefined macro's name in the output (red when the scratch class compiles, shown by the mutation run).
+  - `[medium]` `[patch]` blind 4, edge 1, edge 2, gap 7: the module version `0.1.0` was hard-coded in three places, so the planned v0.1.1 bump would redden the job and make the compile copy's version equal the real one — the script now reads the real version and raises its patch number.
+  - `[low]` `[reject]` blind 5: the document says a Reload or Validate failure is also rolled back, though only Compile is exercised — the wording is the owner's (U-176 (3)) and the lead's reading of "the load" in `epics.md` (item 4).
+  - `[low]` `[reject]` blind 6: new spec items 14-16 sit before 12-13 — cosmetic, and the fix edits this build's spec.
+  - `[low]` `[reject]` edge 3: the scratch-compile copy checks only the last output line — with `set -e` a failed step aborts, and the new cause check goes red if the broken class is missing.
+  - `[false]` `[reject]` edge 4: the `Audit` row `sed` matches nothing when Audit is first or last — Audit is mid-order, and a non-match makes `want` equal the order, so the check fails loudly.
+  - `[false]` `[reject]` edge 5: a WARN line between the step's line and the failure line — the Audit seam returns before any `Warn`, and `Run` writes warnings after the step's line, where this seam has none.
+  - `[low]` `[reject]` edge 6: the `Write` of the failure line throws inside the `Try` — a device error on the terminal; theoretical.
+  - `[low]` `[patch]` edge 9: `IpmCaptured` left its temp file when the open failed — the capture file is deleted on that path.
+  - `[low]` `[patch]` edge 11, gap 6: the header of check 16 claimed the module is recorded with the scratch copy's version, which no check reads — the claim is removed.
+  - `[medium]` `[patch]` gap 1, gap 2, gap 5: no `mutation:` lines for the forced-failure seam, the failed-compile seam, the kept data and the recovery run — each mutation was applied, seen red and reverted (the diff hash equal before and after), and the five lines are in `## Verification`.
+  - `[low]` `[reject]` intent 1: the failing run is `zpm "load <scratch>"` and the re-run the documented command, not a repeat of the failing command — the scratch folder is the test-only seam; the documented command is the install command the line tells the user to run.
+  - `[low]` `[reject]` intent 2: "the new code" is the scratch Audit class at the same version, not a newer version — IPM refuses a lower version over a higher one (measured), and `Audit.Run()` returning the scratch error shows the loaded code is the one in place.
+  - `[low]` `[reject]` intent 3: no 15.3 AC in the diff — the lead added it in `epics.md` (item 4), outside this story's files.
+  - `[low]` `[reject]` intent 4: the production's state at the failed point is not asserted — it is asserted after the recovery run and in the failed-compile case; the owner's conditions do not ask for it.
+  - `[low]` `[reject]` intent 5: two `STEP <name> FAILED` lines per failure — the first is `Run`'s existing line, the second is the owner's added line; the script's `step_names` skips it.
+  - `[low]` `[reject]` intent 6: the document's captured-output blocks show no failure — the owner asked for one line, and the real-output rule covers the captured runs.
 
 ## Design Notes
 
@@ -350,6 +374,11 @@ No AC contradicts an AD.
 11. **The new tests go in the Install area.**
     - The `Test.Install` class changes run in `shards`' piece `lane-a@Checks,Install,Watch`, because the pieces are cut by area. `Test.Install.ReconcileIn` is pure and takes under 1 s.
     - `ci/units.sh` doesn't change.
+14. *(U-176 (1))* `Registry.FailureLine(step)` is the suggested text, `STEP <step> FAILED: the new OcuTalon code is installed. Run the same install command again.`; the step is `Run`'s new `Output failed` (the first failed step); with no failed step (a refused namespace) `Ipm` writes no extra line.
+15. *(U-176 (2))* The script's seam is a scratch copy in the container: one with `Install/Step/Audit.cls` returning an error (version kept, because IPM refuses a downgrade: "Cannot downgrade ocutalon from version 0.1.1 to 0.1.0"), one with `Install/ZzScratchBroken.cls` (an undefined macro, so Compile fails), a changed `Registry.Order()` and version 0.1.1. "The new code is installed" is read as `Audit.Run()` returning the scratch error. New argument `r` (A's first and second run, then the reinstalls); `a` = checks 1 to 14.
+16. *(U-176 (2))* `a` 144 s, `r` 258 s, `b` 137 s (539 s summed, over 8 minutes; the full job measured 433 s), so job `ipm-install` of `lane-a.yml` has `timeout-minutes: 35` and `OCUTALON_LIVE_DEADLINE: "1980"`.
+17. *(U-176 (1))* A `Run` that returns an error without a failed step (the refusal of another namespace) or throws gives `Ipm`'s error status and no failure line; `Test.Install.Registry.TestIpmWithoutAFailedStep` pins it.
+18. *(U-176 (2))* The script reads the module's real version and raises its patch number for the compile copy, so a release bump needs no edit; the compile check also requires the undefined macro's name in the output.
 12. *(Withdrawn by U-177: DW-207 moved to Lane B.)*
 13. *(Withdrawn by U-177: DW-34 moved to Lane B.)*
 
@@ -474,6 +503,14 @@ Mutation results (applied one at a time, red observed, reverted; `git status --s
 - mutation: `Step.Caller()` always returns "ipm" -> red: `Test.Install.Registry.TestIpmRunsTheSteps` ("and the steps ran with the caller after-start", "no caller is left after the run").
 - mutation: `src/cpf/ocutalon.cpf` without the `OcuTalonPublic` global mapping, and `AutoStart` marking `OcuTalon.BridgeExample.Production`, in one run -> red: `ipm-install.sh a` "install checks: the public package and global ...", "second run: ... is the autostart production", "package: ... not the autostart production", the sign-in page, and the first run's mappings.
 - mutation: `Unguard` also deletes the routine of a foreign setting, on path B -> red: `ipm-install.sh b` "path B: the foreign password-validation setting and routine are unchanged" and "every STEP line ... OK".
+- mutation: `Ipm()` without its `FailureLine` write -> red: `Test.Install.Registry.TestIpmRunsTheSteps` ("the last line names the step that failed", "written once") and `ipm-install.sh r` ("the line after the failed step is not the one install line").
+- mutation: `Ipm()` writes `FailureLine("Ready")` on every path -> red: `TestIpmRunsTheSteps` ("and writes no failure line", "the last line names the step that failed").
+- mutation: `FailureLine` without "the new OcuTalon code is installed" -> red: `Test.Install.Registry.TestFailureLine`.
+- mutation: `Ipm()` writes the failure line without the `failed '= ""` guard -> red: `Test.Install.Registry.TestIpmWithoutAFailedStep` ("and writes no failure line, because no step failed (case 1)"; case 2, a throwing `Run`, stays green because the `Catch` path never reaches the write).
+- mutation: the scratch Audit step returns OK instead of the error (the seam's step succeeds) -> red: `ipm-install.sh r`, "failed step": the IPM `FAILURE`/`ERROR!` check, the STEP-lines check, the one-install-line check and "the installed Audit class is not the scratch copy's".
+- mutation: the scratch compile class is valid (the scratch Compile succeeds) -> red: `ipm-install.sh r`, "failed compile": the `Compile FAILURE` check, the cause check (the undefined macro is not named), "an installer step ran" and the rollback state check.
+- mutation: the seeded status mark is cleared after the failed reinstall -> red: `ipm-install.sh r`, "failed step: the seeded status mark ..." and "recovery run: the seeded status mark ...".
+- mutation: the recovery run loads the failing scratch copy again instead of the real folder -> red: `ipm-install.sh r`, "recovery run": the one-STEP-OK-line check, `STEP PrivateData OK`, the public settings, "start by the step", and "the Audit class is the real one again".
 - Not run: "`Public.RunLocal` writes `onlineDemo` 1" and "the Demo step's create skips the public mappings": both are Lane B classes (U-177), which this stage does not edit, not even to mutate.
 
 **Shared surfaces:**
@@ -530,3 +567,20 @@ Blocking condition: none
 - `ReconcileIn.OnInit` reads the start lock once; a start that lets the item run before its `OnInit` could be reconciled twice (idempotent; never observed).
 - The "Demo switch" and `/state` parts of "Web and REST" have no demonstrated mutation, because their classes are Lane B (U-177).
 - A failed reconcile of `ReconcileIn` is not repeated until the item starts again.
+
+### Rework pass (owner decision U-176)
+
+Status: done
+Blocking condition: none
+
+**Summary.** `Registry.Ipm()` now writes one more line after a failed step's own line, `STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.` (from `FailureLine`, naming the first failed step from `Run`'s new `Output failed`), and still returns the error to IPM, so `Configure FAILURE` and `ERROR!` follow. `release/ipm-install.sh` gains checks 16 to 18 and the argument `r`: a reinstall from a test-only scratch copy whose Audit step fails (the command reports the failure, the data, OCUTALON and its four databases stay), the real folder again (the checks of 15.1 and 15.2 pass), and a scratch copy that fails Compile (IPM rolls it back, the previous version keeps running). `docs/install-ipm.md` has the one paragraph. Job `ipm-install` of `lane-a.yml` has `timeout-minutes: 35` and `OCUTALON_LIVE_DEADLINE: "1980"` (the spec's 8-minute rule).
+
+**Files changed.** `src/ocutalon/cls/OcuTalon/Install/Registry.cls`, `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`, `release/ipm-install.sh`, `docs/install-ipm.md`, `.github/workflows/lane-a.yml`.
+
+**Review findings.** 31 findings; 6 patched (medium 3 groups, low 3), none deferred, the rest rejected with their reasons in the triage log.
+
+**Follow-up review recommended:** false. No high was patched.
+
+**Verification performed.** `test-cpf.sh`, `test-pinned-sources.sh`, `test-boundaries.sh`, `ci/checks.sh`, `ci/iris.sh build` and `class OcuTalon.Test.Install.Registry` pass; `release/ipm-install.sh a` (42 checks), `b` (30), `r` and the full job (95 checks, 433 s) pass. Eight mutations were applied, seen red and reverted (the diff hash equal before and after); their lines are in `## Verification`. Teardown of tag `e15s2j` left nothing.
+
+**Residual risks.** Reload and Validate failures are not exercised by a forced-failure check (only Compile is); the document states the rollback for all three phases as the owner's wording and IPM's behavior.

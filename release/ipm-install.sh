@@ -3,7 +3,7 @@
 # a clean build 154 instance, an instance like an admin's with IPM 0.10.10 in %SYS and enabled for USER only, that the package's
 # first run creates OCUTALON and gives the next command, and that `iris merge` of the package's CPF file is the alternative. It is
 # the ipm-install job of .github/workflows/lane-a.yml and runs the same way on a developer machine:
-#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh
+#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh [a|r|b]
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh) and runs nothing of them but the throwaway recipe:
 # a project of its own from release/ipm/Dockerfile (no merge file, after-start script or version file; release/ipm/compose.ipm.yml),
 # the CI override, the throwaway lock and the teardown on exit. Stories 15.2 and 15.3 extend the functions snapshot, residue and
@@ -46,8 +46,20 @@
 #   15. `zpm "enable -map -ns OCUTALON"` in %SYS, a foreign password-validation routine and a foreign OCUORDERS, then the install
 #      command in OCUTALON: every STEP is OK, WARN Demo names the kept namespace, and the foreign setting, routine, OCUORDERS, its
 #      databases and the services are unchanged.
-# The argument chooses the paths: none runs A and B (the job), `a` path A only, `b` path A's first run (the reference of path B's
-# comparison) and path B.
+# U-176 adds, after the second run's checks, failed reinstalls from test-only scratch copies of the package folder in the container (the
+# shipped package has no switch that fails a step or a compile; the source tree is not edited). Each run's output is kept like every run's:
+#   16. a reinstall whose Audit step fails (the scratch copy's Audit.Run returns an error): IPM reports Configure FAILURE and ends with
+#      ERROR! and the step's text, no Activate SUCCESS; the STEP lines are the order up to Audit, and the line after Audit's own is the one
+#      line of Registry.Ipm naming Audit, saying the new code is installed and to run the same command again; a status mark seeded before
+#      is read back by value, and the configuration (OCUTALON, its four databases,
+#      resources and mappings, USER's mappings, the services) and the residue check are those of the second run;
+#   17. the real folder again: every check of the second run (checks 8 to 14) passes again, the module is back at the real version and the
+#      seeded mark is still there;
+#   18. a reinstall whose Compile fails (a scratch copy with a class that does not compile and a changed Registry.Order()): IPM reports the
+#      failure and no step runs, and the previous version keeps running: the production runs with nothing missing, Registry.Order() answers as
+#      before, the module version is unchanged, the scratch class is absent, the mark is kept and the configuration is unchanged.
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18) and B (the job), `a` path A (checks 1 to 14) only, `r` path A's
+# first and second run and the reinstalls (checks 16 to 18), `b` path A's first run (the reference of path B's comparison) and path B.
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
 # exits 1 when any fails. The trap of live_start removes the project, its volume and its images, and releases the lock.
@@ -57,9 +69,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 mode=${1:-all}
 case $mode in
-  all | a | b) ;;
+  all | a | r | b) ;;
   *)
-    echo "usage: bash release/ipm-install.sh [a|b]"
+    echo "usage: bash release/ipm-install.sh [a|r|b]"
     exit 2
     ;;
 esac
@@ -208,10 +220,10 @@ stops_with_next_command() {
 chk() { session_value OCUTALON "$1"; }
 
 # step_names <file>: the names of the STEP lines between Configure START and Configure SUCCESS in the plain output, as a comma list,
-# a name that did not end OK shown as name(status).
+# a name that did not end OK shown as name(status). The line that Registry.Ipm writes after a failed step (STEP <name> FAILED: ...) is not a step.
 step_names() {
   awk '/Configure START/ { on = 1; next } /Configure SUCCESS/ { on = 0 }
-    on && /^STEP / { printf "%s%s", sep, ($3 == "OK") ? $2 : $2 "(" $3 ")"; sep = "," }' "$1"
+    on && /^STEP / && $3 != "FAILED:" { printf "%s%s", sep, ($3 == "OK") ? $2 : $2 "(" $3 ")"; sep = "," }' "$1"
 }
 
 # api <path>: GET of /ocutalon/api/v1/<path> with the cookie jar $ocu_jar.
@@ -286,9 +298,11 @@ orders_running() {
 }
 orders_up() { [ "$(orders_running)" = 1 ]; }
 
-# check_second_run: matrix row "Second run, path A". The output is in $tmp/second-ocutalon.txt.
+# check_second_run [<run name> [<label>]]: matrix row "Second run, path A". The output is in $tmp/<run name>.txt (default
+# second-ocutalon, label "second run"); the snapshot it takes is $tmp/<run name>.snap.
 check_second_run() {
-  local f="$tmp/second-ocutalon.txt" order got phase ok=1
+  local name="${1:-second-ocutalon}" label="${2:-second run}" f order got phase ok=1
+  f="$tmp/$name.txt"
   order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
   got=$(step_names "$f")
   for phase in Initialize Reload Validate Compile Configure Activate; do
@@ -296,13 +310,13 @@ check_second_run() {
   done
   if grep -q 'FAILURE' "$f" || grep -q '^ERROR!' "$f"; then ok=0; fi
   if [ "$ok" = 1 ] && [ -n "$order" ] && [ "$got" = "$order" ]; then
-    pass "second run: Initialize to Activate SUCCESS, and one STEP OK line per step of Registry.Order(), in that order ($(echo "$order" | tr ',' '\n' | grep -c .) steps)"
+    pass "$label: Initialize to Activate SUCCESS, and one STEP OK line per step of Registry.Order(), in that order ($(echo "$order" | tr ',' '\n' | grep -c .) steps)"
   else
     echo "  steps wanted: $order"
     echo "  steps got:    $got"
-    fail "second run: the output is not Initialize to Activate SUCCESS with one STEP OK line per step of the order"
+    fail "$label: the output is not Initialize to Activate SUCCESS with one STEP OK line per step of the order"
   fi
-  check_session "second run: the production runs with nothing missing, is the autostart production, and the module has no dependency" OCUTALON \
+  check_session "$label: the production runs with nothing missing, is the autostart production, and the module has no dependency" OCUTALON \
     "CHK|running|1|OcuTalon.Production
 CHK|notrunning|
 CHK|unresolved|
@@ -314,17 +328,17 @@ CHK|module|ocutalon|0" \
     'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' \
     'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|module|",$Select($IsObject(m):m.Name_"|"_m.Dependencies.Count(),1:"<none>")' \
     'Halt'
-  take_snapshot second "second run"
-  same_services "second run" base second
-  check_no_residue "second run" USER %SYS
-  check_session "second run: PasswordValidationRoutine is still empty" %SYS "CHK|pwd|" \
+  take_snapshot "$name" "$label"
+  same_services "$label" base "$name"
+  check_no_residue "$label" USER %SYS
+  check_session "$label: PasswordValidationRoutine is still empty" %SYS "CHK|pwd|" \
     'Do ##class(Security.System).Get(,.p) Write !,"CHK|pwd|",$Get(p("PasswordValidationRoutine"))' 'Halt'
 }
 
-# check_install: matrix row "Install checks".
+# check_install [<run name> [<label>]]: matrix row "Install checks", on the output of the run (default second-ocutalon, label "install checks").
 check_install() {
-  local f="$tmp/second-ocutalon.txt"
-  check_session "install checks: the public package and global are in OCUTALON_PUBLIC, the private globals in OCUTALON_PRIVATE" OCUTALON \
+  local f="$tmp/${1:-second-ocutalon}.txt" label="${2:-install checks}"
+  check_session "$label: the public package and global are in OCUTALON_PUBLIC, the private globals in OCUTALON_PRIVATE" OCUTALON \
     "CHK|web|ocutalon_public
 CHK|data|ocutalon_public
 CHK|OcuTalonPublic|ocutalon_public
@@ -337,17 +351,17 @@ CHK|IRIS.IF.S01|ocutalon_private" \
     'For g="OcuTalonPublic","OcuTalonP.S01","OcuTalonBP.S01","AI.Agent.SessionD","IRIS.IF.S01" { Set d=##class(%SYS.Namespace).GetGlobalDest("OCUTALON","^"_g) Write !,"CHK|",g,"|",$Piece(d,"/",$Length(d,"/")-1) }' \
     'Halt'
   if grep -q '^STEP PrivateData OK' "$f"; then
-    pass "install checks: the output has STEP PrivateData OK"
+    pass "$label: the output has STEP PrivateData OK"
   else
-    fail "install checks: the output has no STEP PrivateData OK"
+    fail "$label: the output has no STEP PrivateData OK"
   fi
-  check_session "install checks: index.html is in the /ocutalon application's Path" %SYS \
+  check_session "$label: index.html is in the /ocutalon application's Path" %SYS \
     "CHK|index|1
 CHK|samepath|1" \
     'Set d=$SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/" Write !,"CHK|index|",+##class(%File).Exists(d_"index.html")' \
     'Do ##class(Security.Applications).Get("/ocutalon",.ap) Write !,"CHK|samepath|",+(##class(%File).NormalizeDirectory($Get(ap("Path")))=##class(%File).NormalizeDirectory(d))' \
     'Halt'
-  check_session "install checks: onlineDemo is 0 and ready is 1, and the public settings sit in the public database" OCUTALON \
+  check_session "$label: onlineDemo is 0 and ready is 1, and the public settings sit in the public database" OCUTALON \
     "CHK|onlineDemo|0
 CHK|ready|1
 CHK|settings-dest|ocutalon_public" \
@@ -510,6 +524,210 @@ check_start_by_step() {
   fi
 }
 
+# --- failed reinstalls (Story 15.2, owner decision U-176): test-only copies of the package inside the throwaway ---
+#
+# The seam is in the test only. scratch_copy makes a writable copy of the package folder in the container and applies the lines it is
+# given; the shipped package has no switch that makes a step or a compile fail, and the source tree is never edited. IPM refuses to
+# load a lower version over a higher one, so the copy of the failed step keeps the real version, and only the copy of the failed compile
+# raises it (its patch number by one), which makes "the module version is unchanged" a check that can fail.
+
+SCRATCH_STEP=/tmp/ocutalon-scratch-step
+SCRATCH_COMPILE=/tmp/ocutalon-scratch-compile
+SEED_MARK=zzReinstallSeed
+SEED_VALUE=kept-by-the-reinstall
+FORCED_TEXT="forced failure of the Audit step by the scratch copy of the test"
+BROKEN_MACRO=ZzNoSuchMacroInTheScratchCopy
+REAL_VERSION=
+RAISED_VERSION=
+
+# scratch_copy <folder> <shell line>...: see above; the lines run in the container, in the order given, after the copy.
+scratch_copy() {
+  local dir=$1
+  shift
+  { printf '%s\n' 'set -e' "rm -rf $dir" "cp -R --no-preserve=mode $SRC $dir" "chmod -R u+w $dir" "$@"; } | dc exec -T iris sh -s
+}
+
+# module_version: the version the module ocutalon is recorded with.
+module_version() {
+  printf '%s\n' 'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|version|",$Select($IsObject(m):m.VersionString,1:"<none>")' 'Halt' | chk version
+}
+
+# seed_mark_value: the value of the seeded status mark, which a reinstall must keep.
+seed_mark_value() {
+  printf '%s\n' 'Write !,"CHK|mark|",##class(OcuTalon.Data.StatusMark).Get("'"$SEED_MARK"'")' 'Halt' | chk mark
+}
+
+# same_config <label> <snapshot name> <snapshot name>: the two configuration snapshots (services, OCUTALON, its four databases, resources
+# and mappings, USER's mappings) are identical.
+same_config() {
+  if diff "$tmp/$2.snap" "$tmp/$3.snap" > "$tmp/snap.diff"; then
+    pass "$1: OCUTALON, its four databases, resources and mappings, USER's mappings and the services are those of the run before ($(grep -c . "$tmp/$3.snap") lines)"
+  else
+    sed 's/^/  snapshot: /' "$tmp/snap.diff"
+    fail "$1: the configuration changed"
+  fi
+}
+
+# command_failed <file> <label> <text> [<phase>]: the install command reported the failure: IPM's <phase> FAILURE (default Configure), an
+# ERROR! line with the text, and no success line for Activate or the phase.
+command_failed() {
+  local f=$1 phase=${4:-Configure}
+  if grep -q "$phase FAILURE" "$f" && grep -q -- "^ERROR! .*$3" "$f" && ! grep -q 'Activate SUCCESS' "$f" && ! grep -q "$phase SUCCESS" "$f"; then
+    pass "$2: IPM reports $phase FAILURE and an ERROR! line with the text, and no Activate SUCCESS line"
+  else
+    grep -- '^ERROR!' "$f" | sed 's/^/  /'
+    fail "$2: the output is not $phase FAILURE then ERROR! with '$3', or a success line stands in it"
+  fi
+}
+
+# audit_run: 1 when OcuTalon.Install.Step.Audit.Run() returns OK, forced when it returns the scratch copy's error, otherwise other: tells which Audit class is installed.
+audit_run() {
+  printf '%s\n' 'Set sc=##class(OcuTalon.Install.Step.Audit).Run() Write !,"CHK|audit|",$Select($SYSTEM.Status.IsOK(sc):1,$SYSTEM.Status.GetErrorText(sc)["'"$FORCED_TEXT"'":"forced",1:"other")' 'Halt' | chk audit
+}
+
+# check_failed_step: the reinstall from the scratch copy whose Audit step fails. The output is in $tmp/reinstall-fail.txt.
+check_failed_step() {
+  local f="$tmp/reinstall-fail.txt" order want got line next
+  order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+  want=$(printf '%s' "$order" | sed 's/,Audit,.*/,Audit(FAILED)/')
+  got=$(step_names "$f")
+  command_failed "$f" "failed step" "$FORCED_TEXT"
+  if [ -n "$order" ] && [ "$got" = "$want" ]; then
+    pass "failed step: the STEP lines are those of the order up to Audit, and Audit FAILED stops the run"
+  else
+    echo "  steps wanted: $want"
+    echo "  steps got:    $got"
+    fail "failed step: the STEP lines are not the order up to a failed Audit"
+  fi
+  line=$(printf '%s\n' 'Write !,"CHK|line|",##class(OcuTalon.Install.Registry).FailureLine("Audit")' 'Halt' | chk line)
+  next=$(awk '/^STEP Audit FAILED / { getline nxt; print nxt; exit }' "$f")
+  if [ -n "$line" ] && [ "$next" = "$line" ] && [ "$(grep -cxF -- "$line" "$f")" = 1 ] && [ "$(grep -c 'the new OcuTalon code is installed' "$f")" = 1 ]; then
+    pass "failed step: one more line follows the step's own, naming Audit, saying the new code is installed and to run the same command again"
+  else
+    echo "  wanted the line after STEP Audit FAILED: '$line'"
+    echo "  got:                                     '$next'"
+    fail "failed step: the line after the failed step is not the one install line"
+  fi
+  if [ "$(audit_run)" = forced ]; then
+    pass "failed step: the new code is installed (the Audit class in OCUTALON is the scratch copy's)"
+  else
+    fail "failed step: the installed Audit class is not the scratch copy's (Run gives '$(audit_run)')"
+  fi
+  if [ "$(seed_mark_value)" = "$SEED_VALUE" ]; then
+    pass "failed step: the seeded status mark is still there, read back by value"
+  else
+    fail "failed step: the seeded status mark reads '$(seed_mark_value)', wanted '$SEED_VALUE'"
+  fi
+  take_snapshot reinstall-fail "failed step"
+  same_config "failed step" second-ocutalon reinstall-fail
+  check_no_residue "failed step" USER %SYS
+}
+
+# check_recovery: the real folder again. The same checks as the second run, then the module and the seeded data.
+check_recovery() {
+  check_second_run reinstall-recover "recovery run"
+  check_install reinstall-recover "recovery run: install checks"
+  check_web
+  check_package
+  check_demo_switch
+  check_start_outside
+  check_start_by_step
+  if [ "$(audit_run)" = 1 ] && [ "$(module_version)" = "$REAL_VERSION" ]; then
+    pass "recovery run: the Audit class is the real one again (Run returns OK) and the module is recorded with version $REAL_VERSION"
+  else
+    fail "recovery run: Audit.Run gives '$(audit_run)' or the module version is '$(module_version)', wanted OK and $REAL_VERSION"
+  fi
+  if [ "$(seed_mark_value)" = "$SEED_VALUE" ]; then
+    pass "recovery run: the seeded status mark is still there"
+  else
+    fail "recovery run: the seeded status mark reads '$(seed_mark_value)', wanted '$SEED_VALUE'"
+  fi
+  same_config "recovery run" second-ocutalon reinstall-recover
+}
+
+# check_failed_compile <order>: the reinstall from the scratch copy with a class that does not compile. The output is in
+# $tmp/reinstall-compile.txt; <order> is Registry.Order() before it.
+check_failed_compile() {
+  local f="$tmp/reinstall-compile.txt" order=$1
+  command_failed "$f" "failed compile" "" Compile
+  if grep -q "$BROKEN_MACRO" "$f"; then
+    pass "failed compile: the output names the scratch class's undefined macro as the cause"
+  else
+    fail "failed compile: the output does not name $BROKEN_MACRO, so the failure may not come from the scratch class"
+  fi
+  if ! grep -q '^STEP ' "$f"; then
+    pass "failed compile: no installer step ran"
+  else
+    fail "failed compile: an installer step ran"
+  fi
+  check_session "failed compile: the previous version keeps running: the production runs with nothing missing, Registry.Order() answers as before, the module version is unchanged, and the scratch class is not there" OCUTALON \
+    "CHK|running|1|OcuTalon.Production
+CHK|notrunning|
+CHK|unresolved|
+CHK|order|$order
+CHK|version|$REAL_VERSION
+CHK|broken|0|0
+CHK|mark|$SEED_VALUE" \
+    'Set r=##class(Ens.Director).IsProductionRunning(.n) Write !,"CHK|running|",r,"|",$Get(n)' \
+    'Write !,"CHK|notrunning|",##class(OcuTalon.Install.Step.Production).NotRunning()' \
+    'Write !,"CHK|unresolved|",##class(OcuTalon.Install.Step.Production).UnresolvedRunners("OcuTalon.Production")' \
+    'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' \
+    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|version|",$Select($IsObject(m):m.VersionString,1:"<none>")' \
+    'Write !,"CHK|broken|",+##class(%Dictionary.ClassDefinition).%ExistsId("OcuTalon.Install.ZzScratchBroken"),"|",+##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Install.ZzScratchBroken")' \
+    'Write !,"CHK|mark|",##class(OcuTalon.Data.StatusMark).Get("'"$SEED_MARK"'")' \
+    'Halt'
+  take_snapshot reinstall-compile "failed compile"
+  same_config "failed compile" second-ocutalon reinstall-compile
+  check_no_residue "failed compile" USER %SYS
+}
+
+# reinstall_failures: owner decision U-176, after the second run and its checks. A reinstall whose Audit step fails (a scratch copy of the
+# package whose Audit.Run returns an error), the real folder again, and a reinstall whose Compile fails.
+reinstall_failures() {
+  local order broken
+  REAL_VERSION=$(module_version)
+  RAISED_VERSION=$(printf '%s' "$REAL_VERSION" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
+  if [ -z "$RAISED_VERSION" ]; then
+    fail "reinstall: the module version '$REAL_VERSION' is not major.minor.patch"
+    return
+  fi
+  echo "REINSTALL a forced step failure, the real folder again, and a failed compile"
+  order=$(printf '%s\n' 'Write !,"CHK|order|",$ListToString(##class(OcuTalon.Install.Registry).Order(),",")' 'Halt' | chk order)
+  check_session "reinstall: the status mark is seeded" OCUTALON "CHK|seed|1" \
+    'Write !,"CHK|seed|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("'"$SEED_MARK"'","'"$SEED_VALUE"'"))' 'Halt'
+
+  scratch_copy "$SCRATCH_STEP" \
+    "sed -i 's|^\\tSet sc = ##class(OcuTalon.Bridge.Installer).CheckAudit()\$|\\tQuit \$SYSTEM.Status.Error(5001, \"$FORCED_TEXT\")\\n&|' $SCRATCH_STEP/ocutalon/cls/OcuTalon/Install/Step/Audit.cls" \
+    "grep -c 'forced failure' $SCRATCH_STEP/ocutalon/cls/OcuTalon/Install/Step/Audit.cls" > "$tmp/scratch-step.out" 2>&1
+  if [ "$(tail -n 1 "$tmp/scratch-step.out" | tr -d '\r')" != 1 ]; then
+    cat "$tmp/scratch-step.out"
+    fail "reinstall: the scratch copy of the Audit step could not be made"
+    return
+  fi
+  run reinstall-fail OCUTALON "zpm \"load $SCRATCH_STEP\""
+  check_failed_step
+
+  run reinstall-recover OCUTALON "$INSTALL"
+  check_recovery
+
+  broken=$(printf 'Class OcuTalon.Install.ZzScratchBroken\n{\n\nClassMethod Run() As %%String\n{\n\tQuit $$$%s\n}\n\n}' "$BROKEN_MACRO")
+  scratch_copy "$SCRATCH_COMPILE" \
+    "sed -i 's|<Version>$REAL_VERSION</Version>|<Version>$RAISED_VERSION</Version>|' $SCRATCH_COMPILE/module.xml" \
+    "grep -c '<Version>$RAISED_VERSION</Version>' $SCRATCH_COMPILE/module.xml" \
+    "sed -i 's|\"PrivateData\", \"Ready\")|\"Ready\")|' $SCRATCH_COMPILE/ocutalon/cls/OcuTalon/Install/Registry.cls" \
+    "grep -c '^	Quit \$ListBuild(.*\"Production\", \"Reconcile\", \"Ready\")\$' $SCRATCH_COMPILE/ocutalon/cls/OcuTalon/Install/Registry.cls" \
+    "cat > $SCRATCH_COMPILE/ocutalon/cls/OcuTalon/Install/ZzScratchBroken.cls <<'EOC'
+$broken
+EOC" > "$tmp/scratch-compile.out" 2>&1
+  if [ "$(grep -v '^$' "$tmp/scratch-compile.out" | tail -n 1 | tr -d '\r')" != 1 ]; then
+    cat "$tmp/scratch-compile.out"
+    fail "reinstall: the scratch copy with the broken class could not be made"
+    return
+  fi
+  run reinstall-compile OCUTALON "zpm \"load $SCRATCH_COMPILE\""
+  check_failed_compile "$order"
+}
+
 # --- path B (Story 15.2): a foreign password-validation routine and a foreign OCUORDERS ---
 
 # foreign_orders: one line, "<globals>/<routines>|<OCUFOREIGN databases exist>|<OCUORDERS databases exist>", of the foreign OCUORDERS.
@@ -635,15 +853,18 @@ check_session "IPM answers in OCUTALON, so the next command can start there" OCU
 if [ "$mode" != b ]; then
   run second-ocutalon OCUTALON "$INSTALL"
   check_second_run
-  check_install
-  check_web
-  check_package
-  check_demo_switch
-  check_start_outside
-  check_start_by_step
+  if [ "$mode" != r ]; then
+    check_install
+    check_web
+    check_package
+    check_demo_switch
+    check_start_outside
+    check_start_by_step
+  fi
+  if [ "$mode" != a ]; then reinstall_failures; fi
 fi
 
-if [ "$mode" = a ]; then
+if [ "$mode" = a ] || [ "$mode" = r ]; then
   if [ "$fails" -ne 0 ]; then
     echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
     exit 1

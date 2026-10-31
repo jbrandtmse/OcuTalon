@@ -40,9 +40,10 @@ ClassMethod Areas() As %List
 /// A step's warnings (Install.Step Warn) are discarded before it runs and written after its line, one line each:
 /// WARN <name> <text>.
 /// caller names the entry point ("after-start", "ipm") in the refusal of another namespace and, for the length of the run, to the steps
-/// (OcuTalon.Install.Step Caller).
-ClassMethod Run(caller As %String = "") As %Status
+/// (OcuTalon.Install.Step Caller). failed returns the name of the step that failed, and "" when none did.
+ClassMethod Run(caller As %String = "", Output failed As %String) As %Status
 {
+	Set failed = ""
 	If $Namespace '= "OCUTALON" {
 		Quit $SYSTEM.Status.Error(5001, "The installer steps run only in namespace OCUTALON, not in "_$Namespace_" (called by "_caller_")")
 	}
@@ -55,6 +56,7 @@ ClassMethod Run(caller As %String = "") As %Status
 		Set started = $ZHorolog
 		Set sc = ..RunStep(name)
 		If $$$ISERR(sc) {
+			Set failed = name
 			Write !, "STEP ", name, " FAILED ", ..OneLine(sc)
 		} Else {
 			Write !, "STEP ", name, " OK ", $FNumber($ZHorolog - started, "", 1), "s"
@@ -76,6 +78,8 @@ ClassMethod Run(caller As %String = "") As %Status
 /// transaction to level 0, runs the steps, and opens the same number of levels again on every path, so that IPM's own commit follows.
 /// A Reload, Validate or Compile failure is still IPM's rollback, because Configure runs after Compile and after the bundle copy; a failed
 /// step leaves the installed code in place and the same install command runs the steps again. Returns the status of Run.
+/// When a step fails, the status goes back to IPM (Configure FAILURE and ERROR!) and Ipm writes one more line after the step's own, from
+/// FailureLine, so that the failure is not read as an install that did not happen. No line is written when no step failed.
 ClassMethod Ipm(versionFile As %String = {##class(OcuTalon.Install.Step.Demo).#VERSIONFILE}) As %Status
 {
 	If ##class(%File).Exists(versionFile) Quit $SYSTEM.Status.OK()
@@ -84,7 +88,8 @@ ClassMethod Ipm(versionFile As %String = {##class(OcuTalon.Install.Step.Demo).#V
 		TCommit
 	}
 	Try {
-		Set sc = ..Run("ipm")
+		Set sc = ..Run("ipm", .failed)
+		If $$$ISERR(sc), failed '= "" Write !, ..FailureLine(failed)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 		Kill ^||OcuTalonStepCaller
@@ -93,6 +98,13 @@ ClassMethod Ipm(versionFile As %String = {##class(OcuTalon.Install.Step.Demo).#V
 		TStart
 	}
 	Quit sc
+}
+
+/// The line that Ipm writes when the step <step> failed after the code was installed: it names the step, says that the new code is
+/// installed and says to run the same install command again, in the style of Run's STEP lines.
+ClassMethod FailureLine(step As %String) As %String
+{
+	Quit "STEP " _ step _ " FAILED: the new OcuTalon code is installed. Run the same install command again."
 }
 
 /// Calls Purge(days) of every area and combines the failures into one status.

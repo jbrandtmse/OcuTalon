@@ -104,6 +104,8 @@ OCUTALON>
 
 The installer marks the OcuTalon production to start with the instance, so it comes back after an instance restart. It changes no service of the instance and no namespace or database it did not create.
 
+If a step fails after the code has loaded, the command reports the failure and names the step (`STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.`, then IPM's `ERROR!` line), the new code stays installed, and running the same command again finishes the install; a failure while IPM loads or compiles the code is rolled back and the previous version keeps running.
+
 ## The `iris merge` alternative
 
 If you would rather create the namespace yourself, merge the package's configuration file into the instance, enable IPM for OCUTALON, and run the install command there:

@@ -259,6 +259,72 @@ Method TestIpmOnTheImage()
 	Do $$$AssertEquals($Data(^OcuTalonTest("Registry", ..Number, "ipm")), 0, "the node is gone: Ipm committed nothing, so it ran no step")
 }
 
+/// FailureLine builds the line that Ipm writes after a failed step: the step's name, that the new code is installed, and the
+/// instruction to run the same install command again, on one line in the style of Run's STEP lines.
+Method TestFailureLine()
+{
+	Set line = ##class(OcuTalon.Install.Registry).FailureLine("Audit")
+	Do $$$AssertEquals(line, "STEP Audit FAILED: the new OcuTalon code is installed. Run the same install command again.", "the line names the step, says the code is installed and says to run the command again")
+	Do $$$AssertEquals($Length(line, $Char(10)), 1, "and is one line")
+	Do $$$AssertTrue(##class(OcuTalon.Install.Registry).FailureLine("Reconcile") [ "STEP Reconcile FAILED:", "another step gives its own name")
+}
+
+/// Calls Ipm(versionFile) of the registry class and returns its status, with everything it wrote in text. Output goes to a file for
+/// the length of the call, and the device is put back on every path.
+Method IpmCaptured(registry As %String, versionFile As %String, Output text As %String) As %Status [ Private ]
+{
+	Set text = ""
+	Set file = ##class(%File).TempFilename("txt")
+	Set prior = $IO
+	Open file:"NWS":5
+	Else  Do ##class(%File).Delete(file) Quit $SYSTEM.Status.Error(5001, "could not open the capture file")
+	Try {
+		Use file
+		Set sc = $ClassMethod(registry, "Ipm", versionFile)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Use prior
+	Close file
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Do stream.LinkToFile(file)
+	Set text = stream.Read(32000)
+	Kill stream
+	Do ##class(%File).Delete(file)
+	Quit sc
+}
+
+/// Ipm writes the failure line only for a step that failed: a Run that returns an error without a failed step (the refusal of another
+/// namespace) and a Run that throws give Ipm's error status and no line, and Ipm still opens the levels again.
+Method TestIpmWithoutAFailedStep()
+{
+	Set number = ..Number
+	Set probe = ..Probe_"Run"
+	Set missing = ##class(%File).TempFilename("none")
+	Do ##class(%File).Delete(missing)
+	Set bodies(1) = "Quit $SYSTEM.Status.Error(5001, ""Run refused without a step"")"
+	Set bodies(2) = "Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, ""Run threw without a step""))"
+	Set expected(1) = "Run refused without a step"
+	Set expected(2) = "Run threw without a step"
+	For case = 1, 2 {
+		Set sc = ..Create("FixtureProbeRun", probe, number, , , bodies(case))
+		Do $$$AssertStatusOK(sc, "the probe whose Run gives case "_case_" compiles")
+		If $$$ISERR(sc) Continue
+		Set base = $TLevel
+		TStart
+		Set status = ..IpmCaptured(probe, missing, .text)
+		Set level = $TLevel
+		While $TLevel > base {
+			TRollback
+		}
+		Do $$$AssertStatusNotOK(status, "Ipm returns the error of Run (case "_case_")")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(status) [ expected(case), "and it is the error of Run (case "_case_")")
+		Do $$$AssertTrue(text '[ "the new OcuTalon code is installed", "and writes no failure line, because no step failed (case "_case_")")
+		Do $$$AssertEquals(level, base + 1, "and opens the level again (case "_case_")")
+		Do ..Delete(probe)
+	}
+}
+
 /// Off the image (no version file), Ipm() commits the open transaction, runs the steps with the caller "ipm" and opens the same number
 /// of levels again, whether the run succeeds or a step fails: a node written before the call survives the rollback of the reopened
 /// level, a node written after it does not, and the steps see the caller during the run and none after it (Run for the Docker path gives
@@ -285,11 +351,12 @@ Method TestIpmRunsTheSteps()
 	Set ^OcuTalonTest("Registry", number, "order") = $ListBuild(seen)
 	TStart
 	Set ^OcuTalonTest("Registry", number, key, "before") = 1
-	Set sc = $ClassMethod(..Probe, "Ipm", missing)
+	Set sc = ..IpmCaptured(..Probe, missing, .text)
 	Set level = $TLevel
 	Set ^OcuTalonTest("Registry", number, key, "after") = 1
 	TRollback
 	Do $$$AssertStatusOK(sc, "Ipm returns the status of a successful run")
+	Do $$$AssertTrue(text '[ "the new OcuTalon code is installed", "and writes no failure line")
 	Do $$$AssertEquals(level, base + 1, "and opens the level again")
 	Do $$$AssertEquals($TLevel, base, "the test's own rollback closes it")
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "caller")), "ipm", "the steps ran with the caller ipm")
@@ -307,12 +374,21 @@ Method TestIpmRunsTheSteps()
 	Set ^OcuTalonTest("Registry", number, "order") = $ListBuild(seen, fail)
 	TStart
 	TStart
-	Set sc = $ClassMethod(..Probe, "Ipm", missing)
+	Set sc = ..IpmCaptured(..Probe, missing, .text)
 	Set level = $TLevel
 	While $TLevel > base {
 		TRollback
 	}
 	Do $$$AssertStatusNotOK(sc, "a failing step fails Ipm")
+	Set lines = $ListFromString($Translate(text, $Char(13), ""), $Char(10))
+	Set last = ""
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		If line '= "" Set last = line
+	}
+	Do $$$AssertEquals(last, ##class(OcuTalon.Install.Registry).FailureLine(fail), "the last line names the step that failed (the first one, from the run itself)")
+	Do $$$AssertEquals($Length(text, "the new OcuTalon code is installed") - 1, 1, "and the failure line is written once")
+	Do $$$AssertTrue(text [ ("STEP " _ fail _ " FAILED ERROR #5001: Step failed on purpose"), "after the step's own FAILED line")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Step failed on purpose", "with the step's failure")
 	Do $$$AssertEquals(level, base + 2, "and opens both levels again")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step).Caller(), "", "and no caller is left after the failed run")
@@ -1303,6 +1379,21 @@ Class @CLASS@ Extends OcuTalon.Install.Step
 ClassMethod Run() As %Status
 {
 	Do $Increment(^OcuTalonTest("Registry", @N@, "run", "@CLASS@"))
+	@BODY@
+}
+
+}
+}
+
+/// A registry whose Run does what the body says, with failed already empty.
+XData FixtureProbeRun [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends OcuTalon.Install.Registry
+{
+
+ClassMethod Run(caller As %String = "", Output failed As %String) As %Status
+{
+	Set failed = ""
 	@BODY@
 }
 
