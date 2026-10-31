@@ -1033,3 +1033,6 @@
 2026-10-31T06:30:27Z	Epic 10	dispatch_planned	vehicle=Story_10.4,Epic_10_reopened_under_SC-5(precedent_Story_32.4) runner=first_free_of_B(Epic_15)_or_C(Epic_29);A_goes_to_Epic_11_after_Epic_9_merges reason=fill_ahead_any_10;no_unmerged_deps;README.md+test-readme.sh_uncontended deadline=2026-10-31T19:00Z(Sat_midday_PDT) then=C_takes_Epic_31
 2026-10-31T06:32:07Z	Epic 10	worktree_provisioned	worktree=.worktrees/epic-10 branch=OCT-epic10 from=145b4018 submodules=none reason=SC-5_reopen_for_story_10.4 pushed=yes
 2026-10-31T06:32:07Z	Epic 10	worktree_bootstrapped	epic=10 result=ok check=ok status=clean
+2026-10-31T07:15:41Z	Epic 9	runner_complete	agent=a70ca15c5c23b2c06 head=a9509f50 ci=success(41177721874,41177721889) stories=10 ledger=open_before=3,to_decision_sheet=3 decisions=DW-386,DW-431,DW-448 retro=skipped(policy) integrated=1aeebc68+145b4018 ci_groups=install-fresh_28.9,install-upgrade_29.2,shards_28.3,image_27.4,shards-2_27.2,browser_26.6,production_17.8,eval_10.3
+2026-10-31T07:15:41Z	Epic 9	merge_enqueued	position=1(Epic_29_not_complete) policy=when_green
+2026-10-31T07:16:32Z	Epic 9	epic_merge_started	branch=OCT-epic9 head=a9509f50 into=feature/OCT_OcuTalon_MVP(origin_145b4018)
