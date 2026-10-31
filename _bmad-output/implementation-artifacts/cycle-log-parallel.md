@@ -1042,3 +1042,7 @@
 2026-10-31T07:18:55Z	Epic 9	ledger_routed_planned	stories=20.2:1,30.1:2,31.1:1,31.4:1 entries=5 excess=5(11.1_full:DW-221,349,316,376,396_ledger-only) skipped=29.3(live_runner_owns_its_block),10.3(done;Epic_10's_ledger_load) by=merge_gate
 2026-10-31T07:18:55Z	Epic 1-37	deps_hash_rerecorded	hash=dcb028d5d814 reason=split(9.3->9.7,9.7->9.8,9.4->9.9,9.1->9.6,9.5->9.10)+ledger_routed
 2026-10-31T07:18:55Z	Epic 9	merge_checks	tests=TestHeldLock+TestHeldLockCallerWait(GuideRefresh),KeyProof(9.10),U-162/U-166/U-168_in_the_green_contract amendments_sampled=epics.md_3348,3507(markers_present) footprint_extensions=by_design(other_epics_avoided_them_as_contended) inbox_snapshot=copied
+2026-10-31T07:19:13Z	Epic 9	worktree_removed	worktree=.worktrees/epic-9
+2026-10-31T07:19:13Z	Epic 9	epic_branches_deleted	branch=OCT-epic9 local=deleted(a9509f50) remote=deleted
+2026-10-31T07:20:23Z	Epic 1-37	ruling	q=do_depends_on_edges_on_Epic_10_wait_for_its_re-opened_Story_10.4 choice=no:Epic_10's_merge_of_2026-10-29(56a9cb6)_satisfies_them(Epics_11,12);Story_10.4_adds_nothing_they_consume;README.md+test-readme.sh_are_contended_for_them_while_10.4_is_open rejected=wait_for_10.4(blocks_the_release-1_merge_point_for_a_README_story) category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
+2026-10-31T07:20:23Z	Epic 11	dispatch_planned	runner=A slot=ocutalon-slot-a reason=A's_own_order(11_next;deps_1-10_merged,9_at_037e91d3;10_by_its_first_merge) base=origin/feature_485b2183 retro_review=own(lowest_new) contended=.worktrees/.coordination/contended-epic-11.txt
