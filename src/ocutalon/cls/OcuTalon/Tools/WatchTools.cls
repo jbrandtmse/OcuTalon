@@ -13,7 +13,11 @@
 /// copies them, as they are, to the bridge context's HostData as the checks member, where Conversation finds them for Checks.Render (AD-28). The tool
 /// never decides or interprets a result and submits nothing. Its answer is built from the session's own rows (the display name, the result, the finding
 /// that Checks built in code, and the time in the instance zone), so no content from outside the instance reaches the model through it.
-///   - A call that is not a session's turn answers NOSESSION before anything is read or submitted.
+///   - A call that is not a session's turn answers NOSESSION before anything is read or submitted, with one exception: a call whose context's owner is
+///     eval (an evaluation turn case, Story 9.7) answers the rows that the case recorded in the OcuTalon.Eval.Msg.TurnResult of the context's ItemId
+///     (WatchAnswers.EvalCheckResults) in the same form, and puts them in HostData in the same way, so that the reply is rendered as the product
+///     renders it. The branch is chosen by the owner of the call alone, never by an argument; an eval call with no such rows answers NOSESSION, and never
+///     the results of any session.
 ///   - A name that no production matches submits nothing and answers unknown_production with the name, the list of the names that can be watched
 ///     (joined with a comma and with "and" before the last one) and each production's name and namespace. On the online demo it answers
 ///     only_orders with the README link instead. A name that two productions match answers ambiguous with each one's name and namespace, and
@@ -150,9 +154,12 @@ ClassMethod DismissIncident(production As %String(DESCRIPTION = "The name of the
 ClassMethod CheckStatus() As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
-	If $IsObject(refusal) Quit ..Return(refusal)
-	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).CheckResults(context.OwnerRef, .results)
-	If $IsObject(refusal) Quit ..Return(refusal)
+	If $IsObject(refusal) {
+		If '##class(OcuTalon.Tools.WatchAnswers).EvalCheckResults(context, .results) Quit ..Return(refusal)
+	} Else {
+		Set refusal = ##class(OcuTalon.Tools.WatchAnswers).CheckResults(context.OwnerRef, .results)
+		If $IsObject(refusal) Quit ..Return(refusal)
+	}
 	Do ##class(OcuTalon.Tools.WatchAnswers).PutChecks(results)
 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Checked(results))
 }

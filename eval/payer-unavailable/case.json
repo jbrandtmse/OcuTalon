@@ -1,0 +1,13 @@
+{
+  "name": "payer-unavailable",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three claims from the test feed sent to the payer's claims service, which answers HTTP 503 Service Unavailable.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "partner_outage",
+    "elementAtFault": "PayerClaimsOut",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

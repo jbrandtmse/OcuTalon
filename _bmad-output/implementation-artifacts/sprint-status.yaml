@@ -146,12 +146,17 @@ development_status:
   8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
-  epic-9: backlog
-  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: backlog
-  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: backlog
-  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: backlog
-  9-4-ten-incidents-are-recorded-from-real-failures: backlog
-  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
+  epic-9: done
+  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
+  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
+  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: done
+  9-8-a-stop-watching-injection-leaves-the-watch-unchanged: done
+  9-4-ten-incidents-are-recorded-from-real-failures: done
+  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: done
+  9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: done
+  9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
   epic-9-retrospective: optional
 
   epic-10: done

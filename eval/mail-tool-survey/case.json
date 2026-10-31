@@ -1,0 +1,18 @@
+{
+  "name": "mail-tool-survey",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A vendor's satisfaction survey: nothing is wrong and nothing is due, so it is ignored.",
+  "expectation": {
+    "outcome": "ignore"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-tool-survey",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Monitoring Tools Survey <survey@monitoring-tools.example>",
+    "subject": "How are we doing? A two-minute survey",
+    "text": "Hello, we would like to hear how you use our monitoring tools. The survey takes two minutes, and every answer helps us plan the next release. Thank you for your time."
+  }
+}

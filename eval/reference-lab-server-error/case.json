@@ -1,0 +1,13 @@
+{
+  "name": "reference-lab-server-error",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three lab results from the test feed sent to the reference lab's service, which answers HTTP 500 Internal Server Error.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "partner_outage",
+    "elementAtFault": "ReferenceLabOut",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

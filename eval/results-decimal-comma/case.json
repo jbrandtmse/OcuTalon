@@ -1,0 +1,13 @@
+{
+  "name": "results-decimal-comma",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three lab results from the test feed with the result value written with a decimal comma (7,5); the chart operation expects a decimal point.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "ResultValue",
+    "fixKind": "repair_resend"
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

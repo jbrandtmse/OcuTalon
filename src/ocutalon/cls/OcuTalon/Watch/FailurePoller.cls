@@ -1,6 +1,7 @@
 /// FailurePoller, the service that picks up the new failures of the watched productions (AD-15). It is an Ens.InboundAdapter service that runs every
 /// CallInterval seconds (3 in the production), and it is the only writer of OcuTalon.Data.WatchMark. Each run, for every production that a watch row
-/// (BackgroundCheck of Kind production) names, once however many sessions watch it:
+/// (BackgroundCheck of Kind production) names, once however many sessions watch it (a row of owner eval, an evaluation run's watch, is not one
+/// of them: it is never polled and does not count in the production's earliest CreatedAt):
 ///   - starts the reading where OcuTalon.Watch.Mark.Start says (the mark's MarkAt less the overlap, and no earlier than the earliest watch's
 ///     CreatedAt), reads through the one private seam Read (OcuTalon.Watch.Reader.Failures, the only class that enters the production's
 ///     namespace), and drops the failures that the mark's Seen set already holds and those beyond MAXFAILURES;
@@ -51,11 +52,12 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 }
 
 /// The distinct watched productions: a dynamic array of {"namespace", "production", "created"}, created being the earliest CreatedAt of the
-/// production's watch rows ("" when none has one), in the order of the namespace and the production.
+/// production's watch rows ("" when none has one), in the order of the namespace and the production. A row of owner eval (an evaluation run's
+/// watch) is skipped: a production that only such a row names is not listed, and such a row's CreatedAt is not a candidate for created.
 ClassMethod Watched() As %DynamicArray
 {
 	Set watched = []
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Namespace, Production, CreatedAt FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'production' ORDER BY Namespace, Production, ID")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Namespace, Production, CreatedAt FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'production' AND (SessionRef IS NULL OR SessionRef <> ?) ORDER BY Namespace, Production, ID", ##class(OcuTalon.Data.Ownership).#EVAL)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The watches could not be read: "_rs.%Message))
 	Set last = ""
 	While rs.%Next() {

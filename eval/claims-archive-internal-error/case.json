@@ -1,0 +1,13 @@
+{
+  "name": "claims-archive-internal-error",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three claims from the test feed sent to the archive operation, which fails with an internal ObjectScript error on every claim, whatever the claim holds.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "unknown",
+    "elementAtFault": "ClaimsToArchive",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}
