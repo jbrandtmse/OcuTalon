@@ -166,8 +166,8 @@ development_status:
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: backlog
   epic-10-retrospective: optional
 
-  epic-11: backlog
-  11-0-epic-10-deferred-cleanup: ready-for-dev
+  epic-11: in-progress
+  11-0-epic-10-deferred-cleanup: in-progress
   11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
   11-2-upgrades-and-restarts-keep-every-record-working: backlog
   11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
