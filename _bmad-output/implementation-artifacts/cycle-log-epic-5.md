@@ -296,3 +296,5 @@
 2026-10-31T12:24:47Z	Epic 5	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check(headless)_for_the_reopen;in_sync=true
 2026-10-31T12:24:47Z	Epic 5	retro_review_skipped	reason=no_x0_input(reopen_for_one_hotfix;ledger_has_no_burndown_none_or_epic-5_owned_entries) by=orchestrator_dispatch
 2026-10-31T12:28:00Z	Epic 5	epic_context_compiled	sha=pending_this_commit reason=planning_artifact_newer(story_5.12_block_and_second_fixture) model=claude-opus-5-5 spawn_at=2026-10-31T12:25:00Z
+2026-10-31T12:31:14Z	Epic 5	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON build=154 from=2602414c classes=579(src/bridge_46,src/ocutalon_533) stale_deleted=14(Bridge.Purge,Bridge.Replay,Install.Step.Retention,Install.Step.Watch,Test.Bridge.ApprovalRows,Test.Bridge.Purge,Test.Bridge.ZzPurgeFailing,Test.Bridge.ZzReplayAgent,Test.Bridge.ZzReplayTool,Test.Bridge.ZzReplayTools,Test.Bridge.ZzSpyAdapter,Test.Install.Retention,Test.Install.RetentionRules,Test.Install.ZzRetentionProcess) compile=ok production=stopped
+2026-10-31T12:31:14Z	Story 5.12	stage_spawned	stage=plan spawn_at=2026-10-31T12:31:14Z model=claude-opus-5-5 agent_name=5-12-plan-1 cycle_iteration=1
