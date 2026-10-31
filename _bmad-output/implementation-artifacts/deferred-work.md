@@ -2332,6 +2332,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.3 spec Design Notes, Lane B needs (1): Conversation or Core.BridgeSink (Lane B, AD-33) would read the row through Ownership.Approval (ToolName, Result, FinishedAt) and set it on the session's next turn; Story 31.2's criteria name notifications, not the note
 - 2026-10-30T17:04:59Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended route to Story 31.2 (31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv, Lane B) as a DW bullet, or another Lane B story; out of Lane A's files (AD-33)
+- 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item
 
 ### DW-444: A tool_call ApprovalRequest left executing by a crash or restart mid-replay stays executing: the call is never re-run (NFR-13 holds) but no result or approval.result is ever sent
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
@@ -2359,6 +2360,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 30.3 re-dispatch: the sentence is the Reasons of the bridge's fallback Decision row of kind tool (Decide.HeldBeforeUpdate); showing it on the card or a notice needs Lane B's payload and notice classes (AD-33) and a catalog text
 - 2026-10-30T22:33:52Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route with DW-443 to Story 31.2 (Lane B: the approval reaches the phone; card and notice wiring); Lane A side done in 30.3
 - 2026-10-30T23:56:26Z status=escalated owner=burndown by=cr note=correction: no web view renders a kind-tool decision (rail, mailbox filter kind decide); the person sees no reason today
+- 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item;it_carries_the_visible_half_of_U-170's_owner_condition
 
 ### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
