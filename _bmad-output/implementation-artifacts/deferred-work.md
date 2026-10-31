@@ -2300,3 +2300,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-471: flake: live:online-session leave.spec.ts L2 (600 s idle frees the place) read 'since' as NaN on the splash URL in CI and passed on an unchanged rerun
+- source: cycle-log-epic-15.md (CI run 41147556361 of 55d1d25) | severity: med | fix-risk: low | footprint: web/e2e-online/session/leave.spec.ts (Lane B; contended by Epic 29)
+- evidence: attempt 1 iris (install-fresh) UNIT live:online-session failed: leave.spec.ts:64 expected <5000 received NaN; attempt 2 of the same head passed; the same tree passed on 307ff78
+- 2026-10-31T06:17:44Z status=routed owner=29-4-sessions-stay-isolated-under-load by=ci note=Lane B test outside Epic 15's lane and footprint; same owner as the DW-333 online-session flake; the orchestrator confirms the receiving story
