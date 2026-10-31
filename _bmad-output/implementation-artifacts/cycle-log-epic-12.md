@@ -61,3 +61,6 @@
 2026-10-31T09:08:13Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh visibility=PUBLIC
 2026-10-31T09:08:13Z	Epic 12	launch_env	depth=4 watchdog=1 bash_max_ms=default
 2026-10-31T09:08:13Z	Epic 12	epic_branch_checked_out	repos=. head=2f3a783d branch=OCT-epic12 origin=2f3a783d note=redispatch_runner_C
+2026-10-31T09:11:17Z	Epic 12	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON instance_id=19113194-CDDB-11F1-9984-5AEDC9673D1B version=2026.3.0AI_Build_154U loaded=582(bridge=46,ocutalon=536) baseDir=abs(worktree_src/bridge/cls,src/ocutalon/cls) stale_deleted=OcuTalon.Tools.WatchFixture compile=CompilePackage(OcuTalon,ck-d)_OK_errors=0 head=a2fb6ec9 note=Rule21_redispatch_load
+2026-10-31T09:22:24Z	Epic 12	integrated_forward	feature=366a79ab head=a2fb6ec9 conflicts_resolved=ci/units.sh(lane-a_union:Eval+Channel),sprint-status.yaml(last_updated;regenerated;valid) auto_merged=docker/tests/lib-live.sh(both_sides_hunks:live_no_bot_token+LIVE_SESSION_ENV),epics.md,deferred-work.md kind=mid_epic_redispatch
+2026-10-31T09:22:24Z	Epic 12	merged_tree_checks	head=a2fb6ec9 bootstrap_check=pass(web/package.json_scripts_only) ci_checks=pass(rc0,527s,all_scripts:ci-config,ci-changes,lib-live,...) shard=lane-a@Channel_fresh(tag=e12s0ifw,lane-c):TelegramMock,TelegramSwitch_passed_93s teardown=clean slot_c=loaded+compiled
