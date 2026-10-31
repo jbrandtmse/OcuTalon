@@ -471,7 +471,7 @@ The rest is in Epic 29's footprint: `release/**`, `docker/tests/lib-online.sh` a
 ## Host release check (for the Contest Planner)
 
 On the gated demo host, before the public flip. This story never runs it.
-- **The head to deploy:** the feature branch's merge of `OCT-epic29` (the orchestrator records that merge's sha). Its code is `OCT-epic29` at `ccf027ed`, Story 29.9's commit, green on every workflow at `e7a5bb94` (runs 41175908969 and 41175908829); every later commit on the branch is bookkeeping or the feature branch's prose. Filled in by the lead at the close, 2026-10-31.
+- **The head to deploy:** the feature branch's merge of `OCT-epic29` (the orchestrator records that merge's sha). Its code is `OCT-epic29` at `13e56475`: Epic 29's code as at `ccf027ed` (Story 29.9's commit) and the feature branch through `c9f1288c` (Epic 9 included), with the CI groups rebalanced; green on every workflow at `13e56475` (runs 41181446111, after one flake rerun, and 41181446158) and at `4dab25d0`. Every later commit on the branch is bookkeeping only. Filled in by the lead at the close, 2026-10-31.
 - **The script:** `release/demo-load.sh`, run from a checkout of that head, on a driver machine with bash 3.2 or later, curl and jq.
 - **The exact commands.** `https://demo.example` stands for the host's origin, as in the check list.
   - The Planner's environment holds the values for every run:
