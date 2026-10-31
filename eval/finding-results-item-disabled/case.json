@@ -1,0 +1,24 @@
+{
+  "name": "finding-results-item-disabled",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A production state change in the finding shape (an item of the Results production was disabled): someone turned an item off, only the user can decide to turn it on, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "finding-results-item-disabled",
+    "channel": "system",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "",
+    "text": "The ResultsSender in the Results production was disabled at 14:05 UTC.\nWhy now: you asked me to watch the Results production.",
+    "catalogKey": "watch.itemDisabled",
+    "slots": {
+      "itemName": "ResultsSender",
+      "production": "Results",
+      "time": "2026-10-17T14:05:00Z"
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "CarrierBookingOut"
+  },
+  "failures": [
+    {
+      "headerId": 2,
+      "sessionId": 2,
+      "superSession": "71OkmOiE08uo6-KFOkOFpg",
+      "timeCreated": "2026-10-29T16:12:56Z",
+      "timeProcessed": "2026-10-29T16:13:01Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "CarrierBookingOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "1",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80",
+      "body": {
+        "ShipmentId": "SH-3001",
+        "OrderNumber": "ON-3001",
+        "ShippedAt": "2026-10-16 09:30:00",
+        "Weight": "12.5",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 3,
+      "sessionId": 3,
+      "superSession": "71OkmOiE08uo6-KFOkOFpg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:06Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "CarrierBookingOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "2",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80",
+      "body": {
+        "ShipmentId": "SH-3002",
+        "OrderNumber": "ON-3002",
+        "ShippedAt": "2026-10-16 09:45:00",
+        "Weight": "8.0",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 4,
+      "sessionId": 4,
+      "superSession": "71OkmOiE08uo6-KFOkOFpg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:11Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "CarrierBookingOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "3",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80",
+      "body": {
+        "ShipmentId": "SH-3003",
+        "OrderNumber": "ON-3003",
+        "ShippedAt": "2026-10-16 10:00:00",
+        "Weight": "20.5",
+        "Carrier": "CARRIER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "92",
+      "timeLogged": "2026-10-29T16:13:01Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 2,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    },
+    {
+      "id": "93",
+      "timeLogged": "2026-10-29T16:13:01Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 2,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    },
+    {
+      "id": "107",
+      "timeLogged": "2026-10-29T16:13:06Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 3,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    },
+    {
+      "id": "108",
+      "timeLogged": "2026-10-29T16:13:06Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 3,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    },
+    {
+      "id": "111",
+      "timeLogged": "2026-10-29T16:13:11Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 4,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    },
+    {
+      "id": "112",
+      "timeLogged": "2026-10-29T16:13:11Z",
+      "type": "Error",
+      "configName": "CarrierBookingOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 4,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server carrier.example:80"
+    }
+  ],
+  "items": [
+    {
+      "name": "CarrierBookingOut",
+      "className": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {
+        "HTTPServer": "carrier.example",
+        "HTTPPort": "80",
+        "URL": "/bookings",
+        "FailureTimeout": "2",
+        "RetryInterval": "1"
+      }
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "2",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "CarrierBookingOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:56Z",
+      "isError": false
+    }
+  ]
+}

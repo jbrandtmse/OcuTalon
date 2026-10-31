@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ClaimsToBilling"
+  },
+  "failures": [
+    {
+      "headerId": 8,
+      "sessionId": 8,
+      "superSession": "mgTs6M9IzXJ674icGZNxsg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "7",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required",
+      "body": {
+        "ClaimId": "CL-4001",
+        "MemberId": "",
+        "ServiceDate": "2026-10-15",
+        "Amount": "125.40",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 9,
+      "sessionId": 9,
+      "superSession": "mgTs6M9IzXJ674icGZNxsg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "8",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required",
+      "body": {
+        "ClaimId": "CL-4002",
+        "MemberId": "",
+        "ServiceDate": "2026-10-15",
+        "Amount": "80.00",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 10,
+      "sessionId": 10,
+      "superSession": "mgTs6M9IzXJ674icGZNxsg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "9",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required",
+      "body": {
+        "ClaimId": "CL-4003",
+        "MemberId": "",
+        "ServiceDate": "2026-10-16",
+        "Amount": "310.25",
+        "PayerCode": "PAYER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "38",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 8,
+      "text": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required"
+    },
+    {
+      "id": "42",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 9,
+      "text": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required"
+    },
+    {
+      "id": "50",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToBilling",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 10,
+      "text": "ERROR #5659: Property 'OcuTalon.Test.Eval.Feed.BillingClaim::MemberId(128@OcuTalon.Test.Eval.Feed.BillingClaim)' required"
+    }
+  ],
+  "items": [
+    {
+      "name": "ClaimsToBilling",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "8",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToBilling",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

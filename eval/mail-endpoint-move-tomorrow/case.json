@@ -1,0 +1,18 @@
+{
+  "name": "mail-endpoint-move-tomorrow",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner moves its endpoint tomorrow at 06:00 UTC: the user must change a connection's address soon, and OcuTalon cannot do that, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-endpoint-move-tomorrow",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "Our results endpoint moves tomorrow at 06:00 UTC",
+    "text": "Hello, tomorrow at 06:00 UTC our results endpoint moves to a new address, https://results-partner.example/v2/results. Someone on your side has to change the address of your outbound results connection before then, or results will stop arriving. Thanks, Results Partner IT"
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ReferenceLabOut"
+  },
+  "failures": [
+    {
+      "headerId": 17,
+      "sessionId": 17,
+      "superSession": "s3Ks4uIl6zHHdTcY8EQ-4Q",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReferenceLabOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "16",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'",
+      "body": {
+        "ResultId": "LR-3001",
+        "PatientRef": "PT-3001",
+        "TestCode": "NA",
+        "ResultValue": "139",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 18,
+      "sessionId": 18,
+      "superSession": "s3Ks4uIl6zHHdTcY8EQ-4Q",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReferenceLabOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "17",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'",
+      "body": {
+        "ResultId": "LR-3002",
+        "PatientRef": "PT-3002",
+        "TestCode": "K",
+        "ResultValue": "4.2",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 19,
+      "sessionId": 19,
+      "superSession": "s3Ks4uIl6zHHdTcY8EQ-4Q",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReferenceLabOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "18",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'",
+      "body": {
+        "ResultId": "LR-3003",
+        "PatientRef": "PT-3003",
+        "TestCode": "CL",
+        "ResultValue": "101",
+        "Units": "mmol/L"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "33",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ReferenceLabOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 17,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'"
+    },
+    {
+      "id": "47",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ReferenceLabOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 18,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'"
+    },
+    {
+      "id": "57",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ReferenceLabOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 19,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 500 from remote HTTP server: 'HTTP/1.1 500 Internal Server Error'"
+    }
+  ],
+  "items": [
+    {
+      "name": "ReferenceLabOut",
+      "className": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {
+        "HTTPServer": "127.0.0.1",
+        "HTTPPort": "9381",
+        "URL": "/reference-lab/results"
+      }
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "17",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ReferenceLabOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}
