@@ -55,6 +55,13 @@
 # diagnosis payload class, the prompts, Decide's fallback trace and their tests, depends on nothing unmerged, and must merge today
 # before the online demo goes public. Epic 30, which also changed Decide.cls, yields runner B for it and integrates it at its
 # re-dispatch. No other edge changes.
+# Changed 2026-10-31T13:xxZ, owner decisions relayed by the Contest Planner (the owner, asked by the Planner: "One check, at 1.0.0"
+# and "New Linux droplet"): 1.0.0 is the first release; 0.1.0 and 0.1.1 are not cut. Epic 12's merge gate (v0.1.0) and Epic 31's
+# (v0.1.1) are dropped: both merge when done. Epics 33, 34, 17 and 18 start once Epic 12 has merged (their depends_on) and merge
+# only once release/1.0.0-rc1 exists (merge_gate {branch}), so no step code enters 1.0.0; this replaces the gates of 1519abdf.
+# Epic 38 becomes "1.0.0 is checked by hand and cut": it depends on every 1.0.0-scope epic, holds the Contest Planner's real-key
+# pass (38.1), the timed runs on one clean Linux droplet (38.2) and the owner's Telegram pass (38.3, 12.7's real-device part),
+# all on release/1.0.0-rc1, and gates the v1.0.0 tag. The policy's owner_fixed line 14 is amended at hold #9.
 # Changed 2026-10-31 (launch-text fix, at the Contest Planner's request): Story 16.11 re-opens Epic 16 under SC-5 (the splash
 # promises Telegram only when the release includes it). Lane B's Web/Public/Splash.cls and the catalog lines only; no edge changes.
 #
@@ -87,13 +94,15 @@
 #   - An epic dispatched to a runner other than its last one uses that runner's slot: before its first stage, the runner
 #     loads and compiles the epic's classes from its worktree into the slot (Rule 21) and checks it with
 #     iris_server_info; the runner_dispatched line names lane=<runner> slot=<slot> (the Contest Planner's condition).
+#   - merge_gate {branch: <b>} (2026-10-31, owner: 'One check, at 1.0.0'): as merge_gate {tag}, but held until
+#     `git ls-remote --heads origin <b>` finds the branch; Epics 33, 34, 17 and 18 carry {branch: release/1.0.0-rc1}.
 #   - merge_gate {tag: <t>} (2026-10-25, U-67): a finished epic with a merge gate is held (dispatch.yaml held_merge, reason
 #     gate:<t>) until `git ls-remote --tags origin <t>` finds the tag; the orchestrator then resumes or re-dispatches its
 #     runner for one integrate-forward and merges. The orchestrator checks the tag at every notification and dispatch.
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "160c9a09469edd33288e5e69a957bf9041cdb6bbbe9ea9229246dd93decd9a84"
+epics_md_hash: "1ab44c7ee63b94aa14faff971c6b6f336c559c7d982fc600725d1d272faa7edb"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -183,14 +192,14 @@ epics:
             paths_hint: ["src/ocutalon/cls/OcuTalon/Eval/**", "src/ocutalon/cls/OcuTalon/Test/Eval/**", "eval/**", ".github/workflows/lane-a.yml"],
             story_waits: {"9.5": epic-7}}                   # the repair-and-resend kind's validation, Story 7.1 (2704, 3110)
   epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: ["either lane's files", "AD-29"]}
-  epic-38: {lane: pool, depends_on: [epic-11], submodules: [],                      # U-189: 11.6 (the Planner's real-key pass) and 11.3's real-host timed runs, on the 0.1.0 candidate; gates the v0.1.0 tag
-            paths_hint: ["release/records/0.1.0/**", "the fixes its passes find, in either lane's files (as Epic 11's exception)"],
-            needs_people: ["the author's clean macOS and Linux hosts and a driver host", "a real model key", "the Contest Planner's hands-on pass", "the author's cut and tag"]}
+  epic-38: {lane: pool, depends_on: [epic-0, epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10, epic-11, epic-12, epic-13, epic-14, epic-15, epic-16, epic-29, epic-30, epic-31, epic-32], submodules: [],   # 1.0.0 is checked by hand and cut (U-189; owner 2026-10-31: 'One check, at 1.0.0'); gates the v1.0.0 tag
+            paths_hint: ["release/records/1.0.0/**", "the fixes its passes find, in either lane's files (as Epic 11's exception)"],
+            needs_people: ["one clean Linux droplet, created and deleted by the Contest Planner for each check (owner: 'New Linux droplet')", "the Contest Planner's Mac as the driver", "a real model key", "the Contest Planner's real-key pass on release/1.0.0-rc1 (38.1)", "the owner's Telegram pass on the same rc (12.7's real-device part)", "the author's cut and tag"]}
   epic-12: {lane: pool, depends_on: [epic-10], submodules: [],                      # 2026-10-25 (U-67): was lane A after epic-11; 10.3's session side of Telegram (10's merge brings 2, 4, 6)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Test/Channel/**", "web/src/app/rail/telegram-card/**", "web/e2e/demo-path/telegram-*.spec.ts", "release/records/0.1.1/**"],
             story_waits: {"12.6": [epic-5, epic-7, epic-8],   # the Watch notice keys, the fix results, reminders
                           "12.7": [epic-11, epic-16]},           # extends Story 11.2's harness; turns on Story 16.3's Telegram-card check
-            merge_gate: {tag: v0.1.0}}                           # merges only once v0.1.0 is tagged: no 0.1.0 candidate contains Telegram (PRD 7.2)
+            }                                                    # merge gate on v0.1.0 dropped 2026-10-31 (owner: 'One check, at 1.0.0'): it merges when done
   epic-32: {lane: C, depends_on: [], submodules: [], reopened: true,               # Stories 32.1-32.3 merged in Lane B (b9a6016); Story 32.4 re-opens it on runner C (SC-5)
             paths_hint: ["ci/iris.sh", "ci/warm.sh", "docker/tests/test-ci-warm.sh", "docker/tests/test-ci-config.sh", "_bmad/custom/skill-rules.md (Rule 21 recipe, append only)"],
             note: "docker/tests/lib-live.sh stays Epic 2's while Epic 2 runs: 32.4 builds on its existing functions. A warm stack takes its own warm-iris.lock in the lane folder; fresh stacks keep throwaway-iris.lock (AC 2, Rule 5 tier 1, agreed with the Contest Planner)."}
@@ -207,7 +216,7 @@ epics:
                           "31.2": [epic-16, epic-30],       # BridgeSink (16.9, 4249 vs 6278); the real approval.result needs 30.3 (6279)
                           "31.3": [epic-12, epic-15],       # unchanged (13 and 14 come with 15)
                           "31.4": [epic-12, epic-29]},      # unchanged
-            merge_gate: {tag: v0.1.1},                      # polling stays the release-1 contract, and 31.1's WebSocket never reaches 0.1.1
+            # merge gate on v0.1.1 dropped 2026-10-31 (owner: 'One check, at 1.0.0'): it merges when done
             note: "Story 31.3's measurement after launch left the story: it is a 1.0.0 release check in the Epic List (step readiness review M11), so no story parks on the launched online demo. Epic 31 merges only once v0.1.1 is tagged (its merge gate), so the WebSocket (31.1) reaches neither 0.1.0 nor 0.1.1 and release 1 stays on polling (the owner-fixed rule: polling is the release-1 contract). Story 21.5, and through Epic 21's merge Stories 23.5 and 24.3, wait only for that merge."}
   epic-8:  {lane: C, depends_on: [epic-1], submodules: [],                          # epic-1: the chat agent's reminder tools (1.10); runner C starts it when Epic 1 merges
             paths_hint: ["src/ocutalon/cls/OcuTalon/Schedule/**", "src/ocutalon/cls/OcuTalon/Test/Schedule/**", "src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls", "src/ocutalon/cls/OcuTalon/Data/{StatusMark,Time,Reminder}.cls", "src/ocutalon/cls/OcuTalon/Core/{Commands,StatusMonitor}*.cls", "src/ocutalon/cls/OcuTalon/Msg/Tick.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "ci/mock/scenarios/B/**", "web/e2e/demo-path/0{2,3}-*.spec.ts"],
@@ -243,10 +252,10 @@ epics:
 
   # ---- Relaunch 2026-10-26: the step-contract epics 33-37 and the step epics 17-28 (the Contest Planner's draft v3).
   # ---- step-contract epics. Each story keeps its home lane's files; the epic only groups the merge.
-  epic-33: {lane: pool, depends_on: [epic-12], submodules: [], gate: {tag: v0.1.0}, merge_gate: {tag: v0.1.1},   # step 2: Stories 33.1 (was 17.1) then 33.2 (was 18.1), which uses 33.1's names
+  epic-33: {lane: pool, depends_on: [epic-12], submodules: [], merge_gate: {branch: release/1.0.0-rc1},   # step 2: Stories 33.1 (was 17.1) then 33.2 (was 18.1), which uses 33.1's names
             paths_hint: ["src/bridge/cls/OcuTalon/Bridge/{Operation,Process,Data}/**", "src/bridge/cls/OcuTalon/Bridge/{Budget,Keys,Time,ConfigStore}.cls", "src/ocutalon/cls/OcuTalon/Digest/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SendDigest,GotIt}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SettingsOps}.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Data/{Setting,Handled}*.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "web/src/app/{settings,header}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Test/{Contract,Bridge,Digest,Core,Web}/**"],
             story_waits: {"33.1": epic-30}}               # footprint (v2): the bridge stubs and Msg/Catalog/Watch.cls keys, beside epic-30's bridge, Checks and Catalog.Watch changes
-  epic-34: {lane: pool, depends_on: [epic-12], submodules: [], gate: {tag: v0.1.0}, merge_gate: {tag: v0.1.1},   # step 3: Stories 34.1 (was 19.1) then 34.2 (was 20.1); gate: no step work before 0.1.1 (spine:777)
+  epic-34: {lane: pool, depends_on: [epic-12], submodules: [], merge_gate: {branch: release/1.0.0-rc1},   # step 3: Stories 34.1 (was 19.1) then 34.2 (was 20.1); gate: no step work before 0.1.1 (spine:777)
             paths_hint: ["src/ocutalon/cls/OcuTalon/{Memory,Docs}/**", "src/ocutalon/cls/OcuTalon/Data/{Memory,Document}.cls", "src/bridge/cls/OcuTalon/Bridge/Ext/**", "src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SaveMemory,ForgetMemory,AddDocument,RemoveDocument}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SessionOps}.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "web/src/app/{documents,header}/**", "docker/Dockerfile", "src/ocutalon/cls/OcuTalon/Test/{Contract,Memory,Docs,Core,Web}/**"],
             story_waits: {"34.1": epic-15,                  # real: the FastEmbed path check on an IPM install
                           "34.2": [epic-33, epic-16]}}      # real: 33.2's header navigation; SessionOps.End, Story 16.4
@@ -262,7 +271,7 @@ epics:
             paths_hint: ["src/bridge/cls/OcuTalon/Bridge/Approval.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls", "web/src/app/{usage,header}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Data/File*.cls", "src/ocutalon/cls/OcuTalon/Test/{Web,Core}/**", "web/e2e/**"]}   # (B), v3: the extraction moved to Story 19.6, so 37.1 keeps step 6's contracts and loses its waits on 15 and 19 and the Docs/Extract*, python/**, Dockerfile and Test/Docs paths
 
   # ---- step 2
-  epic-17: {lane: A, depends_on: [epic-12, epic-33], submodules: [], gate: {tag: v0.1.0}, merge_gate: {tag: v0.1.1},   # real: 0.1.1 and TelegramOut/In; epic-33: 33.1's stubs, 33.2's verbs (17.6); "Epic 15" was order only (M1, dropped)
+  epic-17: {lane: A, depends_on: [epic-12, epic-33], submodules: [], merge_gate: {branch: release/1.0.0-rc1},   # real: 0.1.1 and TelegramOut/In; epic-33: 33.1's stubs, 33.2's verbs (17.6); "Epic 15" was order only (M1, dropped)
             paths_hint: ["src/bridge/cls/OcuTalon/Bridge/{Process,Operation,Adapter}/**", "src/bridge/cls/OcuTalon/Bridge/{ConfigStore,Keys,Budget,Time,Timeouts}.cls", "src/bridge/cls/OcuTalon/Bridge/Data/{Price,ModelFamily,Provider}*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/{Provider,Digest}.cls", "src/ocutalon/cls/OcuTalon/{Digest,Checks}/**", "src/ocutalon/cls/OcuTalon/Watch/Reader*.cls", "src/ocutalon/cls/OcuTalon/Tools/{Digest*,Names}.cls", "src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Test/{Bridge,Digest,Checks,Watch,Install,Tools,Channel}/**", "ci/mock/scenarios/A/**", "eval/**"],
             story_waits: {"17.2": [epic-30, epic-15],       # footprint (v2): the bridge (Decide, the retry runners); Install/Step/Provider.cls inside epic-15's Install/**
                           "17.3": [epic-30, epic-15],       # footprint (v2): the bridge (session config, ConfigStore, Keys); Install/Step/Provider.cls
@@ -270,7 +279,7 @@ epics:
                           "17.5": [epic-14, epic-30, epic-15],   # real: the security overview's generated privilege list, Story 14.1; footprint (v2): Checks; Install/Step/Digest.cls
                           "17.6": epic-30,                  # footprint (v2): Decide and Msg/Catalog/Watch.cls (the digest keys)
                           "17.7": epic-30}}                 # footprint (v2): Checks.Render and eval/
-  epic-18: {lane: pool, depends_on: [epic-12, epic-33], submodules: [], gate: {tag: v0.1.0}, merge_gate: {tag: v0.1.1},   # Lane B's files; epic-33: 33.2's settings page and 33.1's stub signatures that 18.2-18.4 test against; "Epic 31 (lane order)" dropped (H2)
+  epic-18: {lane: pool, depends_on: [epic-12, epic-33], submodules: [], merge_gate: {branch: release/1.0.0-rc1},   # Lane B's files; epic-33: 33.2's settings page and 33.1's stub signatures that 18.2-18.4 test against; "Epic 31 (lane order)" dropped (H2)
             paths_hint: ["web/src/app/{settings,header,chat,phone,banners}/**", "web/src/app/api/**", "web/e2e/**", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Core/{SettingsOps,CommandsIn,Admin}.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Data/{Setting,Delivery,Handled,Time}*.cls", "src/ocutalon/cls/OcuTalon/Channel/{WebChat,SimPhone}/Out*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls", "src/ocutalon/cls/OcuTalon/Test/{Core,Web,Data}/**", "README.md", ".env.example"]}   # v2: Data/Time.cls, 18.2 (M6); Catalog/Core.cls also for 18.3's DW-100 texts (M7)
 
   # ---- step 3
