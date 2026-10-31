@@ -17,3 +17,5 @@
 2026-10-31T07:32:01Z	Epic 11	deps_hash_note	reason=x0_inserted epics_md_change=Story_11.0_block note=for_orchestrator_rerecord
 2026-10-31T07:37:33Z	Epic 11	epic_context_compiled	reason=initial(x0_inserted) spawn_at=2026-10-31T07:32:17Z model=claude-opus lines=243 header=ok subagent_tokens=175253
 2026-10-31T07:37:52Z	Story 11.0	stage_spawned	stage=plan spawn_at=2026-10-31T07:37:52Z model=claude-opus agent_name=11-0-epic-10-deferred-cleanup-plan-1 cycle_iteration=1 ledger_inbox=DW-237 agent_schema=no_run_in_background_param(call_blocks)
+2026-10-31T07:43:59Z	Story 11.0	story_created	spawn_at=2026-10-31T07:37:52Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-11-0-epic-10-deferred-cleanup.md build_status=ready-for-dev epic_context=reused warnings=oversized subagent_tokens=167911
+2026-10-31T07:43:59Z	Story 11.0	spec_validated	service_introducing=false integration_ac=n/a(refactor) adr_constrained_acs=AD-4,AD-5,AD-29,AD-22 adr_tooled_acs=none decision_dependency=none sections_created=none owned_ledger=DW-237 addressed=1 declined=0 mutates_shared_runtime=false(warm+fresh_throwaways_lane-a) model=claude-opus-5-5
