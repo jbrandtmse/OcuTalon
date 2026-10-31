@@ -2,55 +2,44 @@
 title: 'Story 16.11: The splash promises Telegram only when the release includes it'
 type: 'bugfix'
 created: '2026-10-31'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, lines 128-157; AD-13, 396-447; AD-19, 572-630, its public-settings bullets at 625-628; AD-23, 759-804; AD-29, 925-972, its Lane A bullet at 949 and its Test/catalog bullet at 951; AD-33, 1025-1035)'
   - '{project-root}/_bmad-output/planning-artifacts/epics.md (read only Story 16.11, lines 5007-5025)'
 warnings: ['oversized']
-deferred:
-  - summary: >-
-      The allowance banner (catalog banner.allowance) also promises Telegram on the online demo: "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram)." Story 16.11 covers the splash only.
-    evidence: |-
-      src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts:11 carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it. With Included() at 0 a visitor who uses up the 50 messages reads "or Telegram" on a page with no Telegram.
-    location: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:268
-    severity: low
 ---
 
 <intent-contract>
 
 ## Intent
 
-**Problem:** On the online demo, the splash's "Before you start" list always says "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and "Each session can send {limit} messages an hour in the chat or Telegram." A signed-in visitor finds no Telegram and no QR code, because Telegram arrives only with Epic 12 (Story 12.7 turns `OcuTalon.Channel.Telegram.In.Included()` on).
+**Problem:** On the online demo, the splash's "Before you start" list says "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and "Each session can send {limit} messages an hour in the chat or Telegram." A signed-in visitor finds no Telegram and no QR code: Telegram arrives with Epic 12. The splash cannot follow `OcuTalon.Channel.Telegram.In.Included()` (AD-3's allow-list bars the public package from naming that class), and a public key carrying it would amend AD-19, which is the owner's call.
 
-**Approach:** Give the splash a value that follows `Included()`, through the only door AD-3 leaves open to a page that runs with no roles: one more public setting, `telegramIncluded`. The Public install step writes it at every flag-on start from `Included()`. The splash reads it through `OcuTalon.Data.Public.Settings`. With it unset, the splash leaves out the Telegram line and shows a new catalog line, "Each session can send {limit} messages an hour in the chat." With it at 1, both of today's lines show word for word.
+**Approach:** The orchestrator's ruling (veto U-197), option (C): the splash leaves out the Telegram line and shows, unconditionally, the chat-only allowance line "Each session can send {limit} messages an hour in the chat.", from a new catalog key of its own beside `splash.limitLine`. `splash.telegramLine` and `splash.limitLine` keep their current text for Story 12.7, which adds the "Telegram included" case (the orchestrator routes it there). No gate, no new public key, no AD change.
 
 ## Boundaries & Constraints
 
 **Always:**
-- Copy the three texts word for word: `splash.telegramLine` "Have Telegram? You can scan a QR code inside to get the notices on your own phone.", `splash.limitLine` "Each session can send {limit} messages an hour in the chat or Telegram." (both unchanged) and the new `splash.limitLineChat` "Each session can send {limit} messages an hour in the chat." (slot `limit`, kind `count`, the same `source` as its neighbours). `{limit}` stays the `messageAllowance` public setting, HTML-escaped.
-- The splash reads public values only through `OcuTalon.Data.Public.Settings.Get` (AD-3, AD-19). It never references `OcuTalon.Channel.Telegram.In` or `^OcuTalonTest`.
-- The list keeps its order: reset line, own line, Telegram line (only when included), limit line, shell line. No allowance means no limit line in either state.
-- `telegramIncluded` holds `1` or is removed (`""`). Any stored value other than `1` reads as not included.
-- The Public step writes `telegramIncluded` only on the flag-on path, after every start value has been accepted. A refused start writes nothing, and a local start still changes only `onlineDemo`.
-- Every test that flips the switch saves and restores both the switch (`OcuTalon.Test.Data.Fixture.SetTelegramIncluded`) and the public keys itself.
+- The new catalog key's text is exactly "Each session can send {limit} messages an hour in the chat.", slot `limit` of kind `count`, with the same `source` form as its neighbours; the splash's copy of it is a `Parameter` that matches the catalog word for word (the public-text check pins it). No user-facing text written in code.
+- `splash.telegramLine` and `splash.limitLine` stay in the catalog, unchanged.
+- The "Before you start" list renders, in order: the reset line, the own line, the chat-only allowance line (only when `messageAllowance` is set, as today), the shell line.
+- Tests go into the splash's existing test classes and pin both: no Telegram line in the list, and the chat-only allowance line; the splash's existing tests, the catalog tests and the public-text checks stay green. Every test creates and removes the state it asserts on (Rule 19).
 
 **Never:**
-- Never edit `OcuTalon.Channel.Telegram.In` (Lane A, AD-33; Epic 12 edits it live). Call `Included()` only.
-- No new test class, no new CI unit, no change to the splash's inline style or script (AD-13's hashes stay), the footer, or the local sign-in page.
-- No other wording change, including the allowance banner (see `deferred:`).
+- No Lane A file (nothing under `Install/Step/`, nothing under `Channel/Telegram/`), no call to `Included()`, no reference to `^OcuTalonTest` outside the tests, no new public setting key, no AD amendment.
+- No new test class and no new CI unit; no change to the splash's inline style or script (AD-13's hashes stay), the footer, or the local sign-in page.
+- No other wording change, the allowance banner included (DW-501, routed to Story 12.7).
+- No absolute local path in any tracked file, this spec included (`docker/tests/test-boundaries.sh` scans every tracked file).
 
 ## I/O & Edge-Case Matrix
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Not included | switch 0, Public step's write run, `messageAllowance` 50 | facts list: reset, own, `<li>Each session can send 50 messages an hour in the chat.</li>`, shell; the page holds no "Have Telegram?" and no "Telegram" inside `<ul class="facts">` | No error expected |
-| Included | switch 1, the write run, allowance 50 | `<li>Have Telegram? You can scan a QR code inside to get the notices on your own phone.</li>` directly followed by `<li>Each session can send 50 messages an hour in the chat or Telegram.</li>`; no chat-only form | No error expected |
-| No allowance | either state, `messageAllowance` "" | no limit line of either form; the Telegram line follows the state | No error expected |
-| Stale value | `telegramIncluded` "0" or "x" | rendered as not included | No error expected |
-| Flag-on start | `OCUTALON_ONLINE_DEMO=1`, switch 0, then 1 | `Run()` OK; `telegramIncluded` reads "", then "1" | A refused start value leaves `telegramIncluded` as it was |
-| Local start | flag unset, `telegramIncluded` "stale" | only `onlineDemo` changes (to 0); the local sign-in page is unchanged | No error expected |
+| Online demo, allowance set | flag on, `messageAllowance` 50 | facts list: reset, own, `<li>Each session can send 50 messages an hour in the chat.</li>`, shell; nothing inside `<ul class="facts">` says "Telegram" or "QR" | No error expected |
+| No allowance | flag on, `messageAllowance` "" | no allowance line of either form, and no Telegram line | No error expected |
+| Flag off | local install | the local sign-in page renders unchanged | No error expected |
 
 </intent-contract>
 
@@ -99,6 +88,8 @@ deferred:
 - AC 4: Given every existing splash, public-settings, Public-step and catalog test, when run on a fresh stack in either order, then each passes. `Test.Web.Status.TestReferencesOnlyThePublicAllowList` still passes for `Splash` and `Settings`.
 
 ## Spec Change Log
+
+- 2026-10-31, lead (runner B), re-plan after plan round 1 (blocked: AD-3 bars the splash from `Channel.Telegram.In`; a `telegramIncluded` public key would amend AD-19). The orchestrator ruled option (C) (veto U-197): no gate; the splash drops the Telegram line and shows the chat-only allowance line unconditionally, from its own catalog key; touch no Lane A file and do not call `Included()`; the "Telegram included" case moves to Story 12.7 (the orchestrator routes it). The intent block was rewritten to that ruling; the round-1 design below (the public key, the Public step, the Lane A tests) is superseded and must not be built. The deferred allowance-banner item was filed by the lead as DW-501, routed to Story 12.7.
 
 ## Review Triage Log
 

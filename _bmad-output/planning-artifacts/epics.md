@@ -5014,15 +5014,13 @@ So that I don't look for a Telegram QR code that isn't there.
 
 **Acceptance Criteria:**
 
-**Given** a release in which Telegram is not included (`OcuTalon.Channel.Telegram.In.Included()` returns 0, the same switch the README's `no-telegram` rule and `/state` use)
+**Given** the online demo's splash (Telegram is not on the splash until Story 12.7 adds it)
 **When** the splash renders its "Before you start" list
-**Then** it shows no Telegram line, and the allowance line reads "Each session can send {limit} messages an hour in the chat." (FR-58, UX-DR24) [AMENDED 2026-10-31, Story 16.11 readiness re-check, runner B, Rule 5 tier-1: it cited UX-DR28, the About dialog; the splash's content is UX-DR24]
+**Then** it shows no Telegram line, and the allowance line reads, unconditionally, "Each session can send {limit} messages an hour in the chat." (FR-58, UX-DR24) [AMENDED 2026-10-31, orchestrator ruling (veto U-197), option (C): it gated both on `OcuTalon.Channel.Telegram.In.Included()`, "Given a release in which Telegram is not included (`OcuTalon.Channel.Telegram.In.Included()` returns 0, the same switch the README's `no-telegram` rule and `/state` use)"; the splash cannot call that class (AD-3's allow-list), and a public key for it amends AD-19, which is the owner's; the included case moves to Story 12.7] [AMENDED 2026-10-31, Story 16.11 readiness re-check, runner B, Rule 5 tier-1: it cited UX-DR28, the About dialog; the splash's content is UX-DR24]
 
-**Given** a release in which Telegram is included (`Included()` returns 1, from Story 12.7)
-**When** the splash renders
-**Then** it shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and the allowance line "Each session can send {limit} messages an hour in the chat or Telegram.", word for word as today
+[AMENDED 2026-10-31, orchestrator ruling (veto U-197): the "Telegram included" criterion moved to Story 12.7, which turns `Included()` on; the orchestrator routes it there, with the public-key mechanism to decide in that story. It read: "Given a release in which Telegram is included (`Included()` returns 1, from Story 12.7) When the splash renders Then it shows 'Have Telegram? You can scan a QR code inside to get the notices on your own phone.' and the allowance line 'Each session can send {limit} messages an hour in the chat or Telegram.', word for word as today"]
 
-**And** both texts come from the message catalog (`splash.telegramLine`, `splash.limitLine`, and the new chat-only form of the limit line), with no text written in code; a test pins each state through the test-only switch that Epic 12's tests use to turn Telegram on, and the splash's existing tests stay green
+**And** the chat-only allowance line comes from the message catalog as its own key, with no text written in code; `splash.telegramLine` and `splash.limitLine` keep their current text for Story 12.7; tests pin both the missing Telegram line and the chat-only allowance line, and the splash's existing tests and the public-text checks stay green [AMENDED 2026-10-31, orchestrator ruling (veto U-197): it read "both texts come from the message catalog (`splash.telegramLine`, `splash.limitLine`, and the new chat-only form of the limit line), with no text written in code; a test pins each state through the test-only switch that Epic 12's tests use to turn Telegram on, and the splash's existing tests stay green"]
 
 ## Epic 17: A daily digest you can trust, and model choice with budgets (step 2)
 
