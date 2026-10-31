@@ -115,8 +115,8 @@ Top to bottom, in a centered column:
    - **Before you start.**
      - "The demo resets every {interval}. Next reset: {time} ({countdown})." `[ASSUMPTION: 4-hour default, FR-59]`
      - "Your chat, phone, mailbox and orders are yours alone."
-     - "Have Telegram? You can scan a QR code inside to get the notices on your own phone."
-     - "Each session can send {limit} messages an hour in the chat or Telegram." `[ASSUMPTION: 50, FR-40]`
+     - "Have Telegram? You can scan a QR code inside to get the notices on your own phone." Shown only once the release includes Telegram (from Story 12.7). [AMENDED 2026-10-31, Story 16.11, orchestrator ruling (veto U-196, U-197): the line was listed unconditionally]
+     - "Each session can send {limit} messages an hour in the chat or Telegram." `[ASSUMPTION: 50, FR-40]` Until the release includes Telegram (Story 12.7), the line is the chat-only form: "Each session can send {limit} messages an hour in the chat." [AMENDED 2026-10-31, Story 16.11, orchestrator ruling (veto U-196, U-197): the "or Telegram" form was the only one]
      - "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."
 5. **The Visual Trace card:** "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step." (P24, October 17) User name and password, each with a copy button ("Copy Visual Trace user name", "Copy Visual Trace password").
 6. **The footer:** the not-affiliated note (CON-2), plus "Install it yourself (README) ↗".

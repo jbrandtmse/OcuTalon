@@ -2337,6 +2337,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+- 2026-10-31T20:50:43Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=delivered by Story 16.4's commit 70350415: web/src/app/about/about-dialog.ts:26 reads 'An AI assistant for InterSystems IRIS.', pinned by web/e2e/frame/frame.spec.ts:253,263 and web/scripts/ux-strings.test.mjs:282; the entry was never adjudicated
 
 ### DW-399: Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss
 - source: _bmad-output/implementation-artifacts/spec-7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got.md | severity: med | fix-risk: low | footprint: in-story
@@ -2384,6 +2385,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
 - 2026-10-31T04:11:24Z occurrence=29-8-the-author-s-load-run-measures-the-demo-s-capacity note=CI run 41165190685 attempt 1 (OCT-epic29 61bb996d, iris shards, live:floor): keyboard.spec.ts K2 page.goto net::ERR_NETWORK_CHANGED at sign-in/helpers.ts:44; no assertion failed
 - 2026-10-31T04:11:25Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=runner note=reopen_if fired (ERR_NETWORK_CHANGED again in an iris job log); the fix site is the shared sign-in helper, which Story 29.9's boundaries exclude; routed to the CI e2e flake owner beside DW-349 (a retry of page.goto on net::ERR_NETWORK_CHANGED only, or a Chromium launch option, is the candidate)
+- 2026-10-31T20:23:20Z occurrence=16-11-the-splash-promises-telegram-only-when-the-release-includes note=CI run 41236053364 attempt 1 (OCT-epic16 29835de9, iris shards, live:online-session): e2e-online/session/leave.spec.ts:104 L2 page.goto net::ERR_NETWORK_CHANGED; rerun of the failed job requested
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
@@ -2701,3 +2703,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: demo host walk on 14de8018, 2026-10-31 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Triage's decision on a user command, as recorded on the demo host; the Tell-now override is code (AD-28), only the reasons' wording reads oddly
 - 2026-10-31T17:45:03Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=Triage's_prompt(Lane_A_Agent):for_the_user's_own_command,the_reasons_say_what_was_asked;1.0.0_if_cheap,or_Epic_30's_burn-down_story
+### DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo: 'You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram).' Story 16.11 changes the splash only
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
+- 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
+
+### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AssertTrueViaMacro takes ''value, so (text [ "agent steps ")_stepId is "0"_id, a nonzero number, when Find misses the step; 16.11's review found six in Test.Web.Splash (one could never fail) and parenthesised them
+- 2026-10-31T19:24:43Z status=routed owner=burndown by=cr note=parenthesise KeyScan:123; a class-rules check for a top-level _ right of [ or ] in an assertion's first argument
+- 2026-10-31T20:50:43Z owner=30-1-long-conversations-are-compacted-under-the-limit by=burndown note=overflow from Epic 16's burn-down (one entry, under the cap, no charter): Lane A's Test.Agent.KeyScan:123 needs the parenthesised form, and a class-rules check could reject x [ "a"_y; Epic 30 is Lane A's hardening epic and its agent and bridge tests sit beside KeyScan
+
+### DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram on the online demo: 'Your session and Telegram pairing will be cleared.' while the release has no Telegram; a sibling of DW-501
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
+- 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
+
+### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
+- source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: test-online-demo.sh:555: the input redirect fails before tr's 2>/dev/null applies; online_signin writes <jar>.g only after a 3xx; row 5 passes and its cookie-get check is moot at status 200
+- 2026-10-31T19:24:43Z status=wontfix-accepted owner=16-11-the-splash-promises-telegram-only-when-the-release-includes by=cr note=reopen_if=a stage reports the line as a failure again, or row 5 checks a refusal that redirects (docker/tests contended)
