@@ -2742,3 +2742,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: CI run 41207682542 attempt 1 (OCT-epic12 ec468c81, Story 12.2, no Fix change), iris shards-2: 5 asserts of TestCopiesFailAgain failed (57.4 s); attempt 2 green; the class passed on a fresh lane-C throwaway in 41 s; af47ff3c green on the same unit
 - 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
+
+### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Sibling view modules (banner-view, rail-view) have web/scripts/*-view.test.mjs; a new file under web/scripts/ is Lane B's (AD-29) and Story 12.8's ruling allows only three named entries; T1 and T2 cover paused, off, rejected and not paused (750cc54e)
+- 2026-10-31T17:44:56Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=harvest note=reopen_if=a card-state defect reaches CI or the page that T1/T2 did not catch, or Lane A gains its own web unit-test file for telegram-card (then add telegram-card-view.test.mjs there)
