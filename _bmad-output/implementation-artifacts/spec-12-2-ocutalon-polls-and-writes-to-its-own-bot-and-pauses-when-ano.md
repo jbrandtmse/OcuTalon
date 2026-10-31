@@ -263,6 +263,7 @@ deferred: []
   - no start enables a Telegram item, and `check_items_run` and `check_telegram_off` pass;
   - `TestStubsAnswer` passes with the two items no longer stubs;
   - the mock code and `Test.Contract.Mock` are unchanged (AD-22, AD-23, AD-29).
+- Given the CI groups measured on the integrate-forward head af47ff3c (`ci` run 41188445340: install-fresh 34, install-upgrade 32, shards-2 31, shards 30, image 28, browser 26, production 25 minutes) and the dispatch's rule "never add a unit to a group over 30 minutes without moving another out", when this story adds its `Test.Channel` classes, then they no longer run inside `shard:lane-a@rest` (`shards-2`): `ci/units.sh` gains the unit `shard:lane-a@Channel` in the `production` group (so `@rest` loses `Channel` by `shard_unit_areas`), and `shard:lane-a@Channel` joins `NO_WEB_BUNDLE_UNITS` only if the unit is shown not to read the web bundle (record how it was shown under `## Verification`); if it cannot be shown, the unit goes into `browser` instead and `NO_WEB_BUNDLE_UNITS` is unchanged. `docker/tests/test-ci-config.sh` (every class of every shard runs once) and `test-ci-changes.sh` pass, and the change touches only Epic 12's own entries of `ci/units.sh` (the `Channel` piece and its group placement) (runner ruling, decide, 2026-10-31).
 
 ## Spec Change Log
 
@@ -273,6 +274,8 @@ deferred: []
 - 2026-10-30, spec gate (runner): the proposed split is decided (unattended ruling, split, decide). The page side (the third criterion's banner and card clause, "the banner leaves within one live update", and the search of the page) moved verbatim to the new Story 12.8, planned next (`12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try`). This spec keeps the server side as planned. The two contended `Install/**` edits wait on the orchestrator's ruling.
 
 - 2026-10-31, before implementation (runner C, re-dispatch after Epic 9): the epic now runs on runner C, so `## Verification`'s `<lane>` uses lane C (`locks/lane-c`, web port 52803) and slot C (`ocutalon-slot-c`) instead of lane A and slot A, and the two "never slot A" phrases read "never a dev slot". The branch was integrated forward onto 366a79ab (Epics 9 and 29); no AD this spec names changed in a way that touches it. No other change to the plan.
+
+- 2026-10-31, before implementation (runner C ruling, decide): the `Channel` classes leave `shard:lane-a@rest` (`shards-2`, 31 minutes on af47ff3c) for their own unit `shard:lane-a@Channel` in `production` (25 minutes; in `NO_WEB_BUNDLE_UNITS` only if shown bundle-free), else `browser` (26 minutes); new Tasks & Acceptance item; `## Verification`'s "Left to CI" note on `shards-2` is superseded by it.
 
 ## Review Triage Log
 
