@@ -103,3 +103,6 @@
 2026-10-31T18:13:39Z	Story 11.8	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=rework_iteration;DW-132_occurrence_restated(wontfix-accepted) model=claude-opus-5-5
 2026-10-31T18:13:39Z	Story 11.8	smoke_complete	method=cli(ci/iris.sh_class_Test.Bridge.Conversation,fresh) result=pass iterations=2 defects_caught=0 evidence=TestPrecheckCountsHistory_green_103s model=claude-opus-5-5
 2026-10-31T18:13:39Z	Story 11.8	fresh_check	env=recipe(fresh_e11s8sm2) tests=1(Test.Bridge.Conversation) result=pass order=forward(single_class)
+2026-10-31T18:14:19Z	Story 11.8	committed	sha=7cda74e5 submodules= ci=pending runs=41228357603,41228357397 fix_for=11-8 amendments=none pushed=verified_on_origin
+2026-10-31T18:14:19Z	Story 11.8	story_cycle	plan_to_commit_min=262 implement_passes=2 reviews=2 rework=1(ci) first_ci=story models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-31T18:14:20Z	Story 11.2	stage_spawned	stage=plan spawn_at=2026-10-31T18:14:20Z model=claude-opus agent_name=11-2-upgrades-and-restarts-keep-every-record-working-plan-1 cycle_iteration=1 ledger_inbox=none note=planned_while_11.8_CI_runs(Rule_23)
