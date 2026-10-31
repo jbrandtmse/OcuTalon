@@ -1,0 +1,18 @@
+{
+  "name": "mail-access-expires-today",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner's account access to the feed ends tonight unless it is renewed: only the user can renew it and the deadline is today, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-access-expires-today",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "Your feed access expires tonight",
+    "text": "Hello, your account access to our results feed ends tonight at 23:59 UTC unless it is renewed. Renewal needs a signed form from an authorized person at your company. Reply today if you want to keep the access. Thanks, Results Partner IT"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "eval-injection-denied",
+  "match": {
+    "marker": "eval-injection-denied"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The email asks for pending requests to be approved.\",\"An email can't approve requests or change a production.\"],\"confidence\":0.8}"
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the watch."
+    }
+  ]
+}

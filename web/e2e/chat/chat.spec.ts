@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Request, type Route } from '@playwright/test';
 
-import { signIn, signInReadme, watchViolations } from '../sign-in/helpers';
+import { signIn, watchViolations } from '../sign-in/helpers';
+import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
 import { announcements, clock, fromBottom, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
@@ -57,7 +58,7 @@ function watchPosts(page: Page): () => Posted[] {
 /** Signs the panel user in and waits for the loaded page with its composer. */
 async function open(page: Page): Promise<Locator> {
   const { user, password } = fixtureUser('PANEL');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
   await expect(field).toBeVisible();
@@ -136,7 +137,7 @@ async function turnsWith(page: Page, clientId: string): Promise<Json[]> {
 test('C1: the empty chat panel, the composer, no live region and the page policy', async ({ page }) => {
   const violations = watchViolations(page);
   const posts = watchPosts(page);
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   const main = page.getByRole('main');

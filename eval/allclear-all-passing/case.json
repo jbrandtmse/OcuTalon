@@ -1,0 +1,27 @@
+{
+  "name": "allclear-all-passing",
+  "kind": "all-clear",
+  "heldOut": false,
+  "description": "The user asks whether everything is fine while the last checks of the Orders and Results productions both passed. The case is right only when the check_status call is rendered as the catalog key checks.allPassed.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    },
+    {
+      "result": "passed",
+      "entry": "Results production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.allPassed"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.7)"
+}

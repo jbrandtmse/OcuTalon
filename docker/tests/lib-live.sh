@@ -306,11 +306,15 @@ merge_count() { dc exec -T iris grep -c 'Merging /opt/ocutalon/merge.cpf' "$mgr/
 
 # Runs an ObjectScript script from stdin in the given namespace and keeps the `CHK|` result lines.
 # A session that prints no result line is tried again, at most three tries 5 s apart.
+# LIVE_SESSION_ENV, when set, is a space-separated list of variable names of the caller's environment: each one is handed to the session
+# (dc exec -e <name>), which reads it with $SYSTEM.Util.GetEnviron, so that no script text holds the value. A caller sets it as the prefix
+# of one call (OCUTALON_X=value LIVE_SESSION_ENV=OCUTALON_X check_session ...) and never exports it. With it unset the command is the same.
 iris_script() { # iris_script <namespace> < script
-  local script out try=1
+  local script out try=1 name args=()
+  for name in ${LIVE_SESSION_ENV:-}; do args+=(-e "$name"); done
   script=$(cat)
   while :; do
-    out=$(printf '%s\n' "$script" | dc exec -T iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
+    out=$(printf '%s\n' "$script" | dc exec -T ${args[@]+"${args[@]}"} iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
     if [ -n "$out" ] || [ "$try" -ge 3 ]; then break; fi
     try=$((try + 1))
     sleep 5
@@ -477,7 +481,8 @@ compare_chk() {
 
 # check_session <label> <namespace> <expected CHK lines> <script line>...
 # Runs the script lines in the namespace of the running container and compares their CHK lines with the
-# expected ones. The script comes as arguments, not on stdin, so that a failure is counted in the caller.
+# expected ones. The script comes as arguments, not on stdin, so that a failure is counted in the caller. It passes LIVE_SESSION_ENV on to
+# iris_script, which hands the named variables to the session.
 check_session() {
   local label=$1 ns=$2
   printf '%s\n' "$3" > "$tmp/expected.chk"

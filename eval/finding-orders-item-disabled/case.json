@@ -1,0 +1,24 @@
+{
+  "name": "finding-orders-item-disabled",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A production state change in the finding shape (an item of the Orders production was disabled): someone turned an item off, only the user can decide to turn it on, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "finding-orders-item-disabled",
+    "channel": "system",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "",
+    "text": "The OrderImporter in the Orders production was disabled at 09:40 UTC.\nWhy now: you asked me to watch the Orders production.",
+    "catalogKey": "watch.itemDisabled",
+    "slots": {
+      "itemName": "OrderImporter",
+      "production": "Orders",
+      "time": "2026-10-16T09:40:00Z"
+    }
+  }
+}

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 09:37
+last_updated: 10-31-2026 07:29
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -146,18 +146,24 @@ development_status:
   8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
-  epic-9: backlog
-  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: backlog
-  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: backlog
-  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: backlog
-  9-4-ten-incidents-are-recorded-from-real-failures: backlog
-  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
+  epic-9: done
+  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
+  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
+  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: done
+  9-8-a-stop-watching-injection-leaves-the-watch-unchanged: done
+  9-4-ten-incidents-are-recorded-from-real-failures: done
+  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: done
+  9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: done
+  9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
   epic-9-retrospective: optional
 
   epic-10: done
   10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: done
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
+  10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: backlog
   epic-10-retrospective: optional
 
   epic-11: backlog
@@ -293,9 +299,14 @@ development_status:
   28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: backlog
   epic-28-retrospective: optional
 
-  epic-29: backlog
-  29-3-the-demo-host-is-adapted-for-the-launch: backlog
-  29-4-sessions-stay-isolated-under-load: backlog
+  epic-29: done
+  29-3-the-demo-host-is-adapted-for-the-launch: done
+  29-4-sessions-stay-isolated-under-load: done
+  29-5-the-address-counter-s-hash-is-keyed-per-reset: done
+  29-6-the-probe-alerts-when-every-turn-falls-back: done
+  29-7-demo-busy-counts-the-live-visitors: done
+  29-8-the-author-s-load-run-measures-the-demo-s-capacity: done
+  29-9-epic-29-burn-down: done
   epic-29-retrospective: optional
 
   epic-30: backlog

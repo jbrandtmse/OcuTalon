@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { changeSnapshot } from '../support/api';
 import { clock, tokenColor } from '../support/page';
-import { signInReadme } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 
 /**
  * Story 4.5, the simulated device panel and the simulated phone (P1 to P4), in a real browser against the live sign-in stack, as the
@@ -34,7 +34,7 @@ async function open(page: Page, phone: Array<Record<string, unknown>>, demoMode 
     snapshot['phone'] = phone;
     snapshot['demoMode'] = demoMode;
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 }
 

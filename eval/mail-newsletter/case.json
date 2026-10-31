@@ -1,0 +1,18 @@
+{
+  "name": "mail-newsletter",
+  "kind": "item",
+  "heldOut": false,
+  "description": "The simulated mailbox's newsletter sample: a subscription newsletter with nothing for the user to do.",
+  "expectation": {
+    "outcome": "ignore"
+  },
+  "recordedBy": "written from the SimMailbox newsletter sample (Story 9.1)",
+  "item": {
+    "itemId": "mail-newsletter",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Integration Tips Newsletter <newsletter@example.com>",
+    "subject": "This week: five tips for faster transforms",
+    "text": "Hello, here are this week's most-read articles on integration engines: tuning transforms, naming production items, and testing routing rules. Read them on our site. You're receiving this because you subscribed."
+  }
+}

@@ -18,6 +18,7 @@ import {
 } from '../support/iris';
 import { TRACE_PAGE, drawnMessages, expectDrawn, helpSeen, postTurn, signInToTrace, signOutTrace, stubTraces, traceSessions, type Cursor, type Turn } from '../support/trace';
 import { signIn, signInOverHttp } from '../sign-in/helpers';
+import { loadedAfter } from '../support/floor';
 
 /**
  * Story 2.13, the Visual Trace links on the page (V1 to V8, V9 to V15 added by QA, and V16 added by review), in a real browser against a
@@ -118,7 +119,7 @@ async function someTurn(): Promise<Turn> {
 /** Signs the links user in and waits for the loaded page. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 }
 

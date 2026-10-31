@@ -7,7 +7,7 @@ import { signIn } from '../sign-in/helpers';
 import { post } from '../support/api';
 import { TOMORROW_AT_1413, incidentOf, raise, refOf, today, type RequestFields } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
-import { CARD_MS, applied, composerOf, inMs, mainOf } from '../support/floor';
+import { CARD_MS, applied, composerOf, inMs, mainOf, loadedAfter } from '../support/floor';
 import {
   cleanFixtureRows,
   doubleCommands,
@@ -110,7 +110,7 @@ const drawn = (scope: Locator): Promise<string[]> => scope.locator('svg').first(
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
   await recordAnnouncements(page);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
   await expect(phoneOf(page), 'the stack is in demo mode: the phone shows').toBeVisible();
