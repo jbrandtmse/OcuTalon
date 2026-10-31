@@ -643,7 +643,7 @@ A recorded evaluation set (at least 20 items across all four outcomes, injection
 
 On a machine with the build 154 image loaded, one script checks, retags and starts OcuTalon, waits for it with progress and prints the address and sign-in details, failing with an exact fix when the image or architecture is wrong; the README's release-1 sections tell a judge what to download, how to start, how to sign in and how to set the key.
 **Lane:** B (runner B, in Lane B's files; Story 10.1 may start early on whichever runner is idle, and each dispatch fixes the runner). **Depends on:** nothing at epic level (Story 10.1, the install script, needs no other epic); story-level: Story 10.2 needs Epic 4 merged (the README quotes Story 4.1's `SetDemoMode`), and Story 10.3 needs Epic 6 merged (it applies Story 6.2's answer rules); Story 10.3 builds the pairing unlink that Story 16.4 reuses. [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B; runner C may take it ahead of Epic 16 while Epic 16 waits for Epic 3, setting Story 10.3 aside until Epic 16 merges.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 10.2's wait on Epic 4 and Story 10.3's on Epic 6 added; Epic 8 labelled as order only] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 8 (order only), and Story 10.3 waited for Epic 16, whose Story 16.4 built the unlink] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." the epic-level edge on Epic 2 removed so Story 10.1 can fill an idle window, as the rebalance intended; Stories 10.2 and 10.3 wait for Epics 4 and 6, which come after Epic 2]
-**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3).
+**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner: Story 10.4 re-opens Epic 10 under SC-5 for the README's opening paragraph, its "What you can use it for" section and the with-a-model table, replacing the "Contest task" table; it depends on nothing unmerged and lands before the online demo launch]
 **Also covers:** NFR-21, NFR-22, CON-2, CON-5; AD-23.
 
 ### Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
@@ -3713,6 +3713,52 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **And** every criterion above runs on fixtures (a fixture pairing, fixture `TelegramIn` submissions and fixture `AnswersIn` calls), because Lane A's Telegram epic builds `TelegramIn` and `TelegramOut` after release 1 (AD-29)
 - DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live `Pairing` row, never a `ChatRef` or chat id: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. The entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
 - DW-231: Move Story 4.4's `web/src/app/feed/break-feed-api.ts` press() and Story 4.7's guide-marker calls into `ApiClient`, so the page has one typed API client (Stack row); this story already edits `web/src/app/api/**`. U-84's condition: `ApiClient` absorbs `break-feed-api.ts` before 1.0.0, and until then the guide client keeps the same envelope interceptor and headers (`Content-Type`, `X-OcuTalon-Request`) (ledger; routed by orchestrator 2026-10-27, inbox U-84)
+
+### Story 10.4: The README opens with what OcuTalon is for, and what a model adds
+
+[ADDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "I'm not sure that I want to keep the "Contest task -> where to see it" section. Let's remove it for now and consider adding it back in later if it makes sense." / "if OcuTalon can run on just rules, why would anybody need a model? We don't do a good job of selling the value proposition." / "I like the opening draft, go ahead and make that change" / "Yes 1,2, 3 and fold 4 into the opening" / "go with what we have for right now." Epic 10 is re-opened for it under SC-5. It must be on the feature branch before the online demo launch (Sat Oct 31 midday PDT at the earliest), because from the launch the feature branch is GitHub's default and its README is what visitors see.]
+
+As a judge,
+I want the README to open with what OcuTalon is for and what a model adds over fixed rules,
+So that I see the value before I install it.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**When** a judge opens it
+**Then** the "Contest task → where to see it" H2 and its whole table are gone
+**And** right under "# OcuTalon" come, in this order, the opening paragraph below (word for word), a blank line, and the teaser line word for word as today; then the H2s "Try it in two minutes", "What's interesting" and "What you can use it for" (FR-58):
+
+> Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing.
+
+**Given** the new H2 "What you can use it for", right after "What's interesting"
+**When** a judge reads it
+**Then** it has exactly these two items, word for word:
+
+> - **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.
+> - **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear.
+
+**And** each later addition goes in only with the story that ships its feature (FR-58), never here: Epic 30's merge appends "It also tells you once when a production stops or one of its items is disabled." to the second item (Story 30.4); Epic 12's Telegram README section appends "You can approve it in Telegram on your phone, without a laptop or the Management Portal." to the first item; Epic 13's guide (Story 13.3) adds a third item, "An AI decision step you can audit, in your own production.", linking the guide's real path
+
+**Given** "What OcuTalon does"
+**When** a judge reads it
+**Then** the bullet "No key, still works." is replaced by this paragraph and table, word for word, and the fixed-rules sentence in "Set a model key" stays as it is (FR-4, FR-38):
+
+> **With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace.
+>
+> | | With a model | With fixed rules only |
+> | --- | --- | --- |
+> | An item arrives | It decides Ignore, Digest, Tell now or Act, and says why | Tell now, marked as a fallback with the reason |
+> | 50 orders fail | One incident, with the cause in plain English, the part at fault, and a fix with a dry run | Grouped by item and error, with no cause and no fix |
+> | You ask in the chat | It answers, watches a production or sets a reminder | It says it couldn't answer, and why |
+
+**And** every cell is checked against the built behaviour (FR-4's fallbacks for an item, an incident and a chat turn, and FR-38); a cell the build contradicts is reported to the orchestrator for the Contest Planner, and the claim is never changed to match
+
+**Given** `docker/tests/test-readme.sh` and Story 10.2's criteria
+**When** this story merges
+**Then** the `top` rule pins the new order, the `teaser` rule pins the line under the opening, the `contest-table` rule is removed, and the pin on the "No key, still works." bullet (the `outcomes` or `key-account` rule) moves to the new paragraph and table; every other rule stays, above all `public-text` (no "from your phone"), `no-telegram` and FR-58 (the README never claims more than the release ships)
+**And** Story 10.2's criterion "the top of the README" and its table line carry an [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner] marker that quotes what they read
+**And** screenshots, a flow diagram, the measured 0.1.0 line and a CI badge are later additions the Contest Planner supplies; none of them is part of this story
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 

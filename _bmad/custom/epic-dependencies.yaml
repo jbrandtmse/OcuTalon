@@ -40,6 +40,10 @@
 # clean; their other edges are unchanged, so 17 and 18 still start only after Epic 33 merges, and Story 34.2 needs Epic
 # 33 merged. The policy's owner_fixed lane-order line still says "No step epic starts before v0.1.1 is tagged"; it is
 # amended at the next hold (a mid-run policy edit stops the run, doctrine U3), and until then that line governs.
+# Changed 2026-10-31, owner decision relayed by the Contest Planner (the README change: the owner's words are in Story 10.4's
+# marker): Story 10.4 re-opens Epic 10 under SC-5 (as Story 32.4 re-opened Epic 32). It depends on nothing unmerged (Epic 10's
+# own edges are merged) and changes only README.md, docker/tests/test-readme.sh and Story 10.2's criteria, which no open branch
+# touches. It must reach the feature branch before the online demo launch (Sat Oct 31 midday PDT at the earliest); no other edge changes.
 #
 # Dispatch rules on top of depends_on (the orchestrator enforces them):
 #   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
@@ -76,7 +80,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "97087c13a876cd6838889b8b709530f449dabd793ce8769b916fe9e691401442"
+epics_md_hash: "5de1cffb12b1c10bf4902b644ec70632404e8af4461a195981f13776a28f6645"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
