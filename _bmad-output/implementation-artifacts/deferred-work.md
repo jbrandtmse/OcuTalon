@@ -1265,6 +1265,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+- 2026-10-31T10:06:02Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=burndown note=delivered_by_10.3_d917d26(adjudication_trailer_missed_on_2026-10-28): AnswersIn.FromTelegram passes only the paired session's Ref (Core/AnswersIn.cls:44-80); Test/Core/AnswersTelegram.cls TestApprovedAndRejected:74 pins sessionRef=the session's Ref, TestBadSessionRefIsNotAllowed:128 pins not_allowed with nothing handed over
 
 ### DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1337,6 +1338,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
 - 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
+- 2026-10-31T10:06:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=burndown note=residual: Data/Pairing.cls:68 HashCode still repeats Data/Session.cls:122 Hash's body (same SHA-256 base64url line, plus an empty-code guard); make HashCode keep its guard and quit Session.Hash(code). Not covered by 10.3 (missed adjudication); overflow, not chartered (1 entry, under cap 8, no occurrences; Story 10.4 is a README-only re-open with a launch deadline). 31-4 is a Lane B pairing story (Data/Pairing.cls is Lane B's, AD-29)
 
 ### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
