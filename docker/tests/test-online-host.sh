@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Hermetic test of release/demo-host-check.sh and release/demo-host-checks.md (Story 29.3; matrix rows 1 to 16). No container and no
+# Hermetic test of release/demo-host-check.sh and release/demo-host-checks.md (Story 29.3; matrix rows 1 to 16), and, for row 15 (Story
+# 29.8), of release/demo-load.sh's files and of the check list's H25. No container and no
 # host: one inline Node server on 127.0.0.1 (a random port, docker/tests/lib-stub.sh) stands in for the demo host. It is the proxy and
 # the password guard of AD-25 as the lead's ruling U-158 reads it (a sign-in body is a bounded urlencoded POST body whose decoded names
 # all come from IRISSessionToken, IRISUsername, IRISPassword and IRISLogin; any other field whose decoded name matches
@@ -21,7 +22,8 @@
 #   row 9   an open gate: gate-closed fails; no credentials: SKIP
 #   row 10  the status JSON    row 11  --demo-status    row 12  --zone
 #   row 13  busy    row 14  maintenance (DW-240)
-#   row 15  the script and the check list hold no host detail; the check list's rows H1 to H24 hold one of the three statuses
+#   row 15  both release scripts (demo-host-check.sh and, Story 29.8, demo-load.sh) and the check list hold no host detail; the check
+#           list's rows H1 to H25 hold one of the three statuses
 #   row 16  a host that refuses the password-change pages with 404 (the Planner's settings pass, no answer of IRIS counts as a block)
 # Needs Node, curl and jq. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -819,39 +821,15 @@ set_flags
 
 # --- credentials: on no command line, in no child's environment, and the curl configuration readable by the owner alone ---
 
-# A curl in front of the real one logs each call's arguments, the number of OCUTALON_GATE_* variables in its environment, and the mode of
-# the -K file it is given.
-mkdir -p "$tmp/shim"
-cat > "$tmp/shim/curl" << 'SHIM'
-#!/bin/sh
-{
-  printf 'ARGV'
-  for a in "$@"; do printf ' [%s]' "$a"; done
-  printf '\n'
-  printf 'ENV %s\n' "$(env | grep -c '^OCUTALON_GATE_')"
-  prev=""
-  for a in "$@"; do
-    if [ "$prev" = -K ]; then
-      if [ -n "$(find "$a" -perm 600 2> /dev/null)" ]; then echo 'CFG 600'; else echo 'CFG other'; fi
-    fi
-    prev=$a
-  done
-} >> "$SHIM_LOG"
-exec "$SHIM_REAL" "$@"
-SHIM
-chmod 755 "$tmp/shim/curl"
+# A curl in front of the real one (curl_shim of docker/tests/lib-stub.sh) logs each call's arguments, the number of OCUTALON_GATE_*
+# variables in its environment, and the mode of the -K file it is given.
+curl_shim "$tmp/shim"
 : > "$tmp/shim.log"
 set_flags
 run_script "PATH=$tmp/shim:$PATH" "SHIM_LOG=$tmp/shim.log" "SHIM_REAL=$(command -v curl)" -- ${full[@]+"${full[@]}"}
 expect_run "credentials: a run through a curl that logs its arguments and environment passes every check" 0 "" ""
-argv_n=$(grep -c '^ARGV' "$tmp/shim.log")
-cred_argv=$(grep -cF -e "$gate_password" -e "$gate_user" "$tmp/shim.log")
-env_bad=$(grep '^ENV ' "$tmp/shim.log" | grep -vc '^ENV 0$')
-cfg_ok=$(grep -c '^CFG 600' "$tmp/shim.log")
-cfg_bad=$(grep -c '^CFG other' "$tmp/shim.log")
-if [ "$argv_n" -gt 100 ] && [ "$cred_argv" = 0 ]; then pass "credentials: the gate user and password are on none of the $argv_n command lines"; else fail "credentials: $cred_argv of $argv_n command lines hold a gate credential"; fi
-if [ "$env_bad" = 0 ]; then pass "credentials: no curl inherits OCUTALON_GATE_USER or OCUTALON_GATE_PASSWORD"; else fail "credentials: $env_bad curl call(s) inherit a gate variable"; fi
-if [ "$cfg_ok" -gt 100 ] && [ "$cfg_bad" = 0 ]; then pass "credentials: the gate's curl configuration is mode 600 in all $cfg_ok calls that read it"; else fail "credentials: $cfg_ok calls read a mode 600 configuration, $cfg_bad another mode"; fi
+shim_min=100
+shim_checks "$tmp/shim.log" "credentials" "$gate_password" "$gate_user"
 
 # host_probe_args refuses a line whose method is not the one its form is sent with.
 if host_probe_args "zz-method 200:form POST /ocutalon/ F3"; then fail "host_probe_args: a POST line for the GET form F3 was accepted"; else pass "host_probe_args: a POST line for the GET form F3 is refused"; fi
@@ -867,34 +845,41 @@ scan() { # <file> <label>: no host detail in the file
   hits=$(printf '%s\n' "$text" | grep -nE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|localhost|[A-Za-z][A-Za-z0-9.-]*:[0-9]{2,5}([^0-9]|$)|https?://[A-Za-z0-9]' | cut -d: -f1 | tr '\n' ' ')
   if [ -z "$hits" ]; then pass "row 15: $label holds no IP address, localhost, host:port or URL with a literal host"; else fail "row 15: $label holds a host detail on line(s) $hits"; fi
 }
-if [ -f "$script" ] && [ -f "$checklist" ]; then
-  scan "$script" "release/demo-host-check.sh"
+load_script="$root/release/demo-load.sh"
+lib="$root/docker/tests/lib-online.sh"
+if [ -f "$script" ] && [ -f "$load_script" ] && [ -f "$checklist" ]; then
   scan "$checklist" "release/demo-host-checks.md"
-  for f in "$script" "$checklist" "$0"; do
+  for f in "$checklist" "$0"; do
     if LC_ALL=C grep -q '[^[:print:][:space:]]' "$f"; then fail "row 15: $(basename "$f") is not ASCII"; else pass "row 15: $(basename "$f") is ASCII"; fi
   done
-  code_lines=$(grep -vE '^[[:space:]]*#' "$script")
-  run_hits=$(printf '%s\n' "$code_lines" | grep -nE 'ocutalon-demo|(^|[^A-Za-z-])(ssh|scp|nslookup)([^A-Za-z-]|$)' | cut -d: -f1 | tr '\n' ' ')
-  if [ -z "$run_hits" ]; then pass "row 15: the script runs no ocutalon-demo, SSH or DNS command"; else fail "row 15: the script runs a host command on line(s) $run_hits"; fi
-  method_hits=$(printf '%s\n' "$code_lines" | grep -nE '(^|[^A-Za-z])(PUT|DELETE|PATCH)([^A-Za-z]|$)|(-X|--request)[ =]' | cut -d: -f1 | tr '\n' ' ')
-  if [ -z "$method_hits" ]; then pass "row 15: the script uses no PUT, DELETE or PATCH"; else fail "row 15: the script names another method on line(s) $method_hits"; fi
-  cred_hits=$(printf '%s\n' "$code_lines" | grep -nE -e '--user|(^|[[:space:]])-u[[:space:]]|--basic|Authorization' | cut -d: -f1 | tr '\n' ' ')
-  if [ -z "$cred_hits" ]; then pass "row 15: the script has no credential on a command line (the gate reads a configuration file)"; else fail "row 15: the script has a credential option on line(s) $cred_hits"; fi
-  if grep -q 'chmod 600' "$script" && grep -q '^umask 077' "$script"; then pass "row 15: the gate configuration is written with umask 077 and chmod 600"; else fail "row 15: the gate configuration is not protected"; fi
-  if [ -x "$script" ]; then pass "row 15: the script is executable"; else fail "row 15: the script is not executable"; fi
-  mode=$(cd "$root" && git ls-files -s release/demo-host-check.sh 2> /dev/null | cut -d' ' -f1)
-  if [ -z "$mode" ] || [ "$mode" = 100755 ]; then pass "row 15: the script is tracked with mode 100755 (or not tracked yet: '${mode:-untracked}')"; else fail "row 15: the script is tracked with mode $mode"; fi
+  for rel in release/demo-host-check.sh release/demo-load.sh; do
+    f="$root/$rel"
+    scan "$f" "$rel"
+    if LC_ALL=C grep -q '[^[:print:][:space:]]' "$f"; then fail "row 15: $rel is not ASCII"; else pass "row 15: $rel is ASCII"; fi
+    code_lines=$(grep -vE '^[[:space:]]*#' "$f")
+    run_hits=$(printf '%s\n' "$code_lines" | grep -nE 'ocutalon-demo|(^|[^A-Za-z-])(ssh|scp|nslookup)([^A-Za-z-]|$)' | cut -d: -f1 | tr '\n' ' ')
+    if [ -z "$run_hits" ]; then pass "row 15: $rel runs no ocutalon-demo, SSH or DNS command"; else fail "row 15: $rel runs a host command on line(s) $run_hits"; fi
+    method_hits=$(printf '%s\n' "$code_lines" | grep -nE '(^|[^A-Za-z])(PUT|DELETE|PATCH)([^A-Za-z]|$)|(-X|--request)[ =]' | cut -d: -f1 | tr '\n' ' ')
+    if [ -z "$method_hits" ]; then pass "row 15: $rel uses no PUT, DELETE or PATCH"; else fail "row 15: $rel names another method on line(s) $method_hits"; fi
+    cred_hits=$(printf '%s\n' "$code_lines" | grep -nE -e '--user|(^|[[:space:]])-u[[:space:]]|--basic|Authorization' | cut -d: -f1 | tr '\n' ' ')
+    if [ -z "$cred_hits" ]; then pass "row 15: $rel has no credential on a command line (the gate reads a configuration file)"; else fail "row 15: $rel has a credential option on line(s) $cred_hits"; fi
+    if grep -q '^umask 077' "$f"; then pass "row 15: $rel sets umask 077"; else fail "row 15: $rel does not set umask 077"; fi
+    if [ -x "$f" ]; then pass "row 15: $rel is executable"; else fail "row 15: $rel is not executable"; fi
+    mode=$(cd "$root" && git ls-files -s "$rel" 2> /dev/null | cut -d' ' -f1)
+    if [ -z "$mode" ] || [ "$mode" = 100755 ]; then pass "row 15: $rel is tracked with mode 100755 (or not tracked yet: '${mode:-untracked}')"; else fail "row 15: $rel is tracked with mode $mode"; fi
+  done
+  if grep -q 'chmod 600' "$lib"; then pass "row 15: the gate configuration is written with chmod 600 (gate_config of lib-online.sh)"; else fail "row 15: the gate configuration is not protected"; fi
 else
-  fail "row 15: the script or the check list does not exist"
+  fail "row 15: a release script or the check list does not exist"
 fi
 
-# --- AC 9: the check list's rows H1 to H24 ---
+# --- AC 9: the check list's rows H1 to H25 ---
 
 status_pending="pending"
 status_measured="measured 2026-10-30 (Epic 16 deploy); re-check at the release deploy"
 status_part="measured in part 2026-10-30 (Epic 16 deploy); rest pending"
 bad=""
-for n in $(seq 1 24); do
+for n in $(seq 1 25); do
   rows=$(grep -E "^\| H$n \|" "$checklist" 2> /dev/null)
   count=$(printf '%s\n' "$rows" | grep -c .)
   status=$(printf '%s\n' "$rows" | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
@@ -903,7 +888,7 @@ for n in $(seq 1 24); do
   fi
 done
 if [ -z "$bad" ]; then
-  pass "check list: H1 to H24 are each present once with one of the three statuses (none is a pass)"
+  pass "check list: H1 to H25 are each present once with one of the three statuses (none is a pass)"
 else
   fail "check list: no single row with one of the three statuses for:$bad"
 fi

@@ -16,6 +16,11 @@
 # (Story 29.7): set_proxy (sets the public proxy address and prints what it reads back), host_address (the address that IRIS sees for the
 # host's requests), counter_rows (AddressCounter rows, all or one address's) and status_read (the public status's busy, marker header and
 # code, in the plain or the trace form).
+# The no-stack part at the end of this file (Stories 29.3 and 29.8) is sourced by the live units, by test-online-host.sh and
+# test-online-load.sh, and by the two release scripts (release/demo-host-check.sh and release/demo-load.sh), and needs no stack and no
+# lib-live.sh: HOST_FORM_FIELD_RE, the password-change forms and the host check's probes, host_app and pct, and the three helpers the two
+# scripts share: origin_ok (the base URL is an origin), gate_read (the access gate's credentials, from the environment) and gate_config
+# (writes them to a curl configuration file of mode 600 and sets gate_args).
 # No password is ever printed. Every request that signs in ends with
 # ?IRISLogout=end on its application and on /ocutalon/, each with its own cookie jar, so that no form leaves a licence connection held;
 # every page request carries a unique probe=<n> query parameter, because the web gateway keeps the answer to a URL (test-bundle-folder.sh).
@@ -188,6 +193,53 @@ host_app() {
     /ocutalon/api/*) printf '%s' /ocutalon/api/ ;;
     *) printf '%s' /ocutalon/ ;;
   esac
+}
+
+# origin_ok <url>: the URL is an origin: a scheme (http or https), a host and an optional port, with no path, no user name and no query.
+origin_ok() { printf '%s\n' "$1" | grep -Eq '^https?://[A-Za-z0-9._-]+(:[0-9]{1,5})?$'; }
+
+# gate_read: reads OCUTALON_GATE_USER and OCUTALON_GATE_PASSWORD into gate_user and gate_password (both empty when neither is set).
+# Returns 1, with gate_problem set to the message, for one of the two alone, a colon in the user or a line break in either.
+gate_read() {
+  gate_problem=""
+  gate_user=${OCUTALON_GATE_USER:-}
+  gate_password=${OCUTALON_GATE_PASSWORD:-}
+  if [ -n "$gate_user" ] || [ -n "$gate_password" ]; then
+    if [ -z "$gate_user" ] || [ -z "$gate_password" ]; then
+      gate_problem="OCUTALON_GATE_USER and OCUTALON_GATE_PASSWORD are set together or not at all"
+      return 1
+    fi
+    case $gate_user in
+      *:*)
+        gate_problem="OCUTALON_GATE_USER holds a colon"
+        return 1
+        ;;
+    esac
+    case $gate_user$gate_password in
+      *$'\n'* | *$'\r'*)
+        gate_problem="the gate credentials hold a line break"
+        return 1
+        ;;
+    esac
+  fi
+  return 0
+}
+
+# gate_config <folder>: after gate_read, writes <folder>/gate.cfg (a curl configuration file of mode 600) and sets the array gate_args to
+# (-K <folder>/gate.cfg), or to nothing when there are no credentials, so that the credentials reach curl by no command line. It then
+# unsets gate_user, gate_password and the two environment variables, so that no child inherits them. Expand the array as
+# ${gate_args[@]+"${gate_args[@]}"} under set -u on bash 3.2.
+gate_config() {
+  local esc_user esc_password
+  gate_args=()
+  if [ -n "$gate_user" ]; then
+    esc_user=$(printf '%s' "$gate_user" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    esc_password=$(printf '%s' "$gate_password" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    printf 'user = "%s:%s"\n' "$esc_user" "$esc_password" > "$1/gate.cfg"
+    chmod 600 "$1/gate.cfg"
+    gate_args=(-K "$1/gate.cfg")
+  fi
+  unset gate_user gate_password OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD
 }
 
 # pct <text>: every byte of the text as %XX.

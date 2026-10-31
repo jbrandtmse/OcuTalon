@@ -105,17 +105,13 @@ done
 [ -n "$base" ] || usage "the base URL is missing"
 case $state in normal | busy | maintenance) ;; *) usage "--state is normal, busy or maintenance" ;; esac
 case $base in */) base=${base%/} ;; esac
-if ! printf '%s\n' "$base" | grep -Eq '^https?://[A-Za-z0-9._-]+(:[0-9]{1,5})?$'; then
+if ! origin_ok "$base"; then
   usage "the base URL is an origin: a scheme, a host and an optional port, no path and no user name"
 fi
 if [ "$demo_status_src" = - ] && [ "$zone_src" = - ]; then usage "at most one input may be - (standard input)"; fi
 
-gate_user=${OCUTALON_GATE_USER:-}
-gate_password=${OCUTALON_GATE_PASSWORD:-}
-if [ -n "$gate_user" ] || [ -n "$gate_password" ]; then
-  if [ -z "$gate_user" ] || [ -z "$gate_password" ]; then usage "OCUTALON_GATE_USER and OCUTALON_GATE_PASSWORD are set together or not at all"; fi
-  case $gate_user in *:*) usage "OCUTALON_GATE_USER holds a colon" ;; esac
-  case $gate_user$gate_password in *$'\n'* | *$'\r'*) usage "the gate credentials hold a line break" ;; esac
+gate_read || usage "$gate_problem"
+if [ -n "$gate_user" ]; then
   case $base in http://*) printf 'demo-host-check: warning: the gate credentials go over plain http\n' >&2 ;; esac
 fi
 block_status=${OCUTALON_CHECK_BLOCK_STATUS:-403}
@@ -162,16 +158,9 @@ case $state in
     ;;
 esac
 
-# The gate credentials: a curl configuration file (mode 600) read with -K, so that they are in no command line.
-gate_args=()
-if [ -n "$gate_user" ]; then
-  esc_user=$(printf '%s' "$gate_user" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  esc_password=$(printf '%s' "$gate_password" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  printf 'user = "%s:%s"\n' "$esc_user" "$esc_password" > "$work/gate.cfg"
-  chmod 600 "$work/gate.cfg"
-  gate_args=(-K "$work/gate.cfg")
-fi
-unset gate_user gate_password esc_user esc_password OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD
+# The gate credentials: a curl configuration file (mode 600) read with -K, so that they are in no command line (gate_config of
+# docker/tests/lib-online.sh).
+gate_config "$work"
 
 # --- reports ---
 

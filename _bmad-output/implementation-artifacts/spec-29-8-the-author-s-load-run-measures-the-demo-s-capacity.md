@@ -2,13 +2,21 @@
 title: "Story 29.8: The author's load run measures the demo's capacity"
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd906be9be6183fd2851287d29eb1ef4e870a1b30'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      In one throwaway run of L2 the connection reading after the one more visitor was one lower than the peak of the visitors' trace pages (6/2 against 7/2), so a trace connection may end within seconds of its last page.
+    evidence: |-
+      The first live run of the load phase (3 visitors with Visual Trace, a units command that reads InstanceConnections and LUConsumed through a terminal): the readings were 3/2, 5/2 and 7/2 after visitors 1, 2 and 3, and 6/2 after the one more visitor, about 5 s later; the run's EXTRA line was still busy by the status. The next two runs peaked at 7/2 as well, but their after-the-extra reading was not printed. Story 29.4's Task 0 and T0-g measured trace connections living 112 to 133 s after the last page request, which a drop within 5 s contradicts. The script now reports the highest reading of the run as UNITS load, and the extra's own reading stays in its table row.
+      A throwaway that reads the units every 2 s for 2 minutes after the last trace page would settle whether the drop is real, and the host's own reading is H25's.
+    location: >-
+      release/demo-load.sh (u_load); release/demo-host-checks.md, The load run (the licence units)
 ---
 
 <intent-contract>
@@ -278,6 +286,45 @@ The S rows run the real `release/demo-load.sh` against the stand-in of `docker/t
 
 ## Review Triage Log
 
+### 2026-10-30 -- Review pass
+- verdicts: 34 findings -- high 0, medium 11, low 21, false 2, maybe-false 0
+- findings:
+  - `medium` `patch` Blind: shim_checks demands only one mode-600 call (was more than 100), shim_min is a hidden global, no secrets hangs grep -- the cfg check now needs more than shim_min calls; shim_checks fails when given no secret; S12 resets shim_min
+  - `medium` `patch` Blind: a visitor interrupted between the sign-in POST and the state read is never signed out -- post_signin records every 3xx answer in an opened file; on_signal signs out the union; signin_visitor signs out an opened visitor whose state read failed; S9 state=500 run pins it
+  - `low` `patch` Blind: units_start is never checked to be two integers -- load_phase fails first when units_start is not two integers
+  - `false` `reject` Blind: the CI time estimate for the load phase looks too low -- measured 33 s for the phase on the throwaway (wait_baseline waited 0 s); the estimate scales that by the runner factor
+  - `low` `patch` Blind: the one more visitor reads busy only for N at the cap, with no note -- header of demo-load.sh now says N must be 6 (3 with --trace) and what the line reads otherwise
+  - `low` `patch` Blind: server text (fix, fallback, why) is printed unsanitised into lines and the table -- clean() maps anything outside letters, digits and . _ , : / space - to _ before printing
+  - `low` `reject` Blind: a late-resolving incident of the browser step could skew L1's row counts -- rejected low: two full live runs and the subagent's runs counted +5 each; the fix would add a settle wait and complexity
+  - `low` `reject` Blind: lib-online.sh and lib-stub.sh are outside row 15's ASCII and host-literal scan -- test-boundaries.sh already holds every file under docker/ to ASCII and no local path; the libraries hold no host literal
+  - `medium` `patch` Edge: sign-in POST succeeds but the state read answers 000 or 5xx, session never ended -- same root cause as the interrupted sign-in; fixed with the opened file
+  - `medium` `patch` Edge: INT or TERM after the sign-in POST and before the signed list entry -- same root cause; on_signal reads opened as well as signed
+  - `medium` `patch` Edge: the extra visitor admitted whose state read fails is never ended -- a 3xx answer already counts as admitted and is signed out; the opened file covers a signal; same root cause
+  - `low` `reject` Edge: the units command has no time limit -- rejected low: the command is the author's own, a bounded wait needs a portable timeout the script does not have (no timeout on macOS)
+  - `low` `reject` Edge: a hold of 90 s with trace pages opened earlier may outlast the busy state -- by-design: the spec bounds the hold at 90 s with --trace; the Planner reads the HOLD line and the busy state live
+  - `low` `reject` Edge: createdAt with an offset or fractional seconds is unreadable -- the server writes UTC whole seconds (T0-b); the script strips fractions and reports 'unreadable' loudly
+  - `low` `patch` Edge: units_start unvalidated in the phase -- same root cause as the Blind finding
+  - `low` `reject` Edge: table_counts with non-numeric fields breaks the arithmetic -- rejected low: the SQL is the unit's own and a failure already fails the phase's checks
+  - `low` `reject` Edge: L1 and L2 have no timeout inside the 150 s reserve -- rejected low: the phase measured 33 s; the unit's own deadline check precedes it
+  - `low` `patch` Edge: L2 starts without waiting for the baseline -- wait_baseline and a baseline check run before L2; L2 fails with the reason when it is not back
+  - `low` `patch` Edge: shim_checks with no secret reads stdin and hangs -- same root cause as the first Blind finding
+  - `medium` `patch` Edge: the mode-600 call count lost its 100 minimum -- same root cause as the first Blind finding
+  - `medium` `patch` Edge: the cleanup claim holds only after the state read -- same root cause as the interrupted sign-in
+  - `false` `reject` Edge: AC6 versus addresses on curl command lines -- AC6 forbids credentials, the published account and tracked host literals; --interface and X-Forwarded-For addresses on the command line are the spec's own mechanism
+  - `medium` `patch` Gap: the notice filter (at or after the press) has no distinguishing test -- stand-in flag early-phone and an S1 run; mutation line written
+  - `medium` `patch` Gap: TURNS FAIL is never exercised -- stand-in flag extra-turn and an S2 run; mutation line written
+  - `medium` `patch` Gap: the one more visitor's address is never asserted -- S1 counts requests with the 7th X-Forwarded-For; S12 loops over visitors 1 to 7 on the -D header path; mutation line written
+  - `medium` `patch` Gap: Visual Trace failure verdicts have no test -- S3 gains a fourth visitor run, trace=form and trace=500; mutation line written
+  - `low` `patch` Gap: S1's unique t check tests format only -- S1 compares distinct GET URLs; mutation line written
+  - `low` `patch` Gap: mutation lines missing or partial for the new pins -- lines added for each new pin; AC10 names its forward/reverse pin
+  - `low` `patch` Gap: S13's evaluated-by-no-shell check can pass vacuously -- also requires the UNITS line the run printed
+  - `low` `reject` Gap: S5 asserts the exit code only for invalid -- the VISITOR FAIL line is the verdict S5 pins; exit 1 is asserted in S4, S7, S8, S9
+  - `low` `patch` Gap: the credentials row's cfg minimum weaker -- same root cause as the first Blind finding
+  - `low` `reject` Gap: stand-in session state is shared across rows -- rows end their sessions (sessions_ok) and the reverse run passes
+  - `low` `patch` Gap: L2 depends on L1's baseline -- same root cause as the Edge finding
+  - `low` `patch` Gap: units_start never validated -- same root cause as the Blind finding
+  - Intent Alignment Auditor: descriptive, no findings; it notes `units=-` without a units command (the spec is silent) and that the real-proxy behaviour is H25's.
+
 ## Design Notes
 
 **Owner decision `epic29_brief`** (2026-10-30, the Contest Planner under the owner's delegation). It binds. As the orchestrator relays it for this story:
@@ -420,6 +467,7 @@ On the gated demo host, before the public flip. This story never runs it.
   - no turn or incident falls back for `rate_limited`, `timeout`, `no_key` or `daily_cap`;
   - the gateway's log shows every 429 retried with back-off before any fallback (host-only);
   - the one more visitor's line is `EXTRA PASS status=busy splash=busy signin=busy`: busy at the visitor cap of about 6 in case 1 (Story 29.7's count), and at 6 trace connections in case 2, and never an error page.
+  - `UNITS load=` is the highest reading of the run: in case 2 the baseline plus 6 connections (7/2 on a throwaway whose idle reading is 1/1); `after=` is the baseline again.
   - The two tables go into the 1.0.0 release notes, and H25 records "measured" with the date.
 - **Cleanup:**
   - every visitor signs out (the script does it, Ctrl-C included, exit 130);
@@ -445,14 +493,36 @@ Every command runs from the worktree root in its own foreground call (`timeout: 
 
 **Mutations** (Rule 19: apply, observe red, revert, then confirm `git status --short` and `git diff --stat` are unchanged):
 - AC1: in `demo-load.sh`, skip `session/end` and the group sign-out -> the live `-g "step 1"` run's L1 check "plain /status not busy afterwards" goes red.
+  mutation: applied 2026-10-30 (signout_visitor returns at once); the live `-g "step 1"` run went red on `L1: afterwards the status reads 'true 1 200'` (and L2 on the busy start); reverted, status and diff stat identical.
 - AC2: open only the `/ocutalon/trace/ocutalon/` page -> L2 goes red (`trace=1`, `EXTRA FAIL status=free`).
+  mutation: applied 2026-10-30 (only `/ocutalon/trace/ocutalon/` opened); the live `-g "step 1"` run went red on L2: `trace=1` per visitor, `EXTRA FAIL status=free splash=form signin=admitted`, readings 1/1,2/2 per visitor; reverted, status and diff stat identical.
 - AC3: let every visitor drive whatever M says -> S2 goes red (6 message POSTs).
+  mutation: applied 2026-10-30 (`drivers=$visitors`); `ONLY_ROWS=s2` went red on 4 checks (6 message POSTs, `Model turns used: 12 of at most 5.`); reverted, status and diff stat identical.
 - AC4: drop the 60 s comparison -> S4 goes red.
+  mutation: applied 2026-10-30 (the comparison removed); `ONLY_ROWS=s4` went red (`notice=61` PASS, exit 0); reverted, status and diff stat identical.
 - AC5: skip the readiness/busy precondition -> S10 goes red (sign-ins recorded).
+  mutation: applied 2026-10-30 (both precondition checks removed); `ONLY_ROWS=s10` went red (`ready=false`: exit 1 with 24 requests; busy: 7 requests); reverted, status and diff stat identical.
 - AC6: post the sign-in with `--data-urlencode "IRISPassword=$p"` -> S12 goes red (the published password on a command line).
+  mutation: applied 2026-10-30 (the password also posted as `--data-urlencode`); `ONLY_ROWS=s12` went red in both runs (`7 of 100 command lines hold a secret`); reverted, status and diff stat identical.
 - AC7: remove the signal trap's sign-out -> S14 goes red.
+  mutation: applied 2026-10-30 (the handler's sign-out loop removed); `ONLY_ROWS=s14` went red (3 sessions opened, none ended; no 401 reads); reverted, status and diff stat identical.
 - AC8: `gate_config` writes mode 644 -> `test-online-host.sh`'s credentials row goes red.
+  mutation: applied 2026-10-30 (`gate_config` chmod 644); `test-online-host.sh` went red on `credentials: 0 calls read a mode 600 configuration, 101 another mode` and on row 15's chmod check; reverted, status and diff stat identical.
 - AC9: change one word of the default watch text -> S16 goes red.
+  mutation: applied 2026-10-30 (`tell me if anything needs me`); `ONLY_ROWS=s16` went red (the default text differs from the guide's; the body sent carries the changed text); reverted, status and diff stat identical.
+- AC3 (the turn bound, observed): `TURNS FAIL`.
+  mutation: applied 2026-10-30 (the guard `if [ "$turns_used" -gt "$max_turns" ]` made `if false`); `ONLY_ROWS=s2` went red (`S2: extra turns: exit 1; Model turns used: 6 of at most 4.`, no TURNS FAIL line); reverted, status and diff stat identical.
+- AC1/AC4 (the notice is the first phone item at or after the press): the stand-in's `early-phone` flag.
+  mutation: applied 2026-10-30 (the `>= startedAt` comparison made `>= 0`); `ONLY_ROWS=s1` went red (`notice=-30`, `why=the notice time is unreadable`); reverted, status and diff stat identical.
+- AC1 (every page GET has a unique `t`): S1's distinct-URL check.
+  mutation: applied 2026-10-30 (`t_next` writes the constant `$1x1`); `ONLY_ROWS=s1` went red (`69 GETs, 33 distinct URLs`); reverted, status and diff stat identical.
+- AC6 (each visitor, the one more visitor included, uses its own address): S1's X-Forwarded-For check and S12's `--interface` loop over visitors 1 to 7.
+  mutation: applied 2026-10-30 (the one more visitor's requests use visitor 1's interface and forwarded address); `ONLY_ROWS='s1 s12'` went red (`0 requests carry the one more visitor's address`, `visitors without their own --interface: 7 7(other)`); reverted, status and diff stat identical.
+- AC4 (Visual Trace verdicts): S3's fourth visitor and its `trace=form` run.
+  mutation: applied 2026-10-30 (the `HOST_FORM_FIELD_RE` branch made `elif false`; then the busy-form branch made `if false`); `ONLY_ROWS=s3` went red each time (`trace form: ... PASS ... trace=2`; `four visitors: ... PASS ... trace=2`); reverted, status and diff stat identical.
+- AC7 (a session opened by a sign-in whose state read failed is signed out): S9's `state=500` run.
+  mutation: applied 2026-10-30 (the record of an opened session removed from `post_signin`); `ONLY_ROWS=s9` went red (`opened [s5 s6], ended [s6], wanted 2 session(s), each ended`); reverted, status and diff stat identical.
+- AC10 (standing): no mutation line; its pin is the forward and reverse run (`TEST_REVERSE=1`) of `test-online-load.sh`, which passed in both orders.
 
 **Shared surfaces:**
 - the check list's H rows (H1 to H25);
@@ -466,5 +536,34 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `release/demo-load.sh` (the author's load script), its hermetic stand-in test `docker/tests/test-online-load.sh` (rows S1 to S16, in the hosted `checks` job) and a load phase (L1, L2) in `live:online-demo-path`. The gate rules and `origin_ok` moved into `docker/tests/lib-online.sh` and the credential shim into `docker/tests/lib-stub.sh`, shared with `demo-host-check.sh` and `test-online-host.sh`. Release check H25 (`pending`) and the load run section are in `release/demo-host-checks.md`; the "Host release check" section above matches the script.
+
+**Files changed.**
+- `release/demo-load.sh` (new, 100755): the load script.
+- `release/demo-host-check.sh`: calls `origin_ok`, `gate_read`, `gate_config`; behaviour unchanged.
+- `release/demo-host-checks.md`: intro, run 3 and H8 (`--hold`), H25, the load run section.
+- `docker/tests/lib-online.sh`: `origin_ok`, `gate_read`, `gate_config`.
+- `docker/tests/lib-stub.sh`: `curl_shim`, `shim_checks`.
+- `docker/tests/test-online-host.sh`: shared shim, row 15 over both release scripts, H1 to H25.
+- `docker/tests/test-online-load.sh` (new): S1 to S16 against the Node stand-in.
+- `docker/tests/test-online-demo-path.sh`: the load phase (L1, L2).
+- `ci/units.sh`: `online-load` in `CHECK_SCRIPTS`, the `IRIS_INPUT` alternative, one comment sentence (the footprint extensions).
+
+**Review.** 34 findings from the four layers: patches applied for 23 findings (11 medium, 12 low; about nine root causes), none newly deferred (the one existing entry stays), 11 rejected with the reasons in the triage log (2 false, 9 low not worth a fix). The patches: sign-out of a visitor whose sign-in opened a session but whose state read failed or was interrupted (an `opened` list); printed server text sanitised; the shim's mode-600 minimum restored and an empty secret list refused; the units baseline validated and the baseline re-checked before L2; the header says N must fill the demo; new stand-in flags and S rows for the notice filter, `TURNS FAIL`, the one more visitor's own address, the Visual Trace verdicts, unique URLs, and S13/S9 hardening; each with a `mutation:` line.
+
+**Follow-up review recommended: true.** Patched medium findings: 11 (more than one). The unverified risk: the sign-out of a session opened by an interrupted or half-failed sign-in is proved against the stand-in only; the live phase and H25 do not interrupt a sign-in.
+
+**Verification (all on this tree, lane C).**
+- `test-online-load.sh` 56 s, all pass, forward and `TEST_REVERSE=1`; `test-online-host.sh` 82 s, all pass; `test-probe.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh` and `ci/checks.sh` (the `online-load` block 55 s) pass.
+- `ci/iris.sh live online-demo-path` (whole unit): passes, 177 s on the unit's clock, 3 min 3 s for the call. The load phase took 33 s (L1 16 s, notices 10 to 11 s; L2 16 s, readings 1/1 at each sign-in, 3/2, 5/2, 7/2 after the visitors' pages, 1/1 after the sign-out). Teardown of `e29s8i` left nothing.
+- Mutations: nine AC lines and seven new ones, each red then reverted with status and diff stat identical.
+
+**CI estimate (for the lead's rebalance).** The load phase adds about 33 s locally, so about 1.5 to 2 min on CI at the runner factor of 2.5 to 3.5 (inference); `shards-2` goes from about 33 to about 34.5 to 36 min, at REL-4's 35. Measured local seconds: `live:online-demo-path` 177 s; `test-online-load.sh` 56 s.
+
+**Residual risks.**
+- One reading of the units after the one more visitor was 6/2 against a 7/2 peak in an earlier run (deferred entry above); the script reports the peak as `load`.
+- Everything on the host (the proxy, the per-address limit, real model latency and cost, the host's licence units) is H25's, `pending`.
+- `units=-` appears in a visitor line when no units command is set; the spec is silent on it.

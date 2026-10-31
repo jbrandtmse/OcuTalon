@@ -13,7 +13,17 @@
 #     skipped ones, each with its own skip text: steps 2 to 5 wait for Story 11.1 and the paired chat and message search cases for Story
 #     31.4. A case that is skipped without its text, or one that is missing or extra, fails the unit. With arguments (a mutation run:
 #     -g <title>) only those cases run and the set check is skipped;
-#   - MEASURED lines: the browser step's seconds and the unit's seconds.
+#   - the load phase (Story 29.8; rows L1 and L2 of its spec), which runs the author's release/demo-load.sh against this throwaway with the
+#     keys at the mock: the proxy address is set to the address that IRIS sees for this host's requests (host_address, set_proxy of
+#     lib-online.sh), each visitor sends its own X-Forwarded-For, and the address is put back to its start value after the phase. It needs
+#     150 s of the deadline left, else it fails saying so, and it waits up to 150 s for the licence units to come back to the reading the
+#     unit took after the start. L1: 6 visitors with 10 turns (5 drive the demo path, one only signs in; the one more visitor is refused as
+#     busy, by the visitor count): IRIS gains 5 Turn rows and 5 resolved Incident rows, each visitor address has one counter row and the one
+#     more visitor's has none, and afterwards the status is not busy and the units are at the reading of the start. L2 (DW-286): 3 visitors
+#     with Visual Trace open, with a units command that reads $SYSTEM.License.InstanceConnections() and LUConsumed(): each sign-in reads
+#     the baseline, each visitor's two trace pages add 2 connections, the load reads the baseline plus 6, and the sign-out brings the
+#     baseline back. It runs whatever the browser step ran (-g "step 1" runs the one case and then the phase).
+#   - MEASURED lines: the browser step's seconds, the load phase's readings and seconds, and the unit's seconds.
 # Every wait ends by the overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default; run the unit with a longer one when the machine is slow);
 # the browser run's global timeout is what is left of it minus 20 s. The project is removed by the EXIT trap, and no password is printed.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Needs docker compose, the build 154 base image (IRIS_IMAGE), Node 24.15 or
@@ -24,6 +34,7 @@ set -u
 . "$(dirname "$0")/lib-online.sh"
 live_start online-demo-path
 live_web_port || exit 1
+root=$(cd "$(dirname "$0")/../.." && pwd)
 
 base="http://127.0.0.1:$web_port"
 online_values
@@ -57,6 +68,14 @@ if [ "$(keys_point)" = 1 ]; then
 else
   die "the runners' model keys could not be pointed at the CI mock"
 fi
+
+# units_reading: "<connections> <licence units>" of the instance, read through a terminal session (which holds one connection and one
+# unit itself, so the baseline of an idle stack reads 1 1). $tmp/units.sh prints it for release/demo-load.sh's units command.
+printf '%s\n' '#!/bin/sh' \
+  "printf '%s\\n' 'Write !,\"CHK|u|\",\$SYSTEM.License.InstanceConnections(),\" \",\$SYSTEM.License.LUConsumed()' 'Halt' | docker exec -i $cid iris session IRIS -U OCUTALON 2> /dev/null | tr -d '\\r' | sed -n 's/.*CHK|u|//p' | head -n 1" > "$tmp/units.sh"
+units_reading() { sh "$tmp/units.sh"; }
+units_start=$(units_reading)
+echo "MEASURED Story 29.8: the units after the start read '$units_start' (connections, licence units)"
 
 # --- the browser step ---
 
@@ -150,6 +169,147 @@ else
       fail "the report does not hold exactly the three passed and the seven skipped cases"
     fi
   fi
+fi
+
+# --- the load phase (Story 29.8) ---
+
+# table_counts: "<Turn rows> <Incident rows> <resolved Incident rows>".
+table_counts() {
+  session_value OCUTALON rows3 << 'OS'
+Set a=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Turn") Do a.%Next()
+Set b=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Incident") Do b.%Next()
+Set c=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Incident WHERE State = 'resolved'") Do c.%Next()
+Write !,"CHK|rows3|",a.%GetData(1)," ",b.%GetData(1)," ",c.%GetData(1)
+Halt
+OS
+}
+
+# load_script <forwarded addresses> <units command or ""> <argument>...: runs release/demo-load.sh against this stack, with the
+# watch message that the mock answers (its watch-start-orders marker before the guide's prompt); standard output to $tmp/load.out and
+# standard error to $tmp/load.err, the exit code in load_rc.
+load_script() {
+  local fwd=$1 units=$2
+  shift 2
+  (
+    unset OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD OCUTALON_LOAD_INTERFACES OCUTALON_LOAD_UNITS_COMMAND
+    export OCUTALON_LOAD_FORWARDED_FOR="$fwd"
+    export OCUTALON_LOAD_WATCH_TEXT='[[mock:watch-start-orders]] Watch the Orders production and only tell me if something needs me.'
+    if [ -n "$units" ]; then export OCUTALON_LOAD_UNITS_COMMAND="$units"; fi
+    bash "$root/release/demo-load.sh" "$base" "$@" > "$tmp/load.out" 2> "$tmp/load.err" < /dev/null
+  )
+  load_rc=$?
+}
+
+# wait_baseline: waits up to 150 s (and while the deadline allows) for the plain status to read not busy and the units to read as after the
+# start (the browser step's trace tabs leave their connections for about 2 minutes). Prints the seconds it waited.
+wait_baseline() {
+  local waited=0
+  while { [ "$(status_read)" != "false none 200" ] || [ "$(units_reading)" != "$units_start" ]; } && [ "$waited" -lt 150 ] && [ $((deadline - SECONDS)) -gt 60 ]; do
+    sleep 5
+    waited=$((waited + 5))
+  done
+  echo "$waited"
+}
+
+load_phase() {
+  local host_ip waited t0 before after i a rows_ok load_lines bc bu k first second
+  if ! printf '%s\n' "$units_start" | grep -Eq '^[0-9]+ [0-9]+$'; then
+    fail "the load phase: the units after the start could not be read ('$units_start')"
+    return
+  fi
+  host_ip=$(host_address)
+  if [ -z "$host_ip" ] || [ "$(set_proxy "$host_ip")" != "$host_ip" ]; then
+    fail "the load phase: the host's address could not be derived ('${host_ip:-}') or the proxy address could not be set"
+    return
+  fi
+  echo "MEASURED Story 29.8: the proxy address is the host's, derived from the container's default gateway"
+  waited=$(wait_baseline)
+  if [ "$(status_read)" = "false none 200" ] && [ "$(units_reading)" = "$units_start" ]; then
+    pass "the load phase: the status is not busy and the units read '$units_start' again (waited $waited s)"
+  else
+    fail "the load phase: after $waited s the status reads '$(status_read)' and the units '$(units_reading)' (the start: '$units_start')"
+    return
+  fi
+
+  # L1: case 1.
+  before=$(table_counts)
+  t0=$SECONDS
+  load_script "198.51.100.81 198.51.100.82 198.51.100.83 198.51.100.84 198.51.100.85 198.51.100.86 198.51.100.87" "" --visitors 6 --max-turns 10
+  echo "MEASURED Story 29.8: L1 took $((SECONDS - t0)) s (exit $load_rc)"
+  grep -E '^(VISITOR|EXTRA|TURNS|demo-load)' "$tmp/load.out" | sed 's/^/  /'
+  grep -E '^VISITOR' "$tmp/load.out" | sed -n 's/^VISITOR \([0-9]*\) .* notice=\([0-9-]*\) .*/MEASURED Story 29.8: L1 visitor \1 notice \2 s/p'
+  if [ "$load_rc" = 0 ]; then pass "L1: the script exits 0"; else fail "L1: the script exits $load_rc: $(tail -n 3 "$tmp/load.err" | tr '\n' '|')"; fi
+  if [ "$(grep -Ec '^VISITOR [1-5] PASS signin=ok path=driven turns=2 notice=([0-9]|[1-5][0-9]|60) fix=resolved ' "$tmp/load.out")" = 5 ] \
+    && [ "$(grep -c '^VISITOR 6 PASS signin=ok path=signed-in ' "$tmp/load.out")" = 1 ]; then
+    pass "L1: five driven visitors pass with a notice within 60 s and the incident resolved, and one signed-in visitor passes"
+  else
+    fail "L1: the visitor lines are not five driven PASS lines and one signed-in PASS line"
+  fi
+  if grep -q '^EXTRA PASS status=busy splash=busy signin=busy$' "$tmp/load.out"; then pass "L1: the one more visitor is busy by the visitor count in the status, the splash and the sign-in"; else fail "L1: $(grep '^EXTRA' "$tmp/load.out")"; fi
+  after=$(table_counts)
+  echo "MEASURED Story 29.8: L1 Turn, Incident and resolved Incident rows: before '$before', after '$after'"
+  set -- $before $after
+  if [ "$#" = 6 ] && [ $(($4 - $1)) = 5 ] && [ $(($5 - $2)) = 5 ] && [ $(($6 - $3)) = 5 ]; then
+    pass "L1: IRIS gained 5 Turn rows, 5 Incident rows and 5 resolved Incident rows"
+  else
+    fail "L1: the table counts went from '$before' to '$after' (wanted +5 of each)"
+  fi
+  rows_ok=1
+  for i in 1 2 3 4 5 6; do [ "$(counter_rows "198.51.100.8$i")" = 1 ] || rows_ok=0; done
+  if [ "$rows_ok" = 1 ] && [ "$(counter_rows 198.51.100.87)" = 0 ]; then pass "L1: each visitor address has one counter row and the one more visitor's has none"; else fail "L1: the counter rows by address are not 1,1,1,1,1,1 and 0"; fi
+  if [ "$(status_read)" = "false none 200" ] && [ "$(units_reading)" = "$units_start" ]; then
+    pass "L1: afterwards the plain status is not busy and the units read '$units_start'"
+  else
+    fail "L1: afterwards the status reads '$(status_read)' and the units '$(units_reading)'"
+  fi
+
+  # L2: case 2, DW-286.
+  waited=$(wait_baseline)
+  if [ "$(status_read)" != "false none 200" ] || [ "$(units_reading)" != "$units_start" ]; then
+    fail "L2: the baseline was not back after $waited s (the status reads '$(status_read)', the units '$(units_reading)'), so the readings would prove nothing"
+    return
+  fi
+  t0=$SECONDS
+  load_script "198.51.100.91 198.51.100.92 198.51.100.93 198.51.100.94" "sh $tmp/units.sh" --visitors 3 --trace --max-turns 6
+  echo "MEASURED Story 29.8: L2 took $((SECONDS - t0)) s (exit $load_rc)"
+  grep -E '^(VISITOR|EXTRA|UNITS|TURNS|demo-load)' "$tmp/load.out" | sed 's/^/  /'
+  grep -E '^(VISITOR|UNITS)' "$tmp/load.out" | sed -n 's/^VISITOR \([0-9]*\) .* units=\([^ ]*\) .*/MEASURED Story 29.8: L2 visitor \1 readings (connections\/units, at sign-in then after its trace pages) \2/p; s/^UNITS /MEASURED Story 29.8: L2 UNITS /p'
+  if [ "$load_rc" = 0 ]; then pass "L2: the script exits 0"; else fail "L2: the script exits $load_rc: $(tail -n 3 "$tmp/load.err" | tr '\n' '|')"; fi
+  if [ "$(grep -Ec '^VISITOR [1-3] PASS signin=ok path=driven .* trace=2 ' "$tmp/load.out")" = 3 ] && grep -q '^EXTRA PASS status=busy splash=busy signin=busy$' "$tmp/load.out"; then
+    pass "L2: three visitors pass with trace=2 and the one more visitor is busy at the trace connections"
+  else
+    fail "L2: $(grep -E '^(VISITOR|EXTRA)' "$tmp/load.out" | cut -c1-100 | tr '\n' '|')"
+  fi
+  bc=${units_start%% *}
+  bu=${units_start##* }
+  rows_ok=1
+  for k in 1 2 3; do
+    a=$(sed -n "s/^VISITOR $k .* units=\([^ ]*\) .*/\1/p" "$tmp/load.out")
+    first=${a%%,*}
+    second=${a##*,}
+    [ "$first" = "$bc/$bu" ] || rows_ok=0
+    [ "${second%%/*}" = $((bc + 2 * k)) ] || rows_ok=0
+  done
+  if [ "$rows_ok" = 1 ]; then pass "L2: each sign-in reads the baseline, and each visitor's two trace pages add 2 connections (DW-286)"; else fail "L2: the readings per visitor do not rise by 0 at the sign-in and by 2 after the pages (the baseline is '$units_start')"; fi
+  if grep -q "^UNITS before=$bc/$bu load=$((bc + 6))/[0-9]* after=$bc/$bu\$" "$tmp/load.out"; then
+    pass "L2: the load reads the baseline plus 6 connections, and the sign-out brings the baseline back"
+  else
+    fail "L2: $(grep '^UNITS' "$tmp/load.out") (the baseline is '$units_start')"
+  fi
+}
+
+if [ $((deadline - SECONDS)) -lt 150 ]; then
+  fail "the load phase: only $((deadline - SECONDS)) s of the deadline are left (it needs 150 s)"
+else
+  load_started=$SECONDS
+  load_phase
+  # The proxy address goes back to its start value on every path that reached the phase.
+  if [ "$(set_proxy "$proxy_start")" = "$proxy_start" ]; then
+    pass "the load phase: the proxy address is back at its start value"
+  else
+    fail "the load phase: the proxy address could not be put back to its start value"
+  fi
+  echo "MEASURED Story 29.8: the load phase took $((SECONDS - load_started)) s; the unit has run $SECONDS s at this point"
 fi
 
 echo "MEASURED Story 29.4: the unit took $SECONDS s"

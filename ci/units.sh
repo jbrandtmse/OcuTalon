@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm probe install-script readme online-host"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm probe install-script readme online-host online-load"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -31,7 +31,8 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # install-fresh, the shorter install group once Lane B's online units joined both (DW-337, at Epic 7's integrate-forward).
 # Lane B's own units (shard:lane-b, demo-switch, online-demo, online-session, online-allowance) are spread over the groups to even out their
 # run times (DW-220; the expected times are in the spec of Story 16.9). live:online-demo-path (Story 29.4: REL-2's online run and the
-# second visitor, expected 7 to 9 min on CI) runs in shards-2, the group with the most headroom. live:online-session (shards) and
+# second visitor, expected 7 to 9 min on CI; Story 29.8 adds its load phase, which runs release/demo-load.sh against the throwaway, about 2
+# to 3 more min, inference) runs in shards-2, the group with the most headroom. live:online-session (shards) and
 # live:online-allowance (shards-2) left install-fresh after its job took 39.9 min of the 40-min timeout (run 41088697760, 2026-10-30;
 # each unit starts its own throwaway and needs no install state). live:online-visitors (Story 29.7: the visitor count at a full house,
 # expected 8 to 10 min on CI, inference) joined install-fresh, measured at 21 min on CI before it (run 41116344208), so about 29 to 31 min with it
@@ -117,10 +118,11 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
 # its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
-# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, the eval folder, the CI recipe,
+# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, release/demo-load.sh (which the load phase
+# of live:online-demo-path runs), the eval folder, the CI recipe,
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
-IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
 WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
