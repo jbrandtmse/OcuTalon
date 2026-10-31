@@ -273,12 +273,13 @@ export async function expectIncidentAwaitingApproval(page: Page): Promise<string
 
 /**
  * UJ-1 step 5 (the web run's 05, the online run's step 5): presses Approve on the simulated phone's notice for the request `key`. The
- * request is answered from the phone; the phone then reads "Approved from the simulated phone at HH:MM." and the card the same time
- * in en-GB and UTC, the context the run sets. Within 120 s the card's band says all orders went through ("All 50 orders went through." on the mock, its shape
- * on the real model), its audit line "Recorded in the IRIS audit log." follows and the chip says Resolved; the phone gets the result as
- * a message with no buttons, and the request's row leaves the rail.
+ * request is answered from the phone; the phone then reads "Approved from the simulated phone at HH:MM." (with `zone` after the time:
+ * none on a local install, " ET" on the online demo) and the card the same time in en-GB and UTC, the context the run sets. Within
+ * 120 s the card's band says all orders went through ("All 50 orders went through." on the mock, its shape on the real model), its
+ * audit line "Recorded in the IRIS audit log." follows and the chip says Resolved; the phone gets the result as a message with no
+ * buttons, and the request's row leaves the rail.
  */
-export async function approveOnPhone(page: Page, key: string): Promise<void> {
+export async function approveOnPhone(page: Page, key: string, zone = ''): Promise<void> {
   const card = incidentCard(page);
   const request = card.locator('[data-part="approval"]');
   const notice = phoneNotes(page).filter({ has: page.getByRole('button', { name: APPROVE_NAME, exact: true }) });
@@ -291,9 +292,9 @@ export async function approveOnPhone(page: Page, key: string): Promise<void> {
   await expect.poll(async () => readApproval(key).then((one) => one.at), { message: 'the request is answered', timeout: 30_000 }).not.toBe('');
   const answered = await readApproval(key);
   expect(answered.channel, 'from the simulated phone').toBe('phone');
-  // The phone's line is the server's text (HH:MM, followed by a zone name where the host shows one, as the online demo does); the card writes the time in the page's en-GB locale and UTC zone (no leading zero before ten), which the run's browser context sets.
+  // The phone's line is the server's text (HH:MM in the instance zone, UTC on a stack, then the zone suffix the caller names); the card writes the time in the page's en-GB locale and UTC zone (no leading zero before ten), which the run's browser context sets.
   const time = answered.at.slice(11, 16);
-  await expect(phone.locator('p[data-part="answer"]'), 'the phone says so').toHaveText(new RegExp(`^Approved from the simulated phone at ${time}( [A-Z]{1,5})?\\.$`), { timeout: CARD_MS });
+  await expect(phone.locator('p[data-part="answer"]'), 'the phone says so').toHaveText(`Approved from the simulated phone at ${time}${zone}.`, { timeout: CARD_MS });
   await expect(request.locator('p.status'), 'so does the card').toHaveText(`Approved from the simulated phone at ${clock(answered.at, 'en-GB', 'UTC')}`, { timeout: CARD_MS });
 
   const band = card.locator('[data-part="result"]');

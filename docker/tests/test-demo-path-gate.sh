@@ -13,7 +13,8 @@
 #     URL and the report path; it takes the audit mark before Playwright and reads the log after it;
 #   - with OCUTALON_DEMO_PATH_MODEL=real (Story 11.7) the unit prints `MODEL real: a dry run on the CI mock` and points the runners' keys
 #     (the stub logs it as `point`) before the audit mark and before Playwright, and fails with no spec run when that does not answer OK;
-#     the default and `mock` point nothing and print no MODEL line, and any other value goes through to Playwright untouched;
+#     the default and `mock` point nothing and print no MODEL line, and any other value goes through to Playwright untouched; `npm`
+#     records the value it got, or that it got none;
 #   - the unit exits 1, with the reason on a line, for a skipped or failed @floor test (Playwright exits 0 for a skip), a skipped
 #     test of a numbered step file (only the Telegram parts may skip), a skip that names no story, a spec file that maps to no
 #     step, a missing step spec, a Playwright exit 1 beside a green report, and a missing report;
@@ -31,8 +32,9 @@
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Needs bash and Node; starts no container and no browser.
 set -u
 
-# The scratch tree holds a stand-in web bundle, which the group run must keep, whatever the caller's shell exports.
-unset LIVE_REBUILD_WEB
+# The scratch tree holds a stand-in web bundle, which the group run must keep, whatever the caller's shell exports; and each run
+# names its own model value (OCUTALON_DEMO_PATH_MODEL) or none.
+unset LIVE_REBUILD_WEB OCUTALON_DEMO_PATH_MODEL
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$repo" || exit 1
@@ -122,6 +124,11 @@ echo "npm $*" >> "$GATE_LOG/sequence"
 echo "OCUTALON_URL=$OCUTALON_URL" > "$GATE_LOG/npm.env"
 echo "OCUTALON_E2E_JSON=$OCUTALON_E2E_JSON" >> "$GATE_LOG/npm.env"
 echo "OCUTALON_E2E_TIMEOUT_MS=$OCUTALON_E2E_TIMEOUT_MS" >> "$GATE_LOG/npm.env"
+if [ -n "${OCUTALON_DEMO_PATH_MODEL+set}" ]; then
+  echo "OCUTALON_DEMO_PATH_MODEL=$OCUTALON_DEMO_PATH_MODEL" >> "$GATE_LOG/npm.env"
+else
+  echo "OCUTALON_DEMO_PATH_MODEL unset" >> "$GATE_LOG/npm.env"
+fi
 echo "Running tests using 1 worker"
 if [ -n "${GATE_NPM_OUT:-}" ]; then echo "$GATE_NPM_OUT"; fi
 if [ -n "${GATE_REPORT:-}" ]; then cp "$GATE_REPORT" "$OCUTALON_E2E_JSON"; fi
@@ -362,6 +369,14 @@ if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "point read npm read "
 else
   fail "unit: the calls of the real-model dry run ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)', not 'point read npm read'"
 fi
+model_seen() {
+  if grep -qx "$2" "$log/npm.env" 2> /dev/null; then
+    pass "unit: Playwright gets $2 ($1)"
+  else
+    fail "unit: Playwright got '$(grep '^OCUTALON_DEMO_PATH_MODEL' "$log/npm.env" 2> /dev/null)', not '$2' ($1)"
+  fi
+}
+model_seen "the real-model dry run checks the real model's way" "OCUTALON_DEMO_PATH_MODEL=real"
 
 run_unit green 0 OCUTALON_DEMO_PATH_MODEL=real GATE_POINT=0
 expect "unit: keys that cannot be pointed fail the real-model dry run before any mark or spec" 1 \
@@ -375,18 +390,21 @@ fi
 
 run_unit green 0
 absent "unit: the default model prints no MODEL line and points no keys" "MODEL real"
+model_seen "no value is set where the caller set none" "OCUTALON_DEMO_PATH_MODEL unset"
 run_unit green 0 OCUTALON_DEMO_PATH_MODEL=mock
 if [ "$rc" -eq 0 ] && [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
   pass "unit: the mock model points no keys: the specs do"
 else
   fail "unit: the mock model's calls ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)' (exit $rc)"
 fi
+model_seen "the mock model" "OCUTALON_DEMO_PATH_MODEL=mock"
 run_unit green 0 OCUTALON_DEMO_PATH_MODEL=zz
 if [ "$rc" -eq 0 ] && [ -e "$log/npm.calls" ] && ! grep -q '^MODEL' "$out" && [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
   pass "unit: another value goes through to the specs, which refuse it before their first step"
 else
   fail "unit: another model value was not passed through untouched (exit $rc)"
 fi
+model_seen "another value goes through untouched" "OCUTALON_DEMO_PATH_MODEL=zz"
 
 # --- the unit: a red demo path ---
 

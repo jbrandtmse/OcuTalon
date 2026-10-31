@@ -5,7 +5,8 @@
 #   - the start: the log ends ready, and the public flag is on;
 #   - the model keys of the three runners are pointed at the CI mock (keys_point of lib-online.sh): without them every decision is the no_key
 #     fallback, and no incident would raise an approval request;
-#   - the browser step: the project online-demo-path of web/playwright.config.ts (web/e2e-online/demo-path/) as the demo account:
+#   - the browser step: the project online-demo-path of web/playwright.config.ts (web/e2e-online/demo-path/) as the demo account, on the CI
+#     mock's outcomes (OCUTALON_DEMO_PATH_MODEL=mock, whatever the caller's shell exports):
 #       step 1 (the splash and the sign-in), steps 2 to 5 (one visitor's journey through the step functions of web/e2e/support/demo-path.ts,
 #       which the web run's 02 to 05 call too: the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting
 #       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
@@ -26,7 +27,8 @@
 #     more visitor's has none, and afterwards the status is not busy and the units are at the reading of the start. L2 (DW-286): 3 visitors
 #     with Visual Trace open, with a units command that reads $SYSTEM.License.InstanceConnections() and LUConsumed(): each sign-in reads
 #     the baseline, each visitor's two trace pages add 2 connections, the load reads the baseline plus 6, and the sign-out brings the
-#     baseline back. It runs whatever the browser step ran (-g "step 1" runs the one case and then the phase).
+#     baseline back. It runs whatever the browser step ran (-g "step 1" runs the one case and then the phase). The caller's
+#     OCUTALON_LOAD_WATCH_TEXT is cleared, so the load always sends the guide's own prompt.
 #   - MEASURED lines: the browser step's seconds, the load phase's readings and seconds, and the unit's seconds.
 # Every wait ends by the overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default; run the unit with a longer one when the machine is slow);
 # the browser run's global timeout is what is left of it minus 20 s. The project is removed by the EXIT trap, and no password is printed.
@@ -96,6 +98,7 @@ run_e2e() {
     OCUTALON_E2E_IRIS_CONTAINER="$cid" \
     OCUTALON_E2E_TIMEOUT_MS=$(((left - 20) * 1000)) \
     OCUTALON_E2E_JSON="$e2e_json" \
+    OCUTALON_DEMO_PATH_MODEL=mock \
     npm --prefix web run e2e:online-demo-path -- "$@" > "$e2e_log" 2>&1
 }
 
@@ -194,7 +197,7 @@ load_script() {
   local fwd=$1 units=$2
   shift 2
   (
-    unset OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD OCUTALON_LOAD_INTERFACES OCUTALON_LOAD_UNITS_COMMAND
+    unset OCUTALON_GATE_USER OCUTALON_GATE_PASSWORD OCUTALON_LOAD_INTERFACES OCUTALON_LOAD_UNITS_COMMAND OCUTALON_LOAD_WATCH_TEXT
     export OCUTALON_LOAD_FORWARDED_FOR="$fwd"
     if [ -n "$units" ]; then export OCUTALON_LOAD_UNITS_COMMAND="$units"; fi
     bash "$root/release/demo-load.sh" "$base" "$@" > "$tmp/load.out" 2> "$tmp/load.err" < /dev/null

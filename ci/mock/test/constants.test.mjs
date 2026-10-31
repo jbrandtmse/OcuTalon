@@ -83,12 +83,12 @@ test('row 16: each agent MOCKKEY has exactly one mockkey scenario, and each mock
   for (const key of scenarioKeys) assert.ok(agents.some((a) => a.key === key), `a mockkey scenario ${key} names no agent`);
 });
 
-test('row 16: the tool names of the default scripts and of the summary are values of OcuTalon.Tools.Names', () => {
+test('row 16: the tool names of the default scripts, of the keyed prompts and of the summary are values of OcuTalon.Tools.Names', () => {
   const { toolNames, scenarios } = readAll();
   assert.ok(toolNames.length >= 11, `OcuTalon.Tools.Names holds ${toolNames.length} tool names`);
   assert.equal(new Set(toolNames).size, toolNames.length, 'the tool names are distinct');
   let used = 0;
-  for (const s of scenarios.all.filter((x) => Object.keys(x.match).length === 1 && Object.hasOwn(x.match, 'mockkey'))) {
+  for (const s of scenarios.all.filter((x) => Object.hasOwn(x.match, 'mockkey'))) {
     for (const name of toolUseNames(s)) {
       used += 1;
       assert.ok(toolNames.includes(name), `${s.file}: ${name}`);

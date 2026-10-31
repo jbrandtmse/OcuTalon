@@ -45,7 +45,7 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # live:install-script-live moved the other way. From the unit seconds of CI run 41206732188 (Story 11.1's head): install-fresh is
 # 2,007 - 358 + 270 = 1,919 s (install-start 739, bundle-folder 264, online-demo 646, install-script-live 270) and image is
 # 1,692 - 270 + 358 + 5 = 1,785 s plus the growth of the online unit (storage-roundtrip 312, build-inputs 9, compose-start 201, lane-b
-# 905, online-demo-path 358 + the growth).
+# 900 and about 5 for Story 11.7's two new tests (inference), online-demo-path 358 + the growth).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:install-script-live" ;;

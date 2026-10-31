@@ -1316,6 +1316,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-25T21:32:41Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=11.1 turns on the online run's steps 2-6 in web/e2e-online/demo-path.spec.ts together with the web run's (the online-demo unit runs them on its flag-on throwaway)
 - 2026-10-30T13:10:06Z occurrence=29-4-sessions-stay-isolated-under-load by=cr note=moved to e2e-online/demo-path/ (unit online-demo-path, shards-2); step 6 is real; report_check pins the 4 skips of 11.1
 - 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=the online run's steps 2 to 5 run as one visitor's journey through the shared step functions in web/e2e/support/demo-path.ts; live online-demo-path 7 passed, 3 skipped (Story 31.4's cases)
 
 ### DW-225: The path lists that name SignInAssets.cls (ci/units.sh WEB_INPUT_PATTERN, test-ci-changes, test-compose-file's not-ignored check, test-boundaries' scope) do not name SplashAssets.cls or splash.css/js
 - source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1788,6 +1789,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 8.6 plan Task 0 on a warm throwaway: the mock log held 2 Triage requests (no tools, selectedBy prompt, guide-reminder); the triage decision was a fallback 'invalid'; the turn ended done with the scenario reply
 - 2026-10-27T17:18:09Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=CI-mock only (a real model triages normally); the demo path's CI trace shows an invalid triage decision for guide step 2; the fix is in the mock's request routing or scenario shape (ci/mock, contended), so it belongs with the end-to-end demo-path story
 - 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=AD-22 amended (U-194): guide-watch-triage and guide-reminder-triage answer Triage with Act (mockkey triage), so a guide-step chat turn's triage decision is valid; server.test.mjs pins the keyed match
 
 ### DW-314: live:sign-in runs every web/e2e spec but demo-path in one unit; locally the whole call now takes about 515 s (222 tests) against the 10-minute foreground cap every stage works under (OCUTALON_LIVE_DEADLINE=900 already needed), so the next story that adds browser cases to it cannot run it in one call
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2600,6 +2602,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T13:10:06Z status=routed owner=burndown by=cr note=for UJ-1 step 2 under the mock (11.1's 02-watch and the online run's step 2); re-own to 11.1 at the burn-down
 - 2026-10-31T03:39:09Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=overflow: the mock's guide-watch reply starting no watch blocks UJ-1 step 2 under the mock; Story 11.1 turns the demo path's steps 2-5 on
 - 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=B/guide-watch.json (mockkey chat) calls start_watch, so the guide's own Send starts the watch and the Orders check row appears on the mock (live demo-path 02)
 
 ### DW-441: The address key and every counter row's hash are also written to the private database's journal while the instance runs
 - source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: high | footprint: in-story
@@ -2720,3 +2723,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-1 Rule (parenthetical); src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:41-44; TestCancelAllThroughChat asserts :2, :3, :4 for one call; a literal reading would make ReminderOps refuse refs 2 and 3 as reused_key
 - 2026-10-31T15:54:12Z status=escalated owner=burndown by=cr note=as-built AD-1 wording needed: the command's position in the turn (U-118); an AD amendment is a veto item for the lead (Rule 20)
+
+### DW-509: The demo-path key guard (refuseOnRealModel) sits in the shared pointKeys/restoreKeys of web/e2e/support/devices.ts, so OCUTALON_DEMO_PATH_MODEL=real exported for a wider run makes reminder/chat.spec.ts and demo-switch/mailbox.spec.ts throw
+- source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: devices.ts:176-179 reads the variable for every caller; reminder/chat.spec.ts:46,75 and demo-switch/mailbox.spec.ts:36,43 call the helpers unconditionally; only live:demo-path sets it (test-demo-path.sh), and the online unit pins mock since this review. A move of the guard into the demo-path specs is about 20 lines.
+- 2026-10-31T21:36:24Z status=wontfix-accepted owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=cr note=reopen_if=a unit other than live:demo-path fails with 'the specs never point the runners keys on the real model'
+
+### DW-510: The real-mode shape checks of the demo-path step functions are the spec's and unproven against the real model: the item noun is \S+, so a multi-word itemNoun fails the headline and the band, and 04's real landing check takes every button-less phone note
+- source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/demo-path.ts:154-156 and :247 match the noun as \S+ (DW-270: itemNoun comes from the diagnosis); web/e2e/demo-path/04-incident.spec.ts:90 filters phone notes with hasNot a button on real; the spec's Tasks fix these shapes, and real is never run in this story.
+- 2026-10-31T21:36:29Z status=by-design owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=cr note=spec-bound (Tasks: real-mode shapes); reopens by amendment if Story 11.3's first real rehearsal goes red on a shape

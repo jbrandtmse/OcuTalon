@@ -214,6 +214,9 @@ describe('the CI mock scenarios of the guide\'s prompts', () => {
   it('key the exact text of the guide\'s step 1 and step 2 prompts, so a changed prompt cannot leave the mock without its scenario', () => {
     assert.equal(scenario('guide-watch').match.prompt, GUIDE_TEXTS.promptWatch);
     assert.equal(scenario('guide-reminder').match.prompt, GUIDE_TEXTS.promptReminder);
+    // Each prompt's Triage scenario too (U-194): a stale one would leave the turn's decision to the triage default script.
+    assert.equal(scenario('guide-watch-triage').match.prompt, GUIDE_TEXTS.promptWatch);
+    assert.equal(scenario('guide-reminder-triage').match.prompt, GUIDE_TEXTS.promptReminder);
     assert.equal(GUIDE_TEXTS.promptWatch, P1);
     assert.equal(GUIDE_TEXTS.promptReminder, P2);
   });

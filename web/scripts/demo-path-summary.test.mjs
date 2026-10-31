@@ -413,6 +413,7 @@ function playwrightEnv() {
   delete env.OCUTALON_E2E_JSON;
   delete env.OCUTALON_URL;
   delete env.OCUTALON_E2E_IRIS_CONTAINER;
+  delete env.OCUTALON_DEMO_PATH_MODEL;
   return env;
 }
 
@@ -458,10 +459,10 @@ describe('the real specs, run without their floor test', () => {
     assert.match(run.stdout + run.stderr, /OCUTALON_DEMO_PATH_MODEL is mock or real, not "zz"/);
   });
 
-  it('take the real and the mock model as they are: the parts that need the stack still skip', () => {
-    for (const model of ['real', 'mock']) {
+  it('take the real and the mock model, and an empty value as mock: the parts that need the stack still skip', () => {
+    for (const model of ['real', 'mock', '']) {
       const run = withModel(model);
-      assert.equal(run.status, 0, `${model}: ${run.stdout.slice(0, 500)}${run.stderr.slice(0, 1500)}`);
+      assert.equal(run.status, 0, `"${model}": ${run.stdout.slice(0, 500)}${run.stderr.slice(0, 1500)}`);
     }
   });
 });

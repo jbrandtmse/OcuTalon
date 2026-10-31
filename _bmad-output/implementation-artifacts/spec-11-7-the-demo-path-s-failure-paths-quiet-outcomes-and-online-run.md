@@ -270,6 +270,41 @@ The line numbers are those of `OCT-epic11` at `13cbd77f`.
   - The estimate (Design Notes) keeps every group under 33 min.
   - The CI estimate for `image` is (1821 s + the local increase of `live online-demo-path`) / 60 min, where 1821 s is 1692 − 270 + 358 + 5 plus 36 s of job overhead. If it passes 33 min, the implement stage adds a `deferred:` item for the lead.
 
+### Review Findings
+
+Code review, 2026-10-31: four layers (Blind, Edge, Verification Gap, Acceptance) on `git diff 7347be00` plus QA's untracked test. 35 raw findings gave 10 patched root causes (3 medium, 7 low), 2 low ledgered as terminal (DW-509, DW-510), 4 low rejected and 7 false. No high finding and no AD mismatch.
+
+- [x] [Review][Patch] (medium) The gate never checked that `OCUTALON_DEMO_PATH_MODEL` reaches Playwright, so a unit that dropped or rewrote it would keep the real-mode dry run green in mock mode (Blind 3, Edge 12, VG 1) [docker/tests/test-demo-path-gate.sh:127] -- the fake `npm` records the value, and the real, default, mock and `zz` runs check it.
+- [x] [Review][Patch] (medium) The gate, the parser cases and the online unit took `OCUTALON_DEMO_PATH_MODEL` from the caller's shell (Blind 3, Blind 5, Edge 10, Edge 11, VG 2) [docker/tests/test-demo-path-gate.sh:37] -- the gate unsets it, `playwrightEnv` deletes it, and `test-online-demo-path.sh`'s `run_e2e` pins `mock` (the unit always points the keys at the mock).
+- [x] [Review][Patch] (medium) `load_script` took `OCUTALON_LOAD_WATCH_TEXT` from the caller's shell, so the load phase's "the guide's own prompt" rested on the shell (Blind 2, Edge 1, VG 3, Auditor 6a) [docker/tests/test-online-demo-path.sh:200] -- unset with the other load variables.
+- [x] [Review][Patch] (low) `approveOnPhone` accepted any zone suffix on both runs, against "checked exactly on both" (Edge 6, Auditor 1) [web/e2e/support/demo-path.ts:282] -- a `zone` argument: none on the web run, `" ET"` on the online run (`Msg.Catalog`'s time slot).
+- [x] [Review][Patch] (low) `guide-view.test.mjs` did not tie the two `-triage` scenarios to the guide's prompt texts (Blind 1) [web/scripts/guide-view.test.mjs:218]
+- [x] [Review][Patch] (low) Row 16's tool-name check had been narrowed to the default scripts, leaving out the keyed prompts' `start_watch` and `set_reminder` (Blind 6) [ci/mock/test/constants.test.mjs:91]
+- [x] [Review][Patch] (low) `test-demo-path.sh` gave a false reason, "a real install has no test classes": `src/module.xml` ships `OcuTalon.PKG`, `OcuTalon.Test.*` included (Blind 7) [docker/tests/test-demo-path.sh:51]
+- [x] [Review][Patch] (low) The `ci/units.sh` comment presented lane-b 905 as measured; run 41206732188 measured 900, and the 5 is an inference (Blind 9) [ci/units.sh:48]
+- [x] [Review][Patch] (low) The retired-names test would go red on a rule or record under `_bmad/` that names a retired name (Blind 8) [web/scripts/retired-demo-path-names.test.mjs:26] -- the kit's folders are left out of the search.
+- [x] [Review][Patch] (low) The parser cases did not cover the empty value, which reads as `mock` (Auditor 6b) [web/scripts/demo-path-summary.test.mjs:463]
+
+**Rejected:**
+- (low; DW-509, wontfix-accepted) The key guard in `devices.ts` also fires for `reminder/chat.spec.ts` and `demo-switch/mailbox.spec.ts` when `real` is exported for a wider run (Blind 4, Edge 2, VG other 1, Auditor 2). Only `live:demo-path` sets the variable, and moving the guard is about 20 lines.
+- (low; DW-510, by-design) Real-mode shapes: the `\S+` item noun and 04's button-less phone note (Edge 7, Edge 9). The spec's Tasks fix both; they reopen only by amendment after a real run.
+- (low) The feature commit's message says "the four guide prompts" (Edge 13). There are two prompts and four scenarios; the message belongs to a commit already in history, and the code and spec are right.
+- (low) Task 0's baseline was not taken (Auditor 4). This is self-reported, and the lead measures `image` on this story's CI run (Design Notes). The auditor's scaled bound is 32.4 min.
+- (low) The `ci/units.sh` comment sits next to Epic 12's edit of the same comment (Auditor 5). A trial `git merge-file` against `origin/OCT-epic12` gives one comment-only conflict hunk at line 42, which keeps both paragraphs; moving the paragraph would split the layout comment.
+- (low) The retired-names ban is permanent and reads untracked files (VG other 2, Auditor 6c). This is by design: it is AC6's retired route, and it mirrors the `rg` search, as its header says.
+- (false) Edge 3: a real install has no test classes. The package ships them.
+- (false) Edge 4: `guideSend` pressed off step 1. This is the documented precondition, and the "step 1 done, step 2 current" checks fail loudly.
+- (false) Edge 5: an instance zone other than UTC. No compose file sets TZ, and the old 05 check used the same rule.
+- (false) Edge 8: a fix total of 0 passes on real. No approval request exists without failed orders.
+- (false) Auditor 3: the en-GB/UTC oracle states no precondition. The doc comment states it, and a mismatch fails showing both texts.
+- (false) Auditor 2's sub-claims. A second parser cannot drift, because `parseModel` refuses every other value at load, and `WaitRecords` sits behind 06's `if (!ON_MOCK) return`.
+- (false) Blind 8's untracked part. QA's file is uncommitted by stage design, and the lead commits it.
+
+**Rules.**
+- Rule 3: this story is test, mock and CI code. Its real-runtime evidence is `live demo-path` and `live online-demo-path`, Playwright on real throwaway stacks, both green after the patches.
+- Rule 6: AD-22 as amended (U-194) holds. `select` keeps a prompt hit only with no key or the header's key, keyed prompts stay out of `byMockKey`, and there is no new state. AD-29's Epic 11 exception covers the Lane B mock code.
+- Rule 2: the copy in `B/guide-watch.json` carries its stated reason, and the step functions extend the web run's checks.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -575,6 +610,20 @@ Every AC already had a pinning test with an implement-stage `mutation:` line on 
 - AC4 (online steps 2 to 5, the report check) and AC3's IRIS half keep their implement-stage mutation lines (the Notify SimPhoneOut mutation, the `notBuilt` report-check mutation, `TestWatchPromptTriage`, `TestReminderPromptTriage`); not re-run: a live `online-demo-path` and the IRIS classes need the lane for another ~4 min each and the lines are current.
 - Test file added (QA): `web/scripts/retired-demo-path-names.test.mjs` (AC6; in the default suite, `npm --prefix web test`).
 - Teardown: `ci/iris.sh teardown` for tag `e11s7q`; no lane-a lock of this stage is left.
+
+### Code-review record (code-review stage, 2026-10-31)
+
+Each mutation was applied, red observed, the file restored from a scratch copy, `git status --short` and `git diff --stat` compared byte-identical, then green again.
+- mutation (CR): AC5 the unit's Playwright call pinned to `OCUTALON_DEMO_PATH_MODEL=mock` in `docker/tests/test-demo-path.sh` -> `test-demo-path-gate.sh` red, three FAIL lines ("Playwright got 'OCUTALON_DEMO_PATH_MODEL=mock', not" `=real`, `unset` and `=zz`); restored, 53 PASS.
+- mutation (CR): AC5 `parseModel` throws on an empty value -> `web/scripts/demo-path-summary.test.mjs` "take the real and the mock model, and an empty value as mock" red, 35 of 36; restored, 36 of 36.
+- mutation (CR, hermeticity): `playwrightEnv` keeps the shell's value, run with `OCUTALON_DEMO_PATH_MODEL=zz` exported -> "skip every part that needs the stack" red, 35 of 36; patched, 36 of 36 with `zz` exported. The gate run with `OCUTALON_DEMO_PATH_MODEL=real` exported: all checks passed (53 PASS; the verification layer saw 3 FAIL before the patch).
+- mutation (CR): AC1 `B/guide-watch.json`'s `start_watch` typed `start-watch` -> `ci/mock/test/constants.test.mjs` row 16 (tool names) red, "B/guide-watch.json: start-watch"; restored, 5 of 5.
+- mutation (CR): AC3 `B/guide-watch-triage.json`'s prompt text changed -> `web/scripts/guide-view.test.mjs` "key the exact text of the guide's step 1 and step 2 prompts" red; restored.
+- Live after the patches (lane A, tag `e11s7c`, after `ci/iris.sh build`):
+  - `live online-demo-path`, with `OCUTALON_DEMO_PATH_MODEL=zz` and `OCUTALON_LOAD_WATCH_TEXT='[[mock:no-such-scenario]] Watch it now'` exported: 202 s; 7 passed, 3 skipped, the report PASS, L1 and L2 PASS. This covers the model pin, the cleared load text, and step 5's phone line matched exactly with " ET".
+  - `live demo-path` (mock): 186 s; `DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed`; every audit PASS line. This covers 05's phone line matched exactly with no suffix.
+- Hermetic checks: `test-mock.sh` 131 of 131; `npm --prefix web test` 1142 of 1142; `npm --prefix web run lint` exit 0; `test-ci-config.sh` all rules passed.
+- Teardown: `ci/iris.sh teardown` for tag `e11s7c` left nothing behind, and no lane-a lock is left. No warm stack was used.
 
 ## Auto Run Result
 

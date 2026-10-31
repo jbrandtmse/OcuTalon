@@ -186,7 +186,8 @@ test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks
   test('step 5: Approve on the phone ends with "All 50 orders went through.", the audit line and Resolved, and the request leaves the rail', async () => {
     test.setTimeout(240_000);
     expect(request, 'step 4 found the approval request').not.toBe('');
-    await approveOnPhone(pageOf(), request);
+    // The online demo's message times carry " ET" (Msg.Catalog's time slot).
+    await approveOnPhone(pageOf(), request, ' ET');
   });
 });
 

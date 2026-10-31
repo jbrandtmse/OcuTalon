@@ -48,8 +48,8 @@ pass "the first start ended ready"
 
 # --- the demo path: the step specs, then the step summary ---
 
-# A dry run of the real-model switch on the CI mock: the specs of `real` never point the runners' keys (a real install has no test
-# classes), so this unit does, once, before anything is marked or run.
+# A dry run of the real-model switch on the CI mock: the specs of `real` never point the runners' keys (a real key must not be
+# touched), so this unit does, once, before anything is marked or run.
 if [ "${OCUTALON_DEMO_PATH_MODEL:-mock}" = real ]; then
   echo "MODEL real: a dry run on the CI mock"
   keys_ok=$(printf '%s\n' 'Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()' 'Write !,"CHK|keys|",$System.Status.IsOK(sc)' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|keys|//p' | head -n 1)
