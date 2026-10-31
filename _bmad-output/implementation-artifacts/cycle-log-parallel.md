@@ -1083,3 +1083,12 @@
 2026-10-31T09:04:38Z	Epic 11	structural_question	inbox=U-189 kind=parked(graph_change_is_the_owner's) issue=11.6(Planner's_real-key_pass_on_the_candidate_cut_after_11.1-11.5_merge)+11.3(author's_hosts,real_key)_cannot_finish_on_the_epic_branch;Epic_11_merges_whole recommended=a(new_release_epic_38_for_the_human_gates,depends_on_11,gates_v0.1.0) runner=continues_buildable_work
 2026-10-31T09:06:16Z	Epic 1-37	ci_green_verified	head=366a79ab via=source_identical_to_8239a82a(Epic_29_head,green:41186082264,41186082331) own_run=pending
 2026-10-31T09:06:16Z	Epic 12	dispatch_planned	runner=C slot=ocutalon-slot-c reason=slot_C_freed(Epic_29_merged)->pool_head_12(waits_on_9_cleared;12.7_by_Mon_17Z) base=2f3a783d feature=366a79ab contended=.worktrees/.coordination/contended-epic-12.txt prompt=scratchpad/dispatch-epic-12-redispatch.md
+2026-10-31T09:06:57Z	Epic 12	runner_dispatched	agent=ab46a01f748320374 model=opus runner=C slot=ocutalon-slot-c previous_runner=a309caf0259cbd66d mode=redispatch base=2f3a783d prompt=scratchpad/dispatch-epic-12-redispatch.md
+2026-10-31T09:07:21Z	Epic 11	owner_decision	id=U-189 at=2026-10-31T09:06:08Z#567 via=inbox by=Contest_Planner(owner_delegate) answer=a:new_Epic_38('0.1.0_is_checked_by_hand_and_cut')_holds_Story_11.6_and_11.3's_real-host_timed_runs;depends_on_Epic_11;gates_the_v0.1.0_tag;Epic_11_merges_on_11.1,11.2,11.4,11.5(rehearsal_mode)+11.3's_harness_and_dry_runs;report_every_human_input_with_its_earliest_start route=graph(main)+Epic_11_runner(moves_its_stories)
+2026-10-31T09:07:21Z	Epic 1-37	owner_decision	id=U-186 at=2026-10-31T09:06:08Z#568 via=inbox by=Contest_Planner(owner_delegate) answer=keep
+2026-10-31T09:07:21Z	Epic 1-37	owner_decision	id=U-187 at=2026-10-31T09:06:08Z#569 via=inbox by=Contest_Planner(owner_delegate) answer=keep
+2026-10-31T09:07:21Z	Epic 1-37	owner_decision	id=U-188 at=2026-10-31T09:06:08Z#570 via=inbox by=Contest_Planner(owner_delegate) answer=keep
+2026-10-31T09:07:21Z	Epic 1-37	inbox_resolved	id=U-186 by=orchestrator
+2026-10-31T09:07:21Z	Epic 1-37	inbox_resolved	id=U-187 by=orchestrator
+2026-10-31T09:07:21Z	Epic 1-37	inbox_resolved	id=U-188 by=orchestrator
+2026-10-31T09:07:51Z	Epic 1-37	deps_approved	by=Contest_Planner(U-189,#567) change=new_epic-38(depends_on_epic-11;holds_11.6+11.3's_real-host_timed_runs;gates_v0.1.0);Epic_11_merges_on_its_buildable_parts note=epics.md_move_done_by_Epic_11's_runner;hash_re-recorded_at_Epic_11's_merge

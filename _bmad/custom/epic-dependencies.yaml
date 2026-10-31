@@ -44,6 +44,12 @@
 # marker): Story 10.4 re-opens Epic 10 under SC-5 (as Story 32.4 re-opened Epic 32). It depends on nothing unmerged (Epic 10's
 # own edges are merged) and changes only README.md, docker/tests/test-readme.sh and Story 10.2's criteria, which no open branch
 # touches. It must reach the feature branch before the online demo launch (Sat Oct 31 midday PDT at the earliest); no other edge changes.
+# Changed 2026-10-31, decided by the Contest Planner under the owner's delegation (inbox U-189, option (a)): a new release
+# epic, Epic 38 ("0.1.0 is checked by hand and cut"), holds Story 11.6 (the Contest Planner's real-key pass) and Story 11.3's
+# real-host timed runs, which can't finish on Epic 11's branch because they run on the 0.1.0 candidate cut after Epic 11
+# merges. Epic 38 depends on Epic 11 and gates the v0.1.0 tag (people do the tag; Epic 12's merge gate on v0.1.0 waits for
+# it). Epic 11 merges once 11.1, 11.2, 11.4, 11.5 (with its rehearsal mode) and 11.3's harness and dry runs are done, so the
+# edges on Epic 11 (12.7, 13, 14, 15.3) clear at that merge. Epic 11's runner moves the stories in epics.md.
 #
 # Dispatch rules on top of depends_on (the orchestrator enforces them):
 #   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
@@ -170,6 +176,9 @@ epics:
             paths_hint: ["src/ocutalon/cls/OcuTalon/Eval/**", "src/ocutalon/cls/OcuTalon/Test/Eval/**", "eval/**", ".github/workflows/lane-a.yml"],
             story_waits: {"9.5": epic-7}}                   # the repair-and-resend kind's validation, Story 7.1 (2704, 3110)
   epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: ["either lane's files", "AD-29"]}
+  epic-38: {lane: pool, depends_on: [epic-11], submodules: [],                      # U-189: 11.6 (the Planner's real-key pass) and 11.3's real-host timed runs, on the 0.1.0 candidate; gates the v0.1.0 tag
+            paths_hint: ["release/records/0.1.0/**", "the fixes its passes find, in either lane's files (as Epic 11's exception)"],
+            needs_people: ["the author's clean macOS and Linux hosts and a driver host", "a real model key", "the Contest Planner's hands-on pass", "the author's cut and tag"]}
   epic-12: {lane: pool, depends_on: [epic-10], submodules: [],                      # 2026-10-25 (U-67): was lane A after epic-11; 10.3's session side of Telegram (10's merge brings 2, 4, 6)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Test/Channel/**", "web/src/app/rail/telegram-card/**", "web/e2e/demo-path/telegram-*.spec.ts", "release/records/0.1.1/**"],
             story_waits: {"12.6": [epic-5, epic-7, epic-8],   # the Watch notice keys, the fix results, reminders
