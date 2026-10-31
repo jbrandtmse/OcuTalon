@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
-import { EVENTS, STATE, post, type LiveEvent } from '../../e2e/support/api';
+import { EVENTS, post, type LiveEvent } from '../../e2e/support/api';
+import { approvalCard, approvalCount, approvalRows, breakFeedButton, checkRow, composer, doneTurn, guideSend, incidentCard, phoneNotes, readState, WATCH_PROMPT, type Snapshot } from '../../e2e/support/demo-path';
 import { loadedAfter } from '../../e2e/support/floor';
 import { fixtureUser, readApproval } from '../../e2e/support/iris';
 import { drawnMessages, type Turn } from '../../e2e/support/trace';
@@ -40,43 +41,13 @@ import {
  * The unit fails when a case that must be skipped passes, or one is missing. The texts are written out here, as the independent oracle of
  * the page's own.
  */
-const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
-const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
-const rail = (page: Page): Locator => page.locator('app-status-rail');
-const breakFeedButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
-const approvalCard = (page: Page): Locator => page.locator('app-chat-panel [data-part="approval"]');
-const incidentCard = (page: Page): Locator => page.locator('app-chat-panel [data-part="incident"]');
-const phoneNotes = (page: Page): Locator => page.locator('app-simulated-phone .notification');
-const approvalRows = (page: Page): Locator => rail(page).locator('li.row[data-row-key^="approvals:"]');
-const approvalCount = (page: Page): Locator => rail(page).locator('[data-section="approvals"] h3 .visually-hidden');
-const checkRow = (page: Page): Locator => rail(page).locator('li.row[data-section="checks"]').filter({ hasText: 'Orders production' });
 
 /** The message that starts a watch of the Orders production through the page's chat: the guide's watch prompt behind the mock's start_watch marker. */
-const WATCH_MESSAGE = '[[mock:watch-start-orders]] Watch the Orders production and only tell me if something needs me.';
+const WATCH_MESSAGE = `[[mock:watch-start-orders]] ${WATCH_PROMPT}`;
 
 const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
 const APPROVALS = '/ocutalon/api/v1/approvals';
 const FIFTY = 50;
-
-/** The parts of /state that these cases read. */
-interface Snapshot {
-  epoch: string;
-  streams: { session: number; instance: number };
-  chat: Array<{ type: string; payload: Record<string, unknown> }>;
-  rail: { approvals: Array<{ ref: string; state: string }>; checks: Array<{ ref: string; displayName: string }>; reminders: Array<{ ref: string }> };
-  telegram: { displayName: string };
-  phone?: Array<{ ref: string; approvalRef: string }>;
-  mailbox?: Array<{ ref: string }>;
-  guide?: unknown;
-}
-
-/** The page's own /state, parsed, and its text as served (for the searches of A's refs). */
-async function readState(page: Page): Promise<{ snapshot: Snapshot; text: string }> {
-  const response = await page.request.get(STATE);
-  expect(response.status(), 'the state is served').toBe(200);
-  const text = await response.text();
-  return { snapshot: JSON.parse(text) as Snapshot, text };
-}
 
 /** The rows of a session that the cases follow: its chat turns, reminders, checks, pairing name and mail items. */
 interface OwnRows {
@@ -95,22 +66,6 @@ function ownRows(snapshot: Snapshot): OwnRows {
     pairing: snapshot.telegram.displayName,
     mail: (snapshot.mailbox ?? []).map((item) => item.ref),
   };
-}
-
-/** The session's newest chat turn, once it is done (its reply, decision and trace target are in /state then). */
-async function doneTurn(page: Page): Promise<Turn> {
-  let turn: Turn | undefined;
-  await expect
-    .poll(
-      async () => {
-        const turns = (await readState(page)).snapshot.chat.filter((item) => item.type === 'chat.message');
-        turn = turns.length === 0 ? undefined : (turns[turns.length - 1]!.payload as unknown as Turn);
-        return turn?.state;
-      },
-      { message: 'the turn is done', timeout: 90_000, intervals: [1_000, 2_000] },
-    )
-    .toBe('done');
-  return turn!;
 }
 
 /** The cursors of the page's own streams, from /state. */

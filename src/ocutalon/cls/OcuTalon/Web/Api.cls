@@ -819,7 +819,10 @@ ClassMethod MailboxItems(sessionRef As %String) As %DynamicArray [ Private ]
 }
 
 /// The chat: the newest CHATMAX of the session's turns, its visible noticed incidents and its web notice cards (the tell-now
-/// and reminder cards that WebChatOut kept, DW-62), as live items ({"type", "payload"}), oldest first. The three reads are
+/// and reminder cards that WebChatOut kept, DW-62), as live items ({"type", "payload"}), oldest first. An incident whose
+/// DecisionRef is a decision of the session's own carries it as the member decision beside payload, the Decision payload
+/// object, so that the card's footer finds its diagnosis decision after a load; another owner's decision or an empty
+/// DecisionRef gives none, and a read that fails throws. The three reads are
 /// newest first and at most CHATMAX, so the newest CHATMAX of the three together are among them. They are merged by time (a
 /// turn's CreatedAt, an incident's NoticedAt, a card's RecordedAt), at the same time a turn before an incident before a
 /// card, then by row ID; the merge is walked from its newest end and the entries kept are pushed oldest first.
@@ -836,7 +839,13 @@ ClassMethod ChatItems(sessionRef As %String) As %DynamicArray [ Private ]
 	Do ..Check(sc)
 	For i = 1:1:incidents.Count() {
 		Set incident = incidents.GetAt(i)
-		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
+		Set item = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
+		If incident.DecisionRef '= "" {
+			Set decision = ##class(OcuTalon.Data.Ownership).Decision(incident.DecisionRef, sessionRef, .sc)
+			Do ..Check(sc)
+			If $IsObject(decision) Set item.decision = ..PayloadObject(##class(OcuTalon.Live.Payload.Decision).FromRow(decision))
+		}
+		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = item
 	}
 	Set notices = ##class(OcuTalon.Data.Ownership).RecentNotices(sessionRef, ..#CHATMAX, .sc)
 	Do ..Check(sc)

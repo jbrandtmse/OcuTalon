@@ -2,7 +2,11 @@
 // Summarises the Playwright JSON report of the demo path (project demo-path, OCUTALON_E2E_JSON) step by step, so that a
 // skipped step is never read as a passed one. Dependency-free.
 //
-//   node scripts/demo-path-summary.mjs <report.json>
+//   node scripts/demo-path-summary.mjs [--only-telegram-skips] <report.json>
+//
+// With --only-telegram-skips (the demo-path unit's run, since Story 11.1) every web step runs: a skipped test of a numbered step file
+// is a failure, and only the parts in telegram-<id>.spec.ts may skip. Without the flag a skip that names its story is accepted, as
+// a hosted run with no stack (OCUTALON_URL) skips the whole of steps 2 to 6.
 //
 // The steps are fixed: 1 page, 2 watch, 3 reminder, 4 incident, 5 approval, 6 trace. Step n is 0<n>-<id>.spec.ts, and a
 // telegram-<id>.spec.ts file is a part of step <id>. It prints, in this order:
@@ -18,6 +22,7 @@
 //     (a crash, a spec that failed to load, the global timeout);
 //   - a step with no 0<n>-<id>.spec.ts, a spec file that maps to no step, and a telegram-<id>.spec.ts of an unknown step;
 //   - a skipped test whose skip text does not start with "Story <n>.<m>";
+//   - with --only-telegram-skips, a skipped test in a numbered step file;
 //   - a test tagged @floor that did not pass, and a step 1 with no @floor test;
 //   - a test that failed, timed out, was interrupted or did not run.
 
@@ -84,9 +89,9 @@ function verdictOf(step) {
 
 /**
  * Summarises a parsed Playwright JSON report. Returns the output lines and the reasons of the failures (without the
- * FAIL prefix).
+ * FAIL prefix). With onlyTelegramSkips, a skipped test of a numbered step file is a failure too.
  */
-export function summarize(report) {
+export function summarize(report, { onlyTelegramSkips = false } = {}) {
   const failures = [];
   if (!report || typeof report !== 'object' || !Array.isArray(report.suites)) {
     return { lines: [], failures: ['no usable report: it holds no suites list'] };
@@ -122,8 +127,13 @@ export function summarize(report) {
           step.passed += 1;
         } else if (result.kind === 'skipped') {
           step.skipped += 1;
-          if (result.story) step.stories.push(`Story ${result.story}: ${spec.title}`);
-          else failures.push(`${file} ${label}: its skip names no story`);
+          if (onlyTelegramSkips && mapped.numbered) {
+            failures.push(`${file} ${label}: skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip`);
+          } else if (result.story) {
+            step.stories.push(`Story ${result.story}: ${spec.title}`);
+          } else {
+            failures.push(`${file} ${label}: its skip names no story`);
+          }
           if (floor) failures.push(`floor test ${label} (${file}) was skipped`);
         } else {
           step.failed += 1;
@@ -157,8 +167,8 @@ export function summarize(report) {
   return { lines, failures };
 }
 
-/** Reads the report file and summarises it; a file that cannot be used is one failure and no lines. */
-export function summarizeFile(path) {
+/** Reads the report file and summarises it (options as for summarize); a file that cannot be used is one failure and no lines. */
+export function summarizeFile(path, options = {}) {
   let text;
   try {
     text = readFileSync(path, 'utf8');
@@ -171,15 +181,19 @@ export function summarizeFile(path) {
   } catch (error) {
     return { lines: [], failures: [`no usable report: the file is not JSON (${error.message})`] };
   }
-  return summarize(report);
+  return summarize(report, options);
 }
 
+const USAGE = 'usage: node scripts/demo-path-summary.mjs [--only-telegram-skips] <report.json>';
+
 function main(argv) {
-  if (argv.length !== 1) {
-    console.error('usage: node scripts/demo-path-summary.mjs <report.json>');
+  const onlyTelegramSkips = argv[0] === '--only-telegram-skips';
+  const rest = onlyTelegramSkips ? argv.slice(1) : argv;
+  if (rest.length !== 1 || rest[0].startsWith('--')) {
+    console.error(USAGE);
     return 2;
   }
-  const { lines, failures } = summarizeFile(argv[0]);
+  const { lines, failures } = summarizeFile(rest[0], { onlyTelegramSkips });
   for (const line of lines) console.log(line);
   for (const failure of failures) console.log(`FAIL ${failure}`);
   return failures.length > 0 ? 1 : 0;

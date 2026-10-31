@@ -326,6 +326,81 @@ describe('no usable report', () => {
   });
 });
 
+// --- --only-telegram-skips: the demo-path unit's run, where every web step runs ---
+
+/** The report of a unit run since Story 11.1: every numbered test passed, and the Telegram parts of steps 1 and 5 are skipped with their stories. */
+function everyStepRan() {
+  return [
+    file('01-page.spec.ts', [floor(), spec('shows the empty chat panel and the composer', { tags: ['floor'] })]),
+    file('02-watch.spec.ts', [spec('before the watch'), spec('the watch'), spec('the real last run')]),
+    file('03-reminder.spec.ts', [spec('the reminder')]),
+    file('04-incident.spec.ts', [spec('Break the feed', { tags: ['floor'] }), spec('the incident card')]),
+    file('05-approval.spec.ts', [spec('Approve on the simulated phone')]),
+    file('06-trace.spec.ts', [spec('Open the trace')]),
+    file('telegram-page.spec.ts', [unbuilt('the page pairs a Telegram chat', '12.4')]),
+    file('telegram-approval.spec.ts', [unbuilt('an approval request is answered from the paired Telegram chat', '12.7')]),
+  ];
+}
+
+describe('--only-telegram-skips', () => {
+  const only = { onlyTelegramSkips: true };
+  const WORDS = 'skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip';
+
+  it('accepts a run whose only skips are the Telegram parts, and reads steps 2, 3, 4 and 6 as passed and 1 and 5 as partly skipped', () => {
+    const { lines, failures } = summarize(report(everyStepRan()), only);
+    assert.deepEqual(failures, []);
+    assert.match(lines[0], /^STEP 1 page: partly skipped, 2 passed, 1 skipped \(Story 12\.4: /);
+    for (const i of [1, 2, 3, 5]) assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${STEPS[i]}: passed, `));
+    assert.match(lines[4], /^STEP 5 approval: partly skipped, 1 passed, 1 skipped \(Story 12\.7: /);
+    assert.equal(lines[6], 'DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 3 of 3 passed');
+  });
+
+  it('fails a skipped test of every numbered step file, with its file and title', () => {
+    for (const [name, i] of [['01-page.spec.ts', 0], ['02-watch.spec.ts', 1], ['03-reminder.spec.ts', 2], ['04-incident.spec.ts', 3], ['05-approval.spec.ts', 4], ['06-trace.spec.ts', 5]]) {
+      const suites = everyStepRan();
+      suites[i].specs.push(unbuilt('a part that nobody turned on', '11.1'));
+      const { failures } = summarize(report(suites), only);
+      assert.deepEqual(failures, [`${name} "a part that nobody turned on": ${WORDS}`], name);
+    }
+  });
+
+  it('fails a skip that names no story in a numbered file with the same reason, once', () => {
+    const suites = everyStepRan();
+    suites[5].specs.push(spec('a part', { result: 'skipped' }));
+    assert.deepEqual(summarize(report(suites), only).failures, [`06-trace.spec.ts "a part": ${WORDS}`]);
+  });
+
+  it('is off by default: the same skip is accepted without the flag', () => {
+    const suites = everyStepRan();
+    suites[5].specs.push(unbuilt('a part that nobody turned on', '11.1'));
+    assert.deepEqual(summarize(report(suites)).failures, []);
+    assert.deepEqual(summarize(report(suites), { onlyTelegramSkips: false }).failures, []);
+  });
+
+  it('is exit 0 for the run since Story 11.1 and exit 1 for a numbered skip, from the command line', () => {
+    const green = join(work, 'every-step.json');
+    writeFileSync(green, JSON.stringify(report(everyStepRan())));
+    const ran = spawnSync(process.execPath, [script, '--only-telegram-skips', green], { encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+    assert.match(ran.stdout, /^DEMO-PATH 6 of 6 steps ran \(2 partly skipped\), 2 skipped, 0 failed; floor 3 of 3 passed$/m);
+
+    const suites = everyStepRan();
+    suites[5].specs.push(unbuilt('a part that nobody turned on', '11.1'));
+    const red = join(work, 'numbered-skip.json');
+    writeFileSync(red, JSON.stringify(report(suites)));
+    const skipped = spawnSync(process.execPath, [script, '--only-telegram-skips', red], { encoding: 'utf8' });
+    assert.equal(skipped.status, 1, skipped.stdout + skipped.stderr);
+    assert.match(skipped.stdout, new RegExp(`^FAIL 06-trace\\.spec\\.ts "a part that nobody turned on": ${WORDS.replace(/[().*]/g, '\\$&')}$`, 'm'));
+    assert.equal(spawnSync(process.execPath, [script, red], { encoding: 'utf8' }).status, 0, 'without the flag the same report passes');
+  });
+
+  it('is exit 2 for the flag alone, and for a path and the flag in the wrong order', () => {
+    assert.equal(spawnSync(process.execPath, [script, '--only-telegram-skips'], { encoding: 'utf8' }).status, 2);
+    assert.equal(spawnSync(process.execPath, [script, join(work, 'every-step.json'), '--only-telegram-skips'], { encoding: 'utf8' }).status, 2);
+    assert.equal(spawnSync(process.execPath, [script, '--only-telegram-skips', 'a', 'b'], { encoding: 'utf8' }).status, 2);
+  });
+});
+
 // --- the real specs, through Playwright: no browser starts ---
 
 /**
@@ -341,13 +416,13 @@ function playwrightEnv() {
   return env;
 }
 
-describe('the real specs, run without their floor test and their fixture tests', () => {
-  // The fixture tests (tag @fixtures, Story 6.3) need a stack: they stand in for Lane A's raise and answer paths of steps 4 and 5 until Epic 11.
-  it('skip every unbuilt part with a story, so that each step reads skipped', () => {
+describe('the real specs, run without their floor test', () => {
+  // Every other test of steps 2 to 6 sits in a group that skips without a stack (OCUTALON_URL), with a skip text that names its story.
+  it('skip every part that needs the stack with a story, so that each step reads skipped', () => {
     const json = join(work, 'real-specs.json');
     const run = spawnSync(
       process.execPath,
-      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor|@fixtures', '--output', join(work, 'real-specs-results')],
+      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, 'real-specs-results')],
       {
         cwd: webDir,
         env: { ...playwrightEnv(), OCUTALON_E2E_JSON: json },

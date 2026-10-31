@@ -5,15 +5,20 @@
 # parts of lib-live.sh that need Docker (live_start, live_web_port, live_first_start, dc, start_log) are redefined after the real
 # file is sourced, `npm` copies a prepared Playwright JSON report and exits with a chosen code, `docker` answers only
 # `image inspect` (the preflight reads the mock's image from the copy of ci/compose.ci.yml), and the other units of the browser group are stubs; `npx`, `npm` and the stub units append each call to one
-# sequence, and an unexpected `docker` or `npm` call fails the run that made it. It checks that
-#   - the unit exits 0 only when Playwright and the step summary both pass, prints the FIRST-START line before the STEP lines and
-#     the Playwright log indented, never reads a skipped step as passed, waits 900 s for the first start (so a start ready after
-#     720 s can still warn), and gives the run the deadline's remaining seconds, the stack's URL and the report path;
-#   - the unit exits 1, with the reason on a line, for a skipped or failed @floor test (Playwright exits 0 for a skip), a skip that
-#     names no story, a spec file that maps to no step, a missing step spec, a Playwright exit 1 beside a green report, and a
-#     missing report;
+# sequence, and an unexpected `docker` or `npm` call fails the run that made it. The audit log is replaced too: the `dc exec` of
+# the unit's iris_script answers the canned CHK lines of the file GATE_AUDIT names. It checks that
+#   - the unit exits 0 only when Playwright and the step summary both pass and the audit entries are there, prints the FIRST-START
+#     line before the STEP lines and the Playwright log indented, never reads a skipped step as passed, waits 900 s for the first
+#     start (so a start ready after 720 s can still warn), and gives the run the deadline's remaining seconds less 80, the stack's
+#     URL and the report path; it takes the audit mark before Playwright and reads the log after it;
+#   - the unit exits 1, with the reason on a line, for a skipped or failed @floor test (Playwright exits 0 for a skip), a skipped
+#     test of a numbered step file (only the Telegram parts may skip), a skip that names no story, a spec file that maps to no
+#     step, a missing step spec, a Playwright exit 1 beside a green report, and a missing report;
+#   - the unit exits 1 with one FAIL line for each audit entry that is missing (the answered Approval entry, the resend's Action
+#     entry), that holds more or fewer members than its shape, or that holds key-like text; it reads no audit log after a red demo
+#     path;
 #   - a first start over 12 minutes warns and the specs still run, a first start that never ends ready fails the unit before any
-#     spec runs, and a deadline with under 60 s left fails it before the browser starts;
+#     spec runs, and a deadline with under 100 s left fails it before the browser starts;
 #   - `ci/iris.sh group browser` runs live:demo-path and live:sign-in in that order, installs Chromium before
 #     the script of each browser unit (BROWSER_UNITS) and before no other, exits 0 when both pass, and exits 1 with
 #     `UNIT live:demo-path failed` and `GROUP browser failed: live:demo-path` when the demo path is red, whether Playwright failed
@@ -52,7 +57,7 @@ out="$tmp/out"
 mkdir -p "$tree/ci" "$tree/docker/tests" "$tree/web/node_modules" "$tree/src/ocutalon/csp" "$tree/bin" "$log" "$tmp/reports"
 cp ci/iris.sh ci/units.sh ci/compose.ci.yml "$tree/ci/"
 cp docker/tests/lib-live.sh "$tree/docker/tests/lib-live-real.sh"
-cp docker/tests/test-demo-path.sh "$tree/docker/tests/test-demo-path.sh"
+cp docker/tests/test-demo-path.sh docker/tests/lib-keys.sh "$tree/docker/tests/"
 ln -s "$repo/web/scripts" "$tree/web/scripts"
 : > "$tree/src/ocutalon/csp/index.html"
 
@@ -77,7 +82,13 @@ live_first_start() {
   fi
   first_start_report 2 "${GATE_READY:-150}" x86_64
 }
-dc() { :; }
+dc() {
+  if [ "${1:-}" = exec ]; then
+    cat > /dev/null
+    echo "read" >> "$GATE_LOG/audit.order"
+    if [ -n "${GATE_AUDIT:-}" ]; then cat "$GATE_AUDIT"; fi
+  fi
+}
 start_log() { :; }
 EOF
 
@@ -94,6 +105,7 @@ if [ "$*" != "--prefix web run e2e:demo-path" ]; then
   exit 99
 fi
 echo "called" >> "$GATE_LOG/npm.calls"
+echo "npm" >> "$GATE_LOG/audit.order"
 echo "npm $*" >> "$GATE_LOG/sequence"
 echo "OCUTALON_URL=$OCUTALON_URL" > "$GATE_LOG/npm.env"
 echo "OCUTALON_E2E_JSON=$OCUTALON_E2E_JSON" >> "$GATE_LOG/npm.env"
@@ -139,12 +151,14 @@ const file = (name, specs) => ({ title: `demo-path/${name}`, file: `demo-path/${
 
 function suites(floorTest = floor('passed')) {
   return [
-    file('01-page.spec.ts', [floorTest, unbuilt('the chat panel and the composer', '2.5'), unbuilt('the demo guide lists the steps', '4.7')]),
-    file('02-watch.spec.ts', [unbuilt('the watch prompt gets its reply', '4.7')]),
-    file('03-reminder.spec.ts', [unbuilt('the reminder prompt is confirmed', '4.7')]),
-    file('04-incident.spec.ts', [unbuilt('one incident card awaits approval', '11.1')]),
-    file('05-approval.spec.ts', [unbuilt('Approve on the simulated phone', '11.1')]),
-    file('06-trace.spec.ts', [unbuilt('the trace link opens Visual Trace', '4.7')]),
+    file('01-page.spec.ts', [floorTest, spec('shows the empty chat panel and the composer', 'passed', { tags: ['floor'] })]),
+    file('02-watch.spec.ts', [spec('the watch prompt gets its reply', 'passed')]),
+    file('03-reminder.spec.ts', [spec('the reminder prompt is confirmed', 'passed')]),
+    file('04-incident.spec.ts', [spec('one incident card awaits approval', 'passed')]),
+    file('05-approval.spec.ts', [spec('Approve on the simulated phone', 'passed')]),
+    file('06-trace.spec.ts', [spec('the trace link opens Visual Trace', 'passed')]),
+    file('telegram-page.spec.ts', [unbuilt('the page pairs a Telegram chat', '12.4')]),
+    file('telegram-approval.spec.ts', [unbuilt('an approval request is answered from the paired Telegram chat', '12.7')]),
   ];
 }
 const write = (name, list) => writeFileSync(join(out, `${name}.json`), JSON.stringify({ suites: list, errors: [], stats: {} }));
@@ -154,12 +168,17 @@ write('floor-skipped', suites(floor('skipped', 'Story 4.7 turns this on')));
 write('floor-failed', suites(floor('failed')));
 {
   const list = suites();
-  list[2].specs.push(spec('the reminder row appears', 'skipped'));
+  list[6].specs.push(spec('the Telegram reminder row appears', 'skipped'));
   write('no-story', list);
 }
 {
   const list = suites();
-  list.push(file('07-extra.spec.ts', [unbuilt('a part', '4.7')]));
+  list[3].specs.push(unbuilt('a part that nobody turned on', '11.1'));
+  write('numbered-skip', list);
+}
+{
+  const list = suites();
+  list.push(file('07-extra.spec.ts', [unbuilt('a part', '12.4')]));
   write('unknown-file', list);
 }
 {
@@ -172,6 +191,30 @@ if ! node "$tmp/mkreports.mjs" "$tmp/reports"; then
   echo "FAIL the scratch reports could not be written"
   exit 1
 fi
+
+# The canned audit log, as the unit's ObjectScript prints it (CHK lines): the answered Approval entry of the README session's request and
+# the resend's Action entry that names it. The variants miss the Action entry, hold more or fewer members than the shape (the shape flag
+# is the ObjectScript's), or hold key-like text (assembled here, so that this file holds none).
+mkdir -p "$tmp/audit"
+session=zzSessionRef0123456789
+request=zzRequestRef0123456789
+approval_json="{\"ref\":\"$request\",\"kind\":\"fix\",\"change\":\"answered\",\"from\":\"pending\",\"to\":\"approved\",\"outcome\":\"approved\",\"target\":\"incident\",\"ownerRef\":\"$session\",\"irisUser\":\"ocutalon\",\"sessionRef\":\"$session\",\"channel\":\"phone\"}"
+action_json="{\"action\":\"repair_resend\",\"target\":\"OrderDate\",\"result\":\"done\",\"counts\":{\"total\":50},\"approvalRef\":\"$request\",\"irisUser\":\"ocutalon\",\"sessionRef\":\"$session\",\"channel\":\"phone\"}"
+keyed_json="${approval_json%\}},\"leak\":\"sk-ant""-api03-abcdefgh12345678\"}"
+# audit_file <name> <approval found> <approval shape> <approval json> <action found> <action shape> <action json>
+audit_file() {
+  printf '%s\n' "CHK|mark|2030-01-01 00:00:00.000" "CHK|session|$session" "CHK|approval-found|$2" "CHK|approval-shape|$3" "CHK|approval-ref|$request" "CHK|approval-data|$4" \
+    "CHK|action-found|$5" "CHK|action-shape|$6" "CHK|action-data|$7" > "$tmp/audit/$1.chk"
+}
+audit_file good 1 1 "$approval_json" 1 1 "$action_json"
+audit_file no-action 1 1 "$approval_json" 0 0 ""
+audit_file no-approval 0 0 "" 0 0 ""
+audit_file extra-approval 1 0 "$approval_json" 1 1 "$action_json"
+audit_file extra-action 1 1 "$approval_json" 1 0 "$action_json"
+audit_file keyed-approval 1 1 "$keyed_json" 1 1 "$action_json"
+audit_file keyed-action 1 1 "$approval_json" 1 1 "${action_json%\}},\"leak\":\"sk-ant""-api03-abcdefgh12345678\"}"
+# The units read the good log unless a run names another one, and do not wait for an entry that is not there.
+export GATE_AUDIT="$tmp/audit/good.chk" OCUTALON_AUDIT_POLL=0
 
 # --- running the replaced unit and group ---
 
@@ -246,21 +289,34 @@ line_of() { grep -nF -- "$1" "$out" | head -n 1 | cut -d: -f1; }
 # --- the unit: a green run ---
 
 run_unit green 0
-expect "unit: a floor test that passed and unbuilt parts that skipped give exit 0 and the PASS line" 0 \
+expect "unit: passed web steps and skipped Telegram parts give exit 0, the PASS line and the audit PASS lines" 0 \
   "PASS the demo path: Playwright and the step summary both passed" \
-  "STEP 1 page: partly skipped, 1 passed, 2 skipped (Story 2.5: the chat panel and the composer; Story 4.7: " \
-  "STEP 2 watch: skipped, 0 passed, 1 skipped (Story 4.7: " \
-  "STEP 6 trace: skipped, 0 passed, 1 skipped (Story 4.7: " \
-  "DEMO-PATH 1 of 6 steps ran (1 partly skipped), 7 skipped, 0 failed; floor 1 of 1 passed" \
+  "STEP 1 page: partly skipped, 2 passed, 1 skipped (Story 12.4: the page pairs a Telegram chat)" \
+  "STEP 2 watch: passed, 1 passed, 0 skipped" \
+  "STEP 5 approval: partly skipped, 1 passed, 1 skipped (Story 12.7: " \
+  "STEP 6 trace: passed, 1 passed, 0 skipped" \
+  "DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 2 of 2 passed" \
   "  Running tests using 1 worker" \
+  "PASS audit: the answered Approval entry (approved, from the phone) of the README session is in the log" \
+  "PASS audit: the Approval entry holds exactly its shape and the common members" \
+  "PASS audit: no key-like text in the Approval entry" \
+  "PASS audit: the resend's Action entry that names the approval request is in the log" \
+  "PASS audit: the Action entry holds exactly its shape and the common members" \
+  "PASS audit: no key-like text in the Action entry" \
   "test-demo-path: all checks passed"
+absent "unit: a green run draws no FAIL line" "FAIL "
+if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm read " ]; then
+  pass "unit: the audit mark is taken before Playwright and the log is read after the step summary"
+else
+  fail "unit: the audit calls ran as '$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)', not 'read npm read'"
+fi
 if [ "$(cat "$log/first.max" 2> /dev/null)" = 900 ]; then
   pass "unit: the first start waits 900 s for the start's log, so a start ready after 720 s can still warn (AD-23)"
 else
   fail "unit: the first start waits '$(cat "$log/first.max" 2> /dev/null)' s, not 900"
 fi
-if ! grep -qE '^STEP [0-9] [a-z]+: passed' "$out"; then
-  pass "unit: no step whose parts only skipped is read as passed"
+if ! grep -qE '^STEP [0-9] [a-z]+: passed, 0 passed' "$out" && grep -qE '^STEP 1 page: partly skipped' "$out"; then
+  pass "unit: no step with no passed test is read as passed, and a step with a skipped part is not read as passed"
 else
   fail "unit: a skipped step is read as passed"
 fi
@@ -274,8 +330,8 @@ fi
 timeout_ms=$(sed -n 's/^OCUTALON_E2E_TIMEOUT_MS=//p' "$log/npm.env" 2> /dev/null)
 if [ "$(grep -c . "$log/npm.calls" 2> /dev/null)" = 1 ] && [ ! -e "$log/npm.unexpected" ] \
   && grep -qx 'OCUTALON_URL=http://127.0.0.1:52899' "$log/npm.env" && grep -q '^OCUTALON_E2E_JSON=.*/demo-path\.json$' "$log/npm.env" \
-  && [ "${timeout_ms:-0}" -gt 500000 ] && [ "${timeout_ms:-0}" -le 520000 ]; then
-  pass "unit: Playwright runs once, with the stack's URL, a report path, and the deadline's remaining time less 20 s"
+  && [ "${timeout_ms:-0}" -gt 440000 ] && [ "${timeout_ms:-0}" -le 460000 ]; then
+  pass "unit: Playwright runs once, with the stack's URL, a report path, and the deadline's remaining time less 80 s"
 else
   fail "unit: the Playwright call is wrong ($(tr '\n' ' ' < "$log/npm.env" 2> /dev/null); calls $(cat "$log/npm.calls" 2> /dev/null | wc -l | tr -d ' '))"
 fi
@@ -284,21 +340,34 @@ fi
 
 run_unit floor-skipped 0
 expect "unit: a skipped floor test fails the unit although Playwright exits 0" 1 \
-  "STEP 1 page: skipped, 0 passed, 3 skipped" \
+  "STEP 1 page: partly skipped, 1 passed, 2 skipped" \
   'FAIL floor test "signs in with the README account and loads the page snapshot" (01-page.spec.ts) was skipped' \
+  'FAIL 01-page.spec.ts "signs in with the README account and loads the page snapshot": skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip' \
   "FAIL the demo path: Playwright exit 0, the step summary exit 1" \
+  "INFO audit: not read, the demo path did not pass" \
   "test-demo-path: 1 check(s) failed"
 absent "unit: a skipped floor test draws no PASS for the demo path" "PASS the demo path"
+if [ "$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)" = "read npm " ]; then
+  pass "unit: a red demo path reads no audit log"
+else
+  fail "unit: a red demo path read the audit log ('$(tr '\n' ' ' < "$log/audit.order" 2> /dev/null)')"
+fi
 
 run_unit floor-failed 1
 expect "unit: a failed floor test fails the unit, and step 1 reads failed" 1 \
-  "STEP 1 page: failed, 0 passed, 2 skipped, 1 failed" \
+  "STEP 1 page: failed, 1 passed, 1 skipped, 1 failed" \
   'FAIL floor test "signs in with the README account and loads the page snapshot" (01-page.spec.ts) failed' \
   "FAIL the demo path: Playwright exit 1, the step summary exit 1"
 
 run_unit no-story 0
-expect "unit: a skip that names no story fails the unit although Playwright exits 0" 1 \
-  '03-reminder.spec.ts "the reminder row appears": its skip names no story' \
+expect "unit: a Telegram part whose skip names no story fails the unit although Playwright exits 0" 1 \
+  'telegram-page.spec.ts "the Telegram reminder row appears": its skip names no story' \
+  "FAIL the demo path: Playwright exit 0, the step summary exit 1"
+
+run_unit numbered-skip 0
+expect "unit: a skipped test of a numbered step file fails the unit although Playwright exits 0 and the skip names its story" 1 \
+  '04-incident.spec.ts "a part that nobody turned on": skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip' \
+  "STEP 4 incident: partly skipped, 1 passed, 1 skipped" \
   "FAIL the demo path: Playwright exit 0, the step summary exit 1"
 
 run_unit unknown-file 0
@@ -321,6 +390,49 @@ expect "unit: no report fails the unit, names the cause and says how to install 
   "the browser is missing: run npx --prefix web playwright install chromium" \
   "FAIL the demo path: Playwright exit 1, the step summary exit 1"
 
+# --- the unit: the audit log ---
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/no-action.chk"
+expect "unit: no Action entry that names the request fails the unit with one FAIL line, and the Approval entry still passes" 1 \
+  "PASS audit: the answered Approval entry (approved, from the phone) of the README session is in the log" \
+  "FAIL audit: no Action entry that names the approval request since the mark within 0 s" \
+  "test-demo-path: 1 check(s) failed"
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/no-approval.chk"
+expect "unit: no answered Approval entry fails the unit, and so does the Action entry that cannot be tied to it" 1 \
+  "FAIL audit: no answered Approval entry (approved, from the phone) of the README session since the mark within 0 s" \
+  "FAIL audit: no Action entry that names the approval request since the mark within 0 s" \
+  "test-demo-path: 2 check(s) failed"
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/extra-approval.chk"
+expect "unit: an Approval entry with an extra or a missing member fails the unit with its own FAIL line" 1 \
+  "FAIL audit: the Approval entry does not hold exactly Bridge.Audit.Shape(Approval) and the common members" \
+  "PASS audit: the Action entry holds exactly its shape and the common members" \
+  "test-demo-path: 1 check(s) failed"
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/extra-action.chk"
+expect "unit: an Action entry with an extra or a missing member fails the unit with its own FAIL line" 1 \
+  "FAIL audit: the Action entry does not hold exactly Bridge.Audit.Shape(Action) and the common members" \
+  "PASS audit: the Approval entry holds exactly its shape and the common members" \
+  "test-demo-path: 1 check(s) failed"
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/keyed-approval.chk"
+expect "unit: key-like text in the Approval entry fails the unit, and the value is never printed" 1 \
+  "FAIL audit: the Approval entry holds key-like text" \
+  "PASS audit: no key-like text in the Action entry" \
+  "test-demo-path: 1 check(s) failed"
+absent "unit: the key-like value is not in the output" "api03-abcdefgh"
+
+run_unit green 0 GATE_AUDIT="$tmp/audit/keyed-action.chk"
+expect "unit: key-like text in the Action entry fails the unit" 1 \
+  "FAIL audit: the Action entry holds key-like text" \
+  "PASS audit: no key-like text in the Approval entry" \
+  "test-demo-path: 1 check(s) failed"
+
+run_unit green 0 GATE_AUDIT=
+expect "unit: a log that cannot be read (no mark, no entry) fails the unit" 1 \
+  "FAIL audit: the mark could not be taken before the browser steps"
+
 # --- the unit: the first start and the deadline ---
 
 run_unit green 0 GATE_READY=800
@@ -339,8 +451,8 @@ expect "unit: a first start that never ends ready fails the unit with its reason
   "FAIL the first start did not end ready"
 if [ ! -e "$log/npm.calls" ]; then pass "unit: no spec runs after a failed first start"; else fail "unit: Playwright ran after a failed first start"; fi
 
-run_unit green 0 GATE_DEADLINE=45
-expect "unit: a deadline with under 60 s left fails the unit before the browser starts" 1 "s are left of the deadline: too little for the browser run"
+run_unit green 0 GATE_DEADLINE=95
+expect "unit: a deadline with under 100 s left fails the unit before the browser starts" 1 "s are left of the deadline: too little for the browser run"
 if [ ! -e "$log/npm.calls" ]; then pass "unit: no spec runs when too little of the deadline is left"; else fail "unit: Playwright ran with too little of the deadline left"; fi
 
 # --- the group: ci/iris.sh group browser ---

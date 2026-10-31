@@ -187,3 +187,14 @@ export async function restoreKeys(): Promise<void> {
   const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()', 'Write !,"CHK|keys|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
   if (chk(lines, 'keys') !== '1') throw new Error(`the runners' keys could not be restored (${lines.join(' ')})`);
 }
+
+/**
+ * Arms the CI mock's countdown of a marker (`<name>[:<key>]`, without brackets) so that its next `remaining` requests get the scenario's
+ * first reply (Test.Contract.Mock.Arm). Throws unless the call reports success.
+ */
+export async function armCountdown(marker: string, remaining: number): Promise<void> {
+  if (!/^[a-z0-9-]+(:[a-z0-9]+)?$/.test(marker)) throw new Error('a marker is a scenario name and, optionally, a lower-case key');
+  if (!Number.isInteger(remaining) || remaining < 0) throw new Error('remaining is a whole number of requests');
+  const lines = await irisScript([`Set sc=##class(OcuTalon.Test.Contract.Mock).Arm(${quoted(marker)},${remaining})`, 'Write !,"CHK|armed|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
+  if (chk(lines, 'armed') !== '1') throw new Error(`the mock's countdown of ${marker} could not be armed (${lines.join(' ')})`);
+}

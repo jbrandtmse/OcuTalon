@@ -157,7 +157,7 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
 /**
  * Publishes one fixture incident on the user's own session stream and returns its Seq: the payload (a camelCase object of
  * OcuTalon.Live.Payload.Incident, parts included: itemNoun, groups, requests, evidence, traceTargets) is imported into the payload
- * class and published as the `incident` event, as IncidentManager will (Live.Publish.Publish). A later event with the same ref
+ * class and published as the `incident` event, through Live.Publish.Publish. A later event with the same ref
  * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it. A payload the class cannot
  * import throws with the import's error text.
  */
@@ -838,9 +838,9 @@ export interface CheckFields {
   result?: string;
   finding?: string;
   /**
-   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at the next
-   * heartbeat tick (Checks runs it, overwrites its last run and makes it due again a minute later), so a spec that asserts the row's seeded
-   * last run while a real tick may run, its own or the minute task's, gives it a time after the spec.
+   * seedCheck only: when the check is next due, an ISO UTC time to the second. Test.Data.Fixture.Check defaults it to an hour ahead
+   * (DW-349), so that no heartbeat tick runs the row while a spec asserts its seeded last run; "" makes the row due at the next tick (Checks
+   * runs it, overwrites its last run and makes it due again a minute later).
    */
   nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */

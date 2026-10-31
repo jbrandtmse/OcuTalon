@@ -24,7 +24,8 @@
 /// Story 16.4: TestStateIdleSeconds (the snapshot's idleSeconds, online demo only, the key just before traceAccount).
 /// Story 16.9: TestMessagesAllowanceRefusal (the 429 allowance body and the 500 of a refusal with no retryAt),
 /// TestMessagesUnreadableOutputIs500 (QA: an output that is not JSON is 500) and
-/// TestStateAllowanceStatus (the allowance condition first in /state's status). DW-300: TestStateSections seeds its check rows a day
+/// TestStateAllowanceStatus (the allowance condition first in /state's status). Story 11.1 (DW-294): TestStateIncidentDecision (the
+/// chat entry of an incident carries the session's own diagnose decision). DW-300: TestStateSections seeds its check rows a day
 /// ahead, so that no heartbeat tick runs them.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
@@ -544,6 +545,36 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(body.chat.%Get(0).payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=3", "with 10 items a page and events hidden, position 30 is page 3: the viewer's own settings")
 	Do $$$AssertEquals(body.chat.%Get(0).payload.decision.traceUrl, body.chat.%Get(0).payload.traceUrl, "and the nested decision opens on the same page")
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
+}
+
+/// DW-294: the snapshot's chat entry for an incident carries the member decision, the Decision payload of the incident's
+/// DecisionRef, when that is a decision of the session's own, so that the card's footer finds it after a load. An incident whose
+/// DecisionRef is empty, or a decision of another session, or of no row, has no decision member, and the entry is then exactly
+/// {type, payload}. The rail's decisions are not changed by it.
+Method TestStateIncidentDecision()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapiincdec"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapiincdecother"_..Number)
+	Set own = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz one"})
+	Set foreign = $ClassMethod(fixture, "Decision", theirs, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act"})
+	Set withOwn = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:01:00Z", , , {"DecisionRef": (own)})
+	Set bare = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:02:00Z")
+	Set withForeign = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:03:00Z", , , {"DecisionRef": (foreign)})
+	Set refs = mine_","_theirs_","_own_","_foreign_","_withOwn_","_bare_","_withForeign
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "incident:"_withOwn_",incident:"_bare_",incident:"_withForeign, "the chat holds the three incidents")
+	Set first = body.chat.%Get(0)
+	Do $$$AssertEquals(first.%IsDefined("decision"), 1, "the incident whose DecisionRef is the session's own decision carries it")
+	If first.%IsDefined("decision") {
+		Do $$$AssertEquals(first.decision.ref_"|"_first.decision.kind_"|"_first.decision.outcome, own_"|decide|act", "it is that decision's payload")
+		Do $$$AssertEquals(first.payload.decisionRef, own, "beside the incident's own payload, which keeps its decisionRef")
+	}
+	Do $$$AssertEquals(body.chat.%Get(1).%IsDefined("decision"), 0, "an incident with an empty DecisionRef carries none")
+	Do $$$AssertEquals(body.chat.%Get(2).%IsDefined("decision"), 0, "so does one whose DecisionRef is another session's decision")
+	Do $$$AssertEquals(body.chat.%Get(2).payload.decisionRef, foreign, "and its payload keeps the Ref")
+	Do $$$AssertTrue('$Find(body.chat.%Get(2).%ToJSON(), """decision"":{"), "nothing of the other session's decision is in the entry")
+	Do $ClassMethod(fixture, "Clean", refs)
 }
 
 /// DW-65: where the cut falls inside a group of entries with the same time, the chat keeps the later rows, and the entries

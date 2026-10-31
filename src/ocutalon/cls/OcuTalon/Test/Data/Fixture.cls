@@ -15,6 +15,9 @@
 Class OcuTalon.Test.Data.Fixture
 {
 
+/// How many seconds ahead of now a fixture check row is first due (Check).
+Parameter CHECKAHEAD = 3600;
+
 /// A session row of the IRIS user, with its own Ref, TraceRef and Epoch.
 ClassMethod Session(user As %String) As %String
 {
@@ -61,7 +64,9 @@ ClassMethod Reminder(sessionRef As %String, dueAt As %String = "2030-01-01T10:00
 }
 
 /// A production check of the session on a production; the namespace and the production default to a pair of
-/// fixture names that no real check uses. fields, an object of property names and values, is set after the defaults.
+/// fixture names that no real check uses. The row is not due for CHECKAHEAD seconds (NextDueAt), so that the heartbeat's
+/// Checks run leaves it alone while a test reads it; a field NextDueAt, even "" (due at once), replaces that default.
+/// fields, an object of property names and values, is set after the defaults.
 ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", production As %String = "Zz.Production", fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
@@ -72,6 +77,7 @@ ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", producti
 	Set row.Production = production
 	Set row.DisplayName = "Zz "_production
 	Set row.AskedBy = "zzfixture"
+	Set row.NextDueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), ..#CHECKAHEAD)
 	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }

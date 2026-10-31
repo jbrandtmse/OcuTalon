@@ -2,7 +2,8 @@
 title: 'Story 11.1: The web demo path passes end to end in the REL-2 test'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '8ca7bf38d7d06b83bbc1888b0ccf1a918694417d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -245,6 +246,40 @@ Epic 29 merged into the feature branch at `fe1d81e2`. The implement stage integr
 
 ## Review Triage Log
 
+### 2026-10-31 — Review pass
+- verdicts: 30 findings — high 0, medium 2, low 20, false 8, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: Action entry not checked for action, result or counts.total — AC6 asks for the entry that names the request, in its shape and with no key-like text; its values are not in the AC, and the live writer refuses any other shape.
+  - `[low]` `[reject]` Blind: only the first matching Approval entry is inspected — a fresh unit stack answers one request; a second answered entry would need a second press, which no step makes.
+  - `[low]` `[reject]` Blind: audit polling path has no gate case (poll fixed at 0) — the poll is `wait_until` from lib-live.sh, and the live run reads after the browser steps; a counting stub would add complexity for a flake that has not been seen.
+  - `[low]` `[reject]` Blind and Edge: the floor of 100 s with 80 s reserved leaves a small Playwright budget — a short budget fails the unit through the global timeout with a named failure either way; the spec fixes `remaining - 80`.
+  - `[false]` `[reject]` Blind and Edge: key restoration only in 06's `afterAll` — the spec places it there on purpose, and the unit's stack is a throwaway torn down at the end.
+  - `[low]` `[reject]` Blind and Edge: the `@floor` press in 04 depends on 02's watch with no named precondition — the journey is ordered by design (Decided in-stage), and a 409 `not_watching` is printed with its body by the test.
+  - `[low]` `[reject]` Blind: `TestStateIncidentDecision` has no "names no row" case — `Ownership.Decision` answers "" for a missing row exactly as for another session's row, and that branch is the one the foreign case runs.
+  - `[false]` `[reject]` Blind: the type comment says "diagnose decision" while any `DecisionRef` is attached — an incident's `DecisionRef` is its diagnose decision by construction (IncidentManager), and the AC reads the same.
+  - `[false]` `[reject]` Blind: `fixing?.payload` could throw a TypeError — the preceding `arrayContaining(['fixing','resolved'])` expectation fails first when no fixing event exists.
+  - `[medium]` `[reject]` Blind, Gap and Intent: "Fixing" is read from the session stream, not drawn on the page — measured, not a defect: the real fix ends in about a second, faster than one poll of the page, so the page goes from Awaiting approval to Resolved in one update; the texts stay pinned by `web/e2e/cards/incident-card.spec.ts` and `web/e2e/answers/close-loop.spec.ts`. The matrix row's expected observable is restated as reachable on the stream; reported under Auto Run Result as an amendment (Rule 5, apply and report) for the lead, not a change to the product.
+  - `[false]` `[reject]` Edge: a Playwright retry re-sends the watch message in 02 — `retries: 0` in `web/playwright.config.ts:37`.
+  - `[low]` `[reject]` Edge: 02's last-run regex accepts a "(late)" mark and no stalled-heartbeat banner is checked — the row is read within 120 s of the real heartbeat's run, and asserting the absence of "(late)" would add a CI-speed flake with no failure shown.
+  - `[low]` `[reject]` Edge: callers of `Fixture.Check` that expected a due row (Watch/Poller) — the shards lane-a and lane-b parts passed with the default, and the new default is the spec's AC9; callers that need a due row pass `""`.
+  - `[low]` `[reject]` Edge: `ChatItems` reads `Ownership.Decision` once per incident — the chat holds at most CHATMAX incidents and `MailboxItems` reads the same way.
+  - `[low]` `[reject]` Edge: no `INFO` line when the audit mark is empty — the empty mark already prints a FAIL before the browser steps.
+  - `[false]` `[reject]` Edge: an entry with a bad shape and key-like text draws two FAIL lines — the matrix lists the two conditions as separate failures, one FAIL line each.
+  - `[low]` `[reject]` Edge: deleted "not late and no stalled banner" and "no reminder left in the rail" checks have no replacement, and `key_like` runs on the entry's data only (not its description) — each is a retired Story 8.2 fixture assertion or beyond AC6, which names the entry's data.
+  - `[medium]` `[patch]` Gap: AC6's shape check has no mutation line — the stage ran the shape mutation live (SHAPEAPPROVAL without ownerRef: red, reverted byte-identical) and recorded the `mutation:` line; the writer refuses any other shape, so an extra member cannot be stored live, and the gate's `extra-approval` run pins that branch.
+  - `[low]` `[reject]` Gap: the audit poll and its deadline cap are never exercised — same row as the Blind finding on the poll.
+  - `[low]` `[reject]` Gap: order dependence of 03 to 06, and only 02 is serial — the journey is ordered by design (Decided in-stage); a failure ends the unit red either way.
+  - `[low]` `[reject]` Gap: `TestStateIncidentDecision` does not assert the exact key set — it asserts the member is undefined, which is the contract.
+  - `[low]` `[reject]` Gap: helpers have no host outside the live unit — they run in `live:demo-path` and `live:online-demo-path`, both green.
+  - `[low]` `[reject]` Gap: no mutation for the refusal clause of 02 and the second-press refusal of 04 — both are `@floor`-pinned titles that the unit's floor count (7 of 7) checks, and 04's press test asserts the 409.
+  - `[false]` `[reject]` Intent: the specs run in nothing the diff adds — they run in `live:demo-path`, the unit this story turns on.
+  - `[false]` `[reject]` Intent: the audit read is not exercised against real IRIS — the live unit runs it, and the live mutation above makes it fail.
+  - `[low]` `[reject]` Intent: AC4's Fixing is read at the stream (divergence 3) — same row as the Fixing finding above.
+  - `[low]` `[reject]` Intent: AC10 is untested in the diff — it is measured: 147 s before, 219 s and 230 s after, inside the 540 s default.
+  - `[low]` `[reject]` Intent: DW-294 reaches the browser only through 05's footer — that is the AC8 consumer, and `live-store.test.mjs` covers the store.
+  - `[low]` `[reject]` Intent: DW-349 changes a shared default with no edits to other tests — the shards passed; a caller that wants a due row passes `""`.
+  - `[false]` `[reject]` Intent: the mock path of the diagnosis is assumed — the live unit passes it end to end.
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -329,6 +364,10 @@ No AC contradicts an AD. The Act strip on the mock is met within AD-22 through i
 - The audit read runs in the unit script, not in a spec. `lib-keys.sh` is the one definition of key-like text, and TypeScript must not copy it.
 - `/state` attaches the decision beside the incident payload, not inside it. The payload stays the entity's own view (AD-12), and payloads.ts is unchanged.
 - Fixture check rows default to an hour ahead (`CHECKAHEAD`), through the fixture, never per call site.
+- The real watch row's `.meta` reads "Last run {time} \u00B7 Passed \u00B7 Trace (opens in a new tab)": the heartbeat's run gives the row its Trace link, so 02 matches `/^Last run \S.* \u00B7 Passed( \u00B7 Trace \(opens in a new tab\))?$/`.
+- The real fix ends in about a second, quicker than one poll of the page, so the page draws the card's Awaiting approval and then Resolved in one update and never draws Fixing. 05 reads the Fixing step from the session stream (`incident` events: state fixing, then resolved, the request approved or executing) and asserts the Resolved band, the audit line and the result in the DOM. The texts "Fixing" and "Repairing and resending 50 orders\u2026" stay pinned by the cards unit's fixtures, not here.
+- The README user opens Visual Trace already signed in (Task 0), so 06 has no sign-in step.
+- 02's `describe` is serial, so a failed step leaves the later parts of the file unrun (and reported as a failure, not a pass).
 
 
 **Lead rulings at the spec gate (2026-10-31, unattended; these override anything above that disagrees).**
@@ -462,7 +501,51 @@ This is test-only work in Core, Web, Schedule and the CI checks, apart from the 
 | AC8 | `ChatItems` attaches no `decision`; `fromSnapshot` ignores chat decisions | `TestStateIncidentDecision`; `live-store.test.mjs`; 05's footer |
 | AC9 | `Fixture.Check` without the `CHECKAHEAD` default | `TestCheckIsNotDue` |
 
+**Recorded by the implement stage (2026-10-31, lane A, slot A not used for tests):**
+- Task 0 baseline: `live demo-path` on the integrated tree before any change: 147 s (exit 0; 12 passed, 9 skipped).
+- Final: `live demo-path` after the last change: 230 s (an earlier green run took 211 s); 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7; the six audit PASS lines. Increase: 83 s. CI estimate: 26.6 min + 2 x 1.4 min = 29.4 min, under 30, so no `deferred:` item and no `ci/units.sh` change.
+- Task 0, the mock log of the watch message (marker `watch-act-orders:<key>`): the Triage request (no tools) is selected by the marker with k = 0 and gets reply 0 (the countdown 1 to 0); the turn's first request (k = 0) gets reply 1 (`start_watch`) and its second (k = 1, after the tool result) reply 2 (the text). The Triage request comes first, then the turn. The mock log's `step` is k, not the reply index.
+- Task 0, Visual Trace: the README user opens it already signed in (no sign-in form).
+- Task 0, the finish line: `This run: {n} decisions \u00B7 {tokens} tokens \u00B7 {cost} on Claude Haiku 5.5.` (observed: 5 decisions, 16,946 tokens, $0.0018).
+- Other runs: `live online-demo-path` 3 passed, 7 skipped (171 s). Warm: `Test.Web.Api` and `Test.Data.FixtureDefaults` passed; shards lane-b 1/3, 2/3 and 3/3 and lane-a 1/4 to 4/4 passed. Two warm runs of lane-b part 3 failed on a warm stack that earlier parts had used (`Test.Web.GuideApi` `TestRunAgain`, then `Test.Web.DismissApi` `TestBreakFeedAvailableAgain`: instance incidents of the Orders production left by earlier classes are visible to a watching fixture session); `DismissApi` passed on a fresh stack, and part 3 passed on a fresh warm stack. `npm --prefix web run lint`, `npm --prefix web test` (1134 tests), `test-demo-path-gate.sh`, `test-mock.sh`, `test-web-build.sh` and `ci/checks.sh` passed.
+
+**Mutations (Rule 19), each applied, observed red, reverted with `git status --short` and `git diff --stat` unchanged (a fingerprint of the diff and the untracked files compared equal), and green again:**
+- mutation: AC1 `A/watch-act-orders.json` reply 0's outcome `act` to `digest` -> 02 "the watch prompt gets its Act reply" red on the chip (Received "Tell now").
+- mutation: AC1 (DW-202) `Watch/Ops.cls:97` `NextDueAt` = `CreatedAt` + 1 day -> 02 "a real last run from the heartbeat" red after 120 s.
+- mutation: AC2 `Demo/Guide.cls:97` step 2's done flag fixed at 0 -> 03 red on "Step 2, Reminder, done" (04 and 06 red too on the guide steps).
+- mutation: AC3 `Core/Rule/Notify.cls` drops SimPhoneOut in the demo-mode rule -> 04 red on "the simulated phone has the incident notice" (05 and 06 cascade).
+- mutation: AC4 `approval-view.ts` result text "went through" to "went thru" -> 05 red on the band "All 50 orders went through.".
+- mutation: AC5 `Demo/Guide.cls:128` trace target from the newest turn instead of the incident -> 06 red on the link's SESSIONID (49 expected, 23 received).
+- mutation: AC6 gate: no Action entry in the canned log -> FAIL "no Action entry that names the approval request" (`test-demo-path-gate.sh`); live: the mark one hour ahead -> FAIL "no answered Approval entry ..." and FAIL "no Action entry ..." from the live unit.
+- mutation: AC6 (shape) `Bridge/Audit.cls` `SHAPEAPPROVAL` without `ownerRef`, run live on a fresh stack -> FAIL "no answered Approval entry ..." and FAIL "no Action entry ..." (the writer, `Audit.Record`, refuses any entry of another shape, so no live mutation can store an extra member; the unit's extra-member branch is pinned by the gate's `extra-approval` run). Reverted from the stage's own backup, tree byte-identical; the unmutated run is green.
+- mutation: AC7 a `notBuilt(..., '11.1')` appended to 06 -> the live unit FAIL "06-trace.spec.ts ... skipped, but every web step runs since Story 11.1"; the node test's red cases (`demo-path-summary.test.mjs`, "--only-telegram-skips") and the gate's `numbered-skip` run pin it.
+- mutation: AC8 `ChatItems` attaches no decision (`If 0 {`) -> `TestStateIncidentDecision` red ("carries it"); `fromSnapshot` ignoring chat decisions -> `live-store.test.mjs` red; and 05 red on the footer ("the footer finds the incident's diagnosis decision after the load").
+- mutation: AC9 `Fixture.Check` without the `CHECKAHEAD` default line -> `TestCheckIsNotDue` red ("is -5864354445" seconds ahead).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The web demo path now runs steps 2 to 6 on real components on the CI mock as one ordered journey, with the audit log read back after the browser steps. `/state` carries each incident's diagnosis decision (DW-294), fixture check rows are seeded an hour ahead (DW-349), and the unit's summary fails on any skip outside Telegram's parts.
+
+**Files changed.**
+- `web/e2e/demo-path/02-watch.spec.ts` to `06-trace.spec.ts`: the real-component step specs (02 watch on an Act marker, 03 reminder, 04 incident card, 05 approval, 06 trace and finish line; 06 restores the keys).
+- `web/e2e/support/demo-path.ts` (new), `web/e2e/support/devices.ts`, `web/e2e/support/iris.ts`, `web/e2e-online/demo-path/demo-path.spec.ts`: shared helpers, `armCountdown`, the online spec importing the moved helpers.
+- `ci/mock/scenarios/A/watch-act-orders.json` (new): the marker scenario.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`, `web/src/app/api/api-types.ts`, `web/src/app/live/live-store.ts`: the incident `decision` on `/state` and in the store.
+- `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls`, `Test/Data/FixtureDefaults.cls` (new), `Test/Web/Api.cls`, `web/scripts/live-store.test.mjs`: the tests.
+- `web/scripts/demo-path-summary.mjs` and its test: `--only-telegram-skips`.
+- `docker/tests/test-demo-path.sh`, `docker/tests/test-demo-path-gate.sh`: the audit read, the budget and the gate's runs.
+
+**Review.** 30 findings: 1 patched (the AC6 shape mutation line, with a live mutation run), 0 deferred, 29 rejected with the reasons in the triage log.
+
+**Follow-up review recommended:** false.
+
+**Verification.** `live demo-path` 219 s on the last run (147 s before; 6 of 6 steps ran, 2 partly skipped, 0 failed; floor 7 of 7; six audit PASS lines); `live online-demo-path` 3 passed, 7 skipped; `Test.Web.Api` and `Test.Data.FixtureDefaults` passed warm; shards lane-b 1/3 to 3/3 and lane-a 1/4 to 4/4 passed; lint, `npm test` (1134), the gate, `test-mock.sh`, `test-web-build.sh` and `ci/checks.sh` passed. CI estimate for the browser group 29.4 min, so no `deferred:` item and no `ci/units.sh` change.
+
+**Residual risks and items for the lead.**
+- Amendment proposed (Rule 5, apply and report): the matrix row of step 5 and AC4 name the chip "Fixing" with "Repairing and resending 50 orders\u2026" as shown on the page. The real fix ends in about a second, quicker than one page poll, so the page never draws it; 05 reads the Fixing step from the session stream (`incident` events fixing, then resolved) and the texts stay pinned by `web/e2e/cards/incident-card.spec.ts` and `web/e2e/answers/close-loop.spec.ts`. The product promise is unchanged.
+- The Last-run regex in 02 also accepts the real row's Trace link suffix (Decided in-stage).
+- Two warm-stack runs of lane-b part 3 failed on state left by earlier parts (`Test.Web.GuideApi` `TestRunAgain`, `Test.Web.DismissApi` `TestBreakFeedAvailableAgain`); both passed on a clean stack. CI runs every shard fresh.
+- The browser group sits near the 30-minute line (estimate 29.4 min); the lead measures it on this story's CI run.

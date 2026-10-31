@@ -33,13 +33,19 @@ export interface TelegramState {
   pausedUntil: string;
 }
 
+/**
+ * An entry of the snapshot's chat. An incident entry may carry `decision`, the session's own diagnose decision of the incident
+ * (Web.Api.ChatItems), so that the card finds it after a load; the other entries never do.
+ */
+export type ChatItem = LiveItem & { decision?: DecisionPayload };
+
 /** GET /ocutalon/api/v1/state: the snapshot that the page loads, then follows with GET /v1/events. */
 export interface StateSnapshot {
   version: string;
   instanceZone: string;
   epoch: string;
   streams: { session: number; instance: number };
-  chat: LiveItem[];
+  chat: ChatItem[];
   rail: {
     approvals: ApprovalPayload[];
     checks: CheckPayload[];
