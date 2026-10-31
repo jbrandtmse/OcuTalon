@@ -15,10 +15,11 @@ export const STATUS_TIMEOUT_MS = 3000;
  * The online demo's busy state of the signed-in page (Story 16.5; AD-13, AD-25), kept in the page by one DemoBusyWatch.
  * - apiAnswered(status) is the envelope interceptor's report of every API answer: a 503 makes the page busy, and a later 2xx clears
  *   that cause.
- * - openTrace(url) is the online demo's trace check, run at the press of a Trace link: it asks /ocutalon/public/status through
+ * - openTrace(url) is the online demo's trace check, run at the press of a Trace link: it asks the trace form of /ocutalon/public/status
+ *   (?for=trace, whose busy comes from the connection check alone, so that a full house of visitors never refuses Visual Trace) through
  *   ApiClient.publicStatus (with a unique query, so that no cache answers) and opens the window only when the answer says the demo is not busy. A busy answer shows the
  *   banner and opens nothing, and an answer that does not come (no answer within STATUS_TIMEOUT_MS, or not JSON) opens the window.
- * - While a busy status holds the page busy, the same check runs again every 10 s, quietly: it takes no session and announces nothing.
+ * - While a busy status holds the page busy, the same check (the trace form) runs again every 10 s, quietly: it takes no session and announces nothing.
  * The banner stack renders `busy`; this class announces nothing and moves no focus.
  */
 @Injectable({ providedIn: 'root' })

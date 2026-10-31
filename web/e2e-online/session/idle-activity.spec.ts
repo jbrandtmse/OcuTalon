@@ -9,8 +9,8 @@ import { accountTrigger, advance, epochOf, landedOn, openSession, removeSession,
  * docker/tests/test-online-session.sh. leave.spec.ts L2 shows that a key press and a click keep the page; this case shows the other half of the
  * clause "only a key press, a click and a sent message count; polls, snapshots, timers and pointer movement never do".
  * - L7: on the page's own clock, 580 s with no activity, then pointer movement over the page, a scroll of the wheel and a focus change, then
- *   the clock runs on past 600 s since the page loaded: the page frees its place all the same, lands on the splash with its load time and the
- *   place-freed notice, and its CSP session is gone.
+ *   the clock runs on with the wall clock past 600 s since the page loaded (so that the group sign-out's 3 s bound is real time): the page
+ *   frees its place all the same, lands on the splash with its load time and the place-freed notice, and its CSP session is gone.
  * The case signs out of the whole sign-in group and removes its rows in `finally`. The texts are written out here, as the independent oracle of
  * the page's own. openSession, advance and epochOf are the online-demo support's.
  */
@@ -38,11 +38,6 @@ test('L7: pointer movement, a scroll and a focus change are no activity: the pag
     await expect(accountTrigger(page), 'the focus moved to the account trigger').toBeFocused();
     await expect(mainOf(page), 'and the page is still there').toHaveAttribute('data-snapshot', 'loaded');
 
-    try {
-      await page.clock.runFor(25_000);
-    } catch {
-      /* The page leaves while the clock runs, which ends its execution context. */
-    }
     await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     const url = new URL(page.url());
     expect(url.pathname, 'the splash').toBe('/ocutalon/');

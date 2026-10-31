@@ -81,7 +81,7 @@ Method TestEveryParameterIsClassified()
 	}
 	Do $$$AssertEquals(counts("compared"), 41, "41 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 2, "2 parameters are not in the UX")
-	Do $$$AssertEquals(counts("notText"), 30, "30 parameters are not texts")
+	Do $$$AssertEquals(counts("notText"), 32, "32 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
 	Set stale = ""
@@ -178,11 +178,11 @@ XData Classified [ MimeType = application/json ]
  "notText": {
   "OcuTalon.Web.Public.ApiBase": ["CHARSET", "CONTENTTYPE"],
   "OcuTalon.Web.Public.Login": ["FAVICON", "ICONALERT", "ICONEYE", "IMAGES", "LOGODARK", "LOGOLIGHT"],
-  "OcuTalon.Web.Public.Shell": ["CONTENTTYPE", "REFUSALKEY", "RESUMECOOKIE", "ROLE", "UseSession"],
+  "OcuTalon.Web.Public.Shell": ["CONTENTTYPE", "REFUSALKEY", "RESUMECOOKIE", "ROLE", "UseSession", "VISITORKEY"],
   "OcuTalon.Web.Public.SignInAssets": ["CSS", "SCRIPT"],
   "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "ICONINFO", "ICONWARNING", "README"],
   "OcuTalon.Web.Public.SplashAssets": ["CSS", "SCRIPT"],
-  "OcuTalon.Web.Public.Status": ["BUSYHEADER", "CONTENTTYPE", "HandleCorsRequest", "UseSession"],
+  "OcuTalon.Web.Public.Status": ["BUSYHEADER", "CONTENTTYPE", "HandleCorsRequest", "UseSession", "VISITORCAP"],
   "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY", "RESETSOONSECONDS"]
  }
 }

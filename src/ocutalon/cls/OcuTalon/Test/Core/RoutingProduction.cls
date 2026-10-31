@@ -165,9 +165,9 @@ Method TestEachOutcomeThroughTheRouter()
 }
 
 /// An Item owned by eval goes through Intake to EvalSink and nowhere else: no request to OutcomeRouter, Notify or WebChatOut,
-/// no Delivery row for the owner eval or the session whose trace the host used, and no live event on that session's stream. The
-/// stub EvalSink answers an error status, which the route ignores. The real Decide records its decide row for the Item (owner
-/// eval), which the test adopts, so that the clean-up leaves no Decision row behind.
+/// no Delivery row for the owner eval or the session whose trace the host used, and no live event on that session's stream. EvalSink
+/// finds no sent case row for that Item, so it logs a warning, stores nothing and answers OK. The real Decide records its decide row
+/// for the Item (owner eval), which the test adopts, so that the clean-up leaves no Decision row behind.
 Method TestEvalItemWritesNoDeliveryOrEvent()
 {
 	If '..Guard() Quit

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
 import { STATE } from '../support/api';
-import { banner, inMs, mainOf, rowOf, unique } from '../support/floor';
+import { banner, inMs, mainOf, rowOf, unique, loadedAfter } from '../support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, seedCheck } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
 
@@ -98,7 +98,7 @@ test('H1: the heartbeat-stalled banner and the late mark follow the real heartbe
   const ranAt = inMs(-60_000);
   refs.push(await seedCheck(user, { displayName: stamp, lastRunAt: ranAt, result: 'passed', finding: '', nextDueAt: inMs(NEXT_DUE_MS) }));
   await recordAnnouncements(page);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   const row = rowOf(page, stamp);
   const stalled = banner(page, 'heartbeatStalled');

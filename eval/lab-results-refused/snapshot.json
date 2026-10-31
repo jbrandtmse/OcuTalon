@@ -1,0 +1,162 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "LabResultsOut"
+  },
+  "failures": [
+    {
+      "headerId": 11,
+      "sessionId": 11,
+      "superSession": "kX14ZyfUSLt34rhI3pSzxQ",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:02Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "LabResultsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "10",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382",
+      "body": {
+        "ResultId": "LR-2001",
+        "PatientRef": "PT-2001",
+        "TestCode": "GLU",
+        "ResultValue": "7.5",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 12,
+      "sessionId": 12,
+      "superSession": "kX14ZyfUSLt34rhI3pSzxQ",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:07Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "LabResultsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "11",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382",
+      "body": {
+        "ResultId": "LR-2002",
+        "PatientRef": "PT-2002",
+        "TestCode": "GLU",
+        "ResultValue": "5.1",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 13,
+      "sessionId": 13,
+      "superSession": "kX14ZyfUSLt34rhI3pSzxQ",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:12Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "LabResultsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "12",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382",
+      "body": {
+        "ResultId": "LR-2003",
+        "PatientRef": "PT-2003",
+        "TestCode": "HBA",
+        "ResultValue": "6.2",
+        "Units": "percent"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "94",
+      "timeLogged": "2026-10-29T16:13:02Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 11,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    },
+    {
+      "id": "95",
+      "timeLogged": "2026-10-29T16:13:02Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 11,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    },
+    {
+      "id": "109",
+      "timeLogged": "2026-10-29T16:13:07Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 12,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    },
+    {
+      "id": "110",
+      "timeLogged": "2026-10-29T16:13:07Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 12,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    },
+    {
+      "id": "113",
+      "timeLogged": "2026-10-29T16:13:12Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 13,
+      "text": "ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    },
+    {
+      "id": "114",
+      "timeLogged": "2026-10-29T16:13:12Z",
+      "type": "Error",
+      "configName": "LabResultsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 13,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR #6059: Unable to open TCP/IP socket to server 127.0.0.1:9382"
+    }
+  ],
+  "items": [
+    {
+      "name": "LabResultsOut",
+      "className": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {
+        "HTTPServer": "127.0.0.1",
+        "HTTPPort": "9382",
+        "URL": "/lab/results",
+        "FailureTimeout": "2",
+        "RetryInterval": "1"
+      }
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "11",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "LabResultsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

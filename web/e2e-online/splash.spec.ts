@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
 import { countdownText, pageTime, WHEN_TEXTS } from '../src/app/chat/page-time';
 import { README_URL } from '../src/app/links';
-import { expectRing, expectRingInside, readFocus, type Reading } from '../e2e/support/floor';
+import { expectRing, expectRingInside, loadedAfter, readFocus, type Reading } from '../e2e/support/floor';
 import { fixtureUser } from '../e2e/support/iris';
 import { plain, tokenColor } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
@@ -410,14 +410,14 @@ test.describe('S5 to S7, signing in', () => {
   /** S5: the button, and Enter in the password field, sign in without typing. */
   test('S5: Sign in and start, and Enter in the password field, open the main page without typing', async ({ page }) => {
     try {
-      await signInFromSplash(page, undefined, undefined, splashPath());
+      await loadedAfter(page, () => signInFromSplash(page, undefined, undefined, splashPath()));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
       await expect(page).toHaveTitle('OcuTalon');
       await signOutGroup(page);
 
       await page.goto(splashPath());
       await expect(page).toHaveTitle('Try OcuTalon');
-      await passwordInput(page).press('Enter');
+      await loadedAfter(page, () => passwordInput(page).press('Enter'));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     } finally {
       await signOutGroup(page);
@@ -488,7 +488,10 @@ test.describe('S5 to S7, signing in', () => {
           });
         };
         page.on('request', watch);
-        const answer = await signInFromSplash(page, undefined, undefined, path);
+        let answer!: Response;
+        await loadedAfter(page, async () => {
+          answer = await signInFromSplash(page, undefined, undefined, path);
+        });
         await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
         const location = answer.headers()['location'] ?? '';
         expect(location, `the sign-in POST answers with a redirect (from ${path})`).not.toBe('');
@@ -512,7 +515,7 @@ test.describe('S11 to S12, the fragment and the phone width', () => {
   /** S11: the address's fragment is carried through sign-in by the splash's script. */
   test('S11: signing in at an address with a fragment lands on that fragment', async ({ page }) => {
     try {
-      await signInFromSplash(page, undefined, undefined, `${splashPath()}#/x`);
+      await loadedAfter(page, () => signInFromSplash(page, undefined, undefined, `${splashPath()}#/x`));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
       await expect(page, 'the page lands on #/x once it has booted').toHaveURL((url) => url.hash === '#/x');
     } finally {

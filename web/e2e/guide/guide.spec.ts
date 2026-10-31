@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
-import { signInReadme } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 import { changeSnapshot, MESSAGES } from '../support/api';
 import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 
@@ -105,7 +105,7 @@ async function liveEvents(page: Page): Promise<(events: QueuedEvent[]) => Promis
 
 /** Signs in and waits for the loaded page. */
 async function open(page: Page): Promise<void> {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 }
 

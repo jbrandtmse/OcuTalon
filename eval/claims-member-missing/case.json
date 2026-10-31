@@ -1,0 +1,13 @@
+{
+  "name": "claims-member-missing",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three claims from the test feed with the member identifier left empty; the billing operation requires it.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "validation_error",
+    "elementAtFault": "MemberId",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

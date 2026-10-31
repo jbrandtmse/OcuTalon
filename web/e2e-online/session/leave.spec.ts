@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, STATE } from '../../e2e/support/api';
+import { loadedAfter } from '../../e2e/support/floor';
 import { recordTraffic, traffic } from '../../e2e/support/clock';
 import {
   advance,
@@ -31,7 +32,9 @@ import {
  *   /session/end, and the row's CSP session still exists.
  * - L2 (row 5, AC 3): the idle cap, on the page's own clock (installed before the load, moved on in steps of five seconds so that the page
  *   polls as it does): polls do not count, a key press and a click do, and 600 s with none lands on the splash with its load time and the
- *   place-freed notice above both cards; the CSP session is gone, a trace page needs a sign-in, and signing in resumes the epoch.
+ *   place-freed notice above both cards; the CSP session is gone, a trace page needs a sign-in, and signing in resumes the epoch. The page's
+ *   clock crosses the cap with the wall clock, so that the group sign-out's 3 s bound is real time. The case needs IRIS to answer that
+ *   sign-out within the bound, so that the session has ended before the page leaves.
  * - L3 (row 7, AC 3): a 401 (the CSP session ended out of band) takes the page to the same splash and notice, never to the sign-in page or
  *   "You were signed out.", and no request of any kind (an API call or a sign-out) follows it.
  * - L4 (row 9, AC 4): an epoch change that the answers inject is never applied: the page shows nothing of the other session, asks for no
@@ -121,18 +124,13 @@ test('L2: 600 s without a key press, click or sent message frees the place; poll
     await advance(page, CAP_MS - 10_000);
     await expect(mainOf(page), 'a click on the page, then 590 s more: still there').toHaveAttribute('data-snapshot', 'loaded');
 
-    try {
-      await page.clock.runFor(20_000);
-    } catch {
-      /* The page leaves while the clock runs, which ends its execution context. */
-    }
     await landedOn(page, /\/ocutalon\/\?since=/, 60_000);
     await expectPlaceFreed(page, loadedAt);
     expect((await context.request.get(STATE)).status(), "the context's /state is 401").toBe(401);
     await expectTraceSignIn(context, "a new tab's trace address shows the trace sign-in form");
 
     await page.clock.resume();
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'signing in from the splash gives the same epoch').toBe(epoch);
   } finally {
@@ -164,7 +162,7 @@ test('L3: a 401 returns the page to the splash with the place-freed notice, neve
     expect(at401, 'the poll was answered 401').toBeGreaterThanOrEqual(0);
     expect(api.length, 'no API request follows the 401').toBe(at401);
     expect(log.since(mark).filter((url) => url.includes('IRISLogout') || url.includes('/session/end')), 'and the page sent no sign-out after it').toEqual([]);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'signing in gives the same epoch').toBe(epoch);
   } finally {
@@ -321,7 +319,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     await pressSignOut(second);
     await confirmSignOut(second);
     await landedOnSplash(second, 60_000);
-    await signInFromSplash(second);
+    await loadedAfter(second, () => signInFromSplash(second));
     await expect(mainOf(second)).toHaveAttribute('data-snapshot', 'loaded');
     const next = await epochOf(second);
     epochs.push(next);
@@ -340,7 +338,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     expect(seen.seen(), "it never showed the new session's turn").toBe(false);
     await expect(page.locator('#ocu-notice'), 'and the splash has no notice').toHaveCount(0);
     await second.close();
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), "a sign-in from the first page gives an epoch other than its first one").not.toBe(first);
   } finally {
