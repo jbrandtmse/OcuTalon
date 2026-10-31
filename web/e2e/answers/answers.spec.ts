@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page, type Response, type Route } from
 import { signIn } from '../sign-in/helpers';
 import { DRY_RUN, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
-import { CARD_MS, composerOf, inMs, mainOf, railOf, unique } from '../support/floor';
+import { CARD_MS, composerOf, inMs, mainOf, railOf, unique, loadedAfter } from '../support/floor';
 import { answerHeaders, answerQuietly, cleanFixtureRows, fixtureUser, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
 import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
@@ -64,7 +64,7 @@ const rowOfRequest = (page: Page, ref: string): Locator => railOf(page).locator(
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
   await recordAnnouncements(page);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
   await expect(phoneOf(page), 'the stack is in demo mode: the phone shows').toBeVisible();

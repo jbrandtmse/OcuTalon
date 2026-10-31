@@ -9,9 +9,9 @@
 #     without a key every decision would fall back with no_key and never with daily_cap;
 #   - the browser step: the project online-allowance of web/playwright.config.ts (web/e2e-online/allowance/) as the demo account:
 #     messages.spec.ts (A1: the 51st message, the 429, the banner, the explained-disabled controls and one notice card; A2: the window clears
-#     at retryAt; E1 and E2: the 21st simulated email and its clear) and daily-cap.spec.ts (D1: the cap reached by IRIS's own count, the
-#     message once to each session with activity; D2: the gateway's 403 through the mock; AP: an approval and Break the feed while both caps
-#     hold);
+#     at retryAt; A3 and A4: a guide prompt and a typed message that get a 429; E1 and E2: the 21st simulated email and its clear) and
+#     daily-cap.spec.ts (D0: the midnight guard of the cases, browserless; D1: the cap reached by IRIS's own count, the message once to each
+#     session with activity; D2: the gateway's 403 through the mock; AP: an approval and Break the feed while both caps hold);
 #   - the IRIS checks after the browser: no capped mark and no refused Turn of the run is left, and the flag and the limits are as they were;
 #   - MEASURED lines: the browser step's seconds, the unit's seconds and the 429 round trip that A1 prints.
 # Every wait ends by the overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default; run the unit with a longer one when the machine is slow);
@@ -55,9 +55,9 @@ CHK|cap|20" \
   'Write !,"CHK|emails|",##class(OcuTalon.Core.Allowance).#EMAILLIMIT' \
   'Write !,"CHK|cap|",##class(OcuTalon.Bridge.Budget).State().cap' \
   'Halt'
-check_session "no capped mark of the day exists to begin with" OCUTALON \
+check_session "no day has a capped mark to begin with" OCUTALON \
   "CHK|mark|0" \
-  'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' \
+  'Write !,"CHK|mark|",$Select($Order(^OcuTalonBP.UsageCapped(""))="":0,1:1)' \
   'Halt'
 
 # --- the keys ---
@@ -105,12 +105,12 @@ fi
 
 # --- the IRIS checks after the browser ---
 
-check_session "after the browser step: the day is not marked, the flag and the limits are as they were, and no refused Turn is left" OCUTALON \
+check_session "after the browser step: no day is marked, the flag and the limits are as they were, and no refused Turn is left" OCUTALON \
   "CHK|mark|0
 CHK|flag|1
 CHK|limit|50
 CHK|refused|0" \
-  'Write !,"CHK|mark|",$Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())))' \
+  'Write !,"CHK|mark|",$Select($Order(^OcuTalonBP.UsageCapped(""))="":0,1:1)' \
   'Write !,"CHK|flag|",##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")' \
   'Write !,"CHK|limit|",##class(OcuTalon.Core.Allowance).Limit()' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE State = ?","refused") Do rs.%Next() Write !,"CHK|refused|",rs.%GetData(1)' \

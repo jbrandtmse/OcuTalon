@@ -14,8 +14,8 @@
 #   4. POST /ocutalon/api/v1/messages with the fixed message and the browser envelope (JSON, X-OcuTalon-Request: 1, a matching Origin);
 #      any answer but 202 is no_decision.
 #   5. GET /ocutalon/api/v1/events every 2 s, up to 120 s after the 202, for the turn's decision: a chat.message event of this run's
-#      clientId in the state done that carries a decision object. A fallback reason of daily_cap is capped, any other decision is
-#      healthy, and no decision is no_decision.
+#      clientId in the state done that carries a decision object. A fallback reason of daily_cap is capped; one of no_key, timeout or
+#      rate_limited is degraded; any other decision is healthy; and no decision is no_decision.
 #   6. POST /ocutalon/api/v1/session/end with the envelope, on every path of a run that signed in (an EXIT trap backs it up).
 # No API call is made before the sign-in succeeded or after the sign-out. The password reaches curl on its standard input and nowhere
 # else; the cookie jar lives in a private temporary folder that is removed at exit; no resume cookie is kept between runs.
@@ -38,6 +38,7 @@
 #   healthy, capped        no alert; the count of counted failures is cleared                          exit 0
 #   busy                   alert; the count is unchanged; one is added to today's busy count           exit 1
 #   no_splash              alert; the count is unchanged                                              exit 1
+#   degraded               alert; the count is unchanged (the turn fell back for no_key, timeout or rate_limited)   exit 1
 #   auth_failed, no_decision   alert; the count plus one; at two the reset command runs once and the count is cleared   exit 1
 # A configuration error (a missing variable, a URL that is not an origin, a wait outside 1-120) makes no request, writes nothing,
 # prints one line on stderr naming the variable, and exits 2. A run that receives INT, TERM or HUP signs out and exits 130, with no
@@ -45,7 +46,7 @@
 # 5 minutes; the probe sets no time limit on the host's alert and reset commands.
 #
 # State folder: probe.log (one appended line per run, also printed on stdout: <UTC time> <outcome> count=<n>[ fallback=<reason>]
-# [ reset=<exit status>]), counted-failures (the count, written whole through a rename), busy-per-day (one "YYYY-MM-DD <n>" line per
+# [ reset=<exit status>]; a degraded run reads "<UTC time> degraded count=<n> fallback=<reason>"), counted-failures (the count, written whole through a rename), busy-per-day (one "YYYY-MM-DD <n>" line per
 # UTC day). Inside a run: classify, sign out, update the counts, run the reset when it is due, append the log line, then alert.
 #
 # Needs bash 3.2 or later, curl and POSIX utilities (date, sed, grep, tr, mkdir, mv, mktemp). No jq, Python or Node: the JSON is read
@@ -242,6 +243,7 @@ run_checks() {
 @@/g' | sed -n 's/^@@\([A-Za-z0-9_][A-Za-z0-9_]*\)".*/\1/p' | head -n 1)
         case $decision_line in
           *'"fallbackReason":"daily_cap"'*) outcome=capped; fallback=daily_cap ;;
+          *'"fallbackReason":"no_key"'* | *'"fallbackReason":"timeout"'* | *'"fallbackReason":"rate_limited"'*) outcome=degraded ;;
           *) outcome=healthy ;;
         esac
         return
@@ -300,7 +302,7 @@ case $outcome in
     write_count 0
     ;;
   busy) add_busy ;;
-  no_splash) ;;
+  no_splash | degraded) ;;
   auth_failed | no_decision)
     count=$((count + 1))
     write_count "$count"

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { changeSnapshot } from '../support/api';
-import { signInReadme } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 
 /**
  * The demo-mode switch, as the page shows it (Story 4.1): the README account signs in and the page loads its snapshot, which
@@ -19,7 +19,7 @@ function stackMode(): '0' | '1' {
 test('the header badge follows the demo mode of the stack', async ({ page }) => {
   const mode = stackMode();
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const badge = page.locator('app-header .context-badge');
@@ -46,7 +46,7 @@ test('the demo guide, the Break the feed box and the demo texts follow the demo 
     rail.checks = [];
   });
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const guide = page.getByRole('region', { name: 'Demo guide' });

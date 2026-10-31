@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
+import { loadedAfter } from '../support/floor';
 import { cleanFixtureRows, finishTurn, fixtureUser, seedTurns, sinkEvent, turnRows, type SeedDecision, type SeedTurn, type SeedUsage } from '../support/iris';
 import { clock, plain, tokenColor } from '../support/page';
 
@@ -95,7 +96,7 @@ const stripOf = (page: Page, key: string): Locator => replyOf(page, key).locator
 /** Signs the decision user in and waits for the loaded page with its composer. */
 async function open(page: Page): Promise<Locator> {
   const { user, password } = fixtureUser('DECISION');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
   await expect(field).toBeVisible();

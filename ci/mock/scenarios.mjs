@@ -11,7 +11,9 @@
 // A scenario is {name, match, replies, file, folder}. The format:
 //   {"name": "<kebab-case, the file's name>", "match": {"marker"|"prompt"|"mockkey": "<value>"}, "replies": [<reply>, ...]}
 //   reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "stopReason": "<API value>",
-//           and exactly one of "text": "<string>", "toolUse": {"name", "input"} or a list of them, "body": {...}}
+//           and exactly one of "text": "<string>", "toolUse": {"name", "input"} or a list of them, "body": {...} | [...] | "<string>"}
+//   A string body is served as written (a plain-text gateway error, say), with the reply's headers, Content-Type included
+//   (application/json when the reply names none).
 //   headers: valid HTTP names and string values, never Content-Length or Transfer-Encoding, which the mock sets itself.
 // A marker scenario's marker is its name. The match type telegram serves the Telegram Bot API side of the mock (Story 10.3):
 //   {"name": "<kebab-case, the file's name>", "match": {"telegram": "<method>"}, "replies": [<telegram reply>, ...]}
@@ -126,8 +128,8 @@ function checkReply(reply, where, bad, telegram = false) {
     if (present.length !== 1) bad(`${where}: a reply must hold exactly one of text, toolUse and body, found ${present.length}`);
     if (Object.hasOwn(reply, 'text') && typeof reply.text !== 'string') bad(`${where}: text is not a string`);
     if (Object.hasOwn(reply, 'toolUse')) checkToolUse(reply.toolUse, where, bad);
-    if (Object.hasOwn(reply, 'body') && !(reply.body !== null && typeof reply.body === 'object')) {
-      bad(`${where}: body is not a JSON object or list`);
+    if (Object.hasOwn(reply, 'body') && typeof reply.body !== 'string' && !(reply.body !== null && typeof reply.body === 'object')) {
+      bad(`${where}: body is not a string, a JSON object or a list`);
     }
   }
   if (reply.headers !== undefined) {
