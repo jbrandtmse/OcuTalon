@@ -367,6 +367,13 @@ deferred: []
 - mutation: AC6 `StepProblems` status test compares with `okx`, summary test with the tool name plus `x`, reply count against 2, the no-header test against 1, the outside-session test as `>= 0`, the kinds test inverted -- each applied alone, red in `Tools.Reminders`
 - mutation: AC5 the reminder block moved after the no-commands line -- red in `TestChat` (order)
 
+**QA stage (2026-10-31, `stage=qa`, warm tag `e11s8qw`, slot-free; no test file created or changed (QA)).**
+- Every AC has a pinning test whose red was observed by the implement stage (the `mutation:` lines above are current: HEAD `45ca0116` holds the implement commit `26f93f47`, and the tree was clean): AC1 `TestCancelSeveral`, AC2 `TestCancel`/`TestCancelRefused`, AC3 `TestCancelThroughTheToolManager`, AC4 `TestCancelAllThroughChat`, AC5 `TestChat`, AC6 `StepProblems` callers, AC7 `TestCancelThroughChat`. Warm re-runs green at QA: `Tools.Reminders`, `Schedule.ReminderChat`, `Agent.Instructions`, `Watch.Turns`.
+- Three extra mutations for behaviours no earlier line named (each applied on the warm stack, red seen, restored from the scratch backup, tree byte-identical, `Tools.Reminders` green again):
+- mutation: AC1 the loop stops at the first refusal (the tool "does not stop at a refusal") -- red in `TestCancelSeveral` (one refused, failed submit)
+- mutation: AC3 the session check runs after the refs are read (NOSESSION must win over BADREFS) -- red in `TestCancelThroughTheToolManager`
+- mutation: AC3 a non-string entry (`5`, `{}`) accepted as a ref -- red in `TestCancelThroughTheToolManager`
+
 ## Auto Run Result
 
 Status: done

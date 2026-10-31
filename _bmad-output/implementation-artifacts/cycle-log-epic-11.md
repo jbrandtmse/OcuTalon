@@ -76,3 +76,5 @@
 2026-10-31T15:13:20Z	Story 11.8	dev_complete	spawn_at=2026-10-31T14:16:30Z model=claude-sonnet build_sha=26f93f47 baseline_revision=09cf79b7 story_base=09cf79b7 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=12 loc_added=548 loc_removed=127 nfr_tripwires=0 adr_violations_surfaced=0 subagent_tokens=154967 duration_min=55 cycle_iteration=1
 2026-10-31T15:13:20Z	Story 11.8	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-10-31T15:13:20Z	Story 11.8	stage_spawned	stage=qa spawn_at=2026-10-31T15:13:20Z model=claude-sonnet agent_name=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c-qa-1 cycle_iteration=1
+2026-10-31T15:19:52Z	Story 11.8	qa_complete	spawn_at=2026-10-31T15:13:20Z model=claude-sonnet tests_added=0 mutations_demonstrated=3+10_existing first_run_failures=0 clarifications=0 closing_sections_present=true subagent_tokens=75273
+2026-10-31T15:19:52Z	Story 11.8	stage_spawned	stage=code-review spawn_at=2026-10-31T15:19:52Z model=claude-opus agent_name=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c-code-review-1 cycle_iteration=1
