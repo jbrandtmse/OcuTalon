@@ -132,3 +132,5 @@
 2026-10-31T21:11:28Z	Story 30.6	ledger_routed_planned	story=30-6-the-invalid-reply-warning-names-what-failed-never-the-reply entries=2(DW-498,DW-505) excess=0 by=lead
 2026-10-31T21:11:28Z	Epic 30	ci_registered	sha=6350fe3 runs=41242303776(ci),41242303755(lane-a) result=pending missing=none note=fix+integrate-forward_head(8cf26aa,414b725)
 2026-10-31T21:11:28Z	Epic 30	epic_context_spawned	reason=planning_artifact_newer(story_30.6_inserted) spawn_at=2026-10-31T21:11:28Z model=claude-opus-5-5
+2026-10-31T21:19:06Z	Epic 30	epic_context_compiled	reason=planning_artifact_newer(story_30.6_inserted) model=claude-opus-5-5 agent=a1b559c31b343a485 lines=198 notes=30.6:CheckReply_wraps_the_original_status(Judge_lacks_code/property/limit);tests_to_change=Test.Watch.Payload.TestRefusalTrace,Test.Watch.Diagnose:287;DW-505_rule_in_docker/tests/test-class-rules.sh(footprint_extension)_would_flag_Lane_B_Test/Data/PublicSettings.cls:105
+2026-10-31T21:19:06Z	Story 30.6	stage_spawned	stage=plan spawn_at=2026-10-31T21:19:06Z model=claude-opus-5-5 agent_name=30-6-plan-1 cycle_iteration=1
