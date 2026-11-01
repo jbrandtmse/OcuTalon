@@ -2829,3 +2829,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec-11-14 :103 and :124-128 (exits 0,1,2,3,75; no exit 4, no --plant <id>@<run>); epic-11-context.md Release sequence line; release/rehearse.sh header and cmd_run now differ
 - 2026-11-01T20:58:12Z status=routed owner=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate by=cr note=11.14's plan re-reads rehearse.sh's header (runs k, refusal beyond N, run exit 4, OCUTALON_RUN_TAG) before implementing its gate
+
+### DW-550: flake: live:cards web/e2e/cards/incident-card.spec.ts:454 I10 timed out (90 s) in loadedAfter's /state wait after sign-in (support/floor.ts:141); passed on an unchanged rerun
+- source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
+- 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
