@@ -63,14 +63,14 @@ Where Voice and Tone, the Accessibility Floor, or Key Flows quote these texts, t
 
 **The main page in demo mode**, in reading, landmark, and tab order:
 
-1. **App header:** mark, wordmark, context badge, header navigation (from step 2), reset countdown (online demo), Visual Trace menu, theme menu, account menu.
+1. **App header:** mark, wordmark, context badge, Demo view switch, header navigation (from step 2), reset countdown (online demo), Visual Trace menu, theme menu, account menu. [AMENDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner: the Demo view switch; see "Demo guide and controls"]
 2. **Banner slot:** zero or more status banners.
 3. **Demo guide:** the steps, the prompt bar, and the Break the feed box at the right end, aligned over the device column.
 4. **Status rail** (left): Telegram, Approval requests, Background checks, Reminders, Recent decisions.
 5. **Chat** (center): the session's conversation, with the composer at the bottom.
 6. **Simulated devices** (right): the Simulated phone tab (the default) and the Simulated mailbox tab.
 
-Without demo mode, regions 3 and 6 are absent and the chat widens.
+Without demo mode, or with the Demo view switch off, regions 3 and 6 are absent and the chat widens. [AMENDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner: the Demo view switch; see "Demo guide and controls"]
 
 → Composition reference: [mockups/main-page.html](mockups/main-page.html) shows the main page at 1280×720 during UJ-1, at step 4 (light) and step 5 (dark).
 
@@ -229,6 +229,16 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - Steps, prompts, and completion signals are under Demo Mode and the Online Demo.
 - **Guide collapsed bar.** "Hide guide" collapses the demo guide to this bar. Its "Show guide" button has `aria-expanded`. Break the feed stays at the bar's right end with the same rules. The choice is remembered per browser.
 - **Break the feed.** Availability is decided on the server (FR-16, addendum §7). When inactive, the button stays focusable with `aria-disabled`, and its visible hint is its accessible description (`aria-describedby`). States and wording are under Demo Mode and the Online Demo.
+- **Demo view switch.** Demo mode only, in the app header after the context badge. [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+  - A native switch (`role="switch"`, `aria-checked`), labelled "Demo view", on by default.
+  - Its help text, "Off shows the page as it looks on your own install.", is its accessible description and its pointer tooltip. In the 1024-1279px band, where the label is hidden, the tooltip is "Demo view".
+  - A press (click, Space or Enter) changes only the view. Nothing is sent to the server, and focus stays on it. Screen readers hear the new state from `aria-checked`; the page announces nothing.
+  - It is kept per browser tab, falling back to on.
+- **Try it yourself.** In the demo view only. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
+  - A row labelled "Try it yourself" with four chips: "Which productions are running?", "Is anything wrong right now?", "What was that failure earlier?" and "What can you do?". It sits after the finish state's "More to try" line and after the empty chat panel's last line.
+  - The chips are native buttons named by their text, in the sample email chips' look.
+  - A press sends the text once as the user's own message, exactly as if typed: no "From the demo guide" tag, the same decision strip, reply and trace link as any turn, and it counts against the message allowance. Nothing is sent without a press.
+  - While a turn is in flight, or the message allowance is used up, the chips are `aria-disabled` and a press sends nothing. While the allowance is used up, they are described by the composer's reason.
 
 ### Status rail
 
@@ -270,6 +280,7 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - "It watches your productions from inside IRIS, and every decision is a production message you can trace.";
   - "Anything risky waits for your approval.";
   - in demo mode, "Start with step 1 of the demo guide above."; otherwise, "Ask OcuTalon to watch a production, set a reminder, or say what you need."
+  - in the demo view, then the Try it yourself row (Demo guide and controls). [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
 
 ### Incident and approval components
 
@@ -416,7 +427,7 @@ Behavioral rules. Contrast is specified and verified in `DESIGN.md` under Colors
   | Update | Focus goes to |
   | --- | --- |
   | Approve or Reject answered (here or elsewhere) | The answered status line |
-  | Guide step advances | The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`) |
+  | Guide step advances | The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`); on step 3, which has none, the box's Break the feed button [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`)"] |
   | Finish state replaces the prompt bar | Its first line |
   | Unpair, or the pairing code refreshes while focused | The Telegram card heading, or the new "Open in Telegram" link |
   | Dismiss | The compacted incident card's headline |
@@ -464,7 +475,7 @@ Behavioral rules. Contrast is specified and verified in `DESIGN.md` under Colors
 | **1280–1439 wide** (reference) | Rail `{spacing.rail-width}`, devices `{spacing.device-width}`, chat about 640px. Every UJ-1 control is reachable without scrolling the page, because regions scroll on their own. |
 | **Shorter than 680** | The guide switches to its compact single row. At 1280×600, the incident card's headline, cause, dry-run count, Approve, and Reject stay visible without scrolling the chat. The phone screen shrinks to `{spacing.phone-screen-min-height}` and then scrolls. |
 | **1024–1279 wide** | The rail becomes a drawer opened from a "Status" header button, which shows the approval request count. While Telegram is unpaired, the Telegram card moves to the top of the device column, so the QR code stays on the page from the start. Guide step labels shorten to numbers; the prompt bar keeps its full text. |
-| **Narrower than 1024** (including 200% zoom) | One column that scrolls as a page: header, banners, guide, the Telegram card (while unpaired), the chat (scrolling on its own at `min(70vh, content)`), simulated devices, then the status sections. Nothing is sticky except a compact header. |
+| **Narrower than 1024** (including 200% zoom) | One column that scrolls as a page: header, banners, guide, the Telegram card (while unpaired), the chat (scrolling on its own at `min(70vh, content)`), simulated devices, then the status sections. Nothing is sticky except a compact header. [AMENDED 2026-11-01, Story 4.9, owner request of 2026-11-01: in demo mode the compact header may wrap to a second row for the Demo view switch, and stays within a quarter of the window's height] |
 
 - **The narrow-window note.** In the stacked layout, an info inline notice at the top reads "This page is designed for a wider window. Everything still works." It shows once per session, and its close button is remembered per browser.
 - **Browsers:** current desktop Chrome, Edge, Firefox, and Safari (FR-12).
@@ -513,7 +524,7 @@ Dana is an InterSystems integration expert on the Experts jury, with a stack of 
    - Within 10 seconds (NFR-8) the decision strip appears: **Act** · Confidence 0.9x · $0.000x · Trace, with its reasons. The reply follows: OcuTalon will watch the Orders production and stay quiet unless something needs Dana.
    - "Orders production" appears under Background checks, Break the feed turns active, and step 2 becomes current.
 4. **The reminder.** Dana presses **Send** on step 2. OcuTalon confirms, and "Stretch · in 59 s" appears under Reminders.
-5. **The incident.** Dana presses **Go to Break the feed**, then **Break the feed**. The box shows "Sent." and, as the server reports them, the live status lines.
+5. **The incident.** Dana presses **Break the feed**. [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "Dana presses **Go to Break the feed**, then **Break the feed**."] The box shows "Sent." and, as the server reports them, the live status lines.
    - About a minute after it was set, the reminder lands in the chat (with its due time), on the simulated phone, and in Telegram.
    - Within 60 seconds of the press, one incident card appears: Awaiting approval, "50 orders failed since 14:12 ET", the cause, the evidence line, the proposed fix, the fixed-targets line, the dry run, Approve, and Reject.
    - The same notice and buttons appear on the phone and in Telegram, "Approval requests (1)" appears in the rail, and the guide moves to step 4.
@@ -574,6 +585,13 @@ Sam is an integration engineer who runs three productions (ADT, Orders, and Resu
 
 Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16). The online demo adds the splash screen, the reset countdown, and allowance limits.
 
+**The Demo view switch.** [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+- Off, the page shows as on your own install: no demo guide, no Break the feed, no Simulated devices. The chat takes their width, the skip links drop "Skip to simulated devices", and the empty chat and Background checks show their non-demo lines.
+- The honest markers stay: the "Demo mode" pill on a local install, and the "Online demo" pill, the reset countdown and the allowance lines on the online demo. The Telegram card follows the server's Telegram state.
+- Nothing on the server changes. A pending approval request stays answerable in the chat.
+- Back on, the guide shows the session's current step with its Hide guide choice as before, and the simulated phone shows answers given meanwhile.
+- Text the server writes may still name the simulated phone while the switch is off.
+
 ### The demo guide
 
 | # | Step | Prompt bar | Action button | Done when |
@@ -581,7 +599,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
 | — | *(before step 1, from 0.1.1 (read 1.0.0; see Release terms), while Telegram is on and unpaired)* | "Optional: scan the QR code in the Telegram card to get the notice on your own phone." | None | Telegram paired, or step 1 done |
 | 1 | Watch | "Watch the Orders production and only tell me if something needs me." | **Send** | A production watch for the Orders production exists in the session |
 | 2 | Reminder | "Remind me in 1 minute to stretch." | **Send** | A reminder exists in the session, pending or fired |
-| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | **Go to Break the feed**, which focuses the control without pressing it | The incident notice, fallback notice or no-fix notice arrived |
+| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | None. The box's "Next step" tag and teal left bar point to **Break the feed**; when step 3 becomes current by the user's own press (Send on step 2, or Run again), focus moves to the box's Break the feed button without pressing it. [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "**Go to Break the feed**, which focuses the control without pressing it"] | The incident notice, fallback notice or no-fix notice arrived |
 | 4 | Approve | Paired (from 0.1.1 (read 1.0.0; see Release terms)): "Approve the fix in Telegram on your phone, or on the simulated phone." Unpaired: "Approve the fix on the simulated phone, or in the chat." | **Show me** (see Accessibility Floor › Focus replacement) | The approval request is answered |
 | 5 | Open the trace | "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision." | **Open the trace** (the incident's trace link) | The trace link was opened |
 
@@ -595,6 +613,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
   - "This run: {n} decisions · {tokens} tokens · {cost} on {model}." The figures cover this session's decisions and turns; for example, "This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5".
   - The links "See the whole conversation in Visual Trace ↗", "Install OcuTalon yourself ↗", and "Use the same bridge in your own production ↗" (the bridge developer guide, 1.0.0 kit; FR-5).
   - "More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production."
+  - In the demo view, the Try it yourself row (Demo guide and controls). [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
   - **Run again**, which resets the guide's markers only, never the session's data.
 
 ### Break the feed

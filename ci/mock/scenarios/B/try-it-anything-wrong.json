@@ -1,0 +1,19 @@
+{
+  "name": "try-it-anything-wrong",
+  "match": {
+    "prompt": "Is anything wrong right now?"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "check_status",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the check results."
+    }
+  ]
+}

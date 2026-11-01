@@ -177,7 +177,6 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
   for (const [n, name, quoted, button] of [
     [1, 'Watch', `"${P1}"`, 'Send'],
     [2, 'Reminder', `"${P2}"`, 'Send'],
-    [3, 'Break the feed', `"${P3}"`, 'Go to Break the feed'],
     [4, 'Approve', `"${P4}"`, 'Show me'],
   ] as const) {
     await steps.nth(n - 1).click();
@@ -186,6 +185,11 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
     await expect(action(button), `step ${n} has ${button}`).toBeVisible();
     await expect(prompt.getByRole('button'), `and no other button`).toHaveCount(1);
   }
+
+  await steps.nth(2).click();
+  await expect(steps.nth(2), 'step 3 is Break the feed').toHaveAccessibleName(/^Step 3, Break the feed, /);
+  await expect(text, 'step 3 shows its prompt').toHaveText(`"${P3}"`);
+  await expect(prompt.getByRole('button'), 'with no button: the box beside it carries the action').toHaveCount(0);
 
   await steps.nth(4).click();
   await expect(text, 'step 5 shows its prompt').toHaveText(`"${P5}"`);

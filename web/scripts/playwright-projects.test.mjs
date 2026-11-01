@@ -260,11 +260,11 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 
-  it('holds X1 to X10 and C1 to C10 in the answers project, each once and in its own spec', () => {
+  it('holds X1 to X11 and C1 to C10 in the answers project, each once and in its own spec', () => {
     const where = (id) => answers.filter((one) => idOf(one.title) === id).map((one) => one.file);
-    for (const id of range('X', 1, 10)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
+    for (const id of range('X', 1, 11)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
     for (const id of range('C', 1, 10)) assert.deepEqual(where(id), ['answers/close-loop.spec.ts'], id);
-    assert.equal(answers.length, 20, 'and no other case');
+    assert.equal(answers.length, 21, 'and no other case');
     assert.deepEqual([...new Set(answers.flatMap((one) => one.projects))], ['answers'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 });

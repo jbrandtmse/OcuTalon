@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { CHAT_TEXTS } from './chat-view';
 import { OutcomeChip, type Outcome } from './outcome-chip';
+import { TryItRow } from './try-it-row';
 
 /** The four outcomes with the meaning each has in release 1, in the order the UX gives them. */
 const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
@@ -15,11 +16,11 @@ const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
  * The empty chat panel (UX-DR70, UX-DR89), shown in a fresh session until the first message: the headline, the four outcome
  * chips with their meanings, and the panel's remaining lines. The headline is a paragraph, not a heading: the page's heading
  * lists are pinned. The last line is the demo mode's ("Start with step 1 of the demo guide above.") when `demo` is set, else the one for a session
- * outside the demo.
+ * outside the demo. In the demo view the "Try it yourself" row follows the last line (app-try-it-row; it renders nothing outside the demo view).
  */
 @Component({
   selector: 'app-empty-chat',
-  imports: [OutcomeChip],
+  imports: [OutcomeChip, TryItRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="empty">
@@ -35,6 +36,7 @@ const MEANINGS: ReadonlyArray<{ outcome: Outcome; meaning: string }> = [
       <p class="line">{{ texts.emptyWatches }}</p>
       <p class="line">{{ texts.emptyRisky }}</p>
       <p class="line">{{ demo() ? texts.emptyDemo : texts.emptyAsk }}</p>
+      <app-try-it-row [centered]="true" />
     </div>
   `,
   styles: `

@@ -13,6 +13,7 @@ import { refusalOf } from '../live/allowance-view';
 import { LiveState } from '../live/live-state';
 import type { DecisionPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
+import { DemoView } from '../shared/demo-view';
 import { ServerButton } from '../shared/server-button';
 import { readText, writeFlag } from '../shared/stored-flag';
 import { TraceLink } from '../shared/trace-link';
@@ -449,6 +450,7 @@ export class SimulatedMailbox {
   protected readonly separator = CHAT_TEXTS.separator;
 
   private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   private readonly api = inject(ApiClient);
   private readonly announcer = inject(Announcer);
   private readonly injector = inject(Injector);
@@ -494,7 +496,7 @@ export class SimulatedMailbox {
 
   /** The rows of the list, newest first. */
   protected readonly rows = computed<readonly RowView[]>(() => {
-    const list = mailOf(this.live.snapshot() as MailboxSnapshot | undefined, this.live.store()) ?? [];
+    const list = mailOf(this.demoView.snapshot() as MailboxSnapshot | undefined, this.live.store()) ?? [];
     const decisions = this.live.store()?.decisions;
     const opened = new Set(openedRefs(this.opened()));
     const zone = this.instanceZone();

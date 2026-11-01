@@ -1199,6 +1199,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T05:22:57Z occurrence=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re note=ci run 40270323742 iris(shards) floor-webkit G1 at 1280x600, sha 4ded1e0; rerun
 - 2026-10-26T09:37:32Z occurrence=16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena note=ci run 40297305113 iris(shards) floor-webkit G1 ring bottom 600.78 at 1280x600, sha a535d13; third Epic 16 first-run red in a row; rerun
 - 2026-10-25T16:37:49Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat note=run_40209749982_attempt_2_floor-webkit_G1_ring_bottom_600.86_over_600_(ci-6);rerun
+- 2026-11-01T18:36:04Z status=wontfix-accepted by=burndown note=reopen_if=a_floor-webkit_G1_focus-ring-past-viewport_red_recurs_on_any_CI_run_after_2026-11-01;evidence:last_recorded_occurrence_2026-10-27(Epic_5_story_5.7);no_webkit_G1_ring_red_in_any_cycle_log_since,incl_4.8/4.9_shards_green_first_attempt;the_fix_(1px_tolerance_or_full-outset_reveal_in_expectStopRing/expectRingInside)_lives_in_web/e2e/support/floor.ts,contended_by_in-flight_Epic_11;the_2026-10-27_burndown_resolve_trailer_was_never_written
 
 ### DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks once Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1968,6 +1969,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T00:50:24Z status=routed owner=burndown by=lead occurrence=29-7-demo-busy-counts-the-live-visitors note=reopened: CI run 41149604870 (OCT-epic29 3f5b3cbe, iris browser, live:sign-in) web/e2e/chat/chat.spec.ts C7 open() waited 10 s for main.main data-snapshot after signIn (the same pattern, outside Story 29.7's sign-ins); 1 of 223; residual: every remaining spec that signs in then waits 10 s (chat.spec open() and its siblings) gets loadedAfter
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T06:01:21Z status=resolved-by:29-9-epic-29-burn-down by=adjudication note=every sign-in followed by a 10 s snapshot-derived wait is wrapped in loadedAfter or signInReadmeLoaded: the Code Map's 38 sites in 24 files plus ten frame.spec.ts sites (F3 badge loop, F5, four F6, F7, three F8) found at review; AC1 mutation zz C7 old red with /state held 12 s, C7 green
+- 2026-11-01T19:13:12Z occurrence=4-10-try-it-yourself-example-prompts-one-press-each note=ci_run_41337078843_attempt1_iris(browser)_live:sign-in_trace/links.spec.ts:163_V1_open()->loadedAfter_GET_/state_not_seen_in_90s_after_signIn;same_readiness_class;233_others_passed;rerun_--failed
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -2196,6 +2198,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
 - 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
+- 2026-11-01T08:53:30Z occurrence=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon note=implement_live_sign-in_part1_B2_red_then_unchanged_rerun_green
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2711,6 +2714,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Triage's decision on a user command, as recorded on the demo host; the Tell-now override is code (AD-28), only the reasons' wording reads oddly
 - 2026-10-31T17:45:03Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=Triage's_prompt(Lane_A_Agent):for_the_user's_own_command,the_reasons_say_what_was_asked;1.0.0_if_cheap,or_Epic_30's_burn-down_story
 - 2026-11-01T07:18:36Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=owner note=promoted_into_1.0.0(Contest_Planner_under_delegation,2026-11-01):for_the_user's_own_message_the_strip_shows_no_reasons_about_Triage's_tool_limits;preferred:Triage_wording_describing_the_request+eval_case;fallback:override_line_only,reasons_in_Decision_details(only_if_the_payload_already_marks_the_override)
+- 2026-11-01T20:10:32Z note=WIDENED_2026-11-01(Contest_Planner,Epic_4_host_check_on_374f958e):any_user_chat_turn;Triage's_reasons_never_describe_production_state,its_access,or_whether_anything_needs_the_user(chip_2_reasons_made_a_model-written_all-clear,AD-28);eval_cases_for_chip_2's_text_and_the_recall_question
+- 2026-11-01T20:13:35Z note=host_check_374f958e:chips_1_and_4_also_drew_tool-limit_reasons;30.5's_eval_cases_cover_all_four_chips'_texts
 ### DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo: 'You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram).' Story 16.11 changes the splash only
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
@@ -2757,7 +2762,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
 
+### DW-524: No test pins the negative cell of 4.8 matrix row 4: after Run again the prompt bar comes back at step 1 or 2 and focus should go to Send, not the box button (FOCUS_RULE.whenGone keys on data-guide-step=3)
+- source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: M6/M10/M12 all end at step 3; a mutation ignoring the step-3 mark may survive (unverified)
+- 2026-11-01T08:53:30Z status=open owner=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=harvest note=in-story test gap; code review to pin or adjudicate
+- 2026-11-01T09:27:02Z status=resolved-by:4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=adjudication note=QA_floor_case_M14_pins_row4_negative_cell(step2);mutation_whenGone_ignores_step3_mark->M14_red;CR_confirmed;step1_form_runs_same_code
+
+### DW-539: The CI mock's comments and error texts call every prompt scenario a guide prompt, now that B/try-it-*.json are prompt scenarios too
+- source: spec-4-10-try-it-yourself-example-prompts-one-press-each.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs:30 says 'the one guide prompt scenario'; :442 'two guide prompts match' and :448 'no guide prompt' would name a chip prompt a guide prompt; mock.mjs is off limits to Story 4.10
+- 2026-11-01T18:22:57Z status=wontfix-accepted owner=4-10-try-it-yourself-example-prompts-one-press-each by=cr note=wording only; reopen_if=a mock failure message misleads a debugging session or the next story that edits mock.mjs
 ### DW-530: Below about 480px wide the Demo view switch's stacked header passes a quarter of the window (157px local, 180px online at 320px wide; the whole window at 400% zoom, 320x180) while it stays sticky
 - source: inbox U-202 (#612), Story 4.9's notes | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
 - 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
+- 2026-11-01T19:39:55Z occurrence=4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in note=4.9_code_review:at_320px_the_stacked_demo_header_measures_157-180px,over_a_quarter_of_windows_under_~720px_high(U-202_bound)
+
+### DW-541: Chip 1 ('Which productions are running?') asks something list_productions cannot answer: it has no running state, so real Haiku replies '...it does not tell me whether it is running right now'
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host, real Haiku, chip 1 reply; Tools/WatchTools list_productions returns names only
+- 2026-11-01T20:13:34Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=preferred: list_productions returns a code-built running/stopped state (trusted fields only); fallback: chip text 'Which productions can you watch?' (web, plus its B/ mock scenario); 1.0.0 only at no date cost
+
+### DW-542: At 640px wide (200% zoom) the guide's finish state puts .finish in a 321px right column (.main is flex row wrap) and leaves the left half empty, with the step bar bottom-left; the guide is 630px tall in a 360px window
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host browser check at 640x360 scale 2
+- 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=the finish state wraps to full width below the breakpoint; with DW-530, 1.0.0 only at no date cost
+
+### DW-543: At 1280x800 the empty chat opens scrolled to the bottom, so the welcome block's heading is clipped at the top
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host browser check at 1280x800
+- 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
