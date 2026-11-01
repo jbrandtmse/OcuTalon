@@ -11,8 +11,10 @@
 ///     the fallback invalid and one Type 3 warning of Decide.Conclude whose whole text is the fixed words, the reply class, the failing property, the element and the limit
 ///     ("Note: 105 > 100", "Reasons element 2: 1005 > 1000", "Confidence: value > 1"), with at most five parts and "and <k> more", and none of the marker that the
 ///     failing value carries, not even a part of it;
-///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type and a check that throws
-///     give a warning of the error code only ("ERROR #5035", "ERROR #9404", "ERROR #5001", "ERROR #9406 on Reasons"), with no marker and no IRIS message text;
+///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type or shape (a string,
+///     an object or an array where the property wants another, an object as a list element, a top-level array) and a check that throws give a warning of the error code,
+///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404", "ERROR #5001", "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
+///     "ERROR #9406 on Reasons element 1"), with no marker and no IRIS message text;
 ///   - TestRefusalTextForms: Decide.RefusalText for statuses built with the forms of IRIS's own (the length and value forms, the position, a property that the class lacks, a limit that
 ///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error).
 /// Each test removes its Decision rows and its REFUSED warnings, and kills ^||ZzProbeFilter and ^||ZzProbeReplyCheck, also after a failure (OnAfterOneTest).
@@ -344,6 +346,19 @@ Method TestOtherRefusalsNameTheCode()
 	Set reply = ..Usable()
 	Set reply.confidence = marker
 	Do ..Refuse("row 10: a string for the number", reply.%ToJSON(), "ERROR #7207 on Confidence", marker)
+	// (QA) A value of another shape than its property's (an object or an array for a number, an object for a list, a top-level array) is never checked
+	// by the property's IsValid: the words are the bare import error of the property, and nothing of the value.
+	Set reply = ..Usable()
+	Set reply.confidence = {"a": (marker)}
+	Do ..Refuse("row 10: an object for the number", reply.%ToJSON(), "ERROR #9406 on Confidence", marker)
+	Set reply = ..Usable()
+	Set reply.confidence = [(marker)]
+	Do ..Refuse("row 10: an array for the number", reply.%ToJSON(), "ERROR #9406 on Confidence", marker)
+	Set reply = ..Usable()
+	Set reply.reasons = {"a": (marker)}
+	Do ..Refuse("row 10: an object for the list", reply.%ToJSON(), "ERROR #9406 on Reasons", marker)
+	// Measured on build 154U: the import of a top-level array fails on the first list property of the probe class.
+	Do ..Refuse("row 10: a JSON array, not an object", [(marker)].%ToJSON(), "ERROR #9406 on Reasons", marker)
 
 	Kill ^||ZzProbeReplyCheck
 	Set ^||ZzProbeReplyCheck("throwAt") = 1
@@ -380,6 +395,10 @@ Method TestRefusalTextForms()
 	For code = 5011:1:5017 Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(code, marker))
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5011; ERROR #5012; ERROR #5013; ERROR #5014; ERROR #5015; and 2 more", "h: five parts, then the count of the rest")
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", $$$OK, ..#PROBE), "an error", "i: no error")
+	Set sc = $SYSTEM.Status.EmbedStatus($SYSTEM.Status.Error(7203, 2, 1), $SYSTEM.Status.Error(5802, ..#PROBE_":Confidence", 2))
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "Confidence: value > 1", "j: a value above its limit")
+	Set sc = $SYSTEM.Status.EmbedStatus($SYSTEM.Status.Error(7204, -3, 0), $SYSTEM.Status.Error(5802, ..#PROBE_":Reasons(3)", -3))
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "Reasons element 3: value < 0", "j: a value below its limit, at its element")
 }
 
 }

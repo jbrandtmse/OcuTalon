@@ -190,8 +190,36 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 - Given the tests in `OcuTalon.Test.Bridge`, when they run, then a refused reply whose failing value carries a unique marker gives a warning without the marker, on both paths. The live warning of the running production follows the rule (rows 1-14), and every product-code change is inside `Bridge/Process/Decide.cls`.
 - Given `Test.Agent.KeyScan` and `docker/tests/test-class-rules.sh`, when they run, then KeyScan's step assertion can fail, and `assert-concat` flags the `x [ "a"_y` form everywhere in `src/` except the one allow-listed Lane B line (rows 17, 18; DW-505).
 
+### Review Findings
+
+Code review 2026-11-01 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 23 raw rows, 9 entries after grouping; high 0, med 1, low 8).
+
+- [x] [Review][Defer] A nested field over its limit names no property (B+E) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:740] - deferred: DW-544 `decision-pending owner=burndown` (med, fix-risk med). The generated `%JSONImport` passes a nested class's `#9406` up with the inner field ("one", "field", "sourceFormat"), so a diagnose reply with a long `fixParameters.sourceFormat` (MAXLEN 64) or `itemNoun.one` (128) gets "ERROR #9406". It leaks nothing, but it names no property or limit (AC 1). The Tasks give "ERROR #9406" for a field that names no property of the reply class, and the Always boundary allows only that class's own property names, so naming "ItemNoun.One" needs a ruling first.
+- [x] [Review][Patch] The `RefusalText` doc left out the list-element form, the "another shape" fallback and the real non-numeric code form (A+E) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:632] - fixed (doc only).
+- [x] [Review][Patch] `%JSONINCLUDE` was compared case-sensitively, but IRIS lowercases it (`%JSON.Generator`) (E) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:752] - fixed with `$ZConvert(..., "L")`. No reply class sets it today.
+- [x] [Review][Patch] A redundant `$Length` comparison next to the string `=` (B) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:756] - removed.
+- [x] [Review][Patch] The class doc of `Test.Bridge.ReplyCheck` did not cover the wrong-shape cases or the property/element forms of `TestOtherRefusalsNameTheCode` (B) [src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls:14] - fixed.
+- [x] [Review][Patch] QA's top-level-array case was labelled "row 7" (row 7 expects `#5035`) (A) [src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls:362] - relabelled "row 10".
+- [x] [Review][Patch] The doc of `TestRefusalTextForms` claims the value forms, but no pure case built `#7203`/`#7204` with an embedded `#5802` (B) [src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls:399] - added case j ("Confidence: value > 1", "Reasons element 3: value < 0").
+- [x] [Review][Patch] `RefusalAdd`'s de-duplication (row 15g) had no recorded mutation (V) - mutation applied, observed red and recorded under Verification.
+- [x] [Review][Patch] The note on the `CheckReply` wrapper mutation said a change of only the colon is unpinned; that was stale after `CHECKFAILED` (B) - mutation applied, observed red (16 asserts) and the line corrected under Verification.
+
+After the patches: warm `Test.Bridge.ReplyCheck` and `Test.Watch.Payload` passed, fresh `Test.Watch.Diagnose` passed, `test-class-rules.sh` passed, and slot B load and compile reported 0 errors for `Decide` and `ReplyCheck`.
+
+Rejected:
+- B: a top-level JSON array gives "ERROR #9406 on Reasons". By design: the Tasks give "ERROR #9406 on <Property>" when the text is not an object, and the property is the one IRIS's own `#9406` names.
+- B: `assert-concat` misses nested positions and `$$$AssertEquals`'s second argument. By design: the spec's scope is the top level of the first argument, and `src/` has no hit of either form.
+- B, V, A: the Auto Run Result's residual risk ("macOS awk only") is stale after QA's mawk run, and the Design Note "A JSON array: #9406 on outcome" disagrees with QA's measurement. Both fixes are edits to the spec outside its tracking sections, so they are left for the lead.
+- E: `$ClassMethod(type, "%Extends")` on a datatype class. False: rows 1-3 pass only through that branch, and the "#9406 lookup dropped" mutation turned them red.
+- E: `IsValid` runs on the JSON form, not the logical form. `wontfix-theoretical`: no reply class has a `%Date`, `%TimeStamp`, `%Boolean` or `%Binary` property. It becomes real when one is added.
+- E: `#5802` under `embeddederror` or one level deeper. False for the reachable statuses: rows 5, 6 and 15a read the property and element through `embeddedstatus` from IRIS's real `%ValidateObject` statuses.
+- E: `[1] [ "a"_y` is not flagged. Low: the spec defines which characters end an operand, adding `]` would misread `x ] [1,2]`, and `src/` has no hit.
+- V: rows 12 and 15b, c, e and f have no recorded mutation of their own. Rule 19 asks for one per AC, and each AC has one.
+- V: the marker assertions in row 3 and Payload's `'[ secret` can never fail. Low: they are redundant next to the exact-equality pins and harmless, and removing them would change a shared helper.
+
 ## Spec Change Log
 
+- 2026-11-01 (lead, after code review): the Design Note on a top-level JSON array now names the first list property (QA measured `Reasons`), and the Auto Run Result's residual risk notes the mawk run. No behaviour or test changed.
 ## Review Triage Log
 
 ### 2026-10-31 - Review pass
@@ -239,7 +267,7 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - It does not validate nested objects: a 304-character `ItemNoun.One` passed although One has `MAXLEN` 128. ReplyGuard never lengthens text, so this is not reachable today (not this story's).
 - **Other codes.**
   - Not JSON, or a JSON string: `#5035` "Parsing error".
-  - A JSON array: `#9406` on `outcome`.
+  - A JSON array: `#9406` on the first list property of the reply class (`Reasons` for `DiagnosisPayload`; measured by QA on build 154U, 2026-11-01; the planning note said `outcome`).
   - A `%OnValidateObject` that throws: `#5035`, whose Data parameter holds the exception text.
   - An unknown field: `#9404`, with the field's name.
 - **Built statuses match.** `$SYSTEM.Status.Error(7201, v, 32)` with `EmbedStatus(..., Error(5802, "P:Reasons(6)", v))` and `AppendStatus` decompose like IRIS's own. An Ens code decomposes as "<Ens>ErrGeneral".
@@ -358,11 +386,18 @@ Mutation results (Rule 19; each applied, observed red, reverted byte for byte; t
 - mutation: the compiled-property check dropped -> `Test.Bridge.ReplyCheck` TestRefusalTextForms d.
 - mutation: the cap removed (MAXREFUSALPARTS 999) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply row 6 and TestRefusalTextForms h.
 - mutation: the IsValid code ignored (RefusalCheck always adds nothing, so "ERROR #9406 on <Property>") -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 1, 2 and 3 and TestOtherRefusalsNameTheCode row 10 (Confidence).
-- mutation: `CheckReply`'s wrapper text changed ("The reply check failed" to "The reply check fails") -> `Test.Fix.Kind` TestReplyCheckRows and `Test.Watch.Payload` TestPayloadRefused (a change of only the colon after "failed" is not pinned by any test: the pins match "The reply check failed").
+- mutation: `CheckReply`'s wrapper text changed ("The reply check failed" to "The reply check fails") -> `Test.Fix.Kind` TestReplyCheckRows and `Test.Watch.Payload` TestPayloadRefused. Since `CHECKFAILED` feeds both, a change of only the colon (`failed:` to `failed;`) is pinned too: it turns `Test.Bridge.ReplyCheck` red, 16 asserts across TestOtherRefusalsNameTheCode and TestRefusalNamesTheLimitNotTheReply (code review 2026-11-01; reverted byte for byte).
 - mutation: KeyScan's expected id made wrong (`stepId + 1`) -> `Test.Agent.KeyScan` TestKeyIsStoredNowhere ("Find sees an agent step").
 - mutation: KeyScan:123 put back as `text [ "agent steps "_stepId` -> `assert-concat` FAIL at `src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls:123`; the allow-list entry removed -> FAIL at `src/ocutalon/cls/OcuTalon/Test/Data/PublicSettings.cls:105`; a stale entry added -> FAIL "stale allow-list entry" at the entry's line in `docker/tests/test-class-rules.sh`.
 - mutation: `RefusalImport` reads the reply text without `Unfenced` (a fenced reply) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply "row 1: a text over its limit in a Markdown code fence".
 - mutation: the object-or-array list element line of `RefusalImport` dropped -> `Test.Bridge.ReplyCheck` TestOtherRefusalsNameTheCode "row 10: an object for a list element".
+
+QA pass (stage qa; tags `e30s6qw` warm, `e30s6q` fresh, not needed: no production-bound test changed):
+- Test files changed (QA): `src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls` (TestOtherRefusalsNameTheCode: four cases added, no new method or class).
+- Gap found: row 10's "another shape" rule of `RefusalImport` (a value that is an object or an array for a scalar property, an object for a list property, a top-level JSON array) had no pin except the string and the list-element cases. Added: an object and an array for Confidence (`ERROR #9406 on Confidence`), an object for Reasons and a top-level array (`ERROR #9406 on Reasons`, measured on build 154U), each with no marker.
+- mutation: the scalar branch of `RefusalImport` loses its `(kind '= "object") && (kind '= "array")` guard -> `Test.Bridge.ReplyCheck` TestOtherRefusalsNameTheCode "row 10: an object for the number" and "row 10: an array for the number" (reverted byte for byte; `git diff --stat` equal; the warm class green again).
+- mutation (code review 2026-11-01): `RefusalAdd` loses `If $Data(parts("seen", part)) Quit` -> `Test.Bridge.ReplyCheck` TestRefusalTextForms "g: an error that repeats is named once" (reverted byte for byte; `git diff --stat` and `git status --short` equal; the warm class green again).
+- All other ACs and rows were checked against the tests and their recorded mutations above; none is weak. `bash docker/tests/test-class-rules.sh` also passes under mawk 1.3.4 (ubuntu:24.04 container, read-only mount, a `git` shim that lists `src/`), which is the awk of a CI runner.
 
 ## Auto Run Result
 
@@ -380,4 +415,4 @@ Blocking condition: none
 - Review: 4 layers; patches applied 4 (2 medium: the quadratic part de-duplication, the unpinned `Unfenced` call; 2 low: the shared wrapper Parameter, the object list element case); deferred 0; rejected 16 low as by-design, defensive or not worth the added state (reasons in the Review Triage Log).
 - Follow-up review recommended: false (the two patched mediums are covered by a recorded mutation each and by the green full shards).
 - Verification: `test-class-rules.sh` green; slot B load and compile 0 errors; warm `Test.Bridge.ReplyCheck`, `Test.Watch.Payload`, `Test.Agent.KeyScan`, `Test.Bridge.Decide`, `Test.Fix.Kind`, `Test.Fix.Validation` passed; fresh `Test.Watch.Diagnose` passed; `bash ci/checks.sh` passed; fresh `shard lane-a` parts 1-6 and `shard lane-b` parts 1-3 passed (lane-a: 514, 230, 248, 577, 401, 482 s; lane-b: 888, 228, 465 s). Both throwaway tags torn down.
-- Residual risks: `assert-concat` ran on macOS awk only; the Lane B line stays allow-listed until Epic 31 fixes it and removes the entry in the same change.
+- Residual risks: `assert-concat` ran on macOS awk and, at QA, on mawk 1.3.4 (ubuntu:24.04); the Lane B line stays allow-listed until Epic 31 fixes it and removes the entry in the same change.

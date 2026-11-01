@@ -631,8 +631,10 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
 ///   - an import error that names a JSON field (#9406) is traced to the property of replyClass with that field name, and the reply text (a JSON object) is
 ///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
-///     with no failing check, "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
-///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code that is not a number), and " on <Property>[ element <n>]" when a property is known.
+///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
+///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
+///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
+///     property is known.
 /// At most 5 parts are given, then "; and <k> more". With no part, or if anything throws, the text is "an error". text is the reply text that CheckReply checked.
 ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String = "") As %String
 {
@@ -748,11 +750,11 @@ ClassMethod RefusalImport(replyClass As %String, field As %String, text As %Stri
 			Set candidate = class.Properties.GetAt(i)
 			Set name = candidate.Name
 			If ($Extract(name) = "%") || candidate.Private || candidate.Internal Continue
-			Set included = candidate.Parameters.GetAt("%JSONINCLUDE")
+			Set included = $ZConvert(candidate.Parameters.GetAt("%JSONINCLUDE"), "L")
 			If (included = "none") || (included = "outputonly") Continue
 			Set json = candidate.Parameters.GetAt("%JSONFIELDNAME")
 			If json = "" Set json = name
-			If (json = field) && ($Length(json) = $Length(field)) {
+			If json = field {
 				Set property = name
 				Set collection = candidate.Collection
 				Set type = candidate.Type
