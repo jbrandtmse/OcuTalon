@@ -198,6 +198,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 implement report; Msg.Catalog.Render has no length cap; Bot API sendMessage limit
 - 2026-10-20T05:25:07Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=harvest note=TelegramOut truncates or splits per the UX before sendMessage
 - 2026-10-20T06:51:54Z occurrence=0-9-the-message-catalog-and-its-one-renderer by=cr note=code review sighting (edge-case hunter): incident.fallback/noFix groups and slots have no length cap
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_sends_every_message_through_Api.Split(<=4096_per_part);pinned_by_Test.Channel.TelegramOut.TestLongNotice(5000-char_whatHappened_goes_in_parts;mutation_Send_without_Split_red)
 
 ### DW-31: AD-32's older sentence can read as putting the Results keys in Catalog.Core, while its Story 0.9 bullet and the code put result.* in Catalog.Watch
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1667,6 +1668,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
 - 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)
 - 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_appends_OcuTalons_own_check_sentence_under_a_reply(mirrors_web_checkSentence/whatFailed;never_an_all-clear_unless_Checks.Render_chose_it),so_the_Chat_agents_shown-under-your-reply_instruction_holds_on_Telegram;Agent/Chat.cls_untouched;pinned_by_TelegramOut.TestCheckSentence(a-j)
 
 ### DW-300: Contended tests (Test.Core.BridgeSink: four methods; Test.Web.Api.TestStateSections) make check rows due at once or count stream events, so a real HeartbeatIn Tick (once Epic 8's heartbeat ticks) can run their rows or add check events mid-test: the DW-289 root cause outside Epic 5's footprint
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2811,3 +2813,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: The unpaired root of telegram-card.ts carries no data-row-key/data-section, so keepFocus finds no item and falls back to the main region when the paired view replaces it. EXPERIENCE Focus replacement says nearest container. Neither 12.4 nor 12.5 specifies focus on pairing, and it needs a T6 step plus a live run.
 - 2026-11-01T12:04:51Z status=wontfix-accepted owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=cr note=reopen_if=a keyboard pass (38.3 real-device or an a11y audit) finds focus outside the Telegram section after pairing
+
+### DW-536: flake: web/e2e/demo-path/telegram-page.spec.ts T6 (Story 12.5): 'chat 113 is told that the code did not work' timed out (10 s poll for the bad-code reply) once on a fresh lane-C live:demo-path; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: runner smoke of 12.6 (tag e12s6smk, 2026-11-01T17:30Z): 1 failed telegram-page.spec.ts:925 expect.poll repliesOf(STRANGER_CHAT) toEqual([BAD]) timeout 10000ms; rerun 19 passed
+- 2026-11-01T17:35:48Z status=routed owner=burndown by=smoke note=flake class: one rerun with occurrence=; a second red on the same head takes the rework path; probe whether TelegramIn's poll plus Notify->TelegramOut can exceed 10 s under load, or the reply list read races the send

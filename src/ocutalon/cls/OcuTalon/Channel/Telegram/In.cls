@@ -43,8 +43,8 @@ Include Ensemble
 ///     goes to Conversation with a new ItemId, the session's SessionRef, channel telegram, provenance user, the text as sent, no ClientId
 ///     and FromGuide 0: no chat id and no name is in it. When the day had no thread, Trace.Started records the thread that the send gave,
 ///     or none when the send failed. A send that fails gives the allowance entry back (Allowance.Refund) and is one warning. Afterwards
-///     %SessionId and %SuperSession are "" again, so that the next update of the same poll answer is traced on its own. The reply is
-///     Conversation's: it goes to Notify, and this class sends none.
+///     %SessionId and %SuperSession are "" again and the job's session id is cleared, so that the next update of the same poll answer,
+///     its messages and its event-log rows, is traced on its own. The reply is Conversation's: it goes to Notify, and this class sends none.
 ///   - A 409 pauses the item PAUSESECONDS: the time is written to StatusMark.Record("telegramPaused", until), which is the one truth of
 ///     the pause and is read before every poll, so a restart honours it. Its warning carries Telegram's description, which says whether
 ///     another process polls the bot or a webhook is set. A getUpdates answered 200 deletes the mark. A 429 waits
@@ -455,7 +455,8 @@ Method Other(ref As %String, sessionRef As %String, text As %String) [ Private ]
 }
 
 /// A paired chat's text as the session's turn, in the steps of WebChatIn.Accept (see the class comment). The service's %SessionId and
-/// %SuperSession are "" again when the method ends, also after an exception, which it then raises to the caller.
+/// %SuperSession are "" again, and the job's session id, which the event log reads, is cleared, when the method ends,
+/// also after an exception, which it then raises to the caller.
 Method Turn(sessionRef As %String, text As %String) [ Private ]
 {
 	Set thrown = ""
@@ -502,6 +503,7 @@ Method Turn(sessionRef As %String, text As %String) [ Private ]
 	}
 	Set ..%SessionId = ""
 	Set ..%SuperSession = ""
+	Kill $$$JobSessionId
 	If $IsObject(thrown) Throw thrown
 }
 

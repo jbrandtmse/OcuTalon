@@ -14,14 +14,15 @@
 ///   - TestNotification: a Notification for a chat sends the catalog rendering, and a render error sends nothing; an Outbound with a
 ///     catalog key and no text sends the catalog rendering too;
 ///   - TestBySession (Story 12.6): a Notification or an Outbound with a SessionRef and no ChatRef goes to the session's paired chat and
-///     records a telegram Delivery row of the session with <ChatRef>:<message_id>, and a session with no pairing, or an owner that is not a
-///     session, sends nothing and returns OK with one warning and no row;
+///     records a telegram Delivery row of the session with <ChatRef>:<message_id> (and the reply's DecisionRef), and a session with no
+///     pairing, or an owner that is not a session, sends nothing and returns OK with one warning and no row;
 ///   - TestLongNotice (DW-30): a rendered notice of 5,000 characters goes in parts of at most 4,096 that together are the text, with one
 ///     Delivery row that holds the id of the last part;
 ///   - TestCheckSentence (DW-295): the sentence of a reply's check key follows the reply after a blank line, built from the rows as the page
 ///     builds it (the failed rows first, the finding in lower case, the time and the at/on rule); an all-clear key, a key with no row to
 ///     name and an unknown key are as the Boundaries say; with the online demo on the time is followed by " ET"; a row with an entry only,
 ///     one with a time and no finding, one with no entry, and CheckRows that are not a JSON array give the literal forms of the Boundaries;
+///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
 ///   - TestOtherKinds: a Notification of kind status, digest or fallback sends nothing and records no row, where one of kind tellnow does;
 ///   - TestNoChat: a ChatRef with no chat row, or none, sends nothing, logs one warning that names neither, and is OK. It first sends one
 ///     message of its own and waits for it, so that messages queued before the test have been handled before it counts.
@@ -422,11 +423,15 @@ Method TestBySession()
 		Set first = "tellnow||"_ref_":"_..LastId(8601)
 		Do $$$AssertEquals(..Rows(session), first, "and records one telegram Delivery row of the session, of kind tellnow, with <ChatRef>:<message_id>")
 
-		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..ForSession(session, "zz reply by session"), .response), "(b) an Outbound with a SessionRef and no ChatRef is sent")
+		Set reply = ..ForSession(session, "zz reply by session")
+		Set reply.DecisionRef = "zzdecision8601"
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", reply, .response), "(b) an Outbound with a SessionRef and no ChatRef is sent")
 		Set calls = ..SentTo(8601)
 		Do $$$AssertEquals(calls.%Size(), 2, "it reaches the same chat")
 		If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(1).params.text, "zz reply by session", "with its text")
 		Do $$$AssertEquals(..Rows(session), first_",||"_ref_":"_..LastId(8601), "and records a second row, of kind empty, with the second message's id")
+		Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+		Do $$$AssertEquals($Select(rows.Count(): rows.GetAt(rows.Count()).DecisionRef, 1: ""), "zzdecision8601", "and the reply's DecisionRef")
 
 		Set log = $ClassMethod(fixture, "EventMark")
 		Set before = ..CallsOf("sendMessage").%Size()
@@ -469,7 +474,6 @@ Method TestLongNotice()
 		Do $$$AssertTrue(..Longest(texts) <= 4096, "each part is 4,096 UTF-16 units or fewer")
 		Do $$$AssertEquals($ListToString(texts, ""), expected, "and the parts together are the rendered text")
 		Do $$$AssertEquals(..Rows(session), "tellnow||"_ref_":"_..LastId(8602), "one Delivery row holds the id of the last part")
-		Do $$$AssertTrue(..LastId(8602) > 1, "which is not the first part's id")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the long-notice test failed: "_..Safe(ex))
 	}
@@ -542,8 +546,17 @@ Method TestCheckSentence()
 			Set calls = ..SentTo(8603)
 			If calls.%Size() > 7 Do $$$AssertEquals(calls.%Get(calls.%Size() - 1).params.text, "zz reply", "it goes alone")
 		}
-		Do $$$AssertEquals(..SentTo(8603).%Size(), 9, "all nine replies were sent")
-		Do $$$AssertEquals($Length(..Rows(session), ","), 9, "and every one of the nine replies has its Delivery row")
+
+		Set rows = [{"result": "failed", "entry": "Gamma", "finding": "Stopped", "checkedAt": (recent)}, {"result": "not_checked", "entry": "Beta", "finding": "Not run yet", "checkedAt": ""}]
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..WithChecks(session, "checks.notEverything", rows), .response), "(i) a reply with checks.notEverything and a failed row is sent")
+		Set calls = ..SentTo(8603)
+		If calls.%Size() = 10 Do $$$AssertEquals(calls.%Get(9).params.text, "zz reply"_blank_"Not everything: Gamma (stopped, "_..When(recent)_"); Beta (not run yet).", "nothing passed: the sentence names what failed and claims nothing else")
+
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..WithChecks(session, "checks.everythingElsePassed", rows), .response), "(j) a reply with checks.everythingElsePassed is sent")
+		Set calls = ..SentTo(8603)
+		If calls.%Size() = 11 Do $$$AssertEquals(calls.%Get(10).params.text, "zz reply"_blank_"Everything else I checked passed.", "the key's catalog text, as the page gives it")
+		Do $$$AssertEquals(..SentTo(8603).%Size(), 11, "all eleven replies were sent")
+		Do $$$AssertEquals($Length(..Rows(session), ","), 11, "and every one of the eleven replies has its Delivery row")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the check-sentence test failed: "_..Safe(ex))
 	}

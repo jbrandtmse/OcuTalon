@@ -264,6 +264,39 @@ P7. `Test/Channel/TelegramOut.cls` `TestBySession` (c) and (d) and `TelegramPair
 P8. `web/e2e/demo-path/telegram-page.spec.ts` T7: set `pointed = true` before `await pointKeys()`, so `restoreKeys` runs when pointing fails part-way (confirm `restoreKeys` is safe to run when nothing was pointed).
 Run only the classes you touch (one per call, warm stack), and `live demo-path` once if P8 changes the spec.
 
+### Review Findings
+
+Code review of 2026-11-01 (four layers: blind, edge-case, verification-gap, acceptance auditor; 30 raw findings grouped into 26 rows: high 0, medium 2, low 21, false 3; 14 patched, 0 deferred, 0 decision-needed, 12 rejected).
+
+- [x] [Review][Patch] (medium) A failed ending in a class-level teardown is never reported: `%UnitTest.Manager.LogAssert` records nothing with no test method running, so `Cleanup`'s assertions inside `TelegramChat.OnAfterAllTests` (and `BeginPairing`'s failure path) are dropped. `EndPairing` now returns the status of the items' stop and the mock's reset (`Cleanup` keeps it in `Ended`, `Finish` returns its status), and `OnAfterAllTests` folds it into the class status; `BeginPairing`'s doc no longer says it asserts nothing [src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls:383]
+- [x] [Review][Patch] (medium) `checks.notEverything` with a failed row (one failing check, the common answer to "is everything OK?") and `checks.everythingElsePassed` never reached TelegramOut in a test: dropping either from its key list stayed green. `TestCheckSentence` gains (i) and (j) with literal texts [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls:551]
+- [x] [Review][Patch] Turn cleared `%SessionId` but not the job's session id that `SendRequestAsync` sets and `Ens.Util.Log` reads, so a later warning of the same poll answer was filed under the turn's trace session. `Turn` now kills `$$$JobSessionId` with the reset (the pattern of `Watch/FailurePoller` and `Ens.BusinessService.preProcessInput`) [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:506]
+- [x] [Review][Patch] Turn's exception paths had no test: the probe gains `ThrowSend` and `ThrowRefund`; `TestThrownSendGivesTheEntryBack` and `TestThrownRefundIsRaised` pin the give-back, the rethrow and the clean service [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramInTurn.cls:102]
+- [x] [Review][Patch] The release of the Session row's lock that `Trace.Join` keeps was not observed after a failed send; `TelegramInTurn.Locked` reads the lock table, and the thread test asserts the lock is free after a good and a failed send [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramInTurn.cls:208]
+- [x] [Review][Patch] `TestEmptyTurn` asserted its own fixture (`%IsDefined("text") = 0`) and sent no photo with a caption; it now sends a sticker, a photo with a caption and white space [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:558]
+- [x] [Review][Patch] `TestNotices`' answered check waited a fixed 4 s and could pass before TelegramOut had handled the message; it now waits until TelegramOut has completed all 19 Notify requests of the trace (`Observe.WaitProcessed`) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:534]
+- [x] [Review][Patch] `TestLongNotice`'s `LastId(8602) > 1` could not fail once two parts were asserted; removed (the row equality pins the last id) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls:476]
+- [x] [Review][Patch] The telegram Delivery row's `DecisionRef` was never checked; `TestBySession` (b) sends one and asserts it [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls:427]
+- [x] [Review][Patch] `TestNoIdentity` scanned no live events although the Boundaries name them; it now scans the live events since a mark for the chat id, with the turn's text as the positive control (the name legitimately reaches the session's own page, AD-4) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:618]
+- [x] [Review][Patch] `TelegramChat.OnAfterAllTests` restored the keys before `EndPairing` settled the turns, so a turn still running would call the model with the placeholder key; `EndPairing` now runs first [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:84]
+- [x] [Review][Patch] `TelegramOut`'s doc said the Delivery id is "" when the answer has no `message_id`; it is `"<ChatRef>:"` [src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls:23]
+- [x] [Review][Patch] `TelegramInProbe`'s class doc was wrapped out of the file's width (QA edit); reflowed and extended for the new flags [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramInProbe.cls:3]
+- [x] [Review][Patch] `TelegramInTurn`'s doc said "Safe on a slot", against Rule 21 (tests never run on a slot); it now says the tests need no production [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramInTurn.cls:3]
+
+Rejected:
+- `false` QA's test additions are uncommitted: by the cycle's design the runner commits after review; the review covered the working tree.
+- `false` WhatFailed writes "on" after "(" where `Catalog.Fill` checks for a space: Fill's check is a word boundary so that "that " is never changed, and "(" is one; the Boundaries' at/on rule holds.
+- `false` AD-32 broken by notices without buttons: `Included()` stays 0, and Story 12.7 adds the buttons in the same release (owner decision 2026-10-31; Design Notes AD-32) - by-design.
+- `low` An exception after `TryConsume` is rethrown with no `Refund`: the same as `WebChatIn.Accept`, the sibling the spec mirrors; no seam but the send can throw there (wontfix-theoretical: real if Join or Started could throw in production).
+- `low` "/start@Bot CODE" or "/start<TAB>CODE" from a paired chat becomes a turn: private chats send "/start CODE" from the deep link and clients add no @bot there; 12.5's `Command` is unchanged (wontfix-theoretical: real if the pairing link ever sends another form).
+- `low` `SettleTurns` gives up after 40 s while a turn may take 90 s: mock turns finish in seconds, and with the keys now restored after `EndPairing` a slow turn still answers from the mock (wontfix-theoretical: real if a CI run shows a fixture Turn saved after the class).
+- `low` T7's `finally` restores the keys while a failed T7's turn may still run: failure path only, the run is already red (wontfix-accepted, reopen_if: a demo-path run fails after T7 with a placeholder-key fallback).
+- `low` A failed `Delivery.Record` is untested: no real input makes it fail (the message fields' lengths match the row's), and a seam needs a probe operation (wontfix-theoretical: real if `Delivery.Record` gains a check a sent message can fail).
+- `low` TestNotices can go red after TestNoIdentity fails and leaves a message in flight: a false red only after a genuine red (wontfix-accepted, reopen_if: TestNotices fails alone on a run where TestNoIdentity passed).
+- `low` `checks.everythingElsePassed` alone would read as an all-clear on Telegram: `Checks.Render` never chooses it, and its text says something else did not pass (wontfix-theoretical: real if a key chooser emits it).
+- `low` A "not everything" key with no nameable row sends no status: `Checks.Render` gives those keys only with a non-passed row with an entry (wontfix-theoretical).
+- `low` The full turn path exercises only `checks.nothingWatched`: the matrix as written; the rendering with rows is pinned directly by `TestCheckSentence` (wontfix-accepted, reopen_if: a reply with rows reaches Telegram without its sentence in a live run).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -509,6 +542,19 @@ QA stage (each mutation applied on warm stack e12s6qaw, seen red, reverted with 
 - mutation: AC6 (the Pairing row's display name put before the Item's text) -> red: TelegramChat.TestNoIdentity ("the bodies hold no the name"), TestTurn ("its text is the message as sent", "its body holds neither the chat id nor the name")
 - mutation: DW-30 (Send gives the text whole, no Split) -> red: TelegramOut.TestLongNotice ("it goes in two parts or more", "each part is 4,096 UTF-16 units or fewer")
 - mutation: DW-295 (OnOutbound ignores CheckKey, sentence "") -> red: TelegramOut.TestCheckSentence (a), (b), (c), (e), (f), (g)
+
+Code review stage (2026-11-01; each mutation applied on warm stack e12s6crw, seen red, reverted with `cmp` against the review's own backup, `git status --short` and `git diff --stat` unchanged):
+- mutation: CR, job session id (the `Kill $$$JobSessionId` after Turn's reset removed) -> red: TelegramInTurn.TestFirstTurnStartsTheThread ("and the job's session id is cleared, ..."), TestThrownRefundIsRaised ("and the job's session id is cleared")
+- mutation: CR, lock (Trace.Started skipped when the send failed) -> red: TelegramInTurn.TestFirstTurnStartsTheThread ("and releases the session row's lock all the same"), TestThrownRefundIsRaised ("the session row's lock that Join kept is released")
+- mutation: CR, thrown send (Turn's inner Catch rethrows instead of making the status) -> red: TelegramInTurn.TestThrownSendGivesTheEntryBack (the exception escapes, and the Session row is left locked)
+- mutation: CR, notEverything (checks.notEverything dropped from FAILEDKEYS) -> red: TelegramOut.TestCheckSentence ("nothing passed: the sentence names what failed and claims nothing else")
+- mutation: CR, DecisionRef (OnOutbound records "" as the row's DecisionRef) -> red: TelegramOut.TestBySession ("and the reply's DecisionRef")
+- mutation: AC4, answered (answered added to KINDS), with the WaitProcessed wait -> red: TelegramChat.TestNotices ("an answered Notification sends no sendMessage", "and records no telegram row")
+- mutation: CR, caption (HandleUpdate reads a message's caption as its text) -> red: TelegramChat.TestEmptyTurn ("no Item goes to Conversation", "the session has no Turn", "and the chat gets no text beyond its confirmation")
+- mutation: AC6, live events (HandleUpdate puts the chat id before a paired chat's text) -> red: TelegramChat.TestNoIdentity ("the live events hold no chat id ...", "the bodies hold no the chat id"), TestTurn, TestQueued, TestEmptyTurn
+- mutation: CR, teardown status (Cleanup appends an error to Ended) -> red: TelegramChat's class status ("ERROR #5001: zz mutation: the items did not stop")
+- Not mutated: TestCheckSentence (j) (`checks.everythingElsePassed`, a parity case of a key that `Checks.Render` never chooses), the removed `LastId > 1` line, and the teardown reorder (test infrastructure).
+- After the restores: TelegramInTurn, TelegramOut, TelegramChat, TelegramPair, TelegramIn and TelegramMock passed on the warm stack, and the fresh `shard lane-a@Channel` passed in both parts (278 s and 301 s; tag e12s6cr). `docker/tests/test-boundaries.sh` passed. Both tags torn down.
 
 ## Auto Run Result
 

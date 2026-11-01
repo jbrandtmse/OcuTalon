@@ -28,6 +28,8 @@ Include Ensemble
 ///   - BeginPairing and EndPairing (Story 12.6) are the start and the end that the two pairing-based classes share (TelegramPair and
 ///     TelegramChat): the live guard, the seam on, demo mode checked, both Telegram items on and a long poll open; and the turns of the
 ///     fixture sessions settled and adopted for their removal, the cleanup, the code rows and the probe row deleted and the seam put back.
+///     EndPairing returns the status of stopping the items and of the mock's reset, so that a caller with no test method running (an
+///     OnAfterAllTests, where an assertion records nothing) reports a failed ending in its own status.
 ///     NewSession, NewCode, Send, Handled, ChatRow, WaitLinked and PairChat, which pair a fixture chat through the real /start path, move
 ///     there with them. DropSessions also deletes the Turn, Delivery and SimMessage rows of the fixture sessions (zztg...).
 ///   - Items, Notifications and TextsAfter read what a pairing test checks: the Items that TelegramIn sent to Conversation after a header
@@ -44,6 +46,9 @@ Parameter MOCK = "OcuTalon.Test.Contract.Mock";
 Parameter BOTAPI = "OcuTalon.Test.Channel.BotApi";
 
 Parameter FIXTURE = "OcuTalon.Test.Agent.RunnerFixture";
+
+/// The status of the last Cleanup: its StopItems and the mock's reset (Finish). EndPairing returns it.
+Property Ended As %Status [ InitialExpression = 1, Private ];
 
 /// The longest, in seconds, that StartItems and StopItems wait for the jobs of an item.
 Parameter WAITJOB = 30;
@@ -109,9 +114,11 @@ Method Ready() As %Boolean [ Private ]
 }
 
 /// Ends a test: the reset again, whatever happened.
-Method Finish() [ Private ]
+Method Finish() As %Status [ Private ]
 {
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Channel.BotApi).Reset(), "the mock's Bot API side is reset after the test")
+	Set sc = ##class(OcuTalon.Test.Channel.BotApi).Reset()
+	Do $$$AssertStatusOK(sc, "the mock's Bot API side is reset after the test")
+	Quit sc
 }
 
 /// The text of an exception with the token cut out.
@@ -373,12 +380,13 @@ ClassMethod DropSessions()
 /// and the mock reset.
 Method Cleanup() [ Private ]
 {
-	Do $$$AssertStatusOK(..StopItems(), "the started items are stopped and their rows put back")
+	Set ..Ended = ..StopItems()
+	Do $$$AssertStatusOK(..Ended, "the started items are stopped and their rows put back")
 	Do ..RestoreMarks()
 	Do ..DropChats(..ChatIds)
 	Set ..ChatIds = ""
 	Do ..DropSessions()
-	Do ..Finish()
+	Set ..Ended = $SYSTEM.Status.AppendStatus(..Ended, ..Finish())
 }
 
 /// The calls of the mock with that method, in order, as a dynamic array.
@@ -602,8 +610,8 @@ ClassMethod PairBodies(mark As %Integer, verb As %String = "Pair") As %DynamicAr
 
 
 /// The start of a test that pairs fixture chats (the ids, comma-separated): the live guard and the saved marks, the seam on, demo mode
-/// checked, the fixture chats cleared, TelegramOut and TelegramIn enabled and a long poll open. It asserts nothing and returns "" when
-/// all of it holds; otherwise the reason, after EndPairing has put back what was set.
+/// checked, the fixture chats cleared, TelegramOut and TelegramIn enabled and a long poll open. Its own steps assert nothing: it returns
+/// "" when all of it holds, otherwise the reason, after EndPairing has put back what was set.
 Method BeginPairing(ids As %String) As %String
 {
 	Set reason = ..ReadyReason()
@@ -631,8 +639,8 @@ Method BeginPairing(ids As %String) As %String
 
 /// The end of a pairing-based test, on every path: the turns of the fixture sessions settled (a turn that is still running would save its
 /// row after the delete), those turns and their Decision rows adopted and removed, Cleanup, then the probe row and the code rows of the
-/// fixture sessions deleted, and the seam put back.
-Method EndPairing()
+/// fixture sessions deleted, and the seam put back. The status is that of the items' stop and the mock's reset (Cleanup).
+Method EndPairing() As %Status
 {
 	Set refs = ""
 	Try {
@@ -654,6 +662,7 @@ Method EndPairing()
 	Set ..Sessions = ""
 	If ..Seam Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(..WasIncluded)
 	Set ..Seam = 0
+	Quit ..Ended
 }
 
 /// Waits, up to WAIT seconds more than a turn needs, until no Turn of the sessions (comma-separated Refs) is queued or running.

@@ -20,8 +20,8 @@
 ///     tries for one part, and a part that was sent is never sent twice. Any other failure is an error status with a safe text, and the
 ///     parts already sent stay sent;
 ///   - a message with a SessionRef, once every part is sent, records one Delivery row of channel telegram (Delivery.Record) whose
-///     message id is "<ChatRef>:<message_id of the last part>" (the id is "" when the answer had none). A message with no SessionRef
-///     records none. A failed Record is one warning and the status stays OK, because the message is never sent again.
+///     message id is "<ChatRef>:<message_id of the last part>" (just "<ChatRef>:" when that answer had no message_id). A message with
+///     no SessionRef records none. A failed Record is one warning and the status stays OK, because the message is never sent again.
 /// Buttons and the edit in place of an answered request come with Story 12.7. The token is never held here (AD-19), and no log text holds
 /// a chat id, a name or a message text.
 Class OcuTalon.Channel.Telegram.Out Extends OcuTalon.Channel.Operation

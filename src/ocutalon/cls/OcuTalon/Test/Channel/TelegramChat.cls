@@ -5,8 +5,9 @@ Include Ensemble
 /// CI ONLY (Rule 21), like OcuTalon.Test.Channel.LiveCase, which they extend. NEEDS: the running OcuTalon.Production and the CI mock with its
 /// dummy token, the Telegram seam (set and put back by LiveCase.BeginPairing) and demo mode on. Where any is missing, every test fails with the
 /// reason. OnBeforeAllTests points the runners' keys at the mock (as Test.Schedule.ReminderChat does) and runs BeginPairing for the fixture
-/// chats 84017734130 to 84017734136; OnAfterAllTests puts the keys back and runs EndPairing (the turns of the fixture sessions are adopted and
-/// removed with their Decision rows) and removes the AI sessions that the turns saved. A fixture session (zztgchat...) is paired with its chat
+/// chats 84017734130 to 84017734136; OnAfterAllTests runs EndPairing first (the turns of the fixture sessions are settled while the keys
+/// still point at the mock, then adopted and removed with their Decision rows; its status, the items' stop and the mock's reset, is part
+/// of the class's status), then puts the keys back and removes the AI sessions that the turns saved. A fixture session (zztgchat...) is paired with its chat
 /// through the real /start path (LiveCase.PairChat). The mock numbers its default sendMessage answers 1, 2, 3, ... after its reset, so a
 /// message's id is its position among the sendMessage calls.
 ///   - TestTurn: a paired chat's text is a turn. In one poll answer, the paired chat asks "Is everything OK?" with the scenario
@@ -23,11 +24,12 @@ Include Ensemble
 ///     message (never inside a tool result), and the chat gets the replies in order;
 ///   - TestNotices: one notification at a time for every Watch incident and result key and six Core keys: the chat's text is the simulated
 ///     phone's (or the phone-channel rendering for the two allowance keys, which the phone does not get), each has its telegram Delivery row
-///     with the kind, the approval Ref and <ChatRef>:<message_id>, and an answered notification sends nothing;
-///   - TestEmptyTurn: a paired chat's message with no text (a sticker) and one of white space only make no Item to Conversation, no Turn, no
-///     Notification and no text to the chat;
+///     with the kind, the approval Ref and <ChatRef>:<message_id>, and an answered notification, once TelegramOut has handled it, has sent
+///     nothing;
+///   - TestEmptyTurn: a paired chat's messages with no text (a sticker, a photo with a caption) and one of white space only make no Item to
+///     Conversation, no Turn, no Notification and no text to the chat;
 ///   - TestNoIdentity: after a Telegram turn, a pairing and two notices, no header, body, agent step, event-log row or audit entry holds the
-///     chat's id or name; only the Pairing row does.
+///     chat's id or name, and no live event holds the chat's id; only the Pairing row holds both.
 Class OcuTalon.Test.Channel.TelegramChat Extends OcuTalon.Test.Channel.LiveCase
 {
 
@@ -79,6 +81,11 @@ Method OnAfterAllTests() As %Status
 	Set sc = $$$OK
 	Do ##class(OcuTalon.Test.Contract.Mock).Arm("checks-false-all-clear", "")
 	Do ##class(OcuTalon.Test.Contract.Mock).Arm("telegram-turn-held", "")
+	If ..Begun {
+		Set ..Begun = 0
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..EndPairing())
+		If '..WaitJobs("TelegramIn", 0) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "TelegramIn still has a job after the class"))
+	}
 	If ..Pointed {
 		Set ..Pointed = 0
 		Set restored = ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
@@ -89,11 +96,6 @@ Method OnAfterAllTests() As %Status
 		If '##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords() {
 			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The runners did not record the restored keys"))
 		}
-	}
-	If ..Begun {
-		Set ..Begun = 0
-		Do ..EndPairing()
-		If '..WaitJobs("TelegramIn", 0) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "TelegramIn still has a job after the class"))
 	}
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Quit sc
@@ -529,8 +531,8 @@ Method TestNotices()
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
 		If ..ToNotify(..Notification(session, "answered", "answered.approved", answered.slots, "zzappr1"), trace) {
-			Set calls = ..WaitCalls("sendMessage", before + 1, 4)
-			Do $$$AssertEquals(calls.%Size(), before, "an answered Notification sends no sendMessage")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 19, 30), "TelegramOut has handled all 19 notifications, the answered one included")
+			Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), before, "an answered Notification sends no sendMessage")
 		}
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "and records no telegram row")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 100).Count(), phones, "the phone got none of the allowance notices")
@@ -551,10 +553,15 @@ Method TestEmptyTurn()
 		Set mark = ..HeaderMark()
 		Set sticker = ..PrivateMessage(chatId, "Zqempty")
 		Do sticker.message.%Remove("text")
-		Do $$$AssertEquals(sticker.message.%IsDefined("text"), 0, "the first update is a sticker with no text")
+		Set sticker.message.sticker = {"file_id": "zzsticker", "emoji": "zz"}
 		Do ..Send(sticker)
+		Set photo = ..PrivateMessage(chatId, "Zqempty")
+		Do photo.message.%Remove("text")
+		Set photo.message.photo = [{"file_id": "zzphoto", "width": 1, "height": 1}]
+		Set photo.message.caption = "zz a caption is no turn"
+		Do ..Send(photo)
 		Do ..Send(..PrivateMessage(chatId, "", "   "))
-		Do $$$AssertTrue(..Handled(), "TelegramIn handled both")
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled all three")
 		Hang 1
 		Do $$$AssertEquals(..Items(mark).%Size(), 0, "no Item goes to Conversation")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 0, "the session has no Turn")
@@ -575,6 +582,7 @@ Method TestNoIdentity()
 		Set headers = ..HeaderMark()
 		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Set live = ..LiveMark()
 		Set session = ..Paired(chatId, name, .chatRef)
 		Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 		Set ..Probe = "zzprobe-"_##class(OcuTalon.Bridge.Ids).NewRef()_" "_chatId_" "_name
@@ -607,6 +615,9 @@ Method TestNoIdentity()
 		Do $$$AssertTrue($Find(places.headers, "TelegramIn") && $Find(places.bodies, text), "the header scan reads TelegramIn's headers, and the bodies hold the turn's text")
 		Do $$$AssertTrue(steps '= "", "the agent steps of the turn's decisions are read")
 		Do $$$AssertTrue($Find(places.audit, session), "the audit scan reads the pairing's entry")
+		Set liveText = ..RowsText("SELECT Payload FROM OcuTalon_Live.Event WHERE %ID > ?", live)
+		Do $$$AssertTrue($Find(liveText, text), "the live-event scan reads the turn's chat.message")
+		Do $$$AssertNotTrue($Find(liveText, chatId), "the live events hold no chat id (the name goes to the session's own page, AD-4)")
 		For value = "the chat id|"_chatId, "the name|"_name {
 			For place = "headers", "bodies", "steps", "audit" {
 				Do $$$AssertNotTrue($Find(places.%Get(place), $Piece(value, "|", 2)), "the "_place_" hold no "_$Piece(value, "|", 1))
