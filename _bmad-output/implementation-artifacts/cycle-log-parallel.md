@@ -1289,3 +1289,7 @@
 2026-11-01T20:10:32Z	Epic 1-37	owner_decision	via=contest_planner(delegation) item=DW-500 decision=widen:any_user_chat_turn;no_production_state/access/needs-the-user_in_Triage_reasons;eval_cases_chip_2_text+recall evidence=host_374f958e_real_Haiku_chip_2_reasons_all-clear(AD-28) launch_relevant=yes
 2026-11-01T20:10:32Z	Epic 1-37	deps_hash_rerecorded	hash=b44506a6d785 reason=ledger_routed(DW-500_widened,30.5)
 2026-11-01T20:10:43Z	Epic 30	runner_message	agent=a717a931bacaed0b8 note=DW-500_widened(any_user_chat_turn;eval_cases_chip_2+recall)_for_30.5_spec_gate
+2026-11-01T20:13:35Z	Epic 4	host_confirmed	head=374f958e(fresh_install) run1=110/110 4.8=pass guide_e2e=pass(13_decisions,$0.0039) 4.9=pass(77px<90px_at_640x360) 4.10=pass(chip3_recent_activity;chip2_reply_no_all-clear) findings=DW-500(chips_1,4)->30.5_evals;DW-541(chip_1_running_state)->30.1(no_date_cost);DW-542(finish_state_640)->31.2;DW-543(empty_chat_scroll)->31.2;DW-484_known
+2026-11-01T20:13:35Z	Epic 1-37	ledger_routed_planned	entries=DW-541->30.1,DW-542->31.2,DW-543->31.2,DW-500(4_chip_evals)->30.5 by=orchestrator deps_hash=rerecorded(ledger_routed)
+2026-11-01T20:13:53Z	Epic 30	runner_message	agent=a717a931bacaed0b8 note=DW-500_eval_cases_all_four_chips;DW-541_to_30.1(not_part_1)
+2026-11-01T20:13:53Z	Epic 31	runner_message	agent=a64655230fb684ae7 note=DW-542,DW-543_on_31.2(DW-530_rule)

@@ -2709,6 +2709,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T17:45:03Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=orchestrator note=Triage's_prompt(Lane_A_Agent):for_the_user's_own_command,the_reasons_say_what_was_asked;1.0.0_if_cheap,or_Epic_30's_burn-down_story
 - 2026-11-01T07:18:36Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=owner note=promoted_into_1.0.0(Contest_Planner_under_delegation,2026-11-01):for_the_user's_own_message_the_strip_shows_no_reasons_about_Triage's_tool_limits;preferred:Triage_wording_describing_the_request+eval_case;fallback:override_line_only,reasons_in_Decision_details(only_if_the_payload_already_marks_the_override)
 - 2026-11-01T20:10:32Z note=WIDENED_2026-11-01(Contest_Planner,Epic_4_host_check_on_374f958e):any_user_chat_turn;Triage's_reasons_never_describe_production_state,its_access,or_whether_anything_needs_the_user(chip_2_reasons_made_a_model-written_all-clear,AD-28);eval_cases_for_chip_2's_text_and_the_recall_question
+- 2026-11-01T20:13:35Z note=host_check_374f958e:chips_1_and_4_also_drew_tool-limit_reasons;30.5's_eval_cases_cover_all_four_chips'_texts
 ### DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo: 'You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram).' Story 16.11 changes the splash only
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
@@ -2770,3 +2771,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
 - 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
 - 2026-11-01T19:39:55Z occurrence=4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in note=4.9_code_review:at_320px_the_stacked_demo_header_measures_157-180px,over_a_quarter_of_windows_under_~720px_high(U-202_bound)
+
+### DW-541: Chip 1 ('Which productions are running?') asks something list_productions cannot answer: it has no running state, so real Haiku replies '...it does not tell me whether it is running right now'
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host, real Haiku, chip 1 reply; Tools/WatchTools list_productions returns names only
+- 2026-11-01T20:13:34Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=preferred: list_productions returns a code-built running/stopped state (trusted fields only); fallback: chip text 'Which productions can you watch?' (web, plus its B/ mock scenario); 1.0.0 only at no date cost
+
+### DW-542: At 640px wide (200% zoom) the guide's finish state puts .finish in a 321px right column (.main is flex row wrap) and leaves the left half empty, with the step bar bottom-left; the guide is 630px tall in a 360px window
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host browser check at 640x360 scale 2
+- 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=the finish state wraps to full width below the breakpoint; with DW-530, 1.0.0 only at no date cost
+
+### DW-543: At 1280x800 the empty chat opens scrolled to the bottom, so the welcome block's heading is clipped at the top
+- source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: host browser check at 1280x800
+- 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
