@@ -70,6 +70,8 @@
 # Changed 2026-11-01T05:2xZ (owner feedback from the demo walk-through, via the Contest Planner under delegation): Story 4.8
 # re-opens Epic 4 under SC-5: step 3 of the demo guide loses its "Go to Break the feed" button (web/src/app/guide/*, the guide's
 # tests, EXPERIENCE.md and the C2 mockup). 1.0.0 scope, no merge gate, not launch-blocking; first free runner. No edge changes.
+# Changed 2026-11-01 (owner request via the Contest Planner, block approved by the Planner): Story 4.9, a client-only Demo view
+# switch, joins Epic 4 after 4.8 on the same runner (web/src/app/**, the web tests, the UX files). 1.0.0 scope. No edge changes.
 # Changed 2026-10-31, owner decisions relayed by the Contest Planner (the owner's personality decisions of 2026-10-31, inbox U-195;
 # the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they
 # can ship quickly."): three personality epics, 39 (agent heartbeat), 40 (persona) and 41 (memory that learns), join the
@@ -122,7 +124,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "b6a9ec71f243ddfee25860fcd1aa2ac3fefe51d1b6ef2e2db0b8bfe4e0d6606a"
+epics_md_hash: "7a63c32d5ccb663d09fb0d5ec44f62f698db03f18e1645367000a8a79c22de1d"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"

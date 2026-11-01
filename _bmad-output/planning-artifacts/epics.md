@@ -645,7 +645,7 @@ Every action is classified safe or risky by fixed rules the model and arriving c
 With demo mode on, the page shows the demo guide with one-click prompts, a labelled simulated phone and simulated mailbox that are real production channels (with three one-click sample emails), and a Break the feed control that sends the session's 50 orders in a changed date format into the Orders production, active only when the guide's conditions hold; an admin can switch demo mode.
 **Lane:** B. **Depends on:** Epic 2.
 **FRs covered:** FR-12 (demo-mode panels), FR-13, FR-16.
-**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button.]
+**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button; Story 4.9 adds the Demo view switch (owner request, 2026-11-01).]
 
 ### Epic 5: OcuTalon watches a production and explains what broke
 
@@ -2686,6 +2686,48 @@ So that there is one obvious thing to press.
 **When** this story merges
 **Then** the guide's tests follow it: the floor e2e cases M7, M10 and M12 and the step 2 to step 3 case (web/e2e/floor/guide.spec.ts), web/e2e/guide/guide.spec.ts, 01-page.spec.ts's step 3 row, guide-view.test.mjs, announce-focus-sources.test.mjs and ux-strings.test.mjs's guide string list
 **And** CI is green on every workflow, and the story touches only `web/src/app/guide/*`, those tests, and the two UX files
+
+### Story 4.9: A Demo view switch shows the page as it looks on your own install
+
+[ADDED 2026-11-01, owner request relayed by the Contest Planner under delegation; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment." In 1.0.0's scope; not launch-blocking. Runs after Story 4.8 on the same runner (the same guide files). The Planner approved this block on 2026-11-01: the header pill stays with the switch off ("Demo mode" on a local demo install, "Online demo" on the online demo).]
+
+As a judge on the demo page,
+I want to switch the demo parts off and see the page as it looks on my own install,
+So that I know how I would talk to OcuTalon after the contest.
+
+**Acceptance Criteria:**
+
+**Given** demo mode is on (the online demo, or a local install with demo mode switched on, Story 4.1)
+**When** the page renders its top bar
+**Then** it has a labelled switch, "Demo view", on by default, with help text such as "Off shows the page as it looks on your own install." (the exact wording is the UX spec's, under the public-text rules); it is a native switch (`role="switch"`, `aria-checked`), reachable by keyboard, and its state is announced when it changes; with demo mode off on the server, the switch is not shown (UX-DR43)
+
+**Given** the switch is off
+**When** the page re-renders
+**Then** the demo guide bar, the Demo control with Break the feed, and the Simulated devices region (the simulated phone and the simulated mailbox) are gone, and the page lays out exactly as a session with demo mode off does: the chat region takes the devices' width, the skip links drop the demo targets, the empty chat's last line and the rail's empty-checks line are the non-demo ones (UX-DR43, UX-DR48)
+**And** it uses the same render path as a session with demo mode off: every component that reads demo mode today (guide, Demo control, chat panel and empty chat, phone, mailbox, device panel, rail, skip links, main page) reads one client-side "demo view" signal that is true only when the server's `demoMode` is true and the switch is on; nothing else reads `demoMode` directly
+**And** whatever a real install shows in that space shows its real state; the Telegram card follows the server's Telegram state exactly as now, so on the online demo, which has no bot token, it shows only what 12.1 and 16.11 allow, and nothing promises a Telegram the demo lacks
+
+**Given** the switch is off on the online demo
+**When** the page renders
+**Then** the online demo's honest markers stay: the "Online demo" pill, the reset countdown and the allowance lines; on a local install in demo mode, the "Demo mode" pill stays. The switch never makes a visitor think they are on their own install
+
+**Given** the switch
+**When** it changes
+**Then** only the view changes: no request to the server, no change to demo mode, the session, its guide markers, its allowance, its watches, reminders or incidents; the incident flow, approvals and the Orders production keep running underneath
+**And** the choice is kept per browser tab in sessionStorage (read and written inside try/catch, falling back to on), and focus stays on the switch
+
+**Given** a pending approval request
+**When** the switch is turned off and on again
+**Then** the request is never hidden or lost: with the switch off it is answerable in the chat as on any install; with it on again it is also on the simulated phone, and an answer given while off shows there as answered (UX-DR80)
+**And** turning the switch back on restores the guide at the step the session's own state gives, and the guide's own Hide guide choice as it was
+
+**Given** the change
+**When** this story merges
+**Then** e2e cases check: off, then the guide, the Demo control and the simulated devices are gone and the chat still sends and answers; on, then they return with the guide step preserved; a pending approval survives off and on; and the off page's regions, landmarks, skip links and rail sections equal those of the same page with demo mode off on the server, compared as structure, never as pixels or screenshots
+**And** a source test checks that no component outside the demo view signal reads `demoMode`
+**And** the UX spec's "Demo guide and controls" and "Demo Mode and the Online Demo" sections and DESIGN.md's top bar gain the switch, each with a marker citing the owner's request of 2026-11-01
+**And** CI is green on every workflow, and the story touches only `web/src/app/**` (not `api/api-types.ts` or `live/live-store.ts`, which Epic 11 is changing, nor `rail/telegram-card/**`, which Epic 12 is), the web unit and e2e tests, and the UX files
+- Dev note (known limit, the Planner 2026-11-01): text the server builds, such as a catalog line like "approve in the chat or on the Simulated phone", can still mention the simulated phone while the switch is off; that is accepted, because the switch is client-only by design. A client-side string of that kind may follow the demo view signal, within this story's footprint only.
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 
