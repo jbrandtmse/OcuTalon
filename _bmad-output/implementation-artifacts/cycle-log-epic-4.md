@@ -328,3 +328,5 @@
 2026-11-01T19:39:41Z	Epic 4	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0.67(reopen_4.8:0,4.9:1,4.10:1) unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=2 result=hold applied=false(gates.model_tier:record_only)
 2026-11-01T19:39:41Z	Epic 4	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-11-01T19:39:41Z	Epic 4	decision_sheet_skipped	reason=empty(no_escalated_or_decision-pending_entries;runner_decisions_for_user=none)
+2026-11-01T19:43:44Z	Epic 4	integrated_forward	feature=416b0f64 head=ce8f5c67 conflicts_resolved=none code_tree=identical_to_d2d47b16(CI_green_every_workflow) verification=web_test_1158,live_demo-path_on_merged_tree(e4ifw,0_failed) ledger=DW-530_occurrence_appended(4.9)
+2026-11-01T19:43:44Z	Epic 4	epic_runner_complete	stories_completed=3(4.8,4.9,4.10) ledger=open_before=1,resolved=0,terminal=1,chartered=0,overflow=0,to_decision_sheet=0,open_after=0,drain_ratio=1.50 decisions_for_user=none veto=U-202(kept_by_Planner)

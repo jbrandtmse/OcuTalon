@@ -2768,3 +2768,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-202 (#612), Story 4.9's notes | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
 - 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
+- 2026-11-01T19:39:55Z occurrence=4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in note=4.9_code_review:at_320px_the_stacked_demo_header_measures_157-180px,over_a_quarter_of_windows_under_~720px_high(U-202_bound)
