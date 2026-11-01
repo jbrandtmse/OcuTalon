@@ -290,3 +290,5 @@
 2026-11-01T23:27:40Z	Story 11.4	ledger_routed_planned	story=11-13-the-release-gets-draft-notes entries=1(DW-551) excess=0 by=harvest note=lead_note_in_spec-11-13
 2026-11-01T23:27:40Z	Story 11.4	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-11-01T23:27:40Z	Story 11.4	stage_spawned	stage=qa spawn_at=2026-11-01T23:27:40Z model=claude-sonnet agent_name=11-4-the-release-gets-draft-notes-and-a-checklist-qa-1 cycle_iteration=1
+2026-11-01T23:37:59Z	Story 11.4	qa_complete	spawn_at=2026-11-01T23:27:40Z model=claude-sonnet tests_added=1_rule(test-release-checklist.sh_tmpfail) mutations_demonstrated=14(8_AC+6) first_run_failures=0 clarifications=0 closing_sections_present=true subagent_tokens=103186 duration_min=10
+2026-11-01T23:37:59Z	Story 11.4	stage_spawned	stage=code-review spawn_at=2026-11-01T23:37:59Z model=claude-opus agent_name=11-4-the-release-gets-draft-notes-and-a-checklist-code-review-1 cycle_iteration=1 scope=fc28b015..HEAD
