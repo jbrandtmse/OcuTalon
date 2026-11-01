@@ -11,8 +11,9 @@ Include Ensemble
 ///     the node moves to the next id, which the next poll carries;
 ///   - TestRestartLosesNothing: an update handled before a stop is not handled again, one queued while stopped is handled once;
 ///   - TestAlreadyHandled: an update below the kept offset is skipped and the offset stays;
-///   - TestPrivateOnly (FR-19): only the private message and the private press make a chat row, with no session and no name, with no
-///     reply, no message header and no audit entry;
+///   - TestPrivateOnly (FR-19; Story 12.5): only the private message and the private press make a chat row, with no session and no name;
+///     the message makes exactly one pairing.notPaired Notification from TelegramIn to Notify (by the row's Ref, with no session) and the
+///     press none; with the seam 0 nothing is sent, and no audit entry is written;
 ///   - TestRejected (FR-21): a 401 for getMe records rejected with no name, makes no other call (also past the retry time of a
 ///     failure), logs it without the token, and the state stays rejected after a stop;
 ///   - TestRejectedWhilePolling: a 404 for getUpdates once the item polls is a rejection too: the state becomes rejected, no poll
@@ -190,8 +191,18 @@ Method TestPrivateOnly()
 			Do result.%Next()
 			Do $$$AssertEquals(result.%GetData(1)_"|"_result.%GetData(2), "|", "the row of "_id_" holds no session and no name")
 		}
-		Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), 0, "no reply is sent")
-		Do $$$AssertEquals(..HeadersFrom(headers, "TelegramIn"), 0, "TelegramIn sends no message")
+		Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), 0, "no reply is sent (the seam is 0, so Notify routes nothing)")
+		Do $$$AssertEquals(..HeadersFrom(headers, "TelegramIn"), 1, "TelegramIn sends exactly one message, for the private message and not for the press")
+		Set notice = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'TelegramIn' AND TargetConfigName = 'Notify' AND MessageBodyClassName = 'OcuTalon.Msg.Notification'", headers)
+		Set found = notice.%Next()
+		Do $$$AssertTrue(found, "it is a Notification to Notify")
+		If found {
+			Set body = ##class(OcuTalon.Msg.Notification).%OpenId(notice.%GetData(1))
+			Set row = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Pairing WHERE ChatId = 8324")
+			Do row.%Next()
+			Do $$$AssertEquals(body.Kind_"|"_body.CatalogKey_"|"_body.SessionRef_"|"_body.Slots, "pairing|pairing.notPaired||{}", "a pairing.notPaired notice with no session and no slots")
+			Do $$$AssertEquals(body.ChatRef, row.%GetData(1), "by the Ref of the private message's chat row")
+		}
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon").%Size(), 0, "and no audit entry is written")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the private-only test failed: "_..Safe(ex))

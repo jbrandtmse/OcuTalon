@@ -2,13 +2,23 @@
 title: 'Story 12.5: Bad codes, a bare start command and unpairing get polite answers'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '467b60be1ca4253b96801ad693775e1b535bbbfc'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-1, AD-4, AD-12, AD-13, AD-14, AD-17, AD-22, AD-27, AD-29, AD-32 and AD-33)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The order of the Telegram card's states (paused, not set up and paired ahead of just-unpaired) has no node-level unit test.
+    evidence: |-
+      telegramCardView is framework-free, but no web/scripts/*.test.mjs calls it; only T5 and T6 (browser, CI only) run the new just-unpaired view. Moving the
+      `if (own.justUnpaired)` line above the paired or paused branch keeps T5 and T6 green (a pairing during the 5 s window would then show the unpaired row).
+      The fix is a new file under web/scripts (Lane B's directory, outside the standing rulings), so it needs a ruling.
+    location: >-
+      web/src/app/rail/telegram-card/telegram-card-view.ts:169
+    severity: low
 ---
 
 <intent-contract>
@@ -286,6 +296,41 @@ These rows assume:
 
 ## Review Triage Log
 
+### 2026-11-01 — Review pass
+- verdicts: 31 findings — high 0, medium 1, low 12, false 18, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: start and bad-code replies have no reply slot — the spec's Boundaries and Decided 5 say the reply-slot is for "any other message" only (AD-4); the behaviour is the specified one.
+  - `[false]` `[reject]` Blind: a paired chat gets the start text for /help — specified (Decided 3: "The start reply goes to paired chats too").
+  - `[low]` `[patch]` Blind and Edge: /stop answered not_paired after a stale "paired" read goes to Other with the stale sessionRef and gets no reply — `Stop` now passes "" to `Other` for not_paired (patched in In.cls, class doc reworded).
+  - `[low]` `[reject]` Blind: no tests for Command parsing edges (/stop now, /START, /start TAB code) — the matrix pins exact words in fixed chat ids; the extra cases would need chats and rows beyond the spec's; unlikely in use; no behaviour is wrong.
+  - `[low]` `[defer]` Blind and Gap and Intent: no node unit test for the card view and its state order — recorded in the frontmatter `deferred:` list (fix is a new Lane B-directory file, needs a ruling).
+  - `[low]` `[reject]` Blind and Edge and Intent: "Telegram unpaired" is not announced when the view is masked (paused, not set up) at the change and the state clears inside 5 s — the spec announces when the card then shows just-unpaired; a rare double condition; the fix adds state.
+  - `[false]` `[reject]` Blind: T6 timing windows may flake — the 4000 ms and 4500-8000 ms windows are the spec's (Decided 11); the poll lag needed to break them (over 500 ms) is not shown.
+  - `[false]` `[reject]` Blind: T6 watches the bad-code case for 3 s only — the spec's row says 3 s.
+  - `[false]` `[reject]` Blind: Auto Run Result still says ready-for-dev — rewritten at finalize.
+  - `[low]` `[reject]` Blind: mutation lines say T6 not separately evidenced — T5 is red for each of those mutations, so every AC has a pinning test with a recorded mutation; T6's own red for them was hidden by the grouped runs.
+  - `[false]` `[reject]` Edge: Stop with a result that is not an object logs nothing — Commands.Submit returns an object on OK (SessionOps always answers); the path is not reachable.
+  - `[false]` `[reject]` Edge: /Stop, /stop@bot and other cases are "other" — specified (Decided 1: the first word matched exactly).
+  - `[false]` `[reject]` Edge: unthrottled start and bad-code replies — as the first Blind row.
+  - `[false]` `[reject]` Edge: a Submit that throws after linking sends badCode — the table says a failed Submit gets pairing.badCode; Commands.Submit is synchronous and a throw after the link is not shown to happen.
+  - `[low]` `[patch]` Edge: same stale-read race as the Blind one — one fix, above.
+  - `[low]` `[reject]` Edge: unannounced "Telegram unpaired" when masked — as above.
+  - `[false]` `[reject]` Edge: Move leaves a zztgmove session when Send fails — Finish runs in T6's finally with a non-empty held and drops the zztg sessions; Move is only called after Start found its rows.
+  - `[low]` `[reject]` Gap: the view's order has no executed test host — merged into the deferred entry.
+  - `[low]` `[reject]` Gap: the second-chat sequence (paired 0 then paired 1) is not run on a page — the end state follows from the view order (paired wins), covered by the deferred entry; the reset branch only clears a flag that the view order already ignores.
+  - `[medium]` `[patch]` Gap: no assertion on a paired chat's replies (no reply to other text, start text for /help, bad code stays paired) — `TestNameOnlyWhilePaired` now asserts [CONFIRMATION, BAD] and then [CONFIRMATION, BAD, START]; the `Other` mutation is red there and a `mutation:` line is written.
+  - `[low]` `[reject]` Gap: command parser tested only with bare words — as the Blind row.
+  - `[low]` `[reject]` Gap: failure paths of Pair and Stop (a refused or failed Submit, outcome failed) are untested — forcing a Submit failure on the live production needs a Lane B seam; the paths are a warning and a fixed reply.
+  - `[false]` `[reject]` Gap, other: T6 and mutation lines — as the Blind row.
+  - `[low]` `[reject]` Gap, other: AssertEventsSince and the negative checks use a fixed settle time — the same pattern as the sibling tests (Hang 1); no failure shown.
+  - `[false]` `[reject]` Gap, other: the `WaitCalls` readiness in Send is cumulative — harmless, the mock queues the update until the next poll.
+  - `[false]` `[reject]` Gap, other: Finish drops every zztg session — tests on a stack run serially; the same scope as LiveCase.Cleanup.
+  - `[false]` `[reject]` Intent: reading 3 (both surfaces) is implemented — descriptive; no divergence beyond those logged.
+  - `[false]` `[reject]` Intent: an extra warning for an unknown Unpair outcome — a log line only.
+  - `[false]` `[reject]` Intent: the empty-outcome-without-error case logs nothing — as the Edge row on the non-object result.
+  - `[false]` `[reject]` Intent: heading focus and the 5 s window are proven only in the browser — T5 and T6 are the specified pins (Decided 9 and 11).
+  - `[false]` `[reject]` Intent: only T5 and T6 link the chat events to the card — specified.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -452,7 +497,70 @@ How to run:
 | AC5, the other chat | `SessionOps.Pair` passes `""` for `pairing.otherChatPaired` (temporary, Lane B) | `TestOneLivePairing` (Texts(123)) |
 | AC5, unpaired from then on | The "other" branch reads the chat as paired (no reply) | `TestOneLivePairing` (no NOTPAIRED for 123) |
 
+Mutations run at the implement stage (each applied, seen red, reverted byte for byte against a backup; `git status` shows no Lane B path changed; a Lane B mutation needed a restart of the `SessionOps` job on the warm stack, because the job keeps the class it loaded):
+- mutation: `Pair` sends nothing after an outcome other than `paired` -> `TestBadCodes` ("the chat gets the bad-code reply four times"); T6 ("chat 113 is told that the code did not work")
+- mutation: `SessionOps.Reject` also calls `Announce(sessionRef, 0, "")` (temporary) -> `TestBadCodes` ("no pairing event reached any stream"); T6 ("the card stays paired": the card showed "Telegram unpaired")
+- mutation: `SessionOps.Reject` skips `WriteAudit` (temporary) -> `TestBadCodes` ("four rejected Pairing entries on telegram")
+- mutation: the start branch matches `/start` only, not `/help` -> `TestStrangerReplies` ("the chat gets the start text twice ...")
+- mutation: `TakeReplySlot` is not called -> `TestStrangerReplies` ("the chat gets the start text twice and the not-paired text once", "the row holds ReplySlotAt")
+- mutation: `TelegramIn` also sends an `OcuTalon.Msg.Item` to `Conversation` for the unpaired chat (a fixed text, as `Other` has not the message) -> `TestStrangerReplies` ("no request header reaches Conversation")
+- mutation: the not-paired `Notification` carries a session `Ref` as `SessionRef` -> `TestStrangerReplies` ("notice 3 is by the row's Ref, with no session and no slots")
+- mutation: `Install.Step.Core.Purge` returns OK without calling `Pairing.Purge` (temporary) -> `TestStrangerReplies` ("the aged row with no session is gone")
+- mutation: `/stop` is "other" (no `Unpair` submitted) -> `TestStop` ("there is one Unpair body"); T6 ("the card showed \"Telegram unpaired\"", with that mutation alone)
+- mutation: no reply on `unpaired` -> `TestStop` ("the chat got the confirmation and the stopped text"); T6 ("chat 111 got the confirmation and the unpaired text")
+- mutation: no re-record with `""` after `unpaired` -> `TestStop` ("the row has no session and no name")
+- mutation: `SessionOps.Unpair` passes `""` for the page's notice key (temporary) -> `TestStop` ("the chat got the confirmation and the from-page text"); T5 ("the chat was told of the unpair")
+- mutation: `telegramCardView` ignores `justUnpaired` -> T5 ("the card shows that Telegram was unpaired"); T6 failed too, but that run also held the `/stop`-is-other mutation, so T6 is not separately evidenced for this one
+- mutation: `JUST_UNPAIRED_MS` = 1000 -> T6 ("the card still shows \"Telegram unpaired\" 992 ms after it was first seen")
+- mutation: `JUST_UNPAIRED_MS` = 9000 -> T6 ("and no later than 8000 ms after it", received 8951)
+- mutation: no announcement on true -> false -> T5 ("\"Telegram unpaired\" is announced", received 0); T6 not separately evidenced (that run held the "Pair sends nothing" mutation, which fails T6 first)
+- mutation: the paired root has no `data-row-key` and `data-section` -> T5 ("the focus went to the Telegram heading", inactive); T6 not separately evidenced (that run held the `Reject` `Announce` mutation, which fails T6 first)
+- mutation: the card focuses the heading itself on every true -> false (a `.focus()`) -> T6 ("the composer keeps focus"); `announce-focus-sources` ("has a .focus( call only in the files that ...", with `npm --prefix web test`)
+- mutation: `SessionOps.Unlink` skips `Announce` when the reason is `moved` (temporary) -> `TestOneLivePairing` ("one pairing event with paired 0 reaches A's stream"); T6 ("the card showed \"Telegram unpaired\"" at the move: the card stayed paired)
+- mutation: `SessionOps.Pair` passes `""` for `pairing.otherChatPaired` (temporary) -> `TestOneLivePairing` ("chat 123 got the confirmation, the other-chat notice and then the not-paired text")
+- mutation: the "other" branch quits as if the chat were paired (no reply) -> `TestOneLivePairing` ("chat 123 got the confirmation, the other-chat notice and then the not-paired text"); `TestStrangerReplies` fails too
+- mutation: `Other` replies to a paired chat too (its `If sessionRef '= "" Quit` line removed) -> `TestNameOnlyWhilePaired` ("a paired chat gets the confirmation and the bad-code reply, and no reply to its other messages", and the `/help` assertion), found at review
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `TelegramIn` now reads the command of each private message and answers through the one reply path: a code that does not pair gets `pairing.badCode`, a bare `/start` and `/help` get `pairing.start`, `/stop` submits `Unpair` (origin `telegram`) and gets `pairing.stopped`, and any other message from an unpaired chat gets `pairing.notPaired` once a minute through `TakeReplySlot`. The Telegram card shows "Telegram unpaired" for 5 s whenever `paired` turns false, announces it once, and its paired root is a row of the Telegram section, so the rail's own focus rule takes a lost focus to the Telegram heading (no focus code in the card, `status-rail.ts` and `FOCUS_CALLS` untouched).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls`: command dispatch (`Command`, `Stop`, `Other`, `Forget`, one `Reply`), `LOGSTOP`, class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls`: `TestBadCodes`, `TestStrangerReplies`, `TestStop`, `TestOneLivePairing`, helpers, `NewCode` lifetime, paired-chat reply assertions in `TestNameOnlyWhilePaired`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramIn.cls`: `TestPrivateOnly` asserts the one `pairing.notPaired` notice.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls`: `DropSessions` public, `PairBodies` takes a verb.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls`: `Send`, `Move`, `Finish` drops fixture sessions.
+- `web/src/app/rail/telegram-card/telegram-card-view.ts`, `telegram-card.ts`: the `just-unpaired` view, `JUST_UNPAIRED_MS`, the announcement and the row attributes.
+- `web/e2e/demo-path/telegram-page.spec.ts`: T5 extended, T6 added.
+- `web/scripts/ux-strings.test.mjs` (one string) and `web/scripts/announce-focus-sources.test.mjs` (two text entries): the standing and the 12.4 rulings.
+
+**Review findings.** 31 findings (high 0, medium 1, low 12, false 18).
+- Patches applied: 3 entries (1 medium, 2 low). `/stop` answered `not_paired` after a stale paired read now goes to `Other` as unpaired (In.cls); `TestNameOnlyWhilePaired` now asserts a paired chat's replies, with a mutation line (the `Other` mutation is red there).
+- Deferred: 1 (the card view's state order has no node-level unit test; the fix is a new Lane B-directory file, which needs a ruling; see frontmatter `deferred:`).
+- Rejected: all others, each with its reason in the Review Triage Log (specified behaviour, unreachable path, or low and not worth the added complexity).
+
+**Follow-up review recommended:** false (patched: medium 1, low 2; no high, fewer than two medium).
+
+**Verification performed.**
+- `npm --prefix web test`: 1127 passed, 0 failed. `npm --prefix web run lint`: clean.
+- Warm stack: `TelegramPair`, `TelegramIn`, `TelegramOut`, `TelegramNoToken` passed (also after the review patches for `TelegramPair` and `TelegramIn`).
+- `ci/iris.sh live demo-path`: 18 passed, 8 skipped (not-built placeholders), 0 failed; STEP 1 page: 12 passed, 0 skipped; floor 13 of 13.
+- Either-order browser check (the four describe blocks of `telegram-page.spec.ts` reversed, then restored and `cmp` identical): STEP 1 12 passed, 0 failed.
+- `ci/iris.sh shard lane-a@Channel`: passed (9 classes, 363 s); `--reverse`: passed (390 s).
+- `live sign-in --part 1/2` (127 passed) and `--part 2/2` (96 passed).
+- `test-ci-config.sh`, `test-boundaries.sh` (also after the patches) and `ci/checks.sh`: all passed.
+- `ci/changes.sh ci.yml --paths-from <file>`: every group runs (no base: "event none"), so the groups to expect in CI are install-fresh, install-upgrade, production, browser, shards, shards-2 and image.
+- The Lane B path `git status` check printed nothing.
+- Mutations: 21 table mutations applied, red and reverted at the first pass (see `mutation:` lines under `## Verification`), plus one at review. A Lane B mutation needed a restart of the `SessionOps` job on the warm stack.
+- Runtimes: the warm tag `e12s5implw` and the fresh tag `e12s5impl` are torn down.
+
+**New test durations (local, throwaway stack).** `TelegramPair` 59.7 to 62.7 s (was about 17 s; above the spec's 40 to 55 s estimate), T5 17.9 s, T6 24.6 s; `live demo-path` 2.8 min. Estimate for CI: `production` about +1.5 to 2 min and `browser` about +1 to 1.5 min over the last green head (31 and 28 min), inside REL-4's 35.
+
+**Residual risks.**
+- The card view's state order is pinned only by the browser tests (deferred).
+- T6's 4000 and 4500-8000 ms windows assume a poll lag under 500 ms on the CI runner.
+- Heading focus relies on the rail's `keepFocus` effect running on the same change; T5 and T6 measured it as working.

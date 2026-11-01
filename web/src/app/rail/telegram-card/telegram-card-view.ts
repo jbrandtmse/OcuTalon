@@ -1,5 +1,5 @@
 /**
- * The state of the Telegram card (Stories 12.8, 12.3 and 12.4; UX-DR55, UX-DR56, UX-DR116, FR-18, FR-22): which of its views the rail shows
+ * The state of the Telegram card (Stories 12.8, 12.3, 12.4 and 12.5; UX-DR55, UX-DR56, UX-DR116, FR-18, FR-22): which of its views the rail shows
  * under the Telegram heading. A framework-free module: it imports only types and the QR library's ESM default, and uses only erasable
  * TypeScript syntax, so Node runs it as it is.
  *
@@ -15,6 +15,9 @@
  * - Then it is paired while the state is `on` and the session is paired, with or without a bot name: the `circle-check` icon, "Telegram
  *   paired {middle dot} {name}" (or "Telegram paired" alone when the name is empty) and a ghost "Unpair" button. A paired card whose state is `off`
  *   or `rejected` says "not set up", because nothing reaches the chat then.
+ * - Then, for `JUST_UNPAIRED_MS` after the store's `paired` turned from true to false (the card holds that as `justUnpaired`), it is
+ *   just unpaired (UX-DR14, UX-DR56): the `circle-slash` icon and "Telegram unpaired" in one row, with no button, link, QR code or code.
+ *   Paused, not set up and paired all come ahead of it, so a pairing during the window shows the paired view.
  * - Then it shows nothing while the state is `on` with no bot name, or while it holds no code yet.
  * - Otherwise it is unpaired: the QR code and the "Open in Telegram" link of `https://t.me/<bot>?start=<code>`, and "New code in {n} min".
  *   `asksForCode` is the condition under which the card asks for a code at all.
@@ -41,7 +44,11 @@ export const TELEGRAM_CARD_TEXTS = {
   pairedAlone: 'Telegram paired',
   unpair: 'Unpair',
   unpairLabel: 'Unpair Telegram',
+  unpaired: 'Telegram unpaired',
 } as const;
+
+/** How long the just-unpaired view shows, in milliseconds: UX-DR14's five seconds. */
+export const JUST_UNPAIRED_MS = 5_000;
 
 /** How long a code lives on the page at most, in milliseconds: FR-18's ten minutes. */
 export const CODE_LIFETIME_MS = 600_000;
@@ -67,20 +74,24 @@ export interface HeldCode {
   due: number;
 }
 
-/** What the card itself knows: its held code, whether the last answer was a refusal (409), and the browser time now (milliseconds). */
+/**
+ * What the card itself knows: its held code, whether the last answer was a refusal (409), whether the pairing has just ended
+ * (`justUnpaired`, for JUST_UNPAIRED_MS), and the browser time now (milliseconds).
+ */
 export interface CardOwn {
   code: HeldCode | undefined;
   refused: boolean;
+  justUnpaired: boolean;
   now: number;
 }
 
 /**
- * The view of the card: paused, not set up, paired, unpaired or nothing. `retry` is the paused view's "Trying again at {time}" line, and ""
+ * The view of the card: paused, not set up, paired, just unpaired, unpaired or nothing. `retry` is the paused view's "Trying again at {time}" line, and ""
  * in the other views. `paired` is the paired view's line, "" in the other views. `link` is the unpaired view's pairing link and `minutes`
  * its {n}; they are "" and 0 in the other views.
  */
 export interface TelegramCardView {
-  kind: 'paused' | 'not-set-up' | 'paired' | 'unpaired' | 'none';
+  kind: 'paused' | 'not-set-up' | 'paired' | 'just-unpaired' | 'unpaired' | 'none';
   retry: string;
   paired: string;
   link: string;
@@ -155,6 +166,7 @@ export function telegramCardView(
     const line = telegram.displayName === '' ? TELEGRAM_CARD_TEXTS.pairedAlone : TELEGRAM_CARD_TEXTS.paired.replace('{name}', () => telegram.displayName);
     return { kind: 'paired', retry: '', paired: line, link: '', minutes: 0 };
   }
+  if (own.justUnpaired) return { kind: 'just-unpaired', retry: '', paired: '', link: '', minutes: 0 };
   if (telegram.state !== 'on' || telegram.botUserName === '' || own.code === undefined) {
     return { kind: 'none', retry: '', paired: '', link: '', minutes: 0 };
   }

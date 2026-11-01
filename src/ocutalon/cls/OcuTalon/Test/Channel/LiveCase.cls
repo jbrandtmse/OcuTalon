@@ -12,7 +12,8 @@ Include Ensemble
 ///     could reach the public Bot API.
 ///   - SaveMarks and RestoreMarks keep the marks telegramState and telegramPaused, DropChats deletes the Pairing rows of fixture chat ids,
 ///     FixtureSession and DropSessions make and remove the zztg... sessions that StateBody needs, and Cleanup does all the endings, so
-///     that every test ends with the one call on every path.
+///     that every test ends with the one call on every path. DropSessions is a public class method (Story 12.5): the second user of it is
+///     OcuTalon.Test.Channel.TelegramPageFixture.Finish, which removes the fixture sessions that the page test's Move made.
 ///   - The wait helpers poll for the offset, the Telegram state, a mark and the mock's calls.
 ///   - WaitMonitor, InstanceSeq, Events, WaitEvent and WaitClear read the telegramPaused status events that the production's own
 ///     StatusMonitor publishes on the instance stream (the pattern of OcuTalon.Test.Schedule.Stalled): the monitor's silent first run must be
@@ -21,8 +22,9 @@ Include Ensemble
 ///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow, Cut), and so are Enable, Disable, Marks
 ///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
-///   - PrivateMessage (an update with a name and a text), TextsTo (the sendMessage texts to one chat) and PairBodies (the Pair commands since a
-///     header mark) are public class methods for the pairing tests (Story 12.4); OcuTalon.Test.Channel.TelegramPageFixture calls the first.
+///   - PrivateMessage (an update with a name and a text), TextsTo (the sendMessage texts to one chat) and PairBodies (the Pair commands, or
+///     with the verb Unpair the Unpair commands of Story 12.5, since a header mark) are public class methods for the pairing tests (Story
+///     12.4); OcuTalon.Test.Channel.TelegramPageFixture calls the first.
 ///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
 ///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). TelegramIn calls the
 ///     two header ones and TelegramNoToken the other four as its own; TelegramPageFixture's search of the pairing codes (Story 12.3) calls
@@ -319,7 +321,7 @@ Method FixtureSession(prefix As %String) As OcuTalon.Data.Session [ Private ]
 }
 
 /// Deletes the fixture sessions (zztg...) with their events and counters.
-ClassMethod DropSessions() [ Private ]
+ClassMethod DropSessions()
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Session WHERE IrisUser %STARTSWITH 'zztg'")
 	While result.%Next() {
@@ -538,18 +540,25 @@ ClassMethod TextsTo(chatId As %Integer) As %DynamicArray
 	Quit texts
 }
 
-/// The Pair command bodies of the message headers after the mark, one per body, in order, each as {"codeHash", "chatRef", "origin"}.
-ClassMethod PairBodies(mark As %Integer) As %DynamicArray
+/// The bodies of the Pair commands (verb Pair, each as {"codeHash", "chatRef", "origin"}) or of the Unpair commands (verb Unpair, each as
+/// {"sessionRef", "chatRef", "origin"}) of the message headers after the mark, one per body, in order.
+ClassMethod PairBodies(mark As %Integer, verb As %String = "Pair") As %DynamicArray
 {
 	Set found = []
 	Set seen = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.Pair' ORDER BY ID", mark)
+	Set class = "OcuTalon.Msg.Command."_verb
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = ? ORDER BY ID", mark, class)
 	While result.%Next() {
 		Set id = result.%GetData(1)
 		If $ListFind(seen, id) Continue
 		Set seen = seen _ $ListBuild(id)
-		Set body = ##class(OcuTalon.Msg.Command.Pair).%OpenId(id)
-		If $IsObject(body) Do found.%Push({"codeHash": (body.CodeHash), "chatRef": (body.ChatRef), "origin": (body.Origin)})
+		Set body = $ClassMethod(class, "%OpenId", id)
+		If '$IsObject(body) Continue
+		If verb = "Pair" {
+			Do found.%Push({"codeHash": (body.CodeHash), "chatRef": (body.ChatRef), "origin": (body.Origin)})
+		} Else {
+			Do found.%Push({"sessionRef": (body.SessionRef), "chatRef": (body.ChatRef), "origin": (body.Origin)})
+		}
 	}
 	Quit found
 }

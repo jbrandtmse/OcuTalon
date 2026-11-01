@@ -231,6 +231,7 @@ const SOURCES = {
     'Telegram paired',
     'Unpair',
     'Unpair Telegram',
+    'Telegram unpaired',
     'Trace',
     'Open in Visual Trace (shows sign-in help first)',
     'Sign in to Visual Trace',

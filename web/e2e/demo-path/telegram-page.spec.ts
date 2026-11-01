@@ -19,6 +19,9 @@ import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../suppo
  * - Story 12.4's T5 and T4's paired cases: T5 drives the real pairing (TelegramIn and TelegramOut against the CI mock, the real code route,
  *   the real Pair command and the real DELETE) and T4 shows the paired card, with and without a name, from changed snapshots.
  *   web/scripts/demo-path-summary.mjs counts the file as a part of step 1 (the `page` in the file name).
+ * - Story 12.5's extension of T5 and its T6: T5's Unpair now shows the card's "Telegram unpaired" view for 5 s with the focus on the
+ *   Telegram heading, and the chat is told. T6 drives the real chain for a bad code (the card changes nothing), for /stop from the chat (the
+ *   view, its 5 s window, the heading focus, the announcement) and for a pairing elsewhere (the composer keeps focus).
  *
  * The browser runs in Asia/Kolkata with the en-GB locale, so a UTC time reads five and a half hours later, with an unpadded 24-hour hour:
  * 12:00 UTC is 17:30. The oracle for a time is `kolkata`, written here from the UTC clock and not from the page's own format.
@@ -660,6 +663,27 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
   });
 });
 
+/** The bot name that the pairing tests queue as getMe's answer. */
+const BOT = 'ocutalon_pair_bot';
+
+/** The catalog's texts that the chats of the pairing tests receive. */
+const CONFIRMATION = "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair).";
+const BAD = "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one.";
+const STOPPED = "Unpaired. This chat won't get OcuTalon messages anymore. Scan the QR code on the OcuTalon page to pair again.";
+const FROMPAGE = 'Unpaired from the OcuTalon page. Scan the QR code there to pair again.';
+
+/** How long the card shows "Telegram unpaired" (UX-DR14). */
+const JUST_UNPAIRED_MS = 5000;
+
+/** The count of the recorded announcements that hold the text. */
+const announcedCount = async (page: Page, text: string): Promise<number> => (await announcedTexts(page)).filter((one) => one.includes(text)).length;
+
+/** The pairing code in the card's "Open in Telegram" link, or "" when there is none. */
+async function codeOf(card: Locator): Promise<string> {
+  const href = (await card.getByRole('link', { name: /Open in Telegram/ }).getAttribute('href')) ?? '';
+  return new RegExp(`^https://t\\.me/${BOT}\\?start=([A-Za-z0-9_-]{22})$`).exec(href)?.[1] ?? '';
+}
+
 test.describe('a valid code pairs the chat with the session (Story 12.4)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
@@ -668,22 +692,22 @@ test.describe('a valid code pairs the chat with the session (Story 12.4)', () =>
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
-  const BOT = 'ocutalon_pair_bot';
   const CHAT = 84017734110;
   const NAME = 'Dana';
-  const CONFIRMATION = "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair).";
   const PAIRING_PATH = '/ocutalon/api/v1/pairing';
 
   /** The count of the recorded announcements that hold "Telegram paired". */
-  const pairedAnnouncements = async (page: Page): Promise<number> => (await announcedTexts(page)).filter((text) => text.includes('Telegram paired')).length;
+  const pairedAnnouncements = (page: Page): Promise<number> => announcedCount(page, 'Telegram paired');
 
   /**
    * T5: the real pairing, end to end. TelegramIn and TelegramOut run against the CI mock; the README account signs in; the card shows a real
    * code; the test reads it from the "Open in Telegram" link and injects `/start <code>` as a private chat named Dana. The chain TelegramIn,
    * Commands.Submit, SessionOps, the pairing event and the page shows the paired card within 5 s of the update being queued (the IRIS clock
    * takes the start, after a check that it agrees with the test's), announces it once, and the chat gets exactly the confirmation. A reload
-   * shows the paired card from the snapshot, with no announcement and no request for a code. One press on Unpair sends one DELETE, and the
-   * card is unpaired again with a fresh code. The matrix rows "The page pairs within 5 s", "A reload while paired" and "Unpair from the card".
+   * shows the paired card from the snapshot, with no announcement and no request for a code. One press on Unpair sends one DELETE; the card
+   * shows "Telegram unpaired" (Story 12.5: its icon, no button, link or code, the focus on the Telegram heading, one announcement), then is
+   * unpaired again with a fresh code, and the chat has been told. The matrix rows "The page pairs within 5 s", "A reload while paired" and
+   * "Unpair from the card".
    */
   test('T5: a valid code pairs the chat within 5 s, the card shows it and says so once, the chat is told, and Unpair undoes it', { tag: '@floor' }, async ({ page }) => {
     test.setTimeout(150_000);
@@ -772,16 +796,163 @@ test.describe('a valid code pairs the chat with the session (Story 12.4)', () =>
       expect(await pairedAnnouncements(page), 'the first value is not announced').toBe(0);
       expect(posts.length, 'and no code was asked for').toBe(0);
 
-      // Unpair from the card: one press, one DELETE, and a fresh code.
-      await card.getByRole('button', { name: 'Unpair Telegram', exact: true }).click();
+      // Unpair from the card: the button has focus, one press, one DELETE, "Telegram unpaired" with the focus on the heading, and a fresh code.
+      const unpairButton = card.getByRole('button', { name: 'Unpair Telegram', exact: true });
+      await unpairButton.focus();
+      await expect(unpairButton, 'the Unpair button has focus').toBeFocused();
+      await unpairButton.click();
       await expect.poll(() => deletes.length, { message: 'one DELETE of the pairing', timeout: LOADED_MS }).toBe(1);
-      await expect(card.locator('[data-state="unpaired"]'), 'the card is unpaired again').toHaveCount(1, { timeout: LOADED_MS });
+      const justUnpaired = card.locator('[data-state="just-unpaired"]');
+      await expect(justUnpaired, 'the card shows that Telegram was unpaired').toHaveCount(1, { timeout: LOADED_MS });
+      await expect.poll(async () => plain(await card.innerText()), { message: 'with that text only' }).toBe('Telegram unpaired');
+      const slash = card.locator('svg');
+      await expect(slash, 'the icon is the only svg').toHaveCount(1);
+      await expect(slash.locator('circle[cx="12"][cy="12"][r="10"]'), 'the icon is circle-slash: a circle').toHaveCount(1);
+      await expect(slash.locator('path[d="m9 15 6-6"]'), 'with the slash').toHaveCount(1);
+      await expect(slash, 'hidden from assistive technology').toHaveAttribute('aria-hidden', 'true');
+      await expect(slash, 'in the muted ink colour').toHaveCSS('color', await tokenColor(page, '--ink-muted'));
+      await expect(card.locator('a, button, img, canvas, [role="img"]'), 'no button, link, QR code or image').toHaveCount(0);
+      await expect(railOf(page).getByRole('heading', { name: 'Telegram', exact: true }), 'the focus went to the Telegram heading').toBeFocused();
+      await expect.poll(() => announcedCount(page, 'Telegram unpaired'), { message: '"Telegram unpaired" is announced', timeout: LOADED_MS }).toBe(1);
+      await expect(card.locator('[data-state="unpaired"]'), 'then the card is unpaired again').toHaveCount(1, { timeout: JUST_UNPAIRED_MS + LOADED_MS });
+      expect(await announcedCount(page, 'Telegram unpaired'), 'and "Telegram unpaired" was announced once only').toBe(1);
       const again = (await card.getByRole('link', { name: /Open in Telegram/ }).getAttribute('href')) ?? '';
       expect(again, 'with a fresh code').toMatch(new RegExp(`^https://t\\.me/${BOT}\\?start=[A-Za-z0-9_-]{22}$`));
       expect(again, 'which is not the old one').not.toContain(code);
       const state = (await (await page.request.get(STATE)).json()) as { telegram: { paired: boolean } };
       expect(state.telegram.paired, 'the session\'s /state says it is not paired').toBe(false);
       expect(deletes.length, 'and there was still only one DELETE').toBe(1);
+      await expect
+        .poll(async () => JSON.parse((await fixture(`Replies(${CHAT}, .texts)`, ['texts'])).values['texts'] ?? '[]') as string[], { message: 'the chat was told of the unpair', timeout: LOADED_MS, intervals: [1000] })
+        .toEqual([CONFIRMATION, FROMPAGE]);
+      passed = true;
+    } finally {
+      let finished = { reason: '' };
+      try {
+        finished = await fixture(`Finish(${quoted(saved)})`);
+      } finally {
+        await setTelegramIncluded(was);
+      }
+      if (finished.reason !== '') {
+        if (passed) expect(finished.reason, 'the fixture puts everything back').toBe('');
+        else test.info().annotations.push({ type: 'finish', description: finished.reason });
+      }
+    }
+  });
+});
+
+test.describe('bad codes, a bare start command and unpairing get polite answers (Story 12.5)', () => {
+  test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
+
+  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  const PAIRED_CHAT = 84017734111;
+  const MOVING_CHAT = 84017734112;
+  const STRANGER_CHAT = 84017734113;
+  const NAME = 'Dana';
+
+  /** The texts that a chat has received, as the fixture reads them from the mock. */
+  const repliesOf = async (chat: number): Promise<string[]> => JSON.parse((await fixture(`Replies(${chat}, .texts)`, ['texts'])).values['texts'] ?? '[]') as string[];
+
+  /**
+   * Watches the card, from now, until it has shown the just-unpaired view and then the unpaired one, polled every 100 ms. It must show the
+   * just-unpaired view at every poll up to 4000 ms after it was first seen, and the unpaired view comes between 4500 and 8000 ms after that.
+   */
+  async function watchWindow(page: Page): Promise<void> {
+    const card = cardOf(page);
+    const showing = card.locator('[data-state="just-unpaired"]');
+    const unpaired = card.locator('[data-state="unpaired"]');
+    const first = Date.now();
+    let seenAt = 0;
+    let unpairedAt = 0;
+    while (Date.now() < first + 40_000) {
+      const now = Date.now();
+      if (seenAt === 0) {
+        if ((await showing.count()) === 1) seenAt = now;
+      } else {
+        if ((await unpaired.count()) === 1) {
+          unpairedAt = now;
+          break;
+        }
+        if (now - seenAt <= 4000) expect(await showing.count(), `the card still shows "Telegram unpaired" ${now - seenAt} ms after it was first seen`).toBe(1);
+      }
+      await page.waitForTimeout(100);
+    }
+    expect(seenAt > 0, 'the card showed "Telegram unpaired"').toBe(true);
+    expect(unpairedAt > 0, 'and then the unpaired view').toBe(true);
+    expect(unpairedAt - seenAt, 'no sooner than 4500 ms after it was first seen').toBeGreaterThanOrEqual(4500);
+    expect(unpairedAt - seenAt, 'and no later than 8000 ms after it').toBeLessThanOrEqual(8000);
+  }
+
+  /**
+   * T6: the real chain for the answers of Story 12.5. A chat that uses a used code gets the bad-code reply and the paired card does not
+   * change. /stop from the paired chat (the Unpair button had focus) shows "Telegram unpaired" for 5 s, moves the focus to the Telegram
+   * heading, is announced once and tells the chat; the card then has a fresh code. When another chat pairs with that code and the composer
+   * has focus, a chat that moves to a session of its own makes the card show "Telegram unpaired" again with the focus where it was. The
+   * matrix rows "A bad code changes no page", "/stop from the chat" and "Pairing elsewhere, focus untouched".
+   */
+  test('T6: a bad code changes no page, /stop and a move show "Telegram unpaired" for 5 s with the focus kept or sent to the heading', { tag: '@floor' }, async ({ page }) => {
+    test.setTimeout(180_000);
+    const was = await setTelegramIncluded(1);
+    let saved = '';
+    let passed = false;
+    try {
+      const started = await fixture(`Start(.saved, ${quoted(BOT)}, 1)`, ['saved']);
+      saved = started.values['saved'] ?? '';
+      expect(started.reason, 'TelegramIn and TelegramOut start against the mock, which names the bot').toBe('');
+
+      await recordAnnouncements(page);
+      await signInReadmeLoaded(page);
+      const card = cardOf(page);
+      const paired = card.locator('[data-state="paired"]');
+      await expect(card.locator('[data-state="unpaired"]'), 'the card is unpaired with a code').toHaveCount(1, { timeout: LOADED_MS });
+      const first = await codeOf(card);
+      expect(first, 'the "Open in Telegram" link carries the code').not.toBe('');
+      expect((await fixture(`Pair(${quoted(first)}, ${PAIRED_CHAT}, ${quoted(NAME)}, .queuedAt)`, ['queuedAt'])).reason, 'chat 111 pairs with the code').toBe('');
+      await expect(paired, 'the card is paired').toHaveCount(1, { timeout: LOADED_MS });
+      await expect.poll(async () => plain(await card.innerText()), { message: 'with the chat\'s name' }).toBe('Telegram paired \u00b7 Dana Unpair');
+      await expect.poll(() => announcedCount(page, 'Telegram paired'), { message: '"Telegram paired" was announced once', timeout: LOADED_MS }).toBe(1);
+
+      // A bad code: the chat is told, and the page changes nothing.
+      expect((await fixture(`Send(${STRANGER_CHAT}, "", ${quoted('/start ' + first)}, .queuedAt)`, ['queuedAt'])).reason, 'chat 113 sends the used code').toBe('');
+      await expect.poll(() => repliesOf(STRANGER_CHAT), { message: 'chat 113 is told that the code did not work', timeout: LOADED_MS, intervals: [1000] }).toEqual([BAD]);
+      for (let i = 0; i < 12; i += 1) {
+        expect(plain(await card.innerText()), 'the card stays paired').toBe('Telegram paired \u00b7 Dana Unpair');
+        await page.waitForTimeout(250);
+      }
+      expect(await announcedCount(page, 'Telegram unpaired'), 'nothing was announced as unpaired').toBe(0);
+      expect(await announcedCount(page, 'Telegram paired'), 'and "Telegram paired" was not announced again').toBe(1);
+
+      // /stop from the chat, with focus on the Unpair button: the view, its window, the heading and the announcement.
+      const unpairButton = card.getByRole('button', { name: 'Unpair Telegram', exact: true });
+      await unpairButton.focus();
+      await expect(unpairButton, 'the Unpair button has focus').toBeFocused();
+      expect((await fixture(`Send(${PAIRED_CHAT}, "", "/stop", .queuedAt)`, ['queuedAt'])).reason, 'chat 111 sends /stop').toBe('');
+      await watchWindow(page);
+      await expect(railOf(page).getByRole('heading', { name: 'Telegram', exact: true }), 'the focus went to the Telegram heading').toBeFocused();
+      expect(await announcedCount(page, 'Telegram unpaired'), '"Telegram unpaired" was announced once').toBe(1);
+      await expect.poll(() => repliesOf(PAIRED_CHAT), { message: 'chat 111 got the confirmation and the unpaired text', timeout: LOADED_MS, intervals: [1000] }).toEqual([CONFIRMATION, STOPPED]);
+      const state = (await (await page.request.get(STATE)).json()) as { telegram: { paired: boolean } };
+      expect(state.telegram.paired, 'the session\'s /state says it is not paired').toBe(false);
+
+      // A pairing elsewhere: another chat pairs, the composer has focus, and that chat then moves to a session of its own.
+      const second = await codeOf(card);
+      expect(second, 'the card has a fresh code').not.toBe('');
+      expect(second, 'which is not the first').not.toBe(first);
+      expect((await fixture(`Pair(${quoted(second)}, ${MOVING_CHAT}, "Casey", .queuedAt)`, ['queuedAt'])).reason, 'chat 112 pairs with the fresh code').toBe('');
+      await expect.poll(async () => plain(await card.innerText()), { message: 'the card is paired with chat 112', timeout: LOADED_MS }).toBe('Telegram paired \u00b7 Casey Unpair');
+      await expect.poll(() => announcedCount(page, 'Telegram paired'), { message: '"Telegram paired" was announced twice in all', timeout: LOADED_MS }).toBe(2);
+      await composerOf(page).focus();
+      await expect(composerOf(page), 'the composer has focus').toBeFocused();
+      expect((await fixture(`Move(${MOVING_CHAT}, "Casey", .queuedAt)`, ['queuedAt'])).reason, 'chat 112 pairs with a session of its own').toBe('');
+      await watchWindow(page);
+      await expect(composerOf(page), 'the composer keeps focus').toBeFocused();
+      expect(await announcedCount(page, 'Telegram unpaired'), '"Telegram unpaired" was announced again, twice in all').toBe(2);
+      expect((await card.getByRole('link', { name: /Open in Telegram/ }).count()), 'the card has a fresh code again').toBe(1);
+      await expect.poll(() => repliesOf(MOVING_CHAT), { message: 'chat 112 got the confirmation twice', timeout: LOADED_MS, intervals: [1000] }).toEqual([CONFIRMATION, CONFIRMATION]);
       passed = true;
     } finally {
       let finished = { reason: '' };

@@ -23,6 +23,12 @@
 ///     a pairing made during the test leaves no chat behind, and reads the rows back. Now is the IRIS clock as Unix milliseconds. Pair waits
 ///     for an open long poll, takes queuedAt (Unix milliseconds) just before it queues one private "/start <code>" update with the chat's
 ///     first_name, and Replies lists the text of every sendMessage to a chat as a JSON array.
+///   - Story 12.5 (FR-18, FR-19, AD-4): Send(chatId, name, text, queuedAt) is Pair's body generalized (Pair calls it): it waits for an open
+///     long poll, takes queuedAt just before it queues one private update with the text, and with an empty name the update has no
+///     first_name. Move(chatId, name, queuedAt) makes a fixture session zztgmove<n>, stores a code for it (600 s) and Sends
+///     "/start <code>" from the chat, so that the chat pairs with a session of its own and leaves the session the page shows. Finish also
+///     removes the fixture sessions (LiveCase.DropSessions) after it has dropped the Pairing rows, which removes the move's code row.
+///     Every new method returns "" or a reason that holds no token.
 Class OcuTalon.Test.Channel.TelegramPageFixture Extends %RegisteredObject
 {
 
@@ -162,6 +168,7 @@ ClassMethod Finish(saved As %String) As %String
 		If held '= "" {
 			Set reason = ..DropRows($List(held, 2))
 			If (reason '= "") && (first = "") Set first = reason
+			Do $ClassMethod(..#CASE, "DropSessions")
 		}
 		Do $ClassMethod(..#CASE, "PutMarks", marks)
 		If ($ClassMethod(..#CASE, "Marks") '= marks) && (first = "") Set first = "the two Telegram marks are not as Start found them"
@@ -326,18 +333,44 @@ ClassMethod Now() As %Integer
 /// queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
 ClassMethod Pair(code As %String, chatId As %String, name As %String, Output queuedAt As %Integer) As %String
 {
+	Quit ..Send(chatId, name, "/start "_code, .queuedAt)
+}
+
+/// Waits for an open long poll, then queues one private update from the chat with the text, and with the name as its first_name unless
+/// the name is empty. queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Send(chatId As %String, name As %String, text As %String, Output queuedAt As %Integer) As %String
+{
 	Set queuedAt = 0
 	Try {
 		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
-		Set update = $ClassMethod(..#CASE, "PrivateMessage", chatId, name, "/start "_code)
+		Set update = $ClassMethod(..#CASE, "PrivateMessage", chatId, name, text)
 		Set batch = []
 		Do batch.%Push(update)
 		Set queuedAt = ..Now()
 		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
 	} Catch ex {
-		Return "Pair failed: "_..Safe(ex)
+		Return "Send failed: "_..Safe(ex)
 	}
 	Quit ""
+}
+
+/// Makes a fixture session of its own (zztgmove<n>), stores a code for it (600 s) and Sends "/start <code>" from the chat, so that the chat
+/// pairs with that session. Finish removes the session and the code row. Returns "" when the update was queued, or the reason it was not.
+ClassMethod Move(chatId As %String, name As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		Set number = $Increment(^OcuTalonTest("TelegramLive", "n"))
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zztgmove"_number, .sc)
+		If $$$ISERR(sc) Return "the fixture session could not be made: "_$SYSTEM.Status.GetErrorText(sc)
+		Set code = "zzmove"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+		Set sc = ##class(OcuTalon.Data.Pairing).StoreCode(session.Ref, ##class(OcuTalon.Data.Pairing).HashCode(code), expires)
+		If $$$ISERR(sc) Return "the fixture session's code could not be stored: "_$SYSTEM.Status.GetErrorText(sc)
+	} Catch ex {
+		Return "Move failed: "_..Safe(ex)
+	}
+	Quit ..Send(chatId, name, "/start "_code, .queuedAt)
 }
 
 /// The text of every sendMessage to the chat, in order, as a JSON array in texts. Returns "" or the reason it could not be read.

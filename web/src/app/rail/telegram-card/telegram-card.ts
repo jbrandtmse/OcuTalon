@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import type { Subscription } from 'rxjs';
 
 import { ApiClient } from '../../api/api-client';
@@ -17,6 +17,7 @@ import {
   CODE_RETRY_MS,
   CODE_SPACING_MS,
   dueTime,
+  JUST_UNPAIRED_MS,
   qrSymbol,
   TELEGRAM_CARD_TEXTS,
   telegramCardView,
@@ -47,10 +48,17 @@ import {
  * It is paired (Story 12.4; FR-15, FR-18, UX-DR55, UX-DR130, UX-DR132) while the snapshot says Telegram is `on` and the session is paired,
  *   with or without a bot name: the `circle-check` icon, "Telegram paired {middle dot} {name}" ("Telegram paired" alone for an empty name) and a ghost
  *   "Unpair" button named "Unpair Telegram", with no link, QR code or code. One press calls `ApiClient.unpair()` once, with no confirmation, and
- *   moves no focus in this story (Story 12.5 adds the just-unpaired state and the heading focus); the card then asks for a fresh code. The
+ *   moves no focus itself; the card then asks for a fresh code. The
  *   card announces "Telegram paired" once, when the store's `paired` changes from false to true while it shows this view; the first value
- *   it sees is never announced.
- * The root's `data-state` is `paused`, `not-set-up`, `paired` or `unpaired`.
+ *   it sees is never announced. The paired root is a row of the Telegram section (`data-row-key`, `data-section`), so the rail's focus rule
+ *   (status-rail.ts) takes a focus that the removed view held (the Unpair button) to the Telegram heading, whatever ended the pairing:
+ *   the page's Unpair, the chat's /stop or another pairing. Focus anywhere else stays where it is, and the card has no focus code.
+ * It is just unpaired (Story 12.5; UX-DR14, UX-DR56, UX-DR131) for `JUST_UNPAIRED_MS` (5 seconds) whenever the store's `paired` changes from
+ *   true to false while the card exists: the `circle-slash` icon and "Telegram unpaired", with no button, link, QR code or code. The first
+ *   value the card sees never starts it, so a page loaded while unpaired shows the unpaired view at once. The card asks for its code from
+ *   the change on, so the code is usually held when the 5 seconds end. Paused, not set up and paired come ahead of it, so a pairing during
+ *   the window shows the paired view. The card announces "Telegram unpaired" once for each change that starts the view.
+ * The root's `data-state` is `paused`, `not-set-up`, `paired`, `just-unpaired` or `unpaired`.
  */
 @Component({
   selector: 'app-telegram-card',
@@ -70,11 +78,15 @@ import {
         >
       </div>
     } @else if (view().kind === 'paired') {
-      <div class="card" data-state="paired">
+      <div class="card" data-state="paired" data-row-key="telegram:paired" data-section="telegram">
         <span class="paired">
           <app-icon class="paired-icon" name="circle-check" [size]="16" /><span class="text">{{ view().paired }}</span>
           <app-server-button variant="ghost" [label]="cardTexts.unpairLabel" [action]="unpair">{{ cardTexts.unpair }}</app-server-button>
         </span>
+      </div>
+    } @else if (view().kind === 'just-unpaired') {
+      <div class="card" data-state="just-unpaired">
+        <span class="unpaired-row"><app-icon class="unpaired-icon" name="circle-slash" [size]="16" /><span class="text">{{ cardTexts.unpaired }}</span></span>
       </div>
     } @else if (view().kind === 'unpaired') {
       <div class="card" data-state="unpaired">
@@ -110,13 +122,17 @@ import {
       font-size: var(--status-rail-section-row-typography-font-size);
       line-height: var(--status-rail-section-row-typography-line-height);
     }
-    .paused {
+    .paused,
+    .unpaired-row {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
     }
     .paused-icon {
       color: var(--telegram-card-paused-icon);
+    }
+    .unpaired-icon {
+      color: var(--ink-muted);
     }
     .paired {
       display: inline-flex;
@@ -188,6 +204,8 @@ export class TelegramCard {
   private readonly now = signal(Date.now());
   /** The asking key at which the server refused a code (409), or none. */
   private readonly refusedAt = signal<string | undefined>(undefined);
+  /** True for JUST_UNPAIRED_MS after the store's paired turned from true to false. */
+  private readonly justUnpaired = signal(false);
   /** When the latest request started, in browser milliseconds; it outlives the asking so that two requests are never closer than the spacing. */
   private lastRequest = Number.NEGATIVE_INFINITY;
 
@@ -203,7 +221,7 @@ export class TelegramCard {
     telegramCardView(
       this.telegram(),
       this.live.store()?.status,
-      { code: this.held(), refused: this.refused(), now: this.now() },
+      { code: this.held(), refused: this.refused(), justUnpaired: this.justUnpaired(), now: this.now() },
       { time: (iso) => pageTime(iso) },
     ),
   );
@@ -217,14 +235,33 @@ export class TelegramCard {
   protected readonly newCodeIn = computed(() => TELEGRAM_CARD_TEXTS.newCodeIn.replace('{n}', String(this.view().minutes)));
 
   constructor() {
-    // The announcement: "Telegram paired" once, when the store's paired changes from false to true while the card shows the paired view.
-    // The first value the card sees is only remembered, so a page loaded or reloaded while paired is silent.
+    // The pairing's announcements: "Telegram paired" once, when the store's paired changes from false to true while the card shows the
+    // paired view, and "Telegram unpaired" once, when it changes from true to false and the card then shows the just-unpaired view, which
+    // lasts JUST_UNPAIRED_MS. The first value the card sees is only remembered, so a page loaded or reloaded in either state is silent.
     let before: boolean | undefined;
+    let ending: ReturnType<typeof setTimeout> | undefined;
+    const endJustUnpaired = (): void => {
+      if (ending !== undefined) clearTimeout(ending);
+      ending = undefined;
+    };
+    inject(DestroyRef).onDestroy(endJustUnpaired);
     effect(() => {
       const paired = this.telegram().paired;
       const kind = this.view().kind;
       untracked(() => {
         if (before === false && paired && kind === 'paired') this.announcer.announce(TELEGRAM_CARD_TEXTS.pairedAlone);
+        if (before === true && !paired) {
+          endJustUnpaired();
+          this.justUnpaired.set(true);
+          ending = setTimeout(() => {
+            ending = undefined;
+            this.justUnpaired.set(false);
+          }, JUST_UNPAIRED_MS);
+          if (this.view().kind === 'just-unpaired') this.announcer.announce(TELEGRAM_CARD_TEXTS.unpaired);
+        } else if (paired) {
+          endJustUnpaired();
+          this.justUnpaired.set(false);
+        }
         before = paired;
       });
     });
