@@ -63,14 +63,14 @@ Where Voice and Tone, the Accessibility Floor, or Key Flows quote these texts, t
 
 **The main page in demo mode**, in reading, landmark, and tab order:
 
-1. **App header:** mark, wordmark, context badge, header navigation (from step 2), reset countdown (online demo), Visual Trace menu, theme menu, account menu.
+1. **App header:** mark, wordmark, context badge, Demo view switch, header navigation (from step 2), reset countdown (online demo), Visual Trace menu, theme menu, account menu. [AMENDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner: the Demo view switch; see "Demo guide and controls"]
 2. **Banner slot:** zero or more status banners.
 3. **Demo guide:** the steps, the prompt bar, and the Break the feed box at the right end, aligned over the device column.
 4. **Status rail** (left): Telegram, Approval requests, Background checks, Reminders, Recent decisions.
 5. **Chat** (center): the session's conversation, with the composer at the bottom.
 6. **Simulated devices** (right): the Simulated phone tab (the default) and the Simulated mailbox tab.
 
-Without demo mode, regions 3 and 6 are absent and the chat widens.
+Without demo mode, or with the Demo view switch off, regions 3 and 6 are absent and the chat widens. [AMENDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner: the Demo view switch; see "Demo guide and controls"]
 
 → Composition reference: [mockups/main-page.html](mockups/main-page.html) shows the main page at 1280×720 during UJ-1, at step 4 (light) and step 5 (dark).
 

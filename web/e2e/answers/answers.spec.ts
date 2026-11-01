@@ -788,6 +788,7 @@ test('X11: with the Demo view off the request is answerable in the chat, and the
     const response = await reply;
     expect(response.status()).toBe(200);
     const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
     await sendNotification(user, {
       kind: 'answered',
       catalogKey: 'answered.approved',

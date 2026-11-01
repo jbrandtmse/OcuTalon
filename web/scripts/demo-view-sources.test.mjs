@@ -4,11 +4,12 @@
 // test turning red.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { sourceFiles } from './source-files.mjs';
+import { code, sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const files = sourceFiles(join(here, '..', 'src', 'app'), ['.ts']);
@@ -87,5 +88,21 @@ describe('the switch is a native switch that only changes the view', () => {
     assert.match(code, /role="switch"/);
     assert.match(code, /aria-checked/);
     assert.doesNotMatch(code, /\bAnnouncer\b|\.announce\(|\.focus\(|\bApiClient\b|\bHttpClient\b/);
+  });
+});
+
+describe('the service sends and says nothing (QA, AC5)', () => {
+  it('has DemoView call no announcer, focus, server client or reload', () => {
+    const { code } = file('shared/demo-view.ts');
+    assert.doesNotMatch(code, /\bAnnouncer\b|\.announce\(|\.focus\(|\bApiClient\b|\bHttpClient\b|\.retry\(|\.reload\(/);
+    assert.doesNotMatch(code, /\bfetch\(|XMLHttpRequest|sendBeacon/);
+  });
+});
+
+describe('the browser cases compare structure, never pixels (QA, AC2)', () => {
+  it('has view.spec.ts take no screenshot and read no pixel', () => {
+    const spec = code(readFileSync(join(here, '..', 'e2e', 'demo-switch', 'view.spec.ts'), 'utf8'));
+    assert.match(spec, /async function structure\(/, 'the structure comparison is there');
+    assert.doesNotMatch(spec, /toHaveScreenshot|\.screenshot\(|getImageData|pixelmatch|toMatchSnapshot/i);
   });
 });

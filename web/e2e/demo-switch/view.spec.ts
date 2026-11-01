@@ -1,16 +1,19 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { changeSnapshot } from '../support/api';
+import { signInReadme } from '../sign-in/helpers';
+import { changeSnapshot, STATE } from '../support/api';
 import { composerOf, mainOf, railOf, signInReadmeLoaded } from '../support/floor';
 import { announcedTexts, recordAnnouncements } from '../support/page';
 
 /**
  * The Demo view switch on the real server switch (Story 4.9, matrix rows 1 to 9; docker/tests/test-demo-switch.sh runs this folder with
  * demo mode really off, then on again, OCUTALON_E2E_DEMO_MODE). V0 runs in mode 0 only: no switch on a server with demo mode off, and a
- * page that the switch turned off has the structure of that page. V1 to V5 run in mode 1: the switch itself (V1), the page with the switch
+ * page that the switch turned off has the structure of that page. V1 to V9 run in mode 1: the switch itself (V1), the page with the switch
  * off against the page of a server with demo mode off (V2), a chat turn with the switch off (V3), the guide's return (V4), the header's
- * fit and markers (V5) and a storage that throws (V6). The comparison is of structure (landmarks and regions, skip links, rail headings, main's right edge), never pixels.
- * The file sorts last of the folder, so V3's turn on the README session comes after every other spec and after the runner's chat checks.
+ * fit and markers (V5, in two cases: the online demo, and the local demo's pill), a storage that throws (V6), the Telegram card (V7), a
+ * failed snapshot (V8) and the stored values (V9). The comparison is of structure (landmarks and regions, skip links, rail headings,
+ * main's right edge), never pixels. The file sorts last of the folder, so V3's turn on the README session comes after every other spec
+ * file and after the runner's chat checks; no case counts that session's turns.
  */
 function stackMode(): '0' | '1' {
   const mode = process.env['OCUTALON_E2E_DEMO_MODE'];
@@ -208,7 +211,7 @@ test('V3: with the switch off a message is sent and its reply lands', async ({ p
 
   const replies = page.locator('app-chat-panel [data-part="reply"]');
   const before = await replies.count();
-  const text = 'zz demo view hello';
+  const text = `zz demo view hello ${Date.now().toString(36)}`;
   await composerOf(page).fill(text);
   await composerOf(page).press('Enter');
   await expect(page.locator('app-chat-panel [data-part="user"]').filter({ hasText: text }), 'the turn shows').toHaveCount(1, { timeout: 15_000 });
@@ -225,6 +228,8 @@ test('V4: the guide returns at the current step, selected, with its Hide guide c
   const sw = demoView(page);
   const guide = guideRegion(page);
   await expect(stepOf(page, 3, 'current')).toHaveClass(/selected/);
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(`${request.method()} ${new URL(request.url()).pathname}`));
   await stepOf(page, 1, 'done').click();
   await expect(stepOf(page, 1, 'done'), 'the user selected step 1').toHaveClass(/selected/);
   await guide.getByRole('button', { name: 'Hide guide', exact: true }).click();
@@ -249,6 +254,7 @@ test('V4: the guide returns at the current step, selected, with its Hide guide c
 
   const heard = await announcedTexts(page);
   expect(heard.filter((text) => text.includes('Step 3 of 5')), 'no step announcement').toEqual([]);
+  expect(requests.filter((request) => !/^GET \/ocutalon\/api\/v1\/events$/.test(request)), 'going off and back on, the guide sends and loads nothing but the poll').toEqual([]);
 });
 
 test('V5: the markers stay with the switch off, and the header fits from 320px up', async ({ page }) => {
@@ -272,6 +278,7 @@ test('V5: the markers stay with the switch off, and the header fits from 320px u
   for (const [width, labelShows] of [[1440, true], [1280, true], [1024, false], [640, true], [320, true]] as const) {
     await page.setViewportSize({ width, height: 800 });
     await expect.poll(() => label.evaluate((el) => el.classList.contains('visually-hidden')), { message: `${width}px: the label ${labelShows ? 'shows' : 'is visually hidden'}` }).toBe(!labelShows);
+    if (labelShows) expect((await label.boundingBox())?.width ?? 0, `${width}px: the label takes its width`).toBeGreaterThan(20);
     await expect(demoView(page).locator('.track'), `${width}px: the track shows`).toBeVisible();
     expect(await fits(page), `${width}px: nothing scrolls across`).toBe(true);
     expect(await rightGroupInside(page), `${width}px: the right group ends inside the header`).toBe(true);
@@ -303,6 +310,83 @@ test('V6: when sessionStorage throws, a press still toggles the view for the pag
   await sw.click();
   await expect(sw, 'and on again').toHaveAttribute('aria-checked', 'true');
   await expect(guideRegion(page)).toHaveCount(1);
+});
+
+/** The Telegram card, as the rail shows it: the section headings, the card's text and its link's address and target. */
+async function telegramReading(page: Page): Promise<{ headings: string[]; card: string; href: string | null; target: string | null }> {
+  const link = railOf(page).locator('app-telegram-card a');
+  return {
+    headings: (await structure(page)).railHeadings,
+    card: (await railOf(page).locator('app-telegram-card').count()) === 0 ? '(no card)' : ((await railOf(page).locator('app-telegram-card').textContent())?.replace(/\s+/g, ' ').trim() ?? ''),
+    href: (await link.count()) > 0 ? await link.getAttribute('href') : null,
+    target: (await link.count()) > 0 ? await link.getAttribute('target') : null,
+  };
+}
+
+test('V7: the Telegram card is the same with the switch off as with it on, on a local and on the online demo', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'mode 1 only');
+  await signInReadmeLoaded(page);
+  const cases = [
+    { state: 'off', online: false, card: /^Telegram not set up\s*How to set it up/ },
+    { state: 'rejected', online: false, card: /^Telegram not set up\s*How to set it up/ },
+    { state: 'on', online: false, card: /^$/ },
+    { state: 'off', online: true, card: /^Telegram not set up\s*How to set it up/ },
+  ] as const;
+  for (const one of cases) {
+    const tab = await otherTab(page, (snapshot) => {
+      snapshot['telegram'] = { ...(snapshot['telegram'] as object), included: true, state: one.state };
+      if (one.online) {
+        snapshot['onlineDemo'] = true;
+        snapshot['nextReset'] = new Date(Date.now() + 2 * 3_600_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      }
+    }, false);
+    const label = `${one.state}${one.online ? ', online demo' : ''}`;
+    const on = await telegramReading(tab);
+    expect(on.headings[0], `${label}: with the switch on the first rail section is Telegram`).toBe('Telegram');
+    expect(on.card, `${label}: and the card says what its state says`).toMatch(one.card);
+
+    await demoView(tab).click();
+    await expect(demoView(tab)).toHaveAttribute('aria-checked', 'false');
+    await expect(guideRegion(tab), `${label}: the demo parts are gone`).toHaveCount(0);
+    expect(await telegramReading(tab), `${label}: the Telegram section, card and link are as they were`).toEqual(on);
+
+    await demoView(tab).click();
+    await expect(guideRegion(tab)).toHaveCount(1);
+    expect(await telegramReading(tab), `${label}: and again with the switch back on`).toEqual(on);
+    await tab.close();
+  }
+});
+
+test('V8: with no snapshot (the answer failed) there is no switch, whatever this tab stored', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'mode 1 only');
+  await startOff(page);
+  await page.route(`**${STATE}`, (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } } }));
+  await signInReadme(page);
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'failed');
+  await expect(page.getByRole('button', { name: 'Account', exact: true }), 'the header is there').toBeVisible();
+  await expect(page.getByRole('switch'), 'no Demo view switch without a snapshot that says demo mode').toHaveCount(0);
+  await expect(guideRegion(page)).toHaveCount(0);
+  await expect(devicesRegion(page)).toHaveCount(0);
+});
+
+test('V9: only a stored 1 turns the switch off; a missing, empty or other value reads on', async ({ page }) => {
+  test.skip(stackMode() !== '1', 'mode 1 only');
+  await signInReadmeLoaded(page);
+  for (const [stored, checked] of [['1', 'false'], ['0', 'true'], ['', 'true'], ['true', 'true'], ['off', 'true']] as const) {
+    const tab = await page.context().newPage();
+    await tab.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [KEY, stored]);
+    await tab.goto('/ocutalon/');
+    await expect(mainOf(tab)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(demoView(tab), `a stored ${JSON.stringify(stored)} reads ${checked === 'true' ? 'on' : 'off'}`).toHaveAttribute('aria-checked', checked);
+    await expect(guideRegion(tab), 'and the Demo guide follows it').toHaveCount(checked === 'true' ? 1 : 0);
+    if (checked === 'true') {
+      await demoView(tab).click();
+      expect(await tab.evaluate((key) => sessionStorage.getItem(key), KEY), 'a press writes 1 for off').toBe('1');
+      await demoView(tab).click();
+      expect(await tab.evaluate((key) => sessionStorage.getItem(key), KEY), 'and 0 for on').toBe('0');
+    }
+    await tab.close();
+  }
 });
 
 test('V5: on a local demo the Demo mode pill stays with the switch off', async ({ page }) => {

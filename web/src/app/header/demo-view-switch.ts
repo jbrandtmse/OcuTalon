@@ -35,6 +35,9 @@ import { DEMO_VIEW_HELP_ID, DEMO_VIEW_TEXTS } from './demo-view-texts';
     }
   `,
   styles: `
+    :host {
+      display: contents;
+    }
     .header-switch {
       white-space: nowrap;
       gap: 6px;
