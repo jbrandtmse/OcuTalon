@@ -2,7 +2,7 @@
 title: 'Ask OcuTalon what happened earlier, and it tells you from its own records'
 type: 'feature'
 created: '2026-10-31'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -148,6 +148,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 
 ## Spec Change Log
 
+- 2026-11-01 (plan round 1 -> round 2): the orchestrator ruled on the round-1 intent gap (contended test lists). See Design Notes, "Orchestrator ruling (2026-11-01)". Status reset to draft for re-planning around the ruling.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -195,6 +197,13 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 - **Times.** Times follow the catalog's rule exactly: `ForMessage`, plus " ET" on the online demo, and no label on a local install.
 - **The answer's words.** The approval answers are `waiting`, `approved`, `rejected`, `expired` and `cancelled`, and the step label is "Reading recent activity". Both follow the precedent of earlier step labels, which the UX does not list.
 - **The Given state of AC3** is fixture rows shaped like the demo path's records. The When and the Then run through the real chat pipeline. A full Break the feed run in this test would repeat `live:demo-path` at several minutes of CI time.
+
+**Orchestrator ruling (2026-11-01, on the round-1 intent gap; binding):**
+1. **Contended test lists: allowed, one-name append-only.** This story may add `recent_activity` (or `OcuTalon.Tools.RecentActivity:recent_activity`) to exactly these lists and nothing else in those files: `Test/Tools/Reminders.cls` L263 (`TestSetRelative`'s sorted list), `Test/Watch/Turns.cls` L63 (the offered-tools list), `Test/Agent/Instructions.cls` (the doc at L23-24 and the expected list at L205-212), and `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` and `READONLYTOOLS` (append `OcuTalon.Tools.RecentActivity:recent_activity` to each). No other line of those four files changes. A merge conflict on them is a plain union (both sides kept, plus the new name).
+2. **Non-contended extensions allowed:** `Tools/Names.cls`, `Test/Watch/Tools.cls`, `Test/Agent/Runners.cls`, `Test/Agent/Constants.cls`.
+3. **Spine:** the Conventions "Tool classification" row gains the `recent_activity` clause (written by the lead at the spec gate). AD-22's "11 built-in tool names" is NOT edited in this story: the orchestrator writes the as-built count (12) at the merge gate (veto item U-199). Do not plan any spine edit; `Test/Agent/Constants.cls` may still assert 12 names in `OcuTalon.Tools.Names`.
+4. **Decided in-stage choices accepted:** the element at fault only on an exact match with the approved fix's field or an item name, otherwise empty; a closed incident reads "closed", not "dismissed"; "reminders fired today" omitted.
+The intent gap below is resolved by this ruling; re-plan with it and keep the rest of the plan.
 
 **For the lead (Rule 20, at the spec gate):**
 - The spine's Tool classification row gains "so is the read-only `recent_activity` ... pinned by `Test.Tools.RecentActivity`".
