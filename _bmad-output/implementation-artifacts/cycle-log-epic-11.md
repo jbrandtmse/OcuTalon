@@ -200,3 +200,5 @@
 2026-11-01T12:04:08Z	Story 11.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 new_this_story=DW-525(wontfix-theoretical),DW-526(wontfix-accepted) model=claude-opus-5-5
 2026-11-01T12:04:08Z	Story 11.2	smoke_complete	method=cli(release/upgrade-harness.sh_build,settings,seed,upgrade,restart,storage,report,down;fresh_lane-A_tag_e11s2sm) result=pass iterations=1 defects_caught=0 evidence=Result_pass,every_record_row_pass,phases_6/155/108/295/20/11s model=claude-opus-5-5
 2026-11-01T12:04:08Z	Story 11.2	fresh_check	env=recipe(hermetic_self-tests;ci/iris.sh_live_install-upgrade_fresh) tests=test-upgrade-harness.sh(14_rules),test-storage.sh,test-boundaries.sh,test-ci-config.sh,live_install-upgrade(335s) result=pass order=forward,reverse(harness,storage,storage,harness)
+2026-11-01T12:04:38Z	Story 11.2	committed	sha=4bb3d59c submodules= ci=pending runs=41304700491,41304700489 amendments=none pushed=verified_on_origin
+2026-11-01T12:04:38Z	Story 11.2	story_cycle	plan_to_commit_min=1070(includes_hold_9) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
