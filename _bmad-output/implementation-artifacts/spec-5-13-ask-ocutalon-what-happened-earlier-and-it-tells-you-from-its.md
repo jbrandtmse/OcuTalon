@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-31'
 status: 'done'
 baseline_revision: '7ca64df2ad1d2d3c0772d3a375d860af268dcb2c'
+baseline_commit: '7ca64df2ad1d2d3c0772d3a375d860af268dcb2c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -171,6 +172,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
   - the diff is the files above.
 
 ## Spec Change Log
+
+- 2026-11-01 (lead, after implement): DW-517 (owner this story) is fixed in this story at code review: `Eval/Report.cls` `TOOLCLASSES` gains `OcuTalon.Tools.RecentActivity` (one-name append, a non-contended footprint extension), pinned by an assertion in `Test.Tools.RecentActivity` (not in `Test.Eval.Report`, which is in Epic 30's diff). AC4's "no Eval file changed" now reads: no Eval file changed except that one append. DW-518 (Chat INSTRUCTIONS) is out of footprint and goes to the decision sheet.
 
 - 2026-11-01 (plan round 1 -> round 2): the orchestrator ruled on the round-1 intent gap (contended test lists). See Design Notes, "Orchestrator ruling (2026-11-01)". Status reset to draft for re-planning around the ruling.
 - 2026-11-01 (plan round 2): applied the ruling. The four contended files are one-name appends, and the Tasks say that nothing else in them changes. Three in-stage choices are recorded (alphabetical placement, the same-line message counts, no Instructions `arguments` line). The intent gap is marked resolved, the "For the lead" items are dropped (the spine clause is written, and AD-22 is the orchestrator's), and the Shared surfaces carry no "blocked". KEEP: the rest of the round-1 plan (the intent, the matrix, the element check, the window, the times, the tests and the mutations).

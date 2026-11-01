@@ -2723,3 +2723,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: test-online-demo.sh:555: the input redirect fails before tr's 2>/dev/null applies; online_signin writes <jar>.g only after a 3xx; row 5 passes and its cookie-get check is moot at status 200
 - 2026-10-31T19:24:43Z status=wontfix-accepted owner=16-11-the-splash-promises-telegram-only-when-the-release-includes by=cr note=reopen_if=a stage reports the line as a failure again, or row 5 checks a refusal that redirects (docker/tests contended)
+
+### DW-517: Eval.Report TOOLCLASSES omits OcuTalon.Tools.RecentActivity, so Eval.Report.ReadOnly(recent_activity) is 0 and an eval Chat turn that calls recent_activity is scored as having acted
+- source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Eval/Report.cls L83 TOOLCLASSES=WatchTools,ReminderTools; ReadOnly reads READONLY<NAME> only from those classes
+- 2026-11-01T05:37:34Z status=open owner=5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its by=harvest note=lead: fix in this story at code review: append the class to TOOLCLASSES (non-contended footprint extension) and pin ReadOnly(recent_activity)=1 in Test.Tools.RecentActivity, not in Test.Eval.Report (Epic 30's diff)
+
+### DW-518: Chat INSTRUCTIONS give per-tool guidance for the other watch tools but none for recent_activity; whether the real model calls it for What was that failure earlier rests on the tool description alone (the mock scripts the call)
+- source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls INSTRUCTIONS L53-61 name check_status, dismiss_incident, list_productions; Chat.cls is Epic 11's (orchestrator ruling); no real-model run in this story (no key)
+- 2026-11-01T05:37:34Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route a one-line INSTRUCTIONS entry for recent_activity to the Chat.cls owner (Epic 11) after 5.13 merges, and confirm with one real-model ask in the release-candidate check (Epic 38) or live:demo-path
