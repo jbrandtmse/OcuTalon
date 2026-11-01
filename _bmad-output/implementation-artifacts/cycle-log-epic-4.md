@@ -270,3 +270,4 @@
 2026-11-01T07:22:26Z	Story 4.8	spec_validated	service_introducing=false(removal+focus_target_change) integration_ac=declared-none(Rule1_note) adr_constrained_acs=AD-1,AD-12,AD-29,Conv_focus,Conv_angular,Conv_tests adr_tooled_acs=none decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false(throwaway_e4s8i_only) ruling=01-page_step3_block_moved_after_loop(within_footprint_file;decide) model=claude-opus-5-5
 2026-11-01T07:22:36Z	Epic 4	ci_resolved	story=epic_start sha=da367a01 runs=41283827993,41283828009 result=success failed=none via=none resolved_at=next_plan
 2026-11-01T07:22:36Z	Epic 4	epic_status_reopened	epic-4=in-progress(SC-5_reopen;sanctioned_by_dispatch)
+2026-11-01T07:22:36Z	Story 4.8	stage_spawned	stage=implement spawn_at=2026-11-01T07:22:36Z model=claude-sonnet agent_name=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon-implement-1 cycle_iteration=1 story_base=7556b81e
