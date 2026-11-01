@@ -266,3 +266,5 @@
 2026-11-01T07:09:56Z	Epic 4	retro_review_skipped	reason=skip(no_X.0_input;reopen;dispatch)
 2026-11-01T07:12:01Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(reopen_4.8-4.10) model=claude-opus
 2026-11-01T07:12:22Z	Story 4.8	stage_spawned	stage=plan spawn_at=2026-11-01T07:12:22Z model=claude-opus agent_name=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon-plan-1 cycle_iteration=1
+2026-11-01T07:22:26Z	Story 4.8	story_created	spawn_at=2026-11-01T07:12:22Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md build_status=ready-for-dev warnings=oversized epic_context=reused
+2026-11-01T07:22:26Z	Story 4.8	spec_validated	service_introducing=false(removal+focus_target_change) integration_ac=declared-none(Rule1_note) adr_constrained_acs=AD-1,AD-12,AD-29,Conv_focus,Conv_angular,Conv_tests adr_tooled_acs=none decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false(throwaway_e4s8i_only) ruling=01-page_step3_block_moved_after_loop(within_footprint_file;decide) model=claude-opus-5-5
