@@ -171,3 +171,5 @@
 2026-11-01T07:50:05Z	Story 11.10	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 new_this_story=DW-522(routed->11.12),DW-523(wontfix-accepted) model=claude-opus-5-5
 2026-11-01T07:59:32Z	Story 11.10	smoke_complete	method=browser(ci/iris.sh_live_demo-path,fresh;07_failure-paths,08_quiet-outcomes) result=pass iterations=1 defects_caught=0 evidence=8_of_8_steps(2_partly_skipped),floor_7/7,280s model=claude-opus-5-5
 2026-11-01T07:59:32Z	Story 11.10	fresh_check	env=recipe(ci/warm.sh_up_fresh_e11s10fcw;node_--test;test-demo-path-gate.sh;ci/mock_node_tests) tests=2_IRIS_classes(Test.Demo.Production,Test.Eval.Run)+demo-path-summary.test.mjs(37)+gate+mock(132)+demo-path_live(smoke) result=pass order=forward,reverse(P,E,E,P)
+2026-11-01T07:59:55Z	Story 11.10	committed	sha=64091097 submodules= ci=pending runs=41286953107,41286953112 amendments=epics.md:11.12_DW-522_bullet pushed=verified_on_origin
+2026-11-01T07:59:55Z	Story 11.10	story_cycle	plan_to_commit_min=608(includes_hold_9) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
