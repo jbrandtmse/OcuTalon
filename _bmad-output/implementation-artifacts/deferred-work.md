@@ -2834,3 +2834,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
 - 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
+
+### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: release/checklist.sh row_public_text scans the draft for local paths and key-like text only
+- 2026-11-01T23:27:24Z status=routed owner=11-13-the-release-gets-draft-notes by=harvest note=11.13's draft check also refuses the name outside the note (the note verbatim, or nowhere)

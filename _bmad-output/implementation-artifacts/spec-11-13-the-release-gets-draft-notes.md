@@ -136,6 +136,9 @@ deferred: []
 
 ## Design Notes
 
+**Lead update 2026-11-01 (DW-551, from Story 11.4's implement stage; address it in Tasks & Acceptance).** Story 11.4's built `row_public_text` takes the notes file as an argument and scans it for local paths and key-like text only. The draft check this story writes must also refuse the inspiration's name outside the not-affiliated note (the note verbatim, or the name nowhere), with a pinning test; adjudicate DW-551 against it.
+
+
 **Architecture decisions.**
 
 | AD | What it governs here |

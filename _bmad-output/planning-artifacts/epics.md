@@ -4067,6 +4067,7 @@ For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the ch
 **When** the notes generator in `release/` runs
 **Then** it drafts notes for the version in plain language, grouped by area, from the stories merged since the previous tag, claiming only what the release ships, with no class names or error codes outside a developer section (NFR-24, REL-8, CON-5)
 **And** the draft includes the evaluation summary from the result file Story 9.5 writes in `eval/` (scores, mean and maximum decision cost, largest request, and any REL-5 override reason), the rehearsal's timings, the upgrade result and any REL-5 override with its reason, and the author edits and publishes it (FR-62, REL-5, REL-6, REL-8)
+- DW-551: The release checklist scans the draft notes only for local paths and key-like text; 11.13's draft check also refuses the inspiration's name outside the not-affiliated note (the note verbatim, or nowhere) (ledger; routed by harvest 2026-11-01)
 
 ### Story 11.5: One scripted sequence cuts a release
 

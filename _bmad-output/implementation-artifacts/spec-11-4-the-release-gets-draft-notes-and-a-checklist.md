@@ -5,6 +5,7 @@ created: '2026-11-01'
 status: 'done'
 review_loop_iteration: 0
 baseline_revision: 'fc28b0159723146d0c6c0834cab8764ce741bc8b'
+baseline_commit: 'fc28b0159723146d0c6c0834cab8764ce741bc8b'
 followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
