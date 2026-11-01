@@ -13,16 +13,26 @@
 ///     notification event, every hop is in the session's SuperSession, and there is no Turn row and no chat.message event
 ///     (NFR-14);
 ///   - TestEachOutcomeThroughTheRouter: ItemDecisions of each outcome, with and without a CatalogKey, sent into OutcomeRouter:
-///     ignore leaves nothing, digest goes to DigestStore, tellnow and act each leave a card;
+///     ignore leaves nothing, digest is kept by DigestStore as one Digest.Data.Item row (the session, the DecisionRef, the
+///     channel, the summary and a RecordedAt between the send and the wait's end) with no live event, tellnow and act each leave
+///     a card;
 ///   - TestEvalItemWritesNoDeliveryOrEvent: an Item owned by eval reaches EvalSink and nothing else, and leaves no Delivery row
 ///     and no live event (AD-22); the decide row that the real Decide records for it (owner eval) is adopted for the clean-up;
 ///   - TestReplyRecordsItsDeliveryOnly: an Outbound sent to Notify reaches WebChatOut, which records its Delivery row and
 ///     publishes no notification event.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("RoutingProduction","n")) and the clean-up are those of
-/// Test.Core.InProduction; the clean-up also removes the Delivery rows of the fixture sessions and the decide rows that the tests
-/// adopt.
+/// Test.Core.InProduction; the clean-up also removes the Delivery rows of the fixture sessions, the decide rows that the tests
+/// adopt and the digest rows of the fixture prefix (Test.Digest.Store.Clean).
 Class OcuTalon.Test.Core.RoutingProduction Extends OcuTalon.Test.Core.InProduction
 {
+
+/// The base's clean-up, then the digest rows that the digest cases left (the fixture prefix of Test.Digest.Store).
+Method OnAfterAllTests() As %Status
+{
+	Set sc = ##super()
+	Do ##class(OcuTalon.Test.Digest.Store).Clean()
+	Quit sc
+}
 
 /// The start of the user name of each fixture session.
 Parameter SESSIONPREFIX = "zzprodroute";
@@ -99,9 +109,9 @@ Method TestUntrustedItemReachesTheWebChat()
 	Do $$$AssertEquals(..WaitEvents(session, "chat.message", 0).%Size(), 0, "and no chat.message event is published")
 }
 
-/// ItemDecisions sent into OutcomeRouter: an ignore leaves nothing (no request leaves the router); a digest goes to DigestStore
-/// and leaves no card; a tell now and an act each leave one card with the summary and the first reason line of the session's own
-/// Decision row, or with the two lines of the CatalogKey they carry.
+/// ItemDecisions sent into OutcomeRouter: an ignore leaves nothing (no request leaves the router); a digest goes to DigestStore,
+/// which keeps one row for it, and leaves no card and no live event; a tell now and an act each leave one card with the summary
+/// and the first reason line of the session's own Decision row, or with the two lines of the CatalogKey they carry.
 Method TestEachOutcomeThroughTheRouter()
 {
 	If '..Guard() Quit
@@ -113,7 +123,7 @@ Method TestEachOutcomeThroughTheRouter()
 			Set decisionRef = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", , {"Outcome": (outcome), "Reasons": ("zz first."_$Char(10)_"zz second.")})
 			Set ..Refs = ..Refs_","_decisionRef
 			Set decision = ##class(OcuTalon.Msg.ItemDecision).%New()
-			Set decision.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set decision.ItemId = $Select(outcome = "digest": ##class(OcuTalon.Test.Digest.Store).NewRef(), 1: ##class(OcuTalon.Bridge.Ids).NewRef())
 			Set decision.OwnerRef = session
 			Set decision.Channel = "mailbox"
 			Set decision.Summary = "zz Dana: Invoice"
@@ -123,6 +133,8 @@ Method TestEachOutcomeThroughTheRouter()
 				Set decision.CatalogKey = "watch.productionStopped"
 				Set decision.Slots = "{""production"":""Orders"",""time"":""2026-10-16T18:12:00Z""}"
 			}
+			Set eventMark = ##class(OcuTalon.Test.Digest.Store).EventMark()
+			Set before = ##class(OcuTalon.Data.Time).NowUtc()
 			Do $$$AssertStatusOK(..SendTo("OutcomeRouter", decision, trace), label_": the ItemDecision is sent to OutcomeRouter")
 			If (outcome = "tellnow") || (outcome = "act") {
 				Set card = ..WaitCard(session)
@@ -141,10 +153,13 @@ Method TestEachOutcomeThroughTheRouter()
 				Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "OutcomeRouter", "Notify").%Size(), 1, label_": one Notification goes from OutcomeRouter to Notify")
 				Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "OutcomeRouter", "DigestStore").%Size(), 0, label_": and none to DigestStore")
 			} ElseIf outcome = "digest" {
-				Do ..WaitHops(trace, "OutcomeRouter", "DigestStore", 1)
+				Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "OutcomeRouter", "DigestStore", 1, ..#WAIT), label_": DigestStore has handled the ItemDecision")
+				Set after = ##class(OcuTalon.Data.Time).NowUtc()
 				Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 				Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "OutcomeRouter", "DigestStore")
 				Do $$$AssertEquals(sent.%Size(), 1, label_": the ItemDecision goes to DigestStore")
+				Do $$$AssertEquals(##class(OcuTalon.Test.Digest.Store).KeptProblems(decision.ItemId, session, decisionRef, "mailbox", "zz Dana: Invoice", before, after), "", label_": one digest row holds the ItemId, with the session, the DecisionRef, the channel, the summary and the time of the send")
+				Do $$$AssertEquals(##class(OcuTalon.Test.Digest.Store).LiveEvents(session, decision.ItemId, decisionRef, eventMark), 0, label_": and no live event is published for it")
 				If sent.%Size() = 1 Do $$$AssertEquals(sent.%Get(0).bodyClass, "OcuTalon.Msg.ItemDecision", label_": unchanged")
 				Do $$$AssertTrue(..Processed(trace), label_": the router has handled the ItemDecision")
 				Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)

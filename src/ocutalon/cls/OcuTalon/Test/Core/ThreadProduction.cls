@@ -1,31 +1,25 @@
-/// End-to-end tests of the trace thread over the running production (Story 2.9; AD-26, AD-4, AD-29). THIS CLASS RUNS IN
-/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has, and it changes the
-/// running configuration of the production for the length of the class. Where the production does not run, every test fails with
-/// that reason (Guard).
-/// The swap stays until Epic 11 removes it: a real Decide on a throwaway, which has no model key, answers every turn no_key and
-/// sends no agent steps, and these tests need the double's replies, steps and decisions. So OnBeforeAllTests swaps the running
-/// item Decide to Test.Core.DecideDouble, through Ens.Config.Production and Ens.Director.UpdateProduction, and OnAfterAllTests
-/// puts back the class and the settings the item had, even after a failure. The double, as a production item, answers in the
-/// thread it was called in and sends two OcuTalon.Bridge.Msg.AgentStep messages for each decision it makes. Each test records the
-/// double's decisions (DecideDouble.Record), so that they carry the thread as their TraceSessionId.
-///   - TestTwoTurnsOneThread: two messages of one session on one day are two turns, answered by the double, whose Items are in one
-///     trace session T: the first Item's own id. The Session row holds T and today; every header of the session's SuperSession is in
-///     T, and T holds, for each turn, its two requests to Decide with their two responses, the agent steps of every decision and
-///     the Outbound to Notify, every request of T with the session's TraceRef as its SuperSession. The decisions the double wrote
-///     have T as their TraceSessionId, and the Turns keep the positions of
-///     their Item headers (the second after the first, and both what Core.Trace.Position says afterwards);
-///   - TestNewThreadAfterMidnight: with the Session row's day set to yesterday, the next message starts a new thread, its own Item's
-///     id, which the row then holds with today, and everything of that turn is in it;
-///   - TestRealDecideAfterTheRestore: with Decide put back, the turn is answered by the real Decide (the fallback no_key, with both
-///     decision Refs, and a decision event for each, which shows that the restore brought back the HostSink setting as well as the
-///     class), and the double is swapped in again for the tests after it;
-///   - TestBrokenRetryThroughTheProduction (QA; DW-112): a turn whose first answer is a broken session is retried through the
-///     running production as a new Decide call under RetryItemId of the turn's ItemId, in the day's thread, and gets the reply, the
-///     double refusing a second turn request of one ItemId as Decide does (AD-20).
+/// End-to-end tests of the trace thread over the running production (Story 2.9; AD-26, AD-4, AD-8, AD-9, AD-22, AD-29). THIS CLASS RUNS IN
+/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production and the CI mock, which a slot never has. Where they are
+/// missing, every test fails with that reason (Guard). The real Decide and the real runners answer: the runners' keys point at the mock for the whole
+/// class and are put back at its end (a failed restore fails the class), and the mock scripts the model. A message goes through WebChatIn to the real
+/// Conversation; the unmarked messages of the thread tests get the triage answer of A/triage.json and the Chat answer of A/chat.json (a
+/// list_productions call, then the reply "The CI mock looked at the productions.").
+///   - TestTwoTurnsOneThread: two messages of one session on one day are two turns, answered by the real Decide with the mock's reply, whose Items
+///     are in one trace session T: the first Item's own id. The Session row holds T and today; every header of the session's SuperSession is in
+///     T, and T holds, for each turn, its two requests to Decide with their two responses and the Outbound to Notify, every request of T with the
+///     session's TraceRef as its SuperSession. Each turn's agent steps are the runner's (a model step, the list_productions tool step and a model
+///     step) in T, and its triage and turn Decision rows have T as their TraceSessionId, with a decision event each. The Turns keep the positions
+///     of their Item headers (the second after the first, and both what Core.Trace.Position says afterwards);
+///   - TestNewThreadAfterMidnight: with the Session row's day set to yesterday, the next message starts a new thread, its own Item's id, which the
+///     row then holds with today, and everything of that turn is in it;
+///   - TestBrokenRetryThroughTheProduction (DW-112; AD-8): the marker scenario thread-broken-retry, armed through Mock.Arm, answers the turn's first
+///     Chat request with the 400 "Invalid input" and then the retried turn with its text. The turn is retried through the running production as a
+///     new Decide call under RetryItemId of the turn's ItemId, in the day's thread, and gets the scenario's text; the mock's log holds the 400 and
+///     the retry's request.
 /// Both thread tests also check that every session id among the headers of the run is the ID of a header whose SessionId is itself.
-/// The guard, the fixture sessions, the run's number (^OcuTalonTest("ThreadProduction","n")), the sending and the clean-up are those
-/// of Test.Core.InProduction; the clean-up also removes the turns that Conversation made with their events, the decisions the
-/// double wrote, and the double's records.
+/// The guard, the fixture sessions, the run's number (^OcuTalonTest("ThreadProduction","n")), the sending and the clean-up are those of
+/// Test.Core.InProduction; OnAfterOneTest removes the turns the tests made with their Decision, AgentStep and Usage rows (also those of a retry's
+/// ItemId and the broken attempt's Decision row), the countdown of the marker, and the AI sessions the turns saved.
 Class OcuTalon.Test.Core.ThreadProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -33,50 +27,79 @@ Class OcuTalon.Test.Core.ThreadProduction Extends OcuTalon.Test.Core.InProductio
 Parameter SESSIONPREFIX = "zzprodthread";
 
 /// Seconds to wait for a turn to be done, and for the item after it.
-Parameter WAIT = 30;
+Parameter WAIT = 60;
 
-/// The class that replaces Decide while the class runs.
-Parameter DOUBLE = "OcuTalon.Test.Core.DecideDouble";
+/// The reply of A/chat.json after its list_productions call.
+Parameter REPLY = "The CI mock looked at the productions.";
 
-/// The item that is swapped.
-Parameter ITEM = "Decide";
+/// The text of the second reply of A/thread-broken-retry.json.
+Parameter RETRYREPLY = "The CI mock answered the retried turn.";
 
-/// The seconds that UpdateProduction waits for the item's jobs.
-Parameter UPDATEWAIT = 30;
+/// The number of requests that thread-broken-retry's countdown answers with the 400: the turn's triage request and its first Chat request, which
+/// carry the marker; the retry's Chat request, which carries it too, then gets the scenario's second reply.
+Parameter ARMED = 2;
 
-/// 1 while the Decide item is the double.
-Property Swapped As %Boolean [ InitialExpression = 0 ];
+/// 1 while the runners' keys point at the CI mock.
+Property Pointed As %Boolean [ InitialExpression = 0 ];
 
-/// The class of the Decide item before the swap.
-Property OriginalClass As %String(MAXLEN = 220);
+/// The marker whose countdown a test armed, or "".
+Property Armed As %String;
 
-/// The settings of the Decide item before the swap, as a JSON array of {target, name, value}.
-Property OriginalSettings As %String(MAXLEN = "");
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
+Property SessionMark As %Integer;
 
 Method OnBeforeAllTests() As %Status
 {
-	Set status = ##super()
-	Set ..Swapped = 0
-	If ..Missing '= "" Quit status
-	Set sc = ..UseDouble(1)
-	If $SYSTEM.Status.IsError(sc) Set ..Missing = "The item Decide could not be swapped to the double: "_$SYSTEM.Status.GetErrorText(sc)
-	Quit status
+	Set sc = ##super()
+	If ..Missing '= "" Quit sc
+	Set ..Missing = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
+	If ..Missing '= "" Quit sc
+	Set ..Pointed = 1
+	Set pointed = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
+	If $$$ISERR(pointed) Set ..Missing = "The entries of the runners could not be pointed at the CI mock key variable: " _ $SYSTEM.Status.GetErrorText(pointed)
+	Quit sc
 }
 
 Method OnAfterAllTests() As %Status
 {
-	Set restored = $SYSTEM.Status.OK()
-	If ..Swapped Set restored = ..UseDouble(0)
+	Set sc = $$$OK
+	If ..Pointed {
+		Set ..Pointed = 0
+		Set restored = ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
+		Set sc = $SYSTEM.Status.AppendStatus(sc, restored)
+		If '##class(OcuTalon.Test.Agent.RunnerFixture).KeysAre(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER) {
+			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The entries of the runners do not hold the placeholder of the Provider step after the restore"))
+		}
+		If '##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords() {
+			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The runners did not record the restored keys"))
+		}
+	}
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
+	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
+}
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	If ..Missing = "" Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
+	Quit $$$OK
+}
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If ..Missing '= "" Quit $$$OK
+	If ..Armed '= "" {
+		Do ##class(OcuTalon.Test.Contract.Mock).Arm(..Armed, "")
+		Set ..Armed = ""
+	}
 	For i = 1:1:$Length(..Sessions, ",") {
 		Set session = $Piece(..Sessions, ",", i)
 		If session = "" Continue
-		Set written = ##class(OcuTalon.Test.Core.DecideDouble).Written(session)
-		If written '= "" Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_written
-		Do ##class(OcuTalon.Test.Core.DecideDouble).Clear(session)
+		Do ..RemoveRetries(session)
+		Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTurns(session)
 	}
-	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
-	Set status = ##super()
-	Quit $Select($SYSTEM.Status.IsError(restored): restored, 1: status)
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
+	Quit $$$OK
 }
 
 /// Two messages on one day: both Items are in the trace session of the first (T), with everything the turns do.
@@ -85,11 +108,10 @@ Method TestTwoTurnsOneThread()
 	If '..Guard() Quit
 	Set session = ..Session("two")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
-	Do ##class(OcuTalon.Test.Core.DecideDouble).Record(session, 1)
 	Set first = ..Turn(session, "two1", "zz first of the day")
 	Set second = ..Turn(session, "two2", "zz second of the day")
 	If '$IsObject(first) || '$IsObject(second) Quit
-	Do $$$AssertEquals(first.ReplyText_"|"_second.ReplyText, "zz reply to zz first of the day|zz reply to zz second of the day", "both turns are answered by the double")
+	Do $$$AssertEquals(first.ReplyText_"|"_second.ReplyText, ..#REPLY_"|"_..#REPLY, "both turns are answered by the real Decide with the mock's reply")
 
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Set items = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "WebChatIn", "Conversation")
@@ -122,20 +144,8 @@ Method TestTwoTurnsOneThread()
 	}
 	Do $$$AssertEquals(unmarked, "", "every request of the thread carries the TraceRef as its SuperSession: the Items, the decide and turn requests, the agent steps and the replies")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(inThread, 2, "Decide", "Conversation").%Size(), 4, "and their four responses")
-	Set steps = ##class(OcuTalon.Test.Data.Fixture).Between(inThread, 1, "Decide", "AgentSteps")
-	Do $$$AssertTrue(steps.%Size() >= 4, "and the agent steps: "_steps.%Size()_" requests to AgentSteps, at least two for each turn")
-	Set written = ##class(OcuTalon.Test.Core.DecideDouble).Written(session)
-	Do $$$AssertEquals($Length(written, ","), 4, "the double wrote four decisions")
-	For i = 1:1:$Length(written, ",") {
-		Set decisionRef = $Piece(written, ",", i)
-		Set count = 0
-		For j = 0:1:steps.%Size() - 1 {
-			If ##class(OcuTalon.Bridge.Msg.AgentStep).%OpenId(steps.%Get(j).bodyId).DecisionRef = decisionRef Set count = count + 1
-		}
-		Do $$$AssertTrue(count >= 2, "decision "_i_" has "_count_" agent steps in the thread")
-		Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decisionRef)
-		Do $$$AssertEquals($IsObject(decision) && (decision.TraceSessionId = thread), 1, "and its TraceSessionId is the thread")
-	}
+	Do ..AssertTurnRecords(session, thread, first, 2)
+	Do ..AssertTurnRecords(session, thread, second, 4)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(inThread, 1, "Conversation", "Notify").%Size(), 2, "the thread holds one Outbound to Notify for each turn")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(inThread, 1, "Notify", "WebChatOut").%Size(), 2, "and Notify's send to WebChatOut")
 	Do ..AssertRealSessions(headers, thread)
@@ -154,9 +164,9 @@ Method TestNewThreadAfterMidnight()
 	If '..Guard() Quit
 	Set session = ..Session("midnight")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
-	Do ##class(OcuTalon.Test.Core.DecideDouble).Record(session, 1)
 	Set first = ..Turn(session, "mid1", "zz before midnight")
 	If '$IsObject(first) Quit
+	Do $$$AssertEquals(first.ReplyText, ..#REPLY, "the first turn is answered by the real Decide with the mock's reply")
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
 	Set thread1 = row.ThreadSessionId
 	Do $$$AssertEquals(row.ThreadDay, ##class(OcuTalon.Core.Trace).Day(), "the first thread is today's")
@@ -164,6 +174,7 @@ Method TestNewThreadAfterMidnight()
 	Do $$$AssertStatusOK(row.%Save(), "the row's day is set to yesterday")
 	Set second = ..Turn(session, "mid2", "zz after midnight")
 	If '$IsObject(second) Quit
+	Do $$$AssertEquals(second.ReplyText, ..#REPLY, "and so is the second")
 
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Set items = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "WebChatIn", "Conversation")
@@ -189,71 +200,66 @@ Method TestNewThreadAfterMidnight()
 	Do $$$AssertEquals(mixed, 0, "no header of the second turn is in the first thread, and none of the first in the second")
 	Do ..AssertRealSessions(headers, thread1)
 	Do ..AssertRealSessions(inSecond, thread2)
+	Do ..AssertTurnRecords(session, thread1, first, 2)
+	Do ..AssertTurnRecords(session, thread2, second, 4)
 	Do $$$AssertEquals(second.TraceItemIndex, 1, "the new thread's first Item header is its first item")
 }
 
-/// With Decide put back, the real Decide answers the turn: the fallback no_key (the stack has no model key), with the triage and
-/// the turn decision Refs set and different, and two decision events on the session's stream (published by the host sink the
-/// restore brought back); then the double is swapped in again.
-Method TestRealDecideAfterTheRestore()
-{
-	If '..Guard() Quit
-	Set session = ..Session("real")
-	Try {
-		Do $$$AssertStatusOK(..UseDouble(0), "the item Decide is the real one again")
-		Set row = ..Turn(session, "real1", "zz through the real Decide")
-		If $IsObject(row) {
-			Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|no_key|", "the turn falls back: the real Decide has no model key")
-			Do $$$AssertTrue((row.TriageDecisionRef '= "") && (row.TurnDecisionRef '= "") && (row.TriageDecisionRef '= row.TurnDecisionRef), "with both decision Refs, which differ: "_row.TriageDecisionRef_", "_row.TurnDecisionRef)
-			Set decisions = ##class(OcuTalon.Test.Core.Observe).Events(session, "decision", 2, ..#WAIT)
-			Do $$$AssertEquals(decisions.%Size(), 2, "and two decision events are on the session's stream")
-			If decisions.%Size() = 2 Do $$$AssertEquals(decisions.%Get(0).payload.ref_"|"_decisions.%Get(1).payload.ref, row.TriageDecisionRef_"|"_row.TurnDecisionRef, "the triage decision's, then the turn decision's")
-		}
-	} Catch exception {
-		Do $$$AssertTrue(0, "the test threw: "_exception.DisplayString())
-	}
-	Do $$$AssertStatusOK(..UseDouble(1), "the double is swapped in again")
-}
-
-/// DW-112 through the running production: the double, recording like Decide, answers the turn request with a broken session and
-/// then, when the same turn asks again, with a reply. Decide gets the retry as a new request under RetryItemId of the turn's ItemId,
-/// in the day's thread with the TraceRef as SuperSession (a request under the turn's own ItemId would be refused, as Decide
-/// refuses it), the turn is done with the reply and keeps its own ItemId, and the broken attempt keeps its fallback row.
+/// DW-112 through the running production: the marker scenario thread-broken-retry (A/thread-broken-retry.json), armed for ARMED requests, answers
+/// the turn's first Chat request with the 400 "Invalid input", which breaks the turn's session; Conversation then asks again as a new Decide call under
+/// RetryItemId of the turn's ItemId, in the day's thread with the TraceRef as SuperSession (a request under the turn's own ItemId would be refused,
+/// as Decide refuses it), and the retried turn gets the scenario's second reply. The turn is done with that text and keeps its own ItemId, the
+/// broken attempt keeps its fallback row, and the mock's log holds the 400 and the retry's request.
 Method TestBrokenRetryThroughTheProduction()
 {
 	If '..Guard() Quit
 	Set session = ..Session("broken")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
-	Set double = "OcuTalon.Test.Core.DecideDouble"
-	Do $ClassMethod(double, "Record", session, 1)
-	Do $ClassMethod(double, "Script", session, "turn", $ListBuild("broken", "reply"))
-	Set row = ..Turn(session, "broken1", "zz broken then fine")
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set label = "thread-broken-retry:"_..Number
+	Set ..Armed = label
+	Do $$$AssertStatusOK($ClassMethod(mock, "Arm", label, ..#ARMED), "the countdown of "_label_" is armed for "_..#ARMED_" requests")
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set row = ..Turn(session, "broken1", "zz broken then fine [[mock:"_label_"]]")
 	If '$IsObject(row) Quit
-	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz broken then fine", "the turn is done with the reply of the retry")
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_..#RETRYREPLY, "the turn is done with the scenario's text, the retry's")
 	Set retry = ##class(OcuTalon.Core.Conversation).RetryItemId(row.ItemId)
-	Set seen = $ClassMethod(double, "Seen", session)
-	Set itemIds = ""
-	For i = 0:1:seen.%Size() - 1 {
-		If seen.%Get(i).kind = "turn" Set itemIds = itemIds_$ListBuild(seen.%Get(i).itemId)
-	}
-	Do $$$AssertEquals($ListLength(itemIds), 2, "Decide got two turn requests")
-	If $ListLength(itemIds) '= 2 Quit
 	Do $$$AssertTrue(retry '= row.ItemId, "the retry's ItemId is not the turn's")
-	Do $$$AssertEquals($List(itemIds, 1)_"|"_$List(itemIds, 2), row.ItemId_"|"_retry, "the first under the turn's own ItemId, the retry under the derived one")
 	Set thread = ##class(OcuTalon.Data.Session).RefIndexOpen(session).ThreadSessionId
 	Set requests = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(thread), 1, "Conversation", "Decide")
 	Do $$$AssertEquals(requests.%Size(), 3, "the day's thread holds three requests to Decide: the decide, the turn and its retry")
 	Set superOK = 0
+	Set itemIds = ""
 	For i = 0:1:requests.%Size() - 1 {
 		If requests.%Get(i).superSession = trace Set superOK = superOK + 1
+		Set body = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(requests.%Get(i).bodyId)
+		If $IsObject(body) && (body.Kind = "turn") Set itemIds = itemIds_$ListBuild(body.ItemId)
 	}
 	Do $$$AssertEquals(superOK, requests.%Size(), "each with the TraceRef as its SuperSession")
+	Do $$$AssertEquals($ListLength(itemIds), 2, "Decide got two turn requests")
+	If $ListLength(itemIds) = 2 Do $$$AssertEquals($List(itemIds, 1)_"|"_$List(itemIds, 2), row.ItemId_"|"_retry, "the first under the turn's own ItemId, the retry under the derived one")
 	Set broken = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(row.ItemId, "turn")
 	Set derived = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(retry, "turn")
 	Do $$$AssertTrue($IsObject(broken) && $IsObject(derived), "there is a turn decision under the turn's own ItemId and one under the retry's")
-	If '$IsObject(broken) || '$IsObject(derived) Quit
-	Do $$$AssertEquals(broken.Fallback_"|"_broken.FallbackReason, "1|error", "the broken attempt keeps its fallback row")
-	Do $$$AssertEquals(derived.Fallback_"|"_derived.Ref_"|"_derived.TraceSessionId, "0|"_row.TurnDecisionRef_"|"_thread, "the retry's decision is the turn's, in the thread")
+	If $IsObject(broken) && $IsObject(derived) {
+		Do $$$AssertEquals(broken.Fallback_"|"_broken.FallbackReason, "1|error", "the broken attempt keeps its fallback row")
+		Do $$$AssertEquals(derived.Fallback_"|"_derived.Ref_"|"_derived.TraceSessionId, "0|"_row.TurnDecisionRef_"|"_thread, "the retry's decision is the turn's, in the thread")
+	}
+	Set logged = $ClassMethod(mock, "LogSince", mark, .entries)
+	Do $$$AssertStatusOK(logged, "the mock's log is read")
+	Set bad = 0, good = 0
+	If $$$ISOK(logged) {
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If entry.scenario '= "thread-broken-retry" Continue
+			If entry.status = 400 Set bad = bad + 1
+			If entry.status = 200 Set good = good + 1
+		}
+	}
+	Do $$$AssertEquals(bad, ..#ARMED, "the mock's log holds the 400 of the scenario for each armed request (the triage request and the turn's first Chat request)")
+	Do $$$AssertEquals(good, 1, "and the one request of the retry that got its text")
+	Do $$$AssertStatusOK($ClassMethod(mock, "Arm", label, ""), "the countdown is cleared")
+	Set ..Armed = ""
 }
 
 /// --- helpers ---
@@ -292,40 +298,40 @@ Method AssertRealSessions(headers As %DynamicArray, extra As %String) [ Private 
 	}
 }
 
-/// Swaps the Decide item between the double (on) and the class and settings it had (off) in the production's configuration, then
-/// updates the running production.
-Method UseDouble(on As %Boolean) As %Status [ Private ]
+/// The records of a done turn of the session in the thread: the steps of its turn decision are the runner's (a model step, the list_productions
+/// tool step and a model step, with their headers in the thread), and its triage and turn Decision rows have the thread as their TraceSessionId and
+/// each one decision event on the session's stream, which holds expected decision events once the turn's two are published (the wait is a poll).
+Method AssertTurnRecords(session As %String, thread As %Integer, row As OcuTalon.Data.Turn, expected As %Integer) [ Private ]
 {
-	If +on = ..Swapped Quit $SYSTEM.Status.OK()
-	Set production = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
-	If '$IsObject(production) Quit $SYSTEM.Status.Error(5001, "There is no configuration of the production "_..#PRODUCTION)
-	Set item = production.FindItemByConfigName(..#ITEM)
-	If '$IsObject(item) Quit $SYSTEM.Status.Error(5001, "The production has no item "_..#ITEM)
-	If on {
-		Set ..OriginalClass = item.ClassName
-		Set settings = []
-		For i = 1:1:item.Settings.Count() {
-			Do settings.%Push({"target": (item.Settings.GetAt(i).Target), "name": (item.Settings.GetAt(i).Name), "value": (item.Settings.GetAt(i).Value)})
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).StepProblems(row.TurnDecisionRef, thread, $ListBuild("Listing the productions"), $ListBuild("list_productions")), "", "the steps of the turn are right, in the thread")
+	Set all = ##class(OcuTalon.Test.Core.Observe).Events(session, "decision", expected, ..#WAIT)
+	For ref = row.TriageDecisionRef, row.TurnDecisionRef {
+		Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
+		Do $$$AssertEquals($IsObject(decision) && (decision.TraceSessionId = thread), 1, "decision "_ref_" has the thread as its TraceSessionId")
+		Set events = 0
+		For i = 0:1:all.%Size() - 1 {
+			If all.%Get(i).payload.ref = ref Set events = events + 1
 		}
-		Set ..OriginalSettings = settings.%ToJSON()
-		Set item.ClassName = ..#DOUBLE
-		Do item.Settings.Clear()
-	} Else {
-		Set item.ClassName = ..OriginalClass
-		Do item.Settings.Clear()
-		Set settings = ##class(%DynamicArray).%FromJSON(..OriginalSettings)
-		For i = 0:1:settings.%Size() - 1 {
-			Set setting = ##class(Ens.Config.Setting).%New()
-			Set setting.Target = settings.%Get(i).target
-			Set setting.Name = settings.%Get(i).name
-			Set setting.Value = settings.%Get(i).value
-			Do item.Settings.Insert(setting)
+		Do $$$AssertEquals(events, 1, "and one decision event")
+	}
+}
+
+/// Removes what a retry left that the turn rows do not name: the AgentStep and Usage rows of the ItemId of each turn of the session and of its retry,
+/// and the turn Decision rows under those ItemIds (a broken attempt's included), which are adopted for the clean-up.
+Method RemoveRetries(session As %String) [ Private ]
+{
+	Set turns = ##class(OcuTalon.Data.Ownership).Turns(session, .sc)
+	Set refs = ""
+	For j = 1:1:turns.Count() {
+		Set itemId = turns.GetAt(j).ItemId
+		For one = itemId, ##class(OcuTalon.Core.Conversation).RetryItemId(itemId) {
+			Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(one)
+			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", one)
+			Set decision = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(one, "turn")
+			If $IsObject(decision) && (decision.OwnerRef = session) Set refs = refs_$Select(refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(decision)
 		}
 	}
-	Set sc = production.%Save()
-	If $SYSTEM.Status.IsError(sc) Quit sc
-	Set ..Swapped = +on
-	Quit ##class(Ens.Director).UpdateProduction(..#UPDATEWAIT)
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 }
 
 }

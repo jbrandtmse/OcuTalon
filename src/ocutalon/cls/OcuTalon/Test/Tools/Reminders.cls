@@ -1,11 +1,11 @@
 /// Tests of the Chat agent's reminder tools (Story 1.10; AD-1, AD-4, AD-7, AD-9, AD-10, AD-18, FR-34): set_reminder, list_reminders and
 /// cancel_reminder, the toolset OcuTalon.Tools.Reminders and the helper OcuTalon.Tools.CommandCall. THE TESTS BUT TestDeclarations AND TestAnswerShapes RUN IN THROWAWAY
 /// STACKS AND IN CI ONLY (Rule 21): they need OcuTalon.Production running after the Production step, the CI override's environment (the mock's base URL
-/// and OCUTALON_MOCK_KEY_HEADER=1) and the mock's request log, and fail with the reason where they do not have them. CommandsIn is a stub until Lane B's
-/// Story 2.3, and ReminderOps until Epic 8, so the first test points the Config Store entry of each runner at the non-secret CI variable
-/// OCUTALON_MOCK_KEY_HEADER (RunnerFixture.PointKeys) and puts the double Test.Tools.CommandsDouble behind the CommandsIn item (RunnerFixture.UseItemClass);
-/// OnAfterAllTests puts the stub and the entries back, also after a failure. The double records every command it receives in
-/// ^OcuTalonTest("CommandsDouble","calls") and answers from fixture Reminder rows the way ReminderOps will (the list contract). The live tests drive real
+/// and OCUTALON_MOCK_KEY_HEADER=1) and the mock's request log, and fail with the reason where they do not have them. The double Test.Tools.CommandsDouble stays as
+/// Story 1.10's recording double of the tool-to-command contract: the first test points the Config Store entry of each runner at the non-secret CI variable
+/// OCUTALON_MOCK_KEY_HEADER (RunnerFixture.PointKeys) and puts the double behind the CommandsIn item (RunnerFixture.UseItemClass);
+/// OnAfterAllTests puts the item's class and the entries back, also after a failure. The double records every command it receives in
+/// ^OcuTalonTest("CommandsDouble","calls") and answers from fixture Reminder rows the way ReminderOps does (the list contract). The live tests drive real
 /// turns of the Chat agent through ApprovalStartIn and Decide (RunnerFixture.Run) against the CI mock, and read what the double received, what the model got
 /// back (the tool_result blocks of the mock's log) and the steps of Visual Trace. The in-process tests begin a bridge context in the test process, as
 /// Test.Tools.Result does, and call the tool methods. Every user turn has an owner of its own (a new Ref).

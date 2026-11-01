@@ -4,8 +4,8 @@ import { applied, HEADER } from './floor';
 import { publishIncident, seedApproval, sinkEvent } from './iris';
 
 /**
- * What the answers unit's specs (e2e/answers/, Stories 6.3 and 6.4) and the demo path's steps 4 and 5 share to raise an incident and its approval
- * request on fixtures, as Lane A's raise path will until Epic 11 turns it on end to end: the incident as IncidentManager will publish
+ * What the answers unit's specs (e2e/answers/, Stories 6.3 and 6.4) share to raise an incident and its approval
+ * request on fixtures: the incident as IncidentManager publishes
  * it (an `incident` event), and a pending request whose `approval` event reaches the page through BridgeSink. incidentOf and raise are
  * the shared home of the two for those specs (cards/approval-card.spec.ts keeps its own copies). A request of the payload is `{ref, state?, result?}`: pending with
  * no result unless given, so that a case can publish the same incident again with a request answered, executing or finished (Story 6.4).

@@ -37,7 +37,7 @@
 #     is unchanged, and no node of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the key but its own, raw or base64url (counts
 #     only; the key is never printed);
 #   - the browser (rows 7 to 12, Story 16.8's reset.spec.ts (the last ten minutes before a reset on a controlled clock, and a real reset four
-#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b, and Story 16.3's R1, R2, R4 and R5; the REL-2 online run
+#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b, and Story 16.3's R1, R2 (with Story 10.3's R2b: /state names the fixture pairing), R4 and R5; the REL-2 online run
 #     has its own unit, test-online-demo-path.sh): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - the proxied phase (Story 16.3, rows 10 and 11 and Task 0 (c)): the public proxy address is set to the address IRIS sees for this
 #     host's requests, a first proxied sign-in must write a counter row (else the check fails naming the derived address), then five

@@ -688,6 +688,8 @@ export interface SeedDryRun {
  * (OcuTalonUser for a request that the floor user may answer); the answered fields describe an answer that is already recorded.
  */
 export interface ApprovalFields {
+  /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
+  ref?: string;
   kind?: string;
   state?: string;
   incidentRef?: string;
@@ -725,6 +727,7 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
             itemNoun: fields.dryRun.itemNoun,
           });
   const row = properties({
+    Ref: fields.ref,
     Kind: fields.kind,
     ToolName: fields.toolName,
     ExpiresAt: fields.expiresAt,
@@ -960,6 +963,8 @@ export interface IncidentFields {
   /** The incident's state (open unless given) and its open variant (fix unless given). */
   state?: string;
   openVariant?: string;
+  /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
+  requestRefs?: string;
 }
 
 /**
@@ -971,6 +976,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
     State: fields.state,
     OpenVariant: fields.openVariant,
+    RequestRefs: fields.requestRefs,
   });
   const lines = await irisScript(
     [
@@ -988,36 +994,60 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
   return ref;
 }
 
+/** The fields of a FixRun row that a spec may set: the counts and reason of its result (Fixture.FixRun ends the run unless endedAt is given). */
+export interface FixRunFields {
+  total?: number;
+  resent?: number;
+  completed?: number;
+  failedAgain?: number;
+  skipped?: number;
+  interrupted?: number;
+  reason?: string;
+  /** "" is a run that has not ended; undefined ends it now. */
+  endedAt?: string;
+}
+
 /**
- * Puts Test.Demo.IncidentManagerDouble behind the IncidentManager item of the stack's production (its Use), so that a dismissal reaches a
- * fixture owner that closes the incident and publishes its closed view (Story 6.4; AD-29). Throws with the status text when the item
- * could not take it. A spec that calls this puts the item back with restoreIncidentManager in its afterAll.
+ * Writes the FixRun of a request for an incident through Test.Data.Fixture.FixRun (the closed view lists the request's result from an ended
+ * run). cleanFixtureRows with the incident's Ref removes it.
  */
-export async function useIncidentManagerDouble(): Promise<void> {
-  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Use()', 'Write !,"CHK|use|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
-  const use = chk(lines, 'use');
-  if (!use?.startsWith('1|')) throw new Error(`the IncidentManager item could not take the double (${lines.join(' ')})`);
+export async function seedFixRun(incident: string, request: string, fields: FixRunFields = {}): Promise<void> {
+  const row = properties({
+    Total: fields.total === undefined ? undefined : numeric(fields.total, 'total'),
+    Resent: fields.resent === undefined ? undefined : numeric(fields.resent, 'resent'),
+    Completed: fields.completed === undefined ? undefined : numeric(fields.completed, 'completed'),
+    FailedAgain: fields.failedAgain === undefined ? undefined : numeric(fields.failedAgain, 'failedAgain'),
+    Skipped: fields.skipped === undefined ? undefined : numeric(fields.skipped, 'skipped'),
+    Interrupted: fields.interrupted === undefined ? undefined : numeric(fields.interrupted, 'interrupted'),
+    Reason: fields.reason,
+    EndedAt: fields.endedAt,
+  });
+  const lines = await irisScript([`Set r=##class(OcuTalon.Test.Data.Fixture).FixRun(${quoted(incident)},${quoted(request)},${fieldsObject(row)})`, 'Write !,"CHK|fixrun|",r'].join('\n'));
+  if (!chk(lines, 'fixrun')) throw new Error(`the FixRun could not be seeded (${lines.join(' ')})`);
 }
 
-/** Puts the IncidentManager item's class back as useIncidentManagerDouble found it (the double's Restore); throws when that fails. */
-export async function restoreIncidentManager(): Promise<void> {
-  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()', 'Write !,"CHK|restore|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
-  const restore = chk(lines, 'restore');
-  if (!restore?.startsWith('1|')) throw new Error(`the IncidentManager item could not be restored (${lines.join(' ')})`);
-}
-
-/** A command that the double recorded: its verb, the session it came for and its origin. */
-export interface DoubleCommand {
+/** A command that IncidentManager received: its verb, the session it came for and its origin. */
+export interface IncidentCommand {
   verb: string;
   session: string;
   origin: string;
 }
 
-/** The commands about the incident that the IncidentManager double recorded, oldest first (the double's Recorded). */
-export async function doubleCommands(ref: string): Promise<DoubleCommand[]> {
-  const lines = await irisScript(`Write !,"CHK|commands|",##class(OcuTalon.Test.Demo.IncidentManagerDouble).Recorded(${quoted(ref)})`);
+/**
+ * The commands about the incident that CommandsIn sent to IncidentManager, oldest first, read from the IncidentCommand bodies of the
+ * CommandsIn to IncidentManager request headers.
+ */
+export async function incidentCommands(ref: string): Promise<IncidentCommand[]> {
+  const lines = await irisScript(
+    [
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT MessageBodyId FROM Ens.MessageHeader WHERE SourceConfigName = \'CommandsIn\' AND TargetConfigName = \'IncidentManager\' AND Type = 1 AND MessageBodyClassName = \'OcuTalon.Msg.IncidentCommand\' ORDER BY ID")',
+      'Set out=""',
+      `While rs.%Next() { Set b=##class(OcuTalon.Msg.IncidentCommand).%OpenId(rs.%GetData(1)) If $IsObject(b),b.IncidentRef=${quoted(ref)} Set out=out_$Select(out="":"",1:";")_b.Verb_"|"_b.SessionRef_"|"_b.Origin }`,
+      'Write !,"CHK|commands|",out',
+    ].join('\n'),
+  );
   const recorded = chk(lines, 'commands');
-  if (recorded === undefined) throw new Error(`the double's commands could not be read (${lines.join(' ')})`);
+  if (recorded === undefined) throw new Error(`the incident commands could not be read (${lines.join(' ')})`);
   return recorded === ''
     ? []
     : recorded.split(';').map((command) => {

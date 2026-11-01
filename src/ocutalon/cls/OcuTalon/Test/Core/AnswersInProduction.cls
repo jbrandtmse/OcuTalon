@@ -25,7 +25,13 @@
 ///     changes nothing, and an empty one answers;
 ///   - TestGateStepAndHeldCallReachTheStream (DW-98): in a running turn's bridge context the real gate reports a safe built-in's
 ///     turn.step to the session's stream, and an unclassified call's pending approval event and, once the answer endpoint rejects it,
-///     its rejected event reach the stream, through BridgeSink.
+///     its rejected event reach the stream, through BridgeSink;
+///   - TestHeldCallExpiresOnTheStream, TestHeldCallCancelledOnTheStream (Story 2.8): a request that the real gate raised for a held
+///     call. Expired: its hold is deleted, the row is aged past its expiry and the Reconcile step re-arms a hold whose timer expires it
+///     (as Test.Bridge.Approval.TestTimerExpires does); the stream gets an expired approval event and the answer endpoint answers 409
+///     expired. Cancelled by Approval.Cancel with the arguments of SessionOps.EndApprovals: the stream gets a cancelled event and the
+///     endpoint answers 404 as for an unknown ref. TestExpiredRequestAnswersExpired also sees the expired event of an answer past the
+///     expiry.
 Class OcuTalon.Test.Core.AnswersInProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -47,6 +53,9 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..OnlineWas)
+	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner($Piece(..Sessions, ",", i))
+	}
 	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
 	Quit ##super()
 }
@@ -124,6 +133,9 @@ Method TestExpiredRequestAnswersExpired()
 	Do $$$AssertEquals(answer.approval.ref_"|"_answer.approval.state, request_"|expired", "and the expired request's payload: "_body)
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request)
 	Do $$$AssertEquals(row.State, "expired", "the row is expired")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(mine, "approval", 1, ..#EVENTSECONDS)
+	Do $$$AssertEquals(events.%Size(), 1, "one approval event reaches the session's stream")
+	If events.%Size() > 0 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, request_"|expired", "and it is the expired request")
 }
 
 Method TestRoleRefusalsComeBeforeTheOtherChecks()
@@ -306,6 +318,61 @@ Method TestGateStepAndHeldCallReachTheStream()
 {
 	If '..Guard() Quit
 	Set session = ..WebSession("gate")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+	Set body = ..Post(session, ref, "{""action"":""reject"",""channel"":""web""}", .status)
+	Do $$$AssertEquals(status, "200 OK", "rejecting it through the answer endpoint is 200")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 2, ..#EVENTSECONDS)
+	Do $$$AssertEquals(events.%Size(), 2, "a second approval event reaches the stream")
+	If events.%Size() > 1 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state, ref_"|rejected", "and it is the rejected request")
+	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+}
+
+Method TestHeldCallExpiresOnTheStream()
+{
+	If '..Guard() Quit
+	Set session = ..WebSession("hexp")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+	Set hold = ..WaitLiveHold(ref)
+	Do $$$AssertTrue(hold '= "", "the raised request has a live hold")
+	If hold = "" Quit
+	Do ##class(OcuTalon.Test.Bridge.Approval).Age(ref, 86460, -60)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(hold), "its hold is deleted, as a restart leaves a request without one")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step re-arms a hold, whose timer finds the request past its expiry")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 2, ..#EVENTSECONDS)
+	Do $$$AssertEquals(events.%Size(), 2, "a second approval event reaches the stream")
+	If events.%Size() > 1 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state, ref_"|expired", "and it is the expired request")
+	Set body = ..Post(session, ref, ..Approve(), .status)
+	Do $$$AssertEquals(status, "409 Conflict", "an answer to the expired request is 409")
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.error.code_"|"_answer.approval.state, "expired|expired", "expired, with the request's payload: "_body)
+	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+}
+
+Method TestHeldCallCancelledOnTheStream()
+{
+	If '..Guard() Quit
+	Set session = ..WebSession("hcan")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+	Set unknown = ..Post(session, "zzmissing"_..Number, ..Approve(), .status)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(ref, "", "web", $Username, session), "Approval.Cancel cancels it as SessionOps ends a session's requests")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 2, ..#EVENTSECONDS)
+	Do $$$AssertEquals(events.%Size(), 2, "a second approval event reaches the stream")
+	If events.%Size() > 1 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state, ref_"|cancelled", "and it is the cancelled request")
+	Set body = ..Post(session, ref, ..Approve(), .status)
+	Do $$$AssertEquals(status, "404 Not Found", "an answer to the cancelled request is 404")
+	Do $$$AssertEquals(body, unknown, "with the body of an unknown ref")
+	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+}
+
+/// --- helpers ---
+/// In a running turn's bridge context, the real gate reports a safe built-in's step to the session's stream (asserted), and holds an unclassified
+/// call: the pending tool_call request reaches the stream (asserted) and needs a role that this user holds. Answers the request's Ref, or "" when
+/// no pending event arrived. The session's requests are tracked for Test.Bridge.Approval.Clean.
+Method HeldCall(session As %String) As %String [ Private ]
+{
 	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(session, , "running")
 	Set ..Refs = ..Refs_","_turn
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn)
@@ -330,22 +397,16 @@ Method TestGateStepAndHeldCallReachTheStream()
 	Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(session)
 	Set held = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 1, ..#EVENTSECONDS)
 	Do $$$AssertEquals(held.%Size(), 1, "its pending approval event reaches the stream")
-	If held.%Size() < 1 Quit
+	If held.%Size() < 1 Quit ""
 	Set payload = held.%Get(0).payload
 	Do $$$AssertEquals(payload.kind_"|"_payload.state, "tool_call|pending", "as a pending tool_call request")
 	Set ref = payload.ref
 	Set approval = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	Set approval.RequiredRole = ..HeldRole()
 	Do $$$AssertStatusOK(approval.%Save(), "the held request needs a role that this user holds")
-	Set body = ..Post(session, ref, "{""action"":""reject"",""channel"":""web""}", .status)
-	Do $$$AssertEquals(status, "200 OK", "rejecting it through the answer endpoint is 200")
-	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 2, ..#EVENTSECONDS)
-	Do $$$AssertEquals(events.%Size(), 2, "a second approval event reaches the stream")
-	If events.%Size() > 1 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state, ref_"|rejected", "and it is the rejected request")
-	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+	Quit ref
 }
 
-/// --- helpers ---
 /// A fixture session of this process's user (Ownership.SessionRef accepts only a session of the signed-in user).
 Method WebSession(name As %String) As %String [ Private ]
 {
@@ -354,6 +415,18 @@ Method WebSession(name As %String) As %String [ Private ]
 	Set row.IrisUser = $Username
 	Do $$$AssertStatusOK(row.%Save(), "the fixture session "_name_" belongs to "_$Username)
 	Quit ref
+}
+
+/// The id of the request's live hold once it has one (the hold starts after the request is raised); after EVENTSECONDS seconds, "".
+Method WaitLiveHold(ref As %String) As %String [ Private ]
+{
+	Set end = $ZHorolog + ..#EVENTSECONDS
+	For {
+		Set hold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+		If (hold '= "") || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit hold
 }
 
 /// A role that this process's user holds.

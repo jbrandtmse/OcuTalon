@@ -2,7 +2,8 @@
 title: 'Story 11.9: Every check left off for release 1 turns on, and the CI flakes are fixed'
 type: 'chore'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f5aecd55e9dcefd1105caa2302a1a26b7abc940a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -298,6 +299,37 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-31 -- Review pass
+- verdicts: 27 findings -- high 0, medium 3, low 18, false 4, maybe-false 2
+- findings:
+  - `[low]` `[reject]` Blind: the slow-date shim could be spent on an earlier `date -u` -- the lock try's `date -u` is the first in `live_lock_claim`, and the planned mutation (`OCUTALON_LOCK_WAIT=1`) went red with `LOCK busy` after 1 s, which only happens when the delay lands in the lock's first try.
+  - `[low]` `[reject]` Blind: no comment says why other cases keep `WAIT=1` -- those cases take the lock on the first try (Code Map); a comment is not a defect.
+  - `[low]` `[patch]` Blind and Edge: `bad >= 1` is weaker than `ARMED = 2` -- `ThreadProduction.TestBrokenRetryThroughTheProduction` now asserts `bad = ARMED`.
+  - `[low]` `[reject]` Blind: `WAIT` 30 to 60 undocumented -- the parameter's doc states what it waits for; the value is an implementation detail.
+  - `[false]` `[reject]` Blind: `DismissIncident` still passes another outcome's Message to the user -- the spec (Tasks) says the branch for any other outcome is unchanged, and the route's doc states it.
+  - `[medium]` `[patch]` Blind and Edge: `TestOwnerErrorIs500` has no backstop if it dies between `Use` and `Restore` -- `DismissApi.OnAfterAllTests` calls `IncidentManagerDouble.Restore()` (a no-op when nothing was saved).
+  - `[low]` `[reject]` Blind: the test name `TestOwnerErrorIs500` no longer matches all its cases -- the spec names the test.
+  - `[low]` `[reject]` Blind: `incidentCommands` scans every CommandsIn header -- CI stacks are fresh; the query already filters on class and type; the cost is milliseconds.
+  - `[low]` `[reject]` Blind and Edge: other `page.goto` sites keep no retry -- declined in the spec's Ledger (DW-415) with `reopen_if`.
+  - `[low]` `[patch]` Blind: `body()` in `goto-settled.test.mjs` slices to -1 when the terminator is missing -- it now asserts the terminator is found.
+  - `[low]` `[reject]` Blind: no Node version guard for type stripping -- CI runs Node 24 (spec Code Map); the failure would be loud.
+  - `[false]` `[reject]` Blind: `DecideDouble` doc still implies a production-item mode -- the doc says it has no session as a shadow instance, and `Write` still reads `%SessionId`.
+  - `[low]` `[reject]` Edge: `CommandList` could open a body of another class -- the headers are CommandsIn to IncidentManager, and the Matrix and the browser reader filter on class; a different class there would be a product defect that other tests already catch.
+  - `[low]` `[patch]` Edge: assert the countdown is spent -- covered by `bad = ARMED` and `good = 1`; no separate `Remaining` call added.
+  - `[low]` `[reject]` Edge: `TestRealDecideAfterTheRestore` removed -- the spec (Tasks) orders its removal; the no-key fallback stays pinned by `Test.Bridge.Fallback`.
+  - `[medium]` `[patch]` Edge and Verification-gap: the route's own-Message branch for an outcome other than `not_allowed` is untested -- `TestOwnerErrorIs500` has a third case (the double's default refusal of an awaiting_approval incident gives 409 with the double's Message); mutation recorded.
+  - `[medium]` `[patch]` Verification-gap: AC9 and the `DismissApi`, AC3 record assertions and C10 lack `mutation:` lines -- mutation lines added under Verification (route without Submit, route without the visibility check, Message branch, test-side thread and steps mutations, the Task 0 (a) no-wake runs for AC9).
+  - `[low]` `[reject]` Verification-gap: `TestStoppedThenStarted` asserts no latency, so the wake is unpinned -- a latency bound is not deterministic (a lucky run passes either way); Task 0 (a)'s six latencies are the spec's reproduction (AC9), and the passing message gives the seconds.
+  - `[low]` `[reject]` Verification-gap: the source pin does not execute the five real sites -- the pin names each site; `live:sign-in` part 1 ran through the wrapper; wrong-argument wiring is unlikely.
+  - `[false]` `[reject]` Verification-gap: `TestHeldCallCancelledOnTheStream` acts before the hold exists -- `Approval.Cancel` moves the row's state under its lock and cancels the hold's task only when there is one; the test passed warm and fresh.
+  - `[false]` `[reject]` Verification-gap: `DecideDouble.Step` removal might break `SettingsOps` -- its "zz step" strings belong to `SettingsOpsProbe`, not to `DecideDouble`.
+  - `[low]` `[reject]` Intent: Story 6.4's 409 is pinned in-process, not over HTTP -- AC5 names `Test.Web.DismissApi`, and the browser cases C1, C5 run the real item.
+  - `[low]` `[reject]` Intent: R2b is two assertions in R2 -- the spec's task says exactly this.
+  - `[low]` `[reject]` Intent: DW-396's new case would not fail with the old wait of 1 s -- it is the point: the mutation with `OCUTALON_LOCK_WAIT=1` goes red (deterministic).
+  - `[maybe-false]` `[reject]` Intent: DW-376 has no simulation of a slow Task Manager -- the Task 0 (a) runs are the reproduction (AC9).
+  - `[low]` `[reject]` Intent: DW-415 is at five shared helpers, not every `goto` -- the Ledger declines the rest.
+  - `[maybe-false]` `[reject]` Intent: doc and comment edits change no behaviour -- a note, not a finding.
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -449,23 +481,52 @@ deferred: []
 | AC10 | the slow-first-try case run with `OCUTALON_LOCK_WAIT=1` | `test-ci-warm.sh`: no `LOCK waiting` (deterministic) |
 | AC11 | `gotoSettled` rethrows the first error; `helpers.ts:44` back to `page.goto` | `goto-settled.test.mjs` (the retry row; the source pin) |
 
+**Implement-stage results (measured on warm stack `e11s9iw`, lane A, build 154).**
+- Task 0 (a), DW-376: `RunNow` of the heartbeat task, started at second :05 to :16 of a minute, History polled up to 30 s. With `WakeTASKMGR` after it: a run seen after 0.26 s, 0.26 s and 0.26 s. Without the wake: no run within 30 s, three times (30.09 s, 30.08 s, 30.09 s). The boundary theory holds, so the wake is added.
+- Task 0 (b): the requests that carried `[[mock:thread-broken-retry:<n>]]` were the triage request, the turn's first Chat request and the retry's Chat request. `Arm` count 2 gives the 400 to the first two and the text to the retry (`ARMED = 2`).
+- Task 0 (c): the real closed view of a fixture incident (`Live.Payload.Incident.FromRow`) lists no request without `RequestRefs`; with `RequestRefs` and an approval row naming the incident it lists the request without a result; with an ended FixRun as well, the request carries its result. A request in `executing` with an ended run also carries the result, so C1 seeds a `done` row for the band's meaning.
+- A recompiled class reaches a running production item only after the item restarts (disable and enable it); the product mutations below restarted DigestStore, ApprovalHold and Conversation after the reload.
+- mutation: `Digest.Store` saves no row (item restarted) -> `RoutingProduction` `TestEachOutcomeThroughTheRouter` red (digest, plain and keyed); reverted, green.
+- mutation: `BridgeSink.IsApproval` without `approval.expired` -> `AnswersInProduction` `TestHeldCallExpiresOnTheStream` and `TestExpiredRequestAnswersExpired` red; without `approval.cancelled` -> `TestHeldCallCancelledOnTheStream` red; reverted, green.
+- mutation: `PointKeys` removed from `ThreadProduction.OnBeforeAllTests` -> all three thread tests red (no_key replies); reverted, green.
+- mutation: `Conversation.Rebuild` never retries (item restarted) -> `TestBrokenRetryThroughTheProduction` red; reverted, green.
+- mutation: `DismissIncident` with `not_allowed` back among the 500s -> `DismissApi` `TestRefusedIs409` red; reverted, green.
+- mutation: `DismissIncident` answers 200 without `Commands.Submit` (throwaway image; the run was reduced to C1 and C5 by skipping the other 18 cases) -> close-loop C1 and C5 red; reverted.
+- mutation: `/state` sets `telegram.paired` to 0 (full `live:online-demo`) -> `resume.spec.ts` R2 red at the paired assertion; reverted, `live:online-demo` green (mutated: 49 passed, 1 failed; reverted: 50 passed, 2 skipped).
+- mutation: a `notBuilt('x', '10.3')` line added -> the AC8 grep names it; reverted.
+- mutation: `gotoSettled` rethrows the first error -> `goto-settled.test.mjs` retry row and twice row red; `fillSignIn` back to `page.goto` -> the source pin names `fillSignIn`; reverted, 11 of 11 green.
+- mutation: the slow-first-try case with `OCUTALON_LOCK_WAIT=1` -> `test-ci-warm.sh` has no `LOCK waiting` (LOCK busy after 1 s); reverted, green.
+- mutation (review stage, Rule 19): `Web.Api.DismissIncident` answers 200 without `Commands.Submit` -> `DismissApi` `TestOwnIncidentCloses`, `TestResolvedIncidentCloses`, `TestBreakFeedAvailableAgain`, `TestRefusedIs409` and `TestOwnerErrorIs500` red; reverted, green.
+- mutation (review stage): `DismissIncident` without the visibility check (submits for any ref) -> `DismissApi` `TestOtherSessionsIncidentIs404` and `TestBodyIsIgnored` red (the route-level pin of close-loop C10's "submits nothing"); reverted, green.
+- mutation (review stage): `DismissIncident`'s last line always answers `MESSAGENOTDISMISSIBLE` -> `TestOwnerErrorIs500` ("with the Message that the outcome carries") red; reverted, green.
+- mutation (review stage, test-side, because `Bridge/Process/Decide.cls` is Epic 30's): `AssertTurnRecords` expecting another tool and `thread + 1` -> `TestTwoTurnsOneThread` and `TestNewThreadAfterMidnight` red on the steps and the TraceSessionId assertions; reverted, green.
+- mutation (AC9, DW-376): the no-wake runs of Task 0 (a) are the mutation of `WakeTASKMGR()` after `RunNow`: without it, no run within 30 s, three times. The test itself asserts only the 90 s ceiling, because a latency bound cannot be deterministic (a run that starts just before a minute boundary passes either way); the passing message gives the seconds it took.
+- Runs: the six loop classes and `Intake`, `ConversationTurns`, `Live.Payloads`, `BreakFeedProduction`, `Bridge.Fallback`, `Web.Api` pass warm; the six loop classes pass on a fresh stack; `live:answers` 20 passed; `live:online-demo` passed; `live:sign-in` part 1/2 passed with no `NAV retry` line; `test-mock`, `test-ci-warm`, `test-online-host`, `test-boundaries`, `test-class-rules` and `npm test` pass.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan summary.** The story turns on five checks that Epics 1 to 10 left off:
-- Story 1.12's digest row through OutcomeRouter;
-- Story 2.8's real expired and cancelled approval events;
-- Story 2.9's thread over the real Decide on the CI mock, with a new marker scenario `A/thread-broken-retry.json`;
-- Story 6.4's dismissal against the real IncidentManager, in `Test.Web.DismissApi` and `close-loop.spec.ts`;
-- Story 10.3's R2b.
+**Summary.** Five checks that Epics 1 to 10 left on a fixture or a double now run on the real items and the CI mock: Story 1.12's digest row through OutcomeRouter, Story 2.8's expired and cancelled approval events, Story 2.9's thread over the real Decide (with the new marker scenario `A/thread-broken-retry.json`), Story 6.4's dismissal against the real IncidentManager (in `Test.Web.DismissApi` and `close-loop.spec.ts`) and Story 10.3's R2b. The dismiss route answers the owner's `not_allowed` with 409 `not_dismissible` instead of 500. The three flakes are fixed: DW-376 (`WakeTASKMGR` after `RunNow`, a polled 90 s ceiling, diagnostics), DW-396 (`OCUTALON_LOCK_WAIT=3` and a slow-first-try case) and DW-415 (`gotoSettled` at the five shared navigation sites, with a hermetic node test). The stale "until ..." texts are corrected.
 
-It also fixes the dismiss route, which answered the real owner's `not_allowed` with 500. The answer is now 409 `not_dismissible`, per the spine's REST and Incident commands rows.
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls`: public `KeptProblems`, called by `AssertKept`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls`: the digest branch waits for DigestStore and asserts the row; the class cleans digest rows.
+- `src/ocutalon/cls/OcuTalon/Test/Core/AnswersInProduction.cls`: `HeldCall`, the expired and cancelled stream tests, and an expired event check.
+- `src/ocutalon/cls/OcuTalon/Test/Core/ThreadProduction.cls`, `.../Test/Core/DecideDouble.cls`, `ci/mock/scenarios/A/thread-broken-retry.json`: the thread over the real Decide on the mock; the double no longer runs in a production.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: `not_allowed` is 409 `not_dismissible`.
+- `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls`, `.../Test/Live/Payloads.cls`: `Fixture.FixRun`, lifted from `Payloads.Run`.
+- `src/ocutalon/cls/OcuTalon/Test/Web/DismissApi.cls`: no class-wide swap; the real item; the double only in `TestOwnerErrorIs500`.
+- `web/e2e/support/iris.ts`, `web/e2e/answers/close-loop.spec.ts`, `docker/tests/test-answers.sh`: `incidentCommands` and `seedFixRun`; no IncidentManager swap.
+- `web/e2e-online/resume.spec.ts`, `docker/tests/test-online-demo.sh`: R2b folded into R2 with the `telegram` assertions.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls`: the wake, `RUNNOWSECONDS`, diagnostics.
+- `docker/tests/test-ci-warm.sh`: `OCUTALON_LOCK_WAIT=3` and the slow-first-try case.
+- `web/e2e/support/navigate.ts`, `web/e2e/sign-in/helpers.ts`, `web/e2e/support/trace.ts`, `web/e2e-online/support.ts`, `web/scripts/goto-settled.test.mjs`: `gotoSettled` and its tests.
+- Stale texts: `Test/Bridge/Fallback.cls`, `Schedule/HeartbeatIn.cls`, `Test/Tools/Reminders.cls`, `web/e2e/support/approvals.ts`, `release/demo-host-checks.md`.
 
-It fixes the three flakes:
-- DW-376: `WakeTASKMGR` after `RunNow`, a polled 90 s ceiling, and a Task 0 reproduction.
-- DW-396: `OCUTALON_LOCK_WAIT=3`, and a deterministic slow-first-try case.
-- DW-415: `gotoSettled` at the five shared navigation sites, and a hermetic node test.
+**Review.** 27 findings across the four layers. Patches applied: 6 rows (3 medium, 3 low): the Message-branch case and the `OnAfterAllTests` restore in `DismissApi`, `bad = ARMED` in `ThreadProduction` (which also covers the countdown finding), the `body()` terminator assertion, and the added `mutation:` lines. Deferred: none. Rejected: 21 rows, each with its reason in the Review Triage Log. Follow-up review recommended: false. Three medium rows were patched, but every patch is test-side or a record, and the full verification below ran after the last one, so no unverified risk is left to name.
 
-There is no split, no change to `ci/units.sh`, and no edit to a contended file or to a file of Story 11.7. The CI effect is about -60 to +40 s in `image`, -10 to -30 s in `browser`, and under +1 s in `install-fresh` (inference).
+**Verification (re-run by the build stage after the patches).** Slot A: the two patched classes compile. Warm stack: `RoutingProduction`, `AnswersInProduction`, `ThreadProduction`, `DismissApi`, `Digest.Store`, `Schedule.Heartbeat` (135 s), `Intake`, `ConversationTurns`, `Live.Payloads`, `BreakFeedProduction`, `Bridge.Fallback` and `Web.Api` pass. Fresh stacks: the same six loop classes pass. `test-mock`, `test-ci-warm`, `test-online-host`, `test-boundaries`, `test-class-rules` and `npm --prefix web test` (1153) pass. `live answers` 20 of 20, `live online-demo` passes, `live sign-in --part 1/2` 127 passed with no `NAV retry` line. The AC8 grep names only Epic 12, 30 and 31 calls. All stacks of this stage are torn down and lane-a holds no lock.
+
+**Residual risks.** DW-376's wake is pinned by the Task 0 measurements and the diagnostics, not by an assertion (a latency bound is not deterministic). A recompiled class reaches a running production item only after the item restarts; warm-stack mutation runs of product items must restart the item. About 40 direct `goto` calls in specs keep no retry (declined, with `reopen_if` in the Ledger).

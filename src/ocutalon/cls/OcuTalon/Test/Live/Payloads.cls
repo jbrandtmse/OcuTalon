@@ -317,7 +317,7 @@ Method TestFromRowRequestResult()
 	Set row.RequestRefs = ended_","_running_","_bare
 	Do $$$AssertStatusOK(row.%Save(), "the fixture row lists three requests")
 	Do ..Run(row.Ref, ended, {"ResentAt": (at), "EndedAt": (at), "Total": 50, "Resent": 48, "Completed": 45, "FailedAgain": 3, "Skipped": 2, "Interrupted": 1, "Reason": "the order date still wasn't accepted"})
-	Do ..Run(row.Ref, running, {"ResentAt": "2026-01-01T00:00:00Z", "Total": 5, "Resent": 5, "Completed": 5, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0, "Reason": "stored before the end"})
+	Do ..Run(row.Ref, running, {"ResentAt": "2026-01-01T00:00:00Z", "EndedAt": "", "Total": 5, "Resent": 5, "Completed": 5, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0, "Reason": "stored before the end"})
 	Do ..Run(row.Ref, $ZConvert(bare, "U"), {"ResentAt": (at), "EndedAt": (at), "Total": 9, "Resent": 9, "Completed": 9, "FailedAgain": 0, "Skipped": 0, "Interrupted": 0})
 	Do ..Run(row.Ref, ##class(OcuTalon.Bridge.Ids).NewRef(), {"ResentAt": (at), "EndedAt": (at), "Total": 7, "Resent": 7, "Completed": 7})
 
@@ -336,21 +336,14 @@ Method TestFromRowRequestResult()
 		Do $$$AssertEquals(object.requests.%Get(1).%IsDefined("result"), 0, "a request whose run has not ended has no result, whatever the run stores")
 		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
 	}
-	Do $ClassMethod(fixture, "Clean", ended_","_running_","_bare)
+	Do $ClassMethod(fixture, "Clean", ended_","_running_","_bare_","_row.Ref)
 }
 
-/// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set.
+/// A saved FixRun of the request (the Ref) and the incident, with the properties of fields (an object) set. Fixture.FixRun ends the
+/// run unless fields gives EndedAt ("" is a run that has not ended).
 Method Run(incident As %String, request As %String, fields As %DynamicObject)
 {
-	Set run = ##class(OcuTalon.Data.FixRun).%New()
-	Set run.ApprovalRef = request
-	Set run.IncidentRef = incident
-	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set iterator = fields.%GetIterator()
-	While iterator.%GetNext(.name, .value) {
-		Set $Property(run, name) = value
-	}
-	Do $$$AssertStatusOK(run.%Save(), "a fixture FixRun is saved")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, fields) '= "", "a fixture FixRun is saved")
 }
 
 /// FromRow runs in /state as a user with no SQL grant, so the method code of Live.Payload.Incident holds no SQL at all (AD-13): no %SQL class, %ExecDirect,

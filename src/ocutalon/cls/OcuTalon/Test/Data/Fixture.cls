@@ -120,6 +120,21 @@ ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As 
 	Quit ..Keep(row)
 }
 
+/// A saved FixRun of the request (a Ref) for the incident (a Ref), started now and ended now unless fields, an object of property names and
+/// values, gives EndedAt ("" is a run that has not ended); fields is set after the defaults. It answers the run's id. The run is recorded under the
+/// incident's Ref, so that Clean of that Ref (or of every row) deletes it.
+ClassMethod FixRun(incident As %String, request As %String, fields As %DynamicObject = "") As %Integer
+{
+	Set row = ##class(OcuTalon.Data.FixRun).%New()
+	Set row.ApprovalRef = request
+	Set row.IncidentRef = incident
+	Set row.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	If '$IsObject(fields) || 'fields.%IsDefined("EndedAt") Set row.EndedAt = row.StartedAt
+	Do ..SetFields(row, fields)
+	Do ..Keep(row, incident)
+	Quit row.%Id()
+}
+
 /// A decision of the owner. kind defaults to decide, the attention decision; recordedAt to now; the outcome is tellnow. Its
 /// item is new, so the (item, kind) key stays unique. fields, an object of property names and values (Ref and ItemId
 /// included), is set after the defaults.

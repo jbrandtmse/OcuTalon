@@ -3,7 +3,7 @@
 # and, since Story 6.4, of every ending of an incident: builds the image and starts it in one throwaway compose project, creates the fixture
 # user ZzAnswers, then drives Chromium through the Playwright project answers (web/e2e/answers/): 6.3's answers.spec.ts (X1 to X10) and
 # 6.4's close-loop.spec.ts (C1 to C10; the results, rejections, expiry, fallbacks, Dismiss, and the cross-session 404 of the dismiss route,
-# with the IncidentManager item behind the fixture double for the spec's run). The incident and request cards' cases (6.1's I2 to I11 and
+# against the real IncidentManager item). The incident and request cards' cases (6.1's I2 to I11 and
 # 6.2's A2 to A10) are in the cards unit (docker/tests/test-cards.sh), and I1 and A1, which also run in Firefox and WebKit, in the floor unit.
 # The cases X1 to X10 of answers.spec.ts:
 #   - X1: an incident notice reaches the phone as a message with the catalog's text, the dry run's example in mono, and Approve and Reject

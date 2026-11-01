@@ -547,21 +547,33 @@ Method AssertKept(owner As %String) [ Private ]
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertStatusOK(sc, "the decision is answered OK")
 	Do $$$AssertTrue('$IsObject(response), "with no response object")
-	Do $$$AssertEquals(..CountItem(itemId), 1, "one row holds the ItemId")
-	Set row = ..RowOf(itemId)
-	Do $$$AssertTrue($IsObject(row), "the row is found")
-	If $IsObject(row) {
-		Do $$$AssertEquals(row.SessionRef, owner, "its SessionRef is the OwnerRef")
-		Do $$$AssertEquals(row.DecisionRef, decisionRef, "its DecisionRef is the message's")
-		Do $$$AssertEquals(row.Channel, "mailbox", "its Channel is the message's")
-		Do $$$AssertEquals(row.Summary, "Test "_itemId, "its Summary is the message's")
-		Do $$$AssertTrue(row.RecordedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "its RecordedAt is UTC to the second: "_row.RecordedAt)
-		Do $$$AssertTrue((before '] row.RecordedAt) && (row.RecordedAt '] after), "and lies between the clock before the send ("_before_") and after it ("_after_")")
-	}
+	Set problems = ..KeptProblems(itemId, owner, decisionRef, "mailbox", "Test "_itemId, before, after)
+	Do $$$AssertEquals(problems, "", "one row holds the ItemId, with the message's SessionRef, DecisionRef, Channel and Summary and a RecordedAt between the clock before the send ("_before_") and after it ("_after_")")
 	Set session = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionOf(decision, headerMark)
 	Do $$$AssertTrue(session '= "", "the send is found in a session")
 	If session '= "" Do $$$AssertEquals(..SentOn(session), "[]", "DigestStore sent no message but its reply")
 	Do $$$AssertEquals(..LiveEvents(owner, itemId, decisionRef, eventMark), 0, "no live event is on the stream or holds the ItemId or the DecisionRef")
+}
+
+/// The problems of the one row that holds the ItemId, joined with "; ", else "": the count of rows with the ItemId (1), its SessionRef (the owner), DecisionRef,
+/// Channel and Summary, and its RecordedAt (UTC to the second, between the clocks before and after).
+ClassMethod KeptProblems(itemId As %String, owner As %String, decisionRef As %String, channel As %String, summary As %String, before As %String, after As %String) As %String
+{
+	Set problems = ""
+	Set count = ..CountItem(itemId)
+	If count '= 1 Quit count_" rows hold the ItemId "_itemId_", not 1"
+	Set row = ..RowOf(itemId)
+	If '$IsObject(row) Quit "the row of "_itemId_" is not found"
+	If row.SessionRef '= owner Set problems = problems_$Select(problems = "": "", 1: "; ")_"SessionRef "_row.SessionRef_" is not the OwnerRef "_owner
+	If row.DecisionRef '= decisionRef Set problems = problems_$Select(problems = "": "", 1: "; ")_"DecisionRef "_row.DecisionRef_" is not the message's "_decisionRef
+	If row.Channel '= channel Set problems = problems_$Select(problems = "": "", 1: "; ")_"Channel "_row.Channel_" is not "_channel
+	If row.Summary '= summary Set problems = problems_$Select(problems = "": "", 1: "; ")_"Summary "_row.Summary_" is not "_summary
+	If '(row.RecordedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z") {
+		Set problems = problems_$Select(problems = "": "", 1: "; ")_"RecordedAt "_row.RecordedAt_" is not UTC to the second"
+	} ElseIf (before ] row.RecordedAt) || (row.RecordedAt ] after) {
+		Set problems = problems_$Select(problems = "": "", 1: "; ")_"RecordedAt "_row.RecordedAt_" is not between "_before_" and "_after
+	}
+	Quit problems
 }
 
 /// "" when OcuTalon.Production runs with every item (the wait is a poll, up to the fixture's ceiling). Otherwise the reason.
