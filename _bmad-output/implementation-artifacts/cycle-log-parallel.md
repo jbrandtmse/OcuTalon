@@ -1191,3 +1191,14 @@
 2026-11-01T01:23:51Z	Epic 1-37	hold_reported	inbox=U-198 resume_prompt=refreshed(prompts_copied_to_.worktrees/.coordination/prompts/)
 2026-11-01T01:24:11Z	Epic 1-37	notify	kind=push item=hold_complete(#9) message=switch_accounts_after_the_Planner's_policy_commit;re-run_/epic-cycle_1-37_--unattended;5.13_first
 2026-11-01T01:24:11Z	Epic 1-37	run_end	reason=hold(#9) lock_token=1793309743-42359 next=interactive_resume_after_the_account_switch
+2026-11-01T02:51:59Z	Epic 1-37	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-01T02:51:59Z	Epic 1-37	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-01T02:51:59Z	Epic 1-37	launch_env	depth=default watchdog=default bash_max_ms=default
+2026-11-01T02:51:59Z	Epic 1-37	telemetry_gate	pending=0 action=none
+2026-11-01T02:51:59Z	Epic 1-37	permission_mode_attested	mode=bypassPermissions source=session(interactive_resume;the_harness_reports_bypass_mode_active)
+2026-11-01T02:51:59Z	Epic 1-37	unattended_resumed	run=20261026T1518Z-1-37 policy=ff1bd1a60299f4f82e554739400da95233d7bcb5 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 lock_token=1793501418-89575 session=OcuTalon_Orchestrator_10-31-2026[280206] visibility=public(owner:"It's_a_public_repo",2026-10-31T06:03Z) notify=push policy_change=e204efac(hold_9,Contest_Planner_under_delegation:1.0.0_first_release;0.1.0/0.1.1_not_cut;12,31_merge_when_done;39-41_merge_gate_rc1;27,28_post_contest)
+2026-11-01T02:51:59Z	Epic 1-37	hold_cleared	id=U-198 reason=resumed_by_the_owner(interactive,after_the_account_switch) locks=none_held(nothing_to_sweep) peer_note=session_"OcuTalon_Orchestrator_10-29-2026"[782a04]_open_and_idle;not_the_lock_holder;the_lock_keeps_it_out
+2026-11-01T02:51:59Z	Epic 5	dispatch_planned	runner=B slot=ocutalon-slot-b story=5.13(launch-blocking,first) base=8b11e411 prompt=.worktrees/.coordination/prompts/dispatch-epic-5-513-resume9.md
+2026-11-01T02:51:59Z	Epic 11	dispatch_planned	runner=A slot=ocutalon-slot-a mode=redispatch_after_hold9 head=d47e4674 apply=U-192(2026-10-31T13:03:35Z#582) prompt=.worktrees/.coordination/prompts/dispatch-epic-11-resume9.md
+2026-11-01T02:51:59Z	Epic 12	dispatch_planned	runner=C slot=ocutalon-slot-c mode=redispatch_after_hold9 head=6d4c9f1e hold_patch=12-3_code-review(tree=clean) prompt=.worktrees/.coordination/prompts/dispatch-epic-12-resume9.md
+2026-11-01T02:51:59Z	Epic 30	waiting	on=5.13_merge(runner_B) then=dispatch-epic-30-redispatch.md_refreshed_for_a3a460fa
