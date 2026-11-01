@@ -373,7 +373,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - UX-DR41 [R1] Skeleton: D `skeleton`: static `sunken` blocks shaped like the coming rows, never shimmering, until data arrives or 10 s pass, then content or the load error (UX-DR89). (Supports: —; Source: D+E › Frame)
 - UX-DR42 [R1] Links and trace links: Links (D `link`) are always underlined; leaving the page adds "(opens in a new tab)" or "(opens Telegram)" to its name. Trace links (D `trace-link`) sit on every decision, check and reminder, opening their UX-DR139 target in a new tab. On local and IPM installs, until the sign-in popover is seen this session, trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`. (Supports: —; Source: D+E › Frame)
 - UX-DR43 [R1] Demo guide strip: Demo mode only (D `demo-guide`). Row 1: "Demo guide", the steps Watch, Reminder, Break the feed, Approve and Open the trace, "About 2 minutes", "Hide guide"; row 2, the `sunken` prompt bar: "Next:", quoted prompt, action button; Break the feed box at right. Markers per D `guide-step-*`, never a teal ring; current step `aria-current="step"`; names carry state ("Step 3, Break the feed, current"). Any order; done only from real state; self-advancing (focus per UX-DR131); only Break the feed is gated. (Supports: FR-16, UJ-1; Source: D+E › Demo guide and controls)
-- UX-DR44 [R1] Guide steps and completion: Prompts per the source (keys: optional Telegram row, steps 1–5, step 3 waiting, step 4 paired and unpaired); step 1 "Watch the Orders production and only tell me if something needs me.", step 2 "Remind me in 1 minute to stretch.". A buttonless Telegram row precedes step 1 while Telegram is on and unpaired. Done when: 1 a watch exists; 2 a reminder exists; 3 the notice arrives (**Go to Break the feed** focuses, never presses); 4 the request is answered (**Show me** focuses the pending phone notification, never Approve); 5 the trace is opened. (Supports: FR-16, UJ-1; Source: E › Demo Mode › The demo guide)
+- UX-DR44 [R1] Guide steps and completion: Prompts per the source (keys: optional Telegram row, steps 1–5, step 3 waiting, step 4 paired and unpaired); step 1 "Watch the Orders production and only tell me if something needs me.", step 2 "Remind me in 1 minute to stretch.". A buttonless Telegram row precedes step 1 while Telegram is on and unpaired. Done when: 1 a watch exists; 2 a reminder exists; 3 the notice arrives (**Go to Break the feed** focuses, never presses [AMENDED 2026-11-01, Story 4.8: no button; focus moves to Break the feed when step 3 becomes current by the user's own press]); 4 the request is answered (**Show me** focuses the pending phone notification, never Approve); 5 the trace is opened. (Supports: FR-16, UJ-1; Source: E › Demo Mode › The demo guide)
 - UX-DR45 [R1] Guide turns, step 4 variants: Steps 1–2 send their prompt verbatim as the user's message; the "From the demo guide" tag is display-only [ASSUMPTION]; guide sends aren't announced; the reminder precedes Break the feed to overlap the wait. Step 4 has rejected, fallback and no-fix (P25) variants (source), and after a fallback notice or a no-fix notice, step 5 stays available. At the allowance limit, prompt buttons are `aria-disabled`, with the reason shown. (Supports: FR-16, UJ-1, FR-40; Source: E › Demo Mode › The demo guide)
 - UX-DR46 [R1] Compact and collapsed guide: Under 680px tall: one `guide-compact-height` row (numbered steps, prompt bar); at 1024–1279px wide: numbers instead of step labels. "Hide guide" collapses it to D `guide-collapsed-bar`, "Demo guide · step {n} of 5 · Show guide" (`aria-expanded`), with the Break the feed box on the right. The choice is remembered per browser. (Supports: —; Source: D+E › Demo guide and controls)
 - UX-DR47 [R1] Guide finish state: Replaces the prompt bar after step 5: "Done." paragraph; run total "This run: {n} decisions · {tokens} tokens · {cost} on {model}." (`body-sm`, `ink-muted`, tabular figures); the links "See the whole conversation in Visual Trace ↗", "Install OcuTalon yourself ↗" and "Use the same bridge in your own production ↗" (Kit; ↗ hidden; names say new tab); "More to try"; **Run again** (markers only). Focus to its first line; Break the feed back to attention style. (Supports: FR-5, UJ-1; Source: E › Demo Mode › The demo guide) Shown only after an approved fix and a resolved incident (P24).
@@ -645,7 +645,7 @@ Every action is classified safe or risky by fixed rules the model and arriving c
 With demo mode on, the page shows the demo guide with one-click prompts, a labelled simulated phone and simulated mailbox that are real production channels (with three one-click sample emails), and a Break the feed control that sends the session's 50 orders in a changed date format into the Orders production, active only when the guide's conditions hold; an admin can switch demo mode.
 **Lane:** B. **Depends on:** Epic 2.
 **FRs covered:** FR-12 (demo-mode panels), FR-13, FR-16.
-**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105.
+**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button.]
 
 ### Epic 5: OcuTalon watches a production and explains what broke
 
@@ -2628,7 +2628,7 @@ So that I finish the demo in about two minutes and know what I saw.
 
 **Acceptance Criteria:**
 
-**Given** step 3 is selected
+**Given** step 3 is selected [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 removes the Go to Break the feed button; focus moves to the box's button when step 3 becomes current by the user's own press]
 **When** I press **Go to Break the feed**
 **Then** focus moves to the Break the feed control without pressing it; the prompt reads "Press Break the feed. The partner will send 50 orders in a new date format.", and while waiting "Waiting for OcuTalon. The reminder may arrive first."; the step is done when the incident notice, fallback notice or no-fix notice arrives (FR-16, FR-24, UX-DR44)
 
@@ -2657,6 +2657,35 @@ So that I finish the demo in about two minutes and know what I saw.
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
 - DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
 - DW-215: Guide.Compute could report finished true together with step 4 current and a rejected, fallback or no_fix variant if a resolved incident keeps that OpenVariant (unverified until Story 5.5's IncidentManager exists): when this story renders the finish state and the step 4 hints, make the finish condition exclude an incident whose variant is rejected, fallback or no_fix, or prove with a test that a resolved incident never keeps one (ledger; routed by cr 2026-10-25)
+
+### Story 4.8: Step 3 of the guide points to Break the feed without a second button
+
+[ADDED 2026-11-01, owner feedback from the demo walk-through, relayed by the Contest Planner under delegation; the owner: "The demo seems to work fine, but the green "Go to Break the feed" button is redundent when teh "Break the feed" red button is right next to it." Epic 4 is re-opened for it under SC-5. In 1.0.0's scope (a fix to an existing feature); not launch-blocking.]
+
+As a judge on step 3 of the demo guide,
+I want the guide to point me at the red Break the feed button without a second button beside it,
+So that there is one obvious thing to press.
+
+**Acceptance Criteria:**
+
+**Given** step 3 is current or selected
+**When** the guide's Next bar renders
+**Then** it shows only the instruction line "Press Break the feed. The partner will send 50 orders in a new date format." (and, while waiting, "Waiting for OcuTalon. The reminder may arrive first.") with no action button: the **Go to Break the feed** button, its `goToBreakFeed` prompt action, its text and its handler are removed (UX-DR44)
+**And** the Demo Control's "Next step" tag and the box's teal left bar stay as they are; they are what points the visitor to the red button now (UX-DR48)
+
+**Given** step 3 becomes current by the user's own press (step 2 to step 3, after the user's Send on step 2; and **Run again** from the finish state)
+**When** the guide moves to step 3
+**Then** focus moves to the box's **Break the feed** button and nothing is pressed, so the keyboard and screen-reader path the removed button gave stays (UX-DR44, UX-DR131)
+**And** focus never moves when step 3 becomes current without the user's own press, as the focus rule already says (shared/focus-rule.ts)
+
+**Given** the UX spec and the mockup
+**When** this story merges
+**Then** EXPERIENCE.md's demo guide table row 3 and Flow 1's step 5 ("Dana presses Go to Break the feed, then Break the feed") and the mockup's C2 state (states.html: the Next bar's button and the C2 caption) drop the button, each with a marker citing the owner's feedback of 2026-11-01
+
+**Given** the change
+**When** this story merges
+**Then** the guide's tests follow it: the floor e2e cases M7, M10 and M12 and the step 2 to step 3 case (web/e2e/floor/guide.spec.ts), web/e2e/guide/guide.spec.ts, 01-page.spec.ts's step 3 row, guide-view.test.mjs, announce-focus-sources.test.mjs and ux-strings.test.mjs's guide string list
+**And** CI is green on every workflow, and the story touches only `web/src/app/guide/*`, those tests, and the two UX files
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 

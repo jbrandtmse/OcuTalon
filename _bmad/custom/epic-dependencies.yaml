@@ -67,6 +67,9 @@
 # Changed 2026-10-31T21:4xZ (launch-blocking, owner decision via the Contest Planner: "Add it to 1.0.0", "Wait for the fix"):
 # Story 5.13 re-opens Epic 5 under SC-5: a read-only, trusted `recent_activity` chat tool (Lane A's OcuTalon.Tools). 1.0.0 scope, so
 # no merge gate; it runs ahead of other pool work. No edge changes.
+# Changed 2026-11-01T05:2xZ (owner feedback from the demo walk-through, via the Contest Planner under delegation): Story 4.8
+# re-opens Epic 4 under SC-5: step 3 of the demo guide loses its "Go to Break the feed" button (web/src/app/guide/*, the guide's
+# tests, EXPERIENCE.md and the C2 mockup). 1.0.0 scope, no merge gate, not launch-blocking; first free runner. No edge changes.
 # Changed 2026-10-31, owner decisions relayed by the Contest Planner (the owner's personality decisions of 2026-10-31, inbox U-195;
 # the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they
 # can ship quickly."): three personality epics, 39 (agent heartbeat), 40 (persona) and 41 (memory that learns), join the
@@ -119,7 +122,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "67023e51cb50fc07748d93753c1b468b8349e7c46aaf410c0afaa964e3fe2d00"
+epics_md_hash: "b6a9ec71f243ddfee25860fcd1aa2ac3fefe51d1b6ef2e2db0b8bfe4e0d6606a"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
