@@ -552,6 +552,11 @@ Observed (implement stage; each applied, seen red, reverted and compared with `c
 - mutation: the `state === 'on' && telegram.paired` branch moved above the `off`/`rejected` branch -> not red: the branch is gated on `state === 'on'`, so for `off` and `rejected` the order cannot change the view. Only that move together with dropping the `state === 'on'` gate from the paired branch -> T4 red ("paired, state off: the card is not-set-up": expected 1, received 0). The gate alone, with the order kept, is not red either (the not-set-up branch returns first).
 - mutation: `Demo/Guide.cls` (Lane B, temporary, restored) `TelegramRow` always 1 -> T5 red ("the guide has no Telegram line": the Demo guide region still holds "Optional: scan the QR code" while paired).
 
+QA stage (audit of every AC and matrix row against the existing tests; no test file created or changed, because every AC and row was pinned). Two assertions that the implement stage had not seen red were mutated (each applied, seen red, restored, `cmp` against a backup, `git status --short` and `git diff --stat` unchanged):
+- (QA) mutation: `TelegramIn.Pair` writes `$$$LOGINFO("paired chat "_chatId)` on `paired` (AC1/AC3, the event-log scan of "Nothing leaks into the trace") -> `TestPairs` red ("the event log holds the chat id").
+- (QA) mutation: `.paired-icon` loses `color: var(--telegram-card-paired-icon)` (AC3, the icon's token colour) -> T5 red (`toHaveCSS` on the icon; `STEP 1 page: failed, 10 passed, 1 failed`).
+- (QA) `live sign-in --part 1/2` on a fresh throwaway (tag `e12s4qa`): passed, 127 passed in 3.7 min.
+
 Measured: `TelegramPair` 16.2 to 16.6 s (warm, and in `shard lane-a@Channel` in both orders); the whole shard 352 s forward and 372 s reversed on a fresh throwaway; T5 8.0 s locally (T1 24.6 s, T2 0.6 s, T3 31.3 s, T4 14.4 s); `live demo-path` 4 min 56 s locally (first start 113 s ready); `STEP 1 page: passed, 11 passed, 0 skipped`. The either-order run (T5, T4, T3, T1, T2) passed. `live sign-in` parts 1/2 and 2/2 passed. `ci/changes.sh` with no push event runs every group (it reads GitHub for a base, so the real selection is CI's).
 
 ## Auto Run Result
