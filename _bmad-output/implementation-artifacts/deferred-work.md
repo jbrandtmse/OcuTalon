@@ -2818,3 +2818,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: runner smoke of 12.6 (tag e12s6smk, 2026-11-01T17:30Z): 1 failed telegram-page.spec.ts:925 expect.poll repliesOf(STRANGER_CHAT) toEqual([BAD]) timeout 10000ms; rerun 19 passed
 - 2026-11-01T17:35:48Z status=routed owner=burndown by=smoke note=flake class: one rerun with occurrence=; a second red on the same head takes the rework path; probe whether TelegramIn's poll plus Notify->TelegramOut can exceed 10 s under load, or the reply list read races the send
+
+### DW-540: flake: web/e2e/demo-switch/mailbox.spec.ts:425 MB9 (a refused chip press shows the server message; page.waitForResponse hit the 120 s test timeout) red once in CI shards-2 live:demo-switch on OCT-epic12 b14f7527; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/cycle-log-epic-12.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 41334145441 job iris (shards-2) attempt 1: 1 failed (MB9, 2.0m); attempt 2 green; Epic 12 changed no mailbox or demo-switch code
+- 2026-11-01T19:32:33Z status=routed owner=burndown by=ci note=flake class: one rerun with occurrence=; Lane B's (Epic 4 / Story 4.6) test; a second red on the same head takes the rework path
